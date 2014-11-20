@@ -6,7 +6,7 @@
 package org.elasticsearch.shield.authc.active_directory;
 
 /**
- * LdapExceptions typically wrap jndi Naming exceptions, and have an additional
+ * ActiveDirectoryExceptions typically wrap jndi Naming exceptions, and have an additional
  * parameter of DN attached to each message.
  */
 public class ActiveDirectoryException extends SecurityException {
@@ -26,7 +26,4 @@ public class ActiveDirectoryException extends SecurityException {
     public ActiveDirectoryException(String msg, String dn, Throwable cause) {
         super( msg + "; DN=[" + dn + "]", cause);
     }
-
-    //TODO map active directory error codes to better messages like in this:
-    // https://github.com/spring-projects/spring-security/blob/master/ldap/src/main/java/org/springframework/security/ldap/authentication/ad/ActiveDirectoryLdapAuthenticationProvider.java#L65
 }

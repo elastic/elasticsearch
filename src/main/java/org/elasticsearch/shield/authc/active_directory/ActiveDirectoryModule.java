@@ -7,11 +7,8 @@ package org.elasticsearch.shield.authc.active_directory;
 
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.authc.Realm;
 import org.elasticsearch.shield.authc.support.ldap.LdapSslSocketFactory;
 import org.elasticsearch.shield.support.AbstractShieldModule;
-
-import static org.elasticsearch.common.inject.name.Names.named;
 
 /**
  * Configures ActiveDirectory Realm object injections
@@ -32,7 +29,7 @@ public class ActiveDirectoryModule extends AbstractShieldModule.Node {
             for JNDI invokes a static getSocketFactory method from LdapSslSocketFactory.  */
             requestStaticInjection(LdapSslSocketFactory.class);
 
-            bind(Realm.class).annotatedWith(named(ActiveDirectoryRealm.type)).to(ActiveDirectoryRealm.class).asEagerSingleton();
+            bind(ActiveDirectoryRealm.class).asEagerSingleton();
         } else {
             bind(ActiveDirectoryRealm.class).toProvider(Providers.<ActiveDirectoryRealm>of(null));
         }
@@ -43,7 +40,7 @@ public class ActiveDirectoryModule extends AbstractShieldModule.Node {
         if (!authcSettings.names().contains(ActiveDirectoryRealm.type)) {
             return false;
         }
-        Settings ldapSettings = authcSettings.getAsSettings(ActiveDirectoryRealm.type);
-        return ldapSettings.getAsBoolean("enabled", true);
+        Settings adSettings = authcSettings.getAsSettings(ActiveDirectoryRealm.type);
+        return adSettings.getAsBoolean("enabled", true);
     }
 }

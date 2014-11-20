@@ -19,7 +19,7 @@ public class LdapRealm extends AbstractLdapRealm {
 
     @Inject
     public LdapRealm(Settings settings,
-                     GenericLdapConnectionFactory ldap,
+                     LdapConnectionFactory ldap,
                      LdapGroupToRoleMapper roleMapper,
                      RestController restController) {
         super(settings, ldap, roleMapper, restController);

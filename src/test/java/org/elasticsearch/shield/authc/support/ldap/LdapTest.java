@@ -11,7 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.authc.ldap.GenericLdapConnectionFactory;
+import org.elasticsearch.shield.authc.ldap.LdapConnectionFactory;
 import org.elasticsearch.shield.authc.ldap.LdapGroupToRoleMapper;
 import org.elasticsearch.shield.authc.ldap.LdapRealm;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -50,10 +50,10 @@ public abstract class LdapTest extends ElasticsearchTestCase {
 
     public static Settings buildLdapSettings(String[] ldapUrl, String[] userTemplate, String groupSearchBase, boolean isSubTreeSearch) {
         return ImmutableSettings.builder()
-                .putArray(SETTINGS_PREFIX + GenericLdapConnectionFactory.URLS_SETTING, ldapUrl)
-                .putArray(SETTINGS_PREFIX + GenericLdapConnectionFactory.USER_DN_TEMPLATES_SETTING, userTemplate)
-                .put(SETTINGS_PREFIX + GenericLdapConnectionFactory.GROUP_SEARCH_BASEDN_SETTING, groupSearchBase)
-                .put(SETTINGS_PREFIX + GenericLdapConnectionFactory.GROUP_SEARCH_SUBTREE_SETTING, isSubTreeSearch).build();
+                .putArray(SETTINGS_PREFIX + LdapConnectionFactory.URLS_SETTING, ldapUrl)
+                .putArray(SETTINGS_PREFIX + LdapConnectionFactory.USER_DN_TEMPLATES_SETTING, userTemplate)
+                .put(SETTINGS_PREFIX + LdapConnectionFactory.GROUP_SEARCH_BASEDN_SETTING, groupSearchBase)
+                .put(SETTINGS_PREFIX + LdapConnectionFactory.GROUP_SEARCH_SUBTREE_SETTING, isSubTreeSearch).build();
     }
 
     protected Settings buildNonCachingSettings() {
@@ -69,7 +69,7 @@ public abstract class LdapTest extends ElasticsearchTestCase {
 
     protected LdapGroupToRoleMapper buildGroupAsRoleMapper(ResourceWatcherService resourceWatcherService) {
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.ldap." + GroupToRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
+                .put("shield.authc.ldap." + AbstractGroupToRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
                 .build();
 
         return new LdapGroupToRoleMapper(settings, new Environment(settings), resourceWatcherService);

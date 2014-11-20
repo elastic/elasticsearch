@@ -7,19 +7,17 @@ package org.elasticsearch.shield.authc.ldap;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.shield.authc.support.ldap.LdapConnection;
+import org.elasticsearch.shield.authc.support.ldap.AbstractLdapConnection;
 
 import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
 import javax.naming.directory.*;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Encapsulates jndi/ldap functionality into one authenticated connection.  The constructor is package scoped, assuming
- * instances of this connection will be produced by the LdapConnectionFactory.bind() methods.
+ * instances of this connection will be produced by the LdapConnectionFactory.open() methods.
  *
  * A standard looking usage pattern could look like this:
      <pre>
@@ -28,11 +26,9 @@ import java.util.Map;
      }
      </pre>
  */
-public class GenericLdapConnection implements LdapConnection {
+public class LdapConnection extends AbstractLdapConnection {
 
-    private static final ESLogger logger = ESLoggerFactory.getLogger(GenericLdapConnection.class.getName());
-    private final String bindDn;
-    protected final DirContext ldapContext;
+    private static final ESLogger logger = ESLoggerFactory.getLogger(LdapConnection.class.getName());
 
     private final String groupSearchDN;
     private final boolean isGroupSubTreeSearch;
@@ -42,25 +38,11 @@ public class GenericLdapConnection implements LdapConnection {
     /**
      * This object is intended to be constructed by the LdapConnectionFactory
      */
-    GenericLdapConnection(DirContext ctx, String boundName, boolean isFindGroupsByAttribute, boolean isGroupSubTreeSearch, String groupSearchDN) {
-        this.ldapContext = ctx;
-        this.bindDn = boundName;
+    LdapConnection(DirContext ctx, String boundName, boolean isFindGroupsByAttribute, boolean isGroupSubTreeSearch, String groupSearchDN) {
+        super(ctx, boundName);
         this.isGroupSubTreeSearch = isGroupSubTreeSearch;
         this.groupSearchDN = groupSearchDN;
         this.isFindGroupsByAttribute = isFindGroupsByAttribute;
-    }
-
-    /**
-     * LDAP connections should be closed to clean up resources.  However, the jndi contexts have the finalize
-     * implemented properly so that it will clean up on garbage collection.
-     */
-    @Override
-    public void close(){
-        try {
-            ldapContext.close();
-        } catch (NamingException e) {
-            throw new SecurityException("Could not close the LDAP connection", e);
-        }
     }
 
     /**
@@ -68,7 +50,7 @@ public class GenericLdapConnection implements LdapConnection {
      * @return List of group membership
      */
     @Override
-    public List<String> getGroups(){
+    public List<String> groups(){
         List<String> groups = isFindGroupsByAttribute ? getGroupsFromUserAttrs(bindDn) : getGroupsFromSearch(bindDn);
         if (logger.isDebugEnabled()) {
             logger.debug("Found these groups [{}] for userDN [{}]", groups, this.bindDn);
@@ -78,7 +60,7 @@ public class GenericLdapConnection implements LdapConnection {
 
     /**
      * Fetches the groups of a user by doing a search.  This could be abstracted out into a strategy class or through
-     * an inherited class (with getGroups as the template method).
+     * an inherited class (with groups as the template method).
      * @param userDn user fully distinguished name to fetch group membership for
      * @return fully distinguished names of the roles
      */
@@ -94,8 +76,8 @@ public class GenericLdapConnection implements LdapConnection {
                 "(|(uniqueMember={0})(member={0})))";
 
         try {
-            NamingEnumeration<SearchResult> results = ldapContext.search(
-                    groupSearchDN, filter, new Object[]{userDn}, search);
+            NamingEnumeration<SearchResult> results = jndiContext.search(
+                    groupSearchDN, filter, new Object[]{ userDn }, search);
             while (results.hasMoreElements()){
                 groups.add(results.next().getNameInNamespace());
             }
@@ -114,7 +96,7 @@ public class GenericLdapConnection implements LdapConnection {
     public List<String> getGroupsFromUserAttrs(String userDn) {
         List<String> groupDns = new LinkedList<>();
         try {
-            Attributes results = ldapContext.getAttributes(userDn, new String[]{groupAttribute});
+            Attributes results = jndiContext.getAttributes(userDn, new String[]{groupAttribute});
             for(NamingEnumeration ae = results.getAll(); ae.hasMore();) {
                 Attribute attr = (Attribute)ae.next();
                 for (NamingEnumeration attrEnum = attr.getAll(); attrEnum.hasMore();) {
@@ -129,36 +111,5 @@ public class GenericLdapConnection implements LdapConnection {
             throw new LdapException("Could not look up group attributes for user [" + userDn + "]", e);
         }
         return groupDns;
-    }
-
-    /**
-     * Fetches common user attributes from the user.  Its a good way to ensure a connection works.
-     */
-    public Map<String,String[]> getUserAttrs(String userDn) {
-        Map <String, String[]>userAttrs = new HashMap<>();
-        try {
-            Attributes results = ldapContext.getAttributes(userDn, new String[]{"uid", "memberOf", "isMemberOf"});
-            for(NamingEnumeration ae = results.getAll(); ae.hasMore();) {
-                Attribute attr = (Attribute)ae.next();
-                LinkedList<String> attrList = new LinkedList<>();
-                for (NamingEnumeration attrEnum = attr.getAll(); attrEnum.hasMore();) {
-                    Object val = attrEnum.next();
-                    if (val instanceof String) {
-                        String stringVal = (String) val;
-                        attrList.add(stringVal);
-                    }
-                }
-                String[] attrArray = attrList.toArray(new String[attrList.size()]);
-                userAttrs.put(attr.getID(), attrArray);
-            }
-        } catch (NamingException e) {
-            throw new LdapException("Could not look up attributes for user [" + userDn + "]", e);
-        }
-        return userAttrs;
-    }
-
-    @Override
-    public String getAuthenticatedUserDn() {
-        return bindDn;
     }
 }

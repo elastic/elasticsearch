@@ -8,15 +8,15 @@ package org.elasticsearch.shield.authc.active_directory;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.authc.support.ldap.GroupToRoleMapper;
+import org.elasticsearch.shield.authc.support.ldap.AbstractGroupToRoleMapper;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 /**
  * LDAP Group to role mapper specific to the "shield.authc.ldap" package
  */
-public class ActiveDirectoryGroupToRoleMapper extends GroupToRoleMapper{
+public class ActiveDirectoryGroupToRoleMapper extends AbstractGroupToRoleMapper {
     @Inject
     public ActiveDirectoryGroupToRoleMapper(Settings settings, Environment env, ResourceWatcherService watcherService) {
-        super(settings, env, watcherService);
+        super(settings, ActiveDirectoryRealm.type, env, watcherService, null);
     }
 }

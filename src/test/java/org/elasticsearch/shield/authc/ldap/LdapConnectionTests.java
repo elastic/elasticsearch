@@ -11,9 +11,9 @@ import org.elasticsearch.shield.authc.support.ldap.LdapTest;
 import org.junit.Test;
 
 import java.util.List;
-import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 
 public class LdapConnectionTests extends LdapTest {
 
@@ -27,17 +27,17 @@ public class LdapConnectionTests extends LdapTest {
                 "wrongname={0},ou=people,o=sevenSeas",
                 "cn={0},ou=people,o=sevenSeas", //this last one should work
         };
-        GenericLdapConnectionFactory connectionFactory = new GenericLdapConnectionFactory(
+        LdapConnectionFactory connectionFactory = new LdapConnectionFactory(
                 buildLdapSettings(ldapUrls, userTemplates, groupSearchBase, isSubTreeSearch));
 
         String user = "Horatio Hornblower";
         SecuredString userPass = SecuredStringTests.build("pass");
 
-        try (GenericLdapConnection ldap = connectionFactory.bind(user, userPass)) {
-            Map<String, String[]> attrs = ldap.getUserAttrs(ldap.getAuthenticatedUserDn());
+        try (LdapConnection ldap = connectionFactory.open(user, userPass)) {
+            String dn = ldap.authenticatedUserDn();
 
-            assertThat(attrs, hasKey("uid"));
-            assertThat( attrs.get("uid"), arrayContaining("hhornblo"));
+            assertThat(dn, containsString(user));
+            //assertThat( attrs.get("uid"), arrayContaining("hhornblo"));
         }
     }
 
@@ -51,12 +51,12 @@ public class LdapConnectionTests extends LdapTest {
                 "wrongname={0},ou=people,o=sevenSeas",
                 "asdf={0},ou=people,o=sevenSeas", //none of these should work
         };
-        GenericLdapConnectionFactory ldapFac = new GenericLdapConnectionFactory(
+        LdapConnectionFactory ldapFac = new LdapConnectionFactory(
                 buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, isSubTreeSearch));
 
         String user = "Horatio Hornblower";
         SecuredString userPass = SecuredStringTests.build("pass");
-        try (GenericLdapConnection ldapConnection = ldapFac.bind(user, userPass)) {
+        try (LdapConnection ldapConnection = ldapFac.open(user, userPass)) {
         }
     }
 
@@ -66,14 +66,14 @@ public class LdapConnectionTests extends LdapTest {
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
 
         boolean isSubTreeSearch = true;
-        GenericLdapConnectionFactory ldapFac = new GenericLdapConnectionFactory(
+        LdapConnectionFactory ldapFac = new LdapConnectionFactory(
                 buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, isSubTreeSearch));
 
         String user = "Horatio Hornblower";
         SecuredString userPass = SecuredStringTests.build("pass");
 
-        try (GenericLdapConnection ldap = ldapFac.bind(user, userPass)) {
-            List<String> groups = ldap.getGroupsFromSearch(ldap.getAuthenticatedUserDn());
+        try (LdapConnection ldap = ldapFac.open(user, userPass)) {
+            List<String> groups = ldap.getGroupsFromSearch(ldap.authenticatedUserDn());
             assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
         }
     }
@@ -83,12 +83,12 @@ public class LdapConnectionTests extends LdapTest {
         String groupSearchBase = "ou=crews,ou=groups,o=sevenSeas";
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
         boolean isSubTreeSearch = false;
-        GenericLdapConnectionFactory ldapFac = new GenericLdapConnectionFactory(
+        LdapConnectionFactory ldapFac = new LdapConnectionFactory(
                 buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, isSubTreeSearch));
 
         String user = "Horatio Hornblower";
-        try (GenericLdapConnection ldap = ldapFac.bind(user, SecuredStringTests.build("pass"))) {
-            List<String> groups = ldap.getGroupsFromSearch(ldap.getAuthenticatedUserDn());
+        try (LdapConnection ldap = ldapFac.open(user, SecuredStringTests.build("pass"))) {
+            List<String> groups = ldap.getGroupsFromSearch(ldap.authenticatedUserDn());
             assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
         }
     }

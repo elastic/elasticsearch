@@ -48,13 +48,13 @@ public class OpenLdapTests extends ElasticsearchTestCase {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         boolean isSubTreeSearch = true;
-        GenericLdapConnectionFactory connectionFactory = new GenericLdapConnectionFactory(
+        LdapConnectionFactory connectionFactory = new LdapConnectionFactory(
                 LdapConnectionTests.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, isSubTreeSearch));
 
         String[] users = new String[]{"blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor"};
         for(String user: users) {
-            GenericLdapConnection ldap = connectionFactory.bind(user, SecuredStringTests.build(PASSWORD));
-            assertThat(ldap.getGroups(), hasItem(containsString("Avengers")));
+            LdapConnection ldap = connectionFactory.open(user, SecuredStringTests.build(PASSWORD));
+            assertThat(ldap.groups(), hasItem(containsString("Avengers")));
             ldap.close();
         }
     }

@@ -10,9 +10,9 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.ShieldException;
+import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.shield.authc.support.ldap.LdapConnectionFactory;
+import org.elasticsearch.shield.authc.support.ldap.ConnectionFactory;
 import org.elasticsearch.shield.authc.support.ldap.LdapSslSocketFactory;
 
 import javax.naming.Context;
@@ -28,10 +28,10 @@ import java.util.Hashtable;
 /**
  * This Class creates LdapConnections authenticating via the custom Active Directory protocol.  (that being
  * authenticating with a principal name, "username@domain", then searching through the directory to find the
- * user entry in LDAP that matches the user name).  This eliminates the need for user templates, and simplifies
+ * user entry in Active Directory that matches the user name).  This eliminates the need for user templates, and simplifies
  * the configuration for windows admins that may not be familiar with LDAP concepts.
  */
-public class ActiveDirectoryConnectionFactory extends AbstractComponent implements LdapConnectionFactory {
+public class ActiveDirectoryConnectionFactory extends AbstractComponent implements ConnectionFactory {
 
     public static final String AD_DOMAIN_NAME_SETTING = "domain_name";
     public static final String AD_USER_SEARCH_BASEDN_SETTING = "user_search_dn";
@@ -46,7 +46,7 @@ public class ActiveDirectoryConnectionFactory extends AbstractComponent implemen
         super(settings);
         domainName = componentSettings.get(AD_DOMAIN_NAME_SETTING);
         if (domainName == null) {
-            throw new ShieldException("Missing [" + AD_DOMAIN_NAME_SETTING + "] setting for active directory");
+            throw new ShieldSettingsException("Missing [" + AD_DOMAIN_NAME_SETTING + "] setting for active directory");
         }
         userSearchDN = componentSettings.get(AD_USER_SEARCH_BASEDN_SETTING, buildDnFromDomain(domainName));
 
@@ -69,7 +69,7 @@ public class ActiveDirectoryConnectionFactory extends AbstractComponent implemen
      * @return An authenticated
      */
     @Override
-    public ActiveDirectoryConnection bind(String userName, SecuredString password) {
+    public ActiveDirectoryConnection open(String userName, SecuredString password) {
         String userPrincipal = userName + "@" + this.domainName;
         Hashtable<String, Serializable> ldapEnv = new Hashtable<>(this.sharedLdapEnv);
         ldapEnv.put(Context.SECURITY_AUTHENTICATION, "simple");

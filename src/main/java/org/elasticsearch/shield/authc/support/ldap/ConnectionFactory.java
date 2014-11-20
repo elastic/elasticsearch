@@ -18,14 +18,14 @@ import org.elasticsearch.shield.authc.support.SecuredString;
     }
  </pre>
  */
-public interface LdapConnectionFactory {
+public interface ConnectionFactory {
 
-    static final String URLS_SETTING = "url"; //comma separated
+    static final String URLS_SETTING = "url";
 
     /**
-     * Password authenticated bind
+     * Password authenticated open
      * @param user name of the user to authenticate the connection with.
      */
-    LdapConnection bind(String user, SecuredString password) ;
+    AbstractLdapConnection open(String user, SecuredString password) ;
 
 }

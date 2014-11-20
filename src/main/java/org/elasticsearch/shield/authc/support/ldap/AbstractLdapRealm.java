@@ -24,10 +24,10 @@ import java.util.Set;
  */
 public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm implements Realm<UsernamePasswordToken> {
 
-    protected final LdapConnectionFactory connectionFactory;
-    protected final GroupToRoleMapper roleMapper;
+    protected final ConnectionFactory connectionFactory;
+    protected final AbstractGroupToRoleMapper roleMapper;
 
-    public AbstractLdapRealm(Settings settings, LdapConnectionFactory ldap, GroupToRoleMapper roleMapper, RestController restController) {
+    protected AbstractLdapRealm(Settings settings, ConnectionFactory ldap, AbstractGroupToRoleMapper roleMapper, RestController restController) {
         super(settings);
         this.connectionFactory = ldap;
         this.roleMapper = roleMapper;
@@ -45,13 +45,13 @@ public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm imp
     }
 
     /**
-     * Given a username and password, connect to ldap, retrieve groups, map to roles and build the user.
+     * Given a username and password, open to ldap, retrieve groups, map to roles and build the user.
      * @return User with elasticsearch roles
      */
     @Override
     protected User doAuthenticate(UsernamePasswordToken token) {
-        try (LdapConnection session = connectionFactory.bind(token.principal(), token.credentials())) {
-            List<String> groupDNs = session.getGroups();
+        try (AbstractLdapConnection session = connectionFactory.open(token.principal(), token.credentials())) {
+            List<String> groupDNs = session.groups();
             Set<String> roles = roleMapper.mapRoles(groupDNs);
             return new User.Simple(token.principal(), roles.toArray(new String[roles.size()]));
         } catch (ShieldException e){

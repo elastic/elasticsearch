@@ -9,8 +9,8 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.ldap.*;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
+import org.elasticsearch.shield.authc.support.ldap.AbstractLdapConnection;
 import org.elasticsearch.shield.ssl.SSLService;
-import org.elasticsearch.shield.authc.support.ldap.LdapConnection;
 import org.elasticsearch.shield.authc.support.ldap.LdapSslSocketFactory;
 import org.elasticsearch.shield.authc.support.ldap.LdapTest;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -53,8 +53,8 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
                 buildAdSettings(AD_LDAP_URL, AD_DOMAIN));
 
         String userName = "ironman";
-        try (LdapConnection ldap = connectionFactory.bind(userName, SecuredStringTests.build(PASSWORD))) {
-            List<String> groups = ldap.getGroups();
+        try (AbstractLdapConnection ldap = connectionFactory.open(userName, SecuredStringTests.build(PASSWORD))) {
+            List<String> groups = ldap.groups();
             assertThat(groups, containsInAnyOrder(
                     containsString("Geniuses"),
                     containsString("Billionaire"),
@@ -76,8 +76,8 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
 
         String[] users = new String[]{"cap", "hawkeye", "hulk", "ironman", "thor", "blackwidow", };
         for(String user: users) {
-            try (LdapConnection ldap = connectionFactory.bind(user, SecuredStringTests.build(PASSWORD))) {
-                assertThat("group avenger test for user "+user, ldap.getGroups(), hasItem(Matchers.containsString("Avengers")));
+            try (AbstractLdapConnection ldap = connectionFactory.open(user, SecuredStringTests.build(PASSWORD))) {
+                assertThat("group avenger test for user "+user, ldap.groups(), hasItem(Matchers.containsString("Avengers")));
             }
         }
     }
@@ -89,8 +89,8 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
                             "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com"));
 
         String userName = "hulk";
-        try (LdapConnection ldap = connectionFactory.bind(userName, SecuredStringTests.build(PASSWORD))) {
-            List<String> groups = ldap.getGroups();
+        try (AbstractLdapConnection ldap = connectionFactory.open(userName, SecuredStringTests.build(PASSWORD))) {
+            List<String> groups = ldap.groups();
 
             assertThat(groups, containsInAnyOrder(
                     containsString("Avengers"),
@@ -109,13 +109,13 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         boolean isSubTreeSearch = true;
-        GenericLdapConnectionFactory connectionFactory = new GenericLdapConnectionFactory(
+        LdapConnectionFactory connectionFactory = new LdapConnectionFactory(
                 LdapTest.buildLdapSettings(AD_LDAP_URL, userTemplate, groupSearchBase, isSubTreeSearch));
 
         String user = "Bruce Banner";
-        try (GenericLdapConnection ldap = connectionFactory.bind(user, SecuredStringTests.build(PASSWORD))) {
-            List<String> groups = ldap.getGroupsFromUserAttrs(ldap.getAuthenticatedUserDn());
-            List<String> groups2 = ldap.getGroupsFromSearch(ldap.getAuthenticatedUserDn());
+        try (LdapConnection ldap = connectionFactory.open(user, SecuredStringTests.build(PASSWORD))) {
+            List<String> groups = ldap.getGroupsFromUserAttrs(ldap.authenticatedUserDn());
+            List<String> groups2 = ldap.getGroupsFromSearch(ldap.authenticatedUserDn());
 
             assertThat(groups, containsInAnyOrder(
                     containsString("Avengers"),

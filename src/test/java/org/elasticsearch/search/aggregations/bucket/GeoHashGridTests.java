@@ -106,9 +106,7 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numDocs; i++) {
             final int numPoints = random.nextInt(4);
             List<String> points = new ArrayList<>();
-            // TODO (#8512): this should be a Set, not a List. Currently if a document has two positions that have
-            // the same geo hash, it will increase the doc_count for this geo hash by 2 instead of 1
-            List<String> geoHashes = new ArrayList<>();
+            Set<String> geoHashes = new HashSet<>();
             for (int j = 0; j < numPoints; ++j) {
                 double lat = (180d * random.nextDouble()) - 90d;
                 double lng = (360d * random.nextDouble()) - 180d;

@@ -259,7 +259,7 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
         assertThat(response.getQueryExplanation().size(), equalTo(1));
         assertThat(response.getQueryExplanation().get(0).getError(), nullValue());
         DateTime twoMonthsAgo = new DateTime(DateTimeZone.UTC).minusMonths(2).withTimeAtStartOfDay();
-        DateTime now = new DateTime(DateTimeZone.UTC).plusDays(1).withTimeAtStartOfDay();
+        DateTime now = new DateTime(DateTimeZone.UTC).plusDays(1).withTimeAtStartOfDay().minusMillis(1);
         assertThat(response.getQueryExplanation().get(0).getExplanation(),
                 equalTo("past:[" + twoMonthsAgo.getMillis() + " TO " + now.getMillis() + "]"));
         assertThat(response.isValid(), equalTo(true));

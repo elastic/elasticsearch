@@ -5,17 +5,18 @@
  */
 package org.elasticsearch.shield.ssl;
 
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import javax.net.ssl.SSLEngine;
 import java.io.File;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.Matchers.arrayContaining;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 public class SSLServiceTests extends ElasticsearchTestCase {
 
@@ -30,10 +31,10 @@ public class SSLServiceTests extends ElasticsearchTestCase {
     public void testThatInvalidProtocolThrowsException() throws Exception {
         new SSLService(settingsBuilder()
                             .put("shield.ssl.protocol", "non-existing")
-                            .put("shield.ssl.keystore", testnodeStore.getPath())
-                            .put("shield.ssl.keystore_password", "testnode")
-                            .put("shield.ssl.truststore", testnodeStore.getPath())
-                            .put("shield.ssl.truststore_password", "testnode")
+                            .put("shield.ssl.keystore.path", testnodeStore.getPath())
+                            .put("shield.ssl.keystore.password", "testnode")
+                            .put("shield.ssl.truststore.path", testnodeStore.getPath())
+                            .put("shield.ssl.truststore.password", "testnode")
                         .build());
     }
 
@@ -41,10 +42,10 @@ public class SSLServiceTests extends ElasticsearchTestCase {
     public void testSpecificProtocol() {
         SSLService ssl = new SSLService(settingsBuilder()
                 .put("shield.ssl.protocol", "TLSv1.2")
-                .put("shield.ssl.keystore", testnodeStore.getPath())
-                .put("shield.ssl.keystore_password", "testnode")
-                .put("shield.ssl.truststore", testnodeStore.getPath())
-                .put("shield.ssl.truststore_password", "testnode")
+                .put("shield.ssl.keystore.path", testnodeStore.getPath())
+                .put("shield.ssl.keystore.password", "testnode")
+                .put("shield.ssl.truststore.path", testnodeStore.getPath())
+                .put("shield.ssl.truststore.password", "testnode")
                 .build());
         assertThat(ssl.createSSLEngine().getSSLParameters().getProtocols(), arrayContaining("TLSv1.2"));
     }
@@ -109,6 +110,23 @@ public class SSLServiceTests extends ElasticsearchTestCase {
                 .put("shield.authc.ldap.url", "ldap://example.com:389")
                 .build();
         assertSSLEnabled(settings);
+    }
+
+    @Test
+    public void testThatCustomTruststoreCanBeSpecified() throws Exception {
+        File testClientStore = new File(getClass().getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks").toURI());
+
+        SSLService sslService = new SSLService(settingsBuilder()
+                .put("shield.ssl.keystore.path", testnodeStore.getPath())
+                .put("shield.ssl.keystore.password", "testnode")
+                .build());
+
+        ImmutableSettings.Builder settingsBuilder = settingsBuilder()
+                .put("truststore.path", testClientStore.getPath())
+                .put("truststore.password", "testclient");
+
+        SSLEngine sslEngineWithTruststore = sslService.createSSLEngineWithTruststore(settingsBuilder.build());
+        assertThat(sslEngineWithTruststore, is(not(nullValue())));
     }
 
     private void assertSSLEnabled(Settings settings) {

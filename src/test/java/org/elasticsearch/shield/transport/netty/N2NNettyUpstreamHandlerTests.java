@@ -47,7 +47,7 @@ public class N2NNettyUpstreamHandlerTests extends ElasticsearchTestCase {
         Settings settings = settingsBuilder().put("shield.transport.n2n.ip_filter.file", configFile.getPath()).build();
         IPFilteringN2NAuthenticator ipFilteringN2NAuthenticator = new IPFilteringN2NAuthenticator(settings, new Environment(), resourceWatcherService);
 
-        nettyUpstreamHandler = new N2NNettyUpstreamHandler(ipFilteringN2NAuthenticator);
+        nettyUpstreamHandler = new N2NNettyUpstreamHandler(ipFilteringN2NAuthenticator, "default");
     }
 
     @After

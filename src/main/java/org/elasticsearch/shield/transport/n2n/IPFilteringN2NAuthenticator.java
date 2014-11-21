@@ -41,11 +41,11 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
 
     private static final Pattern COMMA_DELIM = Pattern.compile("\\s*,\\s*");
     private static final String DEFAULT_FILE = "ip_filter.yml";
-    private static final IpFilterRule[] NO_RULES = new IpFilterRule[0];
+    private static final ProfileIpFilterRule[] NO_RULES = new ProfileIpFilterRule[0];
 
     private final Path file;
 
-    private volatile IpFilterRule[] rules = NO_RULES;
+    private volatile ProfileIpFilterRule[] rules = NO_RULES;
 
     @Inject
     public IPFilteringN2NAuthenticator(Settings settings, Environment env, ResourceWatcherService watcherService) {
@@ -65,12 +65,12 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
         return Paths.get(location);
     }
 
-    public static IpFilterRule[] parseFile(Path path, ESLogger logger) {
+    public static ProfileIpFilterRule[]  parseFile(Path path, ESLogger logger) {
         if (!Files.exists(path)) {
             return NO_RULES;
         }
 
-        List<IpFilterRule> rules = new ArrayList<>();
+        List<ProfileIpFilterRule> rules = new ArrayList<>();
 
         try (XContentParser parser = YamlXContent.yamlXContent.createParser(Files.newInputStream(path))) {
             XContentParser.Token token;
@@ -78,8 +78,8 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT && token != null) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                    if (!"allow".equals(currentFieldName) && !"deny".equals(currentFieldName)) {
-                        throw new ElasticsearchParseException("Field name [" + currentFieldName + "] not valid. Must be [allow] or [deny]");
+                    if (!currentFieldName.endsWith("allow") && !currentFieldName.endsWith("deny")) {
+                        throw new ElasticsearchParseException("Field name [" + currentFieldName + "] not valid. Must be [allow] or [deny] or using a profile");
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING && currentFieldName != null) {
                     String value = parser.text();
@@ -87,14 +87,15 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
                         throw new ElasticsearchParseException("Field value for fieldname [" + currentFieldName + "] must not be empty");
                     }
 
-                    boolean isAllowRule = currentFieldName.equals("allow");
+                    boolean isAllowRule = currentFieldName.endsWith("allow");
+                    String profile = currentFieldName.contains(".") ? currentFieldName.substring(0, currentFieldName.indexOf(".")) : "default";
 
                     if (value.contains(",")) {
                         for (String rule : COMMA_DELIM.split(parser.text().trim())) {
-                            rules.add(getRule(isAllowRule, rule));
+                            rules.add(new ProfileIpFilterRule(profile, getRule(isAllowRule, rule)));
                         }
                     } else {
-                        rules.add(getRule(isAllowRule, value));
+                        rules.add(new ProfileIpFilterRule(profile, getRule(isAllowRule, value)));
                     }
 
                 }
@@ -108,7 +109,7 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
         }
 
         logger.debug("Loaded {} ip filtering rules", rules.size());
-        return rules.toArray(new IpFilterRule[rules.size()]);
+        return rules.toArray(new ProfileIpFilterRule[rules.size()]);
     }
 
     private static IpFilterRule getRule(boolean isAllowRule, String value) throws UnknownHostException {
@@ -124,9 +125,9 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
     }
 
     @Override
-    public boolean authenticate(@Nullable Principal peerPrincipal, InetAddress peerAddress, int peerPort) {
-        for (IpFilterRule rule : rules) {
-            if (rule.contains(peerAddress)) {
+    public boolean authenticate(@Nullable Principal peerPrincipal, String profile, InetAddress peerAddress, int peerPort) {
+        for (ProfileIpFilterRule rule : rules) {
+            if (rule.contains(profile, peerAddress)) {
                 boolean isAllowed = rule.isAllowRule();
                 logger.trace("Authentication rule matched for host [{}]: {}", peerAddress, isAllowed);
                 return isAllowed;

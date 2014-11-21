@@ -15,6 +15,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.shield.ssl.SSLService;
+import org.elasticsearch.shield.transport.n2n.IPFilteringN2NAuthenticator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty.NettyTransport;
 
@@ -26,16 +27,18 @@ import javax.net.ssl.SSLEngine;
 public class NettySecuredTransport extends NettyTransport {
 
     private final boolean ssl;
-    private final N2NNettyUpstreamHandler shieldUpstreamHandler;
     private final SSLService sslService;
+    private final boolean ipFilterEnabled;
+    private final IPFilteringN2NAuthenticator authenticator;
 
     @Inject
     public NettySecuredTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version,
-                                 @Nullable N2NNettyUpstreamHandler shieldUpstreamHandler, @Nullable SSLService sslService) {
+                                 @Nullable IPFilteringN2NAuthenticator authenticator, @Nullable SSLService sslService) {
         super(settings, threadPool, networkService, bigArrays, version);
-        this.shieldUpstreamHandler = shieldUpstreamHandler;
-        this.ssl = settings.getAsBoolean("shield.transport.ssl", false);
+        this.authenticator = authenticator;
+        this.ipFilterEnabled = settings.getAsBoolean("shield.transport.n2n.ip_filter.enabled", true);
         this.sslService = sslService;
+        this.ssl = settings.getAsBoolean("shield.transport.ssl", false);
         assert !ssl || sslService != null : "ssl is enabled yet the ssl service is null";
     }
 
@@ -51,23 +54,31 @@ public class NettySecuredTransport extends NettyTransport {
 
     private class SslServerChannelPipelineFactory extends ServerChannelPipelineFactory {
 
+        private final Settings profileSettings;
+
         public SslServerChannelPipelineFactory(NettyTransport nettyTransport, String name, Settings settings, Settings profileSettings) {
             super(nettyTransport, name, settings);
+            this.profileSettings = profileSettings;
         }
 
         @Override
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = super.getPipeline();
             if (ssl) {
-                SSLEngine serverEngine = sslService.createSSLEngine();
+                SSLEngine serverEngine;
+                if (profileSettings.get("shield.truststore.path") != null) {
+                    serverEngine = sslService.createSSLEngineWithTruststore(profileSettings.getByPrefix("shield."));
+                } else {
+                    serverEngine = sslService.createSSLEngine();
+                }
                 serverEngine.setUseClientMode(false);
                 serverEngine.setNeedClientAuth(true);
 
                 pipeline.addFirst("ssl", new SslHandler(serverEngine));
                 pipeline.replace("dispatcher", "dispatcher", new SecuredMessageChannelHandler(nettyTransport, logger));
             }
-            if (shieldUpstreamHandler != null) {
-                pipeline.addFirst("ipfilter", shieldUpstreamHandler);
+            if (ipFilterEnabled) {
+                pipeline.addFirst("ipfilter", new N2NNettyUpstreamHandler(authenticator, name));
             }
             return pipeline;
         }

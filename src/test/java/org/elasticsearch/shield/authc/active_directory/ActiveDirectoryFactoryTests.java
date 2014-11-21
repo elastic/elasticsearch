@@ -37,8 +37,8 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
     public static void setTrustStore() throws URISyntaxException {
         File filename = new File(LdapConnectionTests.class.getResource("../support/ldap/ldaptrust.jks").toURI()).getAbsoluteFile();
         LdapSslSocketFactory.init(new SSLService(ImmutableSettings.builder()
-                .put("shield.ssl.keystore", filename)
-                .put("shield.ssl.keystore_password", "changeit")
+                .put("shield.ssl.keystore.path", filename)
+                .put("shield.ssl.keystore.password", "changeit")
                 .build()));
     }
 

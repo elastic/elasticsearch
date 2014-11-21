@@ -14,7 +14,6 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.test.ShieldIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Test;

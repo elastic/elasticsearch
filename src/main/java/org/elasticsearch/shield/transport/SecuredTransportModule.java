@@ -8,13 +8,11 @@ package org.elasticsearch.shield.transport;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.PreProcessModule;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.SecurityFilter;
 import org.elasticsearch.shield.plugin.ShieldPlugin;
 import org.elasticsearch.shield.support.AbstractShieldModule;
 import org.elasticsearch.shield.transport.n2n.IPFilteringN2NAuthenticator;
-import org.elasticsearch.shield.transport.netty.N2NNettyUpstreamHandler;
 import org.elasticsearch.shield.transport.netty.NettySecuredHttpServerTransportModule;
 import org.elasticsearch.shield.transport.netty.NettySecuredTransportModule;
 import org.elasticsearch.transport.TransportModule;
@@ -52,7 +50,6 @@ public class SecuredTransportModule extends AbstractShieldModule.Spawn implement
 
         if (clientMode) {
             // no ip filtering on the client
-            bind(N2NNettyUpstreamHandler.class).toProvider(Providers.<N2NNettyUpstreamHandler>of(null));
             bind(ServerTransportFilter.class).toInstance(ServerTransportFilter.NOOP);
             return;
         }
@@ -60,9 +57,6 @@ public class SecuredTransportModule extends AbstractShieldModule.Spawn implement
         bind(ServerTransportFilter.class).to(SecurityFilter.ServerTransport.class).asEagerSingleton();
         if (settings.getAsBoolean("shield.transport.n2n.ip_filter.enabled", true)) {
             bind(IPFilteringN2NAuthenticator.class).asEagerSingleton();
-            bind(N2NNettyUpstreamHandler.class).asEagerSingleton();
-        } else {
-            bind(N2NNettyUpstreamHandler.class).toProvider(Providers.<N2NNettyUpstreamHandler>of(null));
         }
     }
 }

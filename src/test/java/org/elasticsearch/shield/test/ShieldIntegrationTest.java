@@ -9,6 +9,9 @@ import com.google.common.base.Charsets;
 import com.google.common.net.InetAddresses;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.os.OsUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -34,6 +37,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -158,13 +162,13 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
 
         ImmutableSettings.Builder builder = settingsBuilder()
                 .put("shield.transport.ssl", true)
-                .put("shield.ssl.keystore", store.getPath())
-                .put("shield.ssl.keystore_password", password)
+                .put("shield.ssl.keystore.path", store.getPath())
+                .put("shield.ssl.keystore.password", password)
                 .put("shield.http.ssl", true);
 
         if (randomBoolean()) {
-            builder.put("shield.ssl.truststore", store.getPath())
-                    .put("shield.ssl.truststore_password", password);
+            builder.put("shield.ssl.truststore.path", store.getPath())
+                   .put("shield.ssl.truststore.password", password);
         }
 
         return builder.build();
@@ -178,5 +182,11 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
             fail("could not create temporary folder");
             return null;
         }
+    }
+
+    protected void assertGreenClusterState(Client client) {
+        ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().get();
+        assertNoTimeout(clusterHealthResponse);
+        assertThat(clusterHealthResponse.getStatus(), is(ClusterHealthStatus.GREEN));
     }
 }

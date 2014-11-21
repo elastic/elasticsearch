@@ -181,10 +181,4 @@ public class SslIntegrationTests extends ShieldIntegrationTest {
         String data = Streams.copyToString(new InputStreamReader(connection.getInputStream(), Charsets.UTF_8));
         assertThat(data, containsString("You Know, for Search"));
     }
-
-    private void assertGreenClusterState(Client client) {
-        ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().get();
-        assertNoTimeout(clusterHealthResponse);
-        assertThat(clusterHealthResponse.getStatus(), is(ClusterHealthStatus.GREEN));
-    }
 }

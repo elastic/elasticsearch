@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
@@ -141,6 +142,17 @@ public class IPFilteringN2NAuthenticatorTests extends ElasticsearchTestCase {
         assertAddressIsAllowed("127.0.0.1");
     }
 
+    @Test
+    @TestLogging("_root:TRACE")
+    public void testThatProfilesAreSupported() throws Exception {
+        writeConfigFile("allow: localhost\ndeny: all\nclient.allow: 192.168.0.1\nclient.deny: all");
+
+        assertAddressIsAllowed("127.0.0.1");
+        assertAddressIsDenied("192.168.0.1");
+        assertAddressIsAllowedForProfile("client", "192.168.0.1");
+        assertAddressIsDeniedForProfile("client", "192.168.0.2");
+    }
+
     @Test(expected = ElasticsearchParseException.class)
     public void testThatInvalidFileThrowsCorrectException() throws Exception {
         writeConfigFile("deny: all allow: all \n\n");
@@ -155,17 +167,25 @@ public class IPFilteringN2NAuthenticatorTests extends ElasticsearchTestCase {
         ipFilteringN2NAuthenticator = new IPFilteringN2NAuthenticator(settings, new Environment(), resourceWatcherService);
     }
 
-    private void assertAddressIsAllowed(String ... inetAddresses) {
+    private void assertAddressIsAllowedForProfile(String profile, String ... inetAddresses) {
         for (String inetAddress : inetAddresses) {
             String message = String.format(Locale.ROOT, "Expected address %s to be allowed", inetAddress);
-            assertThat(message, ipFilteringN2NAuthenticator.authenticate(NULL_PRINCIPAL, InetAddresses.forString(inetAddress), 1024), is(true));
+            assertThat(message, ipFilteringN2NAuthenticator.authenticate(NULL_PRINCIPAL, profile, InetAddresses.forString(inetAddress), 1024), is(true));
+        }
+    }
+
+    private void assertAddressIsAllowed(String ... inetAddresses) {
+        assertAddressIsAllowedForProfile("default", inetAddresses);
+    }
+
+    private void assertAddressIsDeniedForProfile(String profile, String ... inetAddresses) {
+        for (String inetAddress : inetAddresses) {
+            String message = String.format(Locale.ROOT, "Expected address %s to be denied", inetAddress);
+            assertThat(message, ipFilteringN2NAuthenticator.authenticate(NULL_PRINCIPAL, profile, InetAddresses.forString(inetAddress), 1024), is(false));
         }
     }
 
     private void assertAddressIsDenied(String ... inetAddresses) {
-        for (String inetAddress : inetAddresses) {
-            String message = String.format(Locale.ROOT, "Expected address %s to be denied", inetAddress);
-            assertThat(message, ipFilteringN2NAuthenticator.authenticate(NULL_PRINCIPAL, InetAddresses.forString(inetAddress), 1024), is(false));
-        }
+        assertAddressIsDeniedForProfile("default", inetAddresses);
     }
 }

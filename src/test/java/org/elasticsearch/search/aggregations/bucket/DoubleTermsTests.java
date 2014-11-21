@@ -647,7 +647,7 @@ public class DoubleTermsTests extends AbstractTermsTests {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values"))
+                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "']"))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -682,7 +682,7 @@ public class DoubleTermsTests extends AbstractTermsTests {
             SearchResponse response = client().prepareSearch("idx").setTypes("type")
                     .addAggregation(terms("terms")
                             .collectMode(randomFrom(SubAggCollectionMode.values()))
-                            .script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values")
+                            .script("doc['" + MULTI_VALUED_FIELD_NAME + "']")
                             .subAggregation(sum("sum")))
                     .execute().actionGet();
 
@@ -700,7 +700,7 @@ public class DoubleTermsTests extends AbstractTermsTests {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values")
+                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "']")
                         .valueType(Terms.ValueType.DOUBLE)
                         .subAggregation(sum("sum")))
                 .execute().actionGet();

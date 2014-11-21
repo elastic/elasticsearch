@@ -245,7 +245,7 @@ public class AlertActionManager extends AbstractComponent {
                 .setSource(XContentFactory.jsonBuilder().value(entry))
                 .setOpType(IndexRequest.OpType.CREATE)
                 .get();
-        logger.info("Adding alert action for alert [{}]", alert.alertName());
+        logger.debug("Adding alert action for alert [{}]", alert.alertName());
         entry.setVersion(response.getVersion());
         long currentSize = actionsToBeProcessed.size() + 1;
         actionsToBeProcessed.add(entry);
@@ -311,7 +311,7 @@ public class AlertActionManager extends AbstractComponent {
                     return;
                 }
                 updateHistoryEntry(entry, AlertActionState.SEARCH_UNDERWAY);
-                logger.info("Running an alert action entry for [{}]", entry.getAlertName());
+                logger.debug("Running an alert action entry for [{}]", entry.getAlertName());
                 TriggerResult trigger = alertManager.executeAlert(entry);
                 if (trigger.isTriggered()) {
                     if (entry.getState() != AlertActionState.THROTTLED) {

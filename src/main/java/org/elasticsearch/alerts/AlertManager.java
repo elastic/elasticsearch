@@ -49,7 +49,6 @@ public class AlertManager extends AbstractComponent {
     private final ClusterService clusterService;
     private final KeyedLock<String> alertLock = new KeyedLock<>();
     private final AtomicReference<State> state = new AtomicReference<>(State.STOPPED);
-    private final AlertsClusterStateListener alertsClusterStateListener = new AlertsClusterStateListener();
 
     private volatile boolean manuallyStopped;
 
@@ -67,7 +66,7 @@ public class AlertManager extends AbstractComponent {
         this.actionManager.setAlertManager(this);
         this.actionRegistry = actionRegistry;
         this.clusterService = clusterService;
-        clusterService.add(alertsClusterStateListener);
+        clusterService.add(new AlertsClusterStateListener());
         manuallyStopped = !settings.getAsBoolean("alerts.start_immediately", true);
         // Close if the indices service is being stopped, so we don't run into search failures (locally) that will
         // happen because we're shutting down and an alert is scheduled.
@@ -126,8 +125,8 @@ public class AlertManager extends AbstractComponent {
 
             try {
                 actionManager.addAlertAction(alert, scheduledFireTime, fireTime);
-            } catch (IOException ioe) {
-                logger.error("Failed to add alert action for [{}]", ioe, alert);
+            } catch (Exception e) {
+                logger.error("Failed to add alert action for [{}]", e, alert);
             }
         } finally {
             alertLock.release(alertName);
@@ -168,69 +167,8 @@ public class AlertManager extends AbstractComponent {
         }
     }
 
-    private boolean isActionThrottled(Alert alert) {
-        if (alert.getThrottlePeriod() != null && alert.getTimeLastActionExecuted() != null) {
-            TimeValue timeSinceLastExeuted = new TimeValue((new DateTime()).getMillis() - alert.getTimeLastActionExecuted().getMillis());
-            if (timeSinceLastExeuted.getMillis() <= alert.getThrottlePeriod().getMillis()) {
-                return true;
-            }
-        }
-        if (alert.getAckState() == AlertAckState.ACKED) {
-            return true;
-        }
-        return false;
-    }
-
-    public void start() {
-        if (state.compareAndSet(State.STOPPED, State.LOADING)) {
-            manuallyStopped = false;
-            logger.info("Starting alert manager...");
-            ClusterState state = clusterService.state();
-            alertsClusterStateListener.initialize(state);
-        }
-    }
-
-    public void stop() {
-        manuallyStopped = true;
-        internalStop();
-    }
-
-    // This is synchronized, because this may first be called from the cluster changed event and then from before close
-    // when a node closes. The stop also stops the scheduler which has several background threads. If this method is
-    // invoked in that order that node closes and the test framework complains then about the fact that there are still
-    // threads alive.
-    private synchronized void internalStop() {
-        if (state.compareAndSet(State.LOADING, State.STOPPED) || state.compareAndSet(State.STARTED, State.STOPPED)) {
-            logger.info("Stopping alert manager...");
-            actionManager.stop();
-            scheduler.stop();
-            alertsStore.stop();
-            logger.info("Alert manager has stopped");
-        }
-    }
-
-    /**
-     * For testing only to clear the alerts between tests.
-     */
-    public void clear() {
-        scheduler.clearAlerts();
-        alertsStore.clear();
-    }
-
-    private void ensureStarted() {
-        if (state.get() != State.STARTED) {
-            throw new ElasticsearchIllegalStateException("not started");
-        }
-    }
-
-    public long getNumberOfAlerts() {
-        return alertsStore.getAlerts().size();
-    }
-
     /**
      * Acks the alert if needed
-     * @param alertName
-     * @return
      */
     public AlertAckState ackAlert(String alertName) {
         ensureStarted();
@@ -256,10 +194,110 @@ public class AlertManager extends AbstractComponent {
         }
     }
 
+    /**
+     * Manually starts alerting if not already started
+     */
+    public void start() {
+        manuallyStopped = false;
+        logger.info("Starting alert manager...");
+        ClusterState state = clusterService.state();
+        internalStart(state);
+    }
+
+    /**
+     * Manually stops alerting if not already stopped.
+     */
+    public void stop() {
+        manuallyStopped = true;
+        internalStop();
+    }
+
+    /**
+     * For testing only to clear the alerts between tests.
+     */
+    public void clear() {
+        scheduler.clearAlerts();
+        alertsStore.clear();
+    }
+
+    // This is synchronized, because this may first be called from the cluster changed event and then from before close
+    // when a node closes. The stop also stops the scheduler which has several background threads. If this method is
+    // invoked in that order that node closes and the test framework complains then about the fact that there are still
+    // threads alive.
+    private synchronized void internalStop() {
+        if (state.compareAndSet(State.LOADING, State.STOPPED) || state.compareAndSet(State.STARTED, State.STOPPED)) {
+            logger.info("Stopping alert manager...");
+            actionManager.stop();
+            scheduler.stop();
+            alertsStore.stop();
+            logger.info("Alert manager has stopped");
+        }
+    }
+
+    private synchronized void internalStart(ClusterState initialState) {
+        if (state.compareAndSet(State.STOPPED, State.LOADING)) {
+            ClusterState clusterState = initialState;
+            while (state.get() == State.LOADING && clusterState != null) {
+                if (actionManager.start(clusterState)) {
+                    break;
+                }
+                clusterState = newClusterState(clusterState);
+            }
+
+            while (state.get() == State.LOADING && clusterState != null) {
+                if (alertsStore.start(clusterState)) {
+                    break;
+                }
+                clusterState = newClusterState(clusterState);
+            }
+
+            if (state.compareAndSet(State.LOADING, State.STARTED)) {
+                scheduler.start(alertsStore.getAlerts());
+                logger.info("Alert manager has started");
+            } else {
+                logger.info("Didn't start alert manager, because it state was [{}] while [{}] was expected", state.get(), State.LOADING);
+            }
+        }
+    }
+
+    private void ensureStarted() {
+        if (state.get() != State.STARTED) {
+            throw new ElasticsearchIllegalStateException("not started");
+        }
+    }
+
+    public long getNumberOfAlerts() {
+        return alertsStore.getAlerts().size();
+    }
+
+    /**
+     * Return once a cluster state version appears that is never than the version
+     */
+    private ClusterState newClusterState(ClusterState previous) {
+        ClusterState current;
+        while (state.get() == State.LOADING) {
+            current = clusterService.state();
+            if (current.getVersion() > previous.getVersion()) {
+                return current;
+            }
+        }
+        return null;
+    }
+
+    private boolean isActionThrottled(Alert alert) {
+        if (alert.getThrottlePeriod() != null && alert.getTimeLastActionExecuted() != null) {
+            TimeValue timeSinceLastExeuted = new TimeValue((new DateTime()).getMillis() - alert.getTimeLastActionExecuted().getMillis());
+            if (timeSinceLastExeuted.getMillis() <= alert.getThrottlePeriod().getMillis()) {
+                return true;
+            }
+        }
+        return alert.getAckState() == AlertAckState.ACKED;
+    }
+
     private final class AlertsClusterStateListener implements ClusterStateListener {
 
         @Override
-        public void clusterChanged(ClusterChangedEvent event) {
+        public void clusterChanged(final ClusterChangedEvent event) {
             if (!event.localNodeMaster()) {
                 // We're no longer the master so we need to stop alerting.
                 // Stopping alerting may take a while since it will wait on the scheduler to complete shutdown,
@@ -277,63 +315,14 @@ public class AlertManager extends AbstractComponent {
                     // a .alertshistory index, but they may not have been restored from the cluster state on disk
                     return;
                 }
-                if (state.compareAndSet(State.STOPPED, State.LOADING)) {
-                    initialize(event.state());
+                if (state.get() == State.STOPPED && !manuallyStopped) {
+                    threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            internalStart(event.state());
+                        }
+                    });
                 }
-            }
-        }
-
-        private void initialize(final ClusterState state) {
-            if (manuallyStopped) {
-                return;
-            }
-
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
-                @Override
-                public void run() {
-                    if (alertsStore.start(state)) {
-                        startIfReady();
-                    } else {
-                        retry();
-                    }
-                }
-            });
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
-                @Override
-                public void run() {
-                    if (actionManager.start(state)) {
-                        startIfReady();
-                    } else {
-                        retry();
-                    }
-                }
-            });
-        }
-
-        private void startIfReady() {
-            if (alertsStore.started() && actionManager.started()) {
-                if (state.compareAndSet(State.LOADING, State.STARTED)) {
-                    scheduler.start(alertsStore.getAlerts());
-                    logger.info("Alert manager has started");
-                } else {
-                    logger.info("Didn't start alert manager, because it state was [{}] while [{}] was expected", state.get(), State.LOADING);
-                }
-            }
-        }
-
-        private void retry() {
-            // Only retry if our state is loading
-            if (state.get() == State.LOADING) {
-                final ClusterState newState = clusterService.state();
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        // Retry with the same event:
-                        initialize(newState);
-                    }
-                });
-            } else {
-                logger.info("Didn't retry to initialize the alert manager, because it state was [{}] while [{}] was expected", state.get(), State.LOADING);
             }
         }
 

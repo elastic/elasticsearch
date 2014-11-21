@@ -7,8 +7,8 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
+import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -51,48 +51,91 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
     public void testSimpleFailure() throws Exception {
         config = new ClusterDiscoveryConfiguration.UnicastZen(2);
         internalTestCluster().startNodesAsync(2).get();
-        AlertsClient alertsClient = alertClient();
         createIndex("my-index");
         // Have a sample document in the index, the alert is going to evaluate
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
         SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
         BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
-        alertsClient.preparePutAlert("my-first-alert")
+        alertClient().preparePutAlert("my-first-alert")
                 .setAlertSource(alertSource)
                 .get();
         assertAlertTriggered("my-first-alert", 1);
 
         // Stop the elected master, no new master will be elected b/c of m_m_n is set to 2
-        internalTestCluster().stopCurrentMasterNode();
-        assertThat(awaitBusy(new Predicate<Object>() {
-            public boolean apply(Object obj) {
-                ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
-            }
-        }), equalTo(true));
-
-        // Need to fetch a new client the old one maybe an internal client of the node we just killed.
-        alertsClient = alertClient();
+        stopElectedMasterNodeAndWait();
         try {
             // any alerting action should fail, because there is no elected master node
-            alertsClient.prepareDeleteAlert("my-first-alert").setMasterNodeTimeout(TimeValue.timeValueSeconds(1)).get();
+            alertClient().prepareDeleteAlert("my-first-alert").setMasterNodeTimeout(TimeValue.timeValueSeconds(1)).get();
             fail();
         } catch (Exception e) {
             assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(MasterNotDiscoveredException.class));
         }
-
         // Bring back the 2nd node and wait for elected master node to come back and alerting to work as expected.
-        internalTestCluster().startNode();
-        ensureAlertingStarted();
+        startElectedMasterNodeAndWait();
 
         // Delete an existing alert
-        DeleteAlertResponse response = alertsClient.prepareDeleteAlert("my-first-alert").get();
+        DeleteAlertResponse response = alertClient().prepareDeleteAlert("my-first-alert").get();
         assertThat(response.deleteResponse().isFound(), is(true));
         // Add a new alert and wait for it get triggered
-        alertsClient.preparePutAlert("my-second-alert")
+        alertClient().preparePutAlert("my-second-alert")
                 .setAlertSource(alertSource)
                 .get();
         assertAlertTriggered("my-second-alert", 2);
+    }
+
+    @Test
+    public void testMultipleFailures() throws Exception {
+        // TODO: increase number of times we kill the elected master.
+        // It is not good enough yet: after multi a couple of kills errors occur and assertions fail.
+        int numberOfFailures = 1;//scaledRandomIntBetween(2, 9);
+        int numberOfAlerts = scaledRandomIntBetween(numberOfFailures, 12);
+        config = new ClusterDiscoveryConfiguration.UnicastZen(2 + numberOfFailures);
+        internalTestCluster().startNodesAsync(2).get();
+        createIndex("my-index");
+        client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
+
+        for (int i = 1; i <= numberOfAlerts; i++) {
+            String alertName = "alert" + i;
+            SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
+            BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
+            alertClient().preparePutAlert(alertName)
+                    .setAlertSource(alertSource)
+                    .get();
+        }
+
+        for (int i = 1; i <= numberOfFailures; i++) {
+            logger.info("Failure round {}", i);
+
+            for (int j = 1; j < numberOfAlerts; j++) {
+                String alertName = "alert" + i;
+                assertAlertTriggered(alertName, i);
+            }
+            stopElectedMasterNodeAndWait();
+            startElectedMasterNodeAndWait();
+
+            AlertsStatsResponse statsResponse = alertClient().prepareAlertsStats().get();
+            assertThat(statsResponse.getNumberOfRegisteredAlerts(), equalTo((long) numberOfAlerts));
+        }
+    }
+
+    private void stopElectedMasterNodeAndWait() throws Exception {
+        internalTestCluster().stopCurrentMasterNode();
+        // Can't use ensureAlertingStopped, b/c that relies on the alerts stats api which requires an elected master node
+        assertThat(awaitBusy(new Predicate<Object>() {
+            public boolean apply(Object obj) {
+                ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
+                return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
+            }
+        }), equalTo(true));
+        // Ensure that the alert manager doesn't run elsewhere
+        for (AlertManager alertManager : internalTestCluster().getInstances(AlertManager.class)) {
+            assertThat(alertManager.isStarted(), is(false));
+        }
+    }
+
+    private void startElectedMasterNodeAndWait() throws Exception {
+        internalTestCluster().startNode();
+        ensureAlertingStarted();
     }
 
 }

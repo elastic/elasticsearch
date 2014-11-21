@@ -1522,12 +1522,10 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             int indexConcurrency = settings.getAsInt(INDEX_INDEX_CONCURRENCY, InternalEngine.this.indexConcurrency);
             boolean failOnMergeFailure = settings.getAsBoolean(INDEX_FAIL_ON_MERGE_FAILURE, InternalEngine.this.failOnMergeFailure);
             String codecName = settings.get(INDEX_CODEC, InternalEngine.this.codecName);
-            final boolean codecBloomLoad = settings.getAsBoolean(CodecService.INDEX_CODEC_BLOOM_LOAD, codecService.isLoadBloomFilter());
             boolean requiresFlushing = false;
             if (indexConcurrency != InternalEngine.this.indexConcurrency ||
                     !codecName.equals(InternalEngine.this.codecName) ||
-                    failOnMergeFailure != InternalEngine.this.failOnMergeFailure ||
-                    codecBloomLoad != codecService.isLoadBloomFilter()) {
+                    failOnMergeFailure != InternalEngine.this.failOnMergeFailure) {
                 try (InternalLock _ = readLock.acquire()) {
                     if (indexConcurrency != InternalEngine.this.indexConcurrency) {
                         logger.info("updating index.index_concurrency from [{}] to [{}]", InternalEngine.this.indexConcurrency, indexConcurrency);
@@ -1544,12 +1542,6 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     if (failOnMergeFailure != InternalEngine.this.failOnMergeFailure) {
                         logger.info("updating {} from [{}] to [{}]", InternalEngine.INDEX_FAIL_ON_MERGE_FAILURE, InternalEngine.this.failOnMergeFailure, failOnMergeFailure);
                         InternalEngine.this.failOnMergeFailure = failOnMergeFailure;
-                    }
-                    if (codecBloomLoad != codecService.isLoadBloomFilter()) {
-                        logger.info("updating {} from [{}] to [{}]", CodecService.INDEX_CODEC_BLOOM_LOAD, codecService.isLoadBloomFilter(), codecBloomLoad);
-                        codecService.setLoadBloomFilter(codecBloomLoad);
-                        // we need to flush in this case, to load/unload the bloom filters
-                        requiresFlushing = true;
                     }
                 }
                 if (requiresFlushing) {

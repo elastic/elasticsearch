@@ -550,12 +550,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             return Store.this.shardId();
         }
 
-        @Nullable
-        public CodecService codecService() {
-            ensureOpen();
-            return Store.this.codecService;
-        }
-
         @Override
         public void close() throws IOException {
             assert false : "Nobody should close this directory except of the Store itself";

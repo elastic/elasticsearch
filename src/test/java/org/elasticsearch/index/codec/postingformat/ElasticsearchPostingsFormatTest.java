@@ -47,9 +47,7 @@ public class ElasticsearchPostingsFormatTest extends BasePostingsFormatTestCase 
 
     @Override
     protected Codec getCodec() {
-        return random().nextBoolean() ?
-                TestUtil.alwaysPostingsFormat(new Elasticsearch090PostingsFormat())
-                : TestUtil.alwaysPostingsFormat(new BloomFilterPostingsFormat(PostingsFormat.forName("Lucene50"), BloomFilter.Factory.DEFAULT));
+        return TestUtil.alwaysPostingsFormat(new Elasticsearch090RWPostingsFormat());
     }
     
 }

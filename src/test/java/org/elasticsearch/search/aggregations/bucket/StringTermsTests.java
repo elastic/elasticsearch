@@ -545,6 +545,34 @@ public class StringTermsTests extends AbstractTermsTests {
     }
 
     @Test
+    public void multiValuedScript() throws Exception {
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("terms")
+                        .executionHint(randomExecutionHint())
+                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "']")
+                        .collectMode(randomFrom(SubAggCollectionMode.values())))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(6));
+
+        for (int i = 0; i < 6; i++) {
+            Terms.Bucket bucket = terms.getBucketByKey("val" + i);
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("val" + i));
+            if (i == 0 || i == 5) {
+                assertThat(bucket.getDocCount(), equalTo(1l));
+            } else {
+                assertThat(bucket.getDocCount(), equalTo(2l));
+            }
+        }
+    }
+
+    @Test
     public void multiValuedField_WithValueScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
@@ -709,7 +737,7 @@ public class StringTermsTests extends AbstractTermsTests {
                 .addAggregation(terms("terms")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .executionHint(randomExecutionHint())
-                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values"))
+                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "']"))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -737,7 +765,7 @@ public class StringTermsTests extends AbstractTermsTests {
                 .addAggregation(terms("terms")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .executionHint(randomExecutionHint())
-                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values")
+                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "']")
                         .subAggregation(count("count")))
                 .execute().actionGet();
 

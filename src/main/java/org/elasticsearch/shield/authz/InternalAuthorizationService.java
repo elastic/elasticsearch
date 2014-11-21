@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.authz;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.ClusterService;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.base.Predicates;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
@@ -31,16 +33,21 @@ import java.util.Set;
  */
 public class InternalAuthorizationService extends AbstractComponent implements AuthorizationService {
 
-    private final ClusterService clusterService;
+    private final Provider<ClusterService> clusterServiceProvider;
     private final RolesStore rolesStore;
     private final AuditTrail auditTrail;
     private final IndicesResolver[] indicesResolvers;
 
+    static {
+        //see https://github.com/elasticsearch/elasticsearch/pull/8415
+        assert Version.CURRENT.onOrBefore(Version.V_1_4_0) : "replace the Provider<ClusterService> with ClusterService";
+    }
+
     @Inject
-    public InternalAuthorizationService(Settings settings, RolesStore rolesStore, ClusterService clusterService, AuditTrail auditTrail) {
+    public InternalAuthorizationService(Settings settings, RolesStore rolesStore, Provider<ClusterService> clusterServiceProvider, AuditTrail auditTrail) {
         super(settings);
         this.rolesStore = rolesStore;
-        this.clusterService = clusterService;
+        this.clusterServiceProvider = clusterServiceProvider;
         this.auditTrail = auditTrail;
         this.indicesResolvers = new IndicesResolver[] {
                 new DefaultIndicesResolver(this)
@@ -63,7 +70,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
 
         ImmutableList.Builder<String> indicesAndAliases = ImmutableList.builder();
         Predicate<String> predicate = Predicates.or(predicates.build());
-        MetaData metaData = clusterService.state().metaData();
+        MetaData metaData = clusterServiceProvider.get().state().metaData();
         for (String index : metaData.concreteAllIndices()) {
             if (predicate.apply(index)) {
                 indicesAndAliases.add(index);
@@ -176,7 +183,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
     }
 
     private Set<String> resolveIndices(User user, String action, TransportRequest request) {
-        MetaData metaData = clusterService.state().metaData();
+        MetaData metaData = clusterServiceProvider.get().state().metaData();
 
         // some APIs are indices requests that are not actually associated with indices. For example,
         // search scroll request, is categorized under the indices context, but doesn't hold indices names

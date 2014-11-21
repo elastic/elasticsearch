@@ -56,3 +56,35 @@ The `memory` / `ram` store (`index.store.type`) option was removed in Elasticsea
 === Term Vectors API
 
 Usage of `/_termvector` is deprecated, and replaced in favor of `/_termvectors`.
+
+=== Script fields
+
+Script fields in 1.x were only returned as a single value. So even if the return
+value of a script used to be list, it would be returned as an array containing
+a single value that is a list too, such as:
+
+[source,json]
+---------------
+"fields": {
+  "my_field": [
+    [
+      "v1",
+      "v2"
+    ]
+  ]
+}
+---------------
+
+In elasticsearch 2.x, scripts that return a list of values are considered as
+multivalued fields. So the same example would return the following response,
+with values in a single array.
+
+[source,json]
+---------------
+"fields": {
+  "my_field": [
+    "v1",
+    "v2"
+  ]
+}
+---------------

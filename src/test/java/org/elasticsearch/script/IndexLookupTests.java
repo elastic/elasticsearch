@@ -385,7 +385,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
         assertHitCount(sr, expectedHitSize);
         int nullCounter = 0;
         for (SearchHit hit : sr.getHits().getHits()) {
-            Object result = hit.getFields().get("tvtest").getValues().get(0);
+            Object result = hit.getFields().get("tvtest").getValues();
             Object expectedResult = expectedArray.get(hit.getId());
             assertThat("for doc " + hit.getId(), result, equalTo(expectedResult));
             if (expectedResult != null) {

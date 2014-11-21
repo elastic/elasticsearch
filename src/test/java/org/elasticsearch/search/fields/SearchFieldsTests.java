@@ -298,12 +298,12 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
         assertThat(sObj2Arr2.get(0).toString(), equalTo("arr_value1"));
         assertThat(sObj2Arr2.get(1).toString(), equalTo("arr_value2"));
 
-        sObj2Arr2 = response.getHits().getAt(0).field("s_obj2_arr2").value();
+        sObj2Arr2 = response.getHits().getAt(0).field("s_obj2_arr2").values();
         assertThat(sObj2Arr2.size(), equalTo(2));
         assertThat(sObj2Arr2.get(0).toString(), equalTo("arr_value1"));
         assertThat(sObj2Arr2.get(1).toString(), equalTo("arr_value2"));
 
-        List sObj2Arr3 = response.getHits().getAt(0).field("s_arr3").value();
+        List sObj2Arr3 = response.getHits().getAt(0).field("s_arr3").values();
         assertThat(((Map) sObj2Arr3.get(0)).get("arr3_field1").toString(), equalTo("arr3_value1"));
     }
 

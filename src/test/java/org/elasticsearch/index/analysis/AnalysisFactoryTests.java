@@ -134,6 +134,7 @@ public class AnalysisFactoryTests extends ElasticsearchTestCase {
         put("russianlightstem",          StemmerTokenFilterFactory.class);
         put("scandinavianfolding",       ScandinavianFoldingFilterFactory.class);
         put("scandinaviannormalization", ScandinavianNormalizationFilterFactory.class);
+        put("serbiannormalization",      SerbianNormalizationFilterFactory.class);
         put("shingle",                   ShingleTokenFilterFactory.class);
         put("snowballporter",            SnowballTokenFilterFactory.class);
         put("soraninormalization",       SoraniNormalizationFilterFactory.class);

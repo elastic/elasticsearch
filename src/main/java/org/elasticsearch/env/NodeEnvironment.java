@@ -22,6 +22,8 @@ package org.elasticsearch.env;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
@@ -82,10 +84,10 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
                 if (Files.exists(dir) == false) {
                     Files.createDirectories(dir);
                 }
-                logger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
+                Directory luceneDir = FSDirectory.open(dir);
                 try {
-                    NativeFSLockFactory lockFactory = new NativeFSLockFactory(dir);
-                    Lock tmpLock = lockFactory.makeLock("node.lock");
+                    logger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
+                    Lock tmpLock = NativeFSLockFactory.INSTANCE.makeLock(luceneDir, "node.lock");
                     boolean obtained = tmpLock.obtain();
                     if (obtained) {
                         locks[dirIndex] = tmpLock;
@@ -111,6 +113,8 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
                         locks[i] = null;
                     }
                     break;
+                } finally {
+                    luceneDir.close();
                 }
             }
             if (locks[0] != null) {

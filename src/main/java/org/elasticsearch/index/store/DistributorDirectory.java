@@ -68,13 +68,14 @@ public final class DistributorDirectory extends BaseDirectory {
      * Creates a new DistributorDirectory form the given Distributor.
      */
     public DistributorDirectory(Distributor distributor) throws IOException {
+        super(new DistributorLockFactoryWrapper(distributor.primary()));
         this.distributor = distributor;
         for (Directory dir : distributor.all()) {
             for (String file : dir.listAll()) {
                 nameDirMapping.put(file, dir);
             }
         }
-        lockFactory = new DistributorLockFactoryWrapper(distributor.primary());
+        ((DistributorLockFactoryWrapper) lockFactory).setDistributorDirectory(this);
     }
 
     @Override
@@ -140,7 +141,7 @@ public final class DistributorDirectory extends BaseDirectory {
      *
      * @throws IOException if the name has not yet been associated with any directory ie. fi the file does not exists
      */
-    Directory getDirectory(String name) throws IOException { // pkg private for testing
+    synchronized Directory getDirectory(String name) throws IOException { // pkg private for testing
         return getDirectory(name, true);
     }
 
@@ -148,7 +149,7 @@ public final class DistributorDirectory extends BaseDirectory {
      * Returns the directory that has previously been associated with this file name or associates the name with a directory
      * if failIfNotAssociated is set to false.
      */
-    private Directory getDirectory(String name, boolean failIfNotAssociated) throws IOException {
+    private synchronized Directory getDirectory(String name, boolean failIfNotAssociated) throws IOException {
         final Directory directory = nameDirMapping.get(name);
         if (directory == null) {
             if (failIfNotAssociated) {
@@ -164,15 +165,12 @@ public final class DistributorDirectory extends BaseDirectory {
         return directory;
     }
 
-    @Override
-    public synchronized void setLockFactory(LockFactory lockFactory) throws IOException {
-        distributor.primary().setLockFactory(lockFactory);
-        super.setLockFactory(new DistributorLockFactoryWrapper(distributor.primary()));
-    }
-
-    @Override
-    public synchronized String getLockID() {
-        return distributor.primary().getLockID();
+    /** Called by the lock factory to record the lock file. */
+    synchronized void addNameDirMapping(String name, Directory dir) {
+        assert nameDirMapping.containsKey(name) == false || nameDirMapping.get(name) == dir;
+        if (nameDirMapping.get(name) == null) {
+            nameDirMapping.put(name, dir);
+        }
     }
 
     @Override
@@ -201,8 +199,8 @@ public final class DistributorDirectory extends BaseDirectory {
                             .append(System.lineSeparator());
                 } else if (directory != d) {
                     consistent = false;
-                    builder.append("File ").append(file).append(" was  mapped to a directory ").append(directory)
-                            .append(" but exists in another distributor directory").append(d)
+                    builder.append("File ").append(file).append(" was mapped to a directory ").append(directory)
+                            .append(" but exists in another distributor directory ").append(d)
                             .append(System.lineSeparator());
                 }
 
@@ -218,53 +216,38 @@ public final class DistributorDirectory extends BaseDirectory {
      * lock factory. For instance {@link NativeFSLockFactory} creates real
      * files that we should expose for consistency reasons.
      */
-    private class DistributorLockFactoryWrapper extends LockFactory {
-        private final Directory dir;
-        private final LockFactory delegate;
+    private static class DistributorLockFactoryWrapper extends LockFactory {
+        private final Directory delegateDir;
         private final boolean writesFiles;
 
-        public DistributorLockFactoryWrapper(Directory dir) {
-            this.dir = dir;
-            final FSDirectory leaf = DirectoryUtils.getLeaf(dir, FSDirectory.class);
-            if (leaf != null) {
-               writesFiles = leaf.getLockFactory() instanceof FSLockFactory;
-            } else {
-                writesFiles = false;
-            }
-            this.delegate = dir.getLockFactory();
+        // So we can update the nameDirMapping when we write a lock file:
+        private DistributorDirectory distributorDirectory;
+
+        public DistributorLockFactoryWrapper(Directory delegateDir) {
+            this.delegateDir = delegateDir;
+            this.writesFiles = DirectoryUtils.getLeaf(delegateDir, FSDirectory.class) != null;
+        }
+
+        public void setDistributorDirectory(DistributorDirectory distributorDirectory) {
+            this.distributorDirectory = distributorDirectory;
         }
 
         @Override
-        public void setLockPrefix(String lockPrefix) {
-            delegate.setLockPrefix(lockPrefix);
-        }
-
-        @Override
-        public String getLockPrefix() {
-            return delegate.getLockPrefix();
-        }
-
-        @Override
-        public Lock makeLock(String lockName) {
-            return new DistributorLock(delegate.makeLock(lockName), lockName);
-        }
-
-        @Override
-        public void clearLock(String lockName) throws IOException {
-            delegate.clearLock(lockName);
+        public Lock makeLock(Directory dir, String lockName) {
+            return new DistributorLock(delegateDir.makeLock(lockName), lockName);
         }
 
         @Override
         public String toString() {
-            return "DistributorLockFactoryWrapper(" + delegate.toString() + ")";
+            return "DistributorLockFactoryWrapper(" + delegateDir.toString() + ")";
         }
 
         private class DistributorLock extends Lock {
             private final Lock delegateLock;
             private final String name;
 
-            DistributorLock(Lock delegate, String name) {
-                this.delegateLock = delegate;
+            DistributorLock(Lock delegateLock, String name) {
+                this.delegateLock = delegateLock;
                 this.name = name;
             }
 
@@ -272,12 +255,7 @@ public final class DistributorDirectory extends BaseDirectory {
             public boolean obtain() throws IOException {
                 if (delegateLock.obtain()) {
                     if (writesFiles) {
-                        synchronized (DistributorDirectory.this) {
-                            assert (nameDirMapping.containsKey(name) == false || nameDirMapping.get(name) == dir);
-                            if (nameDirMapping.get(name) == null) {
-                                nameDirMapping.put(name, dir);
-                            }
-                        }
+                        distributorDirectory.addNameDirMapping(name, delegateDir);
                     }
                     return true;
                 } else {

@@ -107,7 +107,7 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         assertEquals(ft1.omitNorms(), ft2.omitNorms());
         assertEquals(ft1.indexOptions(), ft2.indexOptions());
         assertEquals(ft1.storeTermVectors(), ft2.storeTermVectors());
-        assertEquals(ft1.docValueType(), ft2.docValueType());
+        assertEquals(ft1.docValuesType(), ft2.docValuesType());
     }
 
     private void assertParseIdemPotent(IndexableFieldType expected, DocumentMapper mapper) throws Exception {
@@ -327,8 +327,8 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
 
     public static DocValuesType docValuesType(Document document, String fieldName) {
         for (IndexableField field : document.getFields(fieldName)) {
-            if (field.fieldType().docValueType() != DocValuesType.NONE) {
-                return field.fieldType().docValueType();
+            if (field.fieldType().docValuesType() != DocValuesType.NONE) {
+                return field.fieldType().docValuesType();
             }
         }
         return DocValuesType.NONE;

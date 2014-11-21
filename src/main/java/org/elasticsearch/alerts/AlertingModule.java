@@ -10,15 +10,13 @@ import org.elasticsearch.alerts.actions.AlertActionManager;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
 import org.elasticsearch.alerts.client.NodeAlertsClient;
 import org.elasticsearch.alerts.client.AlertsClient;
-import org.elasticsearch.alerts.rest.RestAlertsStatsAction;
-import org.elasticsearch.alerts.rest.RestDeleteAlertAction;
-import org.elasticsearch.alerts.rest.RestGetAlertAction;
-import org.elasticsearch.alerts.rest.RestPutAlertAction;
+import org.elasticsearch.alerts.rest.*;
 import org.elasticsearch.alerts.scheduler.AlertScheduler;
 import org.elasticsearch.alerts.transport.actions.ack.TransportAckAlertAction;
 import org.elasticsearch.alerts.transport.actions.delete.TransportDeleteAlertAction;
 import org.elasticsearch.alerts.transport.actions.get.TransportGetAlertAction;
 import org.elasticsearch.alerts.transport.actions.put.TransportPutAlertAction;
+import org.elasticsearch.alerts.transport.actions.service.TransportAlertsServiceAction;
 import org.elasticsearch.alerts.transport.actions.stats.TransportAlertStatsAction;
 import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -43,6 +41,7 @@ public class AlertingModule extends AbstractModule {
         bind(TransportGetAlertAction.class).asEagerSingleton();
         bind(TransportAlertStatsAction.class).asEagerSingleton();
         bind(TransportAckAlertAction.class).asEagerSingleton();
+        bind(TransportAlertsServiceAction.class).asEagerSingleton();
         bind(AlertsClient.class).to(NodeAlertsClient.class).asEagerSingleton();
 
         // Rest layer
@@ -50,6 +49,7 @@ public class AlertingModule extends AbstractModule {
         bind(RestDeleteAlertAction.class).asEagerSingleton();
         bind(RestAlertsStatsAction.class).asEagerSingleton();
         bind(RestGetAlertAction.class).asEagerSingleton();
+        bind(RestAlertServiceAction.class).asEagerSingleton();
     }
 
 }

@@ -159,6 +159,21 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         });
     }
 
+    protected void startAlerting() throws Exception {
+        alertClient().prepareAlertService().start().get();
+        ensureAlertingStarted();
+    }
+
+    protected void stopAlerting() throws Exception {
+        alertClient().prepareAlertService().stop().get();
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertThat(alertClient().prepareAlertsStats().get().isAlertManagerStarted(), is(false));
+            }
+        });
+    }
+
     protected static InternalTestCluster internalTestCluster() {
         return (InternalTestCluster) ((AlertingWrappingCluster) cluster()).testCluster;
     }

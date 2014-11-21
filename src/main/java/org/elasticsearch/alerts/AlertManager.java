@@ -49,6 +49,9 @@ public class AlertManager extends AbstractComponent {
     private final ClusterService clusterService;
     private final KeyedLock<String> alertLock = new KeyedLock<>();
     private final AtomicReference<State> state = new AtomicReference<>(State.STOPPED);
+    private final AlertsClusterStateListener alertsClusterStateListener = new AlertsClusterStateListener();
+
+    private volatile boolean manuallyStopped;
 
     @Inject
     public AlertManager(Settings settings, ClusterService clusterService, AlertScheduler scheduler, AlertsStore alertsStore,
@@ -64,13 +67,14 @@ public class AlertManager extends AbstractComponent {
         this.actionManager.setAlertManager(this);
         this.actionRegistry = actionRegistry;
         this.clusterService = clusterService;
-        clusterService.add(new AlertsClusterStateListener());
+        clusterService.add(alertsClusterStateListener);
+        manuallyStopped = !settings.getAsBoolean("alerts.start_immediately", true);
         // Close if the indices service is being stopped, so we don't run into search failures (locally) that will
         // happen because we're shutting down and an alert is scheduled.
         indicesService.addLifecycleListener(new LifecycleListener() {
             @Override
             public void beforeStop() {
-                stop();
+                internalStop();
             }
         });
 
@@ -177,12 +181,25 @@ public class AlertManager extends AbstractComponent {
         return false;
     }
 
+    public void start() {
+        if (state.compareAndSet(State.STOPPED, State.LOADING)) {
+            manuallyStopped = false;
+            logger.info("Starting alert manager...");
+            ClusterState state = clusterService.state();
+            alertsClusterStateListener.initialize(state);
+        }
+    }
+
+    public void stop() {
+        manuallyStopped = true;
+        internalStop();
+    }
 
     // This is synchronized, because this may first be called from the cluster changed event and then from before close
     // when a node closes. The stop also stops the scheduler which has several background threads. If this method is
     // invoked in that order that node closes and the test framework complains then about the fact that there are still
     // threads alive.
-    public synchronized void stop() {
+    private synchronized void internalStop() {
         if (state.compareAndSet(State.LOADING, State.STOPPED) || state.compareAndSet(State.STARTED, State.STOPPED)) {
             logger.info("Stopping alert manager...");
             actionManager.stop();
@@ -251,7 +268,7 @@ public class AlertManager extends AbstractComponent {
                 threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
                     @Override
                     public void run() {
-                        stop();
+                        internalStop();
                     }
                 });
             } else {
@@ -267,6 +284,10 @@ public class AlertManager extends AbstractComponent {
         }
 
         private void initialize(final ClusterState state) {
+            if (manuallyStopped) {
+                return;
+            }
+
             threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
                 @Override
                 public void run() {
@@ -293,6 +314,7 @@ public class AlertManager extends AbstractComponent {
             if (alertsStore.started() && actionManager.started()) {
                 if (state.compareAndSet(State.LOADING, State.STARTED)) {
                     scheduler.start(alertsStore.getAlerts());
+                    logger.info("Alert manager has started");
                 } else {
                     logger.info("Didn't start alert manager, because it state was [{}] while [{}] was expected", state.get(), State.LOADING);
                 }

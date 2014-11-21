@@ -230,7 +230,6 @@ public class AlertsStore extends AbstractComponent {
     protected Alert parseAlert(String alertName, BytesReference source) {
         Alert alert = new Alert();
         alert.alertName(alertName);
-        logger.error("Source : [{}]", source.toUtf8());
         try (XContentParser parser = XContentHelper.createParser(source)) {
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken();

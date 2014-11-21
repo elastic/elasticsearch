@@ -11,6 +11,7 @@ import org.elasticsearch.alerts.transport.actions.ack.*;
 import org.elasticsearch.alerts.transport.actions.delete.*;
 import org.elasticsearch.alerts.transport.actions.get.*;
 import org.elasticsearch.alerts.transport.actions.put.*;
+import org.elasticsearch.alerts.transport.actions.service.*;
 import org.elasticsearch.alerts.transport.actions.stats.*;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -26,7 +27,8 @@ public class NodeAlertsClient implements AlertsClient {
     @Inject
     public NodeAlertsClient(ThreadPool threadPool, Headers headers, TransportPutAlertAction transportPutAlertAction,
                             TransportGetAlertAction transportGetAlertAction, TransportDeleteAlertAction transportDeleteAlertAction,
-                            TransportAlertStatsAction transportAlertStatsAction, TransportAckAlertAction transportAckAlertAction) {
+                            TransportAlertStatsAction transportAlertStatsAction, TransportAckAlertAction transportAckAlertAction,
+                            TransportAlertsServiceAction transportAlertsServiceAction) {
         this.headers = headers;
         this.threadPool = threadPool;
         internalActions = ImmutableMap.<GenericAction, TransportAction>builder()
@@ -35,6 +37,7 @@ public class NodeAlertsClient implements AlertsClient {
                 .put(DeleteAlertAction.INSTANCE, transportDeleteAlertAction)
                 .put(AlertsStatsAction.INSTANCE, transportAlertStatsAction)
                 .put(AckAlertAction.INSTANCE, transportAckAlertAction)
+                .put(AlertServiceAction.INSTANCE, transportAlertsServiceAction)
                 .build();
     }
 
@@ -130,6 +133,21 @@ public class NodeAlertsClient implements AlertsClient {
     @Override
     public ActionFuture<AckAlertResponse> ackAlert(AckAlertRequest request) {
         return execute(AckAlertAction.INSTANCE, request);
+    }
+
+    @Override
+    public AlertServiceRequestBuilder prepareAlertService() {
+        return new AlertServiceRequestBuilder(this);
+    }
+
+    @Override
+    public void alertService(AlertsServiceRequest request, ActionListener<AlertsServiceResponse> listener) {
+        execute(AlertServiceAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public ActionFuture<AlertsServiceResponse> alertService(AlertsServiceRequest request) {
+        return execute(AlertServiceAction.INSTANCE, request);
     }
 
     @SuppressWarnings("unchecked")

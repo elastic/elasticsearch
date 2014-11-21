@@ -33,6 +33,7 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -40,7 +41,9 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -48,10 +51,15 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
@@ -562,5 +570,44 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getAt(0).fields().get("date_field").value(), equalTo((Object) 1332374400000L));
         assertThat(searchResponse.getHits().getAt(0).fields().get("boolean_field").value().toString(), equalTo("T"));
 
+    }
+
+    public void testScriptFields() throws Exception {
+        assertAcked(prepareCreate("index").addMapping("type",
+                "s", "type=string,index=not_analyzed",
+                "l", "type=long",
+                "d", "type=double",
+                "ms", "type=string,index=not_analyzed",
+                "ml", "type=long",
+                "md", "type=double").get());
+        final int numDocs = randomIntBetween(3, 8);
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+        for (int i = 0; i < numDocs; ++i) {
+            reqs.add(client().prepareIndex("index", "type", Integer.toString(i)).setSource(
+                    "s", Integer.toString(i),
+                    "ms", new String[] {Integer.toString(i), Integer.toString(i+1)},
+                    "l", i,
+                    "ml", new long[] {i, i+1},
+                    "d", i,
+                    "md", new double[] {i, i+1}));
+        }
+        indexRandom(true, reqs);
+        ensureSearchable();
+        SearchRequestBuilder req = client().prepareSearch("index");
+        for (String field : Arrays.asList("s", "ms", "l", "ml", "d", "md")) {
+            req.addScriptField(field, "doc['" + field + "'].values");
+        }
+        SearchResponse resp = req.get();
+        assertSearchResponse(resp);
+        for (SearchHit hit : resp.getHits().getHits()) {
+            final int id = Integer.parseInt(hit.getId());
+            Map<String, SearchHitField> fields = hit.getFields();
+            assertThat(fields.get("s").getValues(), equalTo(Collections.<Object>singletonList(Integer.toString(id))));
+            assertThat(fields.get("l").getValues(), equalTo(Collections.<Object>singletonList((long) id)));
+            assertThat(fields.get("d").getValues(), equalTo(Collections.<Object>singletonList((double) id)));
+            assertThat(fields.get("ms").getValues(), equalTo(Arrays.<Object>asList(Integer.toString(id), Integer.toString(id + 1))));
+            assertThat(fields.get("ml").getValues(), equalTo(Arrays.<Object>asList((long) id, id+1L)));
+            assertThat(fields.get("md").getValues(), equalTo(Arrays.<Object>asList((double) id, id+1d)));
+        }
     }
 }

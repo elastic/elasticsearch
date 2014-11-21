@@ -24,8 +24,6 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.*;
 import org.elasticsearch.common.util.BloomFilter;
-import org.elasticsearch.index.store.DirectoryUtils;
-import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
 import java.util.*;
@@ -42,7 +40,9 @@ import java.util.Map.Entry;
  * This is a special bloom filter version, based on {@link org.elasticsearch.common.util.BloomFilter} and inspired
  * by Lucene {@link org.apache.lucene.codecs.bloom.BloomFilteringPostingsFormat}.
  * </p>
+ * @deprecated only for reading old segments
  */
+@Deprecated
 public final class BloomFilterPostingsFormat extends PostingsFormat {
 
     public static final String BLOOM_CODEC_NAME = "XBloomFilter"; // the Lucene one is named BloomFilter
@@ -160,30 +160,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
                 // // Load the hash function used in the BloomFilter
                 // hashFunction = HashFunction.forName(bloomIn.readString());
                 // Load the delegate postings format
-               final String delegatePostings = bloomIn
-                        .readString();
-                int numBlooms = bloomIn.readInt();
-
-                boolean load = false;
-                Store.StoreDirectory storeDir = DirectoryUtils.getStoreDirectory(state.directory);
-                if (storeDir != null && storeDir.codecService() != null) {
-                    load = storeDir.codecService().isLoadBloomFilter();
-                }
-
-                if (load) {
-                    for (int i = 0; i < numBlooms; i++) {
-                        int fieldNum = bloomIn.readInt();
-                        FieldInfo fieldInfo = state.fieldInfos.fieldInfo(fieldNum);
-                        LazyBloomLoader loader = new LazyBloomLoader(bloomIn.getFilePointer(), dataInput);
-                        bloomsByFieldName.put(fieldInfo.name, loader);
-                        BloomFilter.skipBloom(bloomIn);
-                    }
-                    if (version >= BLOOM_CODEC_VERSION_CHECKSUM) {
-                        CodecUtil.checkFooter(bloomIn);
-                    } else {
-                        CodecUtil.checkEOF(bloomIn);
-                    }
-                }
+               final String delegatePostings = bloomIn.readString();
                 this.delegateFieldsProducer = PostingsFormat.forName(delegatePostings)
                         .fieldsProducer(state);
                 this.data = dataInput;
@@ -383,8 +360,9 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
 
     }
 
-
-    final class BloomFilteredFieldsConsumer extends FieldsConsumer {
+    // TODO: would be great to move this out to test code, but the interaction between es090 and bloom is complex
+    // at least it is not accessible via SPI
+    public final class BloomFilteredFieldsConsumer extends FieldsConsumer {
         private FieldsConsumer delegateFieldsConsumer;
         private Map<FieldInfo, BloomFilter> bloomFilters = new HashMap<>();
         private SegmentWriteState state;
@@ -399,7 +377,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
         }
 
         // for internal use only
-        FieldsConsumer getDelegate() {
+        public FieldsConsumer getDelegate() {
             return delegateFieldsConsumer;
         }
 

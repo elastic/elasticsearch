@@ -466,9 +466,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
              builder.put(FsTranslog.INDEX_TRANSLOG_FS_TYPE, RandomPicks.randomFrom(random, FsTranslogFile.Type.values()).name());
         }
 
-        // Randomly load or don't load bloom filters:
-        builder.put(CodecService.INDEX_CODEC_BLOOM_LOAD, random.nextBoolean());
-
         if (random.nextBoolean()) {
             builder.put(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, random.nextBoolean());
         }

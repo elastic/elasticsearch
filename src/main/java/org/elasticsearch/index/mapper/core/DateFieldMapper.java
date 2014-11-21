@@ -355,13 +355,8 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     private Query innerRangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser) {
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
-<<<<<<< HEAD
-                lowerTerm == null ? null : parseToMilliseconds(lowerTerm, false, timeZone, forcedDateParser == null ? dateMathParser : forcedDateParser),
+                lowerTerm == null ? null : parseToMilliseconds(lowerTerm, !includeLower, timeZone, forcedDateParser == null ? dateMathParser : forcedDateParser),
                 upperTerm == null ? null : parseToMilliseconds(upperTerm, includeUpper, timeZone, forcedDateParser == null ? dateMathParser : forcedDateParser),
-=======
-                lowerTerm == null ? null : parseToMilliseconds(lowerTerm, context, !includeLower, timeZone, forcedDateParser == null ? dateMathParser : forcedDateParser),
-                upperTerm == null ? null : parseToMilliseconds(upperTerm, context, includeUpper, timeZone, forcedDateParser == null ? dateMathParser : forcedDateParser),
->>>>>>> DateMath: Fix semantics of rounding with inclusive/exclusive ranges.
                 includeLower, includeUpper);
     }
 

@@ -37,7 +37,7 @@ public class NettySecuredHttpServerTransport extends NettyHttpServerTransport {
         this.ssl = settings.getAsBoolean("shield.http.ssl", false);
         this.sslService = sslService;
         assert !ssl || sslService != null : "ssl is enabled yet the ssl service is null";
-        this.ipFilterEnabled = settings.getAsBoolean("shield.transport.n2n.ip_filter.enabled", true);
+        this.ipFilterEnabled = settings.getAsBoolean("shield.transport.filter.enabled", true);
     }
 
     @Override

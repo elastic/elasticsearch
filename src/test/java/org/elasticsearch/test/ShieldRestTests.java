@@ -50,7 +50,6 @@ public class ShieldRestTests extends ElasticsearchRestTests {
     protected static final String DEFAULT_PASSWORD = "changeme";
     protected static final String DEFAULT_ROLE = "user";
 
-    public static final String CONFIG_IPFILTER_ALLOW_ALL = "allow: all\n";
     public static final String CONFIG_STANDARD_USER = DEFAULT_USER_NAME + ":{plain}" + DEFAULT_PASSWORD + "\n";
     public static final String CONFIG_STANDARD_USER_ROLES = DEFAULT_ROLE + ":" + DEFAULT_USER_NAME+ "\n";
     public static final String CONFIG_ROLE_ALLOW_ALL =
@@ -108,7 +107,6 @@ public class ShieldRestTests extends ElasticsearchRestTests {
                             .put("shield.authc.esusers.files.users", createFile(folder, "users", CONFIG_STANDARD_USER))
                             .put("shield.authc.esusers.files.users_roles", createFile(folder, "users_roles", CONFIG_STANDARD_USER_ROLES))
                             .put("shield.authz.store.files.roles", createFile(folder, "roles.yml", CONFIG_ROLE_ALLOW_ALL))
-                            .put("shield.transport.n2n.ip_filter.file", createFile(folder, "ip_filter.yml", CONFIG_IPFILTER_ALLOW_ALL))
                             .put("shield.transport.ssl", ENABLE_TRANSPORT_SSL)
                             .put("shield.ssl.keystore.path", store.getPath())
                             .put("shield.ssl.keystore.password", password)
@@ -138,14 +136,11 @@ public class ShieldRestTests extends ElasticsearchRestTests {
                         throw new ElasticsearchException("Error reading test client cert", e);
                     }
 
-                    File folder = createFolder();
-
                     return ImmutableSettings.builder()
                             .put("request.headers.Authorization", basicAuthHeaderValue(DEFAULT_USER_NAME, SecuredStringTests.build(DEFAULT_PASSWORD)))
                             .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransport.class.getName())
                             .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                             .put("node.mode", "network")
-                            .put("shield.transport.n2n.ip_filter.file", createFile(folder, "ip_filter.yml", CONFIG_IPFILTER_ALLOW_ALL))
                             .put("shield.transport.ssl", ENABLE_TRANSPORT_SSL)
                             .put("shield.ssl.keystore.path", store.getPath())
                             .put("shield.ssl.keystore.password", password)

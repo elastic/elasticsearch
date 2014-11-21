@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.transport.n2n;
 
 import com.google.common.base.Charsets;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -16,7 +15,6 @@ import org.elasticsearch.shield.test.ShieldIntegrationTest;
 import org.elasticsearch.transport.Transport;
 import org.junit.Test;
 
-import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -33,17 +31,13 @@ import static org.hamcrest.Matchers.is;
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1, numClientNodes = 0, transportClientRatio = 0.0)
 public class IpFilteringIntegrationTests extends ShieldIntegrationTest {
 
-    private static final String CONFIG_IPFILTER_DENY_ALL = "deny: all\n";
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        ImmutableSettings.Builder builder = settingsBuilder().put(super.nodeSettings(nodeOrdinal));
-        builder.put(InternalNode.HTTP_ENABLED, true);
-
-        File folder = newFolder();
-        builder.put("shield.transport.n2n.ip_filter.file", writeFile(folder, "ip_filter.yml", CONFIG_IPFILTER_DENY_ALL));
-
-        return builder.build();
+        return settingsBuilder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(InternalNode.HTTP_ENABLED, true)
+                .put("shield.transport.filter.deny", "_all")
+                .build();
     }
 
     @Test(expected = SocketException.class)

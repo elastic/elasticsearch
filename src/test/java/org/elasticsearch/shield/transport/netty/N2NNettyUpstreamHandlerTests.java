@@ -5,22 +5,14 @@
  */
 package org.elasticsearch.shield.transport.netty;
 
-import com.google.common.base.Charsets;
-import com.google.common.io.Files;
 import com.google.common.net.InetAddresses;
 import org.elasticsearch.common.netty.channel.*;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.transport.n2n.IPFilteringN2NAuthenticator;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.File;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 
@@ -33,26 +25,17 @@ import static org.hamcrest.Matchers.is;
 public class N2NNettyUpstreamHandlerTests extends ElasticsearchTestCase {
 
     private N2NNettyUpstreamHandler nettyUpstreamHandler;
-    private ThreadPool threadPool;
 
     @Before
     public void init() throws Exception {
-        File configFile = newTempFile();
-        threadPool = new ThreadPool("resourceWatcher");
-        ResourceWatcherService resourceWatcherService = new ResourceWatcherService(ImmutableSettings.EMPTY, threadPool).start();
+        Settings settings = settingsBuilder()
+                .put("shield.transport.filter.allow", "127.0.0.1")
+                .put("shield.transport.filter.deny", "10.0.0.0/8")
+                .build();
 
-        String testData = "allow: 127.0.0.1\ndeny: 10.0.0.0/8";
-        Files.write(testData.getBytes(Charsets.UTF_8), configFile);
-
-        Settings settings = settingsBuilder().put("shield.transport.n2n.ip_filter.file", configFile.getPath()).build();
-        IPFilteringN2NAuthenticator ipFilteringN2NAuthenticator = new IPFilteringN2NAuthenticator(settings, new Environment(), resourceWatcherService);
+        IPFilteringN2NAuthenticator ipFilteringN2NAuthenticator = new IPFilteringN2NAuthenticator(settings);
 
         nettyUpstreamHandler = new N2NNettyUpstreamHandler(ipFilteringN2NAuthenticator, "default");
-    }
-
-    @After
-    public void shutdownThreadPool() {
-        threadPool.shutdownNow();
     }
 
     @Test

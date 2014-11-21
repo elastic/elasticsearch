@@ -6,8 +6,6 @@
 package org.elasticsearch.shield.transport.ssl;
 
 import com.google.common.base.Charsets;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
@@ -24,10 +22,7 @@ import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.test.ShieldIntegrationTest;
-import org.elasticsearch.shield.transport.SecuredTransportService;
-import org.elasticsearch.shield.transport.netty.NettySecuredTransport;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportModule;
 import org.junit.Test;
 
 import javax.net.ssl.*;
@@ -39,7 +34,6 @@ import java.util.Locale;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.*;
 
 public class SslIntegrationTests extends ShieldIntegrationTest {
@@ -136,7 +130,6 @@ public class SslIntegrationTests extends ShieldIntegrationTest {
 
                 .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword()))
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
-                .put("shield.transport.n2n.ip_filter.file", writeFile(folder, "ip_filter.yml", ShieldIntegrationTest.CONFIG_IPFILTER_ALLOW_ALL))
 
                 .put(getSSLSettingsForStore("certs/simple/testclient.jks", "testclient"))
                 .build();

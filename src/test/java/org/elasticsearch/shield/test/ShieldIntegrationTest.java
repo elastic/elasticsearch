@@ -19,8 +19,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.transport.netty.NettySecuredTransport;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.transport.Transport;
@@ -54,7 +54,6 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
     protected static final String DEFAULT_TRANSPORT_CLIENT_ROLE = "trans_client_user";
     protected static final String DEFAULT_TRANSPORT_CLIENT_USER_NAME = "test_trans_client_user";
 
-    public static final String CONFIG_IPFILTER_ALLOW_ALL = "allow: all\n";
     public static final String CONFIG_STANDARD_USER =
             DEFAULT_USER_NAME + ":{plain}" + DEFAULT_PASSWORD + "\n" +
             DEFAULT_TRANSPORT_CLIENT_USER_NAME + ":{plain}" + DEFAULT_PASSWORD + "\n";
@@ -88,7 +87,6 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
                 .put("shield.authc.esusers.files.users", writeFile(folder, "users", configUsers()))
                 .put("shield.authc.esusers.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
                 .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRole()))
-                .put("shield.transport.n2n.ip_filter.file", writeFile(folder, "ip_filter.yml", CONFIG_IPFILTER_ALLOW_ALL))
                 .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode"))
                 .put("shield.audit.enabled", true)
                 .put("plugins.load_classpath_plugins", false);

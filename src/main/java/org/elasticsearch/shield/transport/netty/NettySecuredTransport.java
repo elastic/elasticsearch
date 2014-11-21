@@ -36,7 +36,7 @@ public class NettySecuredTransport extends NettyTransport {
                                  @Nullable IPFilteringN2NAuthenticator authenticator, @Nullable SSLService sslService) {
         super(settings, threadPool, networkService, bigArrays, version);
         this.authenticator = authenticator;
-        this.ipFilterEnabled = settings.getAsBoolean("shield.transport.n2n.ip_filter.enabled", true);
+        this.ipFilterEnabled = settings.getAsBoolean("shield.transport.filter.enabled", true);
         this.sslService = sslService;
         this.ssl = settings.getAsBoolean("shield.transport.ssl", false);
         assert !ssl || sslService != null : "ssl is enabled yet the ssl service is null";

@@ -30,7 +30,9 @@ import org.elasticsearch.index.settings.IndexSettings;
 import java.util.Map;
 
 /**
+ * @deprecated only for reading old segments
  */
+@Deprecated
 public class BloomFilterPostingsFormatProvider extends AbstractPostingsFormatProvider {
 
     private final PostingsFormatProvider delegate;

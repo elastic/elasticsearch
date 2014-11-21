@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.codec.postingsformat;
 
+import org.elasticsearch.common.lucene.Lucene;
+
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.codecs.PostingsFormat;
@@ -29,10 +31,7 @@ import org.elasticsearch.common.util.BloomFilter;
  * This class represents the set of Elasticsearch "built-in"
  * {@link PostingsFormatProvider.Factory postings format factories}
  * <ul>
- * <li><b>bloom_default</b>: a postings format that uses a bloom filter to
- * improve term lookup performance. This is useful for primarily keys or fields
- * that are used as a delete key</li>
- * <li><b>default</b>: the default Elasticsearch postings format offering best
+ * <li><b>default</b>: the default Lucene postings format offering best
  * general purpose performance. This format is used if no postings format is
  * specified in the field mapping.</li>
  * <li><b>***</b>: other formats from Lucene core (e.g. Lucene41 as of Lucene 4.10)
@@ -50,11 +49,9 @@ public class PostingFormats {
         for (String luceneName : PostingsFormat.availablePostingsFormats()) {
             builtInPostingFormatsX.put(luceneName, new PreBuiltPostingsFormatProvider.Factory(PostingsFormat.forName(luceneName)));
         }
-        final PostingsFormat defaultFormat = new Elasticsearch090PostingsFormat();
+        final PostingsFormat defaultFormat = PostingsFormat.forName(Lucene.LATEST_POSTINGS_FORMAT);
         builtInPostingFormatsX.put(PostingsFormatService.DEFAULT_FORMAT,
                                    new PreBuiltPostingsFormatProvider.Factory(PostingsFormatService.DEFAULT_FORMAT, defaultFormat));
-
-        builtInPostingFormatsX.put("bloom_default", new PreBuiltPostingsFormatProvider.Factory("bloom_default", wrapInBloom(PostingsFormat.forName("Lucene41"))));
 
         builtInPostingFormats = builtInPostingFormatsX.immutableMap();
     }

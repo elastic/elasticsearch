@@ -34,6 +34,7 @@ import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LineFileDocs;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.Elasticsearch090PostingsFormat;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
@@ -71,7 +72,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
 
         IndexInput input = dir.openInput("foo.txt", IOContext.DEFAULT);
         LookupFactory load = currentProvider.load(input);
-        PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(new Elasticsearch090PostingsFormat());
+        PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(PostingsFormat.forName(Lucene.LATEST_POSTINGS_FORMAT));
         NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer(TEST_VERSION_CURRENT));
         Lookup lookup = load.getLookup(new CompletionFieldMapper(new Names("foo"), analyzer, analyzer, format, null, true, true, true, Integer.MAX_VALUE, AbstractFieldMapper.MultiFields.empty(), null, ContextMapping.EMPTY_MAPPING), new CompletionSuggestionContext(null));
         List<LookupResult> result = lookup.lookup("ge", false, 10);
@@ -225,7 +226,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
             iter = primaryIter;
         }
         reference.build(iter);
-        PostingsFormatProvider provider = new PreBuiltPostingsFormatProvider(new Elasticsearch090PostingsFormat());
+        PostingsFormatProvider provider = new PreBuiltPostingsFormatProvider(PostingsFormat.forName(Lucene.LATEST_POSTINGS_FORMAT));
 
         NamedAnalyzer namedAnalzyer = new NamedAnalyzer("foo", new StandardAnalyzer(TEST_VERSION_CURRENT));
         final CompletionFieldMapper mapper = new CompletionFieldMapper(new Names("foo"), namedAnalzyer, namedAnalzyer, provider, null, usePayloads,

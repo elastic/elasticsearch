@@ -556,12 +556,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             return Store.this.shardId();
         }
 
-        @Nullable
-        public CodecService codecService() {
-            ensureOpen();
-            return Store.this.codecService;
-        }
-
         @Override
         public IndexInput openInput(String name, IOContext context) throws IOException {
             IndexInput in = super.openInput(name, context);

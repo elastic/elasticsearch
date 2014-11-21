@@ -33,14 +33,17 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import java.io.IOException;
 
 /**
- * This is the default postings format for Elasticsearch that special cases
+ * This is the old default postings format for Elasticsearch that special cases
  * the <tt>_uid</tt> field to use a bloom filter while all other fields
  * will use a {@link Lucene41PostingsFormat}. This format will reuse the underlying
  * {@link Lucene41PostingsFormat} and its files also for the <tt>_uid</tt> saving up to
  * 5 files per segment in the default case.
+ * <p>
+ * @deprecated only for reading old segments
  */
-public final class Elasticsearch090PostingsFormat extends PostingsFormat {
-    private final BloomFilterPostingsFormat bloomPostings;
+@Deprecated
+public class Elasticsearch090PostingsFormat extends PostingsFormat {
+    protected final BloomFilterPostingsFormat bloomPostings;
 
     public Elasticsearch090PostingsFormat() {
         super("es090");
@@ -53,23 +56,7 @@ public final class Elasticsearch090PostingsFormat extends PostingsFormat {
 
     @Override
     public FieldsConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        final BloomFilteredFieldsConsumer fieldsConsumer = bloomPostings.fieldsConsumer(state);
-        return new FieldsConsumer() {
-
-            @Override
-            public void close() throws IOException {
-                fieldsConsumer.close();
-            }
-
-            @Override
-            public TermsConsumer addField(FieldInfo field) throws IOException {
-                if (UidFieldMapper.NAME.equals(field.name)) {
-                    // only go through bloom for the UID field
-                    return fieldsConsumer.addField(field);
-                }
-                return fieldsConsumer.getDelegate().addField(field);
-            }
-        };
+        throw new UnsupportedOperationException("this codec can only be used for reading");
     }
 
     @Override

@@ -22,6 +22,7 @@ package org.elasticsearch.index.codec;
 import java.util.Arrays;
 
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.bloom.BloomFilteringPostingsFormat;
 import org.apache.lucene.codecs.lucene40.Lucene40Codec;
 import org.apache.lucene.codecs.lucene41.Lucene41Codec;
@@ -33,6 +34,7 @@ import org.apache.lucene.codecs.lucene49.Lucene49Codec;
 import org.apache.lucene.codecs.lucene410.Lucene410Codec;
 import org.apache.lucene.codecs.lucene410.Lucene410DocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -76,25 +78,16 @@ public class CodecTests extends ElasticsearchSingleNodeLuceneTestCase {
     public void testResolveDefaultPostingFormats() throws Exception {
         PostingsFormatService postingsFormatService = createCodecService().postingsFormatService();
         assertThat(postingsFormatService.get("default"), instanceOf(PreBuiltPostingsFormatProvider.class));
-        assertThat(postingsFormatService.get("default").get(), instanceOf(Elasticsearch090PostingsFormat.class));
+        PostingsFormat luceneDefault = PostingsFormat.forName(Lucene.LATEST_POSTINGS_FORMAT);
+        assertThat(postingsFormatService.get("default").get(), instanceOf(luceneDefault.getClass()));
 
         // Should fail when upgrading Lucene with codec changes
-        assertThat(((Elasticsearch090PostingsFormat)postingsFormatService.get("default").get()).getDefaultWrapped(), instanceOf(((PerFieldPostingsFormat) Codec.getDefault().postingsFormat()).getPostingsFormatForField("").getClass()));
         assertThat(postingsFormatService.get("Lucene41"), instanceOf(PreBuiltPostingsFormatProvider.class));
         // Should fail when upgrading Lucene with codec changes
         assertThat(postingsFormatService.get("Lucene41").get(), instanceOf(((PerFieldPostingsFormat) Codec.getDefault().postingsFormat()).getPostingsFormatForField(null).getClass()));
 
-        assertThat(postingsFormatService.get("bloom_default"), instanceOf(PreBuiltPostingsFormatProvider.class));
-        if (PostingFormats.luceneBloomFilter) {
-            assertThat(postingsFormatService.get("bloom_default").get(), instanceOf(BloomFilteringPostingsFormat.class));
-        } else {
-            assertThat(postingsFormatService.get("bloom_default").get(), instanceOf(BloomFilterPostingsFormat.class));
-        }
         assertThat(postingsFormatService.get("BloomFilter"), instanceOf(PreBuiltPostingsFormatProvider.class));
         assertThat(postingsFormatService.get("BloomFilter").get(), instanceOf(BloomFilteringPostingsFormat.class));
-
-        assertThat(postingsFormatService.get("XBloomFilter"), instanceOf(PreBuiltPostingsFormatProvider.class));
-        assertThat(postingsFormatService.get("XBloomFilter").get(), instanceOf(BloomFilterPostingsFormat.class));
     }
 
     @Test
@@ -124,7 +117,8 @@ public class CodecTests extends ElasticsearchSingleNodeLuceneTestCase {
         CodecService codecService = createCodecService(indexSettings);
         DocumentMapper documentMapper = codecService.mapperService().documentMapperParser().parse(mapping);
         assertThat(documentMapper.mappers().name("field1").mapper().postingsFormatProvider(), instanceOf(PreBuiltPostingsFormatProvider.class));
-        assertThat(documentMapper.mappers().name("field1").mapper().postingsFormatProvider().get(), instanceOf(Elasticsearch090PostingsFormat.class));
+        PostingsFormat luceneDefault = PostingsFormat.forName(Lucene.LATEST_POSTINGS_FORMAT);
+        assertThat(documentMapper.mappers().name("field1").mapper().postingsFormatProvider().get(), instanceOf(luceneDefault.getClass()));
 
         assertThat(documentMapper.mappers().name("field2").mapper().postingsFormatProvider(), instanceOf(DefaultPostingsFormatProvider.class));
         DefaultPostingsFormatProvider provider = (DefaultPostingsFormatProvider) documentMapper.mappers().name("field2").mapper().postingsFormatProvider();

@@ -277,12 +277,10 @@ public class AlertActionManager extends AbstractComponent {
     }
 
     public long getQueueSize() {
-        ensureStarted();
         return actionsToBeProcessed.size();
     }
 
     public long getLargestQueueSize() {
-        ensureStarted();
         return largestQueueSize.get();
     }
 

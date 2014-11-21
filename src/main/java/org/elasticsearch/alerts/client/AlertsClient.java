@@ -19,6 +19,9 @@ import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertRequest;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertRequestBuilder;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
+import org.elasticsearch.alerts.transport.actions.service.AlertServiceRequestBuilder;
+import org.elasticsearch.alerts.transport.actions.service.AlertsServiceRequest;
+import org.elasticsearch.alerts.transport.actions.service.AlertsServiceResponse;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsRequest;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsRequestBuilder;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
@@ -175,5 +178,20 @@ public interface AlertsClient extends ElasticsearchClient<AlertsClient> {
      * @return The AckAlertResponse
      */
     ActionFuture<AckAlertResponse> ackAlert(AckAlertRequest request);
+
+    /**
+     * Prepare make an alert service request.
+     */
+    AlertServiceRequestBuilder prepareAlertService();
+
+    /**
+     * Perform an alert service request to either start, stop or restart the alerting plugin.
+     */
+    void alertService(AlertsServiceRequest request, ActionListener<AlertsServiceResponse> listener);
+
+    /**
+     * Perform an alert service request to either start, stop or restart the alerting plugin.
+     */
+    ActionFuture<AlertsServiceResponse> alertService(AlertsServiceRequest request);
 
 }

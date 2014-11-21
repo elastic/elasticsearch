@@ -179,7 +179,7 @@ public class AlertsStore extends AbstractComponent {
     }
 
     public void stop() {
-        if (started.compareAndSet(false, true)) {
+        if (started.compareAndSet(true, false)) {
             clear();
             logger.info("Stopped alert store");
         }

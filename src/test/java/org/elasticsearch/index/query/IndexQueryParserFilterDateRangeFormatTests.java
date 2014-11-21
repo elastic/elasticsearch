@@ -125,7 +125,13 @@ public class IndexQueryParserFilterDateRangeFormatTests extends ElasticsearchSin
     public void testDateRangeBoundaries() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/date_range_query_boundaries_inclusive.json");
-        Query parsedQuery = queryParser.parse(query).query();
+        Query parsedQuery;
+        try {
+            SearchContext.setCurrent(new TestSearchContext());
+            parsedQuery = queryParser.parse(query).query();
+        } finally {
+            SearchContext.removeCurrent();
+        }
         assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
         NumericRangeQuery rangeQuery = (NumericRangeQuery) parsedQuery;
 
@@ -138,7 +144,12 @@ public class IndexQueryParserFilterDateRangeFormatTests extends ElasticsearchSin
         assertTrue(rangeQuery.includesMax());
 
         query = copyToStringFromClasspath("/org/elasticsearch/index/query/date_range_query_boundaries_exclusive.json");
-        parsedQuery = queryParser.parse(query).query();
+        try {
+            SearchContext.setCurrent(new TestSearchContext());
+            parsedQuery = queryParser.parse(query).query();
+        } finally {
+            SearchContext.removeCurrent();
+        }
         assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
         rangeQuery = (NumericRangeQuery) parsedQuery;
 

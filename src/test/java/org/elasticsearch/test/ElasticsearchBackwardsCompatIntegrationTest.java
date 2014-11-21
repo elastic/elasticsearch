@@ -120,14 +120,7 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
             @Override
             public Settings node(int nodeOrdinal) {
                 Settings externalNodesSettings = externalNodeSettings(nodeOrdinal);
-                ImmutableSettings.Builder finalSettings = ImmutableSettings.settingsBuilder();
-                if (loggerLevels != null) {
-                    for (Map.Entry<String, String> level : loggerLevels.entrySet()) {
-                        finalSettings.put("logger." + level.getKey(), level.getValue());
-                    }
-                }
-                finalSettings.put(externalNodesSettings);
-                return finalSettings.build();
+                return addLoggerSettings(externalNodesSettings, loggerLevels);
             }
 
             @Override
@@ -136,6 +129,17 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
             }
         });
         return new CompositeTestCluster((InternalTestCluster) cluster, between(minExternalNodes(), maxExternalNodes()), externalNode);
+    }
+
+    private Settings addLoggerSettings(Settings externalNodesSettings, Map<String, String> loggerLevels) {
+        ImmutableSettings.Builder finalSettings = ImmutableSettings.settingsBuilder();
+        if (loggerLevels != null) {
+            for (Map.Entry<String, String> level : loggerLevels.entrySet()) {
+                finalSettings.put("logger." + level.getKey(), level.getValue());
+            }
+        }
+        finalSettings.put(externalNodesSettings);
+        return finalSettings.build();
     }
 
     protected int minExternalNodes() {
@@ -177,14 +181,7 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
     }
     protected Settings nodeSettings(int nodeOrdinal, Map<String, String> loggerLevels) {
         Settings nodesSettings = nodeSettings(nodeOrdinal);
-        ImmutableSettings.Builder finalSettings = ImmutableSettings.settingsBuilder();
-        if (loggerLevels != null) {
-            for (Map.Entry<String, String> level : loggerLevels.entrySet()) {
-                finalSettings.put("logger." + level.getKey(), level.getValue());
-            }
-        }
-        finalSettings.put(nodesSettings);
-        return finalSettings.build();
+        return addLoggerSettings(nodesSettings, loggerLevels);
     }
 
     public void assertAllShardsOnNodes(String index, String pattern) {

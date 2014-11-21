@@ -119,10 +119,6 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
         ExternalNode externalNode = new ExternalNode(backwardsCompatibilityPath(), randomLong(), new SettingsSource() {
             @Override
             public Settings node(int nodeOrdinal) {
-                return getExternalNodeSettings(nodeOrdinal, loggerLevels);
-            }
-
-            private Settings getExternalNodeSettings(int nodeOrdinal, Map<String, String> loggerLevels) {
                 Settings externalNodesSettings = externalNodeSettings(nodeOrdinal);
                 ImmutableSettings.Builder finalSettings = ImmutableSettings.settingsBuilder();
                 if (loggerLevels != null) {

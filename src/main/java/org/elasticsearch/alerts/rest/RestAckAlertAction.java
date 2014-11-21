@@ -27,7 +27,7 @@ public class RestAckAlertAction extends BaseRestHandler {
     protected RestAckAlertAction(Settings settings, RestController controller, Client client, AlertsClient alertsClient) {
         super(settings, controller, client);
         this.alertsClient = alertsClient;
-        controller.registerHandler(RestRequest.Method.PUT, AlertsStore.ALERT_INDEX + "/{name}/_ack", this);
+        controller.registerHandler(RestRequest.Method.PUT, AlertsStore.ALERT_INDEX + "/alert/{name}/_ack", this);
     }
 
     @Override

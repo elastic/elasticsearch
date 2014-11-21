@@ -19,7 +19,9 @@
 
 package org.elasticsearch.cloud.aws.blobstore;
 
+import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest.KeyVersion;
 import com.amazonaws.services.s3.model.ObjectListing;
@@ -55,12 +57,8 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
 
     private final int numberOfRetries;
 
-
-    public S3BlobStore(Settings settings, AmazonS3 client, String bucket, String region, boolean serverSideEncryption) {
-        this(settings, client, bucket, region, serverSideEncryption, null);
-    }
-
-    public S3BlobStore(Settings settings, AmazonS3 client, String bucket, @Nullable String region, boolean serverSideEncryption, ByteSizeValue bufferSize) {
+    public S3BlobStore(Settings settings, AmazonS3 client, String bucket, @Nullable String region, boolean serverSideEncryption,
+                       ByteSizeValue bufferSize, int maxRetries) {
         super(settings);
         this.client = client;
         this.bucket = bucket;
@@ -72,7 +70,7 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
             throw new BlobStoreException("\"Detected a buffer_size for the S3 storage lower than [" + MIN_BUFFER_SIZE + "]");
         }
 
-        this.numberOfRetries = settings.getAsInt("max_retries", 3);
+        this.numberOfRetries = maxRetries;
         if (!client.doesBucketExist(bucket)) {
             if (region != null) {
                 client.createBucket(bucket, region);
@@ -150,6 +148,16 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
             multiObjectDeleteRequest.setKeys(keys);
             client.deleteObjects(multiObjectDeleteRequest);
         }
+    }
+
+    protected boolean shouldRetry(AmazonClientException e) {
+        if (e instanceof AmazonS3Exception) {
+            AmazonS3Exception s3e = (AmazonS3Exception)e;
+            if (s3e.getStatusCode() == 400 && "RequestTimeout".equals(s3e.getErrorCode())) {
+                return true;
+            }
+        }
+        return e.isRetryable();
     }
 
     @Override

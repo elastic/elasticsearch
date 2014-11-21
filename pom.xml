@@ -33,7 +33,8 @@
 
     <properties>
         <elasticsearch.version>2.0.0-SNAPSHOT</elasticsearch.version>
-        <lucene.version>4.10.1</lucene.version>
+        <lucene.version>5.0.0</lucene.version>
+        <lucene.maven.version>5.0.0-snapshot-1637347</lucene.maven.version>
         <amazonaws.version>1.7.13</amazonaws.version>
         <tests.output>onerror</tests.output>
         <tests.shuffle>true</tests.shuffle>
@@ -44,6 +45,10 @@
     </properties>
 
     <repositories>
+        <repository>
+            <id>Lucene snapshots</id>
+            <url>https://download.elasticsearch.org/lucenesnapshots/1637347/</url>
+        </repository>
         <repository>
             <id>sonatype</id>
             <url>http://oss.sonatype.org/content/repositories/releases/</url>
@@ -64,9 +69,15 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>com.carrotsearch.randomizedtesting</groupId>
+            <artifactId>randomizedtesting-runner</artifactId>
+            <version>2.1.10</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-test-framework</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>test</scope>
         </dependency>
 
@@ -79,7 +90,7 @@
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-core</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>provided</scope>
         </dependency>
 

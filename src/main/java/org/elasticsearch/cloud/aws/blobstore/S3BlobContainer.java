@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cloud.aws.blobstore;
 
+import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3Object;
@@ -68,27 +69,40 @@ public class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public boolean deleteBlob(String blobName) throws IOException {
-        blobStore.client().deleteObject(blobStore.bucket(), buildKey(blobName));
-        return true;
-    }
-
-    @Override
-    public InputStream openInput(String blobName) throws IOException {
+    public void deleteBlob(String blobName) throws IOException {
         try {
-            S3Object s3Object = blobStore.client().getObject(blobStore.bucket(), buildKey(blobName));
-            return s3Object.getObjectContent();
-        } catch (AmazonS3Exception e) {
-            if (e.getStatusCode() == 404) {
-                throw new FileNotFoundException(e.getMessage());
-            }
-            throw e;
+            blobStore.client().deleteObject(blobStore.bucket(), buildKey(blobName));
+        } catch (AmazonClientException e) {
+            throw new IOException("Exception when deleting blob [" + blobName + "]", e);
         }
     }
 
     @Override
+    public InputStream openInput(String blobName) throws IOException {
+        int retry = 0;
+        while (retry <= blobStore.numberOfRetries()) {
+            try {
+                S3Object s3Object = blobStore.client().getObject(blobStore.bucket(), buildKey(blobName));
+                return s3Object.getObjectContent();
+            } catch (AmazonClientException e) {
+                if (blobStore.shouldRetry(e) && (retry < blobStore.numberOfRetries())) {
+                    retry++;
+                } else {
+                    if (e instanceof AmazonS3Exception) {
+                        if (404 == ((AmazonS3Exception) e).getStatusCode()) {
+                            throw new FileNotFoundException("Blob object [" + blobName + "] not found: " + e.getMessage());
+                        }
+                    }
+                    throw e;
+                }
+            }
+        }
+        throw new BlobStoreException("retries exhausted while attempting to access blob object [name:" + blobName + ", bucket:" + blobStore.bucket() +"]");
+    }
+
+    @Override
     public OutputStream createOutput(final String blobName) throws IOException {
-        // UploadS3OutputStream does buffering internally
+        // UploadS3OutputStream does buffering & retry logic internally
         return new DefaultS3OutputStream(blobStore, blobStore.bucket(), buildKey(blobName), blobStore.bufferSizeInBytes(), blobStore.numberOfRetries(), blobStore.serverSideEncryption());
     }
 

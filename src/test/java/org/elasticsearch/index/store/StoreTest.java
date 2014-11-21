@@ -19,14 +19,12 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.analysis.MockAnalyzer;
-import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.codecs.*;
+import org.apache.lucene.codecs.lucene45.Lucene45RWCodec;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.*;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.TestUtil;
-import org.apache.lucene.util.Version;
+import org.apache.lucene.util.*;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -36,6 +34,8 @@ import org.elasticsearch.index.store.distributor.Distributor;
 import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
 import org.elasticsearch.index.store.distributor.RandomWeightedDistributor;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.FileNotFoundException;
@@ -48,6 +48,16 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
 import static org.hamcrest.Matchers.*;
 
 public class StoreTest extends ElasticsearchLuceneTestCase {
+
+    @BeforeClass
+    public static void before() {
+        LuceneTestCase.OLD_FORMAT_IMPERSONATION_IS_ACTIVE = true;
+    }
+
+    @AfterClass
+    public static void after() {
+        LuceneTestCase.OLD_FORMAT_IMPERSONATION_IS_ACTIVE = false;
+    }
 
     @Test
     public void testRefCount() throws IOException {
@@ -157,13 +167,40 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         IOUtils.close(verifyingOutput, dir);
     }
 
+    private static final class OldSIMockingCodec extends Lucene45RWCodec {
+
+        @Override
+        public SegmentInfoFormat segmentInfoFormat() {
+            final SegmentInfoFormat segmentInfoFormat = super.segmentInfoFormat();
+            return new SegmentInfoFormat() {
+                @Override
+                public SegmentInfoReader getSegmentInfoReader() {
+                    return segmentInfoFormat.getSegmentInfoReader();
+                }
+
+                @Override
+                public SegmentInfoWriter getSegmentInfoWriter() {
+                    final SegmentInfoWriter segmentInfoWriter = segmentInfoFormat.getSegmentInfoWriter();
+                    return new SegmentInfoWriter() {
+                        @Override
+                        public void write(Directory dir, SegmentInfo info, FieldInfos fis, IOContext ioContext) throws IOException {
+                            info.setVersion(Version.LUCENE_45); // maybe lucene should do this too...
+                            segmentInfoWriter.write(dir, info, fis, ioContext);
+                        }
+                    };
+                }
+            };
+        }
+    }
+
     @Test
     public void testWriteLegacyChecksums() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
         Store store = new Store(shardId, ImmutableSettings.EMPTY, null, directoryService, randomDistributor(directoryService));
         // set default codec - all segments need checksums
-        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), TEST_VERSION_CURRENT, new MockAnalyzer(random())).setCodec(actualDefaultCodec()));
+        final boolean usesOldCodec = randomBoolean();
+        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), TEST_VERSION_CURRENT, new MockAnalyzer(random())).setCodec(usesOldCodec ? new OldSIMockingCodec() : actualDefaultCodec()));
         int docs = 1 + random().nextInt(100);
 
         for (int i = 0; i < docs; i++) {
@@ -203,23 +240,34 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             if (file.equals("write.lock") || file.equals(IndexFileNames.SEGMENTS_GEN)) {
                 continue;
             }
-            try (IndexInput input = store.directory().openInput(file, IOContext.READONCE)) {
-                String checksum = Store.digestToString(CodecUtil.retrieveChecksum(input));
-                StoreFileMetaData storeFileMetaData = new StoreFileMetaData(file, store.directory().fileLength(file), checksum, null);
-                legacyMeta.put(file, storeFileMetaData);
-                checksums.add(storeFileMetaData);
-
-            }
-
+            StoreFileMetaData storeFileMetaData = new StoreFileMetaData(file, store.directory().fileLength(file), file + "checksum", null);
+            legacyMeta.put(file, storeFileMetaData);
+            checksums.add(storeFileMetaData);
         }
         checksums.write(store);
 
         metadata = store.getMetadata();
         Map<String, StoreFileMetaData> stringStoreFileMetaDataMap = metadata.asMap();
         assertThat(legacyMeta.size(), equalTo(stringStoreFileMetaDataMap.size()));
-        for (StoreFileMetaData meta : legacyMeta.values()) {
-            assertTrue(stringStoreFileMetaDataMap.containsKey(meta.name()));
-            assertTrue(stringStoreFileMetaDataMap.get(meta.name()).isSame(meta));
+        if (usesOldCodec) {
+            for (StoreFileMetaData meta : legacyMeta.values()) {
+                assertTrue(meta.toString(), stringStoreFileMetaDataMap.containsKey(meta.name()));
+                assertEquals(meta.name() + "checksum", meta.checksum());
+                assertTrue(meta + " vs. " + stringStoreFileMetaDataMap.get(meta.name()), stringStoreFileMetaDataMap.get(meta.name()).isSame(meta));
+            }
+        } else {
+
+            // even if we have a legacy checksum - if we use a new codec we should reuse
+            for (StoreFileMetaData meta : legacyMeta.values()) {
+                assertTrue(meta.toString(), stringStoreFileMetaDataMap.containsKey(meta.name()));
+                assertFalse(meta + " vs. " + stringStoreFileMetaDataMap.get(meta.name()), stringStoreFileMetaDataMap.get(meta.name()).isSame(meta));
+                StoreFileMetaData storeFileMetaData = metadata.get(meta.name());
+                try (IndexInput input = store.openVerifyingInput(meta.name(), IOContext.DEFAULT, storeFileMetaData)) {
+                    assertTrue(storeFileMetaData.toString(), input instanceof Store.VerifyingIndexInput);
+                    input.seek(meta.length());
+                    Store.verify(input);
+                }
+            }
         }
         assertDeleteContent(store, directoryService);
         IOUtils.close(store);

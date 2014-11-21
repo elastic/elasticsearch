@@ -587,6 +587,9 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      */
     public final static class MetadataSnapshot implements Iterable<StoreFileMetaData> {
         private static final ESLogger logger = Loggers.getLogger(MetadataSnapshot.class);
+        private static final Version FIRST_LUCENE_CHECKSUM_VERSION = Version.LUCENE_48;
+        // we stopped writing legacy checksums in 1.3.0 so all segments here must use the new CRC32 version
+        private static final Version FIRST_ES_CRC32_VERSION = org.elasticsearch.Version.V_1_3_0.luceneVersion;
 
         private final Map<String, StoreFileMetaData> metadata;
 
@@ -604,6 +607,11 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             metadata = buildMetadata(commit, directory, logger);
         }
 
+        private static final boolean useLuceneChecksum(Version version, boolean hasLegacyChecksum) {
+            return (version.onOrAfter(FIRST_LUCENE_CHECKSUM_VERSION) && hasLegacyChecksum == false) // no legacy checksum and a guarantee that lucene has checksums
+                    || version.onOrAfter(FIRST_ES_CRC32_VERSION); // OR we know that we didn't even write legacy checksums anymore when this segment was written.
+        }
+
         ImmutableMap<String, StoreFileMetaData> buildMetadata(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
             ImmutableMap.Builder<String, StoreFileMetaData> builder = ImmutableMap.builder();
             Tuple<Map<String, String>, Long> tuple = readLegacyChecksums(directory);
@@ -617,7 +625,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                     }
                     for (String file : info.files()) {
                         String legacyChecksum = tuple.v1().get(file);
-                        if (version.onOrAfter(Version.LUCENE_4_8) && legacyChecksum == null) {
+                        if (useLuceneChecksum(version, legacyChecksum != null)) {
                             checksumFromLuceneFile(directory, file, builder, logger, version, Lucene46SegmentInfoFormat.SI_EXTENSION.equals(IndexFileNames.getExtension(file)));
                         } else {
                             builder.put(file, new StoreFileMetaData(file, directory.fileLength(file), legacyChecksum, null));
@@ -626,7 +634,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                 }
                 final String segmentsFile = segmentCommitInfos.getSegmentsFileName();
                 String legacyChecksum = tuple.v1().get(segmentsFile);
-                if (maxVersion.onOrAfter(Version.LUCENE_4_8) && legacyChecksum == null) {
+                if (useLuceneChecksum(maxVersion, legacyChecksum != null)) {
                     checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
                 } else {
                     builder.put(segmentsFile, new StoreFileMetaData(segmentsFile, directory.fileLength(segmentsFile), legacyChecksum, null));

@@ -6,13 +6,28 @@
 
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-license</artifactId>
+    <packaging>pom</packaging>
     <version>1.0.0-SNAPSHOT</version>
+    <modules>
+        <module>core-shaded</module>
+        <module>core</module>
+        <module>licensor</module>
+        <module>plugin</module>
+    </modules>
 
     <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <elasticsearch.version>1.4.0</elasticsearch.version>
         <lucene.version>4.10.2</lucene.version>
-        <!-- TODO: do we want to always enforce non-default keys -->
-        <keys.path>${basedir}/src/test/resources</keys.path>
+        <tests.jvms>auto</tests.jvms>
+        <tests.shuffle>true</tests.shuffle>
+        <tests.output>onerror</tests.output>
+        <tests.bwc.path>${project.basedir}/backwards</tests.bwc.path>
+        <es.logger.level>INFO</es.logger.level>
+        <tests.heap.size>512m</tests.heap.size>
+        <tests.topn>5</tests.topn>
+        <execution.hint.file>.local-${project.version}-execution-hints.log</execution.hint.file>
+        <license.basedir combine.self="override">${project.basedir}</license.basedir>
     </properties>
 
     <dependencies>
@@ -117,6 +132,12 @@
             <version>${lucene.version}</version>
             <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-expressions</artifactId>
+            <version>${lucene.version}</version>
+            <scope>compile</scope>
+        </dependency>
 
         <!-- actual deps -->
         <dependency>
@@ -128,19 +149,6 @@
     </dependencies>
 
     <build>
-        <resources>
-            <resource>
-                <directory>${keys.path}</directory>
-                <filtering>false</filtering>
-                <includes>
-                    <include>public.key</include>
-                </includes>
-            </resource>
-            <resource>
-                <directory>src/main/resources</directory>
-                <filtering>true</filtering>
-            </resource>
-        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -164,49 +172,96 @@
                 </configuration>
             </plugin>
             <plugin>
+                <!-- we skip surefire to work with randomized testing above -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>2.16</version>
                 <configuration>
-                    <forkCount>1</forkCount>
-                    <reuseForks>false</reuseForks>
-                    <includes>
-                        <include>**/*Tests.java</include>
-                    </includes>
+                    <skipTests>true</skipTests>
                 </configuration>
             </plugin>
             <plugin>
-                <artifactId>maven-assembly-plugin</artifactId>
-                <version>2.4</version>
-                <configuration>
-                    <outputDirectory>${project.build.directory}/releases/</outputDirectory>
-                </configuration>
+                <groupId>de.thetaphi</groupId>
+                <artifactId>forbiddenapis</artifactId>
+                <version>1.6.1</version>
+
                 <executions>
                     <execution>
-                        <id>plugin</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>single</goal>
-                        </goals>
+                        <id>check-forbidden-apis</id>
                         <configuration>
-                            <appendAssemblyId>false</appendAssemblyId>
-                            <descriptors>
-                                <descriptor>${basedir}/src/main/assemblies/plugin.xml</descriptor>
-                            </descriptors>
+                            <targetVersion>1.7</targetVersion>
+                            <!-- disallow undocumented classes like sun.misc.Unsafe: -->
+                            <internalRuntimeForbidden>true</internalRuntimeForbidden>
+                            <!-- if the used Java version is too new, don't fail, just do nothing: -->
+                            <failOnUnsupportedJava>false</failOnUnsupportedJava>
+                            <excludes>
+                                <exclude>jsr166e/**</exclude>
+                                <!-- start excludes for valid system-out -->
+                                <exclude>org/elasticsearch/shield/support/cli/Terminal*</exclude>
+                                <exclude>org/elasticsearch/common/logging/log4j/ConsoleAppender*</exclude>
+                                <exclude>org/elasticsearch/plugins/PluginManager.class</exclude>
+                                <exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>
+                                <exclude>org/elasticsearch/Version.class</exclude>
+                                <exclude>
+                                    org/elasticsearch/common/lucene/search/Queries$QueryWrapperFilterFactory.class
+                                </exclude>
+                                <!-- end excludes for valid system-out -->
+                                <!-- start excludes for Unsafe -->
+                                <exclude>org/elasticsearch/common/util/UnsafeUtils.class</exclude>
+                                <!-- end excludes for Unsafe -->
+                                <!-- start excludes for Math.abs -->
+                                <exclude>org/elasticsearch/common/util/MathUtils.class</exclude>
+                                <exclude>org/elasticsearch/common/math/UnboxedMathUtils.class</exclude>
+                                <exclude>org/elasticsearch/cluster/routing/operation/plain/PlainOperationRouting.class
+                                </exclude>
+                                <!-- end excludes for Math.abs -->
+                                <!-- start exclude for FilteredQuery -->
+                                <exclude>org/elasticsearch/common/lucene/search/XFilteredQuery.class</exclude>
+                                <!-- end exclude for FilteredQuery -->
+                                <!-- start exclude for Channels utility class -->
+                                <exclude>org/elasticsearch/common/io/Channels.class</exclude>
+                                <!-- end exclude for Channels -->
+                            </excludes>
+                            <bundledSignatures>
+                                <!-- This will automatically choose the right signatures based on 'targetVersion': -->
+                                <bundledSignature>jdk-unsafe</bundledSignature>
+                                <bundledSignature>jdk-deprecated</bundledSignature>
+                                <bundledSignature>jdk-system-out</bundledSignature>
+                            </bundledSignatures>
+                            <signaturesFiles>
+                                <signaturesFile>${license.basedir}/core-signatures.txt</signaturesFile>
+                                <signaturesFile>${license.basedir}/all-signatures.txt</signaturesFile>
+                            </signaturesFiles>
+                            <signatures>${forbidden.signatures}</signatures>
                         </configuration>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
                     </execution>
                     <execution>
-                        <id>exec</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>single</goal>
-                        </goals>
+                        <id>check-forbidden-test-apis</id>
                         <configuration>
-                            <appendAssemblyId>true</appendAssemblyId>
-                            <descriptors>
-                                <descriptor>${basedir}/src/main/assemblies/exec.xml</descriptor>
-                            </descriptors>
+                            <targetVersion>1.7</targetVersion>
+                            <!-- disallow undocumented classes like sun.misc.Unsafe: -->
+                            <internalRuntimeForbidden>true</internalRuntimeForbidden>
+                            <!-- if the used Java version is too new, don't fail, just do nothing: -->
+                            <failOnUnsupportedJava>false</failOnUnsupportedJava>
+                            <bundledSignatures>
+                                <!-- This will automatically choose the right signatures based on 'targetVersion': -->
+                                <bundledSignature>jdk-unsafe</bundledSignature>
+                                <bundledSignature>jdk-deprecated</bundledSignature>
+                            </bundledSignatures>
+                            <signaturesFiles>
+                                <signaturesFile>${license.basedir}/test-signatures.txt</signaturesFile>
+                                <signaturesFile>${license.basedir}/all-signatures.txt</signaturesFile>
+                            </signaturesFiles>
+                            <signatures>${forbidden.test.signatures}</signatures>
                         </configuration>
+                        <phase>test-compile</phase>
+                        <goals>
+                            <goal>testCheck</goal>
+                        </goals>
                     </execution>
                 </executions>
             </plugin>
@@ -228,59 +283,6 @@
                             </rules>
                         </configuration>
                     </execution>
-                    <!-- TODO: do we want to always enforce non-default keys -->
-                    <execution>
-                        <id>enforce-property</id>
-                        <goals>
-                            <goal>enforce</goal>
-                        </goals>
-                        <configuration>
-                            <rules>
-                                <requireProperty>
-                                    <property>keys.path</property>
-                                    <message>"You must set a keys.path property!"</message>
-                                </requireProperty>
-                            </rules>
-                            <fail>true</fail>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <version>2.4</version>
-                <executions>
-                    <execution>
-                        <id>for-plugin</id>
-                        <phase>prepare-package</phase>
-                        <goals>
-                            <goal>jar</goal>
-                        </goals>
-                        <configuration>
-                            <excludes>
-                                <!-- exclude license generation classes -->
-                                <exclude>org/elasticsearch/license/licensor/**/*</exclude>
-                            </excludes>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>for-exec</id>
-                        <phase>prepare-package</phase>
-                        <goals>
-                            <goal>jar</goal>
-                        </goals>
-                        <configuration>
-                            <classifier>exec</classifier>
-                            <excludes>
-                                <!-- exclude public key -->
-                                <exclude>public.key</exclude>
-                                <!-- exclude plugin-related classes -->
-                                <exclude>es-plugin.properties</exclude>
-                                <exclude>org/elasticsearch/license/plugin/**/*</exclude>
-                            </excludes>
-                        </configuration>
-                    </execution>
                 </executions>
             </plugin>
             <plugin>
@@ -288,13 +290,13 @@
                 <artifactId>license-maven-plugin</artifactId>
                 <version>2.5</version>
                 <configuration>
-                    <header>dev-tools/elasticsearch_license_header.txt</header>
+                    <header>${license.basedir}/dev-tools/elasticsearch_license_header.txt</header>
                     <headerDefinitions>
-                        <headerDefinition>dev-tools/license_header_definition.xml</headerDefinition>
+                        <headerDefinition>${license.basedir}/dev-tools/license_header_definition.xml</headerDefinition>
                     </headerDefinitions>
                     <includes>
-                        <include>src/main/java/org/elasticsearch/**/*.java</include>
-                        <include>src/test/java/org/elasticsearch/**/*.java</include>
+                        <include>**/src/main/java/org/elasticsearch/**/*.java</include>
+                        <include>**/src/test/java/org/elasticsearch/**/*.java</include>
                     </includes>
                 </configuration>
                 <executions>
@@ -318,6 +320,24 @@
                     <url>https://maven.elasticsearch.org/libs-snapshot-local</url>
                 </snapshotRepository>
             </distributionManagement>
+        </profile>
+        <profile>
+            <id>default</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.carrotsearch.randomizedtesting</groupId>
+                        <artifactId>junit4-maven-plugin</artifactId>
+                        <version>2.1.2</version>
+                        <configuration>
+                            <argLine>${tests.jvm.argline}</argLine>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
         </profile>
     </profiles>
 </project>

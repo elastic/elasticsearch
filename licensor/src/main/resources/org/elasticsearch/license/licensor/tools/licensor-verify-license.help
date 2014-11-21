@@ -1,0 +1,28 @@
+NAME
+
+    verify-license - verifies the integrity of elasticsearch signed license(s)
+
+SYNOPSIS
+
+    verify-license -l signedLicense -pub publicKeyPath
+
+DESCRIPTION
+
+    This tool assumes the configured public key to be the same as that of the production license plugin public key.
+    The tool can take arbitrary number of `--license` and/or `--licenseFile` for verifying signed license(s). If any
+    of the provided license(s) are invalid, the tool will error out, otherwise it will output a effective licenses file.
+
+    Effective Licenses:
+    A set of licenses that only has one effective sub-license for every feature provided through the input license file.
+    Where effective sub-licenses are identified as the sub-licenses with the latest `expiry_date` for a `feature`
+    and the sub-license has not already expired.
+
+OPTIONS
+
+    -h,--help                               Shows this message
+
+    -l,--license <signed license>           signed license(s) string
+
+    -lf,--licenseFile <path>                Path to signed license(s) file
+
+    -pub,--publicKeyPath <path>             Path to public key to verify against

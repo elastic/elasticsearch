@@ -336,4 +336,16 @@ public abstract class MetaDataStateFormat<T> {
         }
     }
 
+    /**
+     * Deletes all meta state directories recursively for the given data locations
+     * @param dataLocations the data location to delete
+     */
+    public static void deleteMetaState(Path... dataLocations) throws IOException {
+        Path[] stateDirectories = new Path[dataLocations.length];
+        for (int i = 0; i < dataLocations.length; i++) {
+            stateDirectories[i] = dataLocations[i].resolve(STATE_DIR_NAME);
+        }
+        IOUtils.rm(stateDirectories);
+    }
+
 }

@@ -53,6 +53,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -248,7 +249,9 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                     logger.debug("[{}] deleting index that is no longer part of the metadata (indices: [{}])", current.index(), newMetaData.indices().keys());
                     if (nodeEnv.hasNodeFile()) {
                         try {
-                            nodeEnv.deleteIndexDirectorySafe(new Index(current.index()));
+                            final Index idx = new Index(current.index());
+                            MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(idx));
+                            nodeEnv.deleteIndexDirectorySafe(idx);
                         } catch (LockObtainFailedException ex) {
                             logger.debug("[{}] failed to delete index - at least one shards is still locked", ex, current.index());
                         } catch (Exception ex) {
@@ -287,8 +290,8 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                                 continue;
                             }
                             final IndexMetaData indexMetaData = loadIndexState(indexName);
+                            final Index index = new Index(indexName);
                             if (indexMetaData != null) {
-                                final Index index = new Index(indexName);
                                 try {
                                     // the index deletion might not have worked due to shards still being locked
                                     // we have three cases here:
@@ -313,7 +316,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                                 } else if (danglingTimeout.millis() == 0) {
                                     logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, timeout set to 0, deleting now", indexName);
                                     try {
-                                        nodeEnv.deleteIndexDirectorySafe(new Index(indexName));
+                                        nodeEnv.deleteIndexDirectorySafe(index);
                                     } catch (LockObtainFailedException ex) {
                                         logger.debug("[{}] failed to delete index - at least one shards is still locked", ex, indexName);
                                     } catch (Exception ex) {
@@ -321,7 +324,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                                     }
                                 } else {
                                     logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, scheduling to delete in [{}], auto import to cluster state [{}]", indexName, danglingTimeout, autoImportDangled);
-                                    danglingIndices.put(indexName, new DanglingIndex(indexName, threadPool.schedule(danglingTimeout, ThreadPool.Names.SAME, new RemoveDanglingIndex(indexName))));
+                                    danglingIndices.put(indexName, new DanglingIndex(indexName, threadPool.schedule(danglingTimeout, ThreadPool.Names.SAME, new RemoveDanglingIndex(index))));
                                 }
                             }
                         }
@@ -603,23 +606,25 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
     class RemoveDanglingIndex implements Runnable {
 
-        private final String index;
+        private final Index index;
 
-        RemoveDanglingIndex(String index) {
+        RemoveDanglingIndex(Index index) {
             this.index = index;
         }
 
         @Override
         public void run() {
             synchronized (danglingMutex) {
-                DanglingIndex remove = danglingIndices.remove(index);
+                DanglingIndex remove = danglingIndices.remove(index.name());
                 // no longer there...
                 if (remove == null) {
                     return;
                 }
                 logger.warn("[{}] deleting dangling index", index);
+
                 try {
-                    nodeEnv.deleteIndexDirectorySafe(new Index(index));
+                    MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(index));
+                    nodeEnv.deleteIndexDirectorySafe(index);
                 } catch (Exception ex) {
                     logger.debug("failed to delete dangling index", ex);
                 }

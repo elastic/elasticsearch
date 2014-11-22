@@ -28,6 +28,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Preconditions;
@@ -334,6 +335,18 @@ public abstract class MetaDataStateFormat<T> {
             this.version = version;
             this.legacy = legacy;
         }
+    }
+
+    /**
+     * Deletes all meta state directories recursively for the given data locations
+     * @param dataLocations the data location to delete
+     */
+    public static void deleteMetaState(Path... dataLocations) throws IOException {
+        Path[] stateDirectories = new Path[dataLocations.length];
+        for (int i = 0; i < dataLocations.length; i++) {
+            stateDirectories[i] = dataLocations[i].resolve(STATE_DIR_NAME);
+        }
+        XIOUtils.rm(stateDirectories);
     }
 
 }

@@ -38,14 +38,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import java.io.*;
+import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -95,11 +89,11 @@ public abstract class MetaDataStateFormat<T> {
      * @param locations the locations where the state should be written to.
      * @throws IOException if an IOException occurs
      */
-    public final void write(final T state, final String prefix, final long version, final File... locations) throws IOException {
+    public final void write(final T state, final String prefix, final long version, final Path... locations) throws IOException {
         Preconditions.checkArgument(locations != null, "Locations must not be null");
         Preconditions.checkArgument(locations.length > 0, "One or more locations required");
         String fileName = prefix + version + STATE_FILE_EXTENSION;
-        Path stateLocation = Paths.get(locations[0].getPath(), STATE_DIR_NAME);
+        Path stateLocation = locations[0].resolve(STATE_DIR_NAME);
         Files.createDirectories(stateLocation);
         final Path tmpStatePath = stateLocation.resolve(fileName + ".tmp");
         final Path finalStatePath = stateLocation.resolve(fileName);
@@ -127,7 +121,7 @@ public abstract class MetaDataStateFormat<T> {
             Files.move(tmpStatePath, finalStatePath, StandardCopyOption.ATOMIC_MOVE);
             IOUtils.fsync(stateLocation, true);
             for (int i = 1; i < locations.length; i++) {
-                stateLocation = Paths.get(locations[i].getPath(), STATE_DIR_NAME);
+                stateLocation = locations[i].resolve(STATE_DIR_NAME);
                 Files.createDirectories(stateLocation);
                 Path tmpPath = stateLocation.resolve(fileName + ".tmp");
                 Path finalPath = stateLocation.resolve(fileName);
@@ -167,9 +161,9 @@ public abstract class MetaDataStateFormat<T> {
      * Reads the state from a given file and compares the expected version against the actual version of
      * the state.
      */
-    public final T read(File file, long expectedVersion) throws IOException {
-        try (Directory dir = newDirectory(file.getParentFile())) {
-            try (final IndexInput indexInput = dir.openInput(file.getName(), IOContext.DEFAULT)) {
+    public final T read(Path file, long expectedVersion) throws IOException {
+        try (Directory dir = newDirectory(file.getParent())) {
+            try (final IndexInput indexInput = dir.openInput(file.getFileName().toString(), IOContext.DEFAULT)) {
                  // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
                 CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, STATE_FILE_VERSION, STATE_FILE_VERSION);
@@ -192,25 +186,25 @@ public abstract class MetaDataStateFormat<T> {
         }
     }
 
-    protected Directory newDirectory(File dir) throws IOException {
-        return new SimpleFSDirectory(dir.toPath());
+    protected Directory newDirectory(Path dir) throws IOException {
+        return new SimpleFSDirectory(dir);
     }
 
-    private void cleanupOldFiles(String prefix, String fileName, File[] locations) throws IOException {
+    private void cleanupOldFiles(final String prefix, final String currentStateFile, Path[] locations) throws IOException {
+        final DirectoryStream.Filter<Path> filter = new DirectoryStream.Filter<Path>() {
+            @Override
+            public boolean accept(Path entry) throws IOException {
+                final String entryFileName = entry.getFileName().toString();
+                return Files.isRegularFile(entry)
+                        && entryFileName.startsWith(prefix) // only state files
+                        && currentStateFile.equals(entryFileName) == false; // keep the current state file around
+            }
+        };
         // now clean up the old files
-        for (File dataLocation : locations) {
-            final File[] files = new File(dataLocation, STATE_DIR_NAME).listFiles();
-            if (files != null) {
-                for (File file : files) {
-                    if (!file.getName().startsWith(prefix)) {
-                        continue;
-                    }
-                    if (file.getName().equals(fileName)) {
-                        continue;
-                    }
-                    if (Files.exists(file.toPath())) {
-                        Files.delete(file.toPath());
-                    }
+        for (Path dataLocation : locations) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(dataLocation.resolve(STATE_DIR_NAME), filter)) {
+                for (Path stateFile : stream) {
+                    Files.deleteIfExists(stateFile);
                 }
             }
         }
@@ -231,29 +225,27 @@ public abstract class MetaDataStateFormat<T> {
      * @param dataLocations the data-locations to try.
      * @return the latest state or <code>null</code> if no state was found.
      */
-    public static <T> T loadLatestState(ESLogger logger, MetaDataStateFormat<T> format, Pattern pattern, String stateType, File... dataLocations) {
-        List<FileAndVersion> files = new ArrayList<>();
+    public static <T> T loadLatestState(ESLogger logger, MetaDataStateFormat<T> format, Pattern pattern, String stateType, Path... dataLocations) throws IOException {
+        List<PathAndVersion> files = new ArrayList<>();
         long maxVersion = -1;
         boolean maxVersionIsLegacy = true;
         if (dataLocations != null) { // select all eligable files first
-            for (File dataLocation : dataLocations) {
-                File stateDir = new File(dataLocation, MetaDataStateFormat.STATE_DIR_NAME);
-                if (!stateDir.exists() || !stateDir.isDirectory()) {
+            for (Path dataLocation : dataLocations) {
+                final Path stateDir = dataLocation.resolve(STATE_DIR_NAME);
+                if (!Files.exists(stateDir) || !Files.isDirectory(stateDir)) {
                     continue;
                 }
                 // now, iterate over the current versions, and find latest one
-                File[] stateFiles = stateDir.listFiles();
-                if (stateFiles == null) {
-                    continue;
-                }
-                for (File stateFile : stateFiles) {
-                    final Matcher matcher = pattern.matcher(stateFile.getName());
-                    if (matcher.matches()) {
-                        final long version = Long.parseLong(matcher.group(1));
-                        maxVersion = Math.max(maxVersion, version);
-                        final boolean legacy = MetaDataStateFormat.STATE_FILE_EXTENSION.equals(matcher.group(2)) == false;
-                        maxVersionIsLegacy &= legacy; // on purpose, see NOTE below
-                        files.add(new FileAndVersion(stateFile, version, legacy));
+                try (DirectoryStream<Path> paths = Files.newDirectoryStream(stateDir)) { // we don't pass a glob since we need the group part for parsing
+                    for (Path stateFile : paths) {
+                        final Matcher matcher = pattern.matcher(stateFile.getFileName().toString());
+                        if (matcher.matches()) {
+                            final long version = Long.parseLong(matcher.group(1));
+                            maxVersion = Math.max(maxVersion, version);
+                            final boolean legacy = MetaDataStateFormat.STATE_FILE_EXTENSION.equals(matcher.group(2)) == false;
+                            maxVersionIsLegacy &= legacy; // on purpose, see NOTE below
+                            files.add(new PathAndVersion(stateFile, version, legacy));
+                        }
                     }
                 }
             }
@@ -265,22 +257,22 @@ public abstract class MetaDataStateFormat<T> {
         //       new format (ie. legacy == false) then we know that the latest version state ought to use this new format.
         //       In case the state file with the latest version does not use the new format while older state files do,
         //       the list below will be empty and loading the state will fail
-        for (FileAndVersion fileAndVersion : Collections2.filter(files, new VersionAndLegacyPredicate(maxVersion, maxVersionIsLegacy))) {
+        for (PathAndVersion pathAndVersion : Collections2.filter(files, new VersionAndLegacyPredicate(maxVersion, maxVersionIsLegacy))) {
             try {
-                final File stateFile = fileAndVersion.file;
-                final long version = fileAndVersion.version;
+                final Path stateFile = pathAndVersion.file;
+                final long version = pathAndVersion.version;
                 final XContentParser parser;
-                if (fileAndVersion.legacy) { // read the legacy format -- plain XContent
-                    try (FileInputStream stream = new FileInputStream(stateFile)) {
+                if (pathAndVersion.legacy) { // read the legacy format -- plain XContent
+                    try (InputStream stream = Files.newInputStream(stateFile)) {
                         final byte[] data = Streams.copyToByteArray(stream);
                         if (data.length == 0) {
-                            logger.debug("{}: no data for [{}], ignoring...", stateType, stateFile.getAbsolutePath());
+                            logger.debug("{}: no data for [{}], ignoring...", stateType, stateFile.toAbsolutePath());
                             continue;
                         }
                         parser = XContentHelper.createParser(data, 0, data.length);
                         state = format.fromXContent(parser);
                         if (state == null) {
-                            logger.debug("{}: no data for [{}], ignoring...", stateType, stateFile.getAbsolutePath());
+                            logger.debug("{}: no data for [{}], ignoring...", stateType, stateFile.toAbsolutePath());
                         }
                     }
                 } else {
@@ -289,7 +281,7 @@ public abstract class MetaDataStateFormat<T> {
                 return state;
             } catch (Throwable e) {
                 exceptions.add(e);
-                logger.debug("{}: failed to read [{}], ignoring...", e, fileAndVersion.file.getAbsolutePath(), stateType);
+                logger.debug("{}: failed to read [{}], ignoring...", e, pathAndVersion.file.toAbsolutePath(), stateType);
             }
         }
         // if we reach this something went wrong
@@ -302,10 +294,10 @@ public abstract class MetaDataStateFormat<T> {
     }
 
     /**
-     * Filters out all {@link FileAndVersion} instances with a different version than
+     * Filters out all {@link org.elasticsearch.gateway.local.state.meta.MetaDataStateFormat.PathAndVersion} instances with a different version than
      * the given one.
      */
-    private static final class VersionAndLegacyPredicate implements Predicate<FileAndVersion> {
+    private static final class VersionAndLegacyPredicate implements Predicate<PathAndVersion> {
         private final long version;
         private final boolean legacy;
 
@@ -315,7 +307,7 @@ public abstract class MetaDataStateFormat<T> {
         }
 
         @Override
-        public boolean apply(FileAndVersion input) {
+        public boolean apply(PathAndVersion input) {
             return input.version == version && input.legacy == legacy;
         }
     }
@@ -324,12 +316,12 @@ public abstract class MetaDataStateFormat<T> {
      * Internal struct-like class that holds the parsed state version, the file
      * and a flag if the file is a legacy state ie. pre 1.5
      */
-    private static class FileAndVersion {
-        final File file;
+    private static class PathAndVersion {
+        final Path file;
         final long version;
         final boolean legacy;
 
-        private FileAndVersion(File file, long version, boolean legacy) {
+        private PathAndVersion(Path file, long version, boolean legacy) {
             this.file = file;
             this.version = version;
             this.legacy = legacy;
@@ -347,5 +339,4 @@ public abstract class MetaDataStateFormat<T> {
         }
         IOUtils.rm(stateDirectories);
     }
-
 }

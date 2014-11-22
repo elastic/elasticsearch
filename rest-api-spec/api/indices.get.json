@@ -34,6 +34,7 @@
           "description":"Whether wildcard expressions should get expanded to open or closed indices (default: open)"
         }
       }
-    }
+    },
+    "body": null
   }
 }

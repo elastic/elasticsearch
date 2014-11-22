@@ -23,9 +23,11 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
+import org.elasticsearch.bootstrap.Elasticsearch;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
@@ -212,7 +214,11 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                 IndexMetaData currentIndexMetaData;
                 if (currentMetaData == null) {
                     // a new event..., check from the state stored
-                    currentIndexMetaData = loadIndexState(indexMetaData.index());
+                    try {
+                        currentIndexMetaData = loadIndexState(indexMetaData.index());
+                    } catch (IOException ex) {
+                        throw new ElasticsearchException("failed to load index state", ex);
+                    }
                 } else {
                     currentIndexMetaData = currentMetaData.index(indexMetaData.index());
                 }
@@ -336,7 +342,12 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             if (autoImportDangled.shouldImport() && !danglingIndices.isEmpty()) {
                 final List<IndexMetaData> dangled = Lists.newArrayList();
                 for (String indexName : danglingIndices.keySet()) {
-                    IndexMetaData indexMetaData = loadIndexState(indexName);
+                    IndexMetaData indexMetaData;
+                    try {
+                        indexMetaData = loadIndexState(indexName);
+                    } catch (IOException ex) {
+                        throw new ElasticsearchException("failed to load index state", ex);
+                    }
                     if (indexMetaData == null) {
                         logger.debug("failed to find state for dangling index [{}]", indexName);
                         continue;
@@ -417,7 +428,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
         final boolean deleteOldFiles = previousIndexMetaData != null && previousIndexMetaData.version() != indexMetaData.version();
         final MetaDataStateFormat<IndexMetaData> writer = indexStateFormat(format, formatParams, deleteOldFiles);
         try {
-            writer.write(indexMetaData, INDEX_STATE_FILE_PREFIX, indexMetaData.version(), nodeEnv.indexLocations(new Index(indexMetaData.index())));
+            writer.write(indexMetaData, INDEX_STATE_FILE_PREFIX, indexMetaData.version(), nodeEnv.indexPaths(new Index(indexMetaData.index())));
         } catch (Throwable ex) {
             logger.warn("[{}]: failed to write index state", ex, indexMetaData.index());
             throw new IOException("failed to write state for [" + indexMetaData.index() + "]", ex);
@@ -428,7 +439,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
         logger.trace("{} writing state, reason [{}]", GLOBAL_STATE_LOG_TYPE, reason);
         final MetaDataStateFormat<MetaData> writer = globalStateFormat(format, gatewayModeFormatParams, true);
         try {
-            writer.write(metaData, GLOBAL_STATE_FILE_PREFIX, metaData.version(), nodeEnv.nodeDataLocations());
+            writer.write(metaData, GLOBAL_STATE_FILE_PREFIX, metaData.version(), nodeEnv.nodeDataPaths());
         } catch (Throwable ex) {
             logger.warn("{}: failed to write global state", ex, GLOBAL_STATE_LOG_TYPE);
             throw new IOException("failed to write global state", ex);
@@ -457,12 +468,12 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
     }
 
     @Nullable
-    private IndexMetaData loadIndexState(String index) {
-        return MetaDataStateFormat.loadLatestState(logger, indexStateFormat(format, formatParams, true), INDEX_STATE_FILE_PATTERN, "[" + index + "]", nodeEnv.indexLocations(new Index(index)));
+    private IndexMetaData loadIndexState(String index) throws IOException {
+        return MetaDataStateFormat.loadLatestState(logger, indexStateFormat(format, formatParams, true), INDEX_STATE_FILE_PATTERN, "[" + index + "]", nodeEnv.indexPaths(new Index(index)));
     }
 
-    private MetaData loadGlobalState() {
-        return MetaDataStateFormat.loadLatestState(logger, globalStateFormat(format, gatewayModeFormatParams, true), GLOBAL_STATE_FILE_PATTERN, GLOBAL_STATE_LOG_TYPE, nodeEnv.nodeDataLocations());
+    private MetaData loadGlobalState() throws IOException {
+        return MetaDataStateFormat.loadLatestState(logger, globalStateFormat(format, gatewayModeFormatParams, true), GLOBAL_STATE_FILE_PATTERN, GLOBAL_STATE_LOG_TYPE, nodeEnv.nodeDataPaths());
     }
 
 
@@ -641,4 +652,5 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             this.future = future;
         }
     }
+
 }

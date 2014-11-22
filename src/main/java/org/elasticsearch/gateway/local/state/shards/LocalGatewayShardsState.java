@@ -186,14 +186,14 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
         return shardsState;
     }
 
-    private ShardStateInfo loadShardStateInfo(ShardId shardId) {
-        return MetaDataStateFormat.loadLatestState(logger, newShardStateInfoFormat(false), SHARD_STATE_FILE_PATTERN, shardId.toString(), nodeEnv.shardLocations(shardId));
+    private ShardStateInfo loadShardStateInfo(ShardId shardId) throws IOException {
+        return MetaDataStateFormat.loadLatestState(logger, newShardStateInfoFormat(false), SHARD_STATE_FILE_PATTERN, shardId.toString(), nodeEnv.shardPaths(shardId));
     }
 
     private void writeShardState(String reason, ShardId shardId, ShardStateInfo shardStateInfo, @Nullable ShardStateInfo previousStateInfo) throws Exception {
         logger.trace("{} writing shard state, reason [{}]", shardId, reason);
         final boolean deleteOldFiles = previousStateInfo != null && previousStateInfo.version != shardStateInfo.version;
-        newShardStateInfoFormat(deleteOldFiles).write(shardStateInfo, SHARD_STATE_FILE_PREFIX, shardStateInfo.version, nodeEnv.shardLocations(shardId));
+        newShardStateInfoFormat(deleteOldFiles).write(shardStateInfo, SHARD_STATE_FILE_PREFIX, shardStateInfo.version, nodeEnv.shardPaths(shardId));
     }
 
     private MetaDataStateFormat<ShardStateInfo> newShardStateInfoFormat(boolean deleteOldFiles) {

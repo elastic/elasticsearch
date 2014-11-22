@@ -122,5 +122,5 @@ You can also set the default value to any date respecting <<mapping-timestamp-fi
 }
 --------------------------------------------------
 
-If you don't provide any timestamp value, indexation will fail.
+If you don't provide any timestamp value, _timestamp will be set to this default value.
 

@@ -34,7 +34,7 @@ module Elasticsearch
       method_option :language,  default: 'ruby',                                          desc: 'Programming language'
       method_option :force,     type: :boolean, default: false,                           desc: 'Overwrite the output'
       method_option :verbose,   type: :boolean, default: false,                           desc: 'Output more information'
-      method_option :input,     default: File.expand_path('../../../api-spec', __FILE__), desc: 'Path to directory with JSON API specs'
+      method_option :input,     default: File.expand_path('../../../api', __FILE__), desc: 'Path to directory with JSON API specs'
       method_option :output,    default: File.expand_path('../../../tmp/out', __FILE__),        desc: 'Path to output directory'
 
       def generate(*files)

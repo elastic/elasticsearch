@@ -50,8 +50,8 @@ it is the responsibility of the developer to use this information for a sensible
 
 The repository contains some utilities in the `utils` directory:
 
-* The `thor api:generate:spec` will generate the basic JSON specification from Java source code
-* The `thor api:generate:code` generates Ruby source code and tests from the specs, and can be extended
+* The `thor api:spec:generate` will generate the basic JSON specification from Java source code
+* The `thor api:code:generate` generates Ruby source code and tests from the specs, and can be extended
   to generate assets in another programming language
 
 Run `bundle install` and then `thor list` in the _utils_ folder.
@@ -59,6 +59,13 @@ Run `bundle install` and then `thor list` in the _utils_ folder.
 The full command to generate the api spec is:
 
     thor api:spec:generate --output=myfolder --elasticsearch=/path/to/es
+
+Then to generate ruby files for all JSON specifications:
+
+    thor api:code:generate --output=myfolder-test/ myfolder/*.json
+
+This generates a list of ruby files with tests in folder `myfolder-test`.
+
 
 ## License
 

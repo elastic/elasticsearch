@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
-import org.elasticsearch.shield.key.KeyService;
+import org.elasticsearch.shield.signature.SignatureService;
 import org.elasticsearch.transport.TransportMessage;
 
 import java.io.IOException;
@@ -32,15 +32,15 @@ public class InternalAuthenticationService extends AbstractComponent implements 
 
     private final Realm[] realms;
     private final AuditTrail auditTrail;
-    private final KeyService keyService;
+    private final SignatureService signatureService;
     private final boolean signUserHeader;
 
     @Inject
-    public InternalAuthenticationService(Settings settings, Realms realms, AuditTrail auditTrail, KeyService keyService) {
+    public InternalAuthenticationService(Settings settings, Realms realms, AuditTrail auditTrail, SignatureService signatureService) {
         super(settings);
         this.realms = realms.realms();
         this.auditTrail = auditTrail;
-        this.keyService = keyService;
+        this.signatureService = signatureService;
         this.signUserHeader = componentSettings.getAsBoolean("sign_user_header", true);
     }
 
@@ -68,13 +68,13 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         String header = (String) message.getHeader(USER_KEY);
         if (header != null) {
             if (signUserHeader) {
-                header = keyService.unsignAndVerify(header);
+                header = signatureService.unsignAndVerify(header);
             }
             user = decodeUser(header);
         }
         if (user == null) {
             user = authenticateWithRealms(action, message, fallbackUser);
-            header = signUserHeader ? keyService.sign(encodeUser(user, logger)) : encodeUser(user, logger);
+            header = signUserHeader ? signatureService.sign(encodeUser(user, logger)) : encodeUser(user, logger);
             message.putHeader(USER_KEY, header);
         }
         message.putInContext(USER_KEY, user);
@@ -89,7 +89,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         }
         if (header == null) {
             message.putInContext(USER_KEY, user);
-            header = signUserHeader ? keyService.sign(encodeUser(user, logger)) : encodeUser(user, logger);
+            header = signUserHeader ? signatureService.sign(encodeUser(user, logger)) : encodeUser(user, logger);
             message.putHeader(USER_KEY, header);
         }
     }

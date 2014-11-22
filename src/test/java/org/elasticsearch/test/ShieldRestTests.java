@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
-import org.elasticsearch.shield.key.InternalKeyService;
+import org.elasticsearch.shield.signature.InternalSignatureService;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.transport.netty.NettySecuredTransport;
 import org.elasticsearch.test.rest.ElasticsearchRestTests;
@@ -76,7 +76,7 @@ public class ShieldRestTests extends ElasticsearchRestTests {
         if (enabled) {
             final byte[] key;
             try {
-                key = InternalKeyService.generateKey();
+                key = InternalSignatureService.generateKey();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -99,7 +99,7 @@ public class ShieldRestTests extends ElasticsearchRestTests {
                     String keyFile = writeFile(folder, "system_key", key);
 
                     ImmutableSettings.Builder builder = ImmutableSettings.builder()
-                            .put(InternalKeyService.FILE_SETTING, keyFile)
+                            .put(InternalSignatureService.FILE_SETTING, keyFile)
                             .put("request.headers.Authorization", basicAuthHeaderValue(DEFAULT_USER_NAME, SecuredStringTests.build(DEFAULT_PASSWORD)))
                             .put("discovery.zen.ping.multicast.enabled", false)
                             .put("discovery.type", "zen")

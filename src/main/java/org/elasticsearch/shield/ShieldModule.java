@@ -12,7 +12,7 @@ import org.elasticsearch.shield.action.ShieldActionModule;
 import org.elasticsearch.shield.audit.AuditTrailModule;
 import org.elasticsearch.shield.authc.AuthenticationModule;
 import org.elasticsearch.shield.authz.AuthorizationModule;
-import org.elasticsearch.shield.key.KeyModule;
+import org.elasticsearch.shield.signature.SignatureModule;
 import org.elasticsearch.shield.rest.ShieldRestModule;
 import org.elasticsearch.shield.ssl.SSLModule;
 import org.elasticsearch.shield.support.AbstractShieldModule;
@@ -51,7 +51,7 @@ public class ShieldModule extends AbstractShieldModule.Spawn {
                 new ShieldRestModule(settings),
                 new ShieldActionModule(settings),
                 new SecuredTransportModule(settings),
-                new KeyModule(settings),
+                new SignatureModule(settings),
                 new SSLModule(settings));
     }
 

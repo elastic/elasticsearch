@@ -14,7 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
-import org.elasticsearch.shield.key.KeyService;
+import org.elasticsearch.shield.signature.SignatureService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
@@ -44,7 +44,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
     Realm secondRealm;
     AuditTrail auditTrail;
     AuthenticationToken token;
-    KeyService keyService;
+    SignatureService signatureService;
 
     @Before
     public void init() throws Exception {
@@ -57,10 +57,10 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         when(secondRealm.type()).thenReturn("second");
         realms = mock(Realms.class);
         when(realms.realms()).thenReturn(new Realm[] {firstRealm, secondRealm});
-        keyService = mock(KeyService.class);
+        signatureService = mock(SignatureService.class);
 
         auditTrail = mock(AuditTrail.class);
-        service = new InternalAuthenticationService(ImmutableSettings.EMPTY, realms, auditTrail, keyService);
+        service = new InternalAuthenticationService(ImmutableSettings.EMPTY, realms, auditTrail, signatureService);
     }
 
     @Test @SuppressWarnings("unchecked")
@@ -106,7 +106,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         service = spy(service);
         doReturn(token).when(service).token("_action", message);
 
-        when(keyService.sign(InternalAuthenticationService.encodeUser(user, null))).thenReturn("_encoded_user");
+        when(signatureService.sign(InternalAuthenticationService.encodeUser(user, null))).thenReturn("_encoded_user");
 
         User result = service.authenticate("_action", message, null);
         assertThat(result, notNullValue());
@@ -127,7 +127,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         service = spy(service);
         doReturn(token).when(service).token("_action", message);
 
-        when(keyService.sign(InternalAuthenticationService.encodeUser(user, null))).thenReturn("_encoded_user");
+        when(signatureService.sign(InternalAuthenticationService.encodeUser(user, null))).thenReturn("_encoded_user");
 
         User result = service.authenticate("_action", message, null);
         assertThat(result, notNullValue());
@@ -149,7 +149,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         verifyZeroInteractions(auditTrail);
         verifyZeroInteractions(firstRealm);
         verifyZeroInteractions(secondRealm);
-        verifyZeroInteractions(keyService);
+        verifyZeroInteractions(signatureService);
         assertThat(message.getContext().get(InternalAuthenticationService.USER_KEY), notNullValue());
         assertThat(message.getContext().get(InternalAuthenticationService.USER_KEY), is((Object) user));
     }
@@ -190,7 +190,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         when(firstRealm.token(message)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
         when(firstRealm.authenticate(token)).thenReturn(user);
-        when(keyService.sign(InternalAuthenticationService.encodeUser(user, null))).thenReturn("_signed_user");
+        when(signatureService.sign(InternalAuthenticationService.encodeUser(user, null))).thenReturn("_signed_user");
         service = spy(service);
         doReturn(token).when(service).token("_action", message);
         User result = service.authenticate("_action", message, null);
@@ -232,7 +232,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         when(firstRealm.token(message)).thenReturn(null);
         when(secondRealm.token(message)).thenReturn(null);
         User.Simple user1 = new User.Simple("username", "r1", "r2");
-        when(keyService.sign(InternalAuthenticationService.encodeUser(user1, null))).thenReturn("_signed_user");
+        when(signatureService.sign(InternalAuthenticationService.encodeUser(user1, null))).thenReturn("_signed_user");
         User user2 = service.authenticate("_action", message, user1);
         assertThat(user1, sameInstance(user2));
         assertThat(message.getFromContext(InternalAuthenticationService.USER_KEY), sameInstance((Object) user2));
@@ -245,7 +245,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         when(firstRealm.token(message)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
         when(firstRealm.authenticate(token)).thenReturn(user1);
-        when(keyService.sign(InternalAuthenticationService.encodeUser(user1, null))).thenReturn("_signed_user");
+        when(signatureService.sign(InternalAuthenticationService.encodeUser(user1, null))).thenReturn("_signed_user");
         User user2 = service.authenticate("_action", message, null);
         assertThat(user1, sameInstance(user2));
         assertThat(message.getFromContext(InternalAuthenticationService.USER_KEY), sameInstance((Object) user2));
@@ -258,7 +258,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         when(firstRealm.token(message)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
         when(firstRealm.authenticate(token)).thenReturn(user1);
-        when(keyService.sign(InternalAuthenticationService.encodeUser(user1, null))).thenReturn("_signed_user");
+        when(signatureService.sign(InternalAuthenticationService.encodeUser(user1, null))).thenReturn("_signed_user");
         User user2 = service.authenticate("_action", message, User.SYSTEM);
         assertThat(user1, sameInstance(user2));
         assertThat(message.getFromContext(InternalAuthenticationService.USER_KEY), sameInstance((Object) user2));
@@ -282,7 +282,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         when(firstRealm.token(message)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
         when(firstRealm.authenticate(token)).thenReturn(user1);
-        when(keyService.sign(InternalAuthenticationService.encodeUser(user1, null))).thenReturn("_signed_user");
+        when(signatureService.sign(InternalAuthenticationService.encodeUser(user1, null))).thenReturn("_signed_user");
         User user2 = service.authenticate("_action", message, User.SYSTEM);
         assertThat(user1, sameInstance(user2));
         assertThat(message.getFromContext(InternalAuthenticationService.USER_KEY), sameInstance((Object) user2));
@@ -300,7 +300,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
 
         // checking authentication from the user header
         message1.putHeader(InternalAuthenticationService.USER_KEY, message.getHeader(InternalAuthenticationService.USER_KEY));
-        when(keyService.unsignAndVerify("_signed_user")).thenReturn(InternalAuthenticationService.encodeUser(user1, null));
+        when(signatureService.unsignAndVerify("_signed_user")).thenReturn(InternalAuthenticationService.encodeUser(user1, null));
         BytesStreamOutput output = new BytesStreamOutput();
         message1.writeTo(output);
         BytesStreamInput input = new BytesStreamInput(output.bytes());
@@ -314,7 +314,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
     @Test
     public void testAutheticate_Transport_ContextAndHeader_NoSigning() throws Exception {
         Settings settings = ImmutableSettings.builder().put("shield.authc.sign_user_header", false).build();
-        service = new InternalAuthenticationService(settings, realms, auditTrail, keyService);
+        service = new InternalAuthenticationService(settings, realms, auditTrail, signatureService);
 
         User user1 = new User.Simple("username", "r1", "r2");
         when(firstRealm.token(message)).thenReturn(token);
@@ -346,7 +346,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         assertThat(user, equalTo(user1));
         verifyZeroInteractions(firstRealm);
 
-        verifyZeroInteractions(keyService);
+        verifyZeroInteractions(signatureService);
     }
 
     @Test
@@ -354,7 +354,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         User user = new User.Simple("username", "r1", "r2");
         assertThat(message.getFromContext(InternalAuthenticationService.USER_KEY), nullValue());
         assertThat(message.getHeader(InternalAuthenticationService.USER_KEY), nullValue());
-        when(keyService.sign(InternalAuthenticationService.encodeUser(user, null))).thenReturn("_signed_user");
+        when(signatureService.sign(InternalAuthenticationService.encodeUser(user, null))).thenReturn("_signed_user");
         service.attachUserHeaderIfMissing(message, user);
         assertThat(message.getFromContext(InternalAuthenticationService.USER_KEY), sameInstance((Object) user));
         assertThat(message.getHeader(InternalAuthenticationService.USER_KEY), equalTo((Object) "_signed_user"));
@@ -363,7 +363,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         message = new InternalMessage();
         assertThat(message.getFromContext(InternalAuthenticationService.USER_KEY), nullValue());
         assertThat(message.getHeader(InternalAuthenticationService.USER_KEY), nullValue());
-        when(keyService.sign(InternalAuthenticationService.encodeUser(user, null))).thenReturn("_signed_user");
+        when(signatureService.sign(InternalAuthenticationService.encodeUser(user, null))).thenReturn("_signed_user");
         service.attachUserHeaderIfMissing(message, user);
         assertThat(message.getFromContext(InternalAuthenticationService.USER_KEY), sameInstance((Object) user));
         assertThat(message.getHeader(InternalAuthenticationService.USER_KEY), equalTo((Object) "_signed_user"));

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.key;
+package org.elasticsearch.shield.signature;
 
 import org.apache.commons.codec.binary.Base64;
 import org.elasticsearch.ElasticsearchException;
@@ -32,7 +32,7 @@ import java.util.regex.Pattern;
 /**
  *
  */
-public class InternalKeyService extends AbstractComponent implements KeyService {
+public class InternalSignatureService extends AbstractComponent implements SignatureService {
 
     public static final String FILE_SETTING = "shield.system_key.file";
     public static final String KEY_ALGO = "HmacSHA512";
@@ -48,11 +48,11 @@ public class InternalKeyService extends AbstractComponent implements KeyService 
     private volatile SecretKey key;
 
     @Inject
-    public InternalKeyService(Settings settings, Environment env, ResourceWatcherService watcherService) {
+    public InternalSignatureService(Settings settings, Environment env, ResourceWatcherService watcherService) {
         this(settings, env, watcherService, Listener.NOOP);
     }
 
-    InternalKeyService(Settings settings, Environment env, ResourceWatcherService watcherService, Listener listener) {
+    InternalSignatureService(Settings settings, Environment env, ResourceWatcherService watcherService, Listener listener) {
         super(settings);
         keyFile = resolveFile(settings, env);
         key = readKey(keyFile);

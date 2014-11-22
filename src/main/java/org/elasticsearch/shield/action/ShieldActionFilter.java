@@ -19,8 +19,8 @@ import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationException;
 import org.elasticsearch.shield.authz.AuthorizationService;
-import org.elasticsearch.shield.key.KeyService;
-import org.elasticsearch.shield.key.SignatureException;
+import org.elasticsearch.shield.signature.SignatureService;
+import org.elasticsearch.shield.signature.SignatureException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,14 +32,14 @@ public class ShieldActionFilter implements ActionFilter {
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
-    private final KeyService keyService;
+    private final SignatureService signatureService;
     private final AuditTrail auditTrail;
 
     @Inject
-    public ShieldActionFilter(AuthenticationService authcService, AuthorizationService authzService, KeyService keyService, AuditTrail auditTrail) {
+    public ShieldActionFilter(AuthenticationService authcService, AuthorizationService authzService, SignatureService signatureService, AuditTrail auditTrail) {
         this.authcService = authcService;
         this.authzService = authzService;
-        this.keyService = keyService;
+        this.signatureService = signatureService;
         this.auditTrail = auditTrail;
     }
 
@@ -82,7 +82,7 @@ public class ShieldActionFilter implements ActionFilter {
             if (request instanceof SearchScrollRequest) {
                 SearchScrollRequest scrollRequest = (SearchScrollRequest) request;
                 String scrollId = scrollRequest.scrollId();
-                scrollRequest.scrollId(keyService.unsignAndVerify(scrollId));
+                scrollRequest.scrollId(signatureService.unsignAndVerify(scrollId));
                 return request;
             }
 
@@ -91,7 +91,7 @@ public class ShieldActionFilter implements ActionFilter {
                 List<String> signedIds = clearScrollRequest.scrollIds();
                 List<String> unsignedIds = new ArrayList<>(signedIds.size());
                 for (String signedId : signedIds) {
-                    unsignedIds.add(keyService.unsignAndVerify(signedId));
+                    unsignedIds.add(signatureService.unsignAndVerify(signedId));
                 }
                 clearScrollRequest.scrollIds(unsignedIds);
                 return request;
@@ -110,8 +110,8 @@ public class ShieldActionFilter implements ActionFilter {
         if (response instanceof SearchResponse) {
             SearchResponse searchResponse = (SearchResponse) response;
             String scrollId = searchResponse.getScrollId();
-            if (scrollId != null && !keyService.signed(scrollId)) {
-                searchResponse.scrollId(keyService.sign(scrollId));
+            if (scrollId != null && !signatureService.signed(scrollId)) {
+                searchResponse.scrollId(signatureService.sign(scrollId));
             }
             return response;
         }

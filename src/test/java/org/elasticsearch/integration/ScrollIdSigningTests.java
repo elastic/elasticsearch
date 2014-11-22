@@ -12,8 +12,8 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.authz.AuthorizationException;
-import org.elasticsearch.shield.key.InternalKeyService;
-import org.elasticsearch.shield.key.KeyService;
+import org.elasticsearch.shield.signature.InternalSignatureService;
+import org.elasticsearch.shield.signature.SignatureService;
 import org.elasticsearch.shield.test.ShieldIntegrationTest;
 import org.junit.Before;
 import org.junit.Test;
@@ -29,19 +29,19 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class ScrollIdSigningTests extends ShieldIntegrationTest {
 
-    private KeyService keyService;
+    private SignatureService signatureService;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(InternalKeyService.FILE_SETTING, writeFile(newFolder(), "system_key", generateKey()))
+                .put(InternalSignatureService.FILE_SETTING, writeFile(newFolder(), "system_key", generateKey()))
                 .build();
     }
 
     @Before
     public void init() throws Exception {
-        keyService = internalCluster().getInstance(KeyService.class);
+        signatureService = internalCluster().getInstance(SignatureService.class);
     }
 
     @Test
@@ -124,12 +124,12 @@ public class ScrollIdSigningTests extends ShieldIntegrationTest {
     }
 
     private void assertSigned(String scrollId) {
-        assertThat(keyService.signed(scrollId), is(true));
+        assertThat(signatureService.signed(scrollId), is(true));
     }
 
     private static byte[] generateKey() {
         try {
-            return InternalKeyService.generateKey();
+            return InternalSignatureService.generateKey();
         } catch (Exception e) {
             fail("failed to generate key");
             return null;

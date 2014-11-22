@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.key.tool;
+package org.elasticsearch.shield.signature.tool;
 
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
@@ -11,7 +11,7 @@ import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.cli.commons.CommandLine;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.key.InternalKeyService;
+import org.elasticsearch.shield.signature.InternalSignatureService;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -68,10 +68,10 @@ public class SystemKeyTool extends CliTool {
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
             Path path = this.path;
             if (path == null) {
-                path = InternalKeyService.resolveFile(settings, env);
+                path = InternalSignatureService.resolveFile(settings, env);
             }
             terminal.println(Terminal.Verbosity.VERBOSE, "generating...");
-            byte[] key = InternalKeyService.generateKey();
+            byte[] key = InternalSignatureService.generateKey();
             terminal.println("Storing generated key in [%s]", path.toAbsolutePath());
             Files.write(path, key, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
             return ExitStatus.OK;

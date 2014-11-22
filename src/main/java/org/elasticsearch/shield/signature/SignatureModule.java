@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.key;
+package org.elasticsearch.shield.signature;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.support.AbstractShieldModule;
@@ -11,14 +11,14 @@ import org.elasticsearch.shield.support.AbstractShieldModule;
 /**
  *
  */
-public class KeyModule extends AbstractShieldModule.Node {
+public class SignatureModule extends AbstractShieldModule.Node {
 
-    public KeyModule(Settings settings) {
+    public SignatureModule(Settings settings) {
         super(settings);
     }
 
     @Override
     protected void configureNode() {
-        bind(KeyService.class).to(InternalKeyService.class).asEagerSingleton();
+        bind(SignatureService.class).to(InternalSignatureService.class).asEagerSingleton();
     }
 }

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.service;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.UnmodifiableIterator;
+import com.google.common.base.Function;
+import com.google.common.collect.*;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
@@ -84,9 +84,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ShardsPluginsModule;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -133,11 +131,12 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     private final NodeEnvironment nodeEnv;
 
-    private volatile ImmutableMap<Integer, Injector> shardsInjectors = ImmutableMap.of();
-
-    private volatile ImmutableMap<Integer, IndexShard> shards = ImmutableMap.of();
+    private volatile ImmutableMap<Integer, ShardAndInjector> shards = ImmutableMap.of();
 
     private final AtomicBoolean closed = new AtomicBoolean(false);
+
+    private final PendingCloseListener pendingCloseListener = new PendingCloseListener();
+
 
     @Inject
     public InternalIndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv,
@@ -177,8 +176,14 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     }
 
     @Override
-    public UnmodifiableIterator<IndexShard> iterator() {
-        return shards.values().iterator();
+    public Iterator<IndexShard> iterator()
+    {
+        return Iterators.transform(shards.values().iterator(), new Function<ShardAndInjector, IndexShard>() {
+            @Override
+            public IndexShard apply(ShardAndInjector input) {
+                return input.shard;
+            }
+        });
     }
 
     @Override
@@ -188,7 +193,11 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     @Override
     public IndexShard shard(int shardId) {
-        return shards.get(shardId);
+        ShardAndInjector shardAndInjector = shards.get(shardId);
+        if (shardAndInjector == null) {
+            return null;
+        }
+        return shardAndInjector.shard;
     }
 
     @Override
@@ -270,14 +279,23 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         return indexEngine;
     }
 
+    private IndicesService.IndexCloseListener serviceCloseListener = null;
+
     public synchronized void close(final String reason, final IndicesService.IndexCloseListener listener) {
         if (closed.compareAndSet(false, true)) {
             final Set<Integer> shardIds = shardIds();
-            final IndicesService.IndexCloseListener innerListener = listener == null ? null :
+            if (listener == null) {
+                serviceCloseListener = null;
+            } else {
+                final Set<Integer> allPendingShardIds = Sets.newHashSet(shardIds);
+                allPendingShardIds.addAll(pendingCloseListener.pendingRemovals);
+                serviceCloseListener =  new PerShardIndexCloseListener(allPendingShardIds, listener);
+            }
+            serviceCloseListener = listener == null ? null :
                     new PerShardIndexCloseListener(shardIds, listener);
             for (final int shardId : shardIds) {
                 try {
-                    removeShard(shardId, reason, innerListener);
+                    removeShard(new ShardId(index, shardId), reason, serviceCloseListener);
                 } catch (Throwable t) {
                     logger.warn("failed to close shard", t);
                 }
@@ -285,9 +303,17 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         }
     }
 
+    private synchronized IndicesService.IndexCloseListener getServiceListener() {
+        return serviceCloseListener;
+    }
+
     @Override
     public Injector shardInjector(int shardId) throws ElasticsearchException {
-        return shardsInjectors.get(shardId);
+        ShardAndInjector shardAndInjector = shards.get(shardId);
+        if (shardAndInjector == null) {
+            return null;
+        }
+        return shardAndInjector.injector;
     }
 
     @Override
@@ -316,10 +342,11 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         }
         ShardId shardId = new ShardId(index, sShardId);
         ShardLock lock = null;
+        Injector shardInjector = null;
         boolean success = false;
         try {
             lock = nodeEnv.shardLock(shardId, TimeUnit.SECONDS.toMillis(5));
-            if (shardsInjectors.containsKey(shardId.id())) {
+            if (shards.containsKey(shardId.id())) {
                 throw new IndexShardAlreadyExistsException(shardId + " already exists");
             }
 
@@ -349,7 +376,6 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
             modules.add(new IndexShardSnapshotModule());
             modules.add(new SuggestShardModule());
 
-            Injector shardInjector;
             try {
                 shardInjector = modules.createChildInjector(injector);
             } catch (CreationException e) {
@@ -358,13 +384,10 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
                 throw new IndexShardCreationException(shardId, e);
             }
 
-            shardsInjectors = newMapBuilder(shardsInjectors).put(shardId.id(), shardInjector).immutableMap();
-
             IndexShard indexShard = shardInjector.getInstance(IndexShard.class);
+            shards = newMapBuilder(shards).put(shardId.id(), new ShardAndInjector(indexShard, shardInjector)).immutableMap();
             indicesLifecycle.indexShardStateChanged(indexShard, null, "shard created");
             indicesLifecycle.afterIndexShardCreated(indexShard);
-
-            shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
             success = true;
             return indexShard;
         } catch (IOException ex) {
@@ -377,35 +400,34 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     }
 
     @Override
-    public void removeShard(int shardId, String reason) throws ElasticsearchException {
-        removeShard(shardId, reason, null);
+    public synchronized void removeShard(int shardId, String reason) throws ElasticsearchException {
+        final ShardId sId = new ShardId(index, shardId);
+        if (shards.containsKey(shardId)) {
+            removeShard(sId, reason, pendingCloseListener.listenerForPending(sId));
+        } else {
+            throw new IndexShardMissingException(sId);
+        }
     }
 
-    public synchronized void removeShard(int shardId, String reason, @Nullable final IndicesService.IndexCloseListener listener) throws ElasticsearchException {
+    private synchronized void removeShard(ShardId shardId, String reason, @Nullable final IndicesService.IndexCloseListener listener) throws ElasticsearchException {
         boolean listenerPassed = false;
-        final ShardId sId = new ShardId(index, shardId);
         try {
-            final Injector shardInjector;
-            final IndexShard indexShard;
-            Map<Integer, Injector> tmpShardInjectors = newHashMap(shardsInjectors);
-            shardInjector = tmpShardInjectors.remove(shardId);
-            if (shardInjector == null) {
-                return;
-            }
-
             logger.debug("[{}] closing... (reason: [{}])", shardId, reason);
-            shardsInjectors = ImmutableMap.copyOf(tmpShardInjectors);
-            Map<Integer, IndexShard> tmpShardsMap = newHashMap(shards);
-            indexShard = tmpShardsMap.remove(shardId);
+            Map<Integer, ShardAndInjector> tmpShardsMap = newHashMap(shards);
+            final ShardAndInjector shardAndInjector = tmpShardsMap.remove(shardId.id());
+            final IndexShard indexShard = shardAndInjector.shard;
+            final Injector shardInjector = shardAndInjector.injector;
             shards = ImmutableMap.copyOf(tmpShardsMap);
-            indicesLifecycle.beforeIndexShardClosed(sId, indexShard);
+
+            indicesLifecycle.beforeIndexShardClosed(shardId, shardAndInjector.shard);
             for (Class<? extends CloseableIndexComponent> closeable : pluginsService.shardServices()) {
                 try {
-                    shardInjector.getInstance(closeable).close();
+                    shardAndInjector.injector.getInstance(closeable).close();
                 } catch (Throwable e) {
                     logger.debug("[{}] failed to clean plugin shard service [{}]", e, shardId, closeable);
                 }
             }
+
             try {
                 // now we can close the translog service, we need to close it before the we close the shard
                 shardInjector.getInstance(TranslogService.class).close();
@@ -415,13 +437,11 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
             }
             // this logic is tricky, we want to close the engine so we rollback the changes done to it
             // and close the shard so no operations are allowed to it
-            if (indexShard != null) {
-                try {
-                    ((InternalIndexShard) indexShard).close(reason);
-                } catch (Throwable e) {
-                    logger.debug("[{}] failed to close index shard", e, shardId);
-                    // ignore
-                }
+            try {
+                ((InternalIndexShard) indexShard).close(reason);
+            } catch (Throwable e) {
+                logger.debug("[{}] failed to close index shard", e, shardId);
+                // ignore
             }
             try {
                 shardInjector.getInstance(Engine.class).close();
@@ -463,7 +483,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
             }
 
             // call this before we close the store, so we can release resources for it
-            indicesLifecycle.afterIndexShardClosed(sId, indexShard);
+            indicesLifecycle.afterIndexShardClosed(shardId, indexShard);
             // if we delete or have no gateway or the store is not persistent, clean the store...
             final Store store = shardInjector.getInstance(Store.class);
             // and close it
@@ -487,7 +507,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
             logger.debug("[{}] closed (reason: [{}])", shardId, reason);
         } catch (Throwable t) {
             if (listenerPassed == false && listener != null) { // only notify if the listener wasn't passed to the store
-                listener.onShardCloseFailed(sId, t);
+                listener.onShardCloseFailed(shardId, t);
             }
             throw t;
         }
@@ -532,5 +552,59 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
                 listener.onAllShardsClosed(shardId.index(), failures);
             }
         }
+    }
+
+    private static class ShardAndInjector {
+        final IndexShard shard;
+        final Injector injector;
+
+        private ShardAndInjector(IndexShard shard, Injector injector) {
+            this.shard = shard;
+            this.injector = injector;
+        }
+    }
+
+    /**
+     * this listener tracks the currently pending shard removals and forwards
+     * the shard close events to the close listener passed to the {@link #close(String, org.elasticsearch.indices.IndicesService.IndexCloseListener)}
+     * method. This is used to also get events for in-flight shard removals issues shortly before the index gets closed
+     * This is pretty common if we remove an index since recovery event due to the index deleting can reach the node
+     * before the actual deletion of the index itself and this listener helps to clean up all filesystem resources.
+     */
+    private final class PendingCloseListener implements IndicesService.IndexCloseListener {
+
+        private final Set<Integer> pendingRemovals = new HashSet<>();
+
+        IndicesService.IndexCloseListener listenerForPending(ShardId shardId) {
+            synchronized (InternalIndexService.this) {
+                pendingRemovals.add(shardId.id());
+                return this;
+            }
+        }
+        @Override
+        public void onAllShardsClosed(Index index, List<Throwable> failures) {
+            assert false;
+        }
+
+        @Override
+        public void onShardClosed(ShardId shardId) {
+            synchronized (InternalIndexService.this) {
+                pendingRemovals.remove(shardId.id());
+                if (serviceCloseListener != null) {
+                    serviceCloseListener.onShardClosed(shardId);
+                }
+            }
+        }
+
+        @Override
+        public void onShardCloseFailed(ShardId shardId, Throwable t) {
+            synchronized (InternalIndexService.this) {
+                pendingRemovals.remove(shardId.id());
+                if (serviceCloseListener != null) {
+                    serviceCloseListener.onShardCloseFailed(shardId, t);
+                }
+            }
+        }
+
     }
 }

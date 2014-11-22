@@ -26,7 +26,7 @@ import java.util.Hashtable;
 
 /**
  * This factory creates LDAP connections via iterating through user templates.
- *
+ * <p/>
  * Note that even though there is a separate factory for Active Directory, this factory would work against AD.  A template
  * for each user context would need to be supplied.
  */
@@ -70,6 +70,7 @@ public class LdapConnectionFactory extends AbstractComponent implements Connecti
     /**
      * This iterates through the configured user templates attempting to open.  If all attempts fail, all exceptions
      * are combined into one Exception as nested exceptions.
+     *
      * @param username a relative name, Not a distinguished name, that will be inserted into the template.
      * @return authenticated exception
      */
@@ -90,7 +91,7 @@ public class LdapConnectionFactory extends AbstractComponent implements Connecti
                 return new LdapConnection(ctx, dn, findGroupsByAttribute, groupSubTreeSearch, groupSearchDN);
 
             } catch (NamingException e) {
-                logger.warn("Failed ldap authentication with user template [{}], dn [{}]", e, template, dn );
+                logger.warn("Failed ldap authentication with user template [{}], dn [{}]", e, template, dn);
             }
         }
 
@@ -99,6 +100,7 @@ public class LdapConnectionFactory extends AbstractComponent implements Connecti
 
     /**
      * Securely escapes the username and inserts it into the template using MessageFormat
+     *
      * @param username username to insert into the DN template.  Any commas, equals or plus will be escaped.
      * @return DN (distinquished name) build from the template.
      */

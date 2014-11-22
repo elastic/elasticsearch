@@ -55,6 +55,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         if (user == null) {
             throw new AuthenticationException("Unable to authenticate user for request");
         }
+        request.putInContext(USER_KEY, user);
         return user;
     }
 
@@ -123,13 +124,15 @@ public class InternalAuthenticationService extends AbstractComponent implements 
      * the first realm that successfully authenticates will "win" and its authenticated user will be returned.
      * If none of the configured realms successfully authenticates the request, an {@link AuthenticationException} will
      * be thrown.
-     *
+     * <p/>
      * The order by which the realms are checked is defined in {@link Realms}.
      *
-     * @param action        The executed action
-     * @param message       The executed request
-     * @param fallbackUser  The user to assume if there is not other user attached to the message
-     * @return              The authenticated user
+     * @param action       The executed action
+     * @param message      The executed request
+     * @param fallbackUser The user to assume if there is not other user attached to the message
+     *
+     * @return The authenticated user
+     *
      * @throws AuthenticationException If none of the configured realms successfully authenticated the
      *                                 request
      */
@@ -169,7 +172,6 @@ public class InternalAuthenticationService extends AbstractComponent implements 
                 if (realm.supports(token)) {
                     User user = realm.authenticate(token);
                     if (user != null) {
-                        request.putInContext(USER_KEY, user);
                         return user;
                     }
                     auditTrail.authenticationFailed(realm.type(), token, request);

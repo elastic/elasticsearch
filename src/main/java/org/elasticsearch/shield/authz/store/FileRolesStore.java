@@ -21,7 +21,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.authz.Permission;
 import org.elasticsearch.shield.authz.Privilege;
-import org.elasticsearch.shield.plugin.ShieldPlugin;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -182,7 +182,7 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
 
             return roles.build();
 
-        } catch (YAMLException|IOException ioe) {
+        } catch (YAMLException | IOException ioe) {
             throw new ElasticsearchException("Failed to read roles file [" + path.toAbsolutePath() + "]", ioe);
         }
     }

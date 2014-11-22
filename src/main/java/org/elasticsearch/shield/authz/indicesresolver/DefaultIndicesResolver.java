@@ -22,8 +22,8 @@ import org.elasticsearch.transport.TransportRequest;
 import java.util.*;
 
 /**
-*
-*/
+ *
+ */
 public class DefaultIndicesResolver implements IndicesResolver<TransportRequest> {
 
     private final AuthorizationService authzService;
@@ -76,7 +76,7 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
                     }
                     throw new IndexMissingException(new Index(Arrays.toString(indicesRequest.indices())));
                 }
-                ((IndicesRequest.Replaceable)indicesRequest).indices(indices.toArray(new String[indices.size()]));
+                ((IndicesRequest.Replaceable) indicesRequest).indices(indices.toArray(new String[indices.size()]));
                 return Sets.newHashSet(indices);
             }
             return Sets.newHashSet(explodeWildcards(indicesRequest, metaData));

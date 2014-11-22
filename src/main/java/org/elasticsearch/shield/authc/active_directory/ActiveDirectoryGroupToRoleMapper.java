@@ -15,6 +15,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
  * LDAP Group to role mapper specific to the "shield.authc.ldap" package
  */
 public class ActiveDirectoryGroupToRoleMapper extends AbstractGroupToRoleMapper {
+
     @Inject
     public ActiveDirectoryGroupToRoleMapper(Settings settings, Environment env, ResourceWatcherService watcherService) {
         super(settings, ActiveDirectoryRealm.type, env, watcherService, null);

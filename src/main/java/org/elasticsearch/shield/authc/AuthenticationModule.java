@@ -26,8 +26,7 @@ public class AuthenticationModule extends AbstractShieldModule.Node.Spawn {
         return ImmutableList.of(
                 new ESUsersModule(settings),
                 new LdapModule(settings),
-                new ActiveDirectoryModule(settings)
-        );
+                new ActiveDirectoryModule(settings));
     }
 
     @Override

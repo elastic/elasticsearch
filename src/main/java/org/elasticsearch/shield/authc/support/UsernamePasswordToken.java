@@ -67,7 +67,6 @@ public class UsernamePasswordToken implements AuthenticationToken {
     }
 
 
-
     public static UsernamePasswordToken extractToken(TransportMessage<?> message, UsernamePasswordToken defaultToken) {
         String authStr = message.getHeader(BASIC_AUTH_HEADER);
         if (authStr == null) {

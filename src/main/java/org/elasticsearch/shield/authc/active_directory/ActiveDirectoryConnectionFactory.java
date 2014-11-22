@@ -35,14 +35,13 @@ public class ActiveDirectoryConnectionFactory extends AbstractComponent implemen
 
     public static final String AD_DOMAIN_NAME_SETTING = "domain_name";
     public static final String AD_USER_SEARCH_BASEDN_SETTING = "user_search_dn";
-    static final String MODE_NAME = "active_directory";
 
     private final ImmutableMap<String, Serializable> sharedLdapEnv;
     private final String userSearchDN;
     private final String domainName;
 
     @Inject
-    public ActiveDirectoryConnectionFactory(Settings settings){
+    public ActiveDirectoryConnectionFactory(Settings settings) {
         super(settings);
         domainName = componentSettings.get(AD_DOMAIN_NAME_SETTING);
         if (domainName == null) {
@@ -50,7 +49,7 @@ public class ActiveDirectoryConnectionFactory extends AbstractComponent implemen
         }
         userSearchDN = componentSettings.get(AD_USER_SEARCH_BASEDN_SETTING, buildDnFromDomain(domainName));
 
-        String[] ldapUrls = componentSettings.getAsArray(URLS_SETTING, new String[] { "ldaps://" + domainName + ":636"});
+        String[] ldapUrls = componentSettings.getAsArray(URLS_SETTING, new String[] { "ldaps://" + domainName + ":636" });
 
         ImmutableMap.Builder<String, Serializable> builder = ImmutableMap.<String, Serializable>builder()
                 .put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory")
@@ -65,6 +64,7 @@ public class ActiveDirectoryConnectionFactory extends AbstractComponent implemen
 
     /**
      * This is an active directory bind that looks up the user DN after binding with a windows principal.
+     *
      * @param userName name of the windows user without the domain
      * @return An authenticated
      */
@@ -80,12 +80,12 @@ public class ActiveDirectoryConnectionFactory extends AbstractComponent implemen
             DirContext ctx = new InitialDirContext(ldapEnv);
             SearchControls searchCtls = new SearchControls();
             searchCtls.setSearchScope(SearchControls.SUBTREE_SCOPE);
-            searchCtls.setReturningAttributes( Strings.EMPTY_ARRAY );
+            searchCtls.setReturningAttributes(Strings.EMPTY_ARRAY);
 
             String searchFilter = "(&(objectClass=user)(userPrincipalName={0}))";
-            NamingEnumeration<SearchResult> results = ctx.search(userSearchDN, searchFilter, new Object[]{ userPrincipal }, searchCtls);
+            NamingEnumeration<SearchResult> results = ctx.search(userSearchDN, searchFilter, new Object[] { userPrincipal }, searchCtls);
 
-            if (results.hasMore()){
+            if (results.hasMore()) {
                 SearchResult entry = results.next();
                 String name = entry.getNameInNamespace();
 
@@ -98,7 +98,7 @@ public class ActiveDirectoryConnectionFactory extends AbstractComponent implemen
             throw new ActiveDirectoryException("Search for user [" + userName + "], search root [" + userSearchDN + "] yielded no results");
 
         } catch (NamingException e) {
-            throw new ActiveDirectoryException("Unable to authenticate user [" + userName + "] to active directory domain ["+ domainName +"]", e);
+            throw new ActiveDirectoryException("Unable to authenticate user [" + userName + "] to active directory domain [" + domainName + "]", e);
         }
     }
 

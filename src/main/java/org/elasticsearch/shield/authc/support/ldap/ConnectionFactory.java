@@ -13,7 +13,8 @@ import org.elasticsearch.shield.authc.support.SecuredString;
  *
  * A standard looking usage pattern could look like this:
  <pre>
-    try (LdapConnection session = ldapFac.bindXXX(...);
+    ConnectionFactory factory = ...
+    try (LdapConnection session = factory.open(...)) {
         ...do stuff with the session
     }
  </pre>
@@ -23,8 +24,11 @@ public interface ConnectionFactory {
     static final String URLS_SETTING = "url";
 
     /**
-     * Password authenticated open
-     * @param user name of the user to authenticate the connection with.
+     * Authenticates the given user and opens a new connection that bound to it (meaning, all operations
+     * under the returned connection will be executed on behalf of the authenticated user.
+     *
+     * @param user      The name of the user to authenticate the connection with.
+     * @param password  The password of the user
      */
     AbstractLdapConnection open(String user, SecuredString password) ;
 

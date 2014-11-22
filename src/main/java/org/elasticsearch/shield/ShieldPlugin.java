@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.plugin;
+package org.elasticsearch.shield;
 
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.collect.ImmutableList;
@@ -12,12 +12,10 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.shield.ShieldModule;
 import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.shield.http.RestShieldInfoAction;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -69,11 +67,6 @@ public class ShieldPlugin extends AbstractPlugin {
         String password = user.substring(i + 1);
         return ImmutableSettings.builder()
                 .put(setting, UsernamePasswordToken.basicAuthHeaderValue(username, new SecuredString(password.toCharArray()))).build();
-    }
-
-
-    public void onModule(RestModule restModule) {
-        restModule.addRestAction(RestShieldInfoAction.class);
     }
 
     public static Path configDir(Environment env) {

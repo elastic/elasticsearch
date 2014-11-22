@@ -30,7 +30,7 @@ import static org.elasticsearch.common.collect.Iterables.all;
  * factory that is initiated by the settings constructor.  JNDI uses reflection to call the getDefault() static method
  * then checks to make sure that the factory returned is an LdapSslSocketFactory.  Because of this we have to wrap
  * the socket factory
- *
+ * <p/>
  * http://docs.oracle.com/javase/tutorial/jndi/ldap/ssl.html
  */
 public class LdapSslSocketFactory extends SocketFactory {
@@ -70,6 +70,7 @@ public class LdapSslSocketFactory extends SocketFactory {
 
     /**
      * This is invoked by JNDI and the returned SocketFactory must be an LdapSslSocketFactory object
+     *
      * @return a singleton instance of LdapSslSocketFactory set by calling the init static method.
      */
     public static SocketFactory getDefault() {
@@ -77,13 +78,9 @@ public class LdapSslSocketFactory extends SocketFactory {
         return instance;
     }
 
-    public static boolean initialized() {
-        return instance != null;
-    }
-
     final private SocketFactory socketFactory;
 
-    private LdapSslSocketFactory(SocketFactory wrappedSocketFactory){
+    private LdapSslSocketFactory(SocketFactory wrappedSocketFactory) {
         socketFactory = wrappedSocketFactory;
     }
 
@@ -111,8 +108,9 @@ public class LdapSslSocketFactory extends SocketFactory {
 
     /**
      * If one of the ldapUrls are SSL this will set the LdapSslSocketFactory as a socket provider on the builder
+     *
      * @param ldapUrls array of ldap urls, either all SSL or none with SSL (no mixing)
-     * @param builder set of jndi properties, that will
+     * @param builder  set of jndi properties, that will
      * @throws org.elasticsearch.shield.ShieldSettingsException if URLs have mixed protocols.
      */
     public static void configureJndiSSL(String[] ldapUrls, ImmutableMap.Builder<String, Serializable> builder) {

@@ -9,8 +9,7 @@ import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.PreProcessModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.SecurityFilter;
-import org.elasticsearch.shield.plugin.ShieldPlugin;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.support.AbstractShieldModule;
 import org.elasticsearch.shield.transport.n2n.IPFilteringN2NAuthenticator;
 import org.elasticsearch.shield.transport.netty.NettySecuredHttpServerTransportModule;
@@ -50,13 +49,13 @@ public class SecuredTransportModule extends AbstractShieldModule.Spawn implement
 
         if (clientMode) {
             // no ip filtering on the client
-            bind(ServerTransportFilter.class).toInstance(ServerTransportFilter.NOOP);
-            bind(ClientTransportFilter.class).toInstance(ClientTransportFilter.NOOP);
+            bind(ServerTransportFilter.class).to(ServerTransportFilter.Client.class).asEagerSingleton();
+            bind(ClientTransportFilter.class).to(ClientTransportFilter.Client.class).asEagerSingleton();
             return;
         }
 
-        bind(ServerTransportFilter.class).to(SecurityFilter.ServerTransport.class).asEagerSingleton();
-        bind(ClientTransportFilter.class).to(SecurityFilter.ClientTransport.class).asEagerSingleton();
+        bind(ServerTransportFilter.class).to(ServerTransportFilter.Node.class).asEagerSingleton();
+        bind(ClientTransportFilter.class).to(ClientTransportFilter.Node.class).asEagerSingleton();
         if (settings.getAsBoolean("shield.transport.n2n.ip_filter.enabled", true)) {
             bind(IPFilteringN2NAuthenticator.class).asEagerSingleton();
         }

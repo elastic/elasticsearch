@@ -3,32 +3,31 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.transport.netty;
+package org.elasticsearch.shield.action;
 
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.PreProcessModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.support.AbstractShieldModule;
-import org.elasticsearch.transport.TransportModule;
 
 /**
  *
  */
-public class NettySecuredTransportModule extends AbstractShieldModule implements PreProcessModule {
+public class ShieldActionModule extends AbstractShieldModule.Node implements PreProcessModule {
 
-    public NettySecuredTransportModule(Settings settings) {
+    public ShieldActionModule(Settings settings) {
         super(settings);
     }
 
     @Override
     public void processModule(Module module) {
-        if (module instanceof TransportModule) {
-            ((TransportModule) module).setTransport(NettySecuredTransport.class, ShieldPlugin.NAME);
+        if (shieldEnabled && !clientMode && module instanceof ActionModule) {
+            ((ActionModule) module).registerFilter(ShieldActionFilter.class);
         }
     }
 
     @Override
-    protected void configure(boolean clientMode) {}
-
+    protected void configureNode() {
+    }
 }

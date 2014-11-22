@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchException;
 
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.shield.plugin.ShieldPlugin;
 
 import java.util.List;
 

@@ -18,10 +18,12 @@ public abstract class AbstractShieldModule extends AbstractModule {
 
     protected final Settings settings;
     protected final boolean clientMode;
+    protected final boolean shieldEnabled;
 
     public AbstractShieldModule(Settings settings) {
         this.settings = settings;
         this.clientMode = !"node".equals(settings.get(Client.CLIENT_TYPE_SETTING));
+        this.shieldEnabled = settings.getAsBoolean("shield.enabled", true);
     }
 
     @Override

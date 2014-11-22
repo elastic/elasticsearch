@@ -8,7 +8,7 @@ package org.elasticsearch.shield.authc.active_directory;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.shield.authc.support.ldap.AbstractLdapConnection;
 
 import javax.naming.NamingEnumeration;
@@ -20,7 +20,8 @@ import java.util.List;
  * An Ldap Connection customized for active directory.
  */
 public class ActiveDirectoryConnection extends AbstractLdapConnection {
-    private static final ESLogger logger = ESLoggerFactory.getLogger(ActiveDirectoryConnection.class.getName());
+
+    private static final ESLogger logger = Loggers.getLogger(ActiveDirectoryConnection.class);
 
     private final String groupSearchDN;
 
@@ -37,7 +38,7 @@ public class ActiveDirectoryConnection extends AbstractLdapConnection {
      * implemented properly so that it will clean up on garbage collection.
      */
     @Override
-    public void close(){
+    public void close() {
         try {
             jndiContext.close();
         } catch (NamingException e) {
@@ -98,9 +99,9 @@ public class ActiveDirectoryConnection extends AbstractLdapConnection {
                 Attributes attrs = sr.getAttributes();
 
                 if (attrs != null) {
-                    for (NamingEnumeration ae = attrs.getAll(); ae.hasMore();) {
+                    for (NamingEnumeration ae = attrs.getAll(); ae.hasMore(); ) {
                         Attribute attr = (Attribute) ae.next();
-                        for (NamingEnumeration e = attr.getAll(); e.hasMore();) {
+                        for (NamingEnumeration e = attr.getAll(); e.hasMore(); ) {
                             byte[] sid = (byte[]) e.next();
                             groupsSearchFilter.append("(objectSid=");
                             groupsSearchFilter.append(binarySidToStringSid(sid));
@@ -125,9 +126,10 @@ public class ActiveDirectoryConnection extends AbstractLdapConnection {
     /**
      * To better understand what the sid is and how its string representation looks like, see
      * http://blogs.msdn.com/b/alextch/archive/2007/06/18/sample-java-application-that-retrieves-group-membership-of-an-active-directory-user-account.aspx
+     *
      * @param SID byte encoded security ID
      */
-    static public String binarySidToStringSid( byte[] SID ) {
+    static public String binarySidToStringSid(byte[] SID) {
         String strSID;
 
         //convert the SID into string format
@@ -142,20 +144,20 @@ public class ActiveDirectoryConnection extends AbstractLdapConnection {
         strSID = strSID + "-" + Long.toString(version);
         authority = SID[4];
 
-        for (int i = 0;i<4;i++) {
+        for (int i = 0; i < 4; i++) {
             authority <<= 8;
-            authority += SID[4+i] & 0xFF;
+            authority += SID[4 + i] & 0xFF;
         }
 
         strSID = strSID + "-" + Long.toString(authority);
         count = SID[2];
         count <<= 8;
         count += SID[1] & 0xFF;
-        for (int j=0;j<count;j++) {
-            rid = SID[11 + (j*4)] & 0xFF;
-            for (int k=1;k<4;k++) {
+        for (int j = 0; j < count; j++) {
+            rid = SID[11 + (j * 4)] & 0xFF;
+            for (int k = 1; k < 4; k++) {
                 rid <<= 8;
-                rid += SID[11-k + (j*4)] & 0xFF;
+                rid += SID[11 - k + (j * 4)] & 0xFF;
             }
             strSID = strSID + "-" + Long.toString(rid);
         }

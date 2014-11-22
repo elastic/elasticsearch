@@ -19,6 +19,8 @@ import org.elasticsearch.transport.TransportMessage;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
+
 /**
  * Supporting class for JNDI-based Realms
  */
@@ -27,12 +29,13 @@ public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm imp
     protected final ConnectionFactory connectionFactory;
     protected final AbstractGroupToRoleMapper roleMapper;
 
-    protected AbstractLdapRealm(Settings settings, ConnectionFactory ldap, AbstractGroupToRoleMapper roleMapper, RestController restController) {
+    protected AbstractLdapRealm(Settings settings, ConnectionFactory connectionFactory,
+                                AbstractGroupToRoleMapper roleMapper, RestController restController) {
         super(settings);
-        this.connectionFactory = ldap;
+        this.connectionFactory = connectionFactory;
         this.roleMapper = roleMapper;
         roleMapper.addListener(new Listener());
-        restController.registerRelevantHeaders(UsernamePasswordToken.BASIC_AUTH_HEADER);
+        restController.registerRelevantHeaders(BASIC_AUTH_HEADER);
     }
 
     @Override
@@ -46,6 +49,7 @@ public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm imp
 
     /**
      * Given a username and password, open to ldap, retrieve groups, map to roles and build the user.
+     *
      * @return User with elasticsearch roles
      */
     @Override
@@ -54,7 +58,7 @@ public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm imp
             List<String> groupDNs = session.groups();
             Set<String> roles = roleMapper.mapRoles(groupDNs);
             return new User.Simple(token.principal(), roles.toArray(new String[roles.size()]));
-        } catch (ShieldException e){
+        } catch (ShieldException e) {
             if (logger.isDebugEnabled()) {
                 logger.debug("Authentication Failed for user [{}]", e, token.principal());
             }

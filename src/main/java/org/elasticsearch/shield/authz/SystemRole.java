@@ -15,6 +15,7 @@ public class SystemRole {
     public static final SystemRole INSTANCE = new SystemRole();
 
     public static final String NAME = "__es_system_role";
+
     private static final Predicate<String> PREDICATE = Privilege.SYSTEM.predicate();
 
     private SystemRole() {

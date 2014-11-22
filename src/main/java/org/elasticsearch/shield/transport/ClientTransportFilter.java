@@ -5,17 +5,15 @@
  */
 package org.elasticsearch.shield.transport;
 
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.transport.TransportRequest;
 
 /**
  *
  */
 public interface ClientTransportFilter {
-
-    static final ClientTransportFilter NOOP = new ClientTransportFilter() {
-        @Override
-        public void outbound(String action, TransportRequest request) {}
-    };
 
     /**
      * Called just before the given request is sent by the transport. Any exception
@@ -24,4 +22,36 @@ public interface ClientTransportFilter {
      */
     void outbound(String action, TransportRequest request);
 
+    /**
+     * The client transport filter that should be used in transport clients
+     */
+    public static class Client implements ClientTransportFilter {
+
+        @Override
+        public void outbound(String action, TransportRequest request) {
+        }
+    }
+
+    /**
+     * The client transport filter that should be used in nodes
+     */
+    public static class Node implements ClientTransportFilter {
+
+        private final AuthenticationService authcService;
+
+        @Inject
+        public Node(AuthenticationService authcService) {
+            this.authcService = authcService;
+        }
+
+        @Override
+        public void outbound(String action, TransportRequest request) {
+            /**
+                this will check if there's a user associated with the request. If there isn't,
+                the system user will be attached. There cannot be a request outgoing from this
+                node that is not associated with a user.
+             */
+            authcService.attachUserHeaderIfMissing(request, User.SYSTEM);
+        }
+    }
 }

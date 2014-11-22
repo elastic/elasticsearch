@@ -10,7 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import javax.naming.InvalidNameException;
 import javax.naming.ldap.LdapName;
 
-public class LdapUtils {
+public final class LdapUtils {
 
     private LdapUtils() {
     }

@@ -5,37 +5,29 @@
  */
 package org.elasticsearch.shield;
 
-import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.PreProcessModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.action.ShieldActionModule;
 import org.elasticsearch.shield.audit.AuditTrailModule;
 import org.elasticsearch.shield.authc.AuthenticationModule;
 import org.elasticsearch.shield.authz.AuthorizationModule;
 import org.elasticsearch.shield.key.KeyModule;
+import org.elasticsearch.shield.rest.ShieldRestModule;
 import org.elasticsearch.shield.ssl.SSLModule;
 import org.elasticsearch.shield.support.AbstractShieldModule;
-import org.elasticsearch.shield.transport.SecuredRestModule;
 import org.elasticsearch.shield.transport.SecuredTransportModule;
 
 /**
  *
  */
-public class ShieldModule extends AbstractShieldModule.Spawn implements PreProcessModule {
+public class ShieldModule extends AbstractShieldModule.Spawn {
 
     private final boolean enabled;
 
     public ShieldModule(Settings settings) {
         super(settings);
         this.enabled = settings.getAsBoolean("shield.enabled", true);
-    }
-
-    @Override
-    public void processModule(Module module) {
-        if (module instanceof ActionModule && enabled && !clientMode) {
-            ((ActionModule) module).registerFilter(SecurityFilter.Action.class);
-        }
     }
 
     @Override
@@ -56,9 +48,9 @@ public class ShieldModule extends AbstractShieldModule.Spawn implements PreProce
                 new AuthenticationModule(settings),
                 new AuthorizationModule(settings),
                 new AuditTrailModule(settings),
+                new ShieldRestModule(settings),
+                new ShieldActionModule(settings),
                 new SecuredTransportModule(settings),
-                new SecuredRestModule(settings),
-                new SecurityFilterModule(settings),
                 new KeyModule(settings),
                 new SSLModule(settings));
     }

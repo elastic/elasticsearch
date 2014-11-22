@@ -15,6 +15,7 @@ import java.util.Arrays;
  * Helper class similar to Arrays to handle conversions for Char arrays
  */
 public class CharArrays {
+
     static char[] utf8BytesToChars(byte[] utf8Bytes) {
         ByteBuffer byteBuffer = ByteBuffer.wrap(utf8Bytes);
         CharBuffer charBuffer = Charsets.UTF_8.decode(byteBuffer);
@@ -23,10 +24,11 @@ public class CharArrays {
         charBuffer.clear();
         return chars;
     }
+
     /**
      * Like String.indexOf for for an array of chars
      */
-    static int indexOf(char[] array, char ch){
+    static int indexOf(char[] array, char ch) {
         for (int i = 0; (i < array.length); i++) {
             if (array[i] == ch) {
                 return i;

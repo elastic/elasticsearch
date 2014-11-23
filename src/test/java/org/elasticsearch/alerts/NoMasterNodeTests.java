@@ -53,6 +53,8 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
         config = new ClusterDiscoveryConfiguration.UnicastZen(2);
         internalTestCluster().startNodesAsync(2).get();
         createIndex("my-index");
+        ensureAlertingStarted();
+
         // Have a sample document in the index, the alert is going to evaluate
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
         SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
@@ -93,6 +95,8 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
         createIndex("my-index");
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
 
+        // Alerting starts in the background, it can happen we get here too soon, so wait until alerting has started.
+        ensureAlertingStarted();
         for (int i = 1; i <= numberOfAlerts; i++) {
             String alertName = "alert" + i;
             SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));

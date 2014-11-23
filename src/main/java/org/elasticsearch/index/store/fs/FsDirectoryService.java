@@ -59,13 +59,11 @@ public abstract class FsDirectoryService extends DirectoryService implements Sto
 
     protected final LockFactory buildLockFactory() throws IOException {
         String fsLock = componentSettings.get("lock", componentSettings.get("fs_lock", "native"));
-        LockFactory lockFactory = NoLockFactory.INSTANCE;
+        LockFactory lockFactory;
         if (fsLock.equals("native")) {
             lockFactory = NativeFSLockFactory.INSTANCE;
         } else if (fsLock.equals("simple")) {
             lockFactory = SimpleFSLockFactory.INSTANCE;
-        } else if (fsLock.equals("none")) {
-            lockFactory = NoLockFactory.INSTANCE;
         } else {
             throw new StoreException(shardId, "unrecognized fs_lock \"" + fsLock + "\": must be native, simple or none");
         }

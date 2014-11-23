@@ -85,9 +85,9 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
                     Files.createDirectories(dir);
                 }
                 
-                try (Directory luceneDir = FSDirectory.open(dir)) {
+                try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
                     logger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
-                    Lock tmpLock = NativeFSLockFactory.INSTANCE.makeLock(luceneDir, "node.lock");
+                    Lock tmpLock = luceneDir.makeLock("node.lock");
                     boolean obtained = tmpLock.obtain();
                     if (obtained) {
                         locks[dirIndex] = tmpLock;

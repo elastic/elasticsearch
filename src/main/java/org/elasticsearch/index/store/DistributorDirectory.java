@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * A directory implementation that uses the Elasticsearch {@link Distributor} abstraction to distribute
  * files across multiple data directories.
  */
-public final class DistributorDirectory extends BaseDirectory {
+public final class DistributorDirectory extends Directory {
 
     private final Distributor distributor;
     private final HashMap<String, Directory> nameDirMapping = new HashMap<>();
@@ -68,14 +68,12 @@ public final class DistributorDirectory extends BaseDirectory {
      * Creates a new DistributorDirectory form the given Distributor.
      */
     public DistributorDirectory(Distributor distributor) throws IOException {
-        super(new DistributorLockFactoryWrapper(distributor.primary()));
         this.distributor = distributor;
         for (Directory dir : distributor.all()) {
             for (String file : dir.listAll()) {
                 nameDirMapping.put(file, dir);
             }
         }
-        ((DistributorLockFactoryWrapper) lockFactory).setDistributorDirectory(this);
     }
 
     @Override
@@ -133,7 +131,6 @@ public final class DistributorDirectory extends BaseDirectory {
         } finally {
             IOUtils.close(distributor.all());
         }
-
     }
 
     /**
@@ -165,7 +162,7 @@ public final class DistributorDirectory extends BaseDirectory {
         return directory;
     }
 
-    /** Called by the lock factory to record the lock file. */
+    /** Called by makeLock's wrapped lock, to record the lock file. */
     synchronized void addNameDirMapping(String name, Directory dir) {
         assert nameDirMapping.containsKey(name) == false || nameDirMapping.get(name) == dir;
         if (nameDirMapping.get(name) == null) {
@@ -210,66 +207,36 @@ public final class DistributorDirectory extends BaseDirectory {
         return consistent; // return boolean so it can be easily be used in asserts
     }
 
-    /**
-     * This inner class is a simple wrapper around the original
-     * lock factory to track files written / created through the
-     * lock factory. For instance {@link NativeFSLockFactory} creates real
-     * files that we should expose for consistency reasons.
-     */
-    private static class DistributorLockFactoryWrapper extends LockFactory {
-        private final Directory delegateDir;
-        private final boolean writesFiles;
-
-        // So we can update the nameDirMapping when we write a lock file:
-        private DistributorDirectory distributorDirectory;
-
-        public DistributorLockFactoryWrapper(Directory delegateDir) {
-            this.delegateDir = delegateDir;
-            this.writesFiles = DirectoryUtils.getLeaf(delegateDir, FSDirectory.class) != null;
-        }
-
-        public void setDistributorDirectory(DistributorDirectory distributorDirectory) {
-            this.distributorDirectory = distributorDirectory;
-        }
-
-        @Override
-        public Lock makeLock(Directory dir, String lockName) {
-            return new DistributorLock(delegateDir.makeLock(lockName), lockName);
-        }
-
-        @Override
-        public String toString() {
-            return "DistributorLockFactoryWrapper(" + delegateDir.toString() + ")";
-        }
-
-        private class DistributorLock extends Lock {
-            private final Lock delegateLock;
-            private final String name;
-
-            DistributorLock(Lock delegateLock, String name) {
-                this.delegateLock = delegateLock;
-                this.name = name;
-            }
-
-            @Override
-            public boolean obtain() throws IOException {
-                if (delegateLock.obtain()) {
-                    if (writesFiles) {
-                        distributorDirectory.addNameDirMapping(name, delegateDir);
+    @Override
+    public Lock makeLock(final String lockName) {
+        final Directory primary = distributor.primary();
+        final Lock delegateLock = primary.makeLock(lockName);
+        if (DirectoryUtils.getLeaf(primary, FSDirectory.class) != null) {
+            // Wrap the delegate's lock just so we can monitor when it actually wrote a lock file.  We assume that an FSDirectory writes its
+            // locks as actual files (we don't support NoLockFactory):
+            return new Lock() {
+                @Override
+                public boolean obtain() throws IOException {
+                    if (delegateLock.obtain()) {
+                        addNameDirMapping(lockName, primary);
+                        return true;
+                    } else {
+                        return false;
                     }
-                    return true;
-                } else {
-                    return false;
                 }
-            }
 
-            @Override
-            public void close() throws IOException { delegateLock.close(); }
+                @Override
+                public void close() throws IOException {
+                    delegateLock.close();
+                }
 
-            @Override
-            public boolean isLocked() throws IOException {
-                return delegateLock.isLocked();
-            }
+                @Override
+                public boolean isLocked() throws IOException {
+                    return delegateLock.isLocked();
+                }
+            };
+        } else {
+            return delegateLock;
         }
     }
 }

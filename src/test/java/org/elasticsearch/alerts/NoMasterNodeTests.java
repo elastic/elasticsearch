@@ -9,6 +9,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -85,9 +86,7 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
 
     @Test
     public void testMultipleFailures() throws Exception {
-        // TODO: increase number of times we kill the elected master.
-        // It is not good enough yet: after multi a couple of kills errors occur and assertions fail.
-        int numberOfFailures = 1;//scaledRandomIntBetween(2, 9);
+        int numberOfFailures = scaledRandomIntBetween(2, 9);
         int numberOfAlerts = scaledRandomIntBetween(numberOfFailures, 12);
         config = new ClusterDiscoveryConfiguration.UnicastZen(2 + numberOfFailures);
         internalTestCluster().startNodesAsync(2).get();
@@ -123,8 +122,13 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
         // Can't use ensureAlertingStopped, b/c that relies on the alerts stats api which requires an elected master node
         assertThat(awaitBusy(new Predicate<Object>() {
             public boolean apply(Object obj) {
-                ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
-                return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
+                for (Client client : clients()) {
+                    ClusterState state = client.admin().cluster().prepareState().setLocal(true).get().getState();
+                    if (!state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID)) {
+                        return false;
+                    }
+                }
+                return true;
             }
         }), equalTo(true));
         // Ensure that the alert manager doesn't run elsewhere

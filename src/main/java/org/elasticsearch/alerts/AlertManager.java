@@ -73,7 +73,7 @@ public class AlertManager extends AbstractComponent {
         indicesService.addLifecycleListener(new LifecycleListener() {
             @Override
             public void beforeStop() {
-                internalStop();
+                stop();
             }
         });
 
@@ -251,8 +251,8 @@ public class AlertManager extends AbstractComponent {
                 clusterState = newClusterState(clusterState);
             }
 
+            scheduler.start(alertsStore.getAlerts());
             if (state.compareAndSet(State.LOADING, State.STARTED)) {
-                scheduler.start(alertsStore.getAlerts());
                 logger.info("Alert manager has started");
             } else {
                 logger.info("Didn't start alert manager, because it state was [{}] while [{}] was expected", state.get(), State.LOADING);

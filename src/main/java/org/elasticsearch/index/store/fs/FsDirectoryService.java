@@ -65,7 +65,7 @@ public abstract class FsDirectoryService extends DirectoryService implements Sto
         } else if (fsLock.equals("simple")) {
             lockFactory = SimpleFSLockFactory.INSTANCE;
         } else {
-            throw new StoreException(shardId, "unrecognized fs_lock \"" + fsLock + "\": must be native, simple or none");
+            throw new StoreException(shardId, "unrecognized fs_lock \"" + fsLock + "\": must be native or simple");
         }
         return lockFactory;
     }

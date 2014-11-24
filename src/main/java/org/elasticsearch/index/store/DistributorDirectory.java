@@ -162,14 +162,6 @@ public final class DistributorDirectory extends Directory {
         return directory;
     }
 
-    /** Called by makeLock's wrapped lock, to record the lock file. */
-    synchronized void addNameDirMapping(String name, Directory dir) {
-        assert nameDirMapping.containsKey(name) == false || nameDirMapping.get(name) == dir;
-        if (nameDirMapping.get(name) == null) {
-            nameDirMapping.put(name, dir);
-        }
-    }
-
     @Override
     public synchronized String toString() {
         return distributor.toString();
@@ -218,7 +210,12 @@ public final class DistributorDirectory extends Directory {
                 @Override
                 public boolean obtain() throws IOException {
                     if (delegateLock.obtain()) {
-                        addNameDirMapping(lockName, primary);
+                        synchronized(DistributorDirectory.this) {
+                            assert nameDirMapping.containsKey(lockName) == false || nameDirMapping.get(lockName) == primary;
+                            if (nameDirMapping.get(lockName) == null) {
+                                nameDirMapping.put(lockName, primary);
+                            }
+                        }
                         return true;
                     } else {
                         return false;

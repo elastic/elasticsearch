@@ -19,13 +19,17 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -42,9 +46,11 @@ public class RecoveriesCollection {
     private final ConcurrentMap<Long, RecoveryStatus> onGoingRecoveries = ConcurrentCollections.newConcurrentMap();
 
     final private ESLogger logger;
+    final private ThreadPool threadPool;
 
-    public RecoveriesCollection(ESLogger logger) {
+    public RecoveriesCollection(ESLogger logger, ThreadPool threadPool) {
         this.logger = logger;
+        this.threadPool = threadPool;
     }
 
     /**
@@ -52,11 +58,14 @@ public class RecoveriesCollection {
      *
      * @return the id of the new recovery.
      */
-    public long startRecovery(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryState state, RecoveryTarget.RecoveryListener listener) {
+    public long startRecovery(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryState state,
+                              RecoveryTarget.RecoveryListener listener, TimeValue activityTimeout) {
         RecoveryStatus status = new RecoveryStatus(indexShard, sourceNode, state, listener);
         RecoveryStatus existingStatus = onGoingRecoveries.putIfAbsent(status.recoveryId(), status);
         assert existingStatus == null : "found two RecoveryStatus instances with the same id";
         logger.trace("{} started recovery from {}, id [{}]", indexShard.shardId(), sourceNode, status.recoveryId());
+        threadPool.schedule(activityTimeout, ThreadPool.Names.GENERIC,
+                new RecoveryMonitor(status.recoveryId(), status.lastAccessTime(), activityTimeout));
         return status.recoveryId();
     }
 
@@ -180,5 +189,45 @@ public class RecoveriesCollection {
             return status;
         }
     }
+
+    private class RecoveryMonitor extends AbstractRunnable {
+        private final long recoveryId;
+        private final TimeValue checkInterval;
+
+        private long lastSeenAccessTime;
+
+        private RecoveryMonitor(long recoveryId, long lastSeenAccessTime, TimeValue checkInterval) {
+            this.recoveryId = recoveryId;
+            this.checkInterval = checkInterval;
+            this.lastSeenAccessTime = lastSeenAccessTime;
+        }
+
+        @Override
+        public void onFailure(Throwable t) {
+            logger.error("unexpected error while monitoring recovery [{}]", t, recoveryId);
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            RecoveryStatus status = onGoingRecoveries.get(recoveryId);
+            if (status == null) {
+                logger.trace("[monitor] no status found for [{}], shutting down", recoveryId);
+                return;
+            }
+            long accessTime = status.lastAccessTime();
+            if (accessTime == lastSeenAccessTime) {
+                String message = "no activity after [" + checkInterval + "]";
+                failRecovery(recoveryId,
+                        new RecoveryFailedException(status.state(), message, new ElasticsearchTimeoutException(message)),
+                        true // to be safe, we don't know what go stuck
+                );
+                return;
+            }
+            lastSeenAccessTime = accessTime;
+            logger.trace("[monitor] rescheduling check for [{}]. last access time is [{}]", lastSeenAccessTime);
+            threadPool.schedule(checkInterval, ThreadPool.Names.GENERIC, this);
+        }
+    }
+
 }
 

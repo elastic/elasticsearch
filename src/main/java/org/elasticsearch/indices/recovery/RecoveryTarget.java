@@ -46,6 +46,7 @@ import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -87,7 +88,7 @@ public class RecoveryTarget extends AbstractComponent {
         this.transportService = transportService;
         this.recoverySettings = recoverySettings;
         this.clusterService = clusterService;
-        this.onGoingRecoveries = new RecoveriesCollection(logger);
+        this.onGoingRecoveries = new RecoveriesCollection(logger, threadPool);
 
         transportService.registerHandler(Actions.FILES_INFO, new FilesInfoRequestHandler());
         transportService.registerHandler(Actions.FILE_CHUNK, new FileChunkTransportRequestHandler());
@@ -136,14 +137,19 @@ public class RecoveryTarget extends AbstractComponent {
         recoveryState.setSourceNode(sourceNode);
         recoveryState.setTargetNode(clusterService.localNode());
         recoveryState.setPrimary(indexShard.routingEntry().primary());
-        final long recoveryId = onGoingRecoveries.startRecovery(indexShard, sourceNode, recoveryState, listener);
+        final long recoveryId = onGoingRecoveries.startRecovery(indexShard, sourceNode, recoveryState, listener, recoverySettings.activityTimeout());
         threadPool.generic().execute(new RecoveryRunner(recoveryId));
 
     }
 
-    protected void retryRecovery(final long recoveryId, TimeValue retryAfter) {
-        logger.trace("will retrying recovery with id [{}] in [{}]", recoveryId, retryAfter);
-        threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(recoveryId));
+    protected void retryRecovery(final RecoveryStatus recoveryStatus, final String reason, TimeValue retryAfter, final StartRecoveryRequest currentRequest) {
+        logger.trace("will retrying recovery with id [{}] in [{}] (reason [{}])", recoveryStatus.recoveryId(), retryAfter, reason);
+        try {
+            recoveryStatus.resetRecovery();
+        } catch (IOException e) {
+            onGoingRecoveries.failRecovery(recoveryStatus.recoveryId(), new RecoveryFailedException(currentRequest, e), true);
+        }
+        threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(recoveryStatus.recoveryId()));
     }
 
     private void doRecovery(final RecoveryStatus recoveryStatus) {
@@ -204,6 +210,7 @@ public class RecoveryTarget extends AbstractComponent {
         } catch (CancellableThreads.ExecutionCancelledException e) {
             logger.trace("recovery cancelled", e);
         } catch (Throwable e) {
+
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}][{}] Got exception on recovery", e, request.shardId().index().name(), request.shardId().id());
             }
@@ -223,17 +230,18 @@ public class RecoveryTarget extends AbstractComponent {
 
             if (cause instanceof IndexShardNotStartedException || cause instanceof IndexMissingException || cause instanceof IndexShardMissingException) {
                 // if the target is not ready yet, retry
-                retryRecovery(recoveryStatus.recoveryId(), recoverySettings.retryDelay());
+                retryRecovery(recoveryStatus, "remote shard not ready", recoverySettings.retryDelayStateSync(), request);
                 return;
             }
 
             if (cause instanceof DelayRecoveryException) {
-                retryRecovery(recoveryStatus.recoveryId(), recoverySettings.retryDelay());
+                retryRecovery(recoveryStatus, cause.getMessage(), recoverySettings.retryDelayStateSync(), request);
                 return;
             }
 
             if (cause instanceof ConnectTransportException) {
-                onGoingRecoveries.failRecovery(recoveryStatus.recoveryId(), new RecoveryFailedException(request, "source node disconnected", cause), false);
+                logger.debug("delaying recovery of {} for [{}] due to networking error [{}]", recoveryStatus.shardId(), recoverySettings.retryDelayNetwork(), cause.getMessage());
+                retryRecovery(recoveryStatus, cause.getMessage(), recoverySettings.retryDelayNetwork(), request);
                 return;
             }
 

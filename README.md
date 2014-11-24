@@ -6,7 +6,7 @@ The Azure Cloud plugin allows to use Azure API for the unicast discovery mechani
 In order to install the plugin, run: 
 
 ```sh
-bin/plugin -install elasticsearch/elasticsearch-cloud-azure/2.5.0
+bin/plugin install elasticsearch/elasticsearch-cloud-azure/2.5.1
 ```
 
 You need to install a version matching your Elasticsearch version:
@@ -15,7 +15,7 @@ You need to install a version matching your Elasticsearch version:
 |------------------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------|
 |    master              | Build from source | See below                                                                                                                          |
 |    es-1.x              | Build from source | [2.6.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/es-1.x/#version-260-snapshot-for-elasticsearch-1x)|
-|    es-1.4              |     2.5.0         | [2.5.0](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/v2.5.0/#version-250-for-elasticsearch-14)                  |
+|    es-1.4              |     2.5.1         | [2.5.1](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/v2.5.1/#version-251-for-elasticsearch-14)                  |
 |    es-1.3              |     2.4.0         | [2.4.0](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/v2.4.0/#version-240-for-elasticsearch-13)                  |
 |    es-1.2              |     2.3.0         | [2.3.0](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/v2.3.0/#azure-cloud-plugin-for-elasticsearch)              |
 |    es-1.1              |     2.2.0         | [2.2.0](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/v2.2.0/#azure-cloud-plugin-for-elasticsearch)              |
@@ -272,7 +272,7 @@ This command should give you a JSON result:
 sudo service elasticsearch stop
 
 # Install the plugin
-sudo /usr/share/elasticsearch/bin/plugin -install elasticsearch/elasticsearch-cloud-azure/2.5.0
+sudo /usr/share/elasticsearch/bin/plugin install elasticsearch/elasticsearch-cloud-azure/2.5.1
 
 # Configure it
 sudo vi /etc/elasticsearch/elasticsearch.yml

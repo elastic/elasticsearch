@@ -13,6 +13,7 @@ import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsRequest;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
@@ -24,6 +25,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
  */
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numClientNodes = 0, transportClientRatio = 0)
 public class AlertStatsTests extends AbstractAlertingTests {
 
     @Test

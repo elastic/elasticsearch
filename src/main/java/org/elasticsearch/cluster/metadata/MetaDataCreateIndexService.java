@@ -226,7 +226,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                boolean indexCreated = false;
+                boolean indexPartiallyCreated = false;
                 String failureReason = null;
                 try {
                     validate(request, currentState);
@@ -369,7 +369,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     // create the index here (on the master) to validate it can be created, as well as adding the mapping
                     indicesService.createIndex(request.index(), actualIndexSettings, clusterService.localNode().id());
-                    indexCreated = true;
+                    indexPartiallyCreated = true;
                     // now add the mappings
                     IndexService indexService = indicesService.indexServiceSafe(request.index());
                     MapperService mapperService = indexService.mapperService();
@@ -466,9 +466,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(routingTableBuilder).build());
                         updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
                     }
+                    indexPartiallyCreated = false;
                     return updatedState;
                 } finally {
-                    if (indexCreated) {
+                    if (indexPartiallyCreated) {
                         // Index was already partially created - need to clean up
                         indicesService.removeIndex(request.index(), failureReason != null ? failureReason : "failed to create index");
                     }

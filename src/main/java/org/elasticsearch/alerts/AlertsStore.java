@@ -119,7 +119,7 @@ public class AlertsStore extends AbstractComponent {
 
     private boolean verifySameInstance(Alert alert) {
         Alert found = alertMap.get(alert.alertName());
-        assert found == alert : "expected " + alert + " but got" + found;
+        assert found == alert : "expected " + alert + " but got " + found;
         return true;
     }
 

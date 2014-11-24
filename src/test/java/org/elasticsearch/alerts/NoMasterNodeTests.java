@@ -90,6 +90,7 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
     public void testMultipleFailures() throws Exception {
         int numberOfFailures = scaledRandomIntBetween(2, 9);
         int numberOfAlerts = scaledRandomIntBetween(numberOfFailures, 12);
+        logger.info("Number of failures [{}], number of alerts [{}]", numberOfFailures, numberOfAlerts);
         config = new ClusterDiscoveryConfiguration.UnicastZen(2 + numberOfFailures);
         internalTestCluster().startNodesAsync(2).get();
         createIndex("my-index");

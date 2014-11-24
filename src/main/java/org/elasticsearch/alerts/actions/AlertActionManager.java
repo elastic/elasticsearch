@@ -135,8 +135,12 @@ public class AlertActionManager extends AbstractComponent {
         return started.get();
     }
 
-    public void clear() {
-        actionsToBeProcessed.clear();
+    /**
+     * Exists for testing purposes.
+     */
+    public void restart() {
+        stop();
+        doStart();
     }
 
     private void doStart() {

@@ -140,7 +140,7 @@ public class AlertsStore extends AbstractComponent {
     }
 
     /**
-     * Clears the in-memory representation of the alerts
+     * Exists for testing purposes
      */
     public void clear() {
         alertMap.clear();

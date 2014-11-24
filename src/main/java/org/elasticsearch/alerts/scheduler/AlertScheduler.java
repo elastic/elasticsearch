@@ -98,7 +98,10 @@ public class AlertScheduler extends AbstractComponent {
         }
     }
 
-    public void clearAlerts() {
+    /**
+     * Exists for testing purposes
+     */
+    public void clear() {
         try {
             if (scheduler != null) {
                 scheduler.clear();

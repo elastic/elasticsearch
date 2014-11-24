@@ -216,9 +216,9 @@ public class AlertManager extends AbstractComponent {
      * For testing only to clear the alerts and actions between tests.
      */
     public void clear() {
-        scheduler.clearAlerts();
+        scheduler.clear();
         alertsStore.clear();
-        actionManager.clear();
+        actionManager.restart();
     }
 
     private void internalStop() {

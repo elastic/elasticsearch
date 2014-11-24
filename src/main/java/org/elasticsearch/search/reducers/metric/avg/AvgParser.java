@@ -19,19 +19,11 @@
 
 package org.elasticsearch.search.reducers.metric.avg;
 
-import org.elasticsearch.search.reducers.ReducerFactory;
 import org.elasticsearch.search.reducers.metric.SimpleMetricReducerParser;
 
-
-public class AvgParser extends SimpleMetricReducerParser {
-
+public class AvgParser extends SimpleMetricReducerParser{
     @Override
     public String type() {
-        return InternalAvg.TYPE.name();
-    }
-
-    @Override
-    public ReducerFactory createReducerFactory(String reducerName, String bucketsPath, String fieldName) {
-        return new AvgReducer.Factory(reducerName, bucketsPath, fieldName);
+        return "avg";
     }
 }

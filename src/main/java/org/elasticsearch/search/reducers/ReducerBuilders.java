@@ -22,8 +22,7 @@ package org.elasticsearch.search.reducers;
 
 import org.elasticsearch.search.reducers.bucket.slidingwindow.SlidingWindowBuilder;
 import org.elasticsearch.search.reducers.bucket.union.UnionBuilder;
-import org.elasticsearch.search.reducers.metric.avg.AvgBuilder;
-import org.elasticsearch.search.reducers.metric.sum.SumBuilder;
+import org.elasticsearch.search.reducers.metric.SimpleMetricsBuilder;
 
 public class ReducerBuilders {
 
@@ -35,7 +34,19 @@ public class ReducerBuilders {
         return new UnionBuilder(name);
     }
 
-    public static SumBuilder sumReducer(String name) {
-        return new SumBuilder(name);
+    public static SimpleMetricsBuilder sumReducer(String name) {
+        return new SimpleMetricsBuilder(name, "sum");
+    }
+
+    public static SimpleMetricsBuilder avgReducer(String name) {
+        return new SimpleMetricsBuilder(name, "avg");
+    }
+
+    public static SimpleMetricsBuilder minReducer(String name) {
+        return new SimpleMetricsBuilder(name, "min");
+    }
+
+    public static SimpleMetricsBuilder maxReducer(String name) {
+        return new SimpleMetricsBuilder(name, "max");
     }
 }

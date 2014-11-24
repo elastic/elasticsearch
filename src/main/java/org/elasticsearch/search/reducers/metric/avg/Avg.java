@@ -17,35 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.min;
+package org.elasticsearch.search.reducers.metric.avg;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.reducers.ReductionBuilder;
+import org.elasticsearch.search.reducers.ReductionExecutionException;
+import org.elasticsearch.search.reducers.metric.MetricOp;
 
-import java.io.IOException;
+public class Avg implements MetricOp {
 
-public class MinBuilder extends ReductionBuilder<MinBuilder> {
 
-    private String path = null;
+    public Number op(Object[] bucketProperties) throws ReductionExecutionException {
 
-    protected MinBuilder(String name) {
-        super(name, InternalMin.TYPE.name());
-    }
-
-    public void path(String path) {
-        this.path = path;
-    }
-
-    @Override
-    protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-
-        if (path != null) {
-            builder.field(MinParser.BUCKETS_FIELD.getPreferredName(), path);
+        double sum = 0;
+        for (Object bucketValue : bucketProperties) {
+            sum += ((Number) bucketValue).doubleValue();
         }
 
-        builder.endObject();
-        return builder;
+        return sum/bucketProperties.length;
     }
 
 }

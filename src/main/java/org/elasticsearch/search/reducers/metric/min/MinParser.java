@@ -19,19 +19,11 @@
 
 package org.elasticsearch.search.reducers.metric.min;
 
-import org.elasticsearch.search.reducers.ReducerFactory;
 import org.elasticsearch.search.reducers.metric.SimpleMetricReducerParser;
 
-
-public class MinParser extends SimpleMetricReducerParser {
-
+public class MinParser extends SimpleMetricReducerParser{
     @Override
     public String type() {
-        return InternalMin.TYPE.name();
-    }
-
-    @Override
-    public ReducerFactory createReducerFactory(String reducerName, String bucketsPath, String fieldName) {
-        return new MinReducer.Factory(reducerName, bucketsPath, fieldName);
+        return "min";
     }
 }

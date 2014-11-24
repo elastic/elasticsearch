@@ -19,19 +19,11 @@
 
 package org.elasticsearch.search.reducers.metric.sum;
 
-import org.elasticsearch.search.reducers.ReducerFactory;
 import org.elasticsearch.search.reducers.metric.SimpleMetricReducerParser;
 
-
-public class SumParser extends SimpleMetricReducerParser {
-
+public class SumParser extends SimpleMetricReducerParser{
     @Override
     public String type() {
-        return InternalSum.TYPE.name();
-    }
-
-    @Override
-    public ReducerFactory createReducerFactory(String reducerName, String bucketsPath, String fieldName) {
-        return new SumReducer.Factory(reducerName, bucketsPath, fieldName);
+        return "sum";
     }
 }

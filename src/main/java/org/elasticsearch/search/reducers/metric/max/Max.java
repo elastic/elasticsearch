@@ -17,35 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.avg;
+package org.elasticsearch.search.reducers.metric.max;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.reducers.ReductionBuilder;
+import org.elasticsearch.search.reducers.ReductionExecutionException;
+import org.elasticsearch.search.reducers.metric.MetricOp;
 
-import java.io.IOException;
+public class Max implements MetricOp {
 
-public class AvgBuilder extends ReductionBuilder<AvgBuilder> {
 
-    private String path = null;
+    public Number op(Object[] bucketProperties) throws ReductionExecutionException {
 
-    protected AvgBuilder(String name) {
-        super(name, InternalAvg.TYPE.name());
-    }
-
-    public void path(String path) {
-        this.path = path;
-    }
-
-    @Override
-    protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-
-        if (path != null) {
-            builder.field(AvgParser.BUCKETS_FIELD.getPreferredName(), path);
+        double max = -1 * Double.MAX_VALUE;
+        for (Object bucketValue : bucketProperties) {
+            max = Math.max(((Number) bucketValue).doubleValue(), max);
         }
-
-        builder.endObject();
-        return builder;
+        return max;
     }
 
 }

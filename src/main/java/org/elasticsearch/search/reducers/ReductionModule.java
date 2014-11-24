@@ -44,12 +44,12 @@ public class ReductionModule extends AbstractModule {
         parsers.add(UnionParser.class);
         parsers.add(UnpackingParser.class);
         parsers.add(DeltaParser.class);
-        parsers.add(AvgParser.class);
-        parsers.add(MaxParser.class);
-        parsers.add(MinParser.class);
-        parsers.add(SumParser.class);
-        parsers.add(StatsParser.class);
         parsers.add(RangeParser.class);
+        parsers.add(SumParser.class);
+        parsers.add(AvgParser.class);
+        parsers.add(MinParser.class);
+        parsers.add(MaxParser.class);
+        parsers.add(StatsParser.class);
     }
 
     /**

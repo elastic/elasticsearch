@@ -19,19 +19,11 @@
 
 package org.elasticsearch.search.reducers.metric.max;
 
-import org.elasticsearch.search.reducers.ReducerFactory;
 import org.elasticsearch.search.reducers.metric.SimpleMetricReducerParser;
 
-
-public class MaxParser extends SimpleMetricReducerParser {
-
+public class MaxParser extends SimpleMetricReducerParser{
     @Override
     public String type() {
-        return InternalMax.TYPE.name();
-    }
-
-    @Override
-    public ReducerFactory createReducerFactory(String reducerName, String bucketsPath, String fieldName) {
-        return new MaxReducer.Factory(reducerName, bucketsPath, fieldName);
+        return "max";
     }
 }

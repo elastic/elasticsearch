@@ -19,21 +19,19 @@
 
 package org.elasticsearch.search.reducers.metric.min;
 
+import org.elasticsearch.search.reducers.ReductionExecutionException;
+import org.elasticsearch.search.reducers.metric.MetricOp;
 
-import org.elasticsearch.search.aggregations.metrics.min.Min;
-
-import java.util.Map;
+public class Min implements MetricOp {
 
 
-public class InternalMin extends org.elasticsearch.search.aggregations.metrics.min.InternalMin implements Min {
+    public Number op(Object[] bucketProperties) throws ReductionExecutionException {
 
-    public InternalMin(String name, double maxValue, Map<String, Object> metaData) {
-        super(name, maxValue, metaData);
-    }
-
-    @Override
-    public org.elasticsearch.search.aggregations.metrics.min.InternalMin reduce(ReduceContext reduceContext) {
-        throw new UnsupportedOperationException("Not supported");
+        double min = Double.MAX_VALUE;
+        for (Object bucketValue : bucketProperties) {
+            min = Math.min(((Number) bucketValue).doubleValue(), min);
+        }
+        return min;
     }
 
 }

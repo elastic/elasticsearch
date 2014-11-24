@@ -17,24 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.max;
+package org.elasticsearch.search.reducers.metric.sum;
 
-
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.max.Max;
+import org.elasticsearch.search.reducers.Reducer;
+import org.elasticsearch.search.reducers.ReducerContext;
+import org.elasticsearch.search.reducers.ReducerFactories;
+import org.elasticsearch.search.reducers.ReductionExecutionException;
+import org.elasticsearch.search.reducers.metric.MetricOp;
+import org.elasticsearch.search.reducers.metric.SimpleMetricReducer;
 
-import java.util.Map;
+import java.io.IOException;
+
+public class Sum implements MetricOp {
 
 
-public class InternalMax extends org.elasticsearch.search.aggregations.metrics.max.InternalMax implements Max {
+    public Number op(Object[] bucketProperties) throws ReductionExecutionException {
 
-    public InternalMax(String name, double maxValue, Map<String, Object> metaData) {
-        super(name, maxValue, metaData);
-    }
+        double sum = 0;
+        for (Object bucketValue : bucketProperties) {
+            sum += ((Number) bucketValue).doubleValue();
+        }
 
-    @Override
-    public org.elasticsearch.search.aggregations.metrics.max.InternalMax reduce(InternalAggregation.ReduceContext reduceContext) {
-        throw new UnsupportedOperationException("Not supported");
+        return sum;
     }
 
 }

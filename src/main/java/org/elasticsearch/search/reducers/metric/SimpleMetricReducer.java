@@ -17,7 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.sum;
+
+package org.elasticsearch.search.reducers.metric;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,47 +26,28 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.search.reducers.Reducer;
-import org.elasticsearch.search.reducers.ReducerContext;
-import org.elasticsearch.search.reducers.ReducerFactories;
-import org.elasticsearch.search.reducers.ReducerFactory;
-import org.elasticsearch.search.reducers.ReducerFactoryStreams;
-import org.elasticsearch.search.reducers.ReductionExecutionException;
+import org.elasticsearch.search.reducers.*;
+import org.elasticsearch.search.reducers.metric.avg.Avg;
+import org.elasticsearch.search.reducers.metric.max.Max;
+import org.elasticsearch.search.reducers.metric.min.Min;
+import org.elasticsearch.search.reducers.metric.sum.Sum;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class SumReducer extends Reducer {
+public class SimpleMetricReducer extends Reducer {
 
-    public static final ReducerFactoryStreams.Stream STREAM = new ReducerFactoryStreams.Stream() {
-        @Override
-        public ReducerFactory readResult(StreamInput in) throws IOException {
-            Factory factory = new Factory();
-            factory.readFrom(in);
-            return factory;
-        }
-    };
-    private String fieldName;
-    private String bucketsPath;
-
-    public static void registerStreams() {
-        ReducerFactoryStreams.registerStream(STREAM, InternalSum.TYPE.stream());
-    }
-
-    public SumReducer(String name, String bucketsPath, String fieldName, ReducerFactories factories, ReducerContext context,
-            Reducer parent, Map<String, Object> metaData) {
-        super(name, factories, context, parent, metaData);
-        this.bucketsPath = bucketsPath;
-        this.fieldName = fieldName;
-    }
-
+    private final MetricOp op;
+    protected String fieldName;
+    protected String bucketsPath;
+    public final static InternalAggregation.Type TYPE = new InternalAggregation.Type("simple_metric");
     @Override
     public InternalAggregation reduce(Aggregations aggregationsTree, Aggregation currentAggregation) {
         MultiBucketsAggregation aggregation;
         if (currentAggregation == null) {
             Object o = aggregationsTree.getProperty(bucketsPath);
             if (o instanceof MultiBucketsAggregation) {
-               aggregation = (MultiBucketsAggregation) o;
+                aggregation = (MultiBucketsAggregation) o;
             } else {
                 throw new ReductionExecutionException("bucketsPath must resolve to a muti-bucket aggregation for reducer [" + name() + "]");
             }
@@ -80,34 +62,37 @@ public class SumReducer extends Reducer {
     }
 
     public InternalAggregation doReduce(Aggregations aggregationsTree, Aggregation aggregation) throws ReductionExecutionException {
-        Object[] bucketProperties = (Object[]) aggregation.getProperty(fieldName);
+        Object[] bucketProperties = getProperties(aggregation);
+        return new InternalMetric(name(), op.op(bucketProperties));
 
-        double sum = 0;
-        for (Object bucketValue : bucketProperties) {
-            sum += ((Number) bucketValue).doubleValue();
-        }
+    }
 
-        return new InternalSum(name(), sum, metaData());
+    protected Object[] getProperties(Aggregation aggregation) {
+        return (Object[]) aggregation.getProperty(fieldName);
+    }
+
+    public SimpleMetricReducer(String name, String bucketsPath, String fieldName, MetricOp op, ReducerFactories factories, ReducerContext context, Reducer parent) {
+        super(name, factories, context, parent, null);
+        this.bucketsPath = bucketsPath;
+        this.fieldName = fieldName;
+        this.op = op;
     }
 
     public static class Factory extends ReducerFactory {
 
-        private String bucketsPath;
-        private String fieldName;
+        protected String bucketsPath;
+        protected String fieldName;
+        protected String opName;
 
         public Factory() {
-            super(InternalSum.TYPE);
+            super(TYPE);
         }
 
-        public Factory(String name, String bucketsPath, String fieldName) {
-            super(name, InternalSum.TYPE);
+        public Factory(String name, String bucketsPath, String fieldName, String opName) {
+            super(name, TYPE);
             this.fieldName = fieldName;
             this.bucketsPath = bucketsPath;
-        }
-
-        @Override
-        public Reducer doCreate(ReducerContext context, Reducer parent, Map<String, Object> metaData) {
-            return new SumReducer(name, bucketsPath, fieldName, factories, context, parent, metaData);
+            this.opName = opName;
         }
 
         @Override
@@ -115,6 +100,7 @@ public class SumReducer extends Reducer {
             name = in.readString();
             bucketsPath = in.readString();
             fieldName = in.readString();
+            opName = in.readString();
         }
 
         @Override
@@ -122,8 +108,36 @@ public class SumReducer extends Reducer {
             out.writeString(name);
             out.writeString(bucketsPath);
             out.writeString(fieldName);
+            out.writeString(opName);
         }
-        
+
+        @Override
+        public Reducer doCreate(ReducerContext context, Reducer parent, Map<String, Object> metaData) {
+            if (opName.equals("sum")) {
+                return new SimpleMetricReducer(name, bucketsPath, fieldName, new Sum(), factories, context, parent);
+            }
+            if (opName.equals("avg")) {
+                return new SimpleMetricReducer(name, bucketsPath, fieldName, new Avg(), factories, context, parent);
+            }
+            if (opName.equals("min")) {
+                return new SimpleMetricReducer(name, bucketsPath, fieldName, new Min(), factories, context, parent);
+            }
+            if (opName.equals("max")) {
+                return new SimpleMetricReducer(name, bucketsPath, fieldName, new Max(), factories, context, parent);
+            }
+            return null;
+        }
+    }
+    public static final ReducerFactoryStreams.Stream STREAM = new ReducerFactoryStreams.Stream() {
+        @Override
+        public ReducerFactory readResult(StreamInput in) throws IOException {
+            Factory factory = new Factory();
+            factory.readFrom(in);
+            return factory;
+        }
+    };
+    public static void registerStreams() {
+        ReducerFactoryStreams.registerStream(STREAM, TYPE.stream());
     }
 
 }

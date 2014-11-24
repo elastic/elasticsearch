@@ -17,23 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.max;
+
+package org.elasticsearch.search.reducers.metric;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.reducers.ReductionBuilder;
 
 import java.io.IOException;
 
-public class MaxBuilder extends ReductionBuilder<MaxBuilder> {
+public class SimpleMetricsBuilder extends ReductionBuilder<SimpleMetricsBuilder> {
 
-    private String path = null;
+    private String path;
+    private String field;
 
-    protected MaxBuilder(String name) {
-        super(name, InternalMax.TYPE.name());
+    public SimpleMetricsBuilder(String name, String opName) {
+        super(name, opName);
     }
 
-    public void path(String path) {
+    public SimpleMetricsBuilder bucketsPath(String path) {
         this.path = path;
+        return this;
+    }
+    public SimpleMetricsBuilder field(String path) {
+        this.field = path;
+        return this;
     }
 
     @Override
@@ -41,11 +48,15 @@ public class MaxBuilder extends ReductionBuilder<MaxBuilder> {
         builder.startObject();
 
         if (path != null) {
-            builder.field(MaxParser.BUCKETS_FIELD.getPreferredName(), path);
+            builder.field(SimpleMetricReducerParser.BUCKETS_FIELD.getPreferredName(), path);
         }
 
+        if (field != null) {
+            builder.field(SimpleMetricReducerParser.FIELD_NAME_FIELD.getPreferredName(), field);
+        }
         builder.endObject();
         return builder;
     }
 
 }
+

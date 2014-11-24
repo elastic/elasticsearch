@@ -31,14 +31,11 @@ import org.elasticsearch.search.reducers.bucket.union.InternalUnion;
 import org.elasticsearch.search.reducers.bucket.union.UnionReducer;
 import org.elasticsearch.search.reducers.bucket.unpacking.InternalUnpacking;
 import org.elasticsearch.search.reducers.bucket.unpacking.UnpackingReducer;
-import org.elasticsearch.search.reducers.metric.avg.AvgReducer;
-import org.elasticsearch.search.reducers.metric.avg.InternalAvg;
+import org.elasticsearch.search.reducers.metric.InternalMetric;
+import org.elasticsearch.search.reducers.metric.SimpleMetricReducer;
 import org.elasticsearch.search.reducers.metric.delta.DeltaReducer;
 import org.elasticsearch.search.reducers.metric.delta.InternalDelta;
-import org.elasticsearch.search.reducers.metric.max.MaxReducer;
-import org.elasticsearch.search.reducers.metric.min.MinReducer;
 import org.elasticsearch.search.reducers.metric.stats.StatsReducer;
-import org.elasticsearch.search.reducers.metric.sum.SumReducer;
 
 /**
  * A module that registers all the transport streams for the addAggregation
@@ -52,22 +49,16 @@ public class TransportReductionModule extends AbstractModule {
         InternalUnion.registerStreams();
         InternalUnpacking.registerStreams();
         InternalDelta.registerStreams();
-        InternalAvg.registerStreams();
-        InternalMax.registerStreams();
-        InternalMin.registerStreams();
-        InternalSum.registerStreams();
-        InternalStats.registerStreams();
         InternalRange.registerStreams();
-        
+        InternalMetric.registerStreams();
+        InternalStats.registerStreams();
+
         SlidingWindowReducer.registerStreams();
         UnionReducer.registerStreams();
         UnpackingReducer.registerStreams();
         DeltaReducer.registerStreams();
-        AvgReducer.registerStreams();
-        MaxReducer.registerStreams();
-        MinReducer.registerStreams();
-        SumReducer.registerStreams();
-        StatsReducer.registerStreams();
+        SimpleMetricReducer.registerStreams();
         RangeReducer.registerStreams();
+        StatsReducer.registerStreams();
     }
 }

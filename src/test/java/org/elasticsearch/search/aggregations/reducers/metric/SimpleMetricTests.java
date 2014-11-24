@@ -23,13 +23,14 @@ package org.elasticsearch.search.aggregations.reducers.metric;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.reducers.bucket.BucketReducerAggregation;
 import org.elasticsearch.search.reducers.bucket.union.InternalUnion;
-import org.elasticsearch.search.reducers.metric.avg.AvgReducer;
-import org.elasticsearch.search.reducers.metric.sum.InternalSum;
+import org.elasticsearch.search.reducers.metric.InternalMetric;
+import org.elasticsearch.search.reducers.metric.SimpleMetricsBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -40,29 +41,79 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.search.reducers.ReducerBuilders.sumReducer;
-import static org.elasticsearch.search.reducers.ReducerBuilders.unionReducer;
+import static org.elasticsearch.search.reducers.ReducerBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 
-public class SumTests extends ElasticsearchIntegrationTest {
+public class SimpleMetricTests extends ElasticsearchIntegrationTest {
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "results are not streamed correctly, sometimes the objects returned are not reducer...AvgReducer but aggregation...AvgReducer")
     public void testVeryBasicSum() throws IOException, ExecutionException, InterruptedException {
         indexData();
+        testMetric(sumReducer("sum_docs"), "sum", 200d, "sum_docs");
+    }
+
+    @Test
+    public void testVeryBasicAvg() throws IOException, ExecutionException, InterruptedException {
+        indexData();
+        testMetric(avgReducer("avg_docs"), "avg", 20d, "avg_docs");
+    }
+
+    @Test
+    public void testVeryBasicMin() throws IOException, ExecutionException, InterruptedException {
+        indexData();
+        testMetric(minReducer("min_docs"), "min", 20d, "min_docs");
+    }
+
+    @Test
+    public void testVeryBasicMax() throws IOException, ExecutionException, InterruptedException {
+        indexData();
+        testMetric(maxReducer("max_docs"), "max", 20d, "max_docs");
+    }
+
+    private void testMetric(SimpleMetricsBuilder builder, String metricType, double expectedValue, String reducerName) throws IOException {
         SearchResponse searchResponse = client().prepareSearch("index")
                 .addAggregation(histogram("histo").field("hist_field").interval(10))
-                .addReducer(sumReducer("sum_docs").buckets("histo").field("_count")).get();
+                .addReducer(builder.bucketsPath("histo").field("_count")).get();
         assertSearchResponse(searchResponse);
         Aggregations reductions = searchResponse.getReductions();
-        Aggregation sumReduc = reductions.getAsMap().get("sum_docs");
+        Aggregation sumReduc = reductions.getAsMap().get(reducerName);
         assertNotNull(sumReduc);
-        assertTrue(sumReduc instanceof InternalSum);
-        assertThat(((InternalSum)sumReduc).getValue(), equalTo(200d));
+        assertThat(sumReduc, instanceOf(InternalMetric.class));
+        assertThat(((InternalMetric) sumReduc).getValue(), equalTo(expectedValue));
+
+        XContentBuilder jsonRequest = jsonBuilder().startObject()
+                .startObject("aggs")
+                .startObject("histo")
+                .startObject("histogram")
+                .field("field", "hist_field")
+                .field("interval", 10)
+                .endObject()
+                .endObject()
+                .endObject()
+                .startArray("reducers")
+                .startObject()
+                .startObject(reducerName)
+                .startObject(metricType)
+                .field("buckets", "histo")
+                .field("field", "_count")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endArray()
+                .endObject();
+        logger.info("request {}", jsonRequest.string());
+
+        searchResponse = client().prepareSearch("index").setSource(jsonRequest).get();
+        assertSearchResponse(searchResponse);
+        reductions = searchResponse.getReductions();
+        sumReduc = reductions.getAsMap().get(reducerName);
+        assertNotNull(sumReduc);
+        assertThat(sumReduc, instanceOf(InternalMetric.class));
+        assertThat(((InternalMetric) sumReduc).getValue(), equalTo(expectedValue));
     }
 
     @Test
@@ -71,21 +122,21 @@ public class SumTests extends ElasticsearchIntegrationTest {
         indexData();
         SearchResponse searchResponse = client().prepareSearch("index")
                 .addAggregation(terms("labels").field("label_field").subAggregation(histogram("histo").field("hist_field").interval(10)))
-                .addReducer(sumReducer("sum_docs").buckets("labels.histo").field("_count")).get();
+                .addReducer(sumReducer("sum_docs").bucketsPath("labels.histo").field("_count")).get();
         assertSearchResponse(searchResponse);
         Aggregations reductions = searchResponse.getReductions();
         Aggregation avgReduc = reductions.getAsMap().get("sum_docs");
         assertNotNull(avgReduc);
-        assertTrue(avgReduc instanceof AvgReducer);
+        assertTrue(avgReduc instanceof InternalMetric);
         for (BucketReducerAggregation.Selection reducerBucket : ((InternalUnion) avgReduc).getBuckets()) {
             assertThat(reducerBucket.getBuckets().size(), is(1));
-            assertThat(((MultiBucketsAggregation)((reducerBucket.getBuckets().get(0).getAggregations())).get("labels")).getBuckets().size(), is(2));
+            assertThat(((MultiBucketsAggregation) ((reducerBucket.getBuckets().get(0).getAggregations())).get("labels")).getBuckets().size(), is(2));
         }
     }
 
     private void indexData() throws IOException, ExecutionException, InterruptedException {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
-        for (int i = 0; i<100; i++ ) {
+        for (int i = 0; i < 100; i++) {
             indexRequests.add(client().prepareIndex("index", "type").setSource(jsonBuilder()
                     .startObject()
                     .field("hist_field", i)

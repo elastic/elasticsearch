@@ -10,8 +10,6 @@ Elasticsearch TESTING.asciidoc cheatsheet to know all about it.
 Tests are executed with network transport and unicast discovery, as this is
 the configuration that's secured by shield.
 
----------------------------------------------------------------------------
-
 == Testing the REST layer
 
 The available integration tests are specific for Shield functionalities

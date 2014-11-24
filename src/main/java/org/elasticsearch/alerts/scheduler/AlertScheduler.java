@@ -56,13 +56,12 @@ public class AlertScheduler extends AbstractComponent {
             properties.setProperty(StdSchedulerFactory.PROP_SCHED_INTERRUPT_JOBS_ON_SHUTDOWN, "true");
             properties.setProperty(StdSchedulerFactory.PROP_SCHED_INTERRUPT_JOBS_ON_SHUTDOWN_WITH_WAIT, "true");
             SchedulerFactory schFactory = new StdSchedulerFactory(properties);
-            Scheduler scheduler = schFactory.getScheduler();
+            scheduler = schFactory.getScheduler();
             scheduler.setJobFactory(new SimpleJobFactory());
-            scheduler.start();
-            this.scheduler = scheduler;
             for (Map.Entry<String, Alert> entry : alerts.entrySet()) {
                 add(entry.getKey(), entry.getValue());
             }
+            scheduler.start();
         } catch (SchedulerException se){
             logger.error("Failed to start quartz scheduler", se);
         }

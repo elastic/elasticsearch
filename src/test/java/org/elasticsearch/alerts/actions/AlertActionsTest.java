@@ -117,7 +117,7 @@ public class AlertActionsTest extends AbstractAlertingTests {
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                assertThat(alertManager.isStarted(), is(true));
+                assertThat(alertManager.getState(), is(State.STARTED));
             }
         });
         final AtomicBoolean alertActionInvoked = new AtomicBoolean(false);

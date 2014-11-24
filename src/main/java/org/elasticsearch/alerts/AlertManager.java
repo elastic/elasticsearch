@@ -105,8 +105,8 @@ public class AlertManager extends AbstractComponent {
         }
     }
 
-    public boolean isStarted() {
-        return state.get() == State.STARTED;
+    public State getState() {
+        return state.get();
     }
 
     public void scheduleAlert(String alertName, DateTime scheduledFireTime, DateTime fireTime){
@@ -220,31 +220,28 @@ public class AlertManager extends AbstractComponent {
         alertsStore.clear();
     }
 
-    // This is synchronized, because this may first be called from the cluster changed event and then from before close
-    // when a node closes. The stop also stops the scheduler which has several background threads. If this method is
-    // invoked in that order that node closes and the test framework complains then about the fact that there are still
-    // threads alive.
-    private synchronized void internalStop() {
-        if (state.compareAndSet(State.LOADING, State.STOPPED) || state.compareAndSet(State.STARTED, State.STOPPED)) {
+    private void internalStop() {
+        if (state.compareAndSet(State.STARTED, State.STOPPING)) {
             logger.info("Stopping alert manager...");
             actionManager.stop();
             scheduler.stop();
             alertsStore.stop();
+            state.set(State.STOPPED);
             logger.info("Alert manager has stopped");
         }
     }
 
-    private synchronized void internalStart(ClusterState initialState) {
-        if (state.compareAndSet(State.STOPPED, State.LOADING)) {
+    private void internalStart(ClusterState initialState) {
+        if (state.compareAndSet(State.STOPPED, State.STARTING)) {
             ClusterState clusterState = initialState;
-            while (state.get() == State.LOADING && clusterState != null) {
+            while (true) {
                 if (actionManager.start(clusterState)) {
                     break;
                 }
                 clusterState = newClusterState(clusterState);
             }
 
-            while (state.get() == State.LOADING && clusterState != null) {
+            while (true) {
                 if (alertsStore.start(clusterState)) {
                     break;
                 }
@@ -252,11 +249,8 @@ public class AlertManager extends AbstractComponent {
             }
 
             scheduler.start(alertsStore.getAlerts());
-            if (state.compareAndSet(State.LOADING, State.STARTED)) {
-                logger.info("Alert manager has started");
-            } else {
-                logger.info("Didn't start alert manager, because it state was [{}] while [{}] was expected", state.get(), State.LOADING);
-            }
+            state.set(State.STARTED);
+            logger.info("Alert manager has started");
         }
     }
 
@@ -275,13 +269,12 @@ public class AlertManager extends AbstractComponent {
      */
     private ClusterState newClusterState(ClusterState previous) {
         ClusterState current;
-        while (state.get() == State.LOADING) {
+        while (true) {
             current = clusterService.state();
             if (current.getVersion() > previous.getVersion()) {
                 return current;
             }
         }
-        return null;
     }
 
     private boolean isActionThrottled(Alert alert) {
@@ -325,14 +318,6 @@ public class AlertManager extends AbstractComponent {
                 }
             }
         }
-
-    }
-
-    private enum State {
-
-        STOPPED,
-        LOADING,
-        STARTED
 
     }
 

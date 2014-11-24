@@ -31,10 +31,7 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -155,7 +152,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                assertThat(alertClient().prepareAlertsStats().get().isAlertManagerStarted(), is(true));
+                assertThat(alertClient().prepareAlertsStats().get().getAlertManagerStarted(), is(State.STARTED));
             }
         });
     }
@@ -164,7 +161,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                assertThat(alertClient().prepareAlertsStats().get().isAlertManagerStarted(), is(false));
+                assertThat(alertClient().prepareAlertsStats().get().getAlertManagerStarted(), is(State.STOPPED));
             }
         });
     }
@@ -183,7 +180,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         return (InternalTestCluster) ((AlertingWrappingCluster) cluster()).testCluster;
     }
 
-    private static class AlertingWrappingCluster extends TestCluster {
+    private final class AlertingWrappingCluster extends TestCluster {
 
         private final TestCluster testCluster;
 
@@ -254,6 +251,24 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
 
         @Override
         public void close() throws IOException {
+            InternalTestCluster _testCluster = (InternalTestCluster) testCluster;
+            Set<String> nodes = new HashSet<>(Arrays.asList(_testCluster.getNodeNames()));
+            String masterNode = _testCluster.getMasterName();
+            nodes.remove(masterNode);
+
+            // First manually stop alerting on non elected master node, this will prevent that alerting becomes active
+            // on these nodes
+            for (String node : nodes) {
+                _testCluster.getInstance(AlertManager.class, node).stop();
+            }
+
+            // Then stop alerting on elected master node and wait until alerting has stopped on it.
+            AlertManager alertManager = _testCluster.getInstance(AlertManager.class, masterNode);
+            alertManager.stop();
+            while (alertManager.getState() != State.STOPPED) {}
+
+            // Now when can close nodes, without alerting trying to become active while nodes briefly become master
+            // during cluster shutdown.
             testCluster.close();
         }
 

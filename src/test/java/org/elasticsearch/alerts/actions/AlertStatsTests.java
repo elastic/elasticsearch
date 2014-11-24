@@ -7,6 +7,7 @@ package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.alerts.AbstractAlertingTests;
+import org.elasticsearch.alerts.State;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsRequest;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
@@ -31,7 +32,7 @@ public class AlertStatsTests extends AbstractAlertingTests {
         AlertsStatsResponse response = alertClient().alertsStats(alertsStatsRequest).actionGet();
 
         assertTrue(response.isAlertActionManagerStarted());
-        assertTrue(response.isAlertManagerStarted());
+        assertThat(response.getAlertManagerStarted(), equalTo(State.STARTED));
         assertThat(response.getAlertActionManagerQueueSize(), equalTo(0L));
         assertThat(response.getNumberOfRegisteredAlerts(), equalTo(0L));
         assertThat(response.getAlertActionManagerLargestQueueSize(), equalTo(0L));
@@ -45,7 +46,7 @@ public class AlertStatsTests extends AbstractAlertingTests {
         AlertsStatsResponse response = alertsClient.alertsStats(alertsStatsRequest).actionGet();
 
         assertTrue(response.isAlertActionManagerStarted());
-        assertTrue(response.isAlertManagerStarted());
+        assertThat(response.getAlertManagerStarted(), equalTo(State.STARTED));
 
         SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
         BytesReference alertSource = createAlertSource("* * * * * ? *", searchRequest, "hits.total == 1");
@@ -60,7 +61,7 @@ public class AlertStatsTests extends AbstractAlertingTests {
         Thread.sleep(waitTime.getMillis());
 
         assertTrue(response.isAlertActionManagerStarted());
-        assertTrue(response.isAlertManagerStarted());
+        assertThat(response.getAlertManagerStarted(), equalTo(State.STARTED));
         assertThat(response.getNumberOfRegisteredAlerts(), equalTo(1L));
         //assertThat(response.getAlertActionManagerLargestQueueSize(), greaterThan(0L));
     }

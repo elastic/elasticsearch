@@ -16,6 +16,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
+import java.util.Locale;
+
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 
@@ -40,7 +42,7 @@ public class RestAlertsStatsAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(AlertsStatsResponse alertsStatsResponse, XContentBuilder builder) throws Exception {
                 builder.startObject()
-                        .field("alert_manager_started", alertsStatsResponse.isAlertManagerStarted())
+                        .field("alert_manager_state", alertsStatsResponse.getAlertManagerStarted().toString().toLowerCase(Locale.ENGLISH))
                         .field("alert_action_manager_started", alertsStatsResponse.isAlertActionManagerStarted())
                         .field("alert_action_queue_size", alertsStatsResponse.getAlertActionManagerQueueSize())
                         .field("number_of_alerts", alertsStatsResponse.getNumberOfRegisteredAlerts())

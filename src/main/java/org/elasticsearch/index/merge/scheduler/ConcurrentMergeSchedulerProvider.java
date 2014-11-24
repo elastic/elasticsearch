@@ -151,6 +151,11 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
             super.afterMerge(merge);
             provider.afterMerge(merge);
         }
+
+        @Override
+        protected void maybeStall() {
+            // Don't stall here, because we do our own index throttling (in InternalEngine.IndexThrottle) when merges can't keep up
+        }
     }
 
     class ApplySettings implements IndexSettingsService.Listener {

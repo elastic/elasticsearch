@@ -19,6 +19,11 @@
 
 package org.elasticsearch.index.store.fs;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import org.apache.lucene.store.*;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.metrics.CounterMetric;
@@ -27,11 +32,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.IndexStore;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import org.elasticsearch.index.store.StoreException;
 
 /**
  */
@@ -58,16 +59,17 @@ public abstract class FsDirectoryService extends DirectoryService implements Sto
 
     protected final LockFactory buildLockFactory() throws IOException {
         String fsLock = componentSettings.get("lock", componentSettings.get("fs_lock", "native"));
-        LockFactory lockFactory = NoLockFactory.getNoLockFactory();
+        LockFactory lockFactory;
         if (fsLock.equals("native")) {
-            lockFactory = new NativeFSLockFactory();
+            lockFactory = NativeFSLockFactory.INSTANCE;
         } else if (fsLock.equals("simple")) {
-            lockFactory = new SimpleFSLockFactory();
-        } else if (fsLock.equals("none")) {
-            lockFactory = NoLockFactory.getNoLockFactory();
+            lockFactory = SimpleFSLockFactory.INSTANCE;
+        } else {
+            throw new StoreException(shardId, "unrecognized fs_lock \"" + fsLock + "\": must be native or simple");
         }
         return lockFactory;
     }
+
     
     @Override
     public Directory[] build() throws IOException {

@@ -632,9 +632,9 @@ public class GeolocationContextMapping extends ContextMapping {
                             for (int i = 0 ; i < lonFields.length ; i++) {
                                 IndexableField lonField = lonFields[i];
                                 IndexableField latField = latFields[i];
-                                assert lonField.fieldType().docValueType() == latField.fieldType().docValueType();
+                                assert lonField.fieldType().docValuesType() == latField.fieldType().docValuesType();
                                 // we write doc values fields differently: one field for all values, so we need to only care about indexed fields
-                                if (lonField.fieldType().docValueType() == DocValuesType.NONE) {
+                                if (lonField.fieldType().docValuesType() == DocValuesType.NONE) {
                                     spare.reset(latField.numericValue().doubleValue(), lonField.numericValue().doubleValue());
                                     geohashes.add(spare.geohash());
                                 }

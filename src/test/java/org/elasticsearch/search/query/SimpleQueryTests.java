@@ -1553,18 +1553,15 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                         .clause(QueryBuilders.spanTermQuery("description", "fox")).slop(1)).exclude(spanTermQuery("description", "jumped")).pre(1).post(1)).get();
         assertHitCount(searchResponse, 1l);
 
-        SearchRequestBuilder builder = client().prepareSearch("test")
-                .setQuery(spanNotQuery().include(spanNearQuery()
-                        .clause(QueryBuilders.spanTermQuery("description", "quick"))
-                        .clause(QueryBuilders.spanTermQuery("description", "fox")).slop(1)).exclude(spanTermQuery("description", "jumped")).dist(2).pre(2));
-        boolean caught = false;
         try {
-            builder.execute();
+            client().prepareSearch("test")
+                    .setQuery(spanNotQuery().include(spanNearQuery()
+                            .clause(QueryBuilders.spanTermQuery("description", "quick"))
+                            .clause(QueryBuilders.spanTermQuery("description", "fox")).slop(1)).exclude(spanTermQuery("description", "jumped")).dist(2).pre(2)
+                    ).get();
+            fail("ElasticsearchIllegalArgumentException should have been caught");
         } catch (ElasticsearchException e) {
-            assertTrue("ElasticsearchIllegalArgumentException should have been caught", e.getDetailedMessage().endsWith("spanNot can either use [dist] or [pre] & [post] (or none)"));
-            caught = true;
-        } finally {
-            assertTrue("ElasticsearchIllegalArgumentException should have been caught", caught);
+            assertThat("ElasticsearchIllegalArgumentException should have been caught", e.getDetailedMessage(), containsString("spanNot can either use [dist] or [pre] & [post] (or none)"));
         }
     }
 

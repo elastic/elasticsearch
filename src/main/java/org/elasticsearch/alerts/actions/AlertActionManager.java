@@ -135,6 +135,10 @@ public class AlertActionManager extends AbstractComponent {
         return started.get();
     }
 
+    public void clear() {
+        actionsToBeProcessed.clear();
+    }
+
     private void doStart() {
         logger.info("Starting job queue");
         if (started.compareAndSet(false, true)) {
@@ -323,12 +327,12 @@ public class AlertActionManager extends AbstractComponent {
                 updateHistoryEntry(entry);
             } catch (Exception e) {
                 if (started()) {
-                    logger.error("Failed to execute alert action", e);
+                    logger.warn("Failed to execute alert action", e);
                     try {
                         entry.setErrorMsg(e.getMessage());
                         updateHistoryEntry(entry, AlertActionState.ERROR);
                     } catch (IOException ioe) {
-                        logger.error("Failed to update action history entry", ioe);
+                        logger.error("Failed store error message to update action history entry", ioe);
                     }
                 } else {
                     logger.debug("Failed to execute alert action after shutdown", e);

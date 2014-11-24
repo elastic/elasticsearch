@@ -64,7 +64,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
 
     @After
     public void clearAlerts() {
-        // Clear all in-memory alerts on all nodes, perhaps there isn't an elected master at this point
+        // Clear all internal state. Use manager directly because perhaps there isn't an elected master at this point
         for (AlertManager manager : internalTestCluster().getInstances(AlertManager.class)) {
             manager.clear();
         }

@@ -31,6 +31,7 @@
     </parent>
 
     <properties>
+        <jackson.version>2.4.3</jackson.version>
         <lucene.version>5.0.0</lucene.version>
         <lucene.maven.version>5.0.0-snapshot-1641343</lucene.maven.version>
         <tests.jvms>auto</tests.jvms>
@@ -226,28 +227,28 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
-            <version>2.4.2</version>
+            <version>${jackson.version}</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-smile</artifactId>
-            <version>2.4.2</version>
+            <version>${jackson.version}</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
-            <version>2.4.2</version>
+            <version>${jackson.version}</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-cbor</artifactId>
-            <version>2.4.2</version>
+            <version>${jackson.version}</version>
             <scope>compile</scope>
         </dependency>
 

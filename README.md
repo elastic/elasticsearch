@@ -45,9 +45,6 @@ cloud:
         service_name: your_azure_cloud_service_name
 discovery:
         type: azure
-
-# recommended
-# path.data: /mnt/resource/elasticsearch/data
 ```
 
 How to start (short story)
@@ -294,8 +291,8 @@ cloud:
 discovery:
         type: azure
 
-# Recommended
-path.data: /mnt/resource/elasticsearch/data
+# Recommended (warning: non durable disk)
+# path.data: /mnt/resource/elasticsearch/data
 ```
 
 Restart elasticsearch:

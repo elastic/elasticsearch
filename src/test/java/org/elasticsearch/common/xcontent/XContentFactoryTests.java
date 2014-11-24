@@ -29,37 +29,45 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- *
+ * Tests {@link XContentFactory} type generation.
  */
 public class XContentFactoryTests extends ElasticsearchTestCase {
 
 
     @Test
     public void testGuessJson() throws IOException {
-        testGuessType(XContentType.JSON);
+        assertType(XContentType.JSON);
     }
 
     @Test
     public void testGuessSmile() throws IOException {
-        testGuessType(XContentType.SMILE);
+        assertType(XContentType.SMILE);
     }
 
     @Test
     public void testGuessYaml() throws IOException {
-        testGuessType(XContentType.YAML);
+        assertType(XContentType.YAML);
     }
 
     @Test
     public void testGuessCbor() throws IOException {
-        testGuessType(XContentType.CBOR);
+        assertType(XContentType.CBOR);
     }
 
-    private void testGuessType(XContentType type) throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(type);
-        builder.startObject();
-        builder.field("field1", "value1");
-        builder.endObject();
+    private void assertType(XContentType type) throws IOException {
+        for (XContentBuilder builder : generateBuilders(type)) {
+            assertBuilderType(builder, type);
+        }
+    }
 
+    /**
+     * Assert the {@code builder} maps to the appropriate {@code type}.
+     *
+     * @param builder Builder to check.
+     * @param type Type to match.
+     * @throws IOException if any error occurs while checking the builder
+     */
+    private void assertBuilderType(XContentBuilder builder, XContentType type) throws IOException {
         assertThat(XContentFactory.xContentType(builder.bytes()), equalTo(type));
         BytesArray bytesArray = builder.bytes().toBytesArray();
         assertThat(XContentFactory.xContentType(new BytesStreamInput(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length(), false)), equalTo(type));
@@ -68,5 +76,31 @@ public class XContentFactoryTests extends ElasticsearchTestCase {
         if (type != XContentType.CBOR) {
             assertThat(XContentFactory.xContentType(builder.string()), equalTo(type));
         }
+    }
+
+    /**
+     * Generate builders to test various use cases to check.
+     *
+     * @param type The type to use.
+     * @return Never {@code null} array of unique {@link XContentBuilder}s testing different edge cases.
+     * @throws IOException if any error occurs while generating builders
+     */
+    private XContentBuilder[] generateBuilders(XContentType type) throws IOException {
+        XContentBuilder[] builders = new XContentBuilder[] {
+            XContentFactory.contentBuilder(type), XContentFactory.contentBuilder(type)
+        };
+
+        // simple object
+        builders[0].startObject();
+        builders[0].field("field1", "value1");
+            builders[0].startObject("object1");
+            builders[0].field("field2", "value2");
+            builders[0].endObject();
+        builders[0].endObject();
+
+        // empty object
+        builders[1].startObject().endObject();
+
+        return builders;
     }
 }

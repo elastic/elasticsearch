@@ -112,9 +112,15 @@ public class AlertsStore extends AbstractComponent {
         alert.version(response.getVersion());
 
         // Don'<></> need to update the alertMap, since we are working on an instance from it.
-        assert alertMap.get(alert.alertName()) == alert;
+        assert verifySameInstance(alert);
 
         return response;
+    }
+
+    private boolean verifySameInstance(Alert alert) {
+        Alert found = alertMap.get(alert.alertName());
+        assert found == alert : "expected " + alert + " but got" + found;
+        return true;
     }
 
     /**

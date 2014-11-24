@@ -8,6 +8,7 @@ package org.elasticsearch.shield.transport.netty;
 import com.google.common.net.InetAddresses;
 import org.elasticsearch.common.netty.channel.*;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.transport.n2n.IPFilteringN2NAuthenticator;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
@@ -33,7 +34,7 @@ public class N2NNettyUpstreamHandlerTests extends ElasticsearchTestCase {
                 .put("shield.transport.filter.deny", "10.0.0.0/8")
                 .build();
 
-        IPFilteringN2NAuthenticator ipFilteringN2NAuthenticator = new IPFilteringN2NAuthenticator(settings);
+        IPFilteringN2NAuthenticator ipFilteringN2NAuthenticator = new IPFilteringN2NAuthenticator(settings, AuditTrail.NOOP);
 
         nettyUpstreamHandler = new N2NNettyUpstreamHandler(ipFilteringN2NAuthenticator, "default");
     }

@@ -32,7 +32,7 @@ public class NettySecuredTransport extends NettyTransport {
 
     @Inject
     public NettySecuredTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version,
-                                 IPFilteringN2NAuthenticator authenticator, SSLServiceProvider sslServiceProvider) {
+                                 @Nullable IPFilteringN2NAuthenticator authenticator, SSLServiceProvider sslServiceProvider) {
         super(settings, threadPool, networkService, bigArrays, version);
         this.authenticator = authenticator;
         boolean ssl = settings.getAsBoolean("shield.transport.ssl", false);
@@ -74,7 +74,9 @@ public class NettySecuredTransport extends NettyTransport {
                 pipeline.addFirst("ssl", new SslHandler(serverEngine));
                 pipeline.replace("dispatcher", "dispatcher", new SecuredMessageChannelHandler(nettyTransport, logger));
             }
-            pipeline.addFirst("ipfilter", new N2NNettyUpstreamHandler(authenticator, name));
+            if (authenticator != null) {
+                pipeline.addFirst("ipfilter", new N2NNettyUpstreamHandler(authenticator, name));
+            }
             return pipeline;
         }
     }

@@ -16,6 +16,7 @@ import org.elasticsearch.common.netty.handler.ipfilter.IpFilterRule;
 import org.elasticsearch.common.netty.handler.ipfilter.IpSubnetFilterRule;
 import org.elasticsearch.common.netty.handler.ipfilter.PatternRule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.audit.AuditTrail;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -26,11 +27,17 @@ import java.util.*;
 public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2NAuthenticator {
 
     private static final ProfileIpFilterRule[] NO_RULES = new ProfileIpFilterRule[0];
+    private static final ProfileIpFilterRule ACCEPT_ALL_RULE = new ProfileIpFilterRule("default",
+            new PatternRule(true, "n:*"), "DEFAULT_ACCEPT_ALL");
+
+    private final AuditTrail auditTrail;
+
     private volatile ProfileIpFilterRule[] rules = NO_RULES;
 
     @Inject
-    public IPFilteringN2NAuthenticator(Settings settings) {
+    public IPFilteringN2NAuthenticator(Settings settings, AuditTrail auditTrail) {
         super(settings);
+        this.auditTrail = auditTrail;
         rules = parseSettings(settings, logger);
     }
 
@@ -42,12 +49,16 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
         for (ProfileIpFilterRule rule : rules) {
             if (rule.contains(profile, peerAddress)) {
                 boolean isAllowed = rule.isAllowRule();
-                logger.trace("Authentication rule matched for host [{}]: {}", peerAddress, isAllowed);
+                if (isAllowed) {
+                    auditTrail.connectionGranted(peerAddress, rule);
+                } else {
+                    auditTrail.connectionDenied(peerAddress, rule);
+                }
                 return isAllowed;
             }
         }
 
-        logger.trace("Allowing host {}", peerAddress);
+        auditTrail.connectionGranted(peerAddress, ACCEPT_ALL_RULE);
         return true;
     }
 
@@ -82,7 +93,7 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
     private static Collection<? extends ProfileIpFilterRule> parseValue(String[] values, String profile, boolean isAllowRule) throws UnknownHostException {
         List<ProfileIpFilterRule> rules = new ArrayList<>();
         for (String value : values) {
-            rules.add(new ProfileIpFilterRule(profile, getRule(isAllowRule, value)));
+            rules.add(new ProfileIpFilterRule(profile, getRule(isAllowRule, value), value));
         }
         return rules;
     }

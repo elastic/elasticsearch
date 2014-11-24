@@ -11,9 +11,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
+import org.elasticsearch.shield.transport.n2n.ProfileIpFilterRule;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
 
+import java.net.InetAddress;
 import java.util.Set;
 
 /**
@@ -94,6 +96,20 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
     public void tamperedRequest(User user, String action, TransportRequest request) {
         for (AuditTrail auditTrail : auditTrails) {
             auditTrail.tamperedRequest(user, action, request);
+        }
+    }
+
+    @Override
+    public void connectionGranted(InetAddress inetAddress, ProfileIpFilterRule rule) {
+        for (AuditTrail auditTrail : auditTrails) {
+            auditTrail.connectionGranted(inetAddress, rule);
+        }
+    }
+
+    @Override
+    public void connectionDenied(InetAddress inetAddress, ProfileIpFilterRule rule) {
+        for (AuditTrail auditTrail : auditTrails) {
+            auditTrail.connectionDenied(inetAddress, rule);
         }
     }
 }

@@ -8,6 +8,7 @@ package org.elasticsearch.shield.transport;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.PreProcessModule;
+import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.support.AbstractShieldModule;
@@ -49,6 +50,7 @@ public class SecuredTransportModule extends AbstractShieldModule.Spawn implement
 
         if (clientMode) {
             // no ip filtering on the client
+            bind(IPFilteringN2NAuthenticator.class).toProvider(Providers.<IPFilteringN2NAuthenticator>of(null));
             bind(ServerTransportFilter.class).to(ServerTransportFilter.Client.class).asEagerSingleton();
             bind(ClientTransportFilter.class).to(ClientTransportFilter.Client.class).asEagerSingleton();
             return;

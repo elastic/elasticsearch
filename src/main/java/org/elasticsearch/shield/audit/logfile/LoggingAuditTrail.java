@@ -15,8 +15,11 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationToken;
+import org.elasticsearch.shield.transport.n2n.ProfileIpFilterRule;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
+
+import java.net.InetAddress;
 
 /**
  *
@@ -165,6 +168,22 @@ public class LoggingAuditTrail implements AuditTrail {
             } else {
                 logger.error("TAMPERED REQUEST\thost=[{}], principal=[{}], action=[{}]", request.remoteAddress(), user.principal(), action);
             }
+        }
+    }
+
+    @Override
+    public void connectionGranted(InetAddress inetAddress, ProfileIpFilterRule rule) {
+        if (logger.isTraceEnabled()) {
+            logger.trace("CONNECTION_GRANTED\thost=[{}], rule=[{}]", inetAddress.getHostAddress(), rule);
+        }
+    }
+
+    @Override
+    public void connectionDenied(InetAddress inetAddress, ProfileIpFilterRule rule) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("CONNECTION_DENIED\thost=[{}], rule=[{}]", inetAddress.getHostAddress(), rule);
+        } else {
+            logger.error("CONNECTION_DENIED\thost=[{}]", inetAddress.getHostAddress());
         }
     }
 

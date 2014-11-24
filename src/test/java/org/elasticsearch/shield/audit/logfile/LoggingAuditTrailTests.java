@@ -7,16 +7,20 @@ package org.elasticsearch.shield.audit.logfile;
 
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.netty.handler.ipfilter.PatternRule;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
+import org.elasticsearch.shield.transport.n2n.ProfileIpFilterRule;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.Test;
 
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.shield.audit.logfile.CapturingLogger.Level;
 import static org.hamcrest.Matchers.equalTo;
@@ -237,6 +241,53 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
                     } else {
                         assertMsg(logger, Level.DEBUG, "ACCESS_DENIED\thost=[local[_host]], principal=[_username], action=[_action], request=[mock-message]");
                     }
+            }
+        }
+    }
+
+    @Test
+    public void testConnectionDenied() throws Exception {
+        for (Level level : Level.values()) {
+            CapturingLogger logger = new CapturingLogger(level);
+            LoggingAuditTrail auditTrail = new LoggingAuditTrail(logger);
+            InetAddress inetAddress = InetAddress.getLocalHost();
+            ProfileIpFilterRule rule = new ProfileIpFilterRule("default", new PatternRule(false, "i:*"), "_all");
+            auditTrail.connectionDenied(inetAddress, rule);
+            switch (level) {
+                case ERROR:
+                case WARN:
+                case INFO:
+                    assertMsg(logger, Level.ERROR, String.format(Locale.ROOT, "CONNECTION_DENIED\thost=[%s]",
+                            inetAddress.getHostAddress()));
+                    break;
+                case DEBUG:
+                case TRACE:
+                    assertMsg(logger, Level.DEBUG, String.format(Locale.ROOT,
+                            "CONNECTION_DENIED\thost=[%s], rule=[profile=[default], rule=[deny _all]]",
+                            inetAddress.getHostAddress()));
+            }
+        }
+    }
+
+    @Test
+    public void testConnectionGranted() throws Exception {
+        for (Level level : Level.values()) {
+            CapturingLogger logger = new CapturingLogger(level);
+            LoggingAuditTrail auditTrail = new LoggingAuditTrail(logger);
+            InetAddress inetAddress = InetAddress.getLocalHost();
+            ProfileIpFilterRule rule = new ProfileIpFilterRule("default", new PatternRule(true, "i:*"), "_all");
+            auditTrail.connectionGranted(inetAddress, rule);
+            switch (level) {
+                case ERROR:
+                case WARN:
+                case INFO:
+                case DEBUG:
+                    assertEmptyLog(logger);
+                    break;
+                case TRACE:
+                    assertMsg(logger, Level.TRACE, String.format(Locale.ROOT,
+                            "CONNECTION_GRANTED\thost=[%s], rule=[profile=[default], rule=[allow _all]]",
+                            inetAddress.getHostAddress()));
             }
         }
     }

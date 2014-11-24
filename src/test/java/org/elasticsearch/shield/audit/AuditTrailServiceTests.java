@@ -6,15 +6,18 @@
 package org.elasticsearch.shield.audit;
 
 import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.common.netty.handler.ipfilter.PatternRule;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
+import org.elasticsearch.shield.transport.n2n.ProfileIpFilterRule;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.net.InetAddress;
 import java.util.Set;
 
 import static org.mockito.Mockito.mock;
@@ -101,6 +104,26 @@ public class AuditTrailServiceTests extends ElasticsearchTestCase {
         service.accessDenied(user, "_action", message);
         for (AuditTrail auditTrail : auditTrails) {
             verify(auditTrail).accessDenied(user, "_action", message);
+        }
+    }
+
+    @Test
+    public void testConnectionGranted() throws Exception {
+        InetAddress inetAddress = InetAddress.getLocalHost();
+        ProfileIpFilterRule rule = new ProfileIpFilterRule("client", new PatternRule(true, "i:*"), "all");
+        service.connectionGranted(inetAddress, rule);
+        for (AuditTrail auditTrail : auditTrails) {
+            verify(auditTrail).connectionGranted(inetAddress, rule);
+        }
+    }
+
+    @Test
+    public void testConnectionDenied() throws Exception {
+        InetAddress inetAddress = InetAddress.getLocalHost();
+        ProfileIpFilterRule rule = new ProfileIpFilterRule("client", new PatternRule(false, "i:*"), "all");
+        service.connectionDenied(inetAddress, rule);
+        for (AuditTrail auditTrail : auditTrails) {
+            verify(auditTrail).connectionDenied(inetAddress, rule);
         }
     }
 }

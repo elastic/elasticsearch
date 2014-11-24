@@ -59,6 +59,11 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
 
     protected abstract void add2SingleValuedDocumentsAndDeleteOneOfThem() throws Exception;
 
+    protected long minRamBytesUsed() {
+        // minimum number of bytes that this fielddata instance is expected to require
+        return 1;
+    }
+
     @Test
     public void testDeletedDocs() throws Exception {
         add2SingleValuedDocumentsAndDeleteOneOfThem();
@@ -78,7 +83,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         IndexFieldData indexFieldData = getForField("value");
         LeafReaderContext readerContext = refreshReader();
         AtomicFieldData fieldData = indexFieldData.load(readerContext);
-        assertThat(fieldData.ramBytesUsed(), greaterThan(0l));
+        assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
         SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
 
@@ -141,7 +146,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         fillSingleValueWithMissing();
         IndexFieldData indexFieldData = getForField("value");
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
-        assertThat(fieldData.ramBytesUsed(), greaterThan(0l));
+        assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
         SortedBinaryDocValues bytesValues = fieldData
                 .getBytesValues();
@@ -158,7 +163,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         fillMultiValueAllSet();
         IndexFieldData indexFieldData = getForField("value");
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
-        assertThat(fieldData.ramBytesUsed(), greaterThan(0l));
+        assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
         SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
 
@@ -189,7 +194,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         fillMultiValueWithMissing();
         IndexFieldData indexFieldData = getForField("value");
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
-        assertThat(fieldData.ramBytesUsed(), greaterThan(0l));
+        assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
         SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
 

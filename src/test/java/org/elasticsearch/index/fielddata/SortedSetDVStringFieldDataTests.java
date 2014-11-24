@@ -19,30 +19,18 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.RandomAccessOrds;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 
-/**
- * Base implementation of a {@link RandomAccessOrds} instance.
- */
-public abstract class AbstractRandomAccessOrds extends RandomAccessOrds {
-
-    int i = 0;
-
-    protected abstract void doSetDocument(int docID);
+public class SortedSetDVStringFieldDataTests extends AbstractStringFieldDataTests {
 
     @Override
-    public final void setDocument(int docID) {
-        doSetDocument(docID);
-        i = 0;
+    protected FieldDataType getFieldDataType() {
+        return new FieldDataType("string", ImmutableSettings.builder().put("format", "doc_values").put(OrdinalsBuilder.FORCE_MULTI_ORDINALS, randomBoolean()));
     }
 
     @Override
-    public long nextOrd() {
-        if (i < cardinality()) {
-            return ordAt(i++);
-        } else {
-            return NO_MORE_ORDS;
-        }
+    protected long minRamBytesUsed() {
+        return 0;
     }
-
 }

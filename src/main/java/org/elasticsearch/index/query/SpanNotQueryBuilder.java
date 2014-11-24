@@ -29,19 +29,17 @@ import java.io.IOException;
  */
 public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBuilder, BoostableQueryBuilder<SpanNotQueryBuilder> {
 
-    public static final int NOT_SET = -1;
-
     private SpanQueryBuilder include;
 
     private SpanQueryBuilder exclude;
 
-    private int dist = NOT_SET;
+    private Integer dist;
 
-    private int pre = NOT_SET;
+    private Integer pre;
 
-    private int post = NOT_SET;
+    private Integer post;
 
-    private float boost = NOT_SET;
+    private Float boost;
 
     private String queryName;
 
@@ -94,15 +92,8 @@ public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBu
             throw new ElasticsearchIllegalArgumentException("Must specify exclude when using spanNot query");
         }
 
-        if (dist != NOT_SET && (pre != NOT_SET || post != NOT_SET)) {
+        if (dist != null && (pre != null || post != null)) {
              throw new ElasticsearchIllegalArgumentException("spanNot can either use [dist] or [pre] & [post] (or none)");
-        }
-
-        // set appropriate defaults
-        if (pre != NOT_SET && post == NOT_SET) {
-            post = 0;
-        } else if (pre == NOT_SET && post != NOT_SET){
-            pre = 0;
         }
 
         builder.startObject(SpanNotQueryParser.NAME);
@@ -110,16 +101,16 @@ public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBu
         include.toXContent(builder, params);
         builder.field("exclude");
         exclude.toXContent(builder, params);
-        if (dist != NOT_SET) {
+        if (dist != null) {
             builder.field("dist", dist);
         }
-        if (pre != NOT_SET) {
+        if (pre != null) {
             builder.field("pre", pre);
         }
-        if (post != NOT_SET) {
+        if (post != null) {
             builder.field("post", post);
         }
-        if (boost != NOT_SET) {
+        if (boost != null) {
             builder.field("boost", boost);
         }
         if (queryName != null) {

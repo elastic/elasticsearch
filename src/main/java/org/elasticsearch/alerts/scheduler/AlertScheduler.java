@@ -72,11 +72,11 @@ public class AlertScheduler extends AbstractComponent {
      */
     public synchronized void stop() {
         try {
+            Scheduler scheduler = this.scheduler;
             if (scheduler != null) {
                 logger.info("Stopping scheduler...");
-                scheduler.clear();
                 scheduler.shutdown(true);
-                scheduler = null;
+                this.scheduler = null;
                 logger.info("Stopped scheduler");
             }
         } catch (SchedulerException se){

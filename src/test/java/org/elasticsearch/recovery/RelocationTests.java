@@ -533,9 +533,6 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
 
         @Override
         public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
-//            if (action.equals(RecoveryTarget.Actions.PREPARE_TRANSLOG)) {
-//                logger.debug("dropped [{}] to {}", action, node);
-            //} else
             if (action.equals(RecoveryTarget.Actions.FILE_CHUNK)) {
                 RecoveryFileChunkRequest chunkRequest = (RecoveryFileChunkRequest) request;
                 if (chunkRequest.name().startsWith(IndexFileNames.SEGMENTS)) {
@@ -551,5 +548,5 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
             }
         }
     }
-
 }
+

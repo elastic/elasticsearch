@@ -30,12 +30,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
-import java.io.Serializable;
 
 /**
  */
 @SuppressWarnings("deprecation")
-public class Version implements Serializable {
+public class Version {
 
     // The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is Beta/RC indicator
     // AA values below 50 are beta builds, and below 99 are RC builds, with 99 indicating a release
@@ -416,6 +415,7 @@ public class Version implements Serializable {
 
     /**
      * Return the {@link Version} of Elasticsearch that has been used to create an index given its settings.
+     *
      * @throws ElasticsearchIllegalStateException if the given index settings doesn't contain a value for the key {@value IndexMetaData#SETTING_VERSION_CREATED}
      */
     public static Version indexCreated(Settings indexSettings) {

@@ -81,8 +81,6 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
     private final StartRecoveryRequest request;
     private final RecoverySettings recoverySettings;
     private final TransportService transportService;
-    private final TimeValue internalActionTimeout;
-    private final TimeValue internalActionLongTimeout;
     private final ClusterService clusterService;
     private final IndexService indexService;
     private final MappingUpdatedAction mappingUpdatedAction;
@@ -106,16 +104,13 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
 
 
     public ShardRecoveryHandler(final IndexShard shard, final StartRecoveryRequest request, final RecoverySettings recoverySettings,
-                                final TransportService transportService, final TimeValue internalActionTimeout,
-                                final TimeValue internalActionLongTimeout, final ClusterService clusterService,
+                                final TransportService transportService, final ClusterService clusterService,
                                 final IndicesService indicesService, final MappingUpdatedAction mappingUpdatedAction, final ESLogger logger) {
         this.shard = shard;
         this.request = request;
         this.recoverySettings = recoverySettings;
         this.logger = logger;
         this.transportService = transportService;
-        this.internalActionTimeout = internalActionTimeout;
-        this.internalActionLongTimeout = internalActionLongTimeout;
         this.clusterService = clusterService;
         this.indexName = this.request.shardId().index().name();
         this.shardId = this.request.shardId().id();
@@ -203,7 +198,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
                             response.phase1FileNames, response.phase1FileSizes, response.phase1ExistingFileNames, response.phase1ExistingFileSizes,
                             response.phase1TotalSize, response.phase1ExistingTotalSize);
                     transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILES_INFO, recoveryInfoFilesRequest,
-                            TransportRequestOptions.options().withTimeout(internalActionTimeout),
+                            TransportRequestOptions.options().withTimeout(recoverySettings.internalActionTimeout()),
                             EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                 }
             });
@@ -266,7 +261,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
                             final TransportRequestOptions requestOptions = TransportRequestOptions.options()
                                     .withCompress(shouldCompressRequest)
                                     .withType(TransportRequestOptions.Type.RECOVERY)
-                                    .withTimeout(internalActionTimeout);
+                                    .withTimeout(recoverySettings.internalActionTimeout());
 
                             while (readCount < len) {
                                 if (shard.state() == IndexShardState.CLOSED) { // check if the shard got closed on us
@@ -351,7 +346,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
                     // are deleted
                     transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.CLEAN_FILES,
                             new RecoveryCleanFilesRequest(request.recoveryId(), shard.shardId(), recoverySourceMetadata),
-                            TransportRequestOptions.options().withTimeout(internalActionTimeout),
+                            TransportRequestOptions.options().withTimeout(recoverySettings.internalActionTimeout()),
                             EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                 }
             });
@@ -393,7 +388,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
                 // garbage collection (not the JVM's GC!) of tombstone deletes
                 transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.PREPARE_TRANSLOG,
                         new RecoveryPrepareForTranslogOperationsRequest(request.recoveryId(), request.shardId()),
-                        TransportRequestOptions.options().withTimeout(internalActionTimeout), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+                        TransportRequestOptions.options().withTimeout(recoverySettings.internalActionTimeout()), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
             }
         });
 
@@ -450,7 +445,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
                 // during this time
                 transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FINALIZE,
                         new RecoveryFinalizeRecoveryRequest(request.recoveryId(), request.shardId()),
-                        TransportRequestOptions.options().withTimeout(internalActionLongTimeout),
+                        TransportRequestOptions.options().withTimeout(recoverySettings.internalActionLongTimeout()),
                         EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
             }
         });
@@ -546,9 +541,9 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
             @Override
             public void run() throws InterruptedException {
                 try {
-                    if (!updatedOnMaster.await(internalActionTimeout.millis(), TimeUnit.MILLISECONDS)) {
+                    if (!updatedOnMaster.await(recoverySettings.internalActionTimeout().millis(), TimeUnit.MILLISECONDS)) {
                         logger.debug("[{}][{}] recovery [phase2] to {}: waiting on pending mapping update timed out. waited [{}]",
-                                indexName, shardId, request.targetNode(), internalActionTimeout);
+                                indexName, shardId, request.targetNode(), recoverySettings.internalActionTimeout());
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -576,7 +571,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
         final TransportRequestOptions recoveryOptions = TransportRequestOptions.options()
                 .withCompress(recoverySettings.compress())
                 .withType(TransportRequestOptions.Type.RECOVERY)
-                .withTimeout(internalActionLongTimeout);
+                .withTimeout(recoverySettings.internalActionLongTimeout());
 
         while (operation != null) {
             if (shard.state() == IndexShardState.CLOSED) {

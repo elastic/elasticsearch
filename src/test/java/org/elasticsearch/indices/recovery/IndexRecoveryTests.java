@@ -20,15 +20,25 @@
 package org.elasticsearch.indices.recovery;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
+import com.google.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState.Stage;
 import org.elasticsearch.indices.recovery.RecoveryState.Type;
@@ -36,16 +46,22 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.store.MockDirectoryHelper;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.*;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -411,5 +427,117 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
         assertThat(indexState.percentFilesRecovered(), lessThanOrEqualTo(100.0f));
         assertThat(indexState.percentBytesRecovered(), greaterThanOrEqualTo(0.0f));
         assertThat(indexState.percentBytesRecovered(), lessThanOrEqualTo(100.0f));
+    }
+
+    @Test
+    public void disconnectsWhileRecoveringTest() throws Exception {
+        final String indexName = "test";
+        final Settings nodeSettings = ImmutableSettings.builder()
+                .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK, "100ms")
+                .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT, "1s")
+                .put("cluster.routing.schedule", "100ms") // aggressive reroute post shard failures
+                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
+                .put(MockDirectoryHelper.RANDOM_PREVENT_DOUBLE_WRITE, false) // restarted recoveries will delete temp files and write them again
+                .build();
+        // start a master node
+        internalCluster().startNode(nodeSettings);
+
+        ListenableFuture<String> blueFuture = internalCluster().startNodeAsync(ImmutableSettings.builder().put("node.color", "blue").put(nodeSettings).build());
+        ListenableFuture<String> redFuture = internalCluster().startNodeAsync(ImmutableSettings.builder().put("node.color", "red").put(nodeSettings).build());
+        final String blueNodeName = blueFuture.get();
+        final String redNodeName = redFuture.get();
+
+        ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes(">=3").get();
+        assertThat(response.isTimedOut(), is(false));
+
+
+        client().admin().indices().prepareCreate(indexName)
+                .setSettings(
+                        ImmutableSettings.builder()
+                                .put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "blue")
+                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                ).get();
+
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        int numDocs = scaledRandomIntBetween(25, 250);
+        for (int i = 0; i < numDocs; i++) {
+            requests.add(client().prepareIndex(indexName, "type").setCreate(true).setSource("{}"));
+        }
+        indexRandom(true, requests);
+        ensureSearchable(indexName);
+
+        ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
+        final String blueNodeId = internalCluster().getInstance(DiscoveryService.class, blueNodeName).localNode().id();
+
+        assertFalse(stateResponse.getState().readOnlyRoutingNodes().node(blueNodeId).isEmpty());
+
+        SearchResponse searchResponse = client().prepareSearch(indexName).get();
+        assertHitCount(searchResponse, numDocs);
+
+        String[] recoveryActions = new String[]{
+                RecoverySource.Actions.START_RECOVERY,
+                RecoveryTarget.Actions.FILES_INFO,
+                RecoveryTarget.Actions.FILE_CHUNK,
+                RecoveryTarget.Actions.CLEAN_FILES,
+                //RecoveryTarget.Actions.TRANSLOG_OPS, <-- may not be sent if already flushed
+                RecoveryTarget.Actions.PREPARE_TRANSLOG,
+                RecoveryTarget.Actions.FINALIZE
+        };
+        final String recoveryActionToBlock = randomFrom(recoveryActions);
+        final boolean dropRequests = randomBoolean();
+        logger.info("--> will {} between blue & red on [{}]", dropRequests ? "drop requests" : "break connection", recoveryActionToBlock);
+
+        MockTransportService blueMockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, blueNodeName);
+        MockTransportService redMockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, redNodeName);
+        DiscoveryNode redDiscoNode = internalCluster().getInstance(ClusterService.class, redNodeName).localNode();
+        DiscoveryNode blueDiscoNode = internalCluster().getInstance(ClusterService.class, blueNodeName).localNode();
+        final CountDownLatch requestBlocked = new CountDownLatch(1);
+
+        blueMockTransportService.addDelegate(redDiscoNode, new RecoveryActionBlocker(dropRequests, recoveryActionToBlock, blueMockTransportService.original(), requestBlocked));
+        redMockTransportService.addDelegate(blueDiscoNode, new RecoveryActionBlocker(dropRequests, recoveryActionToBlock, redMockTransportService.original(), requestBlocked));
+
+        logger.info("--> starting recovery from blue to red");
+        client().admin().indices().prepareUpdateSettings(indexName).setSettings(
+                ImmutableSettings.builder()
+                        .put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red,blue")
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+        ).get();
+
+        requestBlocked.await();
+
+        logger.info("--> stopping to block recovery");
+        blueMockTransportService.clearAllRules();
+        redMockTransportService.clearAllRules();
+
+        ensureGreen();
+        searchResponse = client(redNodeName).prepareSearch(indexName).setPreference("_local").get();
+        assertHitCount(searchResponse, numDocs);
+
+    }
+
+    private class RecoveryActionBlocker extends MockTransportService.DelegateTransport {
+        private final boolean dropRequests;
+        private final String recoveryActionToBlock;
+        private final CountDownLatch requestBlocked;
+
+        public RecoveryActionBlocker(boolean dropRequests, String recoveryActionToBlock, Transport delegate, CountDownLatch requestBlocked) {
+            super(delegate);
+            this.dropRequests = dropRequests;
+            this.recoveryActionToBlock = recoveryActionToBlock;
+            this.requestBlocked = requestBlocked;
+        }
+
+        public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+            if (recoveryActionToBlock.equals(action) || requestBlocked.getCount() == 0) {
+                logger.info("--> preventing {} request", action);
+                requestBlocked.countDown();
+                if (dropRequests) {
+                    return;
+                }
+                throw new ConnectTransportException(node, "DISCONNECT: prevented " + action + " request");
+            }
+            transport.sendRequest(node, requestId, action, request, options);
+        }
     }
 }

@@ -61,24 +61,24 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
 
     public static class UnicastZen extends ClusterDiscoveryConfiguration {
 
-        private final static AtomicInteger portRangeCounter = new AtomicInteger();
+        private static final AtomicInteger portCounter = new AtomicInteger();
 
         private final int[] unicastHostOrdinals;
         private final int basePort;
 
-        public UnicastZen(int numOfNodes) {
-            this(numOfNodes, numOfNodes);
+        public UnicastZen(int numOfNodes, ElasticsearchIntegrationTest.Scope scope) {
+            this(numOfNodes, numOfNodes, scope);
         }
 
-        public UnicastZen(int numOfNodes, Settings extraSettings) {
-            this(numOfNodes, numOfNodes, extraSettings);
+        public UnicastZen(int numOfNodes, Settings extraSettings, ElasticsearchIntegrationTest.Scope scope) {
+            this(numOfNodes, numOfNodes, extraSettings, scope);
         }
 
-        public UnicastZen(int numOfNodes, int numOfUnicastHosts) {
-            this(numOfNodes, numOfUnicastHosts, ImmutableSettings.EMPTY);
+        public UnicastZen(int numOfNodes, int numOfUnicastHosts, ElasticsearchIntegrationTest.Scope scope) {
+            this(numOfNodes, numOfUnicastHosts, ImmutableSettings.EMPTY, scope);
         }
 
-        public UnicastZen(int numOfNodes, int numOfUnicastHosts, Settings extraSettings) {
+        public UnicastZen(int numOfNodes, int numOfUnicastHosts, Settings extraSettings, ElasticsearchIntegrationTest.Scope scope) {
             super(numOfNodes, extraSettings);
             if (numOfUnicastHosts == numOfNodes) {
                 unicastHostOrdinals = new int[numOfNodes];
@@ -92,24 +92,39 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
                 }
                 unicastHostOrdinals = Ints.toArray(ordinals);
             }
-            this.basePort = calcBasePort();
+            this.basePort = calcBasePort(scope);
         }
 
-        public UnicastZen(int numOfNodes, int[] unicastHostOrdinals) {
-            this(numOfNodes, ImmutableSettings.EMPTY, unicastHostOrdinals);
+        public UnicastZen(int numOfNodes, int[] unicastHostOrdinals, ElasticsearchIntegrationTest.Scope scope) {
+            this(numOfNodes, ImmutableSettings.EMPTY, unicastHostOrdinals, scope);
         }
 
-        public UnicastZen(int numOfNodes, Settings extraSettings, int[] unicastHostOrdinals) {
+        public UnicastZen(int numOfNodes, Settings extraSettings, int[] unicastHostOrdinals, ElasticsearchIntegrationTest.Scope scope) {
             super(numOfNodes, extraSettings);
             this.unicastHostOrdinals = unicastHostOrdinals;
-            this.basePort = calcBasePort();
+            this.basePort = calcBasePort(scope);
         }
 
-        private static int calcBasePort() {
+        private static int calcBasePort(ElasticsearchIntegrationTest.Scope scope) {
             // note that this has properly co-exist with the port logic at InternalTestCluster's constructor
             return 30000 +
-                    1000 * (ElasticsearchIntegrationTest.CHILD_JVM_ID % 60) + // up to 60 jvms
-                    100 * portRangeCounter.incrementAndGet(); // up to 100 nodes
+                    1000 * (ElasticsearchIntegrationTest.CHILD_JVM_ID) + // up to 30 jvms
+                    //up to 100 nodes per cluster
+                    100 * scopeId(scope);
+        }
+
+        private static int scopeId(ElasticsearchIntegrationTest.Scope scope) {
+            switch(scope) {
+                case GLOBAL:
+                    //we reserve a special base port for global clusters, as they stick around
+                    //the assumption is that no counter is needed as there's only one global cluster per jvm
+                    return 0;
+                default:
+                    //ports can be reused as suite or test clusters are never run concurrently
+                    //we don't reuse the same port immediately though but leave some time to make sure ports are freed
+                    //reserve 0 to global cluster, prevent conflicts between jvms by never going above 9
+                    return 1 + portCounter.incrementAndGet() % 9;
+            }
         }
 
         @Override

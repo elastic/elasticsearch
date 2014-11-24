@@ -238,7 +238,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 boolean indexCreated = false;
-                String failureReason = null;
+                String removalReason = null;
                 try {
                     validate(request, currentState);
 
@@ -389,7 +389,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         try {
                             mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedString(XContentFactory.jsonBuilder().map(mappings.get(MapperService.DEFAULT_MAPPING)).string()), false);
                         } catch (Exception e) {
-                            failureReason = "failed on parsing default mapping on index creation";
+                            removalReason = "failed on parsing default mapping on index creation";
                             throw new MapperParsingException("mapping [" + MapperService.DEFAULT_MAPPING + "]", e);
                         }
                     }
@@ -401,7 +401,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             // apply the default here, its the first time we parse it
                             mapperService.merge(entry.getKey(), new CompressedString(XContentFactory.jsonBuilder().map(entry.getValue()).string()), true);
                         } catch (Exception e) {
-                            failureReason = "failed on parsing mappings on index creation";
+                            removalReason = "failed on parsing mappings on index creation";
                             throw new MapperParsingException("mapping [" + entry.getKey() + "]", e);
                         }
                     }
@@ -449,7 +449,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     try {
                         indexMetaData = indexMetaDataBuilder.build();
                     } catch (Exception e) {
-                        failureReason = "failed to build index metadata";
+                        removalReason = "failed to build index metadata";
                         throw e;
                     }
 
@@ -477,11 +477,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(routingTableBuilder).build());
                         updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
                     }
+                    removalReason = "cleaning up after validating index on master";
                     return updatedState;
                 } finally {
                     if (indexCreated) {
                         // Index was already partially created - need to clean up
-                        indicesService.removeIndex(request.index(), failureReason != null ? failureReason : "failed to create index");
+                        indicesService.removeIndex(request.index(), removalReason != null ? removalReason : "failed to create index");
                     }
                 }
             }

@@ -83,15 +83,19 @@ public class InternalAuthenticationService extends AbstractComponent implements 
 
     @Override
     public void attachUserHeaderIfMissing(TransportMessage message, User user) {
-        String header = (String) message.getHeader(USER_KEY);
-        if (header == null) {
-            header = (String) message.getHeader(TOKEN_KEY);
+        if (message.hasHeader(USER_KEY)) {
+            return;
         }
-        if (header == null) {
-            message.putInContext(USER_KEY, user);
-            header = signUserHeader ? signatureService.sign(encodeUser(user, logger)) : encodeUser(user, logger);
-            message.putHeader(USER_KEY, header);
+        User userFromContext = message.getFromContext(USER_KEY);
+        if (userFromContext != null) {
+            String userHeader = signUserHeader ? signatureService.sign(encodeUser(userFromContext, logger)) : encodeUser(userFromContext, logger);
+            message.putHeader(USER_KEY, userHeader);
+            return;
         }
+
+        message.putInContext(USER_KEY, user);
+        String userHeader = signUserHeader ? signatureService.sign(encodeUser(user, logger)) : encodeUser(user, logger);
+        message.putHeader(USER_KEY, userHeader);
     }
 
     static User decodeUser(String text) {

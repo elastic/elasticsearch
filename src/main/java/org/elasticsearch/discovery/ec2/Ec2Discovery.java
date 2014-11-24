@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery.ec2;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -46,7 +47,8 @@ public class Ec2Discovery extends ZenDiscovery {
     public Ec2Discovery(Settings settings, ClusterName clusterName, ThreadPool threadPool, TransportService transportService,
                         ClusterService clusterService, NodeSettingsService nodeSettingsService, ZenPingService pingService,
                         DiscoveryNodeService discoveryNodeService, AwsEc2Service ec2Service, DiscoverySettings discoverySettings,
-                        ElectMasterService electMasterService, DynamicSettings dynamicSettings) {
+                        ElectMasterService electMasterService, DynamicSettings dynamicSettings,
+                        Version version) {
         super(settings, clusterName, threadPool, transportService, clusterService, nodeSettingsService,
                 discoveryNodeService, pingService, electMasterService, discoverySettings, dynamicSettings);
         if (settings.getAsBoolean("cloud.enabled", true)) {
@@ -62,7 +64,7 @@ public class Ec2Discovery extends ZenDiscovery {
             if (unicastZenPing != null) {
                 // update the unicast zen ping to add cloud hosts provider
                 // and, while we are at it, use only it and not the multicast for example
-                unicastZenPing.addHostsProvider(new AwsEc2UnicastHostsProvider(settings, transportService, ec2Service.client()));
+                unicastZenPing.addHostsProvider(new AwsEc2UnicastHostsProvider(settings, transportService, ec2Service.client(), version));
                 pingService.zenPings(ImmutableList.of(unicastZenPing));
             } else {
                 logger.warn("failed to apply ec2 unicast discovery, no unicast ping found");

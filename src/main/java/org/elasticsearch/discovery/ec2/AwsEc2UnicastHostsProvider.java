@@ -59,6 +59,8 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
 
     private final AmazonEC2 client;
 
+    private final Version version;
+
     private final boolean bindAnyGroup;
 
     private final ImmutableSet<String> groups;
@@ -70,10 +72,11 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
     private final HostType hostType;
 
     @Inject
-    public AwsEc2UnicastHostsProvider(Settings settings, TransportService transportService, AmazonEC2 client) {
+    public AwsEc2UnicastHostsProvider(Settings settings, TransportService transportService, AmazonEC2 client, Version version) {
         super(settings);
         this.transportService = transportService;
         this.client = client;
+        this.version = version;
 
         this.hostType = HostType.valueOf(componentSettings.get("host_type", "private_ip").toUpperCase());
 
@@ -162,7 +165,7 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
                         // we only limit to 1 addresses, makes no sense to ping 100 ports
                         for (int i = 0; (i < addresses.length && i < UnicastZenPing.LIMIT_PORTS_COUNT); i++) {
                             logger.trace("adding {}, address {}, transport_address {}", instance.getInstanceId(), address, addresses[i]);
-                            discoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceId() + "-" + i, addresses[i], Version.CURRENT));
+                            discoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceId() + "-" + i, addresses[i], version.minimumCompatibilityVersion()));
                         }
                     } catch (Exception e) {
                         logger.warn("failed ot add {}, address {}", e, instance.getInstanceId(), address);

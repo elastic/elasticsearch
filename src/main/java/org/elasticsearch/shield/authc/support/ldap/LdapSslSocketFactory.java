@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.shield.authc.support.ldap;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.ssl.SSLService;
 
@@ -35,34 +35,32 @@ import static org.elasticsearch.common.collect.Iterables.all;
  */
 public class LdapSslSocketFactory extends SocketFactory {
 
+    private static ESLogger logger = Loggers.getLogger(LdapSslSocketFactory.class);
+
     static final String JAVA_NAMING_LDAP_FACTORY_SOCKET = "java.naming.ldap.factory.socket";
     private static final Pattern STARTS_WITH_LDAPS = Pattern.compile("^ldaps:.*", Pattern.CASE_INSENSITIVE);
     private static final Pattern STARTS_WITH_LDAP = Pattern.compile("^ldap:.*", Pattern.CASE_INSENSITIVE);
 
-    private static ESLogger logger = ESLoggerFactory.getLogger(LdapSslSocketFactory.class.getName());
-
     private static LdapSslSocketFactory instance;
+
+    private static Provider<SSLService> sslServiceProvider;
 
     /**
      * This should only be invoked once to establish a static instance that will be used for each constructor.
      */
     @Inject
-    public static void init(@Nullable SSLService ssl) {
-        if (instance != null) {
-            logger.error("LdapSslSocketFactory already configured, this change could lead to threading issues");
-        }
-        if (ssl == null) {
-            logger.warn("no keystore has been configured for LDAP");
-        } else {
-            instance = new LdapSslSocketFactory(ssl.getSSLSocketFactory());
-        }
+    public static void init(Provider<SSLService> sslServiceProvider) {
+        LdapSslSocketFactory.sslServiceProvider = sslServiceProvider;
     }
 
     /**
      * This clears the static factory.  There are threading issues with this.  But for
      * testing this is useful.
+     *
+     * WARNING: THIS METHOD SHOULD ONLY BE CALLED IN TESTS!!!!
+     *
+     * TODO: find a way to change the tests such that we can remove this method
      */
-    @Deprecated
     public static void clear() {
         logger.error("clear should only be called by tests");
         instance = null;
@@ -73,8 +71,10 @@ public class LdapSslSocketFactory extends SocketFactory {
      *
      * @return a singleton instance of LdapSslSocketFactory set by calling the init static method.
      */
-    public static SocketFactory getDefault() {
-        assert instance != null;
+    public static synchronized SocketFactory getDefault() {
+        if (instance == null) {
+            instance = new LdapSslSocketFactory(sslServiceProvider.get().getSSLSocketFactory());
+        }
         return instance;
     }
 
@@ -87,23 +87,23 @@ public class LdapSslSocketFactory extends SocketFactory {
     //The following methods are all wrappers around the instance of socketFactory
 
     @Override
-    public Socket createSocket(String s, int i) throws IOException {
-        return socketFactory.createSocket(s, i);
+    public Socket createSocket(String host, int port) throws IOException {
+        return socketFactory.createSocket(host, port);
     }
 
     @Override
-    public Socket createSocket(String s, int i, InetAddress inetAddress, int i2) throws IOException {
-        return socketFactory.createSocket(s, i, inetAddress, i2);
+    public Socket createSocket(String host, int port, InetAddress localHost, int localPort) throws IOException {
+        return socketFactory.createSocket(host, port, localHost, localPort);
     }
 
     @Override
-    public Socket createSocket(InetAddress inetAddress, int i) throws IOException {
-        return socketFactory.createSocket(inetAddress, i);
+    public Socket createSocket(InetAddress host, int port) throws IOException {
+        return socketFactory.createSocket(host, port);
     }
 
     @Override
-    public Socket createSocket(InetAddress inetAddress, int i, InetAddress inetAddress2, int i2) throws IOException {
-        return socketFactory.createSocket(inetAddress, i, inetAddress2, i2);
+    public Socket createSocket(InetAddress host, int port, InetAddress localHost, int localPort) throws IOException {
+        return socketFactory.createSocket(host, port, localHost, localPort);
     }
 
     /**
@@ -115,12 +115,12 @@ public class LdapSslSocketFactory extends SocketFactory {
      */
     public static void configureJndiSSL(String[] ldapUrls, ImmutableMap.Builder<String, Serializable> builder) {
         boolean secureProtocol = secureUrls(ldapUrls);
-        if (secureProtocol && instance != null) {
+        if (secureProtocol) {
             builder.put(JAVA_NAMING_LDAP_FACTORY_SOCKET, LdapSslSocketFactory.class.getName());
         } else {
             logger.warn("LdapSslSocketFactory not used for LDAP connections");
             if (logger.isDebugEnabled()) {
-                logger.debug("LdapSslSocketFactory: secureProtocol = [{}], instance != null [{}]", secureProtocol, instance != null);
+                logger.debug("LdapSslSocketFactory: secureProtocol = [{}]", secureProtocol);
             }
         }
     }

@@ -69,14 +69,18 @@ public class FileUserPasswdStoreTests extends ElasticsearchTestCase {
 
             Settings settings = ImmutableSettings.builder()
                     .put("watcher.interval.high", "2s")
-                    .put("shield.authc.esusers.files.users", tmp.toAbsolutePath())
                     .build();
+
+            Settings esusersSettings = ImmutableSettings.builder()
+                    .put("files.users", tmp.toAbsolutePath())
+                    .build();
+
 
             Environment env = new Environment(settings);
             threadPool = new ThreadPool("test");
             watcherService = new ResourceWatcherService(settings, threadPool);
             final CountDownLatch latch = new CountDownLatch(1);
-            FileUserPasswdStore store = new FileUserPasswdStore(settings, env, watcherService, new RefreshListener() {
+            FileUserPasswdStore store = new FileUserPasswdStore(esusersSettings, env, watcherService, new RefreshListener() {
                 @Override
                 public void onRefresh() {
                     latch.countDown();

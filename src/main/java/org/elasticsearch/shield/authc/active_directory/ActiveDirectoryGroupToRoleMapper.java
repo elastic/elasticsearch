@@ -18,6 +18,6 @@ public class ActiveDirectoryGroupToRoleMapper extends AbstractGroupToRoleMapper 
 
     @Inject
     public ActiveDirectoryGroupToRoleMapper(Settings settings, Environment env, ResourceWatcherService watcherService) {
-        super(settings, ActiveDirectoryRealm.type, env, watcherService, null);
+        super(settings, ActiveDirectoryRealm.TYPE, env, watcherService, null);
     }
 }

@@ -76,8 +76,9 @@ public class ESUsersToolTests extends CliToolTestCase {
         File userFile = new File(tmpFolder, "users");
         File userRolesFile = new File(tmpFolder, "users_roles");
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users", userFile)
-                .put("shield.authc.esusers.files.users_roles", userRolesFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", userFile)
+                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
                 .build();
 
         ESUsersTool.Useradd cmd = new ESUsersTool.Useradd(new MockTerminal(), "user1", SecuredStringTests.build("changeme"), "r1", "r2");
@@ -106,8 +107,9 @@ public class ESUsersToolTests extends CliToolTestCase {
         File userFile = writeFile("user2:hash2");
         File userRolesFile = writeFile("r3:user2\nr4:user2");
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users", userFile)
-                .put("shield.authc.esusers.files.users_roles", userRolesFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", userFile)
+                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
                 .build();
 
         ESUsersTool.Useradd cmd = new ESUsersTool.Useradd(new MockTerminal(), "user1", SecuredStringTests.build("changeme"), "r1", "r2");
@@ -141,8 +143,9 @@ public class ESUsersToolTests extends CliToolTestCase {
         File userFile = writeFile("user2:hash2");
         File userRolesFile = writeFile("r3:user2\nr4:user2");
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users", userFile)
-                .put("shield.authc.esusers.files.users_roles", userRolesFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", userFile)
+                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
                 .build();
 
         ESUsersTool.Useradd cmd = new ESUsersTool.Useradd(new MockTerminal(), "user1", SecuredStringTests.build("changeme"));
@@ -161,8 +164,9 @@ public class ESUsersToolTests extends CliToolTestCase {
         File userFile = writeFile("user1:hash1");
         File userRolesFile = newTempFile();
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users", userFile)
-                .put("shield.authc.esusers.files.users_roles", userRolesFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", userFile)
+                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
                 .build();
 
         ESUsersTool.Useradd cmd = new ESUsersTool.Useradd(new MockTerminal(), "user1", SecuredStringTests.build("changeme"), "r1", "r2");
@@ -194,8 +198,9 @@ public class ESUsersToolTests extends CliToolTestCase {
         File userFile = writeFile("user1:hash2");
         File userRolesFile = writeFile("r3:user1\nr4:user1");
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users", userFile)
-                .put("shield.authc.esusers.files.users_roles", userRolesFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", userFile)
+                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
                 .build();
 
         ESUsersTool.Userdel cmd = new ESUsersTool.Userdel(new MockTerminal(), "user1");
@@ -217,8 +222,9 @@ public class ESUsersToolTests extends CliToolTestCase {
         File userFile = writeFile("user1:hash2");
         File userRolesFile = writeFile("r3:user1\nr4:user1");
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users", userFile)
-                .put("shield.authc.esusers.files.users_roles", userRolesFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", userFile)
+                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
                 .build();
         CaptureOutputTerminal terminal = new CaptureOutputTerminal();
 
@@ -246,8 +252,9 @@ public class ESUsersToolTests extends CliToolTestCase {
         File userFile = new File(dir, "users");
         File userRolesFile = new File(dir, "users_roles");
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users", userFile)
-                .put("shield.authc.esusers.files.users_roles", userRolesFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", userFile)
+                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
                 .build();
 
         ESUsersTool.Userdel cmd = new ESUsersTool.Userdel(new MockTerminal(), "user2");
@@ -301,7 +308,8 @@ public class ESUsersToolTests extends CliToolTestCase {
     public void testPasswd_Cmd() throws Exception {
         File userFile = writeFile("user1:hash2");
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users", userFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", userFile)
                 .build();
 
         ESUsersTool.Passwd cmd = new ESUsersTool.Passwd(new MockTerminal(), "user1", "changeme".toCharArray());
@@ -322,7 +330,8 @@ public class ESUsersToolTests extends CliToolTestCase {
     public void testPasswd_Cmd_UnknownUser() throws Exception {
         File userFile = writeFile("user1:hash2");
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users", userFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", userFile)
                 .build();
 
         ESUsersTool.Passwd cmd = new ESUsersTool.Passwd(new MockTerminal(), "user2", "changeme".toCharArray());
@@ -334,7 +343,8 @@ public class ESUsersToolTests extends CliToolTestCase {
     public void testPasswd_Cmd_MissingFiles() throws Exception {
         File userFile = newTempFile();
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users", userFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", userFile)
                 .build();
 
         ESUsersTool.Passwd cmd = new ESUsersTool.Passwd(new MockTerminal(), "user2", "changeme".toCharArray());
@@ -359,8 +369,9 @@ public class ESUsersToolTests extends CliToolTestCase {
         File usersFile = writeFile("admin:hash");
         File usersRoleFile = writeFile("admin: admin\n");
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users", usersFile)
-                .put("shield.authc.esusers.files.users_roles", usersRoleFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", usersFile)
+                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
                 .build();
 
         // invalid role names
@@ -383,8 +394,9 @@ public class ESUsersToolTests extends CliToolTestCase {
         File usersFile = writeFile("admin:hash\nuser:hash");
         File usersRoleFile = writeFile("admin: admin\nuser: user\n");
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users", usersFile)
-                .put("shield.authc.esusers.files.users_roles", usersRoleFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", usersFile)
+                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
                 .build();
 
         ESUsersTool.Roles cmd = new ESUsersTool.Roles(new MockTerminal(), "user", new String[]{"foo"}, Strings.EMPTY_ARRAY);
@@ -404,8 +416,9 @@ public class ESUsersToolTests extends CliToolTestCase {
         File usersFile = writeFile("admin:hash\nuser:hash");
         File usersRoleFile = writeFile("admin: admin\nuser: user\nfoo: user\nbar: user\n");
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users", usersFile)
-                .put("shield.authc.esusers.files.users_roles", usersRoleFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", usersFile)
+                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
                 .build();
 
         ESUsersTool.Roles cmd = new ESUsersTool.Roles(new MockTerminal(), "user", Strings.EMPTY_ARRAY, new String[]{"foo"});
@@ -425,8 +438,9 @@ public class ESUsersToolTests extends CliToolTestCase {
         File usersFile = writeFile("admin:hash\nuser:hash");
         File usersRoleFile = writeFile("admin: admin\nuser:user\nfoo:user\nbar:user\n");
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users", usersFile)
-                .put("shield.authc.esusers.files.users_roles", usersRoleFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", usersFile)
+                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
                 .build();
 
         ESUsersTool.Roles cmd = new ESUsersTool.Roles(new MockTerminal(), "user", new String[]{"newrole"}, new String[]{"foo"});
@@ -446,8 +460,9 @@ public class ESUsersToolTests extends CliToolTestCase {
         File usersFile = writeFile("admin:hash\nuser:hash");
         File usersRoleFile = writeFile("admin: admin\nuser:user\nfoo:user\nbar:user\n");
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users", usersFile)
-                .put("shield.authc.esusers.files.users_roles", usersRoleFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", usersFile)
+                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
                 .build();
 
         ESUsersTool.Roles cmd = new ESUsersTool.Roles(new MockTerminal(), "user", Strings.EMPTY_ARRAY, new String[]{"user", "foo", "bar"});
@@ -464,8 +479,9 @@ public class ESUsersToolTests extends CliToolTestCase {
         File usersFile = writeFile("admin:hash\nuser:hash");
         File usersRoleFile = writeFile("admin: admin\nuser: user\nfoo:user\nbar:user\n");
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users", usersFile)
-                .put("shield.authc.esusers.files.users_roles", usersRoleFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", usersFile)
+                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
                 .build();
 
         ESUsersTool.Roles cmd = new ESUsersTool.Roles(new MockTerminal(), "does-not-exist", Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
@@ -480,8 +496,9 @@ public class ESUsersToolTests extends CliToolTestCase {
         File usersRoleFile = writeFile("admin: admin\nuser:user\nfoo:user\nbar:user\n");
         File rolesFile = writeFile("admin:\n  cluster: all\n\nuser:\n  cluster: all\n\nfoo:\n  cluster: all\n\nbar:\n  cluster: all");
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users", usersFile)
-                .put("shield.authc.esusers.files.users_roles", usersRoleFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", usersFile)
+                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
                 .put("shield.authz.store.files.roles", rolesFile)
                 .build();
 
@@ -499,8 +516,9 @@ public class ESUsersToolTests extends CliToolTestCase {
         File usersRoleFile = writeFile("admin: admin\n");
         File rolesFile = writeFile("admin:\n  cluster: all\n\nmyrole:\n  cluster: all");
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users", usersFile)
-                .put("shield.authc.esusers.files.users_roles", usersRoleFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", usersFile)
+                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
                 .put("shield.authz.store.files.roles", rolesFile)
                 .build();
 
@@ -529,7 +547,8 @@ public class ESUsersToolTests extends CliToolTestCase {
         File usersRoleFile = writeFile("admin: admin\nuser: user\nfoo:user\nbar:user\n");
         File rolesFile = writeFile("admin:\n  cluster: all\n\nuser:\n  cluster: all\n\nfoo:\n  cluster: all\n\nbar:\n  cluster: all");
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users_roles", usersRoleFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
                 .put("shield.authz.store.files.roles", rolesFile)
                 .build();
 
@@ -548,7 +567,8 @@ public class ESUsersToolTests extends CliToolTestCase {
         File usersRoleFile = writeFile("admin: admin\nuser: user\nfoo:user\nbar:user\n");
         File rolesFile = writeFile("admin:\n  cluster: all\n\nuser:\n  cluster: all");
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users_roles", usersRoleFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
                 .put("shield.authz.store.files.roles", rolesFile)
                 .build();
 
@@ -568,8 +588,9 @@ public class ESUsersToolTests extends CliToolTestCase {
         File usersFile = writeFile("admin:{plain}changeme\nuser:{plain}changeme\nno-roles-user:{plain}changeme\n");
         File rolesFile = writeFile("admin:\n  cluster: all\n\nuser:\n  cluster: all\n\nfoo:\n  cluster: all");
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users_roles", usersRoleFile)
-                .put("shield.authc.esusers.files.users", usersFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
+                .put("shield.authc.realms.esusers.files.users", usersFile)
                 .put("shield.authz.store.files.roles", rolesFile)
                 .build();
 
@@ -587,7 +608,8 @@ public class ESUsersToolTests extends CliToolTestCase {
     public void testListUsersAndRoles_Cmd_listSingleUserNotFound() throws Exception {
         File usersRoleFile = writeFile("admin: admin\nuser: user\nfoo:user\nbar:user\n");
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users_roles", usersRoleFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
                 .build();
 
         CaptureOutputTerminal catchTerminalOutput = new CaptureOutputTerminal();
@@ -603,8 +625,9 @@ public class ESUsersToolTests extends CliToolTestCase {
         File usersRoleFile = writeFile("admin: admin\nuser: user\nfoo:user\nbar:user\n");
         File rolesFile = writeFile("admin:\n  cluster: all\n\nuser:\n  cluster: all\n\nfoo:\n  cluster: all\n\nbar:\n  cluster: all");
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users_roles", usersRoleFile)
-                .put("shield.authc.esusers.files.users", usersFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", usersFile)
+                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
                 .put("shield.authz.store.files.roles", rolesFile)
                 .build();
 
@@ -625,8 +648,9 @@ public class ESUsersToolTests extends CliToolTestCase {
         File usersRoleFile = writeFile("");
         File rolesFile = writeFile("admin:\n  cluster: all\n\nuser:\n  cluster: all\n\nfoo:\n  cluster: all\n\nbar:\n  cluster: all");
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users_roles", usersRoleFile)
-                .put("shield.authc.esusers.files.users", usersFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
+                .put("shield.authc.realms.esusers.files.users", usersFile)
                 .put("shield.authz.store.files.roles", rolesFile)
                 .build();
 
@@ -646,8 +670,9 @@ public class ESUsersToolTests extends CliToolTestCase {
         File usersFile = writeFile("admin:{plain}changeme");
         File usersRoleFile = writeFile("");
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.esusers.files.users_roles", usersRoleFile)
-                .put("shield.authc.esusers.files.users", usersFile)
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
+                .put("shield.authc.realms.esusers.files.users", usersFile)
                 .build();
 
         CaptureOutputTerminal loggingTerminal = new CaptureOutputTerminal();

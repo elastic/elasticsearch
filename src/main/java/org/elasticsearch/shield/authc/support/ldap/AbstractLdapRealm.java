@@ -9,42 +9,28 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.User;
-import org.elasticsearch.shield.authc.AuthenticationToken;
-import org.elasticsearch.shield.authc.Realm;
 import org.elasticsearch.shield.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.shield.authc.support.RefreshListener;
+import org.elasticsearch.shield.authc.support.UsernamePasswordRealm;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.transport.TransportMessage;
 
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
-
 /**
  * Supporting class for JNDI-based Realms
  */
-public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm implements Realm<UsernamePasswordToken> {
+public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm {
 
     protected final ConnectionFactory connectionFactory;
     protected final AbstractGroupToRoleMapper roleMapper;
 
-    protected AbstractLdapRealm(Settings settings, ConnectionFactory connectionFactory,
-                                AbstractGroupToRoleMapper roleMapper, RestController restController) {
-        super(settings);
+    protected AbstractLdapRealm(String type, String name, Settings settings,
+                                ConnectionFactory connectionFactory, AbstractGroupToRoleMapper roleMapper) {
+        super(type, name, settings);
         this.connectionFactory = connectionFactory;
         this.roleMapper = roleMapper;
         roleMapper.addListener(new Listener());
-        restController.registerRelevantHeaders(BASIC_AUTH_HEADER);
-    }
-
-    @Override
-    public UsernamePasswordToken token(TransportMessage<?> message) {
-        return UsernamePasswordToken.extractToken(message, null);
-    }
-
-    public boolean supports(AuthenticationToken token) {
-        return token instanceof UsernamePasswordToken;
     }
 
     /**
@@ -70,6 +56,23 @@ public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm imp
         @Override
         public void onRefresh() {
             expireAll();
+        }
+    }
+
+    public static abstract class Factory<R extends AbstractLdapRealm> extends UsernamePasswordRealm.Factory<R> {
+
+        public Factory(String type, RestController restController) {
+            super(type, false, restController);
+        }
+
+        /**
+         * LDAP realms require minimum settings (e.g. URL), therefore they'll never create a default.
+         *
+         * @return {@code null} always
+         */
+        @Override
+        public final R createDefault(String name) {
+            return null;
         }
     }
 }

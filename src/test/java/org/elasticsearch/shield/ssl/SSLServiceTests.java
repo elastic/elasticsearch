@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.ssl;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -51,68 +50,6 @@ public class SSLServiceTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testIsSSLDisabled_allDefaults(){
-        Settings settings = settingsBuilder().build();
-        assertSSLDisabled(settings);
-    }
-
-    @Test
-    public void testIsSSLEnabled_transportOffHttpOffLdapOff(){
-
-        Settings settings = settingsBuilder()
-                .put("shield.transport.ssl", false)
-                .put("shield.http.ssl", false)
-                .put("shield.authc.ldap.mode", "ldap")
-                .put("shield.authc.ldap.url", "ldap://example.com:389")
-                .build();
-        assertSSLDisabled(settings);
-    }
-
-    @Test
-    public void testIsSSLEnabled_transportOffHttpOffLdapMissingUrl() {
-        Settings settings = settingsBuilder()
-                .put("shield.transport.ssl", false)
-                .put("shield.http.ssl", false)
-                .put("shield.authc.ldap.mode", "active_dir") //SSL is on by default for a missing URL with active directory
-                .build();
-        assertSSLEnabled(settings);
-    }
-
-    @Test
-    public void testIsSSLEnabled_transportOffHttpOffLdapOn(){
-        Settings settings = settingsBuilder()
-                .put("shield.transport.ssl", false)
-                .put("shield.http.ssl", false)
-                .put("shield.authc.ldap.mode", "ldap")
-                .put("shield.authc.ldap.url", "ldaps://example.com:636")
-                .build();
-        assertSSLEnabled(settings);
-    }
-
-    @Test
-    public void testIsSSLEnabled_transportOffHttpOnLdapOff(){
-
-        Settings settings = settingsBuilder()
-                .put("shield.transport.ssl", false)
-                .put("shield.http.ssl", true)
-                .put("shield.authc.ldap.mode", "ldap")
-                .put("shield.authc.ldap.url", "ldap://example.com:389")
-                .build();
-        assertSSLEnabled(settings);
-    }
-
-    @Test
-    public void testIsSSLEnabled_transportOnHttpOffLdapOff(){
-        Settings settings = settingsBuilder()
-                .put("shield.transport.ssl", true)
-                .put("shield.http.ssl", false)
-                .put("shield.authc.ldap.mode", "ldap")
-                .put("shield.authc.ldap.url", "ldap://example.com:389")
-                .build();
-        assertSSLEnabled(settings);
-    }
-
-    @Test
     public void testThatCustomTruststoreCanBeSpecified() throws Exception {
         File testClientStore = new File(getClass().getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks").toURI());
 
@@ -127,13 +64,5 @@ public class SSLServiceTests extends ElasticsearchTestCase {
 
         SSLEngine sslEngineWithTruststore = sslService.createSSLEngineWithTruststore(settingsBuilder.build());
         assertThat(sslEngineWithTruststore, is(not(nullValue())));
-    }
-
-    private void assertSSLEnabled(Settings settings) {
-        assertThat(SSLService.isSSLEnabled(settings), is(true));
-    }
-
-    private void assertSSLDisabled(Settings settings) {
-        assertThat(SSLService.isSSLEnabled(settings), is(false));
     }
 }

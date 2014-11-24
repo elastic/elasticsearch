@@ -5,32 +5,36 @@
  */
 package org.elasticsearch.shield.authc;
 
-import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.authc.active_directory.ActiveDirectoryModule;
-import org.elasticsearch.shield.authc.esusers.ESUsersModule;
-import org.elasticsearch.shield.authc.ldap.LdapModule;
+import org.elasticsearch.shield.authc.active_directory.ActiveDirectoryRealm;
+import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
+import org.elasticsearch.shield.authc.ldap.LdapRealm;
+import org.elasticsearch.shield.authc.support.ldap.LdapSslSocketFactory;
 import org.elasticsearch.shield.support.AbstractShieldModule;
 
 /**
  *
  */
-public class AuthenticationModule extends AbstractShieldModule.Node.Spawn {
+public class AuthenticationModule extends AbstractShieldModule.Node {
 
     public AuthenticationModule(Settings settings) {
         super(settings);
     }
 
     @Override
-    public Iterable<? extends Node> spawnModules() {
-        return ImmutableList.of(
-                new ESUsersModule(settings),
-                new LdapModule(settings),
-                new ActiveDirectoryModule(settings));
-    }
-
-    @Override
     protected void configureNode() {
+
+        // This socket factory needs to be configured before any LDAP connections are created.  LDAP configuration
+        // for JNDI invokes a static getSocketFactory method from LdapSslSocketFactory.
+        requestStaticInjection(LdapSslSocketFactory.class);
+
+        MapBinder<String, Realm.Factory> mapBinder = MapBinder.newMapBinder(binder(), String.class, Realm.Factory.class);
+        mapBinder.addBinding(ESUsersRealm.TYPE).to(ESUsersRealm.Factory.class).asEagerSingleton();
+        mapBinder.addBinding(ActiveDirectoryRealm.TYPE).to(ActiveDirectoryRealm.Factory.class).asEagerSingleton();
+        mapBinder.addBinding(LdapRealm.TYPE).to(LdapRealm.Factory.class).asEagerSingleton();
+
+        bind(Realms.class).asEagerSingleton();
         bind(AuthenticationService.class).to(InternalAuthenticationService.class).asEagerSingleton();
     }
 }

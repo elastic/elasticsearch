@@ -7,7 +7,6 @@ package org.elasticsearch.shield.authc.ldap;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldSettingsException;
@@ -26,11 +25,11 @@ import java.util.Hashtable;
 
 /**
  * This factory creates LDAP connections via iterating through user templates.
- * <p/>
+ *
  * Note that even though there is a separate factory for Active Directory, this factory would work against AD.  A template
  * for each user context would need to be supplied.
  */
-public class LdapConnectionFactory extends AbstractComponent implements ConnectionFactory {
+public class LdapConnectionFactory extends ConnectionFactory {
 
     public static final String USER_DN_TEMPLATES_SETTING = "user_dn_templates";
     public static final String GROUP_SEARCH_SUBTREE_SETTING = "group_search.subtree_search";
@@ -45,11 +44,11 @@ public class LdapConnectionFactory extends AbstractComponent implements Connecti
     @Inject
     public LdapConnectionFactory(Settings settings) {
         super(settings);
-        userDnTemplates = componentSettings.getAsArray(USER_DN_TEMPLATES_SETTING);
+        userDnTemplates = settings.getAsArray(USER_DN_TEMPLATES_SETTING);
         if (userDnTemplates == null) {
             throw new ShieldSettingsException("Missing required ldap setting [" + USER_DN_TEMPLATES_SETTING + "]");
         }
-        String[] ldapUrls = componentSettings.getAsArray(URLS_SETTING);
+        String[] ldapUrls = settings.getAsArray(URLS_SETTING);
         if (ldapUrls == null) {
             throw new ShieldSettingsException("Missing required ldap setting [" + URLS_SETTING + "]");
         }
@@ -62,9 +61,9 @@ public class LdapConnectionFactory extends AbstractComponent implements Connecti
         LdapSslSocketFactory.configureJndiSSL(ldapUrls, builder);
 
         sharedLdapEnv = builder.build();
-        groupSearchDN = componentSettings.get(GROUP_SEARCH_BASEDN_SETTING);
+        groupSearchDN = settings.get(GROUP_SEARCH_BASEDN_SETTING);
         findGroupsByAttribute = groupSearchDN == null;
-        groupSubTreeSearch = componentSettings.getAsBoolean(GROUP_SEARCH_SUBTREE_SETTING, false);
+        groupSubTreeSearch = settings.getAsBoolean(GROUP_SEARCH_SUBTREE_SETTING, false);
     }
 
     /**

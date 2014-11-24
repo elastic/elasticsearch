@@ -202,7 +202,8 @@ public class ApacheDsEmbedded {
      *
      * @param workDir      the directory to be used for storing the data
      * @param baseDn
-     * @param ldifFileName @throws Exception if there were some problems while initializing the system
+     * @param ldifFileName
+     * @throws Exception if there were some problems while initializing the system
      */
     private void initDirectoryService(File workDir, String baseDn, String ldifFileName) throws Exception {
         // Initialize the LDAP service

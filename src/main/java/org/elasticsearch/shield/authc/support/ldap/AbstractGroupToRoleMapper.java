@@ -8,13 +8,13 @@ package org.elasticsearch.shield.authc.support.ldap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -33,12 +33,14 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * This class loads and monitors the file defining the mappings of LDAP Group DNs to internal ES Roles.
  */
-public abstract class AbstractGroupToRoleMapper extends AbstractComponent {
+public abstract class AbstractGroupToRoleMapper {
 
     public static final String DEFAULT_FILE_NAME = "role_mapping.yml";
     public static final String ROLE_MAPPING_FILE_SETTING = "files.role_mapping";
     public static final String USE_UNMAPPED_GROUPS_AS_ROLES_SETTING = "unmapped_groups_as_roles";
 
+    protected final ESLogger logger = Loggers.getLogger(getClass());
+    protected final Settings settings;
     private final Path file;
     private final boolean useUnmappedGroupsAsRoles;
     private final String realmType;
@@ -48,10 +50,10 @@ public abstract class AbstractGroupToRoleMapper extends AbstractComponent {
 
     protected AbstractGroupToRoleMapper(Settings settings, String realmType, Environment env,
                                         ResourceWatcherService watcherService, @Nullable RefreshListener listener) {
-        super(settings);
+        this.settings = settings;
         this.realmType = realmType;
-        useUnmappedGroupsAsRoles = componentSettings.getAsBoolean(USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, false);
-        file = resolveFile(componentSettings, env);
+        useUnmappedGroupsAsRoles = settings.getAsBoolean(USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, false);
+        file = resolveFile(settings, env);
         groupRoles = parseFile(file, logger, realmType);
         FileWatcher watcher = new FileWatcher(file.getParent().toFile());
         watcher.addListener(new FileListener());

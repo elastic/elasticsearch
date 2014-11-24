@@ -9,14 +9,13 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -35,23 +34,21 @@ import java.util.regex.Pattern;
 /**
  *
  */
-public class FileUserRolesStore extends AbstractComponent {
+public class FileUserRolesStore {
+
+    private static final ESLogger logger = Loggers.getLogger(FileUserPasswdStore.class);
 
     private static final Pattern USERS_DELIM = Pattern.compile("\\s*,\\s*");
 
     private final Path file;
-
+    private CopyOnWriteArrayList<RefreshListener> listeners;
     private volatile ImmutableMap<String, String[]> userRoles;
 
-    private CopyOnWriteArrayList<RefreshListener> listeners;
-
-    @Inject
     public FileUserRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService) {
         this(settings, env, watcherService, null);
     }
 
     FileUserRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, RefreshListener listener) {
-        super(settings);
         file = resolveFile(settings, env);
         userRoles = parseFile(file, logger);
         FileWatcher watcher = new FileWatcher(file.getParent().toFile());
@@ -76,7 +73,7 @@ public class FileUserRolesStore extends AbstractComponent {
     }
 
     public static Path resolveFile(Settings settings, Environment env) {
-        String location = settings.get("shield.authc.esusers.files.users_roles");
+        String location = settings.get("files.users_roles");
         if (location == null) {
             return ShieldPlugin.resolveConfigFile(env, "users_roles");
         }

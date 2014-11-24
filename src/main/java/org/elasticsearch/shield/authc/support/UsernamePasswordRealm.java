@@ -1,0 +1,47 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+package org.elasticsearch.shield.authc.support;
+
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.shield.authc.AuthenticationToken;
+import org.elasticsearch.shield.authc.Realm;
+import org.elasticsearch.transport.TransportMessage;
+
+import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
+
+/**
+ *
+ */
+public abstract class UsernamePasswordRealm extends Realm<UsernamePasswordToken> {
+
+    public UsernamePasswordRealm(String type, String name, Settings settings) {
+        super(type, name, settings);
+    }
+
+    @Override
+    public UsernamePasswordToken token(RestRequest request) {
+        return UsernamePasswordToken.extractToken(request, null);
+    }
+
+    @Override
+    public UsernamePasswordToken token(TransportMessage<?> message) {
+        return UsernamePasswordToken.extractToken(message, null);
+    }
+
+    public boolean supports(AuthenticationToken token) {
+        return token instanceof UsernamePasswordToken;
+    }
+
+    public static abstract class Factory<R extends UsernamePasswordRealm> extends Realm.Factory<R> {
+
+        protected Factory(String type, boolean internal, RestController restController) {
+            super(type, internal);
+            restController.registerRelevantHeaders(BASIC_AUTH_HEADER);
+        }
+    }
+}

@@ -10,8 +10,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldSettingsException;
-import org.elasticsearch.shield.authc.ldap.LdapModule;
-import org.elasticsearch.shield.authc.support.ldap.LdapSslSocketFactory;
 
 import javax.net.ssl.*;
 import java.io.FileInputStream;
@@ -25,9 +23,6 @@ import java.util.Arrays;
 public class SSLService extends AbstractComponent {
 
     static final String[] DEFAULT_CIPHERS = new String[]{ "TLS_RSA_WITH_AES_128_CBC_SHA256", "TLS_RSA_WITH_AES_128_CBC_SHA", "TLS_DHE_RSA_WITH_AES_128_CBC_SHA", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA" };
-    public static final String SHIELD_TRANSPORT_SSL = "shield.transport.ssl";
-    public static final String SHIELD_HTTP_SSL = "shield.http.ssl";
-    public static final String SHIELD_AUTHC_LDAP_URL = "shield.authc.ldap.url";
 
     private final TrustManagerFactory trustFactory;
     private final KeyManagerFactory keyManagerFactory;
@@ -161,12 +156,5 @@ public class SSLService extends AbstractComponent {
         } catch (Exception e) {
             throw new ElasticsearchException("Failed to initialize a TrustManagerFactory", e);
         }
-    }
-
-    public static boolean isSSLEnabled(Settings settings) {
-        return settings.getAsBoolean(SHIELD_TRANSPORT_SSL, false) ||
-                settings.getAsBoolean(SHIELD_HTTP_SSL, false) ||
-                (LdapSslSocketFactory.secureUrls(settings.getAsArray(SHIELD_AUTHC_LDAP_URL)) &&
-                        LdapModule.enabled(settings));
     }
 }

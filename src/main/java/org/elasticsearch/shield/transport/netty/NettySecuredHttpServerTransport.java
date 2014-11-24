@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.transport.netty;
 
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.netty.channel.ChannelPipeline;
 import org.elasticsearch.common.netty.channel.ChannelPipelineFactory;
@@ -26,18 +27,17 @@ public class NettySecuredHttpServerTransport extends NettyHttpServerTransport {
 
     private final boolean ssl;
     private final boolean ipFilterEnabled;
-    private final IPFilteringN2NAuthenticator authenticator;
-    private final SSLService sslService;
+    private final @Nullable IPFilteringN2NAuthenticator authenticator;
+    private final @Nullable SSLService sslService;
 
     @Inject
     public NettySecuredHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
-                                           @Nullable IPFilteringN2NAuthenticator authenticator, @Nullable SSLService sslService) {
+                                           @Nullable IPFilteringN2NAuthenticator authenticator, Provider<SSLService> sslServiceProvider) {
         super(settings, networkService, bigArrays);
         this.authenticator = authenticator;
         this.ssl = settings.getAsBoolean("shield.http.ssl", false);
-        this.sslService = sslService;
-        assert !ssl || sslService != null : "ssl is enabled yet the ssl service is null";
         this.ipFilterEnabled = settings.getAsBoolean("shield.transport.filter.enabled", true);
+        this.sslService = ssl ? sslServiceProvider.get() : null;
     }
 
     @Override

@@ -62,14 +62,17 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
 
             Settings settings = ImmutableSettings.builder()
                     .put("watcher.interval.high", "2s")
-                    .put("shield.authc.esusers.files.users_roles", tmp.toAbsolutePath())
+                    .build();
+
+            Settings esusersSettings = ImmutableSettings.builder()
+                    .put("files.users_roles", tmp.toAbsolutePath())
                     .build();
 
             Environment env = new Environment(settings);
             threadPool = new ThreadPool("test");
             watcherService = new ResourceWatcherService(settings, threadPool);
             final CountDownLatch latch = new CountDownLatch(1);
-            FileUserRolesStore store = new FileUserRolesStore(settings, env, watcherService, new RefreshListener() {
+            FileUserRolesStore store = new FileUserRolesStore(esusersSettings, env, watcherService, new RefreshListener() {
                 @Override
                 public void onRefresh() {
                     latch.countDown();
@@ -114,13 +117,18 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
         try {
             threadPool = new ThreadPool("test");
             File usersRoles = writeUsersRoles("role1:admin");
+
             Settings settings = ImmutableSettings.builder()
                     .put("watcher.enabled", "false")
-                    .put("shield.authc.esusers.files.users_roles", usersRoles.toPath().toAbsolutePath())
                     .build();
+
+            Settings esusersSettings = ImmutableSettings.builder()
+                    .put("files.users_roles", usersRoles.toPath().toAbsolutePath())
+                    .build();
+
             Environment env = new Environment(settings);
             ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
-            FileUserRolesStore store = new FileUserRolesStore(settings, env, watcherService);
+            FileUserRolesStore store = new FileUserRolesStore(esusersSettings, env, watcherService);
             assertThat(store.roles("user"), equalTo(Strings.EMPTY_ARRAY));
         } finally {
             if (threadPool != null) {

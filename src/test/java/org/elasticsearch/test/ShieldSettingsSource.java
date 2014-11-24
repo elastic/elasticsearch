@@ -14,6 +14,7 @@ import org.elasticsearch.common.os.OsUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.signature.InternalSignatureService;
@@ -89,8 +90,9 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put(super.node(nodeOrdinal))
                 .put("shield.audit.enabled", RandomizedTest.randomBoolean())
                 .put(InternalSignatureService.FILE_SETTING, writeFile(folder, "system_key", systemKey))
-                .put("shield.authc.esusers.files.users", writeFile(folder, "users", configUsers()))
-                .put("shield.authc.esusers.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
+                .put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE)
+                .put("shield.authc.realms.esusers.files.users", writeFile(folder, "users", configUsers()))
+                .put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
                 .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRoles()))
                 .put(getNodeSSLSettings());
 

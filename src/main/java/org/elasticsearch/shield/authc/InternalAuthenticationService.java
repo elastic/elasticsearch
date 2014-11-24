@@ -30,7 +30,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     static final String TOKEN_KEY = "_shield_token";
     static final String USER_KEY = "_shield_user";
 
-    private final Realm[] realms;
+    private final Realms realms;
     private final AuditTrail auditTrail;
     private final SignatureService signatureService;
     private final boolean signUserHeader;
@@ -38,7 +38,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     @Inject
     public InternalAuthenticationService(Settings settings, Realms realms, AuditTrail auditTrail, SignatureService signatureService) {
         super(settings);
-        this.realms = realms.realms();
+        this.realms = realms;
         this.auditTrail = auditTrail;
         this.signatureService = signatureService;
         this.signUserHeader = componentSettings.getAsBoolean("sign_user_header", true);

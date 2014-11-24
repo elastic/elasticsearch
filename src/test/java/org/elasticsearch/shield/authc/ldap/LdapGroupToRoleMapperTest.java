@@ -55,7 +55,7 @@ public class LdapGroupToRoleMapperTest extends ElasticsearchTestCase {
     public void testYaml() throws IOException {
         File file = this.getResource("../support/ldap/role_mapping.yml");
         Settings settings = ImmutableSettings.settingsBuilder()
-                .put("shield.authc.ldap." + LdapGroupToRoleMapper.ROLE_MAPPING_FILE_SETTING, file.getCanonicalPath())
+                .put(LdapGroupToRoleMapper.ROLE_MAPPING_FILE_SETTING, file.getCanonicalPath())
                 .build();
 
         AbstractGroupToRoleMapper mapper = new LdapGroupToRoleMapper(settings,
@@ -71,7 +71,7 @@ public class LdapGroupToRoleMapperTest extends ElasticsearchTestCase {
     @Test
     public void testRelativeDN() {
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.ldap." + AbstractGroupToRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
+                .put(AbstractGroupToRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
                 .build();
 
         AbstractGroupToRoleMapper mapper = new LdapGroupToRoleMapper(settings,

@@ -7,7 +7,6 @@ package org.elasticsearch.shield.authc.active_directory;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldSettingsException;
@@ -31,7 +30,7 @@ import java.util.Hashtable;
  * user entry in Active Directory that matches the user name).  This eliminates the need for user templates, and simplifies
  * the configuration for windows admins that may not be familiar with LDAP concepts.
  */
-public class ActiveDirectoryConnectionFactory extends AbstractComponent implements ConnectionFactory {
+public class ActiveDirectoryConnectionFactory extends ConnectionFactory {
 
     public static final String AD_DOMAIN_NAME_SETTING = "domain_name";
     public static final String AD_USER_SEARCH_BASEDN_SETTING = "user_search_dn";
@@ -43,13 +42,13 @@ public class ActiveDirectoryConnectionFactory extends AbstractComponent implemen
     @Inject
     public ActiveDirectoryConnectionFactory(Settings settings) {
         super(settings);
-        domainName = componentSettings.get(AD_DOMAIN_NAME_SETTING);
+        domainName = settings.get(AD_DOMAIN_NAME_SETTING);
         if (domainName == null) {
             throw new ShieldSettingsException("Missing [" + AD_DOMAIN_NAME_SETTING + "] setting for active directory");
         }
-        userSearchDN = componentSettings.get(AD_USER_SEARCH_BASEDN_SETTING, buildDnFromDomain(domainName));
+        userSearchDN = settings.get(AD_USER_SEARCH_BASEDN_SETTING, buildDnFromDomain(domainName));
 
-        String[] ldapUrls = componentSettings.getAsArray(URLS_SETTING, new String[] { "ldaps://" + domainName + ":636" });
+        String[] ldapUrls = settings.getAsArray(URLS_SETTING, new String[] { "ldaps://" + domainName + ":636" });
 
         ImmutableMap.Builder<String, Serializable> builder = ImmutableMap.<String, Serializable>builder()
                 .put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory")

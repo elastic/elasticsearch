@@ -7,22 +7,17 @@ package org.elasticsearch.shield.authc.support;
 
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.UncheckedExecutionException;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationException;
-import org.elasticsearch.shield.authc.AuthenticationToken;
-import org.elasticsearch.shield.authc.Realm;
-import org.elasticsearch.transport.TransportMessage;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-public abstract class CachingUsernamePasswordRealm extends AbstractComponent implements Realm<UsernamePasswordToken> {
+public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm {
 
     private static final TimeValue DEFAULT_TTL = TimeValue.timeValueHours(1);
     private static final int DEFAULT_MAX_USERS = 100000; //100k users
@@ -30,13 +25,12 @@ public abstract class CachingUsernamePasswordRealm extends AbstractComponent imp
     public static final String CACHE_MAX_USERS = "cache.max_users";
 
     private final Cache<String, UserWithHash> cache;
-
     private final Hasher hasher;
 
-    protected CachingUsernamePasswordRealm(Settings settings) {
-        super(settings);
-        hasher = Hasher.resolve(componentSettings.get("cache.hash_algo", null), Hasher.SHA2);
-        TimeValue ttl = componentSettings.getAsTime(CACHE_TTL, DEFAULT_TTL);
+    protected CachingUsernamePasswordRealm(String type, String name, Settings settings) {
+        super(type, name, settings);
+        hasher = Hasher.resolve(settings.get("cache.hash_algo", null), Hasher.SHA2);
+        TimeValue ttl = settings.getAsTime(CACHE_TTL, DEFAULT_TTL);
         if (ttl.millis() > 0) {
             cache = CacheBuilder.newBuilder()
                     .expireAfterWrite(ttl.getMillis(), TimeUnit.MILLISECONDS)
@@ -45,21 +39,6 @@ public abstract class CachingUsernamePasswordRealm extends AbstractComponent imp
         } else {
             cache = null;
         }
-    }
-
-    @Override
-    public UsernamePasswordToken token(RestRequest request) {
-        return UsernamePasswordToken.extractToken(request, null);
-    }
-
-    @Override
-    public UsernamePasswordToken token(TransportMessage<?> message) {
-        return UsernamePasswordToken.extractToken(message, null);
-    }
-
-    @Override
-    public boolean supports(AuthenticationToken token) {
-        return token instanceof UsernamePasswordToken;
     }
 
     protected final void expire(String username) {

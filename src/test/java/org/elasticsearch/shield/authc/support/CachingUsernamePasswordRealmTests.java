@@ -68,24 +68,19 @@ public class CachingUsernamePasswordRealmTests extends ElasticsearchTestCase {
     static class FailingAuthenticationRealm extends CachingUsernamePasswordRealm {
 
         FailingAuthenticationRealm(Settings settings) {
-            super(settings);
+            super("failing", "failing-test", settings);
         }
 
         @Override
         protected User doAuthenticate(UsernamePasswordToken token) {
             return null;
         }
-
-        @Override
-        public String type() {
-            return "failing";
-        }
     }
 
     static class ThrowingAuthenticationRealm extends CachingUsernamePasswordRealm {
 
         ThrowingAuthenticationRealm(Settings settings) {
-            super(settings);
+            super("throwing", "throwing-test", settings);
         }
 
         @Override
@@ -93,10 +88,6 @@ public class CachingUsernamePasswordRealmTests extends ElasticsearchTestCase {
             throw new RuntimeException("whatever exception");
         }
 
-        @Override
-        public String type() {
-            return "throwing";
-        }
     }
 
     static class AlwaysAuthenticateCachingRealm extends CachingUsernamePasswordRealm {
@@ -104,18 +95,13 @@ public class CachingUsernamePasswordRealmTests extends ElasticsearchTestCase {
         public final AtomicInteger INVOCATION_COUNTER = new AtomicInteger(0);
 
         AlwaysAuthenticateCachingRealm() {
-            super(ImmutableSettings.EMPTY);
+            super("always", "always-test", ImmutableSettings.EMPTY);
         }
 
         @Override
         protected User doAuthenticate(UsernamePasswordToken token) {
             INVOCATION_COUNTER.incrementAndGet();
             return new User.Simple(token.principal(), "testRole1", "testRole2");
-        }
-
-        @Override
-        public String type() {
-            return "always";
         }
     }
 }

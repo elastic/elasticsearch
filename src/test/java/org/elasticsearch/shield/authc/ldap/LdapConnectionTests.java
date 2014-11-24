@@ -19,23 +19,21 @@ public class LdapConnectionTests extends LdapTest {
 
     @Test
     public void testBindWithTemplates() {
-        String[] ldapUrls = new String[]{ldapUrl()};
+        String[] ldapUrls = new String[] { ldapUrl() };
         String groupSearchBase = "o=sevenSeas";
-        boolean isSubTreeSearch = true;
-        String[] userTemplates = new String[]{
+        String[] userTemplates = new String[] {
                 "cn={0},ou=something,ou=obviously,ou=incorrect,o=sevenSeas",
                 "wrongname={0},ou=people,o=sevenSeas",
                 "cn={0},ou=people,o=sevenSeas", //this last one should work
         };
         LdapConnectionFactory connectionFactory = new LdapConnectionFactory(
-                buildLdapSettings(ldapUrls, userTemplates, groupSearchBase, isSubTreeSearch));
+                buildLdapSettings(ldapUrls, userTemplates, groupSearchBase, true));
 
         String user = "Horatio Hornblower";
         SecuredString userPass = SecuredStringTests.build("pass");
 
         try (LdapConnection ldap = connectionFactory.open(user, userPass)) {
             String dn = ldap.authenticatedUserDn();
-
             assertThat(dn, containsString(user));
             //assertThat( attrs.get("uid"), arrayContaining("hhornblo"));
         }
@@ -43,10 +41,10 @@ public class LdapConnectionTests extends LdapTest {
 
     @Test(expected = LdapException.class)
     public void testBindWithBogusTemplates() {
-        String[] ldapUrl = new String[]{ldapUrl()};
+        String[] ldapUrl = new String[] { ldapUrl() };
         String groupSearchBase = "o=sevenSeas";
         boolean isSubTreeSearch = true;
-        String[] userTemplates = new String[]{
+        String[] userTemplates = new String[] {
                 "cn={0},ou=something,ou=obviously,ou=incorrect,o=sevenSeas",
                 "wrongname={0},ou=people,o=sevenSeas",
                 "asdf={0},ou=people,o=sevenSeas", //none of these should work
@@ -65,9 +63,8 @@ public class LdapConnectionTests extends LdapTest {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
 
-        boolean isSubTreeSearch = true;
         LdapConnectionFactory ldapFac = new LdapConnectionFactory(
-                buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, isSubTreeSearch));
+                buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, true));
 
         String user = "Horatio Hornblower";
         SecuredString userPass = SecuredStringTests.build("pass");
@@ -82,9 +79,8 @@ public class LdapConnectionTests extends LdapTest {
     public void testGroupLookup_OneLevel() {
         String groupSearchBase = "ou=crews,ou=groups,o=sevenSeas";
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
-        boolean isSubTreeSearch = false;
         LdapConnectionFactory ldapFac = new LdapConnectionFactory(
-                buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, isSubTreeSearch));
+                buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, false));
 
         String user = "Horatio Hornblower";
         try (LdapConnection ldap = ldapFac.open(user, SecuredStringTests.build("pass"))) {

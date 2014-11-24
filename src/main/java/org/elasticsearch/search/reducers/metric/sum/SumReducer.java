@@ -84,7 +84,7 @@ public class SumReducer extends Reducer {
 
         double sum = 0;
         for (Object bucketValue : bucketProperties) {
-            sum += (double) bucketValue;
+            sum += ((Number) bucketValue).doubleValue();
         }
 
         return new InternalSum(name(), sum, metaData());
@@ -114,12 +114,14 @@ public class SumReducer extends Reducer {
         public void readFrom(StreamInput in) throws IOException {
             name = in.readString();
             bucketsPath = in.readString();
+            fieldName = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
             out.writeString(bucketsPath);
+            out.writeString(fieldName);
         }
         
     }

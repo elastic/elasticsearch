@@ -26,22 +26,33 @@ import java.io.IOException;
 
 public class SumBuilder extends ReductionBuilder<SumBuilder> {
 
-    private String path = null;
+    private String buckets = null;
+    private String field = null;
 
-    protected SumBuilder(String name) {
+    public SumBuilder(String name) {
         super(name, InternalSum.TYPE.name());
     }
 
-    public void path(String path) {
-        this.path = path;
+    public SumBuilder buckets(String buckets) {
+        this.buckets = buckets;
+        return this;
+    }
+
+    public SumBuilder field(String field) {
+        this.field = field;
+        return this;
     }
 
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        if (path != null) {
-            builder.field(SumParser.BUCKETS_FIELD.getPreferredName(), path);
+        if (buckets != null) {
+            builder.field(SumParser.BUCKETS_FIELD.getPreferredName(), buckets);
+        }
+
+        if (field != null) {
+            builder.field(SumParser.FIELD_NAME_FIELD.getPreferredName(), field);
         }
 
         builder.endObject();

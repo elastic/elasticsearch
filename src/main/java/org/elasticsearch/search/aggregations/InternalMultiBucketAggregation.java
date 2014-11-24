@@ -72,5 +72,9 @@ public abstract class InternalMultiBucketAggregation extends InternalAggregation
             }
             return aggregation.getProperty(path.subList(1, path.size()));
         }
+
+        private boolean isCountPath(List<String> path) {
+            return path.size() == 1 && path.get(0).equals("_count");
+        }
     }
 }

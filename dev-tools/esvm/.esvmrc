@@ -1,0 +1,77 @@
+{
+  "defaults": {
+    "plugins": [
+      "lmenezes/elasticsearch-kopf",
+      { "name": "shield", "path" : "file:../../target/releases/elasticsearch-shield-1.0.0-SNAPSHOT.zip" },
+      { "name": "license", "path" : "file:/Users/<user>/.m2/repository/org/elasticsearch/elasticsearch-license-plugin/1.0.0-beta1/elasticsearch-license-plugin-1.0.0-beta1.jar" }
+    ],
+    "config" : {
+      "cluster.name": "shield",
+      "indices.store.throttle.max_bytes_per_sec": "100mb",
+      "discovery": {
+        "type": "zen",
+        "zen.ping" : {
+          "multicast.enabled": false,
+          "unicast.hosts": [ "localhost:9300", "localhost:9301" ]
+        }
+      },
+      "shield": {
+        "enabled": true,
+        "system_key.file": ".esvm-shield-config/system_key",
+        "audit.enabled": true,
+        "transport.ssl": true,
+        "http.ssl": true,
+        "ssl.keystore": {
+          "path": "../../src/test/resources/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks",
+          "password": "testnode"
+        },
+        "authc.realms" : {
+          "esusers": {
+            "type" : "esusers",
+            "order" : 0,
+            "files" : {
+              "users" : ".esvm-shield-config/users",
+              "users_roles" : ".esvm-shield-config/users_roles"
+            }
+          }
+        },
+        "authz.store.files.roles" : ".esvm-shield-config/roles.yml"
+      }
+    }
+  },
+  "clusters": {
+    "shield": {
+      "version": "1.4"
+    },
+    "oldap": {
+      "version": "1.4",
+      "config": {
+        "shield.authc.realms.oldap": {
+          "type": "ldap",
+          "order": 1,
+          "url": "ldaps://54.200.235.244:636",
+          "user_dn_templates": ["uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com"],
+          "group_search.group_search_dn": "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com",
+          "group_search.subtree_search": false,
+          "unmapped_groups_as_roles": "false",
+          "files": {
+            "role_mapping": ".esvm-shield-config/role_mapping.yml"
+          }
+        }
+      }
+    },
+    "ad": {
+      "version": "1.4",
+      "config": {
+        "shield.authc.realms.ad": {
+          "type": "active_directory",
+          "order": 1,
+          "domain_name": "ad.test.elasticsearch.com",
+          "url": "ldaps://ad.test.elasticsearch.com:636",
+          "unmapped_groups_as_roles": "false",
+          "files": {"role_mapping": ".esvm-shield-config/role_mapping.yml"}
+        }
+      }
+    }
+  }
+}

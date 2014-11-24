@@ -70,7 +70,11 @@ public class RecoveryStatus extends AbstractRefCounted {
 
     private final CancellableThreads cancellableThreads = new CancellableThreads();
 
+    // last time this status was accessed
+    private volatile long lastAccessTime = System.nanoTime();
+
     public RecoveryStatus(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryState state, RecoveryTarget.RecoveryListener listener) {
+
         super("recovery_status");
         this.recoveryId = idGenerator.incrementAndGet();
         this.listener = listener;
@@ -111,6 +115,16 @@ public class RecoveryStatus extends AbstractRefCounted {
 
     public CancellableThreads CancellableThreads() {
         return cancellableThreads;
+    }
+
+    /** return the last time this RecoveryStatus was used (based on System.nanoTime() */
+    public long lastAccessTime() {
+        return lastAccessTime;
+    }
+
+    /** sets the lasAccessTime flag to now */
+    public void setLastAccessTime() {
+        lastAccessTime = System.nanoTime();
     }
 
     public Store store() {
@@ -219,31 +233,40 @@ public class RecoveryStatus extends AbstractRefCounted {
         return indexOutput;
     }
 
+    public void resetRecovery() throws IOException {
+        cleanOpenFiles();
+        indexShard().performRecoveryRestart();
+    }
+
     @Override
     protected void closeInternal() {
         try {
-            // clean open index outputs
-            Iterator<Entry<String, IndexOutput>> iterator = openIndexOutputs.entrySet().iterator();
-            while (iterator.hasNext()) {
-                Map.Entry<String, IndexOutput> entry = iterator.next();
-                logger.trace("closing IndexOutput file [{}]", entry.getValue());
-                try {
-                    entry.getValue().close();
-                } catch (Throwable t) {
-                    logger.debug("error while closing recovery output [{}]", t, entry.getValue());
-                }
-                iterator.remove();
-            }
-            // trash temporary files
-            for (String file : tempFileNames.keySet()) {
-                logger.trace("cleaning temporary file [{}]", file);
-                store.deleteQuiet(file);
-            }
-            legacyChecksums.clear();
+            cleanOpenFiles();
         } finally {
             // free store. increment happens in constructor
             store.decRef();
         }
+    }
+
+    protected void cleanOpenFiles() {
+        // clean open index outputs
+        Iterator<Entry<String, IndexOutput>> iterator = openIndexOutputs.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<String, IndexOutput> entry = iterator.next();
+            logger.trace("closing IndexOutput file [{}]", entry.getValue());
+            try {
+                entry.getValue().close();
+            } catch (Throwable t) {
+                logger.debug("error while closing recovery output [{}]", t, entry.getValue());
+            }
+            iterator.remove();
+        }
+        // trash temporary files
+        for (String file : tempFileNames.keySet()) {
+            logger.trace("cleaning temporary file [{}]", file);
+            store.deleteQuiet(file);
+        }
+        legacyChecksums.clear();
     }
 
     @Override

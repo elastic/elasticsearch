@@ -58,8 +58,6 @@ public class RecoverySource extends AbstractComponent {
 
     private final ClusterService clusterService;
 
-    private final TimeValue internalActionTimeout;
-    private final TimeValue internalActionLongTimeout;
     private final OngoingRecoveres ongoingRecoveries = new OngoingRecoveres();
 
 
@@ -83,8 +81,6 @@ public class RecoverySource extends AbstractComponent {
         this.recoverySettings = recoverySettings;
 
         transportService.registerHandler(Actions.START_RECOVERY, new StartRecoveryTransportRequestHandler());
-        this.internalActionTimeout = componentSettings.getAsTime("internal_action_timeout", TimeValue.timeValueMinutes(15));
-        this.internalActionLongTimeout = new TimeValue(internalActionTimeout.millis() * 2);
     }
 
     private RecoveryResponse recover(final StartRecoveryRequest request) {
@@ -117,8 +113,7 @@ public class RecoverySource extends AbstractComponent {
 
         logger.trace("[{}][{}] starting recovery to {}, mark_as_relocated {}", request.shardId().index().name(), request.shardId().id(), request.targetNode(), request.markAsRelocated());
 
-        final ShardRecoveryHandler handler = new ShardRecoveryHandler(shard, request, recoverySettings, transportService, internalActionTimeout,
-                internalActionLongTimeout, clusterService, indicesService, mappingUpdatedAction, logger);
+        final ShardRecoveryHandler handler = new ShardRecoveryHandler(shard, request, recoverySettings, transportService, clusterService, indicesService, mappingUpdatedAction, logger);
         ongoingRecoveries.add(shard, handler);
         try {
             shard.recover(handler);

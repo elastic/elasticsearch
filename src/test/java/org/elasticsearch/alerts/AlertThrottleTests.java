@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
@@ -39,7 +38,6 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0)
 public class AlertThrottleTests extends AbstractAlertingTests {
 
     @Test

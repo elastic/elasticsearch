@@ -34,7 +34,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -46,7 +45,6 @@ import static org.hamcrest.core.Is.is;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0, numDataNodes = 1)
 public class AlertActionsTest extends AbstractAlertingTests {
 
     @Test

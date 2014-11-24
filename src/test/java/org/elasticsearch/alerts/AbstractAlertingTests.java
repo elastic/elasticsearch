@@ -45,6 +45,7 @@ import static org.hamcrest.core.Is.is;
 
 /**
  */
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0)
 public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest {
 
     @Override

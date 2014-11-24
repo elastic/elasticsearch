@@ -15,7 +15,6 @@ import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -28,7 +27,6 @@ import static org.hamcrest.Matchers.is;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0)
 public class BasicAlertingTest extends AbstractAlertingTests {
 
     @Test

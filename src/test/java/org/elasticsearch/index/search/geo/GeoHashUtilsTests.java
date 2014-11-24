@@ -134,5 +134,20 @@ public class GeoHashUtilsTests extends ElasticsearchTestCase {
         neighbors = new ArrayList<>();
         GeoHashUtils.addNeighbors(geohash, neighbors );
         assertEquals(expectedNeighbors, neighbors);
+
+        // Border even and odd geohash
+        geohash = "ezzzz";
+        expectedNeighbors = new ArrayList<>();
+        expectedNeighbors.add("gbpbn");
+        expectedNeighbors.add("gbpbp");
+        expectedNeighbors.add("u0000");
+        expectedNeighbors.add("ezzzy");
+        expectedNeighbors.add("spbpb");
+        expectedNeighbors.add("ezzzw");
+        expectedNeighbors.add("ezzzx");
+        expectedNeighbors.add("spbp8");
+        neighbors = new ArrayList<>();
+        GeoHashUtils.addNeighbors(geohash, neighbors );
+        assertEquals(expectedNeighbors, neighbors);
     }
 }

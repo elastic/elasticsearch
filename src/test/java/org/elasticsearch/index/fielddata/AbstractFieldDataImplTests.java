@@ -209,7 +209,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         IndexFieldData indexFieldData = getForField("value");
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
         // Some impls (FST) return size 0 and some (PagedBytes) do take size in the case no actual data is loaded
-        assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
+        assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(Math.min(0, minRamBytesUsed())));
 
         SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
 

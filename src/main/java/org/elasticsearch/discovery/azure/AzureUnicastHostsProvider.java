@@ -53,6 +53,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
     private final AzureComputeService azureComputeService;
     private TransportService transportService;
     private NetworkService networkService;
+    private final Version version;
 
     private final TimeValue refreshInterval;
     private long lastRefresh;
@@ -62,11 +63,13 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
     @Inject
     public AzureUnicastHostsProvider(Settings settings, AzureComputeService azureComputeService,
                                    TransportService transportService,
-                                   NetworkService networkService) {
+                                   NetworkService networkService,
+                                   Version version) {
         super(settings);
         this.azureComputeService = azureComputeService;
         this.transportService = transportService;
         this.networkService = networkService;
+        this.version = version;
 
         this.refreshInterval = componentSettings.getAsTime(AzureComputeService.Fields.REFRESH,
                 settings.getAsTime("cloud.azure." + AzureComputeService.Fields.REFRESH, TimeValue.timeValueSeconds(0)));
@@ -139,7 +142,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                     TransportAddress[] addresses = transportService.addressesFromString(networkAddress);
                     // we only limit to 1 addresses, makes no sense to ping 100 ports
                     logger.trace("adding {}, transport_address {}", networkAddress, addresses[0]);
-                    cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + instance.getName(), addresses[0], Version.CURRENT));
+                    cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + instance.getName(), addresses[0], version.minimumCompatibilityVersion()));
                 }
 
             }

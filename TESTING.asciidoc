@@ -1,0 +1,40 @@
+[[Testing Framework Cheatsheet]]
+= Testing
+
+[partintro]
+
+Elasticsearch and Shield use jUnit for testing, they also use randomness
+in the tests, that can be set using a seed, please refer to the
+Elasticsearch TESTING.asciidoc cheatsheet to know all about it.
+
+Tests are executed with network transport and unicast discovery, as this is
+the configuration that's secured by shield.
+
+---------------------------------------------------------------------------
+
+== Testing the REST layer
+
+The available integration tests are specific for Shield functionalities
+and make use of the java API to communicate with the elasticsearch nodes,
+using the internal binary transport (port 9300 by default).
+Shield is also tested using the REST tests provided by Elasticsearch core,
+just by running those same tests against a cluster with Shield installed.
+
+The REST tests are not run automatically when executing the maven test
+command as they require some additional configuration. In order to run them
+you need to checkout the Elasticsearch core project and configure its
+location through system properties. Also, a blacklist is needed as some of
+the tests are known to fail against shield due to different behaviours
+introduced by the security plugin.
+
+---------------------------------------------------------------------------
+mvn clean test -Des.logger.level=TRACE -Dtests.class=*.ShieldRestTests
+-Dtests.rest=true
+-Dtests.rest.spec=/path/to/elasticsearch/rest-api-spec/api
+-Dtests.rest.suite=/path/to/elasticsearch/rest-api-spec/test
+-Dtests.rest.blacklist="indices.get/10_basic/*allow_no_indices*,cat.count/10_basic/Test cat count output,cat.aliases/10_basic/Empty cluster,indices.segments/10_basic/segments test,indices.clear_cache/10_basic/clear_cache test,indices.status/10_basic/Indices status test,cat.indices/10_basic/Test cat indices output,cat.recovery/10_basic/Test cat recovery output,cat.shards/10_basic/Test cat shards output"
+---------------------------------------------------------------------------
+
+`ShieldRestTests` is the executable test class that runs all the
+yaml suites available within the `rest-api-spec` folder.
+

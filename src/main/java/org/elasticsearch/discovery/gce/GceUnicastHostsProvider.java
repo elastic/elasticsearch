@@ -56,6 +56,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
     private TransportService transportService;
     private NetworkService networkService;
 
+    private final Version version;
     private final String project;
     private final String zone;
     private final String[] tags;
@@ -67,11 +68,13 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
     @Inject
     public GceUnicastHostsProvider(Settings settings, GceComputeService gceComputeService,
             TransportService transportService,
-            NetworkService networkService) {
+            NetworkService networkService,
+            Version version) {
         super(settings);
         this.gceComputeService = gceComputeService;
         this.transportService = transportService;
         this.networkService = networkService;
+        this.version = version;
 
         this.refreshInterval = componentSettings.getAsTime(Fields.REFRESH,
                 settings.getAsTime("cloud.gce." + Fields.REFRESH, TimeValue.timeValueSeconds(0)));
@@ -228,7 +231,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                         // we only limit to 1 addresses, makes no sense to ping 100 ports
                         logger.trace("adding {}, type {}, address {}, transport_address {}, status {}", name, type,
                                 ip_private, addresses[0], status);
-                        cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + name + "-" + 0, addresses[0], Version.CURRENT));
+                        cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + name + "-" + 0, addresses[0], version.minimumCompatibilityVersion()));
                     }
                 } catch (Exception e) {
                     logger.warn("failed to add {}, address {}", e, name, ip_private);

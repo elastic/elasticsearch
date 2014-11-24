@@ -17,14 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations;
+package org.elasticsearch.search.reducers;
 
 
 import org.elasticsearch.search.reducers.bucket.slidingwindow.SlidingWindowBuilder;
+import org.elasticsearch.search.reducers.bucket.union.UnionBuilder;
 
 public class ReducerBuilders {
 
     public static SlidingWindowBuilder slidingWindowReducer(String name) {
         return new SlidingWindowBuilder(name);
+    }
+
+    public static UnionBuilder unionReducer(String name) {
+        return new UnionBuilder(name);
     }
 }

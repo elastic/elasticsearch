@@ -55,7 +55,7 @@ public class UnpackingReducer extends BucketReducer {
     };
 
     public static void registerStreams() {
-        ReducerFactoryStreams.registerStream(STREAM, InternalUnion.TYPE.stream());
+        ReducerFactoryStreams.registerStream(STREAM, InternalUnpacking.TYPE.stream());
     }
 
     private String unpackPath;

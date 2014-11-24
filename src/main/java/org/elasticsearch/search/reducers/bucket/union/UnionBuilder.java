@@ -23,17 +23,19 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.reducers.ReductionBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class UnionBuilder extends ReductionBuilder<UnionBuilder> {
 
-    private String path = null;
+    private List<String> paths = new ArrayList<>();
 
     public UnionBuilder(String name) {
         super(name, InternalUnion.TYPE.name());
     }
 
     public UnionBuilder path(String path) {
-        this.path = path;
+        paths.add(path);
         return this;
     }
 
@@ -41,8 +43,12 @@ public class UnionBuilder extends ReductionBuilder<UnionBuilder> {
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        if (path != null) {
-            builder.field(UnionParser.BUCKETS_FIELD.getPreferredName(), path);
+        if (paths.size() != 0) {
+            builder.startArray(UnionParser.BUCKETS_FIELD.getPreferredName());
+            for (String path : paths) {
+                builder.value(path);
+            }
+            builder.endArray();
         }
 
         builder.endObject();

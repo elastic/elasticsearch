@@ -17,15 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.reducers;
+package org.elasticsearch.search.aggregations.reducers.bucket.union;
 
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.reducers.bucket.BucketReducerAggregation;
 import org.elasticsearch.search.reducers.bucket.slidingwindow.InternalSlidingWindow;
+import org.elasticsearch.search.reducers.bucket.union.InternalUnion;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -36,23 +38,27 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.elasticsearch.search.aggregations.ReducerBuilders.slidingWindowReducer;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.search.reducers.ReducerBuilders.unionReducer;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.core.Is.is;
 
-public class SlidingWindowTests extends ElasticsearchIntegrationTest {
+public class UnionReducerTests extends ElasticsearchIntegrationTest {
 
     @Test
-    public void testBasicSelection() throws IOException, ExecutionException, InterruptedException {
+    public void testBasicUnionOnOneAggregationReturnsSameStructure() throws IOException, ExecutionException, InterruptedException {
         indexData();
-        SearchResponse searchResponse = client().prepareSearch("index").addAggregation(histogram("histo").field("hist_field").interval(10)).addReducer(slidingWindowReducer("two_buckets").path("histo").windowSize(5)).get();
+        SearchResponse searchResponse = client().prepareSearch("index")
+                .addAggregation(histogram("histo").field("hist_field").interval(10).subAggregation(terms("labels").field("label_field")))
+                .addReducer(unionReducer("united_labels").path("histo")).get();
         assertSearchResponse(searchResponse);
         Aggregations reductions = searchResponse.getReductions();
-        Aggregation slidingWindow = reductions.getAsMap().get("two_buckets");
-        assertNotNull(slidingWindow);
-        assertTrue(slidingWindow instanceof InternalSlidingWindow);
-        for (BucketReducerAggregation.Selection window : ((InternalSlidingWindow) slidingWindow).getBuckets()) {
-            assertThat(window.getBuckets().size(), is(5));
+        Aggregation union = reductions.getAsMap().get("united_labels");
+        assertNotNull(union);
+        assertTrue(union instanceof InternalUnion);
+        for (BucketReducerAggregation.Selection reducerBucket : ((InternalUnion) union).getBuckets()) {
+            assertThat(reducerBucket.getBuckets().size(), is(1));
+            assertThat(((MultiBucketsAggregation)((reducerBucket.getBuckets().get(0).getAggregations())).get("labels")).getBuckets().size(), is(2));
         }
     }
 
@@ -62,6 +68,12 @@ public class SlidingWindowTests extends ElasticsearchIntegrationTest {
             indexRequests.add(client().prepareIndex("index", "type").setSource(jsonBuilder()
                     .startObject()
                     .field("hist_field", i)
+                    .field("label_field", "label" + Integer.toString(1))
+                    .endObject()));
+            indexRequests.add(client().prepareIndex("index", "type").setSource(jsonBuilder()
+                    .startObject()
+                    .field("hist_field", i)
+                    .field("label_field", "label" + Integer.toString(2))
                     .endObject()));
         }
         indexRandom(true, true, indexRequests);

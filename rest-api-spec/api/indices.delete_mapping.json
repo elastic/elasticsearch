@@ -1,6 +1,6 @@
 {
   "indices.delete_mapping": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.x/indices-delete-mapping.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.4/indices-delete-mapping.html",
     "methods": ["DELETE"],
     "url": {
       "path": "/{index}/{type}/_mapping",

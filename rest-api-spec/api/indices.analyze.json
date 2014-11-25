@@ -1,6 +1,6 @@
 {
   "indices.analyze": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.x/indices-analyze.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.4/indices-analyze.html",
     "methods": ["GET", "POST"],
     "url": {
       "path": "/_analyze",

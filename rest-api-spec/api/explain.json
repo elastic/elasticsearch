@@ -1,6 +1,6 @@
 {
   "explain": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.x/search-explain.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.4/search-explain.html",
     "methods": ["GET", "POST"],
     "url": {
       "path": "/{index}/{type}/{id}/_explain",

@@ -1,6 +1,6 @@
 {
   "exists": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.x/docs-get.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.4/docs-get.html",
     "methods": ["HEAD"],
     "url": {
       "path": "/{index}/{type}/{id}",

@@ -1,6 +1,6 @@
 {
   "indices.update_aliases": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.x/indices-aliases.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.4/indices-aliases.html",
     "methods": ["POST"],
     "url": {
       "path": "/_aliases",

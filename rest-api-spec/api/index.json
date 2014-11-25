@@ -1,6 +1,6 @@
 {
   "index": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.x/docs-index_.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.4/docs-index_.html",
     "methods": ["POST", "PUT"],
     "url": {
       "path": "/{index}/{type}",

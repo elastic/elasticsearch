@@ -1,6 +1,6 @@
 {
   "cluster.state": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.x/cluster-state.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.4/cluster-state.html",
     "methods": ["GET"],
     "url": {
       "path": "/_cluster/state",

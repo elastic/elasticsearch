@@ -1,6 +1,6 @@
 {
   "cluster.pending_tasks": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.x/cluster-pending.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.4/cluster-pending.html",
     "methods": ["GET"],
     "url": {
       "path": "/_cluster/pending_tasks",

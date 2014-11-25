@@ -1,6 +1,6 @@
 {
   "indices.create": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.x/indices-create-index.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.4/indices-create-index.html",
     "methods": ["PUT", "POST"],
     "url": {
       "path": "/{index}",

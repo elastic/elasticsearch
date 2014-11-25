@@ -1,6 +1,6 @@
 {
   "search": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.x/search-search.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.3/search-search.html",
     "methods": ["GET", "POST"],
     "url": {
       "path": "/_search",

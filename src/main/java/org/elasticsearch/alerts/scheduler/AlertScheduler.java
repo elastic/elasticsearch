@@ -101,19 +101,6 @@ public class AlertScheduler extends AbstractComponent {
     }
 
     /**
-     * Exists for testing purposes
-     */
-    public void clear() {
-        try {
-            if (scheduler != null) {
-                scheduler.clear();
-            }
-        } catch (SchedulerException se){
-            throw new ElasticsearchException("Failed to clear scheduler", se);
-        }
-    }
-
-    /**
      * Schedules the alert with the specified name to be fired according to the specified cron expression.
      */
     public void schedule(String alertName, String cronExpression) {

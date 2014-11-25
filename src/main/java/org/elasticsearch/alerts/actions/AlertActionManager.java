@@ -135,14 +135,6 @@ public class AlertActionManager extends AbstractComponent {
         return started.get();
     }
 
-    /**
-     * Exists for testing purposes.
-     */
-    public void restart() {
-        stop();
-        doStart();
-    }
-
     private void doStart() {
         logger.info("Starting job queue");
         if (started.compareAndSet(false, true)) {

@@ -63,11 +63,13 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
     }
 
     @After
-    public void clearAlerts() {
-        // Clear all internal state. Use manager directly because perhaps there isn't an elected master at this point
-        for (AlertManager manager : internalTestCluster().getInstances(AlertManager.class)) {
-            manager.clear();
-        }
+    public void clearAlerts() throws Exception {
+        // Clear all internal alerting state for the next test method:
+        stopAlerting();
+        client().admin().indices().prepareDelete(AlertsStore.ALERT_INDEX, AlertActionManager.ALERT_HISTORY_INDEX)
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .get();
+        startAlerting();
     }
 
     protected BytesReference createAlertSource(String cron, SearchRequest request, String scriptTrigger) throws IOException {

@@ -215,15 +215,6 @@ public class AlertManager extends AbstractComponent {
         internalStop();
     }
 
-    /**
-     * For testing only to clear the alerts and actions between tests.
-     */
-    public void clear() {
-        actionManager.restart();
-        scheduler.clear();
-        alertsStore.clear();
-    }
-
     private void internalStop() {
         if (state.compareAndSet(State.STARTED, State.STOPPING)) {
             logger.info("Stopping alert manager...");

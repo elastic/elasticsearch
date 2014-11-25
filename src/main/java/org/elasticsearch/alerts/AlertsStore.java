@@ -140,13 +140,6 @@ public class AlertsStore extends AbstractComponent {
         return deleteResponse;
     }
 
-    /**
-     * Exists for testing purposes
-     */
-    public void clear() {
-        alertMap.clear();
-    }
-
     public ConcurrentMap<String, Alert> getAlerts() {
         return alertMap;
     }
@@ -187,7 +180,7 @@ public class AlertsStore extends AbstractComponent {
 
     public void stop() {
         if (started.compareAndSet(true, false)) {
-            clear();
+            alertMap.clear();
             logger.info("Stopped alert store");
         }
     }

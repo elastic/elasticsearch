@@ -19,10 +19,7 @@ import org.quartz.*;
 import org.quartz.impl.StdSchedulerFactory;
 import org.quartz.simpl.SimpleJobFactory;
 
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
+import java.util.*;
 
 public class AlertScheduler extends AbstractComponent {
 
@@ -60,9 +57,11 @@ public class AlertScheduler extends AbstractComponent {
             SchedulerFactory schFactory = new StdSchedulerFactory(properties);
             scheduler = schFactory.getScheduler();
             scheduler.setJobFactory(new SimpleJobFactory());
+            Map<JobDetail, Set<? extends Trigger>> jobs = new HashMap<>();
             for (Map.Entry<String, Alert> entry : alerts.entrySet()) {
-                schedule(entry.getKey(), entry.getValue().schedule());
+                jobs.put(createJobDetail(entry.getKey()), createTrigger(entry.getValue().schedule()));
             }
+            scheduler.scheduleJobs(jobs, false);
             scheduler.start();
         } catch (SchedulerException se){
             logger.error("Failed to start quartz scheduler", se);
@@ -104,20 +103,25 @@ public class AlertScheduler extends AbstractComponent {
      * Schedules the alert with the specified name to be fired according to the specified cron expression.
      */
     public void schedule(String alertName, String cronExpression) {
-        JobDetail job = JobBuilder.newJob(AlertExecutorJob.class).withIdentity(alertName).build();
-        job.getJobDataMap().put("manager", this);
-        CronTrigger cronTrigger = TriggerBuilder.newTrigger()
-                .withSchedule(CronScheduleBuilder.cronSchedule(cronExpression))
-                .build();
         try {
             logger.trace("Scheduling [{}] with schedule [{}]", alertName, cronExpression);
-            Set<CronTrigger> triggers = new HashSet<>();
-            triggers.add(cronTrigger);
-            scheduler.scheduleJob(job, triggers, true);
+            scheduler.scheduleJob(createJobDetail(alertName), createTrigger(cronExpression), true);
         } catch (SchedulerException se) {
             logger.error("Failed to schedule job",se);
             throw new ElasticsearchException("Failed to schedule job", se);
         }
+    }
+
+    private Set<CronTrigger> createTrigger(String cronExpression) {
+        return new HashSet<>(Arrays.asList(
+                TriggerBuilder.newTrigger().withSchedule(CronScheduleBuilder.cronSchedule(cronExpression)).build()
+        ));
+    }
+
+    private JobDetail createJobDetail(String alertName) {
+        JobDetail job = JobBuilder.newJob(AlertExecutorJob.class).withIdentity(alertName).build();
+        job.getJobDataMap().put("manager", this);
+        return job;
     }
 
     // This Quartz thread pool will always accept. On this thread we will only index an alert action and add it to the work queue

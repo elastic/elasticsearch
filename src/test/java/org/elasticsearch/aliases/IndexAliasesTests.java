@@ -58,6 +58,7 @@ import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.CollectionAssertions.hasKey;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -893,12 +894,12 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
     @Test
     public void testCreateIndexWithAliasesInSource() throws Exception {
         assertAcked(prepareCreate("test").setSource("{\n" +
-                        "    \"aliases\" : {\n" +
-                        "        \"alias1\" : {},\n" +
-                        "        \"alias2\" : {\"filter\" : {\"match_all\": {}}},\n" +
-                        "        \"alias3\" : { \"index_routing\" : \"index\", \"search_routing\" : \"search\"}\n" +
-                        "    }\n" +
-                        "}"));
+                "    \"aliases\" : {\n" +
+                "        \"alias1\" : {},\n" +
+                "        \"alias2\" : {\"filter\" : {\"match_all\": {}}},\n" +
+                "        \"alias3\" : { \"index_routing\" : \"index\", \"search_routing\" : \"search\"}\n" +
+                "    }\n" +
+                "}"));
 
         checkAliases();
     }
@@ -985,7 +986,17 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
             }
         }
     }
-    
+
+    @Test
+    public void testAliasesFilterWithHasChildQuery() throws Exception {
+        assertAcked(prepareCreate("my-index")
+                .addMapping("parent")
+                .addMapping("child", "_parent", "type=parent")
+        );
+        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter1", hasChildFilter("child", matchAllQuery())));
+        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter2", hasParentFilter("child", matchAllQuery())));
+    }
+
     private void checkAliases() {
         GetAliasesResponse getAliasesResponse = admin().indices().prepareGetAliases("alias1").get();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));

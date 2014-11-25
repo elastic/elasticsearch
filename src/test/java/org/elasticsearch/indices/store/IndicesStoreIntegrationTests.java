@@ -36,7 +36,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.nio.file.Files;
@@ -166,7 +165,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
 
     private Path shardDirectory(String server, String index, int shard) {
         NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, server);
-        return env.shardPaths(new ShardId(index, shard))[0];
+        return env.shardPaths(new ShardId(index, shard), ImmutableSettings.EMPTY)[0];
     }
 
     private boolean waitForShardDeletion(final String server, final  String index, final int shard) throws InterruptedException {

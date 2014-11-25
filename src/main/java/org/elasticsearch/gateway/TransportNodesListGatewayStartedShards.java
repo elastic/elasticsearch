@@ -27,11 +27,13 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.*;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -117,7 +119,10 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
     @Override
     protected NodeGatewayStartedShards nodeOperation(NodeRequest request) throws ElasticsearchException {
         try {
-            ShardStateInfo shardStateInfo = shardsState.loadShardInfo(request.shardId);
+            ShardId shardId = request.shardId;
+            IndexMetaData indexMetaData = clusterService.state().getMetaData().indices().get(shardId.getIndex());
+            Settings indexSettings = indexMetaData == null ? ImmutableSettings.EMPTY : indexMetaData.settings();
+            ShardStateInfo shardStateInfo = shardsState.loadShardInfo(request.shardId, indexSettings);
             if (shardStateInfo != null) {
                 return new NodeGatewayStartedShards(clusterService.localNode(), shardStateInfo.version);
             }

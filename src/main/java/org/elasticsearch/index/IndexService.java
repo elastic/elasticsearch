@@ -245,7 +245,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         if (closed.compareAndSet(false, true)) {
             final Set<Integer> shardIds = shardIds();
             final IndicesService.IndexCloseListener innerListener = listener == null ? null :
-                    new PerShardIndexCloseListener(shardIds, listener);
+                    new PerShardIndexCloseListener(shardIds, settingsService.getSettings(), listener);
             for (final int shardId : shardIds) {
                 try {
                     removeShard(shardId, reason, innerListener);
@@ -448,7 +448,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                     store.close(new Store.OnCloseListener() {
                         @Override
                         public void onClose(ShardId shardId) {
-                            listener.onShardClosed(shardId);
+                            listener.onShardClosed(shardId, settingsService.getSettings());
                         }
                     });
                 }
@@ -460,7 +460,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             logger.debug("[{}] closed (reason: [{}])", shardId, reason);
         } catch (Throwable t) {
             if (listenerPassed == false && listener != null) { // only notify if the listener wasn't passed to the store
-                listener.onShardCloseFailed(sId, t);
+                listener.onShardCloseFailed(sId, settingsService.getSettings(), t);
             }
             throw t;
         }
@@ -472,37 +472,40 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         final List<Throwable> failures;
         private final Set<Integer> shardIds;
         private final IndicesService.IndexCloseListener listener;
+        private final Settings indexSettings;
 
-        public PerShardIndexCloseListener(Set<Integer> shardIds, IndicesService.IndexCloseListener listener) {
+        public PerShardIndexCloseListener(Set<Integer> shardIds, @IndexSettings Settings indexSettings,
+                                          IndicesService.IndexCloseListener listener) {
             this.shardIds = shardIds;
             this.listener = listener;
             countDown = new CountDown(shardIds.size());
             failures = new CopyOnWriteArrayList<>();
+            this.indexSettings = indexSettings;
         }
 
         @Override
-        public void onAllShardsClosed(Index index, List<Throwable> failures) {
+        public void onAllShardsClosed(Index index, @IndexSettings Settings indexSettings, List<Throwable> failures) {
             assert false : "nobody should call this";
         }
 
         @Override
-        public void onShardClosed(ShardId shardId) {
+        public void onShardClosed(ShardId shardId, @IndexSettings Settings indexSettings) {
             assert countDown.isCountedDown() == false;
             assert shardIds.contains(shardId.getId()) : "Unknown shard id";
-            listener.onShardClosed(shardId);
+            listener.onShardClosed(shardId, indexSettings);
             if (countDown.countDown()) {
-                listener.onAllShardsClosed(shardId.index(), failures);
+                listener.onAllShardsClosed(shardId.index(), indexSettings, failures);
             }
         }
 
         @Override
-        public void onShardCloseFailed(ShardId shardId, Throwable t) {
+        public void onShardCloseFailed(ShardId shardId, @IndexSettings Settings indexSettings, Throwable t) {
             assert countDown.isCountedDown() == false;
             assert shardIds.contains(shardId.getId()) : "Unknown shard id";
-            listener.onShardCloseFailed(shardId, t);
+            listener.onShardCloseFailed(shardId, indexSettings, t);
             failures.add(t);
             if (countDown.countDown()) {
-                listener.onAllShardsClosed(shardId.index(), failures);
+                listener.onAllShardsClosed(shardId.index(), indexSettings, failures);
             }
         }
     }

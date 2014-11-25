@@ -500,7 +500,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
         logger.info("--> verifying no temporary recoveries are left");
         for (String node : internalCluster().getNodeNames()) {
             NodeEnvironment nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, node);
-            for (final Path shardLoc : nodeEnvironment.shardPaths(new ShardId(indexName, 0))) {
+            for (final Path shardLoc : nodeEnvironment.shardPaths(new ShardId(indexName, 0), ImmutableSettings.EMPTY)) {
                 assertBusy(new Runnable() {
                     @Override
                     public void run() {

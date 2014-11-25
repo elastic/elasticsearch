@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.scroll;
 
+import com.google.common.base.Predicate;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
@@ -108,7 +109,6 @@ public class SearchScrollWithFailingNodesTests extends ElasticsearchIntegrationT
             assertThat(searchResponse.getSuccessfulShards(), equalTo(numberOfSuccessfulShards));
         } while (searchResponse.getHits().hits().length > 0);
         assertThat(numHits, greaterThan(0l));
-        clearScroll("_all");
     }
 
 }

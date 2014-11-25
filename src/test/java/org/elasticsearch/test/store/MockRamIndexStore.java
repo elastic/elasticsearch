@@ -21,8 +21,10 @@ package org.elasticsearch.test.store;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.support.AbstractIndexStore;
 import org.elasticsearch.indices.store.IndicesStore;
@@ -30,8 +32,9 @@ import org.elasticsearch.indices.store.IndicesStore;
 public class MockRamIndexStore extends AbstractIndexStore{
 
     @Inject
-    public MockRamIndexStore(Index index, Settings indexSettings, IndexService indexService, IndicesStore indicesStore) {
-        super(index, indexSettings, indexService, indicesStore);
+    public MockRamIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService,
+                             IndicesStore indicesStore, NodeEnvironment nodeEnv) {
+        super(index, indexSettings, indexService, indicesStore, nodeEnv);
     }
 
     @Override

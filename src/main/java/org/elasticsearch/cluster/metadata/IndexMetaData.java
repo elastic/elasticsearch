@@ -163,6 +163,7 @@ public class IndexMetaData {
     public static final String SETTING_VERSION_CREATED = "index.version.created";
     public static final String SETTING_CREATION_DATE = "index.creation_date";
     public static final String SETTING_UUID = "index.uuid";
+    public static final String SETTING_DATA_PATH = "index.data_path";
     public static final String INDEX_UUID_NA_VALUE = "_na_";
 
     private final String index;

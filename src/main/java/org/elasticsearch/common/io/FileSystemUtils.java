@@ -19,12 +19,10 @@
 
 package org.elasticsearch.common.io;
 
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.common.logging.ESLogger;
 
 import java.io.File;
-import java.io.FileFilter;
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -72,6 +70,18 @@ public class FileSystemUtils {
     public static boolean exists(File... files) {
         for (File file : files) {
             if (file.exists()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns <code>true</code> iff one of the files exists otherwise <code>false</code>
+     */
+    public static boolean exists(Path... files) {
+        for (Path file : files) {
+            if (Files.exists(file)) {
                 return true;
             }
         }

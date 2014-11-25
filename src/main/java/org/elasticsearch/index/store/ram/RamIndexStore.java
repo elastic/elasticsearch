@@ -21,6 +21,7 @@ package org.elasticsearch.index.store.ram;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -34,8 +35,8 @@ import org.elasticsearch.indices.store.IndicesStore;
 public class RamIndexStore extends AbstractIndexStore {
 
     @Inject
-    public RamIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, IndicesStore indicesStore) {
-        super(index, indexSettings, indexService, indicesStore);
+    public RamIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, IndicesStore indicesStore, NodeEnvironment nodeEnv) {
+        super(index, indexSettings, indexService, indicesStore, nodeEnv);
     }
 
     @Override

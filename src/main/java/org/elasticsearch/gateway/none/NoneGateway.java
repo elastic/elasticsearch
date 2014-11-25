@@ -115,7 +115,7 @@ public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements 
                     logger.debug("[{}] deleting index that is no longer part of the metadata (indices: [{}])", current.index(), newMetaData.indices().keys());
                     if (nodeEnv.hasNodeFile()) {
                         try {
-                            nodeEnv.deleteIndexDirectorySafe(new Index(current.index()), 30000);
+                            nodeEnv.deleteIndexDirectorySafe(new Index(current.index()), 30000, current.settings());
                         } catch (Exception ex) {
                             logger.debug("failed to delete shard locations", ex);
                         }

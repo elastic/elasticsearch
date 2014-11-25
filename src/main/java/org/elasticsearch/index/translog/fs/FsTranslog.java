@@ -30,16 +30,21 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.*;
+import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogException;
+import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.index.translog.TranslogStreams;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -81,15 +86,16 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     private final ApplySettings applySettings = new ApplySettings();
 
     @Inject
-    public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, NodeEnvironment nodeEnv, BigArrays bigArrays) {
+    public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService,
+                      BigArrays bigArrays, IndexStore indexStore) throws IOException {
         super(shardId, indexSettings);
         this.indexSettingsService = indexSettingsService;
         this.bigArrays = bigArrays;
-        File[] shardLocations = nodeEnv.shardLocations(shardId);
-        this.locations = new File[shardLocations.length];
-        for (int i = 0; i < shardLocations.length; i++) {
-            locations[i] = new File(shardLocations[i], "translog");
-            FileSystemUtils.mkdirs(locations[i]);
+        Path[] translogLocations = indexStore.shardTranslogLocations(shardId);
+        locations = new File[translogLocations.length];
+        for (int i = 0; i < translogLocations.length; i++) {
+            Files.createDirectories(translogLocations[i]);
+            locations[i] = translogLocations[i].toFile();
         }
 
         this.type = FsTranslogFile.Type.fromString(componentSettings.get("type", FsTranslogFile.Type.BUFFERED.name()));

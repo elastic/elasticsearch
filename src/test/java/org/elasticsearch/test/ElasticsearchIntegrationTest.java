@@ -59,6 +59,7 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
@@ -748,6 +749,12 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             if (numberOfReplicas >= 0) {
                 builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
             }
+        }
+        // 30% of the time
+        if (randomInt(9) < 3) {
+            String dataPath = "data/custom-" + CHILD_JVM_ID + "/" + UUID.randomUUID().toString();
+            logger.info("using custom data_path for index: [{}]", dataPath);
+            builder.put(IndexMetaData.SETTING_DATA_PATH, dataPath);
         }
         return builder.build();
     }

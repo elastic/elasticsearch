@@ -21,7 +21,6 @@ package org.elasticsearch.index.store.fs;
 
 import org.apache.lucene.store.*;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -34,6 +33,8 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InterruptedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  */
@@ -107,11 +108,11 @@ public abstract class FsDirectoryService extends DirectoryService implements Sto
 
     @Override
     public Directory[] build() throws IOException {
-        File[] locations = indexStore.shardIndexLocations(shardId);
+        Path[] locations = indexStore.shardIndexLocations(shardId);
         Directory[] dirs = new Directory[locations.length];
         for (int i = 0; i < dirs.length; i++) {
-            FileSystemUtils.mkdirs(locations[i]);
-            Directory wrapped = newFSDirectory(locations[i], buildLockFactory());
+            Files.createDirectories(locations[i]);
+            Directory wrapped = newFSDirectory(locations[i].toFile(), buildLockFactory());
             dirs[i] = new RateLimitedFSDirectory(wrapped, this, this) ;
         }
         return dirs;

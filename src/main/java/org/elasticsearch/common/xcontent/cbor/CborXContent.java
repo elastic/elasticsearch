@@ -21,8 +21,6 @@ package org.elasticsearch.common.xcontent.cbor;
 
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
-import com.fasterxml.jackson.dataformat.cbor.CBORGenerator;
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
@@ -45,8 +43,6 @@ public class CborXContent implements XContent {
     static {
         cborFactory = new CBORFactory();
         cborFactory.configure(CBORFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
-        // Enable prefixing the entire byte stream with a CBOR header ("tag")
-        cborFactory.configure(CBORGenerator.Feature.WRITE_TYPE_HEADER, true);
         cborXContent = new CborXContent();
     }
 

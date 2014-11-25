@@ -157,9 +157,9 @@ public class XContentFactory {
             return XContentType.YAML;
         }
 
-        // CBOR is not supported because it is a binary-only format
+        // CBOR is not supported
 
-        for (int i = 1; i < length; i++) {
+        for (int i = 0; i < length; i++) {
             char c = content.charAt(i);
             if (c == '{') {
                 return XContentType.JSON;
@@ -208,48 +208,41 @@ public class XContentFactory {
      * Guesses the content type based on the provided input stream.
      */
     public static XContentType xContentType(InputStream si) throws IOException {
-        // Need minimum of 3 bytes for everything (except really JSON)
         int first = si.read();
-        int second = si.read();
-        int third = si.read();
-
-        // Cannot short circuit based on third (or later fourth) because "{}" is valid JSON
-        if (first == -1 || second == -1) {
+        if (first == -1) {
             return null;
         }
-
-        if (first == SmileConstants.HEADER_BYTE_1 && second == SmileConstants.HEADER_BYTE_2 &&
-            third == SmileConstants.HEADER_BYTE_3) {
-            return XContentType.SMILE;
+        int second = si.read();
+        if (second == -1) {
+            return null;
         }
-        if (first == '-' && second == '-' && third == '-') {
-            return XContentType.YAML;
+        if (first == SmileConstants.HEADER_BYTE_1 && second == SmileConstants.HEADER_BYTE_2) {
+            int third = si.read();
+            if (third == SmileConstants.HEADER_BYTE_3) {
+                return XContentType.SMILE;
+            }
         }
-
-        // Need 4 bytes for CBOR
-        int fourth = si.read();
-
-        if (first == '{' || second == '{' || third == '{' || fourth == '{') {
+        if (first == '{' || second == '{') {
             return XContentType.JSON;
         }
-
-        // ensure that we don't only have two or three bytes (definitely not CBOR and everything else was checked)
-        if (third != -1 && fourth != -1) {
-            if (isCBORObjectHeader((byte)first, (byte)second, (byte)third, (byte)fourth)) {
-                return XContentType.CBOR;
-            }
-
-            for (int i = 4; i < GUESS_HEADER_LENGTH; i++) {
-                int val = si.read();
-                if (val == -1) {
-                    return null;
-                }
-                if (val == '{') {
-                    return XContentType.JSON;
-                }
+        if (first == '-' && second == '-') {
+            int third = si.read();
+            if (third == '-') {
+                return XContentType.YAML;
             }
         }
-
+        if (first == (CBORConstants.BYTE_OBJECT_INDEFINITE & 0xff)){
+            return XContentType.CBOR;
+        }
+        for (int i = 2; i < GUESS_HEADER_LENGTH; i++) {
+            int val = si.read();
+            if (val == -1) {
+                return null;
+            }
+            if (val == '{') {
+                return XContentType.JSON;
+            }
+        }
         return null;
     }
 
@@ -280,53 +273,20 @@ public class XContentFactory {
         if (first == '{') {
             return XContentType.JSON;
         }
-        if (length > 2) {
-            byte second = bytes.get(1);
-            byte third = bytes.get(2);
-
-            if (first == SmileConstants.HEADER_BYTE_1 && second == SmileConstants.HEADER_BYTE_2 && third == SmileConstants.HEADER_BYTE_3) {
-                return XContentType.SMILE;
-            }
-            if (first == '-' && second == '-' && third == '-') {
-                return XContentType.YAML;
-            }
-            if (length > 3 && isCBORObjectHeader(first, second, third, bytes.get(3))) {
-                return XContentType.CBOR;
-            }
-            // note: technically this only needs length >= 2, but if the string is just " {", then it's not JSON, but
-            //  " {}" is JSON (3 characters)
-            for (int i = 1; i < length; i++) {
-                if (bytes.get(i) == '{') {
-                    return XContentType.JSON;
-                }
+        if (length > 2 && first == SmileConstants.HEADER_BYTE_1 && bytes.get(1) == SmileConstants.HEADER_BYTE_2 && bytes.get(2) == SmileConstants.HEADER_BYTE_3) {
+            return XContentType.SMILE;
+        }
+        if (length > 2 && first == '-' && bytes.get(1) == '-' && bytes.get(2) == '-') {
+            return XContentType.YAML;
+        }
+        if (first == CBORConstants.BYTE_OBJECT_INDEFINITE){
+            return XContentType.CBOR;
+        }
+        for (int i = 0; i < length; i++) {
+            if (bytes.get(i) == '{') {
+                return XContentType.JSON;
             }
         }
         return null;
-    }
-
-    /**
-     * Determine if the specified bytes represent a CBOR encoded stream.
-     * <p />
-     * This performs two checks to verify that it is indeed valid/usable CBOR data:
-     * <ol>
-     * <li>Checks the first three bytes for the
-     * {@link CBORConstants#TAG_ID_SELF_DESCRIBE self-identifying CBOR tag (header)}</li>
-     * <li>Checks that the fourth byte represents a major type that is an object, as opposed to some other type (e.g.,
-     * text)</li>
-     * </ol>
-     *
-     * @param first The first byte of the header
-     * @param second The second byte of the header
-     * @param third The third byte of the header
-     * @param fourth The fourth byte represents the <em>first</em> byte of the CBOR data, indicating the data's type
-     *
-     * @return {@code true} if a CBOR byte stream is detected. {@code false} otherwise.
-     */
-    private static boolean isCBORObjectHeader(byte first, byte second, byte third, byte fourth) {
-        // Determine if it uses the ID TAG (0xd9f7), then see if it starts with an object (equivalent to
-        //  checking in JSON if it starts with '{')
-        return CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_TAG, first) &&
-               (((second << 8) & 0xff00) | (third & 0xff)) == CBORConstants.TAG_ID_SELF_DESCRIBE &&
-               CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_OBJECT, fourth);
     }
 }

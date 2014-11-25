@@ -35,7 +35,9 @@ public final class QueryParserUtils {
     public static void ensureNotDeleteByQuery(String name, QueryParseContext parseContext) {
         SearchContext context = SearchContext.current();
         if (context == null) {
-            throw new QueryParsingException(parseContext.index(), "[" + name + "] query and filter requires a search context");
+            // We can't do the api check, because there is no search context.
+            // Because the delete by query shard transport action sets the search context this isn't an issue.
+            return;
         }
 
         if (TransportShardDeleteByQueryAction.DELETE_BY_QUERY_API.equals(context.source())) {

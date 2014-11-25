@@ -36,6 +36,7 @@ import java.util.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
@@ -275,11 +276,16 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
             // First manually stop alerting on non elected master node, this will prevent that alerting becomes active
             // on these nodes
             for (String node : nodes) {
-                _testCluster.getInstance(AlertManager.class, node).stop();
+                AlertManager alertManager = _testCluster.getInstance(AlertManager.class, node);
+                assertThat(alertManager.getState(), equalTo(State.STOPPED));
+                alertManager.stop(); // Prevents these nodes from starting alerting when new elected master node is picked.
             }
 
             // Then stop alerting on elected master node and wait until alerting has stopped on it.
             AlertManager alertManager = _testCluster.getInstance(AlertManager.class, masterNode);
+            if (alertManager.getState() == State.STARTING) {
+                while (alertManager.getState() != State.STARTED) {}
+            }
             alertManager.stop();
             while (alertManager.getState() != State.STOPPED) {}
 

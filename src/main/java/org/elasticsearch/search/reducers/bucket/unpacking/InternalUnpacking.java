@@ -27,6 +27,7 @@ import org.elasticsearch.search.reducers.bucket.InternalBucketReducerAggregation
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 public class InternalUnpacking extends InternalBucketReducerAggregation implements Unpacking {
 
@@ -65,8 +66,8 @@ public class InternalUnpacking extends InternalBucketReducerAggregation implemen
         super();
     }
 
-    public InternalUnpacking(String name, List<InternalSelection> selections) {
-        super(name, selections);
+    public InternalUnpacking(String name, List<InternalSelection> selections, Map<String, Object> metaData) {
+        super(name, selections, metaData);
     }
 
     @Override

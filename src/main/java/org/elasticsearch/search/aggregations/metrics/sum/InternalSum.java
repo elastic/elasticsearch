@@ -53,7 +53,7 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
 
     InternalSum() {} // for serialization
 
-    InternalSum(String name, double sum, Map<String, Object> metaData){
+    protected InternalSum(String name, double sum, Map<String, Object> metaData) {
         super(name, metaData);
         this.sum = sum;
     }

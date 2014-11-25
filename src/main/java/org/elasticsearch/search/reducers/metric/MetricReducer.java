@@ -27,10 +27,12 @@ import org.elasticsearch.search.reducers.ReducerContext;
 import org.elasticsearch.search.reducers.ReducerFactories;
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 
+import java.util.Map;
+
 public abstract class MetricReducer extends Reducer {
 
-    public MetricReducer(String name, ReducerFactories factories, ReducerContext context, Reducer parent) {
-        super(name, factories, context, parent);
+    public MetricReducer(String name, ReducerFactories factories, ReducerContext context, Reducer parent, Map<String, Object> metaData) {
+        super(name, factories, context, parent, metaData);
     }
     
     @Override

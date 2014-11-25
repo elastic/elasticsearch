@@ -23,11 +23,13 @@ package org.elasticsearch.search.reducers.metric.max;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 
+import java.util.Map;
+
 
 public class InternalMax extends org.elasticsearch.search.aggregations.metrics.max.InternalMax implements Max {
 
-    public InternalMax(String name, double maxValue) {
-        super(name, maxValue);
+    public InternalMax(String name, double maxValue, Map<String, Object> metaData) {
+        super(name, maxValue, metaData);
     }
 
     @Override

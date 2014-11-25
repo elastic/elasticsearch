@@ -33,6 +33,7 @@ import org.elasticsearch.search.reducers.ReducerFactoryStreams;
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class StatsReducer extends Reducer {
 
@@ -51,8 +52,9 @@ public class StatsReducer extends Reducer {
         ReducerFactoryStreams.registerStream(STREAM, InternalStats.TYPE.stream());
     }
 
-    public StatsReducer(String name, String bucketsPath, String fieldName, ReducerFactories factories, ReducerContext context, Reducer parent) {
-        super(name, factories, context, parent);
+    public StatsReducer(String name, String bucketsPath, String fieldName, ReducerFactories factories, ReducerContext context,
+            Reducer parent, Map<String, Object> metaData) {
+        super(name, factories, context, parent, metaData);
         this.bucketsPath = bucketsPath;
         this.fieldName = fieldName;
     }
@@ -94,7 +96,7 @@ public class StatsReducer extends Reducer {
             }
         }
 
-        return new InternalStats(name(), bucketProperties.length, sum, min, max);
+        return new InternalStats(name(), bucketProperties.length, sum, min, max, metaData());
     }
 
     public static class Factory extends ReducerFactory {
@@ -113,8 +115,8 @@ public class StatsReducer extends Reducer {
         }
 
         @Override
-        public Reducer create(ReducerContext context, Reducer parent) {
-                return new StatsReducer(name, bucketsPath, fieldName, factories, context, parent);
+        public Reducer doCreate(ReducerContext context, Reducer parent, Map<String, Object> metaData) {
+            return new StatsReducer(name, bucketsPath, fieldName, factories, context, parent, metaData);
             }
 
         @Override

@@ -33,6 +33,7 @@ import org.elasticsearch.search.reducers.ReducerFactoryStreams;
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class AvgReducer extends Reducer {
 
@@ -51,8 +52,9 @@ public class AvgReducer extends Reducer {
         ReducerFactoryStreams.registerStream(STREAM, InternalAvg.TYPE.stream());
     }
 
-    public AvgReducer(String name, String bucketsPath, String fieldName, ReducerFactories factories, ReducerContext context, Reducer parent) {
-        super(name, factories, context, parent);
+    public AvgReducer(String name, String bucketsPath, String fieldName, ReducerFactories factories, ReducerContext context,
+            Reducer parent, Map<String, Object> metaData) {
+        super(name, factories, context, parent, metaData);
         this.bucketsPath = bucketsPath;
         this.fieldName = fieldName;
     }
@@ -89,7 +91,7 @@ public class AvgReducer extends Reducer {
             avg += (double) bucketValue;
         }
 
-        return new InternalAvg(name(), avg, bucketProperties.length);
+        return new InternalAvg(name(), avg, bucketProperties.length, metaData());
     }
 
     public static class Factory extends ReducerFactory {
@@ -108,8 +110,8 @@ public class AvgReducer extends Reducer {
         }
 
         @Override
-        public Reducer create(ReducerContext context, Reducer parent) {
-            return new AvgReducer(name, bucketsPath, fieldName, factories, context, parent);
+        public Reducer doCreate(ReducerContext context, Reducer parent, Map<String, Object> metaData) {
+            return new AvgReducer(name, bucketsPath, fieldName, factories, context, parent, metaData);
         }
 
         @Override

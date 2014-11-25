@@ -40,6 +40,7 @@ import org.elasticsearch.search.reducers.bucket.InternalBucketReducerAggregation
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class SlidingWindowReducer extends BucketReducer {
 
@@ -59,8 +60,9 @@ public class SlidingWindowReducer extends BucketReducer {
     private String bucketsPath;
     private int windowSize;
 
-    public SlidingWindowReducer(String name, String bucketsPath, int windowSize, ReducerFactories factories, ReducerContext context, Reducer parent) {
-        super(name, factories, context, parent);
+    public SlidingWindowReducer(String name, String bucketsPath, int windowSize, ReducerFactories factories, ReducerContext context,
+            Reducer parent, Map<String, Object> metaData) {
+        super(name, factories, context, parent, metaData);
         this.bucketsPath = bucketsPath;
         this.windowSize = windowSize;
     }
@@ -100,12 +102,12 @@ public class SlidingWindowReducer extends BucketReducer {
                 selectionKey = selectionBuckets.get(0).getKey() + " TO " + selectionBuckets.get(selectionBuckets.size() - 1).getKey();
             }
             InternalSelection selection = new InternalSelection(selectionKey, ((InternalAggregation) aggregation).type().stream(),
-                    selectionBuckets, InternalAggregations.EMPTY);
+                    selectionBuckets, InternalAggregations.EMPTY, metaData());
             InternalAggregations subReducersResults = runSubReducers(aggregationsTree, selection);
             selection.setAggregations(subReducersResults);
             selections.add(selection);
         }
-        return new InternalSlidingWindow(name(), selections);
+        return new InternalSlidingWindow(name(), selections, metaData());
     }
 
     public static class Factory extends ReducerFactory {
@@ -124,8 +126,8 @@ public class SlidingWindowReducer extends BucketReducer {
         }
 
         @Override
-        public Reducer create(ReducerContext context, Reducer parent) {
-            return new SlidingWindowReducer(name, bucketsPath, windowSize, factories, context, parent);
+        public Reducer doCreate(ReducerContext context, Reducer parent, Map<String, Object> metaData) {
+            return new SlidingWindowReducer(name, bucketsPath, windowSize, factories, context, parent, metaData);
         }
 
         @Override

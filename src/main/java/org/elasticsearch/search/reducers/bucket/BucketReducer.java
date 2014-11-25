@@ -32,11 +32,12 @@ import org.elasticsearch.search.reducers.bucket.InternalBucketReducerAggregation
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public abstract class BucketReducer extends Reducer {
 
-    public BucketReducer(String name, ReducerFactories factories, ReducerContext context, Reducer parent) {
-        super(name, factories, context, parent);
+    public BucketReducer(String name, ReducerFactories factories, ReducerContext context, Reducer parent, Map<String, Object> metaData) {
+        super(name, factories, context, parent, metaData);
     }
 
     @Override

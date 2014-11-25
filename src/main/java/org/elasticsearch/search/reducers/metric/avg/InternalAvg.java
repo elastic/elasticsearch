@@ -22,11 +22,13 @@ package org.elasticsearch.search.reducers.metric.avg;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 
+import java.util.Map;
+
 
 public class InternalAvg extends org.elasticsearch.search.aggregations.metrics.avg.InternalAvg implements Avg {
 
-    public InternalAvg(String name, double sum, long count) {
-        super(name, sum, count);
+    public InternalAvg(String name, double sum, long count, Map<String, Object> metaData) {
+        super(name, sum, count, metaData);
     }
 
     @Override

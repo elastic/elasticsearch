@@ -22,11 +22,13 @@ package org.elasticsearch.search.reducers.metric.min;
 
 import org.elasticsearch.search.aggregations.metrics.min.Min;
 
+import java.util.Map;
+
 
 public class InternalMin extends org.elasticsearch.search.aggregations.metrics.min.InternalMin implements Min {
 
-    public InternalMin(String name, double maxValue) {
-        super(name, maxValue);
+    public InternalMin(String name, double maxValue, Map<String, Object> metaData) {
+        super(name, maxValue, metaData);
     }
 
     @Override

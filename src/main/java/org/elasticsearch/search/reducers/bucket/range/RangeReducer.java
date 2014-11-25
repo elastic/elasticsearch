@@ -41,6 +41,7 @@ import org.elasticsearch.search.reducers.bucket.InternalBucketReducerAggregation
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 
 public class RangeReducer extends BucketReducer {
@@ -63,8 +64,9 @@ public class RangeReducer extends BucketReducer {
     private double[] maxTo;
     private String bucketsPath;
 
-    public RangeReducer(String name, String bucketsPath, String fieldName, RangeAggregator.Range[] ranges, ReducerFactories factories, ReducerContext context, Reducer parent) {
-        super(name, factories, context, parent);
+    public RangeReducer(String name, String bucketsPath, String fieldName, RangeAggregator.Range[] ranges, ReducerFactories factories,
+            ReducerContext context, Reducer parent, Map<String, Object> metaData) {
+        super(name, factories, context, parent, metaData);
         this.bucketsPath = bucketsPath;
         this.ranges = ranges;
         this.fieldName = fieldName;
@@ -125,13 +127,13 @@ public class RangeReducer extends BucketReducer {
                 selectionKey = ranges[i].toString();
             }
             InternalSelection selection = new InternalSelection(selectionKey, ((InternalAggregation) aggregation).type().stream(),
-                    selectionBuckets, InternalAggregations.EMPTY);
+                    selectionBuckets, InternalAggregations.EMPTY, metaData());
             InternalAggregations subReducersResults = runSubReducers(aggregationsTree, selection);
             selection.setAggregations(subReducersResults);
             selections.add(selection);
         }
 
-        return new InternalRange(name(), selections);
+        return new InternalRange(name(), selections, metaData());
     }
 
     private void addToRanges(double value, Bucket bucket, List<List<Bucket>> rangeBuckets) {
@@ -201,8 +203,8 @@ public class RangeReducer extends BucketReducer {
         }
 
         @Override
-        public Reducer create(ReducerContext context, Reducer parent) {
-            return new RangeReducer(name, bucketsPath, fieldName, ranges, factories, context, parent);
+        public Reducer doCreate(ReducerContext context, Reducer parent, Map<String, Object> metaData) {
+            return new RangeReducer(name, bucketsPath, fieldName, ranges, factories, context, parent, metaData);
         }
 
         @Override

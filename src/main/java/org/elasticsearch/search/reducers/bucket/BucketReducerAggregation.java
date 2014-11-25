@@ -65,6 +65,7 @@ public interface BucketReducerAggregation extends MultiBucketsAggregation {
          */
         <B extends Bucket> B getBucketByKey(String key);
 
+        public Object getProperty(List<String> path);
 
     }
 

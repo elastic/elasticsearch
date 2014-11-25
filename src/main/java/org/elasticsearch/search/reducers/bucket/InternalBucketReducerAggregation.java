@@ -20,6 +20,7 @@
 package org.elasticsearch.search.reducers.bucket;
 
 import com.google.common.collect.Maps;
+
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -53,22 +54,25 @@ public abstract class InternalBucketReducerAggregation extends InternalMultiBuck
         private Map<String, MultiBucketsAggregation.Bucket> bucketMap;
         private InternalAggregations aggregations;
         private BucketStreamContext bucketStreamContext;
+        private Map<String, Object> metaData;
 
         public InternalSelection() {
             // For serialization only
         }
 
-        public InternalSelection(String key, BytesReference bucketType, BucketStreamContext bucketStreamContext, List<? extends MultiBucketsAggregation.Bucket> buckets, InternalAggregations aggregations) {
+        public InternalSelection(String key, BytesReference bucketType, BucketStreamContext bucketStreamContext,
+                List<? extends MultiBucketsAggregation.Bucket> buckets, InternalAggregations aggregations, Map<String, Object> metaData) {
             this.key = key;
             this.bucketType = bucketType;
             this.bucketStreamContext = bucketStreamContext;
             this.buckets = buckets;
             this.aggregations = aggregations;
+            this.metaData = metaData;
         }
 
         public InternalSelection(String key, BytesReference bucketType, List<? extends MultiBucketsAggregation.Bucket> buckets,
-                InternalAggregations aggregations) {
-            this(key, bucketType, BucketStreams.stream(bucketType).getBucketStreamContext(buckets.get(0)), buckets, aggregations);
+                InternalAggregations aggregations, Map<String, Object> metaData) {
+            this(key, bucketType, BucketStreams.stream(bucketType).getBucketStreamContext(buckets.get(0)), buckets, aggregations, metaData);
         }
 
         @Override
@@ -120,6 +124,10 @@ public abstract class InternalBucketReducerAggregation extends InternalMultiBuck
         }
 
         @Override
+        public Map<String, Object> getMetaData() {
+            return metaData;
+        }
+
         public Object getProperty(List<String> path) {
             if (path.isEmpty()) {
                 return this;
@@ -198,15 +206,9 @@ public abstract class InternalBucketReducerAggregation extends InternalMultiBuck
         // For serialization only
     }
 
-    protected InternalBucketReducerAggregation(String name, List<InternalSelection> selections) {
-        super(name);
-        this.name = name;
+    protected InternalBucketReducerAggregation(String name, List<InternalSelection> selections, Map<String, Object> metaData) {
+        super(name, metaData);
         this.selections = selections;
-    }
-
-    @Override
-    public String getName() {
-        return name;
     }
 
     @Override
@@ -255,8 +257,7 @@ public abstract class InternalBucketReducerAggregation extends InternalMultiBuck
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        this.name = in.readString();
+    public void doReadFrom(StreamInput in) throws IOException {
         int size = in.readVInt();
         List<InternalSelection> selections = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -269,8 +270,7 @@ public abstract class InternalBucketReducerAggregation extends InternalMultiBuck
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    public void doWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(selections.size());
         for (Selection selection : selections) {
             selection.writeTo(out);

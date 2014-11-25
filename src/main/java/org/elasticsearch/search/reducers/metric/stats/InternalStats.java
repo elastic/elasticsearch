@@ -22,11 +22,13 @@ package org.elasticsearch.search.reducers.metric.stats;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 
+import java.util.Map;
+
 
 public class InternalStats extends org.elasticsearch.search.aggregations.metrics.stats.InternalStats implements Stats {
 
-    public InternalStats(String name, long count, double sum, double min, double max) {
-        super(name, count, sum, min, max);
+    public InternalStats(String name, long count, double sum, double min, double max, Map<String, Object> metaData) {
+        super(name, count, sum, min, max, metaData);
     }
 
     @Override

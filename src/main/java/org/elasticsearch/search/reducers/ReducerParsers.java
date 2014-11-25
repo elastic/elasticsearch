@@ -20,6 +20,7 @@
 package org.elasticsearch.search.reducers;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -103,6 +105,8 @@ public class ReducerParsers {
             ReducerFactory factory = null;
             ReducerFactories subFactories = null;
 
+            Map<String, Object> metaData = null;
+
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token != XContentParser.Token.FIELD_NAME) {
                     throw new SearchParseException(context, "Expected [" + XContentParser.Token.FIELD_NAME + "] under a [" + XContentParser.Token.START_OBJECT + "], but got a [" + token + "] in [" + reductionName + "]");
@@ -120,14 +124,20 @@ public class ReducerParsers {
                         throw new SearchParseException(context, "Expected [" + XContentParser.Token.START_ARRAY + "] for field [reducers], but got a [" + token + "] in [" + reductionName + "]");
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (factory != null) {
-                        throw new SearchParseException(context, "Found two reduction type definitions in [" + reductionName + "]: [" + factory.type + "] and [" + fieldName + "]");
+                    if ("meta".equals(fieldName)) {
+                        metaData = parser.map();
+                    } else {
+                        if (factory != null) {
+                            throw new SearchParseException(context, "Found two reduction type definitions in [" + reductionName + "]: ["
+                                    + factory.type + "] and [" + fieldName + "]");
+                        }
+                        Reducer.Parser reducerParser = parser(fieldName);
+                        if (reducerParser == null) {
+                            throw new SearchParseException(context, "Could not find reducer type [" + fieldName + "] in [" + reductionName
+                                    + "]");
+                        }
+                        factory = reducerParser.parse(reductionName, parser, context);
                     }
-                    Reducer.Parser reducerParser = parser(fieldName);
-                    if (reducerParser == null) {
-                        throw new SearchParseException(context, "Could not find reducer type [" + fieldName + "] in [" + reductionName + "]");
-                    }
-                    factory = reducerParser.parse(reductionName, parser, context);
                 } else {
                     throw new SearchParseException(context, "Unexpected token [" + token + "] for field [" + fieldName + "] in [" + reductionName + "]");
                 }
@@ -140,6 +150,10 @@ public class ReducerParsers {
 
             if (factory == null) {
                 throw new SearchParseException(context, "Missing definition for reduction [" + reductionName + "]");
+            }
+
+            if (metaData != null) {
+                factory.setMetaData(metaData);
             }
 
             if (subFactories != null) {

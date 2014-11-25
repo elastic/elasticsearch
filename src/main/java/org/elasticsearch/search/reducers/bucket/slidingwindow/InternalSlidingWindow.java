@@ -27,6 +27,7 @@ import org.elasticsearch.search.reducers.bucket.InternalBucketReducerAggregation
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 public class InternalSlidingWindow extends InternalBucketReducerAggregation implements SlidingWindow {
 
@@ -65,8 +66,8 @@ public class InternalSlidingWindow extends InternalBucketReducerAggregation impl
         super();
     }
 
-    public InternalSlidingWindow(String name, List<InternalSelection> selections) {
-        super(name, selections);
+    public InternalSlidingWindow(String name, List<InternalSelection> selections, Map<String, Object> metaData) {
+        super(name, selections, metaData);
     }
 
     @Override

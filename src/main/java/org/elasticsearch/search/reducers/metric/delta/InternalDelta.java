@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class InternalDelta extends InternalNumericMetricsAggregation.SingleValue implements Delta {
 
@@ -51,8 +52,8 @@ public class InternalDelta extends InternalNumericMetricsAggregation.SingleValue
         super();
     }
 
-    public InternalDelta(String name, double deltaValue) {
-        super(name);
+    public InternalDelta(String name, double deltaValue, Map<String, Object> metaData) {
+        super(name, metaData);
         this.value = deltaValue;
     }
 
@@ -73,14 +74,12 @@ public class InternalDelta extends InternalNumericMetricsAggregation.SingleValue
 
     
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+    public void doReadFrom(StreamInput in) throws IOException {
         value = in.readDouble();
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    public void doWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(value);
     }
 

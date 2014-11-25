@@ -25,6 +25,7 @@ import org.elasticsearch.search.reducers.bucket.InternalBucketReducerAggregation
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 public class InternalRange extends InternalBucketReducerAggregation implements Range {
 
@@ -48,8 +49,8 @@ public class InternalRange extends InternalBucketReducerAggregation implements R
         super();
     }
 
-    public InternalRange(String name, List<InternalSelection> selections) {
-        super(name, selections);
+    public InternalRange(String name, List<InternalSelection> selections, Map<String, Object> metaData) {
+        super(name, selections, metaData);
     }
 
     @Override

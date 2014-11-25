@@ -33,6 +33,7 @@ import org.elasticsearch.search.reducers.ReducerFactoryStreams;
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class SumReducer extends Reducer {
 
@@ -51,8 +52,9 @@ public class SumReducer extends Reducer {
         ReducerFactoryStreams.registerStream(STREAM, InternalSum.TYPE.stream());
     }
 
-    public SumReducer(String name, String bucketsPath, String fieldName, ReducerFactories factories, ReducerContext context, Reducer parent) {
-        super(name, factories, context, parent);
+    public SumReducer(String name, String bucketsPath, String fieldName, ReducerFactories factories, ReducerContext context,
+            Reducer parent, Map<String, Object> metaData) {
+        super(name, factories, context, parent, metaData);
         this.bucketsPath = bucketsPath;
         this.fieldName = fieldName;
     }
@@ -85,7 +87,7 @@ public class SumReducer extends Reducer {
             sum += (double) bucketValue;
         }
 
-        return new InternalSum(name(), sum);
+        return new InternalSum(name(), sum, metaData());
     }
 
     public static class Factory extends ReducerFactory {
@@ -104,8 +106,8 @@ public class SumReducer extends Reducer {
         }
 
         @Override
-        public Reducer create(ReducerContext context, Reducer parent) {
-            return new SumReducer(name, bucketsPath, fieldName, factories, context, parent);
+        public Reducer doCreate(ReducerContext context, Reducer parent, Map<String, Object> metaData) {
+            return new SumReducer(name, bucketsPath, fieldName, factories, context, parent, metaData);
         }
 
         @Override

@@ -60,8 +60,9 @@ public class UnionReducer extends BucketReducer {
         ReducerFactoryStreams.registerStream(STREAM, InternalUnion.TYPE.stream());
     }
 
-    public UnionReducer(String name, List<String> bucketsPaths, ReducerFactories factories, ReducerContext context, Reducer parent) {
-        super(name, factories, context, parent);
+    public UnionReducer(String name, List<String> bucketsPaths, ReducerFactories factories, ReducerContext context, Reducer parent,
+            Map<String, Object> metaData) {
+        super(name, factories, context, parent, metaData);
         this.bucketsPaths = bucketsPaths;
     }
 
@@ -109,13 +110,13 @@ public class UnionReducer extends BucketReducer {
         for (Entry<String, List<MultiBucketsAggregation.Bucket>> entry : selectionsBucketsMap.entrySet()) {
             String key = entry.getKey();
             List<MultiBucketsAggregation.Bucket> buckets = entry.getValue();
-            InternalSelection selection = new InternalSelection(key, bucketType, buckets, InternalAggregations.EMPTY);
+            InternalSelection selection = new InternalSelection(key, bucketType, buckets, InternalAggregations.EMPTY, metaData());
             InternalAggregations subReducersResults = runSubReducers(aggregationsTree, selection);
             selection.setAggregations(subReducersResults);
             selections.add(selection);
         }
         // NOCOMMIT do we need to add sorting here? at the moment the selections will be in discovery order
-        return new InternalUnion(name(), selections);
+        return new InternalUnion(name(), selections, metaData());
     }
 
     public static class Factory extends ReducerFactory {
@@ -132,8 +133,8 @@ public class UnionReducer extends BucketReducer {
         }
 
         @Override
-        public Reducer create(ReducerContext context, Reducer parent) {
-            return new UnionReducer(name, bucketsPaths, factories, context, parent);
+        public Reducer doCreate(ReducerContext context, Reducer parent, Map<String, Object> metaData) {
+            return new UnionReducer(name, bucketsPaths, factories, context, parent, metaData);
         }
 
         @Override

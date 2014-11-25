@@ -33,6 +33,7 @@ import org.elasticsearch.search.reducers.ReducerFactoryStreams;
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class MinReducer extends Reducer {
 
@@ -51,8 +52,9 @@ public class MinReducer extends Reducer {
         ReducerFactoryStreams.registerStream(STREAM, InternalMin.TYPE.stream());
     }
 
-    public MinReducer(String name, String bucketsPath, String fieldName, ReducerFactories factories, ReducerContext context, Reducer parent) {
-        super(name, factories, context, parent);
+    public MinReducer(String name, String bucketsPath, String fieldName, ReducerFactories factories, ReducerContext context,
+            Reducer parent, Map<String, Object> metaData) {
+        super(name, factories, context, parent, metaData);
         this.bucketsPath = bucketsPath;
         this.fieldName = fieldName;
     }
@@ -85,7 +87,7 @@ public class MinReducer extends Reducer {
             min = Math.min(min, (double) bucketValue);  //TODO skip first
         }
 
-        return new InternalMin(name(), min);
+        return new InternalMin(name(), min, metaData());
     }
 
     public static class Factory extends ReducerFactory {
@@ -104,8 +106,8 @@ public class MinReducer extends Reducer {
         }
 
         @Override
-        public Reducer create(ReducerContext context, Reducer parent) {
-            return new MinReducer(name, bucketsPath, fieldName, factories, context, parent);
+        public Reducer doCreate(ReducerContext context, Reducer parent, Map<String, Object> metaData) {
+            return new MinReducer(name, bucketsPath, fieldName, factories, context, parent, metaData);
         }
 
         @Override

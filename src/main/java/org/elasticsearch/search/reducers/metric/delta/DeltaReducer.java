@@ -33,6 +33,7 @@ import org.elasticsearch.search.reducers.ReducerFactoryStreams;
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class DeltaReducer extends Reducer {
 
@@ -52,8 +53,9 @@ public class DeltaReducer extends Reducer {
         ReducerFactoryStreams.registerStream(STREAM, InternalDelta.TYPE.stream());
     }
 
-    public DeltaReducer(String name, String bucketsPath, String fieldName, boolean gradient, ReducerFactories factories, ReducerContext context, Reducer parent) {
-        super(name, factories, context, parent);
+    public DeltaReducer(String name, String bucketsPath, String fieldName, boolean gradient, ReducerFactories factories,
+            ReducerContext context, Reducer parent, Map<String, Object> metaData) {
+        super(name, factories, context, parent, metaData);
         this.bucketsPath = bucketsPath;
         this.fieldName = fieldName;
         this.gradient = gradient;
@@ -87,7 +89,7 @@ public class DeltaReducer extends Reducer {
         if (this.gradient) {
             deltaValue = deltaValue / (bucketProperties.length - 1);
         }
-        return new InternalDelta(name(), deltaValue);
+        return new InternalDelta(name(), deltaValue, metaData());
     }
 
     public static class Factory extends ReducerFactory {
@@ -108,8 +110,8 @@ public class DeltaReducer extends Reducer {
         }
 
         @Override
-        public Reducer create(ReducerContext context, Reducer parent) {
-            return new DeltaReducer(name, bucketsPath, fieldName, showGradient, factories, context, parent);
+        public Reducer doCreate(ReducerContext context, Reducer parent, Map<String, Object> metaData) {
+            return new DeltaReducer(name, bucketsPath, fieldName, showGradient, factories, context, parent, metaData);
         }
 
         @Override

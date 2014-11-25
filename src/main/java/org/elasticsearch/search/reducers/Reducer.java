@@ -28,6 +28,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Map;
 
 public abstract class Reducer {
 
@@ -36,13 +37,15 @@ public abstract class Reducer {
     private Reducer parent;
     private Reducer[] subReducers;
     private HashMap<String, Reducer> subReducersbyName;
+    private Map<String, Object> metaData;
 
-    public Reducer(String name, ReducerFactories factories, ReducerContext context, Reducer parent) {
+    public Reducer(String name, ReducerFactories factories, ReducerContext context, Reducer parent, Map<String, Object> metaData) {
         assert factories != null : "sub-factories provided to Reducer must not be null, use ReducerFactories.EMPTY instead";
         this.name = name;
         this.parent = parent;
         this.context = context;
         this.subReducers = factories.createSubReducers(this);
+        this.metaData = metaData;
     }
 
     public String name() {
@@ -69,6 +72,10 @@ public abstract class Reducer {
 
     public ReducerContext context() {
         return context;
+    }
+
+    public Map<String, Object> metaData() {
+        return this.metaData;
     }
 
     public void preReduce() throws ReductionInitializationException {

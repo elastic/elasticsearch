@@ -33,6 +33,7 @@ import org.elasticsearch.search.reducers.ReducerFactoryStreams;
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class MaxReducer extends Reducer {
 
@@ -51,8 +52,9 @@ public class MaxReducer extends Reducer {
         ReducerFactoryStreams.registerStream(STREAM, InternalMax.TYPE.stream());
     }
 
-    public MaxReducer(String name, String bucketsPath, String fieldName, ReducerFactories factories, ReducerContext context, Reducer parent) {
-        super(name, factories, context, parent);
+    public MaxReducer(String name, String bucketsPath, String fieldName, ReducerFactories factories, ReducerContext context,
+            Reducer parent, Map<String, Object> metaData) {
+        super(name, factories, context, parent, metaData);
         this.bucketsPath = bucketsPath;
         this.fieldName = fieldName;
     }
@@ -85,7 +87,7 @@ public class MaxReducer extends Reducer {
             max = Math.max(max, (double) bucketValue);
         }
 
-        return new InternalMax(name(), max);
+        return new InternalMax(name(), max, metaData());
     }
 
     public static class Factory extends ReducerFactory {
@@ -104,8 +106,8 @@ public class MaxReducer extends Reducer {
         }
 
         @Override
-        public Reducer create(ReducerContext context, Reducer parent) {
-            return new MaxReducer(name, bucketsPath, fieldName, factories, context, parent);
+        public Reducer doCreate(ReducerContext context, Reducer parent, Map<String, Object> metaData) {
+            return new MaxReducer(name, bucketsPath, fieldName, factories, context, parent, metaData);
         }
 
         @Override

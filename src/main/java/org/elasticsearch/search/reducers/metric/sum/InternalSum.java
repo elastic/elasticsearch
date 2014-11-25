@@ -22,11 +22,13 @@ package org.elasticsearch.search.reducers.metric.sum;
 
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 
+import java.util.Map;
+
 
 public class InternalSum extends org.elasticsearch.search.aggregations.metrics.sum.InternalSum implements Sum {
 
-    public InternalSum(String name, double maxValue) {
-        super(name, maxValue);
+    public InternalSum(String name, double sumValue, Map<String, Object> metaData) {
+        super(name, sumValue, metaData);
     }
 
     @Override

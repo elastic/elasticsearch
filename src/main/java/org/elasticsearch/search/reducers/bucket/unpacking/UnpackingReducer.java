@@ -36,12 +36,12 @@ import org.elasticsearch.search.reducers.bucket.BucketReducer;
 import org.elasticsearch.search.reducers.bucket.InternalBucketReducerAggregation;
 import org.elasticsearch.search.reducers.bucket.InternalBucketReducerAggregation.InternalSelection;
 import org.elasticsearch.search.reducers.bucket.slidingwindow.InternalSlidingWindow;
-import org.elasticsearch.search.reducers.bucket.union.InternalUnion;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public class UnpackingReducer extends BucketReducer {
 
@@ -62,8 +62,8 @@ public class UnpackingReducer extends BucketReducer {
     private List<String> bucketsPaths;
 
     public UnpackingReducer(String name, List<String> bucketsPaths, String unpackPath, ReducerFactories factories, ReducerContext context,
-            Reducer parent) {
-        super(name, factories, context, parent);
+            Reducer parent, Map<String, Object> metaData) {
+        super(name, factories, context, parent, metaData);
         this.bucketsPaths = bucketsPaths;
         this.unpackPath = unpackPath;
     }
@@ -111,10 +111,10 @@ public class UnpackingReducer extends BucketReducer {
             }
         }
         InternalSelection selection = new InternalSelection(unpackPath, bucketType, buckets,
-                InternalAggregations.EMPTY);
+ InternalAggregations.EMPTY, metaData());
         InternalAggregations subReducersResults = runSubReducers(aggregationsTree, selection);
         selection.setAggregations(subReducersResults);
-        return new InternalUnpacking(name(), Collections.singletonList(selection));
+        return new InternalUnpacking(name(), Collections.singletonList(selection), metaData());
     }
 
     public static class Factory extends ReducerFactory {
@@ -133,8 +133,8 @@ public class UnpackingReducer extends BucketReducer {
         }
 
         @Override
-        public Reducer create(ReducerContext context, Reducer parent) {
-            return new UnpackingReducer(name, bucketsPaths, unpackPath, factories, context, parent);
+        public Reducer doCreate(ReducerContext context, Reducer parent, Map<String, Object> metaData) {
+            return new UnpackingReducer(name, bucketsPaths, unpackPath, factories, context, parent, metaData);
         }
 
         @Override

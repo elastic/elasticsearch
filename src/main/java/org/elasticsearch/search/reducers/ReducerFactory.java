@@ -21,6 +21,8 @@ package org.elasticsearch.search.reducers;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 
+import java.util.Map;
+
 
 /**
  * A factory that knows how to create an {@link Reducer} of a specific type.
@@ -30,6 +32,7 @@ public abstract class ReducerFactory implements Streamable {
     protected String name;
     protected Type type;
     protected ReducerFactories factories = ReducerFactories.EMPTY;
+    private Map<String, Object> metaData;
 
     protected ReducerFactory(Type type) {
         this.type = type;
@@ -77,12 +80,23 @@ public abstract class ReducerFactory implements Streamable {
      * @param parent                The parent reducer (if this is a top level factory, the parent will be {@code null})
      * @param expectedBucketsCount  If this is a sub-factory of another factory, this will indicate the number of bucket the parent reducer
      *                              may generate (this is an estimation only). For top level factories, this will always be 0
+     * @param metaData              User-defined metadata to return with the response
      *
      * @return                      The created reducer
      */
-    public abstract Reducer create(ReducerContext context, Reducer parent);
+    public abstract Reducer doCreate(ReducerContext context, Reducer parent, Map<String, Object> metaData);
+    
+
+    public final Reducer create(ReducerContext context, Reducer parent) {
+        Reducer reducer = doCreate(context, parent, this.metaData);
+        return reducer;
+    }
 
     public void doValidate() {
+    }
+
+    public void setMetaData(Map<String, Object> metaData) {
+        this.metaData = metaData;
     }
 
 }

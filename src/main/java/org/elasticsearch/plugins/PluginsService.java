@@ -38,12 +38,8 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.CloseableIndexComponent;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.util.*;
@@ -255,8 +251,8 @@ public class PluginsService extends AbstractComponent {
         return modules;
     }
 
-    public Collection<Class<? extends CloseableIndexComponent>> indexServices() {
-        List<Class<? extends CloseableIndexComponent>> services = Lists.newArrayList();
+    public Collection<Class<? extends Closeable>> indexServices() {
+        List<Class<? extends Closeable>> services = Lists.newArrayList();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
             services.addAll(plugin.v2().indexServices());
         }
@@ -279,8 +275,8 @@ public class PluginsService extends AbstractComponent {
         return modules;
     }
 
-    public Collection<Class<? extends CloseableIndexComponent>> shardServices() {
-        List<Class<? extends CloseableIndexComponent>> services = Lists.newArrayList();
+    public Collection<Class<? extends Closeable>> shardServices() {
+        List<Class<? extends Closeable>> services = Lists.newArrayList();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
             services.addAll(plugin.v2().shardServices());
         }

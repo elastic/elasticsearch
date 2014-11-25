@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.File;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
+import java.nio.file.Path;
 
 /**
  * A translog stream that will read and write operations in the
@@ -51,6 +52,6 @@ public interface TranslogStream {
     /**
      * Seek past the header, if any header is present
      */
-    public StreamInput openInput(File translogFile) throws IOException;
+    public StreamInput openInput(Path translogFile) throws IOException;
 
 }

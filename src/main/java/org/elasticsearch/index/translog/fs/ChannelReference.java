@@ -20,6 +20,7 @@
 package org.elasticsearch.index.translog.fs;
 
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -27,29 +28,27 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
+import java.nio.file.OpenOption;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  *
  */
-public class RafReference {
+abstract class ChannelReference extends AbstractRefCounted {
 
-    private final File file;
-
-    private final RandomAccessFile raf;
+    private final Path file;
 
     private final FileChannel channel;
 
-    private final AtomicInteger refCount = new AtomicInteger();
-
-    public RafReference(File file) throws FileNotFoundException {
+    public ChannelReference(Path file, OpenOption... openOptions) throws IOException {
+        super(file.toString());
         this.file = file;
-        this.raf = new RandomAccessFile(file, "rw");
-        this.channel = raf.getChannel();
-        this.refCount.incrementAndGet();
+        this.channel = FileChannel.open(file, openOptions);
     }
 
-    public File file() {
+    public Path file() {
         return this.file;
     }
 
@@ -57,30 +56,8 @@ public class RafReference {
         return this.channel;
     }
 
-    public RandomAccessFile raf() {
-        return this.raf;
-    }
-
-    /**
-     * Increases the ref count, and returns <tt>true</tt> if it managed to
-     * actually increment it.
-     */
-    public boolean increaseRefCount() {
-        return refCount.incrementAndGet() > 1;
-    }
-
-    public void decreaseRefCount(boolean delete) {
-        if (refCount.decrementAndGet() <= 0) {
-            try {
-                raf.close();
-            } catch (IOException e) {
-                // ignore
-            } finally {
-                if (delete) {
-                    IOUtils.deleteFilesIgnoringExceptions(file.toPath());
-                }
-            }
-
-        }
+    @Override
+    protected void closeInternal() {
+        IOUtils.closeWhileHandlingException(channel);
     }
 }

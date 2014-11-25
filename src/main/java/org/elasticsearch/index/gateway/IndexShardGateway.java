@@ -19,14 +19,15 @@
 
 package org.elasticsearch.index.gateway;
 
-import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.indices.recovery.RecoveryState;
+
+import java.io.Closeable;
 
 /**
  *
  */
-public interface IndexShardGateway extends IndexShardComponent, CloseableIndexComponent {
+public interface IndexShardGateway extends IndexShardComponent, Closeable {
 
     String type();
 

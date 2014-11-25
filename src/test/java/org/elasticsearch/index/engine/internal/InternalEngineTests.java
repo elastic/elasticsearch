@@ -69,8 +69,6 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
-import org.elasticsearch.index.store.fs.SimpleFsDirectoryService;
-import org.elasticsearch.index.store.fs.SimpleFsIndexStore;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogSizeMatcher;
 import org.elasticsearch.index.translog.fs.FsTranslog;
@@ -82,8 +80,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -204,12 +202,12 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         return new Store(shardId, EMPTY_SETTINGS, null, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
     }
 
-    protected Translog createTranslog() {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, new File("work/fs-translog/primary"));
+    protected Translog createTranslog() throws IOException {
+        return new FsTranslog(shardId, EMPTY_SETTINGS, Paths.get("work/fs-translog/primary"));
     }
 
-    protected Translog createTranslogReplica() {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, new File("work/fs-translog/replica"));
+    protected Translog createTranslogReplica() throws IOException {
+        return new FsTranslog(shardId, EMPTY_SETTINGS, Paths.get("work/fs-translog/replica"));
     }
 
     protected IndexDeletionPolicy createIndexDeletionPolicy() {
@@ -347,7 +345,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         assertThat(segments.get(2).isCompound(), equalTo(true));
     }
 
-    public void testStartAndAcquireConcurrently() {
+    public void testStartAndAcquireConcurrently() throws IOException {
         // Close engine from setUp (we create our own):
         engine.close();
 

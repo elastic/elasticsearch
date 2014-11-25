@@ -20,9 +20,11 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
@@ -36,6 +38,9 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -59,16 +64,28 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
     public void setUp() throws Exception {
         super.setUp();
         translog = create();
+        // if a previous test failed we clean up things here
+        FileSystemUtils.deleteSubDirectories(translog.locations());
         translog.newTranslog(1);
     }
 
     @After
     public void tearDown() throws Exception {
-        translog.closeWithDelete();
-        super.tearDown();
+        try {
+            final Path[] locations = translog.locations();
+            translog.close();
+            if (translog.currentId() > 1) {
+                // ensure all snapshots etc are closed if this fails something was not closed
+                assertFileDeleted(translog, translog.currentId() - 1);
+            }
+            assertFileIsPresent(translog, translog.currentId());
+            IOUtils.rm(locations); // delete all the locations
+        } finally {
+            super.tearDown();
+        }
     }
 
-    protected abstract Translog create();
+    protected abstract Translog create() throws IOException;
 
     protected abstract String translogFileDirectory();
 
@@ -88,7 +105,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
     }
 
     @Test
-    public void testTransientTranslog() {
+    public void testTransientTranslog() throws IOException {
         Translog.Snapshot snapshot = translog.snapshot();
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
         snapshot.close();
@@ -121,7 +138,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
     }
 
     @Test
-    public void testSimpleOperations() {
+    public void testSimpleOperations() throws IOException {
         Translog.Snapshot snapshot = translog.snapshot();
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
         snapshot.close();
@@ -182,6 +199,15 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
         snapshot.close();
     }
 
+    @Test(expected = TranslogException.class)
+    public void testReuseFails() throws IOException {
+        if (randomBoolean()) {
+            translog.newTranslog(1);
+        } else {
+            translog.newTransientTranslog(1);
+        }
+    }
+
     @Test
     public void testSnapshot() {
         Translog.Snapshot snapshot = translog.snapshot();
@@ -226,7 +252,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
     }
 
     @Test
-    public void testSnapshotWithNewTranslog() {
+    public void testSnapshotWithNewTranslog() throws IOException {
         Translog.Snapshot snapshot = translog.snapshot();
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
         snapshot.close();
@@ -252,6 +278,72 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
 
         actualSnapshot.close();
         snapshot.close();
+    }
+
+    @Test
+    public void deleteOnRollover() throws IOException {
+        translog.add(new Translog.Create("test", "1", new byte[]{1}));
+
+        Translog.Snapshot firstSnapshot = translog.snapshot();
+        MatcherAssert.assertThat(firstSnapshot, TranslogSizeMatcher.translogSize(1));
+        assertThat(firstSnapshot.estimatedTotalOperations(), equalTo(1));
+        translog.newTransientTranslog(2);
+        assertFileIsPresent(translog, 1);
+
+
+        translog.add(new Translog.Index("test", "2", new byte[]{2}));
+        MatcherAssert.assertThat(firstSnapshot, TranslogSizeMatcher.translogSize(1));
+        assertThat(firstSnapshot.estimatedTotalOperations(), equalTo(1));
+        if (randomBoolean()) {
+            translog.clearUnreferenced();
+        }
+        translog.makeTransientCurrent();
+        Translog.Snapshot secondSnapshot  = translog.snapshot();
+        translog.add(new Translog.Index("test", "3", new byte[]{3}));
+        MatcherAssert.assertThat(secondSnapshot, TranslogSizeMatcher.translogSize(1));
+        assertThat(secondSnapshot.estimatedTotalOperations(), equalTo(1));
+        assertFileIsPresent(translog, 1);
+        assertFileIsPresent(translog, 2);
+        if (randomBoolean()) {
+            translog.clearUnreferenced();
+        }
+        firstSnapshot.close();
+        assertFileDeleted(translog, 1);
+        assertFileIsPresent(translog, 2);
+        secondSnapshot.close();
+        assertFileIsPresent(translog, 2); // it's the current nothing should be deleted
+        if (randomBoolean()) {
+            translog.clearUnreferenced();
+        }
+        translog.newTransientTranslog(3);
+        translog.makeTransientCurrent();
+        if (randomBoolean()) {
+            translog.clearUnreferenced();
+        }
+        assertFileIsPresent(translog, 3); // it's the current nothing should be deleted
+        assertFileDeleted(translog, 2);
+        assertEquals(3, translog.findLargestPresentTranslogId());
+
+        translog.newTransientTranslog(4);
+        translog.revertTransient();
+        assertFileIsPresent(translog, 3); // it's the current nothing should be deleted
+        assertFileDeleted(translog, 4);
+
+    }
+
+    public void assertFileIsPresent(Translog translog, long id) {
+        for (Path location : translog.locations()) {
+            if(Files.exists(location.resolve(translog.getPath(id)))) {
+                return;
+            }
+        }
+        fail(translog.getPath(id) + " is not present in any location: " + Arrays.toString(translog.locations()));
+    }
+
+    public void assertFileDeleted(Translog translog, long id) {
+        for (Path location : translog.locations()) {
+            assertFalse(Files.exists(location.resolve(translog.getPath(id))));
+        }
     }
 
     @Test

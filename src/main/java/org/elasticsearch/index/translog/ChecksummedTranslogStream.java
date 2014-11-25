@@ -25,12 +25,11 @@ import org.apache.lucene.store.OutputStreamDataOutput;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.io.stream.*;
 
-import java.io.EOFException;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * Version 1 of the translog file format. Writes a header to identify the
@@ -106,8 +105,8 @@ public class ChecksummedTranslogStream implements TranslogStream {
     }
 
     @Override
-    public StreamInput openInput(File translogFile) throws IOException {
-        final FileInputStream fileInputStream = new FileInputStream(translogFile);
+    public StreamInput openInput(Path translogFile) throws IOException {
+        final InputStream fileInputStream = Files.newInputStream(translogFile);
         boolean success = false;
         try {
             final InputStreamStreamInput in = new InputStreamStreamInput(fileInputStream);

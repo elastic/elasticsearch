@@ -41,7 +41,7 @@ public class FsChannelSnapshot implements Translog.Snapshot {
 
     private final int totalOperations;
 
-    private final RafReference raf;
+    private final ChannelReference channelReference;
 
     private final FileChannel channel;
 
@@ -59,10 +59,10 @@ public class FsChannelSnapshot implements Translog.Snapshot {
      * Create a snapshot of translog file channel. The length parameter should be consistent with totalOperations and point
      * at the end of the last operation in this snapshot.
      */
-    public FsChannelSnapshot(long id, RafReference raf, long length, int totalOperations) throws FileNotFoundException {
+    public FsChannelSnapshot(long id, ChannelReference channelReference, long length, int totalOperations) throws FileNotFoundException {
         this.id = id;
-        this.raf = raf;
-        this.channel = raf.raf().getChannel();
+        this.channelReference = channelReference;
+        this.channel = channelReference.channel();
         this.length = length;
         this.totalOperations = totalOperations;
     }
@@ -132,7 +132,7 @@ public class FsChannelSnapshot implements Translog.Snapshot {
             position += opSize;
             return TranslogStreams.readTranslogOperation(new BytesStreamInput(cacheBuffer.array(), 0, opSize, true));
         } catch (IOException e) {
-            throw new ElasticsearchException("unexpected exception reading from translog snapshot of " + this.raf.file(), e);
+            throw new ElasticsearchException("unexpected exception reading from translog snapshot of " + this.channelReference.file(), e);
         }
     }
 
@@ -143,9 +143,8 @@ public class FsChannelSnapshot implements Translog.Snapshot {
 
     @Override
     public void close() throws ElasticsearchException {
-        if (!closed.compareAndSet(false, true)) {
-            return;
+        if (closed.compareAndSet(false, true)) {
+            channelReference.decRef();
         }
-        raf.decreaseRefCount(true);
     }
 }

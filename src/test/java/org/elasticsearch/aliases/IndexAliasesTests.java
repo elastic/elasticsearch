@@ -57,6 +57,7 @@ import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.CollectionAssertions.hasKey;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -171,18 +172,18 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         client().index(indexRequest("test").type("type1").id("4").source(source("4", "something else")).refresh(true)).actionGet();
 
         logger.info("--> checking single filtering alias search");
-        SearchResponse searchResponse = client().prepareSearch("foos").setQuery(QueryBuilders.matchAllQuery()).get();
+        SearchResponse searchResponse = client().prepareSearch("foos").setQuery(matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1");
 
         logger.info("--> checking single filtering alias wildcard search");
-        searchResponse = client().prepareSearch("fo*").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = client().prepareSearch("fo*").setQuery(matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1");
 
-        searchResponse = client().prepareSearch("tests").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = client().prepareSearch("tests").setQuery(matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2", "3");
 
         logger.info("--> checking single filtering alias search with sort");
-        searchResponse = client().prepareSearch("tests").setQuery(QueryBuilders.matchAllQuery()).addSort("_uid", SortOrder.ASC).get();
+        searchResponse = client().prepareSearch("tests").setQuery(matchAllQuery()).addSort("_uid", SortOrder.ASC).get();
         assertHits(searchResponse.getHits(), "1", "2", "3");
 
         logger.info("--> checking single filtering alias search with global facets");
@@ -203,23 +204,23 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
                 .addSort("_uid", SortOrder.ASC).get();
         assertThat(((TermsFacet) searchResponse.getFacets().facet("test")).getEntries().size(), equalTo(2));
 
-        searchResponse = client().prepareSearch("foos", "bars").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = client().prepareSearch("foos", "bars").setQuery(matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2");
 
         logger.info("--> checking single non-filtering alias search");
-        searchResponse = client().prepareSearch("alias1").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = client().prepareSearch("alias1").setQuery(matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2", "3", "4");
 
         logger.info("--> checking non-filtering alias and filtering alias search");
-        searchResponse = client().prepareSearch("alias1", "foos").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = client().prepareSearch("alias1", "foos").setQuery(matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2", "3", "4");
 
         logger.info("--> checking index and filtering alias search");
-        searchResponse = client().prepareSearch("test", "foos").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = client().prepareSearch("test", "foos").setQuery(matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2", "3", "4");
 
         logger.info("--> checking index and alias wildcard search");
-        searchResponse = client().prepareSearch("te*", "fo*").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = client().prepareSearch("te*", "fo*").setQuery(matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2", "3", "4");
     }
 
@@ -259,29 +260,29 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         refresh();
 
         logger.info("--> checking filtering alias for two indices");
-        SearchResponse searchResponse = client().prepareSearch("foos").setQuery(QueryBuilders.matchAllQuery()).get();
+        SearchResponse searchResponse = client().prepareSearch("foos").setQuery(matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "5");
-        assertThat(client().prepareCount("foos").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(2L));
+        assertThat(client().prepareCount("foos").setQuery(matchAllQuery()).get().getCount(), equalTo(2L));
 
         logger.info("--> checking filtering alias for one index");
-        searchResponse = client().prepareSearch("bars").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = client().prepareSearch("bars").setQuery(matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "2");
-        assertThat(client().prepareCount("bars").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(1L));
+        assertThat(client().prepareCount("bars").setQuery(matchAllQuery()).get().getCount(), equalTo(1L));
 
         logger.info("--> checking filtering alias for two indices and one complete index");
-        searchResponse = client().prepareSearch("foos", "test1").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = client().prepareSearch("foos", "test1").setQuery(matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2", "3", "4", "5");
-        assertThat(client().prepareCount("foos", "test1").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(5L));
+        assertThat(client().prepareCount("foos", "test1").setQuery(matchAllQuery()).get().getCount(), equalTo(5L));
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for one index");
-        searchResponse = client().prepareSearch("foos", "aliasToTest1").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = client().prepareSearch("foos", "aliasToTest1").setQuery(matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2", "3", "4", "5");
-        assertThat(client().prepareCount("foos", "aliasToTest1").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(5L));
+        assertThat(client().prepareCount("foos", "aliasToTest1").setQuery(matchAllQuery()).get().getCount(), equalTo(5L));
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for both indices");
-        searchResponse = client().prepareSearch("foos", "aliasToTests").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = client().prepareSearch("foos", "aliasToTests").setQuery(matchAllQuery()).get();
         assertThat(searchResponse.getHits().totalHits(), equalTo(8L));
-        assertThat(client().prepareCount("foos", "aliasToTests").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(8L));
+        assertThat(client().prepareCount("foos", "aliasToTests").setQuery(matchAllQuery()).get().getCount(), equalTo(8L));
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for both indices");
         searchResponse = client().prepareSearch("foos", "aliasToTests").setQuery(QueryBuilders.termQuery("name", "something")).get();
@@ -325,29 +326,29 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         refresh();
 
         logger.info("--> checking filtering alias for multiple indices");
-        SearchResponse searchResponse = client().prepareSearch("filter23", "filter13").setQuery(QueryBuilders.matchAllQuery()).get();
+        SearchResponse searchResponse = client().prepareSearch("filter23", "filter13").setQuery(matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "21", "31", "13", "33");
-        assertThat(client().prepareCount("filter23", "filter13").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(4L));
+        assertThat(client().prepareCount("filter23", "filter13").setQuery(matchAllQuery()).get().getCount(), equalTo(4L));
 
-        searchResponse = client().prepareSearch("filter23", "filter1").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = client().prepareSearch("filter23", "filter1").setQuery(matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "21", "31", "11", "12", "13");
-        assertThat(client().prepareCount("filter23", "filter1").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(5L));
+        assertThat(client().prepareCount("filter23", "filter1").setQuery(matchAllQuery()).get().getCount(), equalTo(5L));
 
-        searchResponse = client().prepareSearch("filter13", "filter1").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = client().prepareSearch("filter13", "filter1").setQuery(matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "11", "12", "13", "33");
-        assertThat(client().prepareCount("filter13", "filter1").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(4L));
+        assertThat(client().prepareCount("filter13", "filter1").setQuery(matchAllQuery()).get().getCount(), equalTo(4L));
 
-        searchResponse = client().prepareSearch("filter13", "filter1", "filter23").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = client().prepareSearch("filter13", "filter1", "filter23").setQuery(matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "11", "12", "13", "21", "31", "33");
-        assertThat(client().prepareCount("filter13", "filter1", "filter23").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(6L));
+        assertThat(client().prepareCount("filter13", "filter1", "filter23").setQuery(matchAllQuery()).get().getCount(), equalTo(6L));
 
-        searchResponse = client().prepareSearch("filter23", "filter13", "test2").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = client().prepareSearch("filter23", "filter13", "test2").setQuery(matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "21", "22", "23", "31", "13", "33");
-        assertThat(client().prepareCount("filter23", "filter13", "test2").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(6L));
+        assertThat(client().prepareCount("filter23", "filter13", "test2").setQuery(matchAllQuery()).get().getCount(), equalTo(6L));
 
-        searchResponse = client().prepareSearch("filter23", "filter13", "test1", "test2").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = client().prepareSearch("filter23", "filter13", "test1", "test2").setQuery(matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "11", "12", "13", "21", "22", "23", "31", "33");
-        assertThat(client().prepareCount("filter23", "filter13", "test1", "test2").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(8L));
+        assertThat(client().prepareCount("filter23", "filter13", "test1", "test2").setQuery(matchAllQuery()).get().getCount(), equalTo(8L));
     }
 
     @Test
@@ -385,26 +386,26 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         refresh();
 
         logger.info("--> checking counts before delete");
-        assertThat(client().prepareCount("bars").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(1L));
+        assertThat(client().prepareCount("bars").setQuery(matchAllQuery()).get().getCount(), equalTo(1L));
 
         logger.info("--> delete by query from a single alias");
         client().prepareDeleteByQuery("bars").setQuery(QueryBuilders.termQuery("name", "test")).get();
 
         logger.info("--> verify that only one record was deleted");
-        assertThat(client().prepareCount("test1").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(3L));
+        assertThat(client().prepareCount("test1").setQuery(matchAllQuery()).get().getCount(), equalTo(3L));
 
         logger.info("--> delete by query from an aliases pointing to two indices");
-        client().prepareDeleteByQuery("foos").setQuery(QueryBuilders.matchAllQuery()).get();
+        client().prepareDeleteByQuery("foos").setQuery(matchAllQuery()).get();
 
         logger.info("--> verify that proper records were deleted");
-        SearchResponse searchResponse = client().prepareSearch("aliasToTests").setQuery(QueryBuilders.matchAllQuery()).get();
+        SearchResponse searchResponse = client().prepareSearch("aliasToTests").setQuery(matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "3", "4", "6", "7", "8");
 
         logger.info("--> delete by query from an aliases and an index");
-        client().prepareDeleteByQuery("tests", "test2").setQuery(QueryBuilders.matchAllQuery()).get();
+        client().prepareDeleteByQuery("tests", "test2").setQuery(matchAllQuery()).get();
 
         logger.info("--> verify that proper records were deleted");
-        searchResponse = client().prepareSearch("aliasToTests").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = client().prepareSearch("aliasToTests").setQuery(matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "4");
     }
 
@@ -905,6 +906,16 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
                 assertHitCount(response, i);
             }
         }
+    }
+
+    @Test
+    public void testAliasesFilterWithHasChildQuery() throws Exception {
+        assertAcked(prepareCreate("my-index")
+                        .addMapping("parent")
+                        .addMapping("child", "_parent", "type=parent")
+        );
+        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter1", hasChildFilter("child", matchAllQuery())));
+        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter2", hasParentFilter("child", matchAllQuery())));
     }
 
     private void checkAliases() {

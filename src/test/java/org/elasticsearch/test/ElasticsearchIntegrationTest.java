@@ -513,9 +513,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             builder.put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, mergePolicy.getName());
         }
 
-        if (random.nextBoolean()) {
-            builder.put(MergeSchedulerProvider.FORCE_ASYNC_MERGE, random.nextBoolean());
-        }
         switch (random.nextInt(4)) {
             case 3:
                 builder.put(MergeSchedulerModule.MERGE_SCHEDULER_TYPE_KEY, ConcurrentMergeSchedulerProvider.class);

@@ -56,7 +56,6 @@ public class RestThreadPoolAction extends AbstractCatAction {
             ThreadPool.Names.GET,
             ThreadPool.Names.INDEX,
             ThreadPool.Names.MANAGEMENT,
-            ThreadPool.Names.MERGE,
             ThreadPool.Names.OPTIMIZE,
             ThreadPool.Names.PERCOLATE,
             ThreadPool.Names.REFRESH,
@@ -73,16 +72,18 @@ public class RestThreadPoolAction extends AbstractCatAction {
             "g",
             "i",
             "ma",
-            "m",
             "o",
             "p",
             "r",
             "s",
             "sn",
-            "sd",
             "su",
             "w"
     };
+
+    static {
+        assert SUPPORTED_ALIASES.length == SUPPORTED_NAMES.length: "SUPPORTED_NAMES/ALIASES mismatch";
+    }
 
     private final static String[] DEFAULT_THREAD_POOLS = new String[]{
             ThreadPool.Names.BULK,

@@ -38,8 +38,9 @@ public class StopAnalyzerProvider extends AbstractIndexAnalyzerProvider<StopAnal
     @Inject
     public StopAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        CharArraySet stopWords = Analysis.parseStopWords(env, settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET, version);
-        this.stopAnalyzer = new StopAnalyzer(version, stopWords);
+        CharArraySet stopWords = Analysis.parseStopWords(env, settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
+        this.stopAnalyzer = new StopAnalyzer(stopWords);
+        this.stopAnalyzer.setVersion(version);
     }
 
     @Override

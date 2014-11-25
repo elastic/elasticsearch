@@ -172,8 +172,8 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation implemen
     InternalGeoHashGrid() {
     } // for serialization
 
-    public InternalGeoHashGrid(String name, int requiredSize, Collection<Bucket> buckets) {
-        super(name);
+    public InternalGeoHashGrid(String name, int requiredSize, Collection<Bucket> buckets, Map<String, Object> metaData) {
+        super(name, metaData);
         this.requiredSize = requiredSize;
         this.buckets = buckets;
     }
@@ -241,12 +241,11 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation implemen
         for (int i = ordered.size() - 1; i >= 0; i--) {
             list[i] = ordered.pop();
         }
-        return new InternalGeoHashGrid(getName(), requiredSize, Arrays.asList(list));
+        return new InternalGeoHashGrid(getName(), requiredSize, Arrays.asList(list), getMetaData());
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        this.name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
         this.requiredSize = readSize(in);
         int size = in.readVInt();
         List<Bucket> buckets = new ArrayList<>(size);
@@ -260,8 +259,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation implemen
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         writeSize(requiredSize, out);
         out.writeVInt(buckets.size());
         for (Bucket bucket : buckets) {

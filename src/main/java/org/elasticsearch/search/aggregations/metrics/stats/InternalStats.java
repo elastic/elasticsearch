@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggre
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
 *
@@ -65,8 +66,8 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
 
     protected InternalStats() {} // for serialization
 
-    public InternalStats(String name, long count, double sum, double min, double max) {
-        super(name);
+    public InternalStats(String name, long count, double sum, double min, double max, Map<String, Object> metaData) {
+        super(name, metaData);
         this.count = count;
         this.sum = sum;
         this.min = min;
@@ -130,12 +131,11 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
             max = Math.max(max, stats.getMax());
             sum += stats.getSum();
         }
-        return new InternalStats(name, count, sum, min, max);
+        return new InternalStats(name, count, sum, min, max, getMetaData());
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
         valueFormatter = ValueFormatterStreams.readOptional(in);
         count = in.readVLong();
         min = in.readDouble();
@@ -148,8 +148,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         ValueFormatterStreams.writeOptional(valueFormatter, out);
         out.writeVLong(count);
         out.writeDouble(min);

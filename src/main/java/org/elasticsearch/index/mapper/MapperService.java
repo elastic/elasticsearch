@@ -25,6 +25,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.queries.TermFilter;
@@ -518,7 +519,7 @@ public class MapperService extends AbstractIndexComponent  {
                 useTermsFilter = false;
                 break;
             }
-            if (!docMapper.typeMapper().fieldType().indexed()) {
+            if (docMapper.typeMapper().fieldType().indexOptions() == IndexOptions.NONE) {
                 useTermsFilter = false;
                 break;
             }
@@ -817,7 +818,7 @@ public class MapperService extends AbstractIndexComponent  {
     }
 
     /**
-     * Returns smart field mappers based on a smart name. A smart name is one that can optioannly be prefixed
+     * Returns smart field mappers based on a smart name. A smart name is one that can optionally be prefixed
      * with a type (and then a '.'). If it is, then the {@link MapperService.SmartNameFieldMappers}
      * will have the doc mapper set.
      * <p/>

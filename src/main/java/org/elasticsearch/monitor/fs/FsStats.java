@@ -56,6 +56,25 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
         double diskQueue = -1;
         double diskServiceTime = -1;
 
+        public Info() {
+        }
+
+        public Info(String path, @Nullable String mount, @Nullable String dev, long total, long free, long available, long diskReads,
+                    long diskWrites, long diskReadBytes, long diskWriteBytes, double diskQueue, double diskServiceTime) {
+            this.path = path;
+            this.mount = mount;
+            this.dev = dev;
+            this.total = total;
+            this.free = free;
+            this.available = available;
+            this.diskReads = diskReads;
+            this.diskWrites = diskWrites;
+            this.diskReadBytes = diskReadBytes;
+            this.diskWriteBytes = diskWriteBytes;
+            this.diskQueue = diskQueue;
+            this.diskServiceTime = diskServiceTime;
+        }
+
         static public Info readInfoFrom(StreamInput in) throws IOException {
             Info i = new Info();
             i.readFrom(in);
@@ -286,7 +305,7 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
 
     }
 
-    FsStats(long timestamp, Info[] infos) {
+    public FsStats(long timestamp, Info[] infos) {
         this.timestamp = timestamp;
         this.infos = infos;
         this.total = null;

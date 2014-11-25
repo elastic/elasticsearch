@@ -46,6 +46,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexShardAlreadyExistsException;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.aliases.IndexAlias;
@@ -67,6 +69,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -94,6 +97,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     // a list of shards that failed during recovery
     // we keep track of these shards in order to prevent repeated recovery of these shards on each cluster state update
     private final ConcurrentMap<ShardId, FailedShard> failedShards = ConcurrentCollections.newConcurrentMap();
+    private final NodeEnvironment nodeEnvironment;
 
     static class FailedShard {
         public final long version;
@@ -116,7 +120,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                                       ThreadPool threadPool, RecoveryTarget recoveryTarget,
                                       ShardStateAction shardStateAction,
                                       NodeIndexDeletedAction nodeIndexDeletedAction,
-                                      NodeMappingRefreshAction nodeMappingRefreshAction) {
+                                      NodeMappingRefreshAction nodeMappingRefreshAction,
+                                      NodeEnvironment nodeEnvironment) {
         super(settings);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
@@ -127,6 +132,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         this.nodeMappingRefreshAction = nodeMappingRefreshAction;
 
         this.sendRefreshMapping = componentSettings.getAsBoolean("send_refresh_mapping", true);
+        this.nodeEnvironment = nodeEnvironment;
     }
 
     @Override
@@ -251,7 +257,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 if (logger.isDebugEnabled()) {
                     logger.debug("[{}] cleaning index, no longer part of the metadata", index);
                 }
-                removeIndex(index, "index no longer part of the metadata");
+                deleteIndex(index, "index no longer part of the metadata");
             }
         }
     }
@@ -340,7 +346,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // we only create / update here
                 continue;
             }
-            List<String> typesToRefresh = null;
+            List<String> typesToRefresh = Lists.newArrayList();
             String index = indexMetaData.index();
             IndexService indexService = indicesService.indexService(index);
             if (indexService == null) {
@@ -350,7 +356,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             MapperService mapperService = indexService.mapperService();
             // first, go over and update the _default_ mapping (if exists)
             if (indexMetaData.mappings().containsKey(MapperService.DEFAULT_MAPPING)) {
-                processMapping(index, mapperService, MapperService.DEFAULT_MAPPING, indexMetaData.mapping(MapperService.DEFAULT_MAPPING).source());
+                boolean requireRefresh = processMapping(index, mapperService, MapperService.DEFAULT_MAPPING, indexMetaData.mapping(MapperService.DEFAULT_MAPPING).source());
+                if (requireRefresh) {
+                    typesToRefresh.add(MapperService.DEFAULT_MAPPING);
+                }
             }
 
             // go over and add the relevant mappings (or update them)
@@ -363,19 +372,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
                 boolean requireRefresh = processMapping(index, mapperService, mappingType, mappingSource);
                 if (requireRefresh) {
-                    if (typesToRefresh == null) {
-                        typesToRefresh = Lists.newArrayList();
-                    }
                     typesToRefresh.add(mappingType);
                 }
             }
-            if (typesToRefresh != null) {
-                if (sendRefreshMapping) {
-                    nodeMappingRefreshAction.nodeMappingRefresh(event.state(),
-                            new NodeMappingRefreshAction.NodeMappingRefreshRequest(index, indexMetaData.uuid(),
-                                    typesToRefresh.toArray(new String[typesToRefresh.size()]), event.state().nodes().localNodeId())
-                    );
-                }
+            if (!typesToRefresh.isEmpty() && sendRefreshMapping) {
+                nodeMappingRefreshAction.nodeMappingRefresh(event.state(),
+                        new NodeMappingRefreshAction.NodeMappingRefreshRequest(index, indexMetaData.uuid(),
+                                typesToRefresh.toArray(new String[typesToRefresh.size()]), event.state().nodes().localNodeId())
+                );
             }
             // go over and remove mappings
             for (DocumentMapper documentMapper : mapperService.docMappers(true)) {
@@ -838,19 +842,33 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
         }
     }
-
     private void removeIndex(String index, String reason) {
         try {
             indicesService.removeIndex(index, reason);
         } catch (Throwable e) {
             logger.warn("failed to clean index ({})", e, reason);
         }
+        clearSeenMappings(index);
+
+    }
+
+    private void clearSeenMappings(String index) {
         // clear seen mappings as well
         for (Tuple<String, String> tuple : seenMappings.keySet()) {
             if (tuple.v1().equals(index)) {
                 seenMappings.remove(tuple);
             }
         }
+    }
+
+    private void deleteIndex(String index, String reason) {
+        try {
+            indicesService.deleteIndex(index, reason);
+        } catch (Throwable e) {
+            logger.warn("failed to delete index ({})", e, reason);
+        }
+        // clear seen mappings as well
+        clearSeenMappings(index);
     }
 
     private class FailedEngineHandler implements Engine.FailedEngineListener {

@@ -53,9 +53,9 @@ public class LowerCaseTokenFilterFactory extends AbstractTokenFilterFactory {
     @Override
     public TokenStream create(TokenStream tokenStream) {
         if (lang == null) {
-            return new LowerCaseFilter(version, tokenStream);
+            return new LowerCaseFilter(tokenStream);
         } else if (lang.equalsIgnoreCase("greek")) {
-            return new GreekLowerCaseFilter(version, tokenStream);
+            return new GreekLowerCaseFilter(tokenStream);
         } else if (lang.equalsIgnoreCase("irish")) {
             return new IrishLowerCaseFilter(tokenStream);
         } else if (lang.equalsIgnoreCase("turkish")) {

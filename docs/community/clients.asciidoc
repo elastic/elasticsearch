@@ -50,6 +50,9 @@ See the {client}/ruby-api/current/index.html[official Elasticsearch Ruby client]
 
 * https://github.com/ddnexus/flex[Flex]:
   Ruby Client.
+  
+* https://github.com/printercu/elastics-rb[elastics]:
+  Tiny client with built-in zero-downtime migrations and ActiveRecord integration.
 
 
 [[community-php]]
@@ -142,6 +145,8 @@ See the {client}/net-api/current/index.html[official Elasticsearch .NET client].
 * https://github.com/belogik/goes[goes]:
   Go lib.
 
+* https://github.com/olivere/elastic[elastic]:
+  Elasticsearch client for Google Go.
 
 [[community-erlang]]
 === Erlang

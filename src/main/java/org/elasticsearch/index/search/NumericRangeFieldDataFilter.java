@@ -19,17 +19,17 @@
 
 package org.elasticsearch.index.search;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import java.io.IOException;
+
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocValuesDocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-
-import java.io.IOException;
 
 /**
  * A numeric filter that can be much faster than {@link org.apache.lucene.search.NumericRangeFilter} at the
@@ -112,7 +112,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
     public static NumericRangeFieldDataFilter<Byte> newByteRange(IndexNumericFieldData indexFieldData, Byte lowerVal, Byte upperVal, boolean includeLower, boolean includeUpper) {
         return new NumericRangeFieldDataFilter<Byte>(indexFieldData, lowerVal, upperVal, includeLower, includeUpper) {
             @Override
-            public DocIdSet getDocIdSet(AtomicReaderContext ctx, Bits acceptedDocs) throws IOException {
+            public DocIdSet getDocIdSet(LeafReaderContext ctx, Bits acceptedDocs) throws IOException {
                 final byte inclusiveLowerPoint, inclusiveUpperPoint;
                 if (lowerVal != null) {
                     byte i = lowerVal.byteValue();
@@ -144,7 +144,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
     public static NumericRangeFieldDataFilter<Short> newShortRange(IndexNumericFieldData indexFieldData, Short lowerVal, Short upperVal, boolean includeLower, boolean includeUpper) {
         return new NumericRangeFieldDataFilter<Short>(indexFieldData, lowerVal, upperVal, includeLower, includeUpper) {
             @Override
-            public DocIdSet getDocIdSet(AtomicReaderContext ctx, Bits acceptedDocs) throws IOException {
+            public DocIdSet getDocIdSet(LeafReaderContext ctx, Bits acceptedDocs) throws IOException {
                 final short inclusiveLowerPoint, inclusiveUpperPoint;
                 if (lowerVal != null) {
                     short i = lowerVal.shortValue();
@@ -175,7 +175,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
     public static NumericRangeFieldDataFilter<Integer> newIntRange(IndexNumericFieldData indexFieldData, Integer lowerVal, Integer upperVal, boolean includeLower, boolean includeUpper) {
         return new NumericRangeFieldDataFilter<Integer>(indexFieldData, lowerVal, upperVal, includeLower, includeUpper) {
             @Override
-            public DocIdSet getDocIdSet(AtomicReaderContext ctx, Bits acceptedDocs) throws IOException {
+            public DocIdSet getDocIdSet(LeafReaderContext ctx, Bits acceptedDocs) throws IOException {
                 final int inclusiveLowerPoint, inclusiveUpperPoint;
                 if (lowerVal != null) {
                     int i = lowerVal.intValue();
@@ -206,7 +206,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
     public static NumericRangeFieldDataFilter<Long> newLongRange(IndexNumericFieldData indexFieldData, Long lowerVal, Long upperVal, boolean includeLower, boolean includeUpper) {
         return new NumericRangeFieldDataFilter<Long>(indexFieldData, lowerVal, upperVal, includeLower, includeUpper) {
             @Override
-            public DocIdSet getDocIdSet(AtomicReaderContext ctx, Bits acceptedDocs) throws IOException {
+            public DocIdSet getDocIdSet(LeafReaderContext ctx, Bits acceptedDocs) throws IOException {
                 final long inclusiveLowerPoint, inclusiveUpperPoint;
                 if (lowerVal != null) {
                     long i = lowerVal.longValue();
@@ -238,7 +238,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
     public static NumericRangeFieldDataFilter<Float> newFloatRange(IndexNumericFieldData indexFieldData, Float lowerVal, Float upperVal, boolean includeLower, boolean includeUpper) {
         return new NumericRangeFieldDataFilter<Float>(indexFieldData, lowerVal, upperVal, includeLower, includeUpper) {
             @Override
-            public DocIdSet getDocIdSet(AtomicReaderContext ctx, Bits acceptedDocs) throws IOException {
+            public DocIdSet getDocIdSet(LeafReaderContext ctx, Bits acceptedDocs) throws IOException {
                 // we transform the floating point numbers to sortable integers
                 // using NumericUtils to easier find the next bigger/lower value
                 final float inclusiveLowerPoint, inclusiveUpperPoint;
@@ -273,7 +273,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
     public static NumericRangeFieldDataFilter<Double> newDoubleRange(IndexNumericFieldData indexFieldData, Double lowerVal, Double upperVal, boolean includeLower, boolean includeUpper) {
         return new NumericRangeFieldDataFilter<Double>(indexFieldData, lowerVal, upperVal, includeLower, includeUpper) {
             @Override
-            public DocIdSet getDocIdSet(AtomicReaderContext ctx, Bits acceptedDocs) throws IOException {
+            public DocIdSet getDocIdSet(LeafReaderContext ctx, Bits acceptedDocs) throws IOException {
                 // we transform the floating point numbers to sortable integers
                 // using NumericUtils to easier find the next bigger/lower value
                 final double inclusiveLowerPoint, inclusiveUpperPoint;
@@ -305,7 +305,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
         };
     }
     
-    private static final class DoubleRangeMatchDocIdSet extends MatchDocIdSet {
+    private static final class DoubleRangeMatchDocIdSet extends DocValuesDocIdSet {
         private final SortedNumericDoubleValues values;
         private final double inclusiveLowerPoint;
         private final double inclusiveUpperPoint;
@@ -332,7 +332,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
         
     }
     
-    private static final class LongRangeMatchDocIdSet extends MatchDocIdSet {
+    private static final class LongRangeMatchDocIdSet extends DocValuesDocIdSet {
         private final SortedNumericDocValues values;
         private final long inclusiveLowerPoint;
         private final long inclusiveUpperPoint;

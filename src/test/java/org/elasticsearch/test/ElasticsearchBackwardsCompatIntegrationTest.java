@@ -27,6 +27,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
@@ -34,7 +36,6 @@ import org.junit.Before;
 import org.junit.Ignore;
 
 import java.io.File;
-import java.io.FileFilter;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.is;
@@ -83,50 +84,24 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
     private static File backwardsCompatibilityPath() {
         String path = System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_PATH);
         if (path == null || path.isEmpty()) {
-            throw new IllegalArgumentException("Invalid Backwards tests location path:" + path);
+            throw new IllegalArgumentException("Must specify backwards test path with property " + TESTS_BACKWARDS_COMPATIBILITY_PATH);
         }
         String version = System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_VERSION);
         if (version == null || version.isEmpty()) {
-            throw new IllegalArgumentException("Invalid Backwards tests version:" + version);
+            throw new IllegalArgumentException("Must specify backwards test version with property " + TESTS_BACKWARDS_COMPATIBILITY_VERSION);
         }
         if (Version.fromString(version).before(Version.CURRENT.minimumCompatibilityVersion())) {
             throw new IllegalArgumentException("Backcompat elasticsearch version must be same major version as current. " +
                 "backcompat: " + version + ", current: " + Version.CURRENT.toString());
         }
-        File dir;
-        if (version == null || version.isEmpty()) {
-            // choose a random version
-            // TODO: how can we put the version selected in the repeat test output?
-            File[] subdirs = new File(path).listFiles(new FileFilter() {
-                @Override
-                public boolean accept(File file) {
-                    return file.getName().startsWith("elasticsearch-") && file.isDirectory();
-                }
-            });
-            if (subdirs == null || subdirs.length == 0) {
-                throw new IllegalArgumentException("Backwards dir " + path + " must be a directory, and contain elasticsearch releases");
-            }
-            dir = subdirs[randomInt(subdirs.length - 1)];
-            version = dir.getName().substring("elasticsearch-".length());
-        } else {
-            dir = new File(path, "elasticsearch-" + version);
-            if (!dir.exists()) {
-                throw new IllegalArgumentException("Backwards tests location is missing: " + dir.getAbsolutePath());
-            }
-            if (!dir.isDirectory()) {
-                throw new IllegalArgumentException("Backwards tests location is not a directory: " + dir.getAbsolutePath());
-            }
+        File file = new File(path, "elasticsearch-" + version);
+        if (!file.exists()) {
+            throw new IllegalArgumentException("Backwards tests location is missing: " + file.getAbsolutePath());
+        }   
+        if (!file.isDirectory()) {
+            throw new IllegalArgumentException("Backwards tests location is not a directory: " + file.getAbsolutePath());
         }
-        
-        Version v = Version.fromString(version);
-        if (v == null) {
-            throw new IllegalArgumentException("Backcompat elasticsearch version could not be parsed: " + version);
-        }
-        if (v.major != Version.CURRENT.major) {
-            throw new IllegalArgumentException("Backcompat elasticsearch version must be same major version as current. " +
-                                               "backcompat: " + version + ", current: " + Version.CURRENT.toString());
-        }
-        return dir;
+        return file;
     }
 
     public CompositeTestCluster backwardsCluster() {
@@ -173,9 +148,16 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
     }
 
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder().put(requiredSettings())
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(requiredSettings())
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName()) // run same transport  / disco as external
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, TransportService.class.getName()).build();
+                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, TransportService.class.getName());
+        if (compatibilityVersion().before(Version.V_1_3_2)) {
+            // if we test against nodes before 1.3.2 we disable all the compression due to a known bug
+            // see #7210
+            builder.put(Transport.TransportSettings.TRANSPORT_TCP_COMPRESS, false)
+                   .put(RecoverySettings.INDICES_RECOVERY_COMPRESS, false);
+        }
+        return builder.build();
     }
 
     public void assertAllShardsOnNodes(String index, String pattern) {

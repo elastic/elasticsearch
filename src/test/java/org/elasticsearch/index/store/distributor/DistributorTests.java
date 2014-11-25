@@ -20,14 +20,17 @@
 package org.elasticsearch.index.store.distributor;
 
 import org.apache.lucene.store.*;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -43,7 +46,12 @@ public class DistributorTests extends ElasticsearchTestCase {
         };
         FakeDirectoryService directoryService = new FakeDirectoryService(directories);
 
-        LeastUsedDistributor distributor = new LeastUsedDistributor(directoryService);
+        LeastUsedDistributor distributor = new LeastUsedDistributor(directoryService) {
+            @Override
+            protected long getUsableSpace(Directory directory) throws IOException {
+                return ((FakeFsDirectory)directory).useableSpace;
+            }
+        };
         for (int i = 0; i < 5; i++) {
             assertThat(distributor.any(), equalTo((Directory) directories[2]));
         }
@@ -98,7 +106,12 @@ public class DistributorTests extends ElasticsearchTestCase {
         };
         FakeDirectoryService directoryService = new FakeDirectoryService(directories);
 
-        RandomWeightedDistributor randomWeightedDistributor = new RandomWeightedDistributor(directoryService);
+        RandomWeightedDistributor randomWeightedDistributor = new RandomWeightedDistributor(directoryService) {
+            @Override
+            protected long getUsableSpace(Directory directory) throws IOException {
+                return ((FakeFsDirectory)directory).useableSpace;
+            }
+        };
         for (int i = 0; i < 10000; i++) {
             ((FakeFsDirectory) randomWeightedDistributor.any()).incrementAllocationCount();
         }
@@ -124,11 +137,12 @@ public class DistributorTests extends ElasticsearchTestCase {
 
     }
 
-    public static class FakeDirectoryService implements DirectoryService {
+    public static class FakeDirectoryService extends DirectoryService {
 
         private final Directory[] directories;
 
         public FakeDirectoryService(Directory[] directories) {
+            super(new ShardId("fake", 1), ImmutableSettings.EMPTY);
             this.directories = directories;
         }
 
@@ -141,26 +155,18 @@ public class DistributorTests extends ElasticsearchTestCase {
         public long throttleTimeInNanos() {
             return 0;
         }
-
-        @Override
-        public void renameFile(Directory dir, String from, String to) throws IOException {
-        }
-
-        @Override
-        public void fullDelete(Directory dir) throws IOException {
-        }
     }
 
     public static class FakeFsDirectory extends FSDirectory {
 
         public int allocationCount;
+        public long useableSpace;
 
-        public FakeFile fakeFile;
 
         public FakeFsDirectory(String path, long usableSpace) throws IOException {
-            super(new File(path), NoLockFactory.getNoLockFactory());
-            fakeFile = new FakeFile(path, usableSpace);
+            super(Paths.get(path), NoLockFactory.INSTANCE);
             allocationCount = 0;
+            this.useableSpace = usableSpace;
         }
 
         @Override
@@ -169,7 +175,7 @@ public class DistributorTests extends ElasticsearchTestCase {
         }
 
         public void setUsableSpace(long usableSpace) {
-            fakeFile.setUsableSpace(usableSpace);
+           this.useableSpace = usableSpace;
         }
 
         public void incrementAllocationCount() {
@@ -183,28 +189,6 @@ public class DistributorTests extends ElasticsearchTestCase {
         public void resetAllocationCount() {
             allocationCount = 0;
         }
-
-        @Override
-        public File getDirectory() {
-            return fakeFile;
-        }
     }
 
-    public static class FakeFile extends File {
-        private long usableSpace;
-
-        public FakeFile(String s, long usableSpace) {
-            super(s);
-            this.usableSpace = usableSpace;
-        }
-
-        @Override
-        public long getUsableSpace() {
-            return usableSpace;
-        }
-
-        public void setUsableSpace(long usableSpace) {
-            this.usableSpace = usableSpace;
-        }
-    }
 }

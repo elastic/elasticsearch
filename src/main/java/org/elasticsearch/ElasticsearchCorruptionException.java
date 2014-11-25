@@ -18,8 +18,6 @@
  */
 package org.elasticsearch;
 
-import org.apache.lucene.index.CorruptIndexException;
-
 import java.io.IOException;
 
 /**
@@ -39,14 +37,20 @@ public class ElasticsearchCorruptionException extends IOException {
     /**
      * Creates a new {@link ElasticsearchCorruptionException} with the given exceptions stacktrace.
      * This constructor copies the stacktrace as well as the message from the given
-     * {@link org.apache.lucene.index.CorruptIndexException} into this exception.
+     * {@code Throwable} into this exception.
      *
      * @param ex the exception cause
      */
-    public ElasticsearchCorruptionException(CorruptIndexException ex) {
+    public ElasticsearchCorruptionException(Throwable ex) {
         this(ex.getMessage());
         if (ex != null) {
             this.setStackTrace(ex.getStackTrace());
+        }
+        Throwable[] suppressed = ex.getSuppressed();
+        if (suppressed != null) {
+            for (Throwable supressedExc : suppressed) {
+                addSuppressed(supressedExc);
+            }
         }
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.health.ClusterIndexHealth;
@@ -156,7 +157,7 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
     public void testClusterIndexHealth() {
         int numberOfShards = randomInt(3) + 1;
         int numberOfReplicas = randomInt(4);
-        IndexMetaData indexMetaData = IndexMetaData.builder("test1").numberOfShards(numberOfShards).numberOfReplicas(numberOfReplicas).build();
+        IndexMetaData indexMetaData = IndexMetaData.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(numberOfShards).numberOfReplicas(numberOfReplicas).build();
         ShardCounter counter = new ShardCounter();
         IndexRoutingTable indexRoutingTable = genIndexRoutingTable(indexMetaData, counter);
 
@@ -183,7 +184,7 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
         for (int i = randomInt(4); i >= 0; i--) {
             int numberOfShards = randomInt(3) + 1;
             int numberOfReplicas = randomInt(4);
-            IndexMetaData indexMetaData = IndexMetaData.builder("test_" + Integer.toString(i)).numberOfShards(numberOfShards).numberOfReplicas(numberOfReplicas).build();
+            IndexMetaData indexMetaData = IndexMetaData.builder("test_" + Integer.toString(i)).settings(settings(Version.CURRENT)).numberOfShards(numberOfShards).numberOfReplicas(numberOfReplicas).build();
             IndexRoutingTable indexRoutingTable = genIndexRoutingTable(indexMetaData, counter);
             metaData.put(indexMetaData, true);
             routingTable.add(indexRoutingTable);
@@ -197,10 +198,10 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
 
     @Test
     public void testValidations() {
-        IndexMetaData indexMetaData = IndexMetaData.builder("test").numberOfShards(2).numberOfReplicas(2).build();
+        IndexMetaData indexMetaData = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(2).build();
         ShardCounter counter = new ShardCounter();
         IndexRoutingTable indexRoutingTable = genIndexRoutingTable(indexMetaData, counter);
-        indexMetaData = IndexMetaData.builder("test").numberOfShards(2).numberOfReplicas(3).build();
+        indexMetaData = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(3).build();
 
         ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetaData, indexRoutingTable);
         assertThat(indexHealth.getValidationFailures(), Matchers.hasSize(2));

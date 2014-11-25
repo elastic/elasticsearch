@@ -19,13 +19,19 @@
 
 package org.elasticsearch.common.lucene.docset;
 
-import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.DocValuesDocIdSet;
+import org.apache.lucene.search.FilteredDocIdSetIterator;
+import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.RoaringDocIdSet;
+import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lucene.search.XDocIdSetIterator;
 
 import java.io.IOException;
 
@@ -48,48 +54,64 @@ public class DocIdSets {
     }
 
     /**
-     * Is {@link org.apache.lucene.search.DocIdSetIterator} implemented in a "fast" manner.
-     * For example, it does not ends up iterating one doc at a time check for its "value".
+     * Check if the given iterator can nextDoc() or advance() in sub-linear time
+     * of the number of documents. For instance, an iterator that would need to
+     * iterate one document at a time to check for its value would be considered
+     * broken.
      */
-    public static boolean isFastIterator(DocIdSet set) {
-        return set instanceof FixedBitSet;
+    public static boolean isBroken(DocIdSetIterator iterator) {
+        while (iterator instanceof FilteredDocIdSetIterator) {
+            // this iterator is filtered (likely by some bits)
+            // unwrap in order to check if the underlying iterator is fast
+            iterator = ((FilteredDocIdSetIterator) iterator).getDelegate();
+        }
+        if (iterator instanceof XDocIdSetIterator) {
+            return ((XDocIdSetIterator) iterator).isBroken();
+        }
+        if (iterator instanceof MatchDocIdSetIterator) {
+            return true;
+        }
+        // DocValuesDocIdSet produces anonymous slow iterators
+        if (iterator != null && DocValuesDocIdSet.class.equals(iterator.getClass().getEnclosingClass())) {
+            return true;
+        }
+        return false;
     }
 
     /**
      * Converts to a cacheable {@link DocIdSet}
      * <p/>
-     * Note, we don't use {@link org.apache.lucene.search.DocIdSet#isCacheable()} because execution
-     * might be expensive even if its cacheable (i.e. not going back to the reader to execute). We effectively
-     * always either return an empty {@link DocIdSet} or {@link FixedBitSet} but never <code>null</code>.
+     * This never returns <code>null</code>.
      */
-    public static DocIdSet toCacheable(AtomicReader reader, @Nullable DocIdSet set) throws IOException {
+    public static DocIdSet toCacheable(LeafReader reader, @Nullable DocIdSet set) throws IOException {
         if (set == null || set == DocIdSet.EMPTY) {
             return DocIdSet.EMPTY;
         }
-        DocIdSetIterator it = set.iterator();
+        final DocIdSetIterator it = set.iterator();
         if (it == null) {
             return DocIdSet.EMPTY;
         }
-        int doc = it.nextDoc();
-        if (doc == DocIdSetIterator.NO_MORE_DOCS) {
+        final int firstDoc = it.nextDoc();
+        if (firstDoc == DocIdSetIterator.NO_MORE_DOCS) {
             return DocIdSet.EMPTY;
         }
-        if (set instanceof FixedBitSet) {
+        if (set instanceof BitDocIdSet) {
             return set;
         }
-        // TODO: should we use WAH8DocIdSet like Lucene?
-        FixedBitSet fixedBitSet = new FixedBitSet(reader.maxDoc());
-        do {
-            fixedBitSet.set(doc);
-            doc = it.nextDoc();
-        } while (doc != DocIdSetIterator.NO_MORE_DOCS);
-        return fixedBitSet;
+
+        final RoaringDocIdSet.Builder builder = new RoaringDocIdSet.Builder(reader.maxDoc());
+        builder.add(firstDoc);
+        for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
+           builder.add(doc);
+        }
+
+        return builder.build();
     }
 
     /**
      * Gets a set to bits.
      */
-    public static Bits toSafeBits(AtomicReader reader, @Nullable DocIdSet set) throws IOException {
+    public static Bits toSafeBits(LeafReader reader, @Nullable DocIdSet set) throws IOException {
         if (set == null) {
             return new Bits.MatchNoBits(reader.maxDoc());
         }
@@ -101,18 +123,21 @@ public class DocIdSets {
         if (iterator == null) {
             return new Bits.MatchNoBits(reader.maxDoc());
         }
-        return toFixedBitSet(iterator, reader.maxDoc());
+        return toBitSet(iterator, reader.maxDoc());
     }
 
     /**
-     * Creates a {@link FixedBitSet} from an iterator.
+     * Creates a {@link BitSet} from an iterator.
      */
-    public static FixedBitSet toFixedBitSet(DocIdSetIterator iterator, int numBits) throws IOException {
-        FixedBitSet set = new FixedBitSet(numBits);
-        int doc;
-        while ((doc = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-            set.set(doc);
+    public static BitSet toBitSet(DocIdSetIterator iterator, int numBits) throws IOException {
+        BitDocIdSet.Builder builder = new BitDocIdSet.Builder(numBits);
+        builder.or(iterator);
+        BitDocIdSet result = builder.build();
+        if (result != null) {
+            return result.bits();
+        } else {
+            return new SparseFixedBitSet(numBits);
         }
-        return set;
     }
+
 }

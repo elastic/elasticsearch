@@ -1,57 +1,60 @@
 [[modules-threadpool]]
 == Thread Pool
 
-A node holds several thread pools in order to improve how threads are
-managed and memory consumption within a node. There are several thread
-pools, but the important ones include:
+A node holds several thread pools in order to improve how threads memory consumption
+are managed within a node. Many of these pools also have queues associated with them,
+which allow pending requests to be held instead
+of discarded.
+
+
+There are several thread pools, but the important ones include:
 
 [horizontal]
-`index`:: 
-    For index/delete operations, defaults to `fixed`, 
-    size `# of available processors`. 
-    queue_size `200`.
+`index`::
+    For index/delete operations. Defaults to `fixed`
+    with a size of `# of available processors`,
+    queue_size of `200`.
 
-`search`:: 
-    For count/search operations, defaults to `fixed`,
-    size `3x # of available processors`. 
-    queue_size `1000`.
+`search`::
+    For count/search operations. Defaults to `fixed`
+    with a size of `3x # of available processors`,
+    queue_size of `1000`.
 
 `suggest`::
-    For suggest operations, defaults to `fixed`,
-    size `# of available processors`.
-    queue_size `1000`.
+    For suggest operations. Defaults to `fixed`
+    with a size of `# of available processors`,
+    queue_size of `1000`.
 
-`get`:: 
-    For get operations, defaults to `fixed`
-    size `# of available processors`.
-    queue_size `1000`.
+`get`::
+    For get operations. Defaults to `fixed`
+    with a size of `# of available processors`,
+    queue_size of `1000`.
 
 `bulk`::
-    For bulk operations, defaults to `fixed`
-    size `# of available processors`.
-    queue_size `50`.
+    For bulk operations. Defaults to `fixed`
+    with a size of `# of available processors`,
+    queue_size of `50`.
 
 `percolate`::
-    For percolate operations, defaults to `fixed`
-    size `# of available processors`.
-    queue_size `1000`.
+    For percolate operations. Defaults to `fixed`
+    with a size of `# of available processors`,
+    queue_size of `1000`.
 
 `snapshot`::
-    For snapshot/restore operations, defaults to `scaling`
-    keep-alive `5m`,
-    size `(# of available processors)/2`.
+    For snapshot/restore operations. Defaults to `scaling`,
+    keep-alive `5m` with a size of `(# of available processors)/2`.
 
 `warmer`::
-    For segment warm-up operations, defaults to `scaling`
-    with a `5m` keep-alive. 
+    For segment warm-up operations. Defaults to `scaling`
+    with a `5m` keep-alive.
 
-`refresh`:: 
-    For refresh operations, defaults to `scaling`
+`refresh`::
+    For refresh operations. Defaults to `scaling`
     with a `5m` keep-alive.
 
 `listener`::
-    Mainly for java client executing of action when listener threaded is set to true
-    size `(# of available processors)/2` max at 10.
+    Mainly for java client executing of action when listener threaded is set to true.
+    Default size of `(# of available processors)/2`, max at 10.
 
 Changing a specific thread pool can be done by setting its type and
 specific type parameters, for example, changing the `index` thread pool

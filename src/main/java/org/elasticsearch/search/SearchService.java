@@ -24,7 +24,9 @@ import com.carrotsearch.hppc.ObjectSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.index.AtomicReaderContext;
+
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
@@ -45,9 +47,11 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -96,8 +100,8 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     public static final String NORMS_LOADING_KEY = "index.norms.loading";
-    private static final String DEFAUTL_KEEPALIVE_COMPONENENT_KEY = "default_keep_alive";
-    public static final String DEFAUTL_KEEPALIVE_KEY = "search." + DEFAUTL_KEEPALIVE_COMPONENENT_KEY;
+    private static final String DEFAULT_KEEPALIVE_COMPONENENT_KEY = "default_keep_alive";
+    public static final String DEFAULT_KEEPALIVE_KEY = "search." + DEFAULT_KEEPALIVE_COMPONENENT_KEY;
     private static final String KEEPALIVE_INTERVAL_COMPONENENT_KEY = "keep_alive_interval";
     public static final String KEEPALIVE_INTERVAL_KEY = "search." + KEEPALIVE_INTERVAL_COMPONENENT_KEY;
 
@@ -142,6 +146,15 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
+        indicesService.indicesLifecycle().addListener(new IndicesLifecycle.Listener() {
+
+            @Override
+            public void afterIndexDeleted(Index index) {
+                // once an index is closed we can just clean up all the pending search context information
+                // to release memory and let references to the filesystem go etc.
+                freeAllContextForIndex(index);
+            }
+        });
         this.indicesWarmer = indicesWarmer;
         this.scriptService = scriptService;
         this.pageCacheRecycler = pageCacheRecycler;
@@ -153,7 +166,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
         TimeValue keepAliveInterval = componentSettings.getAsTime(KEEPALIVE_INTERVAL_COMPONENENT_KEY, timeValueMinutes(1));
         // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
-        this.defaultKeepAlive = componentSettings.getAsTime(DEFAUTL_KEEPALIVE_COMPONENENT_KEY, timeValueMinutes(5)).millis();
+        this.defaultKeepAlive = componentSettings.getAsTime(DEFAULT_KEEPALIVE_COMPONENENT_KEY, timeValueMinutes(5)).millis();
 
         Map<String, SearchParseElement> elementParsers = new HashMap<>();
         elementParsers.putAll(dfsPhase.parseElements());
@@ -183,7 +196,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     @Override
     protected void doClose() throws ElasticsearchException {
-        keepAliveReaper.cancel(false);
+        FutureUtils.cancel(keepAliveReaper);
     }
 
     public DfsSearchResult executeDfsPhase(ShardSearchRequest request) throws ElasticsearchException {
@@ -560,6 +573,16 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         return context;
     }
 
+    private void freeAllContextForIndex(Index index) {
+        assert index != null;
+        for (SearchContext ctx : activeContexts.values()) {
+            if (index.equals(ctx.indexShard().shardId().index())) {
+                freeContext(ctx.id());
+            }
+        }
+    }
+
+
     public boolean freeContext(long id) {
         final SearchContext context = activeContexts.remove(id);
         if (context != null) {
@@ -762,7 +785,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper<?> fieldMapper : docMapper.mappers()) {
                     final String indexName = fieldMapper.names().indexName();
-                    if (fieldMapper.fieldType().indexed() && !fieldMapper.fieldType().omitNorms() && fieldMapper.normsLoading(defaultLoading) == Loading.EAGER) {
+                    if (fieldMapper.fieldType().indexOptions() != IndexOptions.NONE && !fieldMapper.fieldType().omitNorms() && fieldMapper.normsLoading(defaultLoading) == Loading.EAGER) {
                         warmUp.add(indexName);
                     }
                 }
@@ -777,7 +800,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         for (Iterator<ObjectCursor<String>> it = warmUp.iterator(); it.hasNext(); ) {
                             final String indexName = it.next().value;
                             final long start = System.nanoTime();
-                            for (final AtomicReaderContext ctx : context.searcher().reader().leaves()) {
+                            for (final LeafReaderContext ctx : context.searcher().reader().leaves()) {
                                 final NumericDocValues values = ctx.reader().getNormValues(indexName);
                                 if (values != null) {
                                     values.get(0);
@@ -835,7 +858,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             final IndexFieldDataService indexFieldDataService = indexShard.indexFieldDataService();
             final Executor executor = threadPool.executor(executor());
             final CountDownLatch latch = new CountDownLatch(context.searcher().reader().leaves().size() * warmUp.size());
-            for (final AtomicReaderContext ctx : context.searcher().reader().leaves()) {
+            for (final LeafReaderContext ctx : context.searcher().reader().leaves()) {
                 for (final FieldMapper<?> fieldMapper : warmUp.values()) {
                     executor.execute(new Runnable() {
 

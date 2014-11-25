@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 public abstract class TermsAggregator extends BucketsAggregator {
@@ -134,8 +135,8 @@ public abstract class TermsAggregator extends BucketsAggregator {
     protected Set<Aggregator> aggsUsedForSorting = new HashSet<>();
     protected SubAggCollectionMode subAggCollectMode;
 
-    public TermsAggregator(String name, BucketAggregationMode bucketAggregationMode, AggregatorFactories factories, long estimatedBucketsCount, AggregationContext context, Aggregator parent, BucketCountThresholds bucketCountThresholds, Terms.Order order, SubAggCollectionMode subAggCollectMode) {
-        super(name, bucketAggregationMode, factories, estimatedBucketsCount, context, parent);
+    public TermsAggregator(String name, BucketAggregationMode bucketAggregationMode, AggregatorFactories factories, long estimatedBucketsCount, AggregationContext context, Aggregator parent, BucketCountThresholds bucketCountThresholds, Terms.Order order, SubAggCollectionMode subAggCollectMode, Map<String, Object> metaData) {
+        super(name, bucketAggregationMode, factories, estimatedBucketsCount, context, parent, metaData);
         this.bucketCountThresholds = bucketCountThresholds;
         this.order = InternalOrder.validate(order, this);
         this.subAggCollectMode = subAggCollectMode;

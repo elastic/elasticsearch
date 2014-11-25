@@ -23,12 +23,8 @@ org.apache.lucene.index.IndexReader#decRef()
 org.apache.lucene.index.IndexReader#incRef()
 org.apache.lucene.index.IndexReader#tryIncRef()
 
-@defaultMessage QueryWrapperFilter is cachable by default - use Queries#wrap instead
+@defaultMessage QueryWrapperFilter is cacheable by default - use Queries#wrap instead
 org.apache.lucene.search.QueryWrapperFilter#<init>(org.apache.lucene.search.Query)
-
-@defaultMessage Because the filtercache doesn't take deletes into account FilteredQuery can't be used - use XFilteredQuery instead
-org.apache.lucene.search.FilteredQuery#<init>(org.apache.lucene.search.Query,org.apache.lucene.search.Filter)
-org.apache.lucene.search.FilteredQuery#<init>(org.apache.lucene.search.Query,org.apache.lucene.search.Filter,org.apache.lucene.search.FilteredQuery$FilterStrategy)
 
 @defaultMessage Pass the precision step from the mappings explicitly instead
 org.apache.lucene.search.NumericRangeQuery#newDoubleRange(java.lang.String,java.lang.Double,java.lang.Double,boolean,boolean)
@@ -115,3 +111,6 @@ com.ning.compress.lzf.LZFUncompressor#<init>(com.ning.compress.DataHandler, com.
 @defaultMessage Spawns a new thread which is solely under lucenes control use ThreadPool#estimatedTimeInMillisCounter instead
 org.apache.lucene.search.TimeLimitingCollector#getGlobalTimerThread()
 org.apache.lucene.search.TimeLimitingCollector#getGlobalCounter()
+
+@defaultMessage Don't interrupt threads use FutureUtils#cancel(Future<T>) instead
+java.util.concurrent.Future#cancel(boolean)

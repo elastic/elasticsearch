@@ -24,7 +24,6 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 
@@ -99,7 +98,7 @@ public class ConstantScoreQueryParser implements QueryParser {
                 filter = parseContext.cacheFilter(filter, cacheKey);
             }
 
-            Query query1 = new XConstantScoreQuery(filter);
+            Query query1 = new ConstantScoreQuery(filter);
             query1.setBoost(boost);
             return query1;
         }

@@ -40,7 +40,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.termvector.TermVectorResponse;
+import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -49,7 +49,6 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -666,10 +665,10 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
                 .setSource("field", "the quick brown fox jumps over the lazy dog").get();
         refresh();
 
-        TermVectorResponse termVectorResponse = client().prepareTermVector(indexOrAlias(), "type1", "1").get();
-        assertThat(termVectorResponse.getIndex(), equalTo("test"));
-        assertThat(termVectorResponse.isExists(), equalTo(true));
-        Fields fields = termVectorResponse.getFields();
+        TermVectorsResponse termVectorsResponse = client().prepareTermVectors(indexOrAlias(), "type1", "1").get();
+        assertThat(termVectorsResponse.getIndex(), equalTo("test"));
+        assertThat(termVectorsResponse.isExists(), equalTo(true));
+        Fields fields = termVectorsResponse.getFields();
         assertThat(fields.size(), equalTo(1));
         assertThat(fields.terms("field").size(), equalTo(8l));
     }

@@ -50,9 +50,10 @@ public class StandardAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stan
             defaultStopwords = StopAnalyzer.ENGLISH_STOP_WORDS_SET;
         }
 
-        CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords, version);
+        CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords);
         int maxTokenLength = settings.getAsInt("max_token_length", StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
-        standardAnalyzer = new StandardAnalyzer(version, stopWords);
+        standardAnalyzer = new StandardAnalyzer(stopWords);
+        standardAnalyzer.setVersion(version);
         standardAnalyzer.setMaxTokenLength(maxTokenLength);
     }
 

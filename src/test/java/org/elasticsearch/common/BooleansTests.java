@@ -82,7 +82,7 @@ public class BooleansTests extends ElasticsearchTestCase {
         }
     }
 
-    public void testIsExplict() {
+    public void testIsExplicit() {
         assertThat(Booleans.isExplicitFalse(randomFrom("true", "on", "yes", "1", "foo", null)), is(false));
         assertThat(Booleans.isExplicitFalse(randomFrom("false", "off", "no", "0")), is(true));
         assertThat(Booleans.isExplicitTrue(randomFrom("true", "on", "yes", "1")), is(true));

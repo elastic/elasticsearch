@@ -19,8 +19,8 @@
 package org.elasticsearch.search.suggest.completion;
 
 import com.google.common.collect.Maps;
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.suggest.Lookup;
@@ -61,8 +61,8 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
         String fieldName = suggestionContext.getField();
         Map<String, CompletionSuggestion.Entry.Option> results = Maps.newHashMapWithExpectedSize(indexReader.leaves().size() * suggestionContext.getSize());
-        for (AtomicReaderContext atomicReaderContext : indexReader.leaves()) {
-            AtomicReader atomicReader = atomicReaderContext.reader();
+        for (LeafReaderContext atomicReaderContext : indexReader.leaves()) {
+            LeafReader atomicReader = atomicReaderContext.reader();
             Terms terms = atomicReader.fields().terms(fieldName);
             if (terms instanceof Completion090PostingsFormat.CompletionTerms) {
                 final Completion090PostingsFormat.CompletionTerms lookupTerms = (Completion090PostingsFormat.CompletionTerms) terms;

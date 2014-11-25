@@ -459,7 +459,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                 // backwards compat test!
                 assertAcked(client().admin().indices().prepareCreate("test")
                         .addMapping("type1", "field1", "type=string,omit_term_freq_and_positions=true")
-                        .setSettings(SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_VERSION_CREATED, version.id));
+                        .setSettings(settings(version).put(SETTING_NUMBER_OF_SHARDS, 1)));
                 assertThat(version.onOrAfter(Version.V_1_0_0_RC2), equalTo(false));
                 indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
                         client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox"));
@@ -475,7 +475,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                 cluster().wipeIndices("test");
             } catch (MapperParsingException ex) {
                 assertThat(version.toString(), version.onOrAfter(Version.V_1_0_0_RC2), equalTo(true));
-                assertThat(ex.getCause().getMessage(), equalTo("'omit_term_freq_and_positions' is not supported anymore - use ['index_options' : 'DOCS_ONLY']  instead"));
+                assertThat(ex.getCause().getMessage(), equalTo("'omit_term_freq_and_positions' is not supported anymore - use ['index_options' : 'docs']  instead"));
             }
             version = randomVersion();
         }
@@ -1524,6 +1524,45 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         response = client().prepareSearch("test")
                 .setQuery(spanOrQuery().clause(spanMultiTermQueryBuilder(regexpQuery("description", "fo{2}")))).get();
         assertHitCount(response, 3);
+    }
+
+    @Test
+    public void testSpanNot() throws ElasticsearchException, IOException, ExecutionException, InterruptedException {
+        createIndex("test");
+        ensureGreen();
+
+        client().prepareIndex("test", "test", "1").setSource("description", "the quick brown fox jumped over the lazy dog").get();
+        client().prepareIndex("test", "test", "2").setSource("description", "the quick black fox leaped over the sleeping dog").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(spanNotQuery().include(spanNearQuery()
+                        .clause(QueryBuilders.spanTermQuery("description", "quick"))
+                        .clause(QueryBuilders.spanTermQuery("description", "fox")).slop(1)).exclude(spanTermQuery("description", "brown"))).get();
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(spanNotQuery().include(spanNearQuery()
+                        .clause(QueryBuilders.spanTermQuery("description", "quick"))
+                        .clause(QueryBuilders.spanTermQuery("description", "fox")).slop(1)).exclude(spanTermQuery("description", "sleeping")).dist(5)).get();
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(spanNotQuery().include(spanNearQuery()
+                        .clause(QueryBuilders.spanTermQuery("description", "quick"))
+                        .clause(QueryBuilders.spanTermQuery("description", "fox")).slop(1)).exclude(spanTermQuery("description", "jumped")).pre(1).post(1)).get();
+        assertHitCount(searchResponse, 1l);
+
+        try {
+            client().prepareSearch("test")
+                    .setQuery(spanNotQuery().include(spanNearQuery()
+                            .clause(QueryBuilders.spanTermQuery("description", "quick"))
+                            .clause(QueryBuilders.spanTermQuery("description", "fox")).slop(1)).exclude(spanTermQuery("description", "jumped")).dist(2).pre(2)
+                    ).get();
+            fail("ElasticsearchIllegalArgumentException should have been caught");
+        } catch (ElasticsearchException e) {
+            assertThat("ElasticsearchIllegalArgumentException should have been caught", e.getDetailedMessage(), containsString("spanNot can either use [dist] or [pre] & [post] (or none)"));
+        }
     }
 
     @Test

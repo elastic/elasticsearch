@@ -37,5 +37,6 @@ public interface HashFunction {
      * @param routing String to calculate the hash value from 
      * @return hash value of the given type and routing string
      */
+    @Deprecated
     int hash(String type, String id);
 }

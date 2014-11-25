@@ -86,8 +86,8 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     }
 
     @Override
-    public ParentChildAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
-        AtomicReader reader = context.reader();
+    public ParentChildAtomicFieldData loadDirect(LeafReaderContext context) throws Exception {
+        LeafReader reader = context.reader();
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat(
                 "acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO
         );
@@ -187,7 +187,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         final PackedLongValues.Builder termOrdToBytesOffset;
         final OrdinalsBuilder builder;
 
-        TypeBuilder(float acceptableTransientOverheadRatio, AtomicReader reader) throws IOException {
+        TypeBuilder(float acceptableTransientOverheadRatio, LeafReader reader) throws IOException {
             bytes = new PagedBytes(15);
             termOrdToBytesOffset = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
             builder = new OrdinalsBuilder(-1, reader.maxDoc(), acceptableTransientOverheadRatio);
@@ -286,7 +286,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         for (Map.Entry<String, SortedDocValues[]> entry : types.entrySet()) {
             final String parentType = entry.getKey();
             final SortedDocValues[] values = entry.getValue();
-            for (AtomicReaderContext context : indexReader.leaves()) {
+            for (LeafReaderContext context : indexReader.leaves()) {
                 SortedDocValues vals = load(context).getOrdinalsValues(parentType);
                 if (vals != null) {
                     values[context.ord] = vals;
@@ -368,6 +368,12 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
                     }
 
                     @Override
+                    public Iterable<? extends Accountable> getChildResources() {
+                        // TODO: is this really the best?
+                        return Collections.emptyList();
+                    }
+
+                    @Override
                     public void close() {
                     }
 
@@ -385,7 +391,12 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
                         return dv;
                     }
                 };
-            }
+            }   
+        }
+
+        @Override
+        public Iterable<? extends Accountable> getChildResources() {
+            return Collections.emptyList();
         }
 
         @Override
@@ -399,13 +410,13 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         }
 
         @Override
-        public AtomicParentChildFieldData load(AtomicReaderContext context) {
+        public AtomicParentChildFieldData load(LeafReaderContext context) {
             assert context.reader().getCoreCacheKey() == reader.leaves().get(context.ord).reader().getCoreCacheKey();
             return atomicFDs[context.ord];
         }
 
         @Override
-        public AtomicParentChildFieldData loadDirect(AtomicReaderContext context) throws Exception {
+        public AtomicParentChildFieldData loadDirect(LeafReaderContext context) throws Exception {
             return load(context);
         }
 

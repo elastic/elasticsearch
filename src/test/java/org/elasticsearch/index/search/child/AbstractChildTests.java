@@ -20,13 +20,19 @@
 package org.elasticsearch.index.search.child;
 
 import org.apache.lucene.search.*;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedString;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchSingleNodeLuceneTestCase;
@@ -52,12 +58,19 @@ public abstract class AbstractChildTests extends ElasticsearchSingleNodeLuceneTe
     static SearchContext createSearchContext(String indexName, String parentType, String childType) throws IOException {
         IndexService indexService = createIndex(indexName);
         MapperService mapperService = indexService.mapperService();
+        // Parent/child parsers require that the parent and child type to be presented in mapping
+        // Sometimes we want a nested object field in the parent type that triggers nonNestedDocsFilter to be used
+        mapperService.merge(parentType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(parentType, "nested_field", random().nextBoolean() ? "type=nested" : "type=object").string()), true);
         mapperService.merge(childType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType, CHILD_SCORE_NAME, "type=double").string()), true);
         return createSearchContext(indexService);
     }
+    
+    static void assertBitSet(BitSet actual, BitSet expected, IndexSearcher searcher) throws IOException {
+        assertBitSet(new BitDocIdSet(actual), new BitDocIdSet(expected), searcher);
+    }
 
-    static void assertBitSet(FixedBitSet actual, FixedBitSet expected, IndexSearcher searcher) throws IOException {
-        if (!actual.equals(expected)) {
+    static void assertBitSet(BitDocIdSet actual, BitDocIdSet expected, IndexSearcher searcher) throws IOException {
+        if (!equals(expected, actual)) {
             Description description = new StringDescription();
             description.appendText(reason(actual, expected, searcher));
             description.appendText("\nExpected: ");
@@ -68,15 +81,34 @@ public abstract class AbstractChildTests extends ElasticsearchSingleNodeLuceneTe
             throw new java.lang.AssertionError(description.toString());
         }
     }
+    
+    static boolean equals(BitDocIdSet expected, BitDocIdSet actual) {
+        if (actual == null && expected == null) {
+            return true;
+        } else if (actual == null || expected == null) {
+            return false;
+        }
+        BitSet actualBits = actual.bits();
+        BitSet expectedBits = expected.bits();
+        if (actualBits.length() != expectedBits.length()) {
+            return false;
+        }
+        for (int i = 0; i < expectedBits.length(); i++) {
+            if (expectedBits.get(i) != actualBits.get(i)) {
+                return false;
+            }
+        }
+        return true;
+    }
 
-    static String reason(FixedBitSet actual, FixedBitSet expected, IndexSearcher indexSearcher) throws IOException {
+    static String reason(BitDocIdSet actual, BitDocIdSet expected, IndexSearcher indexSearcher) throws IOException {
         StringBuilder builder = new StringBuilder();
-        builder.append("expected cardinality:").append(expected.cardinality()).append('\n');
+        builder.append("expected cardinality:").append(expected.bits().cardinality()).append('\n');
         DocIdSetIterator iterator = expected.iterator();
         for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
             builder.append("Expected doc[").append(doc).append("] with id value ").append(indexSearcher.doc(doc).get(UidFieldMapper.NAME)).append('\n');
         }
-        builder.append("actual cardinality: ").append(actual.cardinality()).append('\n');
+        builder.append("actual cardinality: ").append(actual.bits().cardinality()).append('\n');
         iterator = actual.iterator();
         for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
             builder.append("Actual doc[").append(doc).append("] with id value ").append(indexSearcher.doc(doc).get(UidFieldMapper.NAME)).append('\n');
@@ -96,8 +128,19 @@ public abstract class AbstractChildTests extends ElasticsearchSingleNodeLuceneTe
         }
     }
 
-    static FixedBitSetFilter wrap(Filter filter) {
-        return SearchContext.current().fixedBitSetFilterCache().getFixedBitSetFilter(filter);
+    static Filter wrap(Filter filter) {
+        return SearchContext.current().filterCache().cache(filter);
+    }
+
+    static BitDocIdSetFilter wrapWithBitSetFilter(Filter filter) {
+        return SearchContext.current().bitsetFilterCache().getBitDocIdSetFilter(filter);
+    }
+
+    static Query parseQuery(QueryBuilder queryBuilder) throws IOException {
+        QueryParseContext context = new QueryParseContext(new Index("test"), SearchContext.current().queryParserService());
+        XContentParser parser = XContentHelper.createParser(queryBuilder.buildAsBytes());
+        context.reset(parser);
+        return context.parseInnerQuery();
     }
 
 }

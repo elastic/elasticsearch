@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,6 +38,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -53,6 +55,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
 
+    private static ShardsAllocators makeShardsAllocators() {
+        return new ShardsAllocators(NoopGatewayAllocator.INSTANCE);
+    }
+
     @Test
     public void diskThresholdTest() {
         Settings diskSettings = settingsBuilder()
@@ -61,10 +67,10 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, 0.8).build();
 
         Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node1", new DiskUsage("node1", 100, 10)); // 90% used
-        usages.put("node2", new DiskUsage("node2", 100, 35)); // 65% used
-        usages.put("node3", new DiskUsage("node3", 100, 60)); // 40% used
-        usages.put("node4", new DiskUsage("node4", 100, 80)); // 20% used
+        usages.put("node1", new DiskUsage("node1", "node1", 100, 10)); // 90% used
+        usages.put("node2", new DiskUsage("node2", "node2", 100, 35)); // 65% used
+        usages.put("node3", new DiskUsage("node3", "node3", 100, 60)); // 40% used
+        usages.put("node4", new DiskUsage("node4", "node4", 100, 80)); // 20% used
 
         Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 10L); // 10 bytes
@@ -82,16 +88,21 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
             }
+
+            @Override
+            public void addListener(Listener listener) {
+                // noop
+            }
         };
 
         AllocationService strategy = new AllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, new ShardsAllocators(), cis);
+                .build(), deciders, makeShardsAllocators(), cis);
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -173,7 +184,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, new ShardsAllocators(), cis);
+                .build(), deciders, makeShardsAllocators(), cis);
 
         routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -204,7 +215,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, new ShardsAllocators(), cis);
+                .build(), deciders, makeShardsAllocators(), cis);
 
         routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -251,11 +262,11 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "9b").build();
 
         Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node1", new DiskUsage("node1", 100, 10)); // 90% used
-        usages.put("node2", new DiskUsage("node2", 100, 10)); // 90% used
-        usages.put("node3", new DiskUsage("node3", 100, 60)); // 40% used
-        usages.put("node4", new DiskUsage("node4", 100, 80)); // 20% used
-        usages.put("node5", new DiskUsage("node5", 100, 85)); // 15% used
+        usages.put("node1", new DiskUsage("node1", "n1", 100, 10)); // 90% used
+        usages.put("node2", new DiskUsage("node2", "n2", 100, 10)); // 90% used
+        usages.put("node3", new DiskUsage("node3", "n3", 100, 60)); // 40% used
+        usages.put("node4", new DiskUsage("node4", "n4", 100, 80)); // 20% used
+        usages.put("node5", new DiskUsage("node5", "n5", 100, 85)); // 15% used
 
         Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 10L); // 10 bytes
@@ -273,16 +284,21 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
             }
+
+            @Override
+            public void addListener(Listener listener) {
+                // noop
+            }
         };
 
         AllocationService strategy = new AllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, new ShardsAllocators(), cis);
+                .build(), deciders, makeShardsAllocators(), cis);
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(2))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -316,7 +332,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
         logger.info("--> nodeWithoutPrimary: {}", nodeWithoutPrimary);
 
         // Make node without the primary now habitable to replicas
-        usages.put(nodeWithoutPrimary, new DiskUsage(nodeWithoutPrimary, 100, 35)); // 65% used
+        usages.put(nodeWithoutPrimary, new DiskUsage(nodeWithoutPrimary, "", 100, 35)); // 65% used
         final ClusterInfo clusterInfo2 = new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes));
         cis = new ClusterInfoService() {
             @Override
@@ -324,12 +340,17 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo2;
             }
+
+            @Override
+            public void addListener(Listener listener) {
+                // noop
+            }
         };
         strategy = new AllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, new ShardsAllocators(), cis);
+                .build(), deciders, makeShardsAllocators(), cis);
 
         routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -396,7 +417,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, new ShardsAllocators(), cis);
+                .build(), deciders, makeShardsAllocators(), cis);
 
         routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -427,7 +448,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, new ShardsAllocators(), cis);
+                .build(), deciders, makeShardsAllocators(), cis);
 
         routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -506,8 +527,8 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "71%").build();
 
         Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node1", new DiskUsage("node1", 100, 31)); // 69% used
-        usages.put("node2", new DiskUsage("node2", 100, 1));  // 99% used
+        usages.put("node1", new DiskUsage("node1", "n1", 100, 31)); // 69% used
+        usages.put("node2", new DiskUsage("node2", "n2", 100, 1));  // 99% used
 
         Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 10L); // 10 bytes
@@ -524,16 +545,21 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
             }
+
+            @Override
+            public void addListener(Listener listener) {
+                // noop
+            }
         };
 
         AllocationService strategy = new AllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, new ShardsAllocators(), cis);
+                .build(), deciders, makeShardsAllocators(), cis);
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(0))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -567,8 +593,8 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, 0.85).build();
 
         Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node2", new DiskUsage("node2", 100, 50)); // 50% used
-        usages.put("node3", new DiskUsage("node3", 100, 0));  // 100% used
+        usages.put("node2", new DiskUsage("node2", "node2", 100, 50)); // 50% used
+        usages.put("node3", new DiskUsage("node3", "node3", 100, 0));  // 100% used
 
         Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 10L); // 10 bytes
@@ -586,16 +612,21 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
             }
+
+            @Override
+            public void addListener(Listener listener) {
+                // noop
+            }
         };
 
         AllocationService strategy = new AllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, new ShardsAllocators(), cis);
+                .build(), deciders, makeShardsAllocators(), cis);
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(0))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -633,8 +664,8 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
         DiskThresholdDecider decider = new DiskThresholdDecider(ImmutableSettings.EMPTY);
 
         Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node2", new DiskUsage("node2", 100, 50)); // 50% used
-        usages.put("node3", new DiskUsage("node3", 100, 0));  // 100% used
+        usages.put("node2", new DiskUsage("node2", "n2", 100, 50)); // 50% used
+        usages.put("node3", new DiskUsage("node3", "n3", 100, 0));  // 100% used
 
         DiskUsage node1Usage = decider.averageUsage(rn, usages);
         assertThat(node1Usage.getTotalBytes(), equalTo(100L));
@@ -647,10 +678,10 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
         DiskThresholdDecider decider = new DiskThresholdDecider(ImmutableSettings.EMPTY);
 
         Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node2", new DiskUsage("node2", 100, 50)); // 50% used
-        usages.put("node3", new DiskUsage("node3", 100, 0));  // 100% used
+        usages.put("node2", new DiskUsage("node2", "n2", 100, 50)); // 50% used
+        usages.put("node3", new DiskUsage("node3", "n3", 100, 0));  // 100% used
 
-        Double after = decider.freeDiskPercentageAfterShardAssigned(new DiskUsage("node2", 100, 30), 11L);
+        Double after = decider.freeDiskPercentageAfterShardAssigned(new DiskUsage("node2", "n2", 100, 30), 11L);
         assertThat(after, equalTo(19.0));
     }
 
@@ -663,9 +694,9 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, 0.8).build();
 
         Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node1", new DiskUsage("node1", 100, 40)); // 60% used
-        usages.put("node2", new DiskUsage("node2", 100, 40)); // 60% used
-        usages.put("node2", new DiskUsage("node3", 100, 40)); // 60% used
+        usages.put("node1", new DiskUsage("node1", "n1", 100, 40)); // 60% used
+        usages.put("node2", new DiskUsage("node2", "n2", 100, 40)); // 60% used
+        usages.put("node2", new DiskUsage("node3", "n3", 100, 40)); // 60% used
 
         Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 14L); // 14 bytes
@@ -685,17 +716,22 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
             }
+
+            @Override
+            public void addListener(Listener listener) {
+                // noop
+            }
         };
 
         AllocationService strategy = new AllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, new ShardsAllocators(), cis);
+                .build(), deciders, makeShardsAllocators(), cis);
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(1))
-                .put(IndexMetaData.builder("test2").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()

@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.lucene.Lucene;
 
 /**
  * This class represents the set of Elasticsearch "built-in"
@@ -38,7 +39,7 @@ public class DocValuesFormats {
             builtInDocValuesFormatsX.put(name, new PreBuiltDocValuesFormatProvider.Factory(DocValuesFormat.forName(name)));
         }
         // LUCENE UPGRADE: update those DVF if necessary
-        builtInDocValuesFormatsX.put(DocValuesFormatService.DEFAULT_FORMAT, new PreBuiltDocValuesFormatProvider.Factory(DocValuesFormatService.DEFAULT_FORMAT, DocValuesFormat.forName("Lucene410")));
+        builtInDocValuesFormatsX.put(DocValuesFormatService.DEFAULT_FORMAT, new PreBuiltDocValuesFormatProvider.Factory(DocValuesFormatService.DEFAULT_FORMAT, DocValuesFormat.forName(Lucene.LATEST_DOC_VALUES_FORMAT)));
         builtInDocValuesFormats = builtInDocValuesFormatsX.immutableMap();
     }
 

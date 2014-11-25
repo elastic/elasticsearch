@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.translog.fs;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -40,6 +41,8 @@ import org.elasticsearch.index.translog.*;
 import java.io.File;
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
+import java.nio.file.Files;
+import java.util.Collections;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -185,6 +188,11 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     }
 
     @Override
+    public Iterable<? extends Accountable> getChildResources() {
+        return Collections.emptyList();
+    }
+
+    @Override
     public long translogSizeInBytes() {
         FsTranslogFile current1 = this.current;
         if (current1 == null) {
@@ -208,9 +216,9 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                             continue;
                         }
                         try {
-                            file.delete();
-                        } catch (Exception e) {
-                            // ignore
+                            Files.delete(file.toPath());
+                        } catch (Exception ex) {
+                            logger.debug("failed to delete " + file, ex);
                         }
                     }
                 }

@@ -25,7 +25,6 @@ import com.google.common.base.Predicate;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.util.LuceneTestCase.Slow;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
@@ -341,7 +340,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
             indexRandom(true, true, builders2);
 
             // verify cluster was finished.
-            assertFalse(client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setTimeout("30s").get().isTimedOut());
+            assertFalse(client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setWaitForEvents(Priority.LANGUID).setTimeout("30s").get().isTimedOut());
             logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
 
             logger.debug("--> verifying all searches return the same number of docs");

@@ -71,7 +71,7 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
     }
 
     @Override
-    public MergeScheduler buildMergeScheduler() {
+    public MergeScheduler newMergeScheduler() {
         CustomConcurrentMergeScheduler concurrentMergeScheduler = new CustomConcurrentMergeScheduler(logger, shardId, this);
         // which would then stall if there are 2 merges in flight, and unstall once we are back to 1 or 0 merges
         // NOTE: we pass maxMergeCount+1 here so that CMS will allow one too many merges to kick off which then allows
@@ -150,6 +150,11 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
         protected void afterMerge(OnGoingMerge merge) {
             super.afterMerge(merge);
             provider.afterMerge(merge);
+        }
+
+        @Override
+        protected void maybeStall() {
+            // Don't stall here, because we do our own index throttling (in InternalEngine.IndexThrottle) when merges can't keep up
         }
     }
 

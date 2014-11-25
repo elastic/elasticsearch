@@ -51,7 +51,7 @@ public interface BlobContainer {
      */
     OutputStream createOutput(String blobName) throws IOException;
 
-    boolean deleteBlob(String blobName) throws IOException;
+    void deleteBlob(String blobName) throws IOException;
 
     void deleteBlobsByPrefix(String blobNamePrefix) throws IOException;
 

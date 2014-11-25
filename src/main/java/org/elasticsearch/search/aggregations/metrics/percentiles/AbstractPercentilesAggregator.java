@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.ObjectArray;
@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
+import java.util.Map;
 
 public abstract class AbstractPercentilesAggregator extends NumericMetricsAggregator.MultiValue {
 
@@ -46,8 +47,8 @@ public abstract class AbstractPercentilesAggregator extends NumericMetricsAggreg
     protected final boolean keyed;
 
     public AbstractPercentilesAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context,
-                                 Aggregator parent, double[] keys, double compression, boolean keyed) {
-        super(name, estimatedBucketsCount, context, parent);
+                                 Aggregator parent, double[] keys, double compression, boolean keyed, Map<String, Object> metaData) {
+        super(name, estimatedBucketsCount, context, parent, metaData);
         this.valuesSource = valuesSource;
         this.keyed = keyed;
         this.states = bigArrays.newObjectArray(estimatedBucketsCount);
@@ -61,7 +62,7 @@ public abstract class AbstractPercentilesAggregator extends NumericMetricsAggreg
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         values = valuesSource.doubleValues();
     }
 

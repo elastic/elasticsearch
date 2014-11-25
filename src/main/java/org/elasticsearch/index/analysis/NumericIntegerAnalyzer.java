@@ -22,7 +22,6 @@ package org.elasticsearch.index.analysis;
 import com.carrotsearch.hppc.IntObjectOpenHashMap;
 
 import java.io.IOException;
-import java.io.Reader;
 
 /**
  *
@@ -54,7 +53,7 @@ public class NumericIntegerAnalyzer extends NumericAnalyzer<NumericIntegerTokeni
     }
 
     @Override
-    protected NumericIntegerTokenizer createNumericTokenizer(Reader reader, char[] buffer) throws IOException {
-        return new NumericIntegerTokenizer(reader, precisionStep, buffer);
+    protected NumericIntegerTokenizer createNumericTokenizer(char[] buffer) throws IOException {
+        return new NumericIntegerTokenizer(precisionStep, buffer);
     }
 }

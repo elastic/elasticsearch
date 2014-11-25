@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import com.google.common.base.Strings;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -41,13 +42,25 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.text.NumberFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.count;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.extendedStats;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -250,12 +263,16 @@ public class StringTermsTests extends AbstractTermsTests {
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
         assertThat(terms.getBuckets().size(), equalTo(5));
+        Object[] propertiesKeys = (Object[]) terms.getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) terms.getProperty("_count");
 
         for (int i = 0; i < 5; i++) {
             Terms.Bucket bucket = terms.getBucketByKey("val" + i);
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat((String) propertiesKeys[i], equalTo("val" + i));
+            assertThat((long) propertiesDocCounts[i], equalTo(1l));
         }
     }
 
@@ -631,6 +648,9 @@ public class StringTermsTests extends AbstractTermsTests {
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
         assertThat(terms.getBuckets().size(), equalTo(5));
+        Object[] propertiesKeys = (Object[]) terms.getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) terms.getProperty("_count");
+        Object[] propertiesCounts = (Object[]) terms.getProperty("count.value");
 
         for (int i = 0; i < 5; i++) {
             Terms.Bucket bucket = terms.getBucketByKey("val" + i);
@@ -640,6 +660,9 @@ public class StringTermsTests extends AbstractTermsTests {
             ValueCount valueCount = bucket.getAggregations().get("count");
             assertThat(valueCount, notNullValue());
             assertThat(valueCount.getValue(), equalTo(2l));
+            assertThat((String) propertiesKeys[i], equalTo("val" + i));
+            assertThat((long) propertiesDocCounts[i], equalTo(1l));
+            assertThat((double) propertiesCounts[i], equalTo(2.0));
         }
     }
 

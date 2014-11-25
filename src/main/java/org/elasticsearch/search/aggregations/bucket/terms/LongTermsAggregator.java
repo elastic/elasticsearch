@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
@@ -37,6 +37,7 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 
 /**
  *
@@ -51,8 +52,8 @@ public class LongTermsAggregator extends TermsAggregator {
     private LongFilter longFilter;
 
     public LongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format, long estimatedBucketCount,
-            Terms.Order order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError, IncludeExclude.LongFilter longFilter) {
-        super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent, bucketCountThresholds, order, subAggCollectMode);
+            Terms.Order order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError, IncludeExclude.LongFilter longFilter, Map<String, Object> metaData) {
+        super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent, bucketCountThresholds, order, subAggCollectMode, metaData);
         this.valuesSource = valuesSource;
         this.showTermDocCountError = showTermDocCountError;
         this.formatter = format != null ? format.formatter() : null;
@@ -72,7 +73,7 @@ public class LongTermsAggregator extends TermsAggregator {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         values = getValues(valuesSource);
     }
 
@@ -107,7 +108,7 @@ public class LongTermsAggregator extends TermsAggregator {
 
         if (bucketCountThresholds.getMinDocCount() == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
             // we need to fill-in the blanks
-            for (AtomicReaderContext ctx : context.searchContext().searcher().getTopReaderContext().leaves()) {
+            for (LeafReaderContext ctx : context.searchContext().searcher().getTopReaderContext().leaves()) {
                 context.setNextReader(ctx);
                 final SortedNumericDocValues values = getValues(valuesSource);
                 for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
@@ -156,13 +157,13 @@ public class LongTermsAggregator extends TermsAggregator {
           list[i].docCountError = 0;
         }
         
-        return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError, 0, otherDocCount);
+        return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError, 0, otherDocCount, getMetaData());
     }
     
     
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList(), showTermDocCountError, 0, 0);
+        return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList(), showTermDocCountError, 0, 0, getMetaData());
     }
 
     @Override

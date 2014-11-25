@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -31,7 +32,6 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -48,6 +48,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -69,8 +70,8 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         public static final FieldType FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            FIELD_TYPE.setIndexed(false);
             FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setIndexOptions(IndexOptions.NONE); // not indexed
         }
     }
 
@@ -88,6 +89,11 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
             return this;
         }
 
+        // if we are indexed we use DOCS_ONLY
+        protected IndexOptions getDefaultIndexOption() {
+            return IndexOptions.DOCS;
+        }
+
         @Override
         public BoostFieldMapper build(BuilderContext context) {
             return new BoostFieldMapper(name, buildIndexName(context),
@@ -98,14 +104,16 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            String name = node.get("name") == null ? BoostFieldMapper.Defaults.NAME : node.get("name").toString();
+            String name = node.get("name") == null ? BoostFieldMapper.Defaults.NAME : node.remove("name").toString();
             BoostFieldMapper.Builder builder = MapperBuilders.boost(name);
             parseNumberField(builder, name, node, parserContext);
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
                     builder.nullValue(nodeFloatValue(propNode));
+                    iterator.remove();
                 }
             }
             return builder;
@@ -282,10 +290,12 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+        boolean indexed = fieldType.indexOptions() != IndexOptions.NONE;
+        boolean indexedDefault = Defaults.FIELD_TYPE.indexOptions() != IndexOptions.NONE;
 
         // all are defaults, don't write it at all
         if (!includeDefaults && name().equals(Defaults.NAME) && nullValue == null &&
-                fieldType.indexed() == Defaults.FIELD_TYPE.indexed() &&
+                indexed == indexedDefault &&
                 fieldType.stored() == Defaults.FIELD_TYPE.stored() &&
                 customFieldDataSettings == null) {
             return builder;
@@ -297,8 +307,8 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         if (includeDefaults || nullValue != null) {
             builder.field("null_value", nullValue);
         }
-        if (includeDefaults || fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
-            builder.field("index", indexTokenizeOptionToString(fieldType.indexed(), fieldType.tokenized()));
+        if (includeDefaults || indexed != indexedDefault) {
+            builder.field("index", indexTokenizeOptionToString(indexed, fieldType.tokenized()));
         }
         if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType.stored());

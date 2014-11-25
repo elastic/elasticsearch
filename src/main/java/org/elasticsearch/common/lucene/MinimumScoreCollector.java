@@ -19,23 +19,21 @@
 
 package org.elasticsearch.common.lucene;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.ScoreCachingWrappingScorer;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.*;
 
 import java.io.IOException;
 
 /**
  *
  */
-public class MinimumScoreCollector extends Collector {
+public class MinimumScoreCollector extends SimpleCollector {
 
     private final Collector collector;
-
     private final float minimumScore;
 
     private Scorer scorer;
+    private LeafCollector leafCollector;
 
     public MinimumScoreCollector(Collector collector, float minimumScore) {
         this.collector = collector;
@@ -48,23 +46,23 @@ public class MinimumScoreCollector extends Collector {
             scorer = new ScoreCachingWrappingScorer(scorer);
         }
         this.scorer = scorer;
-        collector.setScorer(scorer);
+        leafCollector.setScorer(scorer);
     }
 
     @Override
     public void collect(int doc) throws IOException {
         if (scorer.score() >= minimumScore) {
-            collector.collect(doc);
+            leafCollector.collect(doc);
         }
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext context) throws IOException {
-        collector.setNextReader(context);
+    public void doSetNextReader(LeafReaderContext context) throws IOException {
+        leafCollector = collector.getLeafCollector(context);
     }
 
     @Override
     public boolean acceptsDocsOutOfOrder() {
-        return collector.acceptsDocsOutOfOrder();
+        return leafCollector.acceptsDocsOutOfOrder();
     }
 }

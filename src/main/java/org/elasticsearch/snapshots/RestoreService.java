@@ -25,6 +25,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -33,6 +34,7 @@ import org.elasticsearch.cluster.metadata.RestoreMetaData.ShardRestoreStatus;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -59,7 +61,7 @@ import static org.elasticsearch.cluster.metadata.MetaDataIndexStateService.INDEX
  * <p/>
  * Restore operation is performed in several stages.
  * <p/>
- * First {@link #restoreSnapshot(RestoreRequest, RestoreSnapshotListener)}
+ * First {@link #restoreSnapshot(RestoreRequest, org.elasticsearch.action.ActionListener))}
  * method reads information about snapshot and metadata from repository. In update cluster state task it checks restore
  * preconditions, restores global state if needed, creates {@link RestoreMetaData} record with list of shards that needs
  * to be restored and adds this shard to the routing table using {@link RoutingTable.Builder#addAsRestore(IndexMetaData, RestoreSource)}
@@ -90,7 +92,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
     private final MetaDataCreateIndexService createIndexService;
 
-    private final CopyOnWriteArrayList<RestoreCompletionListener> listeners = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<ActionListener<RestoreCompletionResponse>> listeners = new CopyOnWriteArrayList<>();
 
     @Inject
     public RestoreService(Settings settings, ClusterService clusterService, RepositoriesService repositoriesService, TransportService transportService, AllocationService allocationService, MetaDataCreateIndexService createIndexService) {
@@ -110,7 +112,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
      * @param request  restore request
      * @param listener restore listener
      */
-    public void restoreSnapshot(final RestoreRequest request, final RestoreSnapshotListener listener) {
+    public void restoreSnapshot(final RestoreRequest request, final ActionListener<RestoreInfo> listener) {
         try {
             // Read snapshot info and metadata from the repository
             Repository repository = repositoriesService.repository(request.repository());
@@ -233,7 +235,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                 }
 
                 private void checkAliasNameConflicts(Map<String, String> renamedIndices, Set<String> aliases) {
-                    for(Map.Entry<String, String> renamedIndex: renamedIndices.entrySet()) {
+                    for (Map.Entry<String, String> renamedIndex : renamedIndices.entrySet()) {
                         if (aliases.contains(renamedIndex.getKey())) {
                             throw new SnapshotRestoreException(snapshotId, "cannot rename index [" + renamedIndex.getValue() + "] into [" + renamedIndex.getKey() + "] because of conflict with an alias with the same name");
                         }
@@ -345,6 +347,24 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         }
     }
 
+    public final static class RestoreCompletionResponse {
+        private final SnapshotId snapshotId;
+        private final RestoreInfo restoreInfo;
+
+        private RestoreCompletionResponse(SnapshotId snapshotId, RestoreInfo restoreInfo) {
+            this.snapshotId = snapshotId;
+            this.restoreInfo = restoreInfo;
+        }
+
+        public SnapshotId getSnapshotId() {
+            return snapshotId;
+        }
+
+        public RestoreInfo getRestoreInfo() {
+            return restoreInfo;
+        }
+    }
+
     /**
      * Updates shard restore record in the cluster state.
      *
@@ -354,6 +374,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         clusterService.submitStateUpdateTask("update snapshot state", new ProcessedClusterStateUpdateTask() {
 
             private RestoreInfo restoreInfo = null;
+            private Map<ShardId, ShardRestoreStatus> shards = null;
 
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -362,10 +383,13 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                 RestoreMetaData restore = metaData.custom(RestoreMetaData.TYPE);
                 if (restore != null) {
                     boolean changed = false;
+                    boolean found = false;
                     ArrayList<RestoreMetaData.Entry> entries = newArrayList();
                     for (RestoreMetaData.Entry entry : restore.entries()) {
                         if (entry.snapshotId().equals(request.snapshotId())) {
-                            HashMap<ShardId, ShardRestoreStatus> shards = newHashMap(entry.shards());
+                            assert !found;
+                            found = true;
+                            Map<ShardId, ShardRestoreStatus> shards = newHashMap(entry.shards());
                             logger.trace("[{}] Updating shard [{}] with status [{}]", request.snapshotId(), request.shardId(), request.status().state());
                             shards.put(request.shardId(), request.status());
                             if (!completed(shards)) {
@@ -373,6 +397,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                             } else {
                                 logger.info("restore [{}] is done", request.snapshotId());
                                 restoreInfo = new RestoreInfo(entry.snapshotId().getSnapshot(), entry.indices(), shards.size(), shards.size() - failedShards(shards));
+                                this.shards = shards;
                             }
                             changed = true;
                         } else {
@@ -389,19 +414,70 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
+            public void onFailure(String source, @Nullable Throwable t) {
                 logger.warn("[{}][{}] failed to update snapshot status to [{}]", t, request.snapshotId(), request.shardId(), request.status());
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (restoreInfo != null) {
-                    for (RestoreCompletionListener listener : listeners) {
-                        try {
-                            listener.onRestoreCompletion(request.snapshotId, restoreInfo);
-                        } catch (Throwable e) {
-                            logger.warn("failed to update snapshot status for [{}]", e, listener);
+                    RoutingTable routingTable = newState.getRoutingTable();
+                    final List<ShardId> waitForStarted = newArrayList();
+                    for (Map.Entry<ShardId, ShardRestoreStatus> shard : shards.entrySet()) {
+                        if (shard.getValue().state() == RestoreMetaData.State.SUCCESS ) {
+                            ShardId shardId = shard.getKey();
+                            ShardRouting shardRouting = findPrimaryShard(routingTable, shardId);
+                            if (shardRouting != null && !shardRouting.active()) {
+                                logger.trace("[{}][{}] waiting for the shard to start", request.snapshotId(), shardId);
+                                waitForStarted.add(shardId);
+                            }
                         }
+                    }
+                    if (waitForStarted.isEmpty()) {
+                        notifyListeners();
+                    } else {
+                        clusterService.addLast(new ClusterStateListener() {
+                            @Override
+                            public void clusterChanged(ClusterChangedEvent event) {
+                                if (event.routingTableChanged()) {
+                                    RoutingTable routingTable = event.state().getRoutingTable();
+                                    for (Iterator<ShardId> iterator = waitForStarted.iterator(); iterator.hasNext();) {
+                                        ShardId shardId = iterator.next();
+                                        ShardRouting shardRouting = findPrimaryShard(routingTable, shardId);
+                                        // Shard disappeared (index deleted) or became active
+                                        if (shardRouting == null || shardRouting.active()) {
+                                            iterator.remove();
+                                            logger.trace("[{}][{}] shard disappeared or started - removing", request.snapshotId(), shardId);
+                                        }
+                                    }
+                                }
+                                if (waitForStarted.isEmpty()) {
+                                    notifyListeners();
+                                    clusterService.remove(this);
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+
+            private ShardRouting findPrimaryShard(RoutingTable routingTable, ShardId shardId) {
+                IndexRoutingTable indexRoutingTable = routingTable.index(shardId.getIndex());
+                if (indexRoutingTable != null) {
+                    IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId.id());
+                    if (indexShardRoutingTable != null) {
+                        return indexShardRoutingTable.primaryShard();
+                    }
+                }
+                return null;
+            }
+
+            private void notifyListeners() {
+                for (ActionListener<RestoreCompletionResponse> listener : listeners) {
+                    try {
+                        listener.onResponse(new RestoreCompletionResponse(request.snapshotId, restoreInfo));
+                    } catch (Throwable e) {
+                        logger.warn("failed to update snapshot status for [{}]", e, listener);
                     }
                 }
             }
@@ -528,7 +604,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
      *
      * @param listener restore completion listener
      */
-    public void addListener(RestoreCompletionListener listener) {
+    public void addListener(ActionListener<RestoreCompletionResponse> listener) {
         this.listeners.add(listener);
     }
 
@@ -539,7 +615,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
      *
      * @param listener restore completion listener
      */
-    public void removeListener(RestoreCompletionListener listener) {
+    public void removeListener(ActionListener<RestoreCompletionResponse> listener) {
         this.listeners.remove(listener);
     }
 
@@ -743,42 +819,6 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             return masterNodeTimeout;
         }
 
-    }
-
-
-    /**
-     * This listener is called as soon as restore operation starts in the cluster.
-     * <p/>
-     * To receive notifications about  when operation ends in the cluster use {@link RestoreCompletionListener}
-     */
-    public static interface RestoreSnapshotListener {
-        /**
-         * Called when restore operations successfully starts in the cluster. Not null value of {@code snapshot} parameter
-         * means that restore operation didn't involve any shards and therefore has already completed.
-         *
-         * @param restoreInfo if restore operation finished, contains information about restore operation, null otherwise
-         */
-        void onResponse(RestoreInfo restoreInfo);
-
-        /**
-         * Called when restore operation failed to start
-         *
-         * @param t exception that prevented the restore operation to start
-         */
-        void onFailure(Throwable t);
-    }
-
-    /**
-     * This listener is called every time a snapshot is restored in the cluster
-     */
-    public static interface RestoreCompletionListener {
-        /**
-         * Called for every snapshot that is completed in the cluster
-         *
-         * @param snapshotId  snapshot id
-         * @param restoreInfo restore completion information
-         */
-        void onRestoreCompletion(SnapshotId snapshotId, RestoreInfo restoreInfo);
     }
 
     /**

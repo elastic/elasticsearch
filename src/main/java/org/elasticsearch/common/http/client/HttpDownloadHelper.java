@@ -346,7 +346,7 @@ public class HttpDownloadHelper {
                     // Try to delete the garbage we'd otherwise leave
                     // behind.
                     IOUtils.closeWhileHandlingException(os, is);
-                    dest.delete();
+                    IOUtils.deleteFilesIgnoringExceptions(dest.toPath());
                 } else {
                     IOUtils.close(os, is);
                 }
@@ -385,7 +385,7 @@ public class HttpDownloadHelper {
             } else {
                 IOUtils.closeWhileHandlingException(is, os);
                 if (dest != null && dest.exists()) {
-                    dest.delete();
+                    IOUtils.deleteFilesIgnoringExceptions(dest.toPath());
                 }
             }
         }

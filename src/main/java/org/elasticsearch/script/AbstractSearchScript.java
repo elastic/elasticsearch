@@ -19,11 +19,12 @@
 
 package org.elasticsearch.script;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.*;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -38,6 +39,7 @@ import java.util.Map;
 public abstract class AbstractSearchScript extends AbstractExecutableScript implements SearchScript {
 
     private SearchLookup lookup;
+    private Scorer scorer;
 
     /**
      * Returns the doc lookup allowing to access field data (cached) values as well as the current document score
@@ -45,6 +47,13 @@ public abstract class AbstractSearchScript extends AbstractExecutableScript impl
      */
     protected final DocLookup doc() {
         return lookup.doc();
+    }
+
+    /**
+     * Returns the current score and only applicable when used as a scoring script in a custom score query!.
+     */
+    protected final float score() throws IOException {
+        return scorer.score();
     }
 
     /**
@@ -95,11 +104,11 @@ public abstract class AbstractSearchScript extends AbstractExecutableScript impl
 
     @Override
     public void setScorer(Scorer scorer) {
-        throw new UnsupportedOperationException();
+        this.scorer = scorer;
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext context) {
+    public void setNextReader(LeafReaderContext context) {
         lookup.setNextReader(context);
     }
 

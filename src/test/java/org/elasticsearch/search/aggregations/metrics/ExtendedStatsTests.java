@@ -20,14 +20,19 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.extendedStats;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  *
@@ -116,6 +121,53 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         assertThat(stats.getSumOfSquares(), equalTo((double) 1+4+9+16+25+36+49+64+81+100));
         assertThat(stats.getVariance(), equalTo(variance(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10)));
+    }
+
+    @Test
+    public void testSingleValuedField_getProperty() throws Exception {
+
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(global("global").subAggregation(extendedStats("stats").field("value"))).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Global global = searchResponse.getAggregations().get("global");
+        assertThat(global, notNullValue());
+        assertThat(global.getName(), equalTo("global"));
+        assertThat(global.getDocCount(), equalTo(10l));
+        assertThat(global.getAggregations(), notNullValue());
+        assertThat(global.getAggregations().asMap().size(), equalTo(1));
+
+        ExtendedStats stats = global.getAggregations().get("stats");
+        assertThat(stats, notNullValue());
+        assertThat(stats.getName(), equalTo("stats"));
+        ExtendedStats statsFromProperty = (ExtendedStats) global.getProperty("stats");
+        assertThat(statsFromProperty, notNullValue());
+        assertThat(statsFromProperty, sameInstance(stats));
+        double expectedAvgValue = (double) (1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10) / 10;
+        assertThat(stats.getAvg(), equalTo(expectedAvgValue));
+        assertThat((double) global.getProperty("stats.avg"), equalTo(expectedAvgValue));
+        double expectedMinValue = 1.0;
+        assertThat(stats.getMin(), equalTo(expectedMinValue));
+        assertThat((double) global.getProperty("stats.min"), equalTo(expectedMinValue));
+        double expectedMaxValue = 10.0;
+        assertThat(stats.getMax(), equalTo(expectedMaxValue));
+        assertThat((double) global.getProperty("stats.max"), equalTo(expectedMaxValue));
+        double expectedSumValue = (double) (1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10);
+        assertThat(stats.getSum(), equalTo(expectedSumValue));
+        assertThat((double) global.getProperty("stats.sum"), equalTo(expectedSumValue));
+        long expectedCountValue = 10;
+        assertThat(stats.getCount(), equalTo(expectedCountValue));
+        assertThat((double) global.getProperty("stats.count"), equalTo((double) expectedCountValue));
+        double expectedSumOfSquaresValue = (double) 1 + 4 + 9 + 16 + 25 + 36 + 49 + 64 + 81 + 100;
+        assertThat(stats.getSumOfSquares(), equalTo(expectedSumOfSquaresValue));
+        assertThat((double) global.getProperty("stats.sum_of_squares"), equalTo(expectedSumOfSquaresValue));
+        double expectedVarianceValue = variance(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+        assertThat(stats.getVariance(), equalTo(expectedVarianceValue));
+        assertThat((double) global.getProperty("stats.variance"), equalTo(expectedVarianceValue));
+        double expectedStdDevValue = stdDev(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+        assertThat(stats.getStdDeviation(), equalTo(expectedStdDevValue));
+        assertThat((double) global.getProperty("stats.std_deviation"), equalTo(expectedStdDevValue));
     }
 
     @Test

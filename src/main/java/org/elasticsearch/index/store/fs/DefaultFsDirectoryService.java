@@ -29,6 +29,7 @@ import org.elasticsearch.index.store.IndexStore;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Set;
 
@@ -48,7 +49,7 @@ public class DefaultFsDirectoryService extends FsDirectoryService {
     }
 
     @Override
-    protected Directory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
+    protected Directory newFSDirectory(Path location, LockFactory lockFactory) throws IOException {
         return new FileSwitchDirectory(PRIMARY_EXTENSIONS, new MMapDirectory(location, lockFactory), new NIOFSDirectory(location, lockFactory), true);
     }
 }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
@@ -59,11 +59,16 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
 
     protected abstract void add2SingleValuedDocumentsAndDeleteOneOfThem() throws Exception;
 
+    protected long minRamBytesUsed() {
+        // minimum number of bytes that this fielddata instance is expected to require
+        return 1;
+    }
+
     @Test
     public void testDeletedDocs() throws Exception {
         add2SingleValuedDocumentsAndDeleteOneOfThem();
         IndexFieldData indexFieldData = getForField("value");
-        AtomicReaderContext readerContext = refreshReader();
+        LeafReaderContext readerContext = refreshReader();
         AtomicFieldData fieldData = indexFieldData.load(readerContext);
         SortedBinaryDocValues values = fieldData.getBytesValues();
         for (int i = 0; i < readerContext.reader().maxDoc(); ++i) {
@@ -76,9 +81,9 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
     public void testSingleValueAllSet() throws Exception {
         fillSingleValueAllSet();
         IndexFieldData indexFieldData = getForField("value");
-        AtomicReaderContext readerContext = refreshReader();
+        LeafReaderContext readerContext = refreshReader();
         AtomicFieldData fieldData = indexFieldData.load(readerContext);
-        assertThat(fieldData.ramBytesUsed(), greaterThan(0l));
+        assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
         SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
 
@@ -141,7 +146,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         fillSingleValueWithMissing();
         IndexFieldData indexFieldData = getForField("value");
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
-        assertThat(fieldData.ramBytesUsed(), greaterThan(0l));
+        assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
         SortedBinaryDocValues bytesValues = fieldData
                 .getBytesValues();
@@ -158,7 +163,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         fillMultiValueAllSet();
         IndexFieldData indexFieldData = getForField("value");
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
-        assertThat(fieldData.ramBytesUsed(), greaterThan(0l));
+        assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
         SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
 
@@ -189,7 +194,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         fillMultiValueWithMissing();
         IndexFieldData indexFieldData = getForField("value");
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
-        assertThat(fieldData.ramBytesUsed(), greaterThan(0l));
+        assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
         SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
 

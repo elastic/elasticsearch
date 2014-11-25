@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.service;
 
+import com.google.common.collect.Iterables;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
@@ -76,9 +77,19 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private volatile PrioritizedEsThreadPoolExecutor updateTasksExecutor;
 
-    private final List<ClusterStateListener> priorityClusterStateListeners = new CopyOnWriteArrayList<>();
-    private final List<ClusterStateListener> clusterStateListeners = new CopyOnWriteArrayList<>();
-    private final List<ClusterStateListener> lastClusterStateListeners = new CopyOnWriteArrayList<>();
+    /**
+     * Those 3 state listeners are changing infrequently - CopyOnWriteArrayList is just fine
+     */
+    private final Collection<ClusterStateListener> priorityClusterStateListeners = new CopyOnWriteArrayList<>();
+    private final Collection<ClusterStateListener> clusterStateListeners = new CopyOnWriteArrayList<>();
+    private final Collection<ClusterStateListener> lastClusterStateListeners = new CopyOnWriteArrayList<>();
+    // TODO this is rather frequently changing I guess a Synced Set would be better here and a dedicated remove API
+    private final Collection<ClusterStateListener> postAppliedListeners = new CopyOnWriteArrayList<>();
+    private final Iterable<ClusterStateListener> preAppliedListeners = Iterables.concat(
+            priorityClusterStateListeners,
+            clusterStateListeners,
+            lastClusterStateListeners);
+
     private final LocalNodeMasterListeners localNodeMasterListeners;
 
     private final Queue<NotifyTimeout> onGoingTimeouts = ConcurrentCollections.newQueue();
@@ -149,7 +160,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     @Override
     protected void doStop() throws ElasticsearchException {
-        this.reconnectToNodes.cancel(true);
+        FutureUtils.cancel(this.reconnectToNodes);
         for (NotifyTimeout onGoingTimeout : onGoingTimeouts) {
             onGoingTimeout.cancel();
             onGoingTimeout.listener.onClose();
@@ -197,6 +208,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         clusterStateListeners.remove(listener);
         priorityClusterStateListeners.remove(listener);
         lastClusterStateListeners.remove(listener);
+        postAppliedListeners.remove(listener);
         for (Iterator<NotifyTimeout> it = onGoingTimeouts.iterator(); it.hasNext(); ) {
             NotifyTimeout timeout = it.next();
             if (timeout.listener.equals(listener)) {
@@ -229,7 +241,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
                     notifyTimeout.future = threadPool.schedule(timeout, ThreadPool.Names.GENERIC, notifyTimeout);
                     onGoingTimeouts.add(notifyTimeout);
-                    clusterStateListeners.add(listener);
+                    postAppliedListeners.add(listener);
                     listener.postAdded();
                 }
             });
@@ -426,15 +438,12 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 // update the current cluster state
                 clusterState = newClusterState;
                 logger.debug("set local cluster state to version {}", newClusterState.version());
-
-                for (ClusterStateListener listener : priorityClusterStateListeners) {
-                    listener.clusterChanged(clusterChangedEvent);
-                }
-                for (ClusterStateListener listener : clusterStateListeners) {
-                    listener.clusterChanged(clusterChangedEvent);
-                }
-                for (ClusterStateListener listener : lastClusterStateListeners) {
-                    listener.clusterChanged(clusterChangedEvent);
+                for (ClusterStateListener listener : preAppliedListeners) {
+                    try {
+                        listener.clusterChanged(clusterChangedEvent);
+                    } catch (Exception ex) {
+                        logger.warn("failed to notify ClusterStateListener", ex);
+                    }
                 }
 
                 for (DiscoveryNode node : nodesDelta.removedNodes()) {
@@ -446,6 +455,14 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 }
 
                 newClusterState.status(ClusterState.ClusterStateStatus.APPLIED);
+
+                for (ClusterStateListener listener : postAppliedListeners) {
+                    try {
+                        listener.clusterChanged(clusterChangedEvent);
+                    } catch (Exception ex) {
+                        logger.warn("failed to notify ClusterStateListener", ex);
+                    }
+                }
 
                 //manual ack only from the master at the end of the publish
                 if (newClusterState.nodes().localNodeMaster()) {
@@ -483,7 +500,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         }
 
         public void cancel() {
-            future.cancel(false);
+            FutureUtils.cancel(future);
         }
 
         @Override
@@ -691,7 +708,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
             if (countDown.countDown()) {
                 logger.trace("all expected nodes acknowledged cluster_state update (version: {})", clusterStateVersion);
-                ackTimeoutCallback.cancel(true);
+                FutureUtils.cancel(ackTimeoutCallback);
                 ackedUpdateTask.onAllNodesAcked(lastFailure);
             }
         }

@@ -385,7 +385,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
         assertHitCount(sr, expectedHitSize);
         int nullCounter = 0;
         for (SearchHit hit : sr.getHits().getHits()) {
-            Object result = hit.getFields().get("tvtest").getValues().get(0);
+            Object result = hit.getFields().get("tvtest").getValues();
             Object expectedResult = expectedArray.get(hit.getId());
             assertThat("for doc " + hit.getId(), result, equalTo(expectedResult));
             if (expectedResult != null) {
@@ -574,13 +574,13 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
             assertThat(sr.getHits().hits().length, equalTo(0));
             ShardSearchFailure[] shardFails = sr.getShardFailures();
             for (ShardSearchFailure fail : shardFails) {
-                assertThat(fail.reason().indexOf("Cannot iterate twice! If you want to iterate more that once, add _CACHE explicitely."),
+                assertThat(fail.reason().indexOf("Cannot iterate twice! If you want to iterate more that once, add _CACHE explicitly."),
                         Matchers.greaterThan(-1));
             }
         } catch (SearchPhaseExecutionException ex) {
             assertThat(
                     "got " + ex.getDetailedMessage(),
-                    ex.getDetailedMessage().indexOf("Cannot iterate twice! If you want to iterate more that once, add _CACHE explicitely."),
+                    ex.getDetailedMessage().indexOf("Cannot iterate twice! If you want to iterate more that once, add _CACHE explicitly."),
                     Matchers.greaterThan(-1));
         }
     }

@@ -25,11 +25,12 @@ import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.CloseableThreadLocal;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Booleans;
@@ -46,7 +47,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.internal.*;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
@@ -578,7 +579,7 @@ public class DocumentMapper implements ToXContent {
             for (ParseContext.Document doc : context.docs()) {
                 encounteredFields.clear();
                 for (IndexableField field : doc) {
-                    if (field.fieldType().indexed() && !field.fieldType().omitNorms()) {
+                    if (field.fieldType().indexOptions() != IndexOptions.NONE && !field.fieldType().omitNorms()) {
                         if (!encounteredFields.contains(field.name())) {
                             ((Field) field).setBoost(context.docBoost() * field.boost());
                             encounteredFields.add(field.name());
@@ -598,15 +599,15 @@ public class DocumentMapper implements ToXContent {
     /**
      * Returns the best nested {@link ObjectMapper} instances that is in the scope of the specified nested docId.
      */
-    public ObjectMapper findNestedObjectMapper(int nestedDocId, FixedBitSetFilterCache cache, AtomicReaderContext context) throws IOException {
+    public ObjectMapper findNestedObjectMapper(int nestedDocId, BitsetFilterCache cache, LeafReaderContext context) throws IOException {
         ObjectMapper nestedObjectMapper = null;
         for (ObjectMapper objectMapper : objectMappers().values()) {
             if (!objectMapper.nested().isNested()) {
                 continue;
             }
 
-            FixedBitSet nestedTypeBitSet = cache.getFixedBitSetFilter(objectMapper.nestedTypeFilter()).getDocIdSet(context, null);
-            if (nestedTypeBitSet != null && nestedTypeBitSet.get(nestedDocId)) {
+            BitDocIdSet nestedTypeBitSet = cache.getBitDocIdSetFilter(objectMapper.nestedTypeFilter()).getDocIdSet(context);
+            if (nestedTypeBitSet != null && nestedTypeBitSet.bits().get(nestedDocId)) {
                 if (nestedObjectMapper == null) {
                     nestedObjectMapper = objectMapper;
                 } else {

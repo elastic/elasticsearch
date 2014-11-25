@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.util.Accountable;
+
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -27,16 +29,17 @@ import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 
 import java.io.IOException;
+import java.util.Collections;
 
 /**
  * An {@link AtomicFieldData} implementation that uses Lucene {@link org.apache.lucene.index.SortedSetDocValues}.
  */
 public final class SortedSetDVBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
 
-    private final AtomicReader reader;
+    private final LeafReader reader;
     private final String field;
 
-    SortedSetDVBytesAtomicFieldData(AtomicReader reader, String field) {
+    SortedSetDVBytesAtomicFieldData(LeafReader reader, String field) {
         this.reader = reader;
         this.field = field;
     }
@@ -56,7 +59,12 @@ public final class SortedSetDVBytesAtomicFieldData extends AbstractAtomicOrdinal
 
     @Override
     public long ramBytesUsed() {
-        return -1; // unknown
+        return 0; // unknown
+    }
+    
+    @Override
+    public Iterable<? extends Accountable> getChildResources() {
+        return Collections.emptyList();
     }
 
 }

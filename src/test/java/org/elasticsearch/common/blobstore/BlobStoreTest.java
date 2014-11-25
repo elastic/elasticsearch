@@ -20,6 +20,7 @@ package org.elasticsearch.common.blobstore;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -46,15 +47,15 @@ public class BlobStoreTest extends ElasticsearchTestCase {
             stream.write(data);
         }
         try (InputStream stream = container.openInput("foobar")) {
-            BytesRef target = new BytesRef();
-            while (target.length < data.length) {
-                byte[] buffer = new byte[scaledRandomIntBetween(1, data.length - target.length)];
+            BytesRefBuilder target = new BytesRefBuilder();
+            while (target.length() < data.length) {
+                byte[] buffer = new byte[scaledRandomIntBetween(1, data.length - target.length())];
                 int offset = scaledRandomIntBetween(0, buffer.length - 1);
                 int read = stream.read(buffer, offset, buffer.length - offset);
                 target.append(new BytesRef(buffer, offset, read));
             }
-            assertEquals(data.length, target.length);
-            assertArrayEquals(data, Arrays.copyOfRange(target.bytes, target.offset, target.length));
+            assertEquals(data.length, target.length());
+            assertArrayEquals(data, Arrays.copyOfRange(target.bytes(), 0, target.length()));
         }
         store.close();
     }

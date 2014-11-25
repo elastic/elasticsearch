@@ -361,7 +361,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testDisabledPreserveSeperators() throws Exception {
+    public void testDisabledPreserveSeparators() throws Exception {
         completionMappingBuilder.preserveSeparators(false);
         createIndexAndMapping(completionMappingBuilder);
 
@@ -385,7 +385,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testEnabledPreserveSeperators() throws Exception {
+    public void testEnabledPreserveSeparators() throws Exception {
         completionMappingBuilder.preserveSeparators(true);
         createIndexAndMapping(completionMappingBuilder);
 

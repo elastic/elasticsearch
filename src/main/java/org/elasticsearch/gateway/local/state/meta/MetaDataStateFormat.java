@@ -22,15 +22,21 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Preconditions;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -117,9 +123,9 @@ public abstract class MetaDataStateFormat<T> {
                 }
                 CodecUtil.writeFooter(out);
             }
-            IOUtils.fsync(tmpStatePath.toFile(), false); // fsync the state file
+            IOUtils.fsync(tmpStatePath, false); // fsync the state file
             Files.move(tmpStatePath, finalStatePath, StandardCopyOption.ATOMIC_MOVE);
-            IOUtils.fsync(stateLocation.toFile(), true);
+            IOUtils.fsync(stateLocation, true);
             for (int i = 1; i < locations.length; i++) {
                 stateLocation = Paths.get(locations[i].getPath(), STATE_DIR_NAME);
                 Files.createDirectories(stateLocation);
@@ -128,7 +134,7 @@ public abstract class MetaDataStateFormat<T> {
                 try {
                     Files.copy(finalStatePath, tmpPath);
                     Files.move(tmpPath, finalPath, StandardCopyOption.ATOMIC_MOVE); // we are on the same FileSystem / Partition here we can do an atomic move
-                    IOUtils.fsync(stateLocation.toFile(), true); // we just fsync the dir here..
+                    IOUtils.fsync(stateLocation, true); // we just fsync the dir here..
                 } finally {
                     Files.deleteIfExists(tmpPath);
                 }
@@ -179,7 +185,7 @@ public abstract class MetaDataStateFormat<T> {
                         return fromXContent(parser);
                     }
                 }
-            } catch(CorruptIndexException ex) {
+            } catch(CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                 // we trick this into a dedicated exception with the original stacktrace
                 throw new CorruptStateException(ex);
             }
@@ -187,7 +193,7 @@ public abstract class MetaDataStateFormat<T> {
     }
 
     protected Directory newDirectory(File dir) throws IOException {
-        return new SimpleFSDirectory(dir);
+        return new SimpleFSDirectory(dir.toPath());
     }
 
     private void cleanupOldFiles(String prefix, String fileName, File[] locations) throws IOException {
@@ -202,7 +208,9 @@ public abstract class MetaDataStateFormat<T> {
                     if (file.getName().equals(fileName)) {
                         continue;
                     }
-                    Files.delete(file.toPath());
+                    if (Files.exists(file.toPath())) {
+                        Files.delete(file.toPath());
+                    }
                 }
             }
         }
@@ -226,6 +234,7 @@ public abstract class MetaDataStateFormat<T> {
     public static <T> T loadLatestState(ESLogger logger, MetaDataStateFormat<T> format, Pattern pattern, String stateType, File... dataLocations) {
         List<FileAndVersion> files = new ArrayList<>();
         long maxVersion = -1;
+        boolean maxVersionIsLegacy = true;
         if (dataLocations != null) { // select all eligable files first
             for (File dataLocation : dataLocations) {
                 File stateDir = new File(dataLocation, MetaDataStateFormat.STATE_DIR_NAME);
@@ -243,6 +252,7 @@ public abstract class MetaDataStateFormat<T> {
                         final long version = Long.parseLong(matcher.group(1));
                         maxVersion = Math.max(maxVersion, version);
                         final boolean legacy = MetaDataStateFormat.STATE_FILE_EXTENSION.equals(matcher.group(2)) == false;
+                        maxVersionIsLegacy &= legacy; // on purpose, see NOTE below
                         files.add(new FileAndVersion(stateFile, version, legacy));
                     }
                 }
@@ -251,8 +261,11 @@ public abstract class MetaDataStateFormat<T> {
         final List<Throwable> exceptions = new ArrayList<>();
         T state = null;
         // NOTE: we might have multiple version of the latest state if there are multiple data dirs.. for this case
-        //       we iterate only over the ones with the max version
-        for (FileAndVersion fileAndVersion : Collections2.filter(files, new VersionPredicate(maxVersion))) {
+        //       we iterate only over the ones with the max version. If we have at least one state file that uses the
+        //       new format (ie. legacy == false) then we know that the latest version state ought to use this new format.
+        //       In case the state file with the latest version does not use the new format while older state files do,
+        //       the list below will be empty and loading the state will fail
+        for (FileAndVersion fileAndVersion : Collections2.filter(files, new VersionAndLegacyPredicate(maxVersion, maxVersionIsLegacy))) {
             try {
                 final File stateFile = fileAndVersion.file;
                 final long version = fileAndVersion.version;
@@ -280,10 +293,10 @@ public abstract class MetaDataStateFormat<T> {
             }
         }
         // if we reach this something went wrong
-        if (files.size() > 0 || exceptions.size() > 0) {
-            // here we where not able to load the latest version from neither of the data dirs
-            // this case is exceptional and we should not continue
-            ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
+        if (files.size() > 0) {
+            // We have some state files but none of them gave us a usable state
+            throw new ElasticsearchIllegalStateException("Could not find a state file to recover from among " + files);
         }
         return state;
     }
@@ -292,15 +305,18 @@ public abstract class MetaDataStateFormat<T> {
      * Filters out all {@link FileAndVersion} instances with a different version than
      * the given one.
      */
-    private static final class VersionPredicate implements Predicate<FileAndVersion> {
+    private static final class VersionAndLegacyPredicate implements Predicate<FileAndVersion> {
         private final long version;
+        private final boolean legacy;
 
-        VersionPredicate(long version) {
+        VersionAndLegacyPredicate(long version, boolean legacy) {
             this.version = version;
+            this.legacy = legacy;
         }
+
         @Override
         public boolean apply(FileAndVersion input) {
-            return input.version == version;
+            return input.version == version && input.legacy == legacy;
         }
     }
 
@@ -308,7 +324,7 @@ public abstract class MetaDataStateFormat<T> {
      * Internal struct-like class that holds the parsed state version, the file
      * and a flag if the file is a legacy state ie. pre 1.5
      */
-    private static class FileAndVersion implements Comparable<FileAndVersion>{
+    private static class FileAndVersion {
         final File file;
         final long version;
         final boolean legacy;
@@ -318,12 +334,18 @@ public abstract class MetaDataStateFormat<T> {
             this.version = version;
             this.legacy = legacy;
         }
+    }
 
-        @Override
-        public int compareTo(FileAndVersion o) {
-            // highest first
-            return Long.compare(o.version, version);
+    /**
+     * Deletes all meta state directories recursively for the given data locations
+     * @param dataLocations the data location to delete
+     */
+    public static void deleteMetaState(Path... dataLocations) throws IOException {
+        Path[] stateDirectories = new Path[dataLocations.length];
+        for (int i = 0; i < dataLocations.length; i++) {
+            stateDirectories[i] = dataLocations[i].resolve(STATE_DIR_NAME);
         }
+        IOUtils.rm(stateDirectories);
     }
 
 }

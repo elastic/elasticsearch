@@ -25,8 +25,6 @@ import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.MoreExecutors;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -38,7 +36,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.*;
+import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -73,7 +74,6 @@ public class ThreadPool extends AbstractComponent {
         public static final String PERCOLATE = "percolate";
         public static final String MANAGEMENT = "management";
         public static final String FLUSH = "flush";
-        public static final String MERGE = "merge";
         public static final String REFRESH = "refresh";
         public static final String WARMER = "warmer";
         public static final String SNAPSHOT = "snapshot";
@@ -122,7 +122,6 @@ public class ThreadPool extends AbstractComponent {
                 // the assumption here is that the listeners should be very lightweight on the listeners side
                 .put(Names.LISTENER, settingsBuilder().put("type", "fixed").put("size", halfProcMaxAt10).build())
                 .put(Names.FLUSH, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
-                .put(Names.MERGE, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
                 .put(Names.REFRESH, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt10).build())
                 .put(Names.WARMER, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
                 .put(Names.SNAPSHOT, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
@@ -134,6 +133,15 @@ public class ThreadPool extends AbstractComponent {
         for (Map.Entry<String, Settings> executor : defaultExecutorTypeSettings.entrySet()) {
             executors.put(executor.getKey(), build(executor.getKey(), groupSettings.get(executor.getKey()), executor.getValue()));
         }
+
+        // Building custom thread pools
+        for (Map.Entry<String, Settings> entry : groupSettings.entrySet()) {
+            if (executors.containsKey(entry.getKey())) {
+                continue;
+            }
+            executors.put(entry.getKey(), build(entry.getKey(), entry.getValue(), ImmutableSettings.EMPTY));
+        }
+
         executors.put(Names.SAME, new ExecutorHolder(MoreExecutors.directExecutor(), new Info(Names.SAME, "same")));
         if (!executors.get(Names.GENERIC).info.getType().equals("cached")) {
             throw new ElasticsearchIllegalArgumentException("generic thread pool must be of type cached");
@@ -417,6 +425,26 @@ public class ThreadPool extends AbstractComponent {
             ExecutorHolder newExecutorHolder = rebuild(executor.getKey(), oldExecutorHolder, updatedSettings, executor.getValue());
             if (!oldExecutorHolder.equals(newExecutorHolder)) {
                 executors = newMapBuilder(executors).put(executor.getKey(), newExecutorHolder).immutableMap();
+                if (!oldExecutorHolder.executor().equals(newExecutorHolder.executor()) && oldExecutorHolder.executor() instanceof EsThreadPoolExecutor) {
+                    retiredExecutors.add(oldExecutorHolder);
+                    ((EsThreadPoolExecutor) oldExecutorHolder.executor()).shutdown(new ExecutorShutdownListener(oldExecutorHolder));
+                }
+            }
+        }
+
+        // Building custom thread pools
+        for (Map.Entry<String, Settings> entry : groupSettings.entrySet()) {
+            if (defaultExecutorTypeSettings.containsKey(entry.getKey())) {
+                continue;
+            }
+
+            ExecutorHolder oldExecutorHolder = executors.get(entry.getKey());
+            ExecutorHolder newExecutorHolder = rebuild(entry.getKey(), oldExecutorHolder, entry.getValue(), ImmutableSettings.EMPTY);
+            // Can't introduce new thread pools at runtime, because The oldExecutorHolder variable will be null in the
+            // case the settings contains a thread pool not defined in the initial settings in the constructor. The if
+            // statement will then fail and so this prevents the addition of new thread groups at runtime, which is desired.
+            if (!newExecutorHolder.equals(oldExecutorHolder)) {
+                executors = newMapBuilder(executors).put(entry.getKey(), newExecutorHolder).immutableMap();
                 if (!oldExecutorHolder.executor().equals(newExecutorHolder.executor()) && oldExecutorHolder.executor() instanceof EsThreadPoolExecutor) {
                     retiredExecutors.add(oldExecutorHolder);
                     ((EsThreadPoolExecutor) oldExecutorHolder.executor()).shutdown(new ExecutorShutdownListener(oldExecutorHolder));

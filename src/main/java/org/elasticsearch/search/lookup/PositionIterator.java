@@ -86,7 +86,7 @@ public class PositionIterator implements Iterator<TermPosition> {
     public Iterator<TermPosition> reset() {
         if (resetted) {
             throw new ElasticsearchException(
-                    "Cannot iterate twice! If you want to iterate more that once, add _CACHE explicitely.");
+                    "Cannot iterate twice! If you want to iterate more that once, add _CACHE explicitly.");
         }
         resetted = true;
         return this;

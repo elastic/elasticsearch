@@ -38,7 +38,11 @@ public abstract class AbstractRandomAccessOrds extends RandomAccessOrds {
 
     @Override
     public long nextOrd() {
-        return ordAt(i++);
+        if (i < cardinality()) {
+            return ordAt(i++);
+        } else {
+            return NO_MORE_ORDS;
+        }
     }
 
 }

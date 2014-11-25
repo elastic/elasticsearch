@@ -29,6 +29,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -49,13 +50,26 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
-import static org.hamcrest.core.IsNull.notNullValue;
-import static org.hamcrest.core.IsNull.nullValue;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.nested;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  *
@@ -253,6 +267,26 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
 
             assertThat(hits.getAt(0).sourceAsMap().size(), equalTo(4));
         }
+    }
+
+    @Test
+    public void testBasics_getProperty() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(global("global").subAggregation(topHits("hits"))).execute().actionGet();
+
+        assertSearchResponse(searchResponse);
+
+        Global global = searchResponse.getAggregations().get("global");
+        assertThat(global, notNullValue());
+        assertThat(global.getName(), equalTo("global"));
+        assertThat(global.getAggregations(), notNullValue());
+        assertThat(global.getAggregations().asMap().size(), equalTo(1));
+
+        TopHits topHits = global.getAggregations().get("hits");
+        assertThat(topHits, notNullValue());
+        assertThat(topHits.getName(), equalTo("hits"));
+        assertThat((TopHits) global.getProperty("hits"), sameInstance(topHits));
+
     }
 
     @Test

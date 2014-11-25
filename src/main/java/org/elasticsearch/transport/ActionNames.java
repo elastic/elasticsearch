@@ -92,8 +92,8 @@ import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.suggest.SuggestAction;
-import org.elasticsearch.action.termvector.MultiTermVectorsAction;
-import org.elasticsearch.action.termvector.TermVectorAction;
+import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
+import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
@@ -266,7 +266,7 @@ final class ActionNames {
         builder.put(SearchServiceTransportAction.SCAN_SCROLL_ACTION_NAME, "search/phase/scan/scroll");
 
         addShardAction(SuggestAction.NAME, "suggest", builder);
-        addShardAction(TermVectorAction.NAME, "tv", builder);
+        addShardAction(TermVectorsAction.NAME, "tv", builder);
 
         builder.put(BulkAction.NAME, "bulk");
         builder.put(BulkAction.NAME + "[s]", "bulk/shard");

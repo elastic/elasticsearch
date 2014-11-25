@@ -20,7 +20,7 @@ package org.elasticsearch.search.aggregations;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
@@ -44,6 +44,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
             return aggregator.shouldCollect();
         }
     };
+    private final Map<String, Object> metaData;
 
     /**
      * Returns whether any of the parent aggregators has {@link BucketAggregationMode#PER_BUCKET} as a bucket aggregation mode.
@@ -59,6 +60,10 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     }
 
     public static final ParseField COLLECT_MODE = new ParseField("collect_mode");
+
+    public Map<String, Object> getMetaData() {
+        return this.metaData;
+    }
 
     /**
      * Defines the nature of the aggregator's aggregation execution when nested in other aggregators and the buckets they create.
@@ -177,9 +182,11 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * @param estimatedBucketsCount When served as a sub-aggregator, indicate how many buckets the parent aggregator will generate.
      * @param context               The aggregation context
      * @param parent                The parent aggregator (may be {@code null} for top level aggregators)
+     * @param metaData              The metaData associated with this aggregator
      */
-    protected Aggregator(String name, BucketAggregationMode bucketAggregationMode, AggregatorFactories factories, long estimatedBucketsCount, AggregationContext context, Aggregator parent) {
+    protected Aggregator(String name, BucketAggregationMode bucketAggregationMode, AggregatorFactories factories, long estimatedBucketsCount, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
         this.name = name;
+        this.metaData = metaData;
         this.parent = parent;
         this.estimatedBucketCount = estimatedBucketsCount;
         this.context = context;
@@ -197,7 +204,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
                         "preCollection not called on new Aggregator before use", null);                
             }
             @Override
-            public void setNextReader(AtomicReaderContext reader) {
+            public void setNextReader(LeafReaderContext reader) {
                 badState();
             }
 
@@ -217,6 +224,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
             }
         };
     }
+
     protected void preCollection() {
         Iterable<Aggregator> collectables = Iterables.filter(Arrays.asList(subAggregators), COLLECTABLE_AGGREGATOR);
         List<BucketCollector> nextPassCollectors = new ArrayList<>();
@@ -362,9 +370,6 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         results.add(buildAggregation(bucketOrdinal));
     }
     
-    
-    
-
     public abstract InternalAggregation buildEmptyAggregation();
 
     protected final InternalAggregations buildEmptySubAggregations() {

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.DocValues;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -50,7 +50,7 @@ public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData impleme
     }
 
     @Override
-    public BytesBinaryDVAtomicFieldData load(AtomicReaderContext context) {
+    public BytesBinaryDVAtomicFieldData load(LeafReaderContext context) {
         try {
             return new BytesBinaryDVAtomicFieldData(DocValues.getBinary(context.reader(), fieldNames.indexName()));
         } catch (IOException e) {
@@ -59,7 +59,7 @@ public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData impleme
     }
 
     @Override
-    public BytesBinaryDVAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public BytesBinaryDVAtomicFieldData loadDirect(LeafReaderContext context) throws Exception {
         return load(context);
     }
 

@@ -29,6 +29,7 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -44,6 +45,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -77,8 +79,10 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.codec.CodecService;
@@ -112,6 +116,8 @@ import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
 import org.junit.*;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -443,6 +449,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             builder.put(StoreModule.DISTIBUTOR_KEY, random.nextBoolean() ? StoreModule.LEAST_USED_DISTRIBUTOR : StoreModule.RANDOM_WEIGHT_DISTRIBUTOR);
         }
 
+
         if (random.nextBoolean()) {
             if (random.nextInt(10) == 0) { // do something crazy slow here
                 builder.put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 10), ByteSizeUnit.MB));
@@ -450,12 +457,14 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 builder.put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 10, 200), ByteSizeUnit.MB));
             }
         }
+
+        if (random.nextBoolean()) {
+            builder.put(RecoverySettings.INDICES_RECOVERY_COMPRESS, randomBoolean());
+        }
+
         if (random.nextBoolean()) {
              builder.put(FsTranslog.INDEX_TRANSLOG_FS_TYPE, RandomPicks.randomFrom(random, FsTranslogFile.Type.values()).name());
         }
-
-        // Randomly load or don't load bloom filters:
-        builder.put(CodecService.INDEX_CODEC_BLOOM_LOAD, random.nextBoolean());
 
         if (random.nextBoolean()) {
             builder.put(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, random.nextBoolean());
@@ -466,7 +475,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             builder.put(IndicesFieldDataCache.FIELDDATA_CACHE_CONCURRENCY_LEVEL, randomIntBetween(1, 32));
             builder.put(IndicesFilterCache.INDICES_CACHE_FILTER_CONCURRENCY_LEVEL, randomIntBetween(1, 32));
         }
-        
+        if (globalCompatibilityVersion().before(Version.V_1_3_2)) {
+            // if we test against nodes before 1.3.2 we disable all the compression due to a known bug
+            // see #7210
+            builder.put(RecoverySettings.INDICES_RECOVERY_COMPRESS, false);
+        }
         return builder;
     }
 
@@ -500,9 +513,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             builder.put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, mergePolicy.getName());
         }
 
-        if (random.nextBoolean()) {
-            builder.put(MergeSchedulerProvider.FORCE_ASYNC_MERGE, random.nextBoolean());
-        }
         switch (random.nextInt(4)) {
             case 3:
                 builder.put(MergeSchedulerModule.MERGE_SCHEDULER_TYPE_KEY, ConcurrentMergeSchedulerProvider.class);
@@ -1064,10 +1074,19 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     /**
-     * Prints the current cluster state as info logging.
+     * Prints the current cluster state as debug logging.
      */
     public void logClusterState() {
         logger.debug("cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
+    }
+
+    /**
+     * Prints the segments info for the given indices as debug logging.
+     */
+    public void logSegmentsState(String... indices) throws Exception {
+        IndicesSegmentResponse segsRsp = client().admin().indices().prepareSegments(indices).get();
+        logger.debug("segments {} state: \n{}", indices.length == 0 ? "[_all]" : indices,
+                     segsRsp.toXContent(JsonXContent.contentBuilder().prettyPrint(), ToXContent.EMPTY_PARAMS).string());
     }
 
     void ensureClusterSizeConsistency() {
@@ -1594,6 +1613,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         int numClientNodes = InternalTestCluster.DEFAULT_NUM_CLIENT_NODES;
         boolean enableRandomBenchNodes = InternalTestCluster.DEFAULT_ENABLE_RANDOM_BENCH_NODES;
+        boolean enableHttpPipelining = InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING;
         int minNumDataNodes = InternalTestCluster.DEFAULT_MIN_NUM_DATA_NODES;
         int maxNumDataNodes = InternalTestCluster.DEFAULT_MAX_NUM_DATA_NODES;
         SettingsSource settingsSource = InternalTestCluster.DEFAULT_SETTINGS_SOURCE;
@@ -1660,7 +1680,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
         return new InternalTestCluster(seed, minNumDataNodes, maxNumDataNodes,
                 clusterName(scope.name(), Integer.toString(CHILD_JVM_ID), seed), settingsSource, numClientNodes,
-                enableRandomBenchNodes, CHILD_JVM_ID, nodePrefix);
+                enableRandomBenchNodes, enableHttpPipelining, CHILD_JVM_ID, nodePrefix);
     }
 
     /**
@@ -1826,6 +1846,46 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         } else {
             INSTANCE = null;
         }
+    }
+
+    /**
+     * Compute a routing key that will route documents to the <code>shard</code>-th shard
+     * of the provided index.
+     */
+    protected String routingKeyForShard(String index, String type, int shard) {
+        return internalCluster().routingKeyForShard(index, type, shard, getRandom());
+    }
+
+    /**
+     * Return settings that could be used to start a node that has the given zipped home directory.
+     */
+    protected Settings prepareBackwardsDataDir(File backwardsIndex, Object... settings) throws IOException {
+        File indexDir = newTempDir();
+        File dataDir = new File(indexDir, "data");
+        try (FileInputStream stream = new FileInputStream(backwardsIndex)) {
+            TestUtil.unzip(stream, indexDir.toPath());
+        }
+        assertTrue(dataDir.exists());
+        String[] list = dataDir.list();
+        if (list == null || list.length > 1) {
+            throw new IllegalStateException("Backwards index must contain exactly one cluster");
+        }
+        File src = new File(dataDir, list[0]);
+        File dest = new File(dataDir, internalCluster().getClusterName());
+        assertTrue(src.exists());
+        src.renameTo(dest);
+        assertFalse(src.exists());
+        assertTrue(dest.exists());
+        ImmutableSettings.Builder builder = ImmutableSettings.builder()
+                .put(settings)
+                .put("gateway.type", "local") // this is important we need to recover from gateway
+                .put("path.data", dataDir.getPath());
+
+        File configDir = new File(indexDir, "config");
+        if (configDir.exists()) {
+            builder.put("path.conf", configDir.getPath());
+        }
+        return builder.build();
     }
 
     /**

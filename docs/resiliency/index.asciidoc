@@ -76,31 +76,33 @@ When Lucene opens a segment for reading, it validates the checksum on the smalle
 
 There are a few ongoing efforts to improve coverage:
 
-* {GIT}7360[#7360] validates checksums on all segment files during merges. (STATUS: ONGOING, fixed in 1.4.0.Beta)
-* {JIRA}5842[LUCENE-5842] validates the structure of the checksum footer of the postings lists, doc values, stored fields and term vectors when opening a new segment, to ensure that these files have not been truncated. (STATUS: ONGOING, Fixed in Lucene 4.10 and 1.4.0.Beta)
+* {GIT}7360[#7360] validates checksums on all segment files during merges. (STATUS: DONE, fixed in 1.4.0.Beta1)
+* {JIRA}5842[LUCENE-5842] validates the structure of the checksum footer of the postings lists, doc values, stored fields and term vectors when opening a new segment, to ensure that these files have not been truncated. (STATUS: DONE, Fixed in Lucene 4.10 and 1.4.0.Beta1)
 * {JIRA}5894[LUCENE-5894] lays the groundwork for extending more efficient checksum validation to all files during optimized bulk merges, if possible. (STATUS: ONGOING, Fixed in Lucene 5.0)
-* {GIT}7586[#7586] adds checksums for cluster and index state files. (STATUS: NOT STARTED)
+* {GIT}7586[#7586] adds checksums for cluster and index state files. (STATUS: ONGOING, fixed in 1.5.0)
 
 [float]
 === Add per-segment and per-commit ID to help replication (STATUS: ONGOING)
 
-{JIRA}5895[LUCENE-5895] adds a unique ID for each segment and each commit point. File-based replication (as performed by snapshot/restore) can use this ID to know whether the segment/commit on the source and destination machines are the same.  Fixed in Lucene 4.11.
+{JIRA}5895[LUCENE-5895] adds a unique ID for each segment and each commit point. File-based replication (as performed by snapshot/restore) can use this ID to know whether the segment/commit on the source and destination machines are the same.  Fixed in Lucene 5.0.
 
 [float]
 === Improving Zen Discovery (STATUS: ONGOING)
 
-Recovery from failure is a complicated process, especially in an asychronous distributed system like Elasticsearch. With several processes happening in parallel, it is important to ensure that recovery proceeds swiftly and safely. While fixing the {GIT}2488[split-brain issue] we have been hunting down corner cases that were not handled optimally, adding tests to demonstrate the issues, and working on fixes:
+Recovery from failure is a complicated process, especially in an asynchronous distributed system like Elasticsearch. With several processes happening in parallel, it is important to ensure that recovery proceeds swiftly and safely. While fixing the {GIT}2488[split-brain issue] we have been hunting down corner cases that were not handled optimally, adding tests to demonstrate the issues, and working on fixes:
 
-* Faster & better detection of master & node failures, including not trying to reconnect upon disconnect, fail on disconnect error on ping, verify cluster names in pings. Previously, Elasticsearch had to wait a bit for the node to complete the process required to join the cluster. Recent changes guarantee that a node has fully joined the cluster before we start the fault detection process. Therefore we can do an immediate check causing faster detection of errors and validation of cluster state after a minimum master node breach. {GIT}6706[#6706], {GIT}7399[#7399] (STATUS: DONE, v1.4.0.Beta)
-* Broaden Unicast pinging when master fails: When a node loses it’s current master it will start pinging to find a new one. Previously, when using unicast based pinging, the node would ping a set of predefined nodes asking them whether the master had really disappeared or whether there was a network hiccup. Now, we ping all nodes in the cluster to increase coverage. In the case that all unicast hosts are disconnected from the current master during a network failure, this improvement is essential to allow the cluster to reform once the partition is healed. {GIT}7336[#7336] (STATUS: DONE, v1.4.0.Beta)
-* After joining a cluster, validate that the join was successful and that the master has been set in the local cluster state. {GIT}6969[#6969]. (STATUS: DONE, v1.4.0.Beta)
+* Faster & better detection of master & node failures, including not trying to reconnect upon disconnect, fail on disconnect error on ping, verify cluster names in pings. Previously, Elasticsearch had to wait a bit for the node to complete the process required to join the cluster. Recent changes guarantee that a node has fully joined the cluster before we start the fault detection process. Therefore we can do an immediate check causing faster detection of errors and validation of cluster state after a minimum master node breach. {GIT}6706[#6706], {GIT}7399[#7399] (STATUS: DONE, v1.4.0.Beta1)
+* Broaden Unicast pinging when master fails: When a node loses it’s current master it will start pinging to find a new one. Previously, when using unicast based pinging, the node would ping a set of predefined nodes asking them whether the master had really disappeared or whether there was a network hiccup. Now, we ping all nodes in the cluster to increase coverage. In the case that all unicast hosts are disconnected from the current master during a network failure, this improvement is essential to allow the cluster to reform once the partition is healed. {GIT}7336[#7336] (STATUS: DONE, v1.4.0.Beta1)
+* After joining a cluster, validate that the join was successful and that the master has been set in the local cluster state. {GIT}6969[#6969]. (STATUS: DONE, v1.4.0.Beta1)
 * Write additional tests that use the test infrastructure to verify proper behavior during network disconnections and garbage collections. {GIT}7082[#7082] (STATUS: ONGOING)
-* Make write calls return the number of total/successful/missing shards in the same way that we do in search, which ensures transparency in the consistency of write operations. (STATUS: NOT STARTED)
+* Make write calls return the number of total/successful/missing shards in the same way that we do in search, which ensures transparency in the consistency of write operations. {GIT}7572[#7572]. (STATUS: ONGOING)
 
 [float]
 === Validate quorum before accepting a write request (STATUS: ONGOING)
 
 Today, when a node holding a primary shard receives an index request, it checks the local cluster state to see whether a quorum of shards is available before it accepts the request. However, it can take some time before an unresponsive node is removed from the cluster state. We are adding an optional live check, where the primary node tries to contact its replicas to confirm that they are still responding before accepting any changes. See {GIT}6937[#6937].
+
+While the work is going on, we tightened the current checks by bringing them closer to the index code. See {GIT}7873[#7873] (STATUS: DONE, fixed in 1.4.0)
 
 [float]
 === Jepsen Test Failures (STATUS: ONGOING)
@@ -112,41 +114,49 @@ We have increased our test coverage to include scenarios tested by Jepsen. We ma
 
 This status page is a start, but we can do a better job of explicitly documenting the processes at work in Elasticsearch, and what happens in the case of each type of failure. The plan is to have a test case that validates each behavior under simulated conditions. Every test will document the expected results, the associated test code and an explicit PASS or FAIL status for each simulated case.
 
+
+[float]
+=== Take filter cache key size into account (STATUS: ONGOING)
+
+Commonly used filters are cached in Elasticsearch. That cache is limited in size (10% of node's memory by default) and is being evicted based on a least recently used policy. The amount of memory used by the cache depends on two primary components - the values it stores and the keys associated with them. Calculating the memory footprint of the values is easy enough but the keys accounting is trickier to achieve as they are, by default, raw Lucene objects. This is largely not a problem as the keys are dominated by the values. However, recent optimizations in Lucene have changed the balance causing the filter cache to grow beyond it's size.
+
+While we are working on a longer term solution, we introduced a minimum weight of 1k for each cache entry. This puts an effective limit on the number of entries in the cache. See {GIT}8304[#8304] (STATUS: DONE, fixed in 1.4.0)
+
 == Completed
 
 [float]
-=== Don't allow unsupported codecs (STATUS: DONE, v1.4.0.Beta)
+=== Don't allow unsupported codecs (STATUS: DONE, v1.4.0.Beta1)
 
 Lucene 4 added a number of alternative codecs for experimentation purposes, and Elasticsearch exposed the ability to change codecs.  Since then, Lucene has settled on the best choice of codec and provides backwards compatibility only for the default codec.  {GIT}7566[#7566] removes the ability to set alternate codecs.
 
 [float]
-=== Use checksums to identify entire segments (STATUS: DONE, v1.4.0.Beta)
+=== Use checksums to identify entire segments (STATUS: DONE, v1.4.0.Beta1)
 
 A hash collision makes it possible for two different files to have the same length and the same checksum. Instead, a segment's identity should rely on checksums from all of the files in a single segment, which greatly reduces the chance of a collision. This change has been merged ({GIT}7351[#7351]).
 
 [float]
-=== Fix ''Split Brain can occur even with minimum_master_nodes'' (STATUS: DONE, v1.4.0.Beta)
+=== Fix ''Split Brain can occur even with minimum_master_nodes'' (STATUS: DONE, v1.4.0.Beta1)
 
 Even when minimum master nodes is set, split brain can still occur under certain conditions, e.g. disconnection between master eligible nodes, which can lead to data loss. The scenario is described in detail in {GIT}2488[issue 2488]:
 
-* Introduce a new testing infrastructure to simulate different types of node disconnections, including loss of network connection, lost messages, message delays, etc. See {GIT}5631[MockTransportService] support and {GIT}6505[service disruption] for more details. (STATUS: DONE, v1.4.0.Beta).
+* Introduce a new testing infrastructure to simulate different types of node disconnections, including loss of network connection, lost messages, message delays, etc. See {GIT}5631[MockTransportService] support and {GIT}6505[service disruption] for more details. (STATUS: DONE, v1.4.0.Beta1).
 * Added tests that simulated the bug described in issue 2488. You can take a look at the https://github.com/elasticsearch/elasticsearch/commit/7bf3ffe73c44f1208d1f7a78b0629eb48836e726[original commit] of a reproduction on master. (STATUS: DONE, v1.2.0)
-* The bug described in {GIT}2488[issue 2488] is caused by an issue in our zen discovery gossip protocol. This specific issue has been fixed, and work has been done to make the algorithm more resilient. (STATUS: DONE, v1.4.0.Beta)
+* The bug described in {GIT}2488[issue 2488] is caused by an issue in our zen discovery gossip protocol. This specific issue has been fixed, and work has been done to make the algorithm more resilient. (STATUS: DONE, v1.4.0.Beta1)
 
 [float]
-=== Translog Entry Checksum (STATUS: DONE, v1.4.0.Beta)
+=== Translog Entry Checksum (STATUS: DONE, v1.4.0.Beta1)
 
 Each translog entry in Elasticsearch should have its own checksum, and potentially additional information, so that we can properly detect corrupted translog entries and act accordingly. You can find more detail in issue {GIT}6554[#6554].
 
 To start, we will begin by adding checksums to the translog to detect corrupt entries. Once this work has been completed, we will add translog entry markers so that corrupt entries can be skipped in the translog if/when desired.
 
 [float]
-=== Request-Level Memory Circuit Breaker (STATUS: DONE, v1.4.0.Beta)
+=== Request-Level Memory Circuit Breaker (STATUS: DONE, v1.4.0.Beta1)
 
 We are in the process of introducing multiple circuit breakers in Elasticsearch, which can “borrow” space from each other in the event that one runs out of memory. This architecture will allow limits for certain parts of memory, but still allow flexibility in the event that another reserve like field data is not being used. This change includes adding a breaker for the BigArrays internal object used for some aggregations. See issue {GIT}6739[#6739] for more details.
 
 [float]
-=== Doc Values (STATUS: DONE, v1.4.0.Beta)
+=== Doc Values (STATUS: DONE, v1.4.0.Beta1)
 
 Fielddata is one of the largest consumers of heap memory, and thus one of the primary reasons for running out of memory and causing node instability. Elasticsearch has had the “doc values” option for a while, which allows you to build these structures at index time so that they live on disk instead of in memory. Up until recently, doc values were significantly slower than in-memory fielddata.
 
@@ -155,12 +165,12 @@ By benchmarking and profiling both Lucene and Elasticsearch, we identified the b
 See {GIT}6967[#6967], {GIT}6908[#6908], {GIT}4548[#4548], {GIT}3829[#3829], {GIT}4518[#4518], {GIT}5669[#5669], {JIRA}5748[LUCENE-5748], {JIRA}5703[LUCENE-5703], {JIRA}5750[LUCENE-5750], {JIRA}5721[LUCENE-5721], {JIRA}5799[LUCENE-5799].
 
 [float]
-=== Index corruption when upgrading Lucene 3.x indices (STATUS: DONE, v1.4.0.Beta)
+=== Index corruption when upgrading Lucene 3.x indices (STATUS: DONE, v1.4.0.Beta1)
 
 Upgrading indices create with Lucene 3.x (Elasticsearch v0.20 and before) to Lucene 4.7 - 4.9 (Elasticsearch 1.1.0 to 1.3.x), could result in index corruption. {JIRA}5907[LUCENE-5907] fixes this issue in Lucene 4.10.
 
 [float]
-=== Improve error handling when deleting files (STATUS: DONE, v1.4.0.Beta)
+=== Improve error handling when deleting files (STATUS: DONE, v1.4.0.Beta1)
 
 Lucene uses reference counting to prevent files that are still in use from being deleted.  Lucene testing discovered a bug ({JIRA}5919[LUCENE-5919]) when decrementing the ref count on a batch of files. If deleting some of the files resulted in an exception (e.g. due to interference from a virus scanner), the files that had had their ref counts decremented successfully could later have their ref counts deleted again, incorrectly, resulting in files being physically deleted before their time. This is fixed in Lucene 4.10.
 

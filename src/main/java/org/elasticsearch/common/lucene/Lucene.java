@@ -21,7 +21,10 @@ package org.elasticsearch.common.lucene;
 
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
@@ -56,8 +59,18 @@ public class Lucene {
     public static final Version VERSION = Version.LATEST;
     public static final Version ANALYZER_VERSION = VERSION;
     public static final Version QUERYPARSER_VERSION = VERSION;
+    public static final String LATEST_DOC_VALUES_FORMAT = "Lucene50";
+    public static final String LATEST_POSTINGS_FORMAT = "Lucene50";
+    public static final String LATEST_CODEC = "Lucene50";
 
-    public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", AnalyzerScope.GLOBAL, new StandardAnalyzer(ANALYZER_VERSION));
+    static {
+        Deprecated annotation = PostingsFormat.forName(LATEST_POSTINGS_FORMAT).getClass().getAnnotation(Deprecated.class);
+        assert annotation == null : "PostingsFromat " + LATEST_POSTINGS_FORMAT + " is deprecated" ;
+        annotation = DocValuesFormat.forName(LATEST_DOC_VALUES_FORMAT).getClass().getAnnotation(Deprecated.class);
+        assert annotation == null : "DocValuesFormat " + LATEST_DOC_VALUES_FORMAT + " is deprecated" ;
+    }
+
+    public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", AnalyzerScope.GLOBAL, new StandardAnalyzer());
     public static final NamedAnalyzer KEYWORD_ANALYZER = new NamedAnalyzer("_keyword", AnalyzerScope.GLOBAL, new KeywordAnalyzer());
 
     public static final ScoreDoc[] EMPTY_SCORE_DOCS = new ScoreDoc[0];
@@ -81,18 +94,14 @@ public class Lucene {
      * Reads the segments infos, failing if it fails to load
      */
     public static SegmentInfos readSegmentInfos(Directory directory) throws IOException {
-        final SegmentInfos sis = new SegmentInfos();
-        sis.read(directory);
-        return sis;
+        return SegmentInfos.readLatestCommit(directory);
     }
 
     /**
      * Reads the segments infos from the given commit, failing if it fails to load
      */
     public static SegmentInfos readSegmentInfos(IndexCommit commit, Directory directory) throws IOException {
-        final SegmentInfos sis = new SegmentInfos();
-        sis.read(directory, commit.getSegmentsFileName());
-        return sis;
+        return SegmentInfos.readCommit(directory, commit.getSegmentsFileName());
     }
 
     public static void checkSegmentInfoIntegrity(final Directory directory) throws IOException {
@@ -483,11 +492,13 @@ public class Lucene {
      * A collector that terminates early by throwing {@link org.elasticsearch.common.lucene.Lucene.EarlyTerminationException}
      * when count of matched documents has reached <code>maxCountHits</code>
      */
-    public final static class EarlyTerminatingCollector extends Collector {
+    public final static class EarlyTerminatingCollector extends SimpleCollector {
 
         private final int maxCountHits;
         private final Collector delegate;
+
         private int count = 0;
+        private LeafCollector leafCollector;
 
         EarlyTerminatingCollector(int maxCountHits) {
             this.maxCountHits = maxCountHits;
@@ -512,12 +523,12 @@ public class Lucene {
 
         @Override
         public void setScorer(Scorer scorer) throws IOException {
-            delegate.setScorer(scorer);
+            leafCollector.setScorer(scorer);
         }
 
         @Override
         public void collect(int doc) throws IOException {
-            delegate.collect(doc);
+            leafCollector.collect(doc);
 
             if (++count >= maxCountHits) {
                 throw new EarlyTerminationException("early termination [CountBased]");
@@ -525,13 +536,13 @@ public class Lucene {
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext atomicReaderContext) throws IOException {
-            delegate.setNextReader(atomicReaderContext);
+        public void doSetNextReader(LeafReaderContext atomicReaderContext) throws IOException {
+            leafCollector = delegate.getLeafCollector(atomicReaderContext);
         }
 
         @Override
         public boolean acceptsDocsOutOfOrder() {
-            return delegate.acceptsDocsOutOfOrder();
+            return leafCollector.acceptsDocsOutOfOrder();
         }
     }
 
@@ -545,10 +556,11 @@ public class Lucene {
 
     /**
      * Returns <tt>true</tt> iff the given exception or
-     * one of it's causes is an instance of {@link CorruptIndexException} otherwise <tt>false</tt>.
+     * one of it's causes is an instance of {@link CorruptIndexException}, 
+     * {@link IndexFormatTooOldException}, or {@link IndexFormatTooNewException} otherwise <tt>false</tt>.
      */
     public static boolean isCorruptionException(Throwable t) {
-        return ExceptionsHelper.unwrap(t, CorruptIndexException.class) != null;
+        return ExceptionsHelper.unwrapCorruption(t) != null;
     }
 
     /**

@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.metrics.cardinality;
 
 import com.google.common.base.Preconditions;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.OpenBitSet;
+import org.apache.lucene.util.LongBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.ElasticsearchException;
@@ -541,6 +541,33 @@ public final class HyperLogLogPlusPlus implements Releasable {
             }
         }
         return counts;
+    }
+    
+    /** looks and smells like the old openbitset. */
+    static class OpenBitSet {
+        LongBitSet impl = new LongBitSet(64);
+
+        boolean get(long bit) {
+            if (bit < impl.length()) {
+                return impl.get(bit);
+            } else {
+                return false;
+            }
+        }
+        
+        void ensureCapacity(long bit) {
+            impl = LongBitSet.ensureCapacity(impl, bit);
+        }
+        
+        void set(long bit) {
+            ensureCapacity(bit);
+            impl.set(bit);
+        }
+        
+        void clear(long bit) {
+            ensureCapacity(bit);
+            impl.clear(bit);
+        }
     }
 
 }

@@ -21,7 +21,8 @@ package org.elasticsearch.index.mapper.string;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FieldInfo.DocValuesType;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -94,7 +95,7 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
 
     private void assertDefaultAnalyzedFieldType(IndexableFieldType fieldType) {
         assertThat(fieldType.omitNorms(), equalTo(false));
-        assertThat(fieldType.indexOptions(), equalTo(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS));
+        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS));
         assertThat(fieldType.storeTermVectors(), equalTo(false));
         assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
         assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
@@ -102,12 +103,11 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
     }
 
     private void assertEquals(IndexableFieldType ft1, IndexableFieldType ft2) {
-        assertEquals(ft1.indexed(), ft2.indexed());
         assertEquals(ft1.tokenized(), ft2.tokenized());
         assertEquals(ft1.omitNorms(), ft2.omitNorms());
         assertEquals(ft1.indexOptions(), ft2.indexOptions());
         assertEquals(ft1.storeTermVectors(), ft2.storeTermVectors());
-        assertEquals(ft1.docValueType(), ft2.docValueType());
+        assertEquals(ft1.docValuesType(), ft2.docValuesType());
     }
 
     private void assertParseIdemPotent(IndexableFieldType expected, DocumentMapper mapper) throws Exception {
@@ -156,7 +156,7 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
 
         IndexableFieldType fieldType = doc.rootDoc().getField("field").fieldType();
         assertThat(fieldType.omitNorms(), equalTo(true));
-        assertThat(fieldType.indexOptions(), equalTo(FieldInfo.IndexOptions.DOCS_ONLY));
+        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.DOCS));
         assertThat(fieldType.storeTermVectors(), equalTo(false));
         assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
         assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
@@ -179,7 +179,7 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
 
         fieldType = doc.rootDoc().getField("field").fieldType();
         assertThat(fieldType.omitNorms(), equalTo(false));
-        assertThat(fieldType.indexOptions(), equalTo(FieldInfo.IndexOptions.DOCS_AND_FREQS));
+        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.DOCS_AND_FREQS));
         assertThat(fieldType.storeTermVectors(), equalTo(false));
         assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
         assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
@@ -321,17 +321,17 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .bytes());
         final Document doc = parsedDoc.rootDoc();
-        assertEquals(null, docValuesType(doc, "str1"));
+        assertEquals(DocValuesType.NONE, docValuesType(doc, "str1"));
         assertEquals(DocValuesType.SORTED_SET, docValuesType(doc, "str2"));
     }
 
     public static DocValuesType docValuesType(Document document, String fieldName) {
         for (IndexableField field : document.getFields(fieldName)) {
-            if (field.fieldType().docValueType() != null) {
-                return field.fieldType().docValueType();
+            if (field.fieldType().docValuesType() != DocValuesType.NONE) {
+                return field.fieldType().docValuesType();
             }
         }
-        return null;
+        return DocValuesType.NONE;
     }
 
     @Test

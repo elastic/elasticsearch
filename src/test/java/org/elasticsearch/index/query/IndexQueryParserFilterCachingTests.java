@@ -25,6 +25,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.CachedFilter;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.elasticsearch.test.TestSearchContext;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -70,6 +72,14 @@ public class IndexQueryParserFilterCachingTests extends ElasticsearchSingleNodeT
         mapperService.merge("child", new CompressedString(childMapping), true);
         mapperService.documentMapper("person").parse(new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/query/data.json")));
         queryParser = injector.getInstance(IndexQueryParserService.class);
+        SearchContext.setCurrent(new TestSearchContext());
+    }
+
+    @After
+    public void removeSearchContext() {
+        SearchContext current = SearchContext.current();
+        SearchContext.removeCurrent();
+        Releasables.close(current);
     }
 
     private IndexQueryParserService queryParser() throws IOException {

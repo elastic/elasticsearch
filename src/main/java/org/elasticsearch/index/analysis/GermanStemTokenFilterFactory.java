@@ -39,7 +39,7 @@ public class GermanStemTokenFilterFactory extends AbstractTokenFilterFactory {
     @Inject
     public GermanStemTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        this.exclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET, version);
+        this.exclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
     }
 
     @Override

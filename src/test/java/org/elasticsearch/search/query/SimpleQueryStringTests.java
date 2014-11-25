@@ -19,7 +19,9 @@
 
 package org.elasticsearch.search.query;
 
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.index.query.SimpleQueryStringFlag;
@@ -73,7 +75,7 @@ public class SimpleQueryStringTests extends ElasticsearchIntegrationTest {
         assertFirstHit(searchResponse, hasId("4"));
 
         searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("spaghetti").field("body", 10.0f).field("otherbody", 2.0f).queryName("myquery")).get();
+                simpleQueryString("spaghetti").field("body", 1000.0f).field("otherbody", 2.0f).queryName("myquery")).get();
         assertHitCount(searchResponse, 2l);
         assertFirstHit(searchResponse, hasId("5"));
         assertSearchHits(searchResponse, "5", "6");
@@ -266,4 +268,30 @@ public class SimpleQueryStringTests extends ElasticsearchIntegrationTest {
         assertHitCount(resp, 1);
         assertSearchHits(resp, "1");
     }
+
+    @Test
+    public void testSimpleQueryStringAnalyzeWildcard() throws ExecutionException, InterruptedException, IOException {
+        String mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type1")
+                .startObject("properties")
+                .startObject("location")
+                .field("type", "string")
+                .field("analyzer", "german")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject().string();
+
+        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test1").addMapping("type1", mapping);
+        mappingRequest.execute().actionGet();
+        indexRandom(true, client().prepareIndex("test1", "type1", "1").setSource("location", "Köln"));
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryString("Köln*").analyzeWildcard(true).field("location")).get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 1l);
+        assertSearchHits(searchResponse, "1");
+    }
+
 }

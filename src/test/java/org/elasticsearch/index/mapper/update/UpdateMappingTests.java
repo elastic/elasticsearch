@@ -64,7 +64,7 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
     public void test_all_enabled_after_enabled() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", true).endObject().endObject();
         XContentBuilder mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", true).endObject().startObject("properties").startObject("text").field("type", "string").endObject().endObject().endObject();
-        XContentBuilder expectedMapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties").startObject("text").field("type", "string").endObject().endObject().endObject().endObject();
+        XContentBuilder expectedMapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("_all").field("enabled", true).endObject().startObject("properties").startObject("text").field("type", "string").endObject().endObject().endObject().endObject();
         testNoConflictWhileMergingAndMappingChanged(mapping, mappingUpdate, expectedMapping);
     }
 

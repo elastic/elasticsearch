@@ -18,24 +18,25 @@
  */
 package org.elasticsearch.search.aggregations.bucket.global;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
  */
 public class GlobalAggregator extends SingleBucketAggregator {
 
-    public GlobalAggregator(String name, AggregatorFactories subFactories, AggregationContext aggregationContext) {
-        super(name, subFactories, aggregationContext, null);
+    public GlobalAggregator(String name, AggregatorFactories subFactories, AggregationContext aggregationContext, Map<String, Object> metaData) {
+        super(name, subFactories, aggregationContext, null, metaData);
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
     }
 
     @Override
@@ -47,7 +48,7 @@ public class GlobalAggregator extends SingleBucketAggregator {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0 : "global aggregator can only be a top level aggregator";
-        return new InternalGlobal(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal));
+        return new InternalGlobal(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), getMetaData());
     }
 
     @Override
@@ -62,12 +63,12 @@ public class GlobalAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        public Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData) {
             if (parent != null) {
                 throw new AggregationExecutionException("Aggregation [" + parent.name() + "] cannot have a global " +
                         "sub-aggregation [" + name + "]. Global aggregations can only be defined as top level aggregations");
             }
-            return new GlobalAggregator(name, factories, context);
+            return new GlobalAggregator(name, factories, context, metaData);
         }
 
     }

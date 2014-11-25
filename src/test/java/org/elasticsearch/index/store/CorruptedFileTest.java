@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
@@ -65,6 +66,7 @@ import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -92,9 +94,14 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
                 // we really need local GW here since this also checks for corruption etc.
-                // and we need to make sure primaries are not just trashed if we don'tmvn have replicas
+                // and we need to make sure primaries are not just trashed if we don't have replicas
                 .put(super.nodeSettings(nodeOrdinal)).put("gateway.type", "local")
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName()).build();
+                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
+                // speed up recoveries
+                .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_STREAMS, 10)
+                .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS, 10)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES, 5)
+                .build();
     }
 
     /**
@@ -120,7 +127,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                 .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
                 .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
                 .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, failOnCorruption)
-                .put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .del / segments.N files
+                .put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .liv / segments.N files
                 .put("indices.recovery.concurrent_streams", 10)
         ));
         if (failOnCorruption == false) { // test the dynamic setting
@@ -173,7 +180,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         final CopyOnWriteArrayList<Throwable> exception = new CopyOnWriteArrayList<>();
         final IndicesLifecycle.Listener listener = new IndicesLifecycle.Listener() {
             @Override
-            public void beforeIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard) {
+            public void afterIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard) {
                 if (indexShard != null) {
                     Store store = ((InternalIndexShard) indexShard).store();
                     store.incRef();
@@ -181,15 +188,16 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                         if (!Lucene.indexExists(store.directory()) && indexShard.state() == IndexShardState.STARTED) {
                             return;
                         }
-                        CheckIndex checkIndex = new CheckIndex(store.directory());
-                        BytesStreamOutput os = new BytesStreamOutput();
-                        PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
-                        checkIndex.setInfoStream(out);
-                        out.flush();
-                        CheckIndex.Status status = checkIndex.checkIndex();
-                        if (!status.clean) {
-                            logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
-                            throw new IndexShardException(sid, "index check failure");
+                        try (CheckIndex checkIndex = new CheckIndex(store.directory())) {
+                            BytesStreamOutput os = new BytesStreamOutput();
+                            PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
+                            checkIndex.setInfoStream(out);
+                            out.flush();
+                            CheckIndex.Status status = checkIndex.checkIndex();
+                            if (!status.clean) {
+                                logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+                                throw new IndexShardException(sid, "index check failure");
+                            }
                         }
                     } catch (Throwable t) {
                         exception.add(t);
@@ -229,7 +237,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                 .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
                 .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
                 .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, true)
-                .put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .del / segments.N files
+                .put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .liv / segments.N files
                 .put("indices.recovery.concurrent_streams", 10)
         ));
         ensureGreen();
@@ -321,7 +329,6 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                 // This does corrupt files on the replica, so we can't check:
                 .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
                 .put("index.routing.allocation.include._name", primariesNode.getNode().name())
-                .put("indices.recovery.concurrent_streams", 10)
                 .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)
         ));
         ensureGreen();
@@ -404,7 +411,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                 .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
                 .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
                 .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, true)
-                .put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .del / segments.N files
+                .put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .liv / segments.N files
                 .put("indices.recovery.concurrent_streams", 10)
         ));
         ensureGreen();
@@ -485,7 +492,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         File fileToCorrupt = null;
         if (!files.isEmpty()) {
             fileToCorrupt = RandomPicks.randomFrom(getRandom(), files);
-            try (Directory dir = FSDirectory.open(fileToCorrupt.getParentFile())) {
+            try (Directory dir = FSDirectory.open(fileToCorrupt.getParentFile().toPath())) {
                 long checksumBeforeCorruption;
                 try (IndexInput input = dir.openInput(fileToCorrupt.getName(), IOContext.DEFAULT)) {
                     checksumBeforeCorruption = CodecUtil.retrieveChecksum(input);
@@ -526,8 +533,8 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
     }
 
     private static final boolean isPerCommitFile(String fileName) {
-        // .del and segments_N are per commit files and might change after corruption
-        return fileName.startsWith("segments") || fileName.endsWith(".del");
+        // .liv and segments_N are per commit files and might change after corruption
+        return fileName.startsWith("segments") || fileName.endsWith(".liv");
     }
 
     private static final boolean isPerSegmentFile(String fileName) {
@@ -540,7 +547,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
     private void pruneOldDeleteGenerations(Set<File> files) {
         final TreeSet<File> delFiles = new TreeSet<>();
         for (File file : files) {
-            if (file.getName().endsWith(".del")) {
+            if (file.getName().endsWith(".liv")) {
                 delFiles.add(file);
             }
         }

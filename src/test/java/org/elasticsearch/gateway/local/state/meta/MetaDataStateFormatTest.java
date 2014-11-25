@@ -20,26 +20,54 @@ package org.elasticsearch.gateway.local.state.meta;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.store.*;
+import org.apache.lucene.store.BaseDirectoryWrapper;
+import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.TestRuleMarkFailure;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.io.*;
+import java.io.Closeable;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.file.Files;
-import java.util.*;
+import java.nio.file.Path;
 
-import static org.hamcrest.Matchers.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class MetaDataStateFormatTest extends ElasticsearchTestCase {
 
@@ -60,9 +88,12 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
                 return MetaData.Builder.fromXContent(parser);
             }
         };
-        final URL resource = this.getClass().getResource("global-3.st");
+        Path tmp = newTempDir().toPath();
+        final InputStream resource = this.getClass().getResourceAsStream("global-3.st");
         assertThat(resource, notNullValue());
-        MetaData read = format.read(new File(resource.toURI()), 3);
+        Path dst = tmp.resolve("global-3.st");
+        Files.copy(resource, dst);
+        MetaData read = format.read(dst.toFile(), 3);
         assertThat(read, notNullValue());
         assertThat(read.uuid(), equalTo("3O1tDF1IRB6fSJ-GrTMUtg"));
         // indices are empty since they are serialized separately
@@ -183,7 +214,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
 
     public static void corruptFile(File file, ESLogger logger) throws IOException {
         File fileToCorrupt = file;
-        try (final SimpleFSDirectory dir = new SimpleFSDirectory(fileToCorrupt.getParentFile())) {
+        try (final SimpleFSDirectory dir = new SimpleFSDirectory(fileToCorrupt.getParentFile().toPath())) {
             long checksumBeforeCorruption;
             try (IndexInput input = dir.openInput(fileToCorrupt.getName(), IOContext.DEFAULT)) {
                 checksumBeforeCorruption = CodecUtil.retrieveChecksum(input);
@@ -217,6 +248,73 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         }
     }
 
+    // If the latest version doesn't use the legacy format while previous versions do, then fail hard
+    public void testLatestVersionDoesNotUseLegacy() throws IOException {
+        final ToXContent.Params params = ToXContent.EMPTY_PARAMS;
+        MetaDataStateFormat<MetaData> format = LocalGatewayMetaState.globalStateFormat(randomFrom(XContentType.values()), params, randomBoolean());
+        final File[] dirs = new File[2];
+        dirs[0] = newTempDir(LifecycleScope.TEST);
+        dirs[1] = newTempDir(LifecycleScope.TEST);
+        for (File dir : dirs) {
+            Files.createDirectories(new File(dir, MetaDataStateFormat.STATE_DIR_NAME).toPath());
+        }
+        final File dir1 = randomFrom(dirs);
+        final int v1 = randomInt(10);
+        // write a first state file in the new format
+        format.write(randomMeta(), LocalGatewayMetaState.GLOBAL_STATE_FILE_PREFIX, v1, dir1);
+
+        // write older state files in the old format but with a newer version
+        final int numLegacyFiles = randomIntBetween(1, 5);
+        for (int i = 0; i < numLegacyFiles; ++i) {
+            final File dir2 = randomFrom(dirs);
+            final int v2 = v1 + 1 + randomInt(10);
+            try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(format.format(), new FileOutputStream(new File(new File(dir2, MetaDataStateFormat.STATE_DIR_NAME), LocalGatewayMetaState.GLOBAL_STATE_FILE_PREFIX + v2)))) {
+                xcontentBuilder.startObject();
+                MetaData.Builder.toXContent(randomMeta(), xcontentBuilder, params);
+                xcontentBuilder.endObject();
+            }
+        }
+
+        try {
+            MetaDataStateFormat.loadLatestState(logger, format, LocalGatewayMetaState.GLOBAL_STATE_FILE_PATTERN, "foobar", dirs);
+            fail("latest version can not be read");
+        } catch (ElasticsearchIllegalStateException ex) {
+            assertThat(ex.getMessage(), startsWith("Could not find a state file to recover from among "));
+        }
+    }
+
+    // If both the legacy and the new format are available for the latest version, prefer the new format
+    public void testPrefersNewerFormat() throws IOException {
+        final ToXContent.Params params = ToXContent.EMPTY_PARAMS;
+        MetaDataStateFormat<MetaData> format = LocalGatewayMetaState.globalStateFormat(randomFrom(XContentType.values()), params, randomBoolean());
+        final File[] dirs = new File[2];
+        dirs[0] = newTempDir(LifecycleScope.TEST);
+        dirs[1] = newTempDir(LifecycleScope.TEST);
+        for (File dir : dirs) {
+            Files.createDirectories(new File(dir, MetaDataStateFormat.STATE_DIR_NAME).toPath());
+        }
+        final File dir1 = randomFrom(dirs);
+        final long v = randomInt(10);
+
+        MetaData meta = randomMeta();
+        String uuid = meta.uuid();
+
+        // write a first state file in the old format
+        final File dir2 = randomFrom(dirs);
+        MetaData meta2 = randomMeta();
+        assertFalse(meta2.uuid().equals(uuid));
+        try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(format.format(), new FileOutputStream(new File(new File(dir2, MetaDataStateFormat.STATE_DIR_NAME), LocalGatewayMetaState.GLOBAL_STATE_FILE_PREFIX + v)))) {
+            xcontentBuilder.startObject();
+            MetaData.Builder.toXContent(randomMeta(), xcontentBuilder, params);
+            xcontentBuilder.endObject();
+        }
+
+        // write a second state file in the new format but with the same version
+        format.write(meta, LocalGatewayMetaState.GLOBAL_STATE_FILE_PREFIX, v, dir1);
+
+        MetaData state = MetaDataStateFormat.loadLatestState(logger, format, LocalGatewayMetaState.GLOBAL_STATE_FILE_PATTERN, "foobar", dirs);
+        assertThat(state.uuid(), equalTo(uuid));
+    }
 
     @Test
     public void testLoadState() throws IOException {
@@ -303,7 +401,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
 
     private IndexMetaData.Builder indexBuilder(String index) throws IOException {
         return IndexMetaData.builder(index)
-                .settings(ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10)).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5)));
+                .settings(settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10)).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5)));
     }
 
 

@@ -395,7 +395,18 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
                 holes[e2.component-1] = holes[numHoles];
                 holes[numHoles] = null;
             }
-            connect(e1, e2);
+            // only connect edges if intersections are pairwise 
+            // per the comment above, the edge array is sorted by y-value of the intersection
+            // with the dateline.  Two edges have the same y intercept when they cross the 
+            // dateline thus they appear sequentially (pairwise) in the edge array. Two edges
+            // do not have the same y intercept when we're forming a multi-poly from a poly
+            // that wraps the dateline (but there are 2 ordered intercepts).  
+            // The connect method creates a new edge for these paired edges in the linked list. 
+            // For boundary conditions (e.g., intersect but not crossing) there is no sibling edge 
+            // to connect. Thus the following enforces the pairwise rule 
+            if (e1.intersect != Edge.MAX_COORDINATE && e2.intersect != Edge.MAX_COORDINATE) {
+                connect(e1, e2);
+            }
         }
         return numHoles;
     }

@@ -53,17 +53,51 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableSet;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.common.settings.ImmutableSettings.builder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.common.xcontent.XContentFactory.*;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
+import static org.elasticsearch.index.query.FilterBuilders.rangeFilter;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertMatchCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
@@ -207,7 +241,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "test3")
                 .setSource(
                         XContentFactory.jsonBuilder().startObject().field("query",
-                                constantScoreQuery(FilterBuilders.rangeFilter("field1").from(1).to(5).includeLower(true).setExecution("fielddata"))
+                                constantScoreQuery(rangeFilter("field1").from(1).to(5).includeLower(true).setExecution("fielddata"))
                         ).endObject()
                 )
                 .execute().actionGet();
@@ -230,7 +264,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
                 .setSource(
                         XContentFactory.jsonBuilder().startObject().field("query",
-                                constantScoreQuery(FilterBuilders.rangeFilter("field1").from(1).to(5).setExecution("fielddata"))
+                                constantScoreQuery(rangeFilter("field1").from(1).to(5).setExecution("fielddata"))
                         ).endObject()
                 ).get();
 
@@ -525,7 +559,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     @Test
     public void percolateWithSizeField() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("_size").field("enabled", true).field("stored", "yes").endObject()
+                .startObject("_size").field("enabled", true).field("store", "yes").endObject()
                 .startObject("properties").startObject("field1").field("type", "string").endObject().endObject()
                 .endObject().endObject().string();
 
@@ -1678,7 +1712,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .startObject("custom")
                 .field("dynamic", true)
                 .field("type", "object")
-                .field("incude_in_all", false)
+                .field("include_in_all", false)
                 .endObject()
                 .endObject()
                 .startArray("dynamic_templates")
@@ -1695,9 +1729,9 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         ensureGreen("idx");
 
         try {
-            client().prepareIndex("idx", PercolatorService.TYPE_NAME, "1")
-                    .setSource(jsonBuilder().startObject().field("query", QueryBuilders.queryString("color:red")).endObject())
-                    .get();
+        client().prepareIndex("idx", PercolatorService.TYPE_NAME, "1")
+                .setSource(jsonBuilder().startObject().field("query", QueryBuilders.queryString("color:red")).endObject())
+                .get();
             fail();
         } catch (PercolatorException e) {
 
@@ -1803,6 +1837,30 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         } catch (PercolatorException e) {
             assertThat(e.getRootCause(), instanceOf(QueryParsingException.class));
         }
+    }
+
+    @Test
+    public void testPercolatorQueryWithNowRange() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .addMapping("my-type", "timestamp", "type=date")
+                .get();
+        ensureGreen();
+
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+                .setSource(jsonBuilder().startObject().field("query", rangeQuery("timestamp").from("now-1d").to("now")).endObject())
+                .get();
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "2")
+                .setSource(jsonBuilder().startObject().field("query", constantScoreQuery(rangeFilter("timestamp").from("now-1d").to("now"))).endObject())
+                .get();
+
+        logger.info("--> Percolate doc with field1=b");
+        PercolateResponse response = client().preparePercolate()
+                .setIndices("test").setDocumentType("my-type")
+                .setPercolateDoc(docBuilder().setDoc("timestamp", System.currentTimeMillis()))
+                .get();
+        assertMatchCount(response, 2l);
+        assertThat(response.getMatches(), arrayWithSize(2));
+        assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1", "2"));
     }
 
     void initNestedIndexAndPercolation() throws IOException {

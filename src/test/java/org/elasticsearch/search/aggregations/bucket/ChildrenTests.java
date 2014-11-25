@@ -18,6 +18,13 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -30,16 +37,18 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import java.util.*;
-
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.children;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  */
@@ -138,8 +147,10 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
             Children childrenBucket = categoryBucket.getAggregations().get("to_comment");
             assertThat(childrenBucket.getName(), equalTo("to_comment"));
             assertThat(childrenBucket.getDocCount(), equalTo((long) entry1.getValue().commentIds.size()));
+            assertThat((long) childrenBucket.getProperty("_count"), equalTo((long) entry1.getValue().commentIds.size()));
 
             Terms commentersTerms = childrenBucket.getAggregations().get("commenters");
+            assertThat((Terms) childrenBucket.getProperty("commenters"), sameInstance(commentersTerms));
             assertThat(commentersTerms.getBuckets().size(), equalTo(entry1.getValue().commenterToCommentId.size()));
             for (Map.Entry<String, Set<String>> entry2 : entry1.getValue().commenterToCommentId.entrySet()) {
                 Terms.Bucket commentBucket = commentersTerms.getBucketByKey(entry2.getKey());

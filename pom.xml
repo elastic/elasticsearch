@@ -31,13 +31,15 @@
     </parent>
 
     <properties>
-        <lucene.version>4.10.2</lucene.version>
-        <lucene.maven.version>4.10.2</lucene.maven.version>
+        <lucene.version>5.0.0</lucene.version>
+        <lucene.maven.version>5.0.0-snapshot-1641343</lucene.maven.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>
         <tests.bwc.path>${project.basedir}/backwards</tests.bwc.path>
+        <tests.locale>random</tests.locale>
+        <tests.timezone>random</tests.timezone>
         <es.logger.level>INFO</es.logger.level>
         <tests.heap.size>512m</tests.heap.size>
         <tests.heapdump.path>${basedir}/logs/</tests.heapdump.path>
@@ -49,6 +51,10 @@
         <repository>
             <id>Codehaus Snapshots</id>
             <url>http://repository.codehaus.org/</url>
+        </repository>
+        <repository>
+            <id>Lucene snapshots</id>
+            <url>https://download.elasticsearch.org/lucenesnapshots/1641343</url> 
         </repository>
     </repositories>
 
@@ -81,6 +87,12 @@
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-core</artifactId>
+            <version>${lucene.maven.version}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-backward-codecs</artifactId>
             <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
@@ -286,6 +298,14 @@
         <dependency>
             <groupId>log4j</groupId>
             <artifactId>log4j</artifactId>
+            <version>1.2.17</version>
+            <scope>compile</scope>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>log4j</groupId>
+            <artifactId>apache-log4j-extras</artifactId>
             <version>1.2.17</version>
             <scope>compile</scope>
             <optional>true</optional>
@@ -523,6 +543,8 @@
                                 <tests.heap.size>${tests.heap.size}</tests.heap.size>
                                 <tests.filter>${tests.filter}</tests.filter>
                                 <tests.version>${project.version}</tests.version>
+                                <tests.locale>${tests.locale}</tests.locale>
+                                <tests.timezone>${tests.timezone}</tests.timezone>
                                 <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
                                 <es.node.mode>${es.node.mode}</es.node.mode>
                                 <es.logger.level>${es.logger.level}</es.logger.level>
@@ -922,7 +944,7 @@
                                 </data>
                                 <data>
                                     <src>${project.build.directory}/lib</src>
-                                    <includes>lucene*, log4j*, jna*, spatial4j*, jts*, groovy*</includes>
+                                    <includes>lucene*, *log4j*, jna*, spatial4j*, jts*, groovy*</includes>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
@@ -1118,7 +1140,7 @@
                                     <location>target/lib/</location>
                                     <includes>
                                         <include>lucene*</include>
-                                        <include>log4j*</include>
+                                        <include>*log4j*</include>
                                         <include>jna*</include>
                                         <include>spatial4j*</include>
                                         <include>jts*</include>
@@ -1180,7 +1202,7 @@
             <plugin>
                 <groupId>de.thetaphi</groupId>
                 <artifactId>forbiddenapis</artifactId>
-                <version>1.6.1</version>
+                <version>1.7</version>
 
                 <executions>
                     <execution>
@@ -1217,6 +1239,9 @@
                                 <!-- start exclude for Lucene utility class -->
                                 <exclude>org/elasticsearch/common/lucene/Lucene$LenientParser.class</exclude>
                                 <!-- end exclude for Lucene -->
+                                <!-- start exclude for Future utility class -->
+                                <exclude>org/elasticsearch/common/util/concurrent/FutureUtils.class</exclude>
+                                <!-- end exclude for Future utility class -->
                             </excludes>
                             <bundledSignatures>
                                 <!-- This will automatically choose the right signatures based on 'targetVersion': -->
@@ -1288,6 +1313,8 @@
                             <excludes>
                                 <!-- unit tests for yaml suite parser & rest spec parser need to be excluded -->
                                 <exclude>org/elasticsearch/test/rest/test/**/*</exclude>
+                                <!-- unit tests for test framework classes-->
+                                <exclude>org/elasticsearch/test/test/**/*</exclude>
                             </excludes>
                         </configuration>
                     </execution>
@@ -1406,17 +1433,18 @@
                                 <include>src/test/java/org/elasticsearch/**/*.java</include>
                             </includes>
                             <excludes>
-                                <exclude>src/main/java/org/elasticsearch/common/inject/**</exclude>
                                 <!-- Guice -->
+                                <exclude>src/main/java/org/elasticsearch/common/inject/**</exclude>
                                 <exclude>src/main/java/org/elasticsearch/common/geo/GeoHashUtils.java</exclude>
                                 <exclude>src/main/java/org/elasticsearch/common/lucene/search/XBooleanFilter.java</exclude>
                                 <exclude>src/main/java/org/elasticsearch/common/lucene/search/XFilteredQuery.java</exclude>
                                 <exclude>src/main/java/org/apache/lucene/queryparser/XSimpleQueryParser.java</exclude>
                                 <exclude>src/main/java/org/apache/lucene/**/X*.java</exclude>
                                 <!-- t-digest -->
-                                <exclude>src/main/java/org/elasticsearch/search/aggregations/metrics/percentiles/tdigest/TDigestState.java
-                                </exclude>
+                                <exclude>src/main/java/org/elasticsearch/search/aggregations/metrics/percentiles/tdigest/TDigestState.java</exclude>
                                 <exclude>src/test/java/org/elasticsearch/search/aggregations/metrics/GroupTree.java</exclude>
+                                <!-- netty pipelining -->
+                                <exclude>src/main/java/org/elasticsearch/http/netty/pipelining/**</exclude>
                             </excludes>
                         </configuration>
                         <executions>

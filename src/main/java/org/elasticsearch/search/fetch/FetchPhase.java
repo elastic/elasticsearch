@@ -20,10 +20,12 @@
 package org.elasticsearch.search.fetch;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -58,7 +60,12 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.xcontent.XContentFactory.contentBuilder;
@@ -159,7 +166,7 @@ public class FetchPhase implements SearchPhase {
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
             int docId = context.docIdsToLoad()[context.docIdsToLoadFrom() + index];
             int readerIndex = ReaderUtil.subIndex(docId, context.searcher().getIndexReader().leaves());
-            AtomicReaderContext subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
+            LeafReaderContext subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
             int subDocId = docId - subReaderContext.docBase;
 
             final InternalSearchHit searchHit;
@@ -192,17 +199,18 @@ public class FetchPhase implements SearchPhase {
         context.fetchResult().hits(new InternalSearchHits(hits, context.queryResult().topDocs().totalHits, context.queryResult().topDocs().getMaxScore()));
     }
 
-    private int findRootDocumentIfNested(SearchContext context, AtomicReaderContext subReaderContext, int subDocId) throws IOException {
+    private int findRootDocumentIfNested(SearchContext context, LeafReaderContext subReaderContext, int subDocId) throws IOException {
         if (context.mapperService().hasNested()) {
-            FixedBitSet nonNested = context.fixedBitSetFilterCache().getFixedBitSetFilter(NonNestedDocsFilter.INSTANCE).getDocIdSet(subReaderContext, null);
-            if (!nonNested.get(subDocId)) {
-                return nonNested.nextSetBit(subDocId);
+            BitDocIdSet nonNested = context.bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE).getDocIdSet(subReaderContext);
+            BitSet bits = nonNested.bits();
+            if (!bits.get(subDocId)) {
+                return bits.nextSetBit(subDocId);
             }
         }
         return -1;
     }
 
-    private InternalSearchHit createSearchHit(SearchContext context, FieldsVisitor fieldsVisitor, int docId, int subDocId, List<String> extractFieldNames, AtomicReaderContext subReaderContext) {
+    private InternalSearchHit createSearchHit(SearchContext context, FieldsVisitor fieldsVisitor, int docId, int subDocId, List<String> extractFieldNames, LeafReaderContext subReaderContext) {
         loadStoredFields(context, subReaderContext, fieldsVisitor, subDocId);
         fieldsVisitor.postProcess(context.mapperService());
 
@@ -252,7 +260,7 @@ public class FetchPhase implements SearchPhase {
         return searchHit;
     }
 
-    private InternalSearchHit createNestedSearchHit(SearchContext context, int nestedTopDocId, int nestedSubDocId, int rootSubDocId, List<String> extractFieldNames, boolean loadAllStored, Set<String> fieldNames, AtomicReaderContext subReaderContext) throws IOException {
+    private InternalSearchHit createNestedSearchHit(SearchContext context, int nestedTopDocId, int nestedSubDocId, int rootSubDocId, List<String> extractFieldNames, boolean loadAllStored, Set<String> fieldNames, LeafReaderContext subReaderContext) throws IOException {
         final FieldsVisitor rootFieldsVisitor;
         if (context.sourceRequested() || extractFieldNames != null) {
             rootFieldsVisitor = new UidAndSourceFieldsVisitor();
@@ -267,7 +275,7 @@ public class FetchPhase implements SearchPhase {
         context.lookup().setNextReader(subReaderContext);
         context.lookup().setNextDocId(nestedSubDocId);
 
-        ObjectMapper nestedObjectMapper = documentMapper.findNestedObjectMapper(nestedSubDocId, context.fixedBitSetFilterCache(), subReaderContext);
+        ObjectMapper nestedObjectMapper = documentMapper.findNestedObjectMapper(nestedSubDocId, context.bitsetFilterCache(), subReaderContext);
         assert nestedObjectMapper != null;
         InternalSearchHit.InternalNestedIdentity nestedIdentity = getInternalNestedIdentity(context, nestedSubDocId, subReaderContext, documentMapper, nestedObjectMapper);
 
@@ -315,7 +323,7 @@ public class FetchPhase implements SearchPhase {
         return searchHit;
     }
 
-    private Map<String, SearchHitField> getSearchFields(SearchContext context, int nestedSubDocId, boolean loadAllStored, Set<String> fieldNames, AtomicReaderContext subReaderContext) {
+    private Map<String, SearchHitField> getSearchFields(SearchContext context, int nestedSubDocId, boolean loadAllStored, Set<String> fieldNames, LeafReaderContext subReaderContext) {
         Map<String, SearchHitField> searchFields = null;
         if (context.hasFieldNames() && !context.fieldNames().isEmpty()) {
             FieldsVisitor nestedFieldsVisitor = null;
@@ -339,7 +347,7 @@ public class FetchPhase implements SearchPhase {
         return searchFields;
     }
 
-    private InternalSearchHit.InternalNestedIdentity getInternalNestedIdentity(SearchContext context, int nestedSubDocId, AtomicReaderContext subReaderContext, DocumentMapper documentMapper, ObjectMapper nestedObjectMapper) throws IOException {
+    private InternalSearchHit.InternalNestedIdentity getInternalNestedIdentity(SearchContext context, int nestedSubDocId, LeafReaderContext subReaderContext, DocumentMapper documentMapper, ObjectMapper nestedObjectMapper) throws IOException {
         int currentParent = nestedSubDocId;
         ObjectMapper nestedParentObjectMapper;
         InternalSearchHit.InternalNestedIdentity nestedIdentity = null;
@@ -355,11 +363,13 @@ public class FetchPhase implements SearchPhase {
                 parentFilter = NonNestedDocsFilter.INSTANCE;
             }
 
-            FixedBitSet parentBitSet = context.fixedBitSetFilterCache().getFixedBitSetFilter(parentFilter).getDocIdSet(subReaderContext, null);
+            BitDocIdSet parentBitSet = context.bitsetFilterCache().getBitDocIdSetFilter(parentFilter).getDocIdSet(subReaderContext);
+            BitSet parentBits = parentBitSet.bits();
             int offset = 0;
-            FixedBitSet nestedDocsBitSet = context.fixedBitSetFilterCache().getFixedBitSetFilter(nestedObjectMapper.nestedTypeFilter()).getDocIdSet(subReaderContext, null);
-            int nextParent = parentBitSet.nextSetBit(currentParent);
-            for (int docId = nestedDocsBitSet.nextSetBit(currentParent + 1); docId < nextParent && docId != -1; docId = nestedDocsBitSet.nextSetBit(docId + 1)) {
+            BitDocIdSet nestedDocsBitSet = context.bitsetFilterCache().getBitDocIdSetFilter(nestedObjectMapper.nestedTypeFilter()).getDocIdSet(subReaderContext);
+            BitSet nestedBits = nestedDocsBitSet.bits();
+            int nextParent = parentBits.nextSetBit(currentParent);
+            for (int docId = nestedBits.nextSetBit(currentParent + 1); docId < nextParent && docId != DocIdSetIterator.NO_MORE_DOCS; docId = nestedBits.nextSetBit(docId + 1)) {
                 offset++;
             }
             currentParent = nextParent;
@@ -369,7 +379,7 @@ public class FetchPhase implements SearchPhase {
         return nestedIdentity;
     }
 
-    private void loadStoredFields(SearchContext searchContext, AtomicReaderContext readerContext, FieldsVisitor fieldVisitor, int docId) {
+    private void loadStoredFields(SearchContext searchContext, LeafReaderContext readerContext, FieldsVisitor fieldVisitor, int docId) {
         fieldVisitor.reset();
         try {
             readerContext.reader().document(docId, fieldVisitor);

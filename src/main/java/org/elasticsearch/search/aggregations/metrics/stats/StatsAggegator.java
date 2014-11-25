@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics.stats;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
@@ -34,6 +34,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
@@ -48,8 +49,8 @@ public class StatsAggegator extends NumericMetricsAggregator.MultiValue {
     private DoubleArray mins;
     private DoubleArray maxes;
 
-    public StatsAggegator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context, Aggregator parent) {
-        super(name, estimatedBucketsCount, context, parent);
+    public StatsAggegator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
+        super(name, estimatedBucketsCount, context, parent, metaData);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             final long initialSize = estimatedBucketsCount < 2 ? 1 : estimatedBucketsCount;
@@ -68,7 +69,7 @@ public class StatsAggegator extends NumericMetricsAggregator.MultiValue {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         values = valuesSource.doubleValues();
     }
 
@@ -128,31 +129,31 @@ public class StatsAggegator extends NumericMetricsAggregator.MultiValue {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
-            return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
+            return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, getMetaData());
         }
         assert owningBucketOrdinal < counts.size();
-        return new InternalStats(name, counts.get(owningBucketOrdinal), sums.get(owningBucketOrdinal), mins.get(owningBucketOrdinal), maxes.get(owningBucketOrdinal));
+        return new InternalStats(name, counts.get(owningBucketOrdinal), sums.get(owningBucketOrdinal), mins.get(owningBucketOrdinal), maxes.get(owningBucketOrdinal), getMetaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
+        return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, getMetaData());
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
+    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, Map<String, Object>> {
 
         public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig) {
             super(name, InternalStats.TYPE.name(), valuesSourceConfig);
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-            return new StatsAggegator(name, 0, null, aggregationContext, parent);
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+            return new StatsAggegator(name, 0, null, aggregationContext, parent, metaData);
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
-            return new StatsAggegator(name, expectedBucketsCount, valuesSource, aggregationContext, parent);
+        protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+            return new StatsAggegator(name, expectedBucketsCount, valuesSource, aggregationContext, parent, metaData);
         }
     }
 

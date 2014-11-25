@@ -20,12 +20,16 @@
 package org.elasticsearch.index.query;
 
 import com.spatial4j.core.shape.Shape;
+
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
+import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -175,7 +179,20 @@ public class GeoShapeFilterParser implements FilterParser {
         if (strategyName != null) {
             strategy = shapeFieldMapper.resolveStrategy(strategyName);
         }
-        Filter filter = strategy.makeFilter(GeoShapeQueryParser.getArgs(shape, shapeRelation));
+        
+        Filter filter;
+        if (strategy instanceof RecursivePrefixTreeStrategy && shapeRelation == ShapeRelation.DISJOINT) {
+            // this strategy doesn't support disjoint anymore: but it did before, including creating lucene fieldcache (!)
+            // in this case, execute disjoint as exists && !intersects
+            XBooleanFilter bool = new XBooleanFilter();
+            Filter exists = ExistsFilterParser.newFilter(parseContext, fieldName, null);
+            Filter intersects = strategy.makeFilter(GeoShapeQueryParser.getArgs(shape, ShapeRelation.INTERSECTS));
+            bool.add(exists, BooleanClause.Occur.MUST);
+            bool.add(intersects, BooleanClause.Occur.MUST_NOT);
+            filter = bool;
+        } else {
+            filter = strategy.makeFilter(GeoShapeQueryParser.getArgs(shape, shapeRelation));
+        }
 
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);

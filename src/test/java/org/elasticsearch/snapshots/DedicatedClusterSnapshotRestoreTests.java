@@ -19,6 +19,8 @@
 
 package org.elasticsearch.snapshots;
 
+import com.carrotsearch.hppc.IntOpenHashSet;
+import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
@@ -32,6 +34,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -48,8 +51,10 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.store.support.AbstractIndexStore;
+import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Ignore;
@@ -190,10 +195,10 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
         logger.info("Cluster state: {}", clusterState);
         MetaData metaData = clusterState.getMetaData();
-        assertThat(((SnapshottableMetadata)metaData.custom(SnapshottableMetadata.TYPE)).getData(), equalTo("before_snapshot_s"));
-        assertThat(((NonSnapshottableMetadata)metaData.custom(NonSnapshottableMetadata.TYPE)).getData(), equalTo("after_snapshot_ns"));
-        assertThat(((SnapshottableGatewayMetadata)metaData.custom(SnapshottableGatewayMetadata.TYPE)).getData(), equalTo("before_snapshot_s_gw"));
-        assertThat(((NonSnapshottableGatewayMetadata)metaData.custom(NonSnapshottableGatewayMetadata.TYPE)).getData(), equalTo("after_snapshot_ns_gw"));
+        assertThat(((SnapshottableMetadata) metaData.custom(SnapshottableMetadata.TYPE)).getData(), equalTo("before_snapshot_s"));
+        assertThat(((NonSnapshottableMetadata) metaData.custom(NonSnapshottableMetadata.TYPE)).getData(), equalTo("after_snapshot_ns"));
+        assertThat(((SnapshottableGatewayMetadata) metaData.custom(SnapshottableGatewayMetadata.TYPE)).getData(), equalTo("before_snapshot_s_gw"));
+        assertThat(((NonSnapshottableGatewayMetadata) metaData.custom(NonSnapshottableGatewayMetadata.TYPE)).getData(), equalTo("after_snapshot_ns_gw"));
 
         logger.info("--> restart all nodes");
         internalCluster().fullRestart();
@@ -205,13 +210,13 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         metaData = clusterState.getMetaData();
         assertThat(metaData.custom(SnapshottableMetadata.TYPE), nullValue());
         assertThat(metaData.custom(NonSnapshottableMetadata.TYPE), nullValue());
-        assertThat(((SnapshottableGatewayMetadata)metaData.custom(SnapshottableGatewayMetadata.TYPE)).getData(), equalTo("before_snapshot_s_gw"));
-        assertThat(((NonSnapshottableGatewayMetadata)metaData.custom(NonSnapshottableGatewayMetadata.TYPE)).getData(), equalTo("after_snapshot_ns_gw"));
+        assertThat(((SnapshottableGatewayMetadata) metaData.custom(SnapshottableGatewayMetadata.TYPE)).getData(), equalTo("before_snapshot_s_gw"));
+        assertThat(((NonSnapshottableGatewayMetadata) metaData.custom(NonSnapshottableGatewayMetadata.TYPE)).getData(), equalTo("after_snapshot_ns_gw"));
         // Shouldn't be returned as part of API response
         assertThat(metaData.custom(SnapshotableGatewayNoApiMetadata.TYPE), nullValue());
         // But should still be in state
         metaData = internalCluster().getInstance(ClusterService.class).state().metaData();
-        assertThat(((SnapshotableGatewayNoApiMetadata)metaData.custom(SnapshotableGatewayNoApiMetadata.TYPE)).getData(), equalTo("before_snapshot_s_gw_noapi"));
+        assertThat(((SnapshotableGatewayNoApiMetadata) metaData.custom(SnapshotableGatewayNoApiMetadata.TYPE)).getData(), equalTo("before_snapshot_s_gw_noapi"));
     }
 
     private void updateClusterState(final ClusterStateUpdater updater) throws InterruptedException {
@@ -237,7 +242,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
     }
 
     private static interface ClusterStateUpdater {
-         public ClusterState execute(ClusterState currentState) throws Exception;
+        public ClusterState execute(ClusterState currentState) throws Exception;
     }
 
     @Test
@@ -460,8 +465,6 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(6));
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
 
-        ensureGreen("test-idx-all");
-
         assertThat(client().prepareCount("test-idx-all").get().getCount(), equalTo(100L));
 
         logger.info("--> restore snapshot for the partial index");
@@ -473,7 +476,6 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), allOf(greaterThan(0), lessThan(6)));
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), greaterThan(0));
 
-        ensureGreen("test-idx-some");
         assertThat(client().prepareCount("test-idx-some").get().getCount(), allOf(greaterThan(0L), lessThan(100L)));
 
         logger.info("--> restore snapshot for the index that didn't have any shards snapshotted successfully");
@@ -485,8 +487,64 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(0));
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(6));
 
-        ensureGreen("test-idx-some");
         assertThat(client().prepareCount("test-idx-some").get().getCount(), allOf(greaterThan(0L), lessThan(100L)));
+    }
+
+    @Test
+    @TestLogging("indices.recovery:TRACE,index.gateway:TRACE,gateway:TRACE")
+    public void restoreIndexWithShardsMissingInLocalGateway() throws Exception {
+        logger.info("--> start 2 nodes");
+        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        cluster().wipeIndices("_all");
+
+        logger.info("--> create repository");
+        PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", newTempDir())).execute().actionGet();
+        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        int numberOfShards = 6;
+        logger.info("--> create an index that will have some unallocated shards");
+        assertAcked(prepareCreate("test-idx", 2, settingsBuilder().put("number_of_shards", numberOfShards)
+                .put("number_of_replicas", 0)));
+        ensureGreen();
+
+        logger.info("--> indexing some data into test-idx");
+        for (int i = 0; i < 100; i++) {
+            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+        assertThat(client().prepareCount("test-idx").get().getCount(), equalTo(100L));
+
+        logger.info("--> start snapshot");
+        assertThat(client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1").setIndices("test-idx").setWaitForCompletion(true).get().getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+
+        logger.info("--> close the index");
+        assertAcked(client().admin().indices().prepareClose("test-idx"));
+
+        logger.info("--> shutdown one of the nodes that should make half of the shards unavailable");
+        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
+            @Override
+            public boolean clearData(String nodeName) {
+                return true;
+            }
+        });
+
+        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForNodes("2").execute().actionGet().isTimedOut(), equalTo(false));
+
+        logger.info("--> restore index snapshot");
+        assertThat(client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-1").setRestoreGlobalState(false).setWaitForCompletion(true).get().getRestoreInfo().successfulShards(), equalTo(6));
+
+        ensureGreen("test-idx");
+        assertThat(client().prepareCount("test-idx").get().getCount(), equalTo(100L));
+
+        IntSet reusedShards = IntOpenHashSet.newInstance();
+        for (ShardRecoveryResponse response : client().admin().indices().prepareRecoveries("test-idx").get().shardResponses().get("test-idx")) {
+            if (response.recoveryState().getIndex().reusedByteCount() > 0) {
+                reusedShards.add(response.getShardId());
+            }
+        }
+        logger.info("--> check that at least half of the shards had some reuse: [{}]", reusedShards);
+        assertThat(reusedShards.size(), greaterThanOrEqualTo(numberOfShards/2));
     }
 
     @Test
@@ -662,7 +720,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
             @Override
             public T readFrom(StreamInput in) throws IOException {
-                return (T)newTestCustomMetaData(in.readString());
+                return (T) newTestCustomMetaData(in.readString());
             }
 
             @Override
@@ -692,7 +750,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
                 if (data == null) {
                     throw new ElasticsearchParseException("failed to parse snapshottable metadata, data not found");
                 }
-                return (T)newTestCustomMetaData(data);
+                return (T) newTestCustomMetaData(data);
             }
 
             @Override

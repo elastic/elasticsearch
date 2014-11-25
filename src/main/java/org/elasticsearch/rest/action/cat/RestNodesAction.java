@@ -296,7 +296,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(stats == null ? null : stats.getIndices().getSegments().getIndexWriterMemory());
             table.addCell(stats == null ? null : stats.getIndices().getSegments().getIndexWriterMaxMemory());
             table.addCell(stats == null ? null : stats.getIndices().getSegments().getVersionMapMemory());
-            table.addCell(stats == null ? null : stats.getIndices().getSegments().getFixedBitSetMemory());
+            table.addCell(stats == null ? null : stats.getIndices().getSegments().getBitsetMemory());
 
             table.addCell(stats == null ? null : stats.getIndices().getSuggest().getCurrent());
             table.addCell(stats == null ? null : stats.getIndices().getSuggest().getTime());

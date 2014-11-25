@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 public class InternalGeoBounds extends InternalMetricsAggregation implements GeoBounds {
 
@@ -55,8 +56,8 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
     }
     
     InternalGeoBounds(String name, double top, double bottom, double posLeft, double posRight,
-            double negLeft, double negRight, boolean wrapLongitude) {
-        super(name);
+            double negLeft, double negRight, boolean wrapLongitude, Map<String, Object> metaData) {
+        super(name, metaData);
         this.top = top;
         this.bottom = bottom;
         this.posLeft = posLeft;
@@ -102,9 +103,9 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
                 negRight = bounds.negRight;
             }
         }
-        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude);
+        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, getMetaData());
     }
-
+    
     @Override
     public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
@@ -138,7 +139,7 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
             default:
                 throw new ElasticsearchIllegalArgumentException("Found unknown path element [" + cornerString + "] in [" + getName() + "]");
             }
-            String latLonString = path.get(0);
+            String latLonString = path.get(1);
             switch (latLonString) {
             case "lat":
                 return cornerPoint.lat();
@@ -172,8 +173,7 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
         top = in.readDouble();
         bottom = in.readDouble();
         posLeft = in.readDouble();
@@ -184,8 +184,7 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(top);
         out.writeDouble(bottom);
         out.writeDouble(posLeft);

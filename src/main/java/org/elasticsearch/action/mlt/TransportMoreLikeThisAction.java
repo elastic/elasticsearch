@@ -20,6 +20,7 @@
 package org.elasticsearch.action.mlt;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
@@ -284,7 +285,7 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
         docMapper.parse(SourceToParse.source(getResponse.getSourceAsBytesRef()).type(request.type()).id(request.id()), new DocumentMapper.ParseListenerAdapter() {
             @Override
             public boolean beforeFieldAdded(FieldMapper fieldMapper, Field field, Object parseContext) {
-                if (!field.fieldType().indexed()) {
+                if (field.fieldType().indexOptions() == IndexOptions.NONE) {
                     return false;
                 }
                 if (fieldMapper instanceof InternalMapper) {

@@ -40,6 +40,7 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.distributor.Distributor;
 import org.elasticsearch.index.store.fs.FsDirectoryService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
@@ -48,6 +49,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.file.Path;
 import java.util.EnumSet;
 import java.util.Random;
 
@@ -110,41 +112,48 @@ public class MockFSDirectoryService extends FsDirectoryService {
 
     @Override
     public Directory[] build() throws IOException {
-        return helper.wrapAllInplace(delegateService.build());
+        return delegateService.build();
     }
     
     @Override
-    protected synchronized Directory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
+    protected synchronized Directory newFSDirectory(Path location, LockFactory lockFactory) throws IOException {
         throw new UnsupportedOperationException();
     }
 
     public void checkIndex(Store store, ShardId shardId) throws IndexShardException {
-        try {
-            Directory dir = store.directory();
-            if (!Lucene.indexExists(dir)) {
-                return;
-            }
-            if (IndexWriter.isLocked(dir)) {
-                AbstractRandomizedTest.checkIndexFailed = true;
-                throw new IllegalStateException("IndexWriter is still open on shard " + shardId);
-            }
-            CheckIndex checkIndex = new CheckIndex(dir);
-            BytesStreamOutput os = new BytesStreamOutput();
-            PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
-            checkIndex.setInfoStream(out);
-            out.flush();
-            CheckIndex.Status status = checkIndex.checkIndex();
-            if (!status.clean) {
-                AbstractRandomizedTest.checkIndexFailed = true;
-                logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
-                throw new IndexShardException(shardId, "index check failure");
-            } else {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+        if (store.tryIncRef()) {
+            logger.info("start check index");
+            try {
+                Directory dir = store.directory();
+                if (!Lucene.indexExists(dir)) {
+                    return;
                 }
+                if (IndexWriter.isLocked(dir)) {
+                    AbstractRandomizedTest.checkIndexFailed = true;
+                    throw new IllegalStateException("IndexWriter is still open on shard " + shardId);
+                }
+                try (CheckIndex checkIndex = new CheckIndex(dir)) {
+                    BytesStreamOutput os = new BytesStreamOutput();
+                    PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
+                    checkIndex.setInfoStream(out);
+                    out.flush();
+                    CheckIndex.Status status = checkIndex.checkIndex();
+                    if (!status.clean) {
+                        AbstractRandomizedTest.checkIndexFailed = true;
+                        logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+                        throw new IndexShardException(shardId, "index check failure");
+                    } else {
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("failed to check index", e);
+            } finally {
+                logger.info("end check index");
+                store.decRef();
             }
-        } catch (Exception e) {
-            logger.warn("failed to check index", e);
         }
     }
 
@@ -161,5 +170,10 @@ public class MockFSDirectoryService extends FsDirectoryService {
     @Override
     public long throttleTimeInNanos() {
         return delegateService.throttleTimeInNanos();
+    }
+
+    @Override
+    public Directory newFromDistributor(Distributor distributor) throws IOException {
+        return helper.wrap(super.newFromDistributor(distributor));
     }
 }

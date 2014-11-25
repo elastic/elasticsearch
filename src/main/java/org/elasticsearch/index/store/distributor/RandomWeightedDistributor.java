@@ -38,7 +38,7 @@ public class RandomWeightedDistributor extends AbstractDistributor {
     }
 
     @Override
-    public Directory doAny() {
+    public Directory doAny() throws IOException {
         long[] usableSpace = new long[delegates.length];
         long size = 0;
 

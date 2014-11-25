@@ -20,16 +20,14 @@
 package org.apache.lucene.analysis.miscellaneous;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.io.Reader;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -41,9 +39,8 @@ public class UniqueTokenFilterTests extends ElasticsearchTestCase {
     public void simpleTest() throws IOException {
         Analyzer analyzer = new Analyzer() {
             @Override
-            protected TokenStreamComponents createComponents(String fieldName,
-                                                             Reader reader) {
-                Tokenizer t = new WhitespaceTokenizer(Lucene.VERSION, reader);
+            protected TokenStreamComponents createComponents(String fieldName) {
+                Tokenizer t = new MockTokenizer(MockTokenizer.WHITESPACE, false);
                 return new TokenStreamComponents(t, new UniqueTokenFilter(t));
             }
         };

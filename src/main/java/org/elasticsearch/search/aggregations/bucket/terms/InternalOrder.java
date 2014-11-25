@@ -174,7 +174,7 @@ class InternalOrder extends Terms.Order {
 
             AggregationPath path = path();
             final Aggregator aggregator = path.resolveAggregator(termsAggregator);
-            final String key = path.getPathElements().get(path.getPathElements().size() - 1).key;
+            final String key = path.lastPathElement().key;
 
             if (aggregator instanceof SingleBucketAggregator) {
                 assert key == null : "this should be picked up before the aggregation is executed - on validate";

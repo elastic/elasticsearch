@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.*;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.index.Index;
@@ -31,6 +32,7 @@ import org.elasticsearch.index.mapper.FieldMapper.Names;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
+import java.util.Collections;
 
 public class NumericDVIndexFieldData extends DocValuesIndexFieldData implements IndexNumericFieldData {
 
@@ -39,10 +41,10 @@ public class NumericDVIndexFieldData extends DocValuesIndexFieldData implements 
     }
 
     @Override
-    public AtomicLongFieldData load(AtomicReaderContext context) {
-        final AtomicReader reader = context.reader();
+    public AtomicLongFieldData load(LeafReaderContext context) {
+        final LeafReader reader = context.reader();
         final String field = fieldNames.indexName();
-        return new AtomicLongFieldData(-1) {
+        return new AtomicLongFieldData(0) {
             @Override
             public SortedNumericDocValues getLongValues() {
                 try {
@@ -53,12 +55,17 @@ public class NumericDVIndexFieldData extends DocValuesIndexFieldData implements 
                     throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
                 }
             }
+            
+            @Override
+            public Iterable<? extends Accountable> getChildResources() {
+                return Collections.emptyList();
+            }
         };
 
     }
 
     @Override
-    public AtomicLongFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicLongFieldData loadDirect(LeafReaderContext context) throws Exception {
         return load(context);
     }
 

@@ -58,8 +58,8 @@ public class FSTBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
     }
 
     @Override
-    public AtomicOrdinalsFieldData loadDirect(AtomicReaderContext context) throws Exception {
-        AtomicReader reader = context.reader();
+    public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
+        LeafReader reader = context.reader();
 
         Terms terms = reader.terms(getFieldNames().indexName());
         AtomicOrdinalsFieldData data = null;

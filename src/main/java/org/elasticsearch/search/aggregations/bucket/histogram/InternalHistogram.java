@@ -40,6 +40,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Map;
 
 /**
  * TODO should be renamed to InternalNumericHistogram (see comment on {@link Histogram})?
@@ -230,8 +231,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         }
 
         public InternalHistogram<B> create(String name, List<B> buckets, InternalOrder order, long minDocCount,
-                                           EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed) {
-            return new InternalHistogram<>(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed);
+                                           EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
+            return new InternalHistogram<>(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, metaData);
         }
 
         public B createBucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
@@ -251,8 +252,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     InternalHistogram() {} // for serialization
 
     InternalHistogram(String name, List<B> buckets, InternalOrder order, long minDocCount,
-                      EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed) {
-        super(name);
+                      EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
+        super(name, metaData);
         this.buckets = buckets;
         this.order = order;
         assert (minDocCount == 0) == (emptyBucketInfo != null);
@@ -385,7 +386,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             CollectionUtil.introSort(reducedBuckets, order.comparator());
         }
 
-        return getFactory().create(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, formatter, keyed);
+        return getFactory().create(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, formatter, keyed, getMetaData());
     }
 
     protected B createBucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
@@ -397,8 +398,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
         order = InternalOrder.Streams.readOrder(in);
         minDocCount = in.readVLong();
         if (minDocCount == 0) {
@@ -418,8 +418,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         InternalOrder.Streams.writeOrder(order, out);
         out.writeVLong(minDocCount);
         if (minDocCount == 0) {

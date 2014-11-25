@@ -19,23 +19,25 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Strings;
 
 import java.io.IOException;
+import java.util.Collections;
 
 /** {@link AtomicFieldData} impl on top of Lucene's binary doc values. */
 public class BinaryDVAtomicFieldData implements AtomicFieldData {
 
-    private final AtomicReader reader;
+    private final LeafReader reader;
     private final String field;
 
-    public BinaryDVAtomicFieldData(AtomicReader reader, String field) {
+    public BinaryDVAtomicFieldData(LeafReader reader, String field) {
         this.reader = reader;
         this.field = field;
     }
@@ -63,7 +65,12 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData {
 
     @Override
     public long ramBytesUsed() {
-        return -1; // unknown
+        return 0; // unknown
+    }
+    
+    @Override
+    public Iterable<? extends Accountable> getChildResources() {
+        return Collections.emptyList();
     }
 
 }

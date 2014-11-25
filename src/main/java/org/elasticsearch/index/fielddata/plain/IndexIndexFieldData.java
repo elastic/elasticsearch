@@ -19,7 +19,10 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
+import java.util.Collections;
+
 import org.apache.lucene.index.*;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -52,6 +55,11 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
         @Override
         public long ramBytesUsed() {
             return 0;
+        }
+
+        @Override
+        public Iterable<? extends Accountable> getChildResources() {
+            return Collections.emptyList();
         }
 
         @Override
@@ -99,12 +107,12 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
     }
 
     @Override
-    public final AtomicOrdinalsFieldData load(AtomicReaderContext context) {
+    public final AtomicOrdinalsFieldData load(LeafReaderContext context) {
         return atomicFieldData;
     }
 
     @Override
-    public AtomicOrdinalsFieldData loadDirect(AtomicReaderContext context)
+    public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context)
             throws Exception {
         return atomicFieldData;
     }

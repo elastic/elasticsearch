@@ -28,22 +28,18 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Iterator;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import static junit.framework.Assert.assertFalse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 
@@ -54,7 +50,10 @@ import static org.junit.Assert.assertThat;
  */
 public final class ExternalTestCluster extends TestCluster {
 
-    private final ESLogger logger = Loggers.getLogger(getClass());
+    private static final ESLogger logger = Loggers.getLogger(ExternalTestCluster.class);
+
+    private static final AtomicInteger counter = new AtomicInteger();
+    public static final String EXTERNAL_CLUSTER_PREFIX = "external_";
 
     private final Client client;
 
@@ -69,6 +68,7 @@ public final class ExternalTestCluster extends TestCluster {
     public ExternalTestCluster(TransportAddress... transportAddresses) {
         super(0);
         Settings clientSettings = ImmutableSettings.settingsBuilder()
+                .put("name", InternalTestCluster.TRANSPORT_CLIENT_PREFIX + EXTERNAL_CLUSTER_PREFIX + counter.getAndIncrement())
                 .put("config.ignore_system_properties", true) // prevents any settings to be replaced by system properties.
                 .put("client.transport.ignore_cluster_name", true)
                 .put("node.mode", "network").build(); // we require network here!
@@ -154,7 +154,7 @@ public final class ExternalTestCluster extends TestCluster {
 
                 assertThat("Fielddata size must be 0 on node: " + stats.getNode(), stats.getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0l));
                 assertThat("Filter cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getFilterCache().getMemorySizeInBytes(), equalTo(0l));
-                assertThat("FixedBitSet cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
+                assertThat("FixedBitSet cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getSegments().getBitsetMemoryInBytes(), equalTo(0l));
             }
         }
     }

@@ -19,7 +19,10 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
+import java.util.Collections;
+
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.*;
 
 
@@ -60,6 +63,11 @@ abstract class AtomicDoubleFieldData implements AtomicNumericFieldData {
             @Override
             public SortedNumericDoubleValues getDoubleValues() {
                 return FieldData.emptySortedNumericDoubles(maxDoc);
+            }
+            
+            @Override
+            public Iterable<? extends Accountable> getChildResources() {
+                return Collections.emptyList();
             }
 
         };

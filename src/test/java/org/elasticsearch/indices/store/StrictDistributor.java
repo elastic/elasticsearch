@@ -40,7 +40,7 @@ public class StrictDistributor extends AbstractDistributor {
     }
 
     @Override
-    public Directory doAny() {
+    public Directory doAny() throws IOException {
         for (Directory delegate : delegates) {
             assertThat(getUsableSpace(delegate), greaterThan(0L));
         }

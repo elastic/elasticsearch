@@ -242,7 +242,7 @@ def build_release(run_tests=False, dry_run=True, cpus=1, bwc_version=None):
             'test -Dtests.jvms=%s -Des.node.mode=local' % (cpus),
             'test -Dtests.jvms=%s -Des.node.mode=network' % (cpus))
   if bwc_version:
-      print('Running Backwards compatibilty tests against version [%s]' % (bwc_version))
+      print('Running Backwards compatibility tests against version [%s]' % (bwc_version))
       run_mvn('clean', 'test -Dtests.filter=@backwards -Dtests.bwc.version=%s -Dtests.bwc=true -Dtests.jvms=1' % bwc_version)
   run_mvn('clean test-compile -Dforbidden.test.signatures="org.apache.lucene.util.LuceneTestCase\$AwaitsFix @ Please fix all bugs before release"')
   run_mvn('clean %s -DskipTests' % (target))
@@ -660,7 +660,7 @@ if __name__ == '__main__':
       Release successful pending steps:
         * create a new vX.Y.Z label on github for the next release, with label color #dddddd (https://github.com/elasticsearch/elasticsearch/labels)
         * publish the maven artifacts on Sonatype: https://oss.sonatype.org/index.html
-           - here is a guide: https://docs.sonatype.org/display/Repository/Sonatype+OSS+Maven+Repository+Usage+Guide#SonatypeOSSMavenRepositoryUsageGuide-8a.ReleaseIt
+           - here is a guide: http://central.sonatype.org/pages/releasing-the-deployment.html
         * check if the release is there https://oss.sonatype.org/content/repositories/releases/org/elasticsearch/elasticsearch/%(version)s
         * announce the release on the website / blog post
         * tweet about the release

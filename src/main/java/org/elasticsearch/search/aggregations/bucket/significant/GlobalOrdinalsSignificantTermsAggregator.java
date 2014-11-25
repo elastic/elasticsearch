@@ -33,6 +33,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 
 /**
  * An global ordinal based implementation of significant terms, based on {@link SignificantStringTermsAggregator}.
@@ -45,9 +46,9 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
     public GlobalOrdinalsSignificantTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource,
                                                     long estimatedBucketCount, long maxOrd, BucketCountThresholds bucketCountThresholds,
                                                     IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent,
-                                                    SignificantTermsAggregatorFactory termsAggFactory) {
+                                                    SignificantTermsAggregatorFactory termsAggFactory, Map<String, Object> metaData) {
 
-        super(name, factories, valuesSource, estimatedBucketCount, maxOrd, null, bucketCountThresholds, includeExclude, aggregationContext, parent, SubAggCollectionMode.DEPTH_FIRST, false);
+        super(name, factories, valuesSource, estimatedBucketCount, maxOrd, null, bucketCountThresholds, includeExclude, aggregationContext, parent, SubAggCollectionMode.DEPTH_FIRST, false, metaData);
         this.termsAggFactory = termsAggFactory;
     }
 
@@ -113,7 +114,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
             list[i] = bucket;
         }
 
-        return new SignificantStringTerms(subsetSize, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Arrays.asList(list));
+        return new SignificantStringTerms(subsetSize, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Arrays.asList(list), getMetaData());
     }
 
     @Override
@@ -122,7 +123,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
         ContextIndexSearcher searcher = context.searchContext().searcher();
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
-        return new SignificantStringTerms(0, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Collections.<InternalSignificantTerms.Bucket>emptyList());
+        return new SignificantStringTerms(0, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Collections.<InternalSignificantTerms.Bucket>emptyList(), getMetaData());
     }
 
     @Override
@@ -134,8 +135,8 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
 
         private final LongHash bucketOrds;
 
-        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount, BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
-            super(name, factories, valuesSource, estimatedBucketCount, estimatedBucketCount, bucketCountThresholds, includeExclude, aggregationContext, parent, termsAggFactory);
+        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount, BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory, Map<String, Object> metaData) {
+            super(name, factories, valuesSource, estimatedBucketCount, estimatedBucketCount, bucketCountThresholds, includeExclude, aggregationContext, parent, termsAggFactory, metaData);
             bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.bigArrays());
         }
 

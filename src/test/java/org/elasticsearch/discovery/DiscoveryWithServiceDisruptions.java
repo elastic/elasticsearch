@@ -51,6 +51,7 @@ import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.test.disruption.*;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;

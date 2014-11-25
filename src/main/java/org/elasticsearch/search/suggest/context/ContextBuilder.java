@@ -21,6 +21,8 @@ package org.elasticsearch.search.suggest.context;
 
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
 
 import java.util.Map;
 import java.util.Map.Entry;
@@ -91,13 +93,14 @@ public abstract class ContextBuilder<E extends ContextMapping> {
         return new CategoryContextMapping.Builder(name, fieldname).addDefaultValues(defaultValues);
     }
 
-    public static SortedMap<String, ContextMapping> loadMappings(Object configuration) throws ElasticsearchParseException {
+    public static SortedMap<String, ContextMapping> loadMappings(Object configuration, Version indexVersionCreated)
+            throws ElasticsearchParseException {
         if (configuration instanceof Map) {
             Map<String, Object> configurations = (Map<String, Object>)configuration;
             SortedMap<String, ContextMapping> mappings = Maps.newTreeMap();
             for (Entry<String,Object> config : configurations.entrySet()) {
                 String name = config.getKey();
-                mappings.put(name, loadMapping(name, (Map<String, Object>) config.getValue()));
+                mappings.put(name, loadMapping(name, (Map<String, Object>) config.getValue(), indexVersionCreated));
             }
             return mappings;
         } else if (configuration == null) {
@@ -107,7 +110,8 @@ public abstract class ContextBuilder<E extends ContextMapping> {
         }
     }
 
-    protected static ContextMapping loadMapping(String name, Map<String, Object> config) throws ElasticsearchParseException {
+    protected static ContextMapping loadMapping(String name, Map<String, Object> config, Version indexVersionCreated)
+            throws ElasticsearchParseException {
         final Object argType = config.get(ContextMapping.FIELD_TYPE);
         
         if (argType == null) {
@@ -115,13 +119,17 @@ public abstract class ContextBuilder<E extends ContextMapping> {
         }
 
         final String type = argType.toString(); 
-
+        ContextMapping contextMapping;
         if (GeolocationContextMapping.TYPE.equals(type)) {
-            return GeolocationContextMapping.load(name, config);
+            contextMapping = GeolocationContextMapping.load(name, config);
         } else if (CategoryContextMapping.TYPE.equals(type)) {
-            return CategoryContextMapping.load(name, config);
+            contextMapping = CategoryContextMapping.load(name, config);
         } else {
             throw new ElasticsearchParseException("unknown context type[" + type + "]");
         }
+        config.remove(ContextMapping.FIELD_TYPE);
+        DocumentMapperParser.checkNoRemainingFields(name, config, indexVersionCreated);
+        
+        return contextMapping;
     }
 }

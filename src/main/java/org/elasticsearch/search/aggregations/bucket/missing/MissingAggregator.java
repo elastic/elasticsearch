@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.missing;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
@@ -40,13 +41,13 @@ public class MissingAggregator extends SingleBucketAggregator {
     private Bits docsWithValue;
 
     public MissingAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
-                             AggregationContext aggregationContext, Aggregator parent) {
-        super(name, factories, aggregationContext, parent);
+                             AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+        super(name, factories, aggregationContext, parent, metaData);
         this.valuesSource = valuesSource;
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         if (valuesSource != null) {
             docsWithValue = valuesSource.docsWithValue(reader.reader().maxDoc());
         } else {
@@ -63,28 +64,28 @@ public class MissingAggregator extends SingleBucketAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        return new InternalMissing(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal));
+        return new InternalMissing(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), getMetaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMissing(name, 0, buildEmptySubAggregations());
+        return new InternalMissing(name, 0, buildEmptySubAggregations(), getMetaData());
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory {
+    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource, Map<String, Object>>  {
 
         public Factory(String name, ValuesSourceConfig valueSourceConfig) {
             super(name, InternalMissing.TYPE.name(), valueSourceConfig);
         }
 
         @Override
-        protected MissingAggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-            return new MissingAggregator(name, factories, null, aggregationContext, parent);
+        protected MissingAggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+            return new MissingAggregator(name, factories, null, aggregationContext, parent, metaData);
         }
 
         @Override
-        protected MissingAggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
-            return new MissingAggregator(name, factories, valuesSource, aggregationContext, parent);
+        protected MissingAggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+            return new MissingAggregator(name, factories, valuesSource, aggregationContext, parent, metaData);
         }
     }
 

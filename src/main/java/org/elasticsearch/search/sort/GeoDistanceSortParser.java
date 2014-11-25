@@ -19,12 +19,13 @@
 
 package org.elasticsearch.search.sort;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.FieldCache.Doubles;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -33,7 +34,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -156,12 +156,12 @@ public class GeoDistanceSortParser implements SortParser {
         }
         final Nested nested;
         if (objectMapper != null && objectMapper.nested().isNested()) {
-            FixedBitSetFilter rootDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(NonNestedDocsFilter.INSTANCE);
-            FixedBitSetFilter innerDocumentsFilter;
+            BitDocIdSetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE);
+            BitDocIdSetFilter innerDocumentsFilter;
             if (nestedFilter != null) {
-                innerDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(nestedFilter);
+                innerDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(nestedFilter);
             } else {
-                innerDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(objectMapper.nestedTypeFilter());
+                innerDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(objectMapper.nestedTypeFilter());
             }
             nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
         } else {
@@ -177,25 +177,20 @@ public class GeoDistanceSortParser implements SortParser {
 
             @Override
             public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-                return new FieldComparator.DoubleComparator(numHits, null, null, null) {
+                return new FieldComparator.DoubleComparator(numHits, null, null) {
                     @Override
-                    protected Doubles getDoubleValues(AtomicReaderContext context, String field) throws IOException {
+                    protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
                         final MultiGeoPointValues geoPointValues = geoIndexFieldData.load(context).getGeoPointValues();
                         final SortedNumericDoubleValues distanceValues = GeoDistance.distanceValues(geoPointValues, distances);
                         final NumericDoubleValues selectedValues;
                         if (nested == null) {
                             selectedValues = finalSortMode.select(distanceValues, Double.MAX_VALUE);
                         } else {
-                            final FixedBitSet rootDocs = nested.rootDocs(context);
-                            final FixedBitSet innerDocs = nested.innerDocs(context);
+                            final BitSet rootDocs = nested.rootDocs(context).bits();
+                            final BitSet innerDocs = nested.innerDocs(context).bits();
                             selectedValues = finalSortMode.select(distanceValues, Double.MAX_VALUE, rootDocs, innerDocs, context.reader().maxDoc());
                         }
-                        return new Doubles() {
-                            @Override
-                            public double get(int docID) {
-                                return selectedValues.get(docID);
-                            }
-                        };
+                        return selectedValues.getRawDoubleValues();
                     }
                 };
             }

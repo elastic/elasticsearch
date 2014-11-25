@@ -30,10 +30,10 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexDeletionPolicy;
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -69,10 +69,12 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
-import org.elasticsearch.index.store.ram.RamDirectoryService;
+import org.elasticsearch.index.store.fs.SimpleFsDirectoryService;
+import org.elasticsearch.index.store.fs.SimpleFsIndexStore;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogSizeMatcher;
 import org.elasticsearch.index.translog.fs.FsTranslog;
+import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
@@ -119,7 +121,6 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         super.setUp();
         defaultSettings = ImmutableSettings.builder()
                 .put(InternalEngine.INDEX_COMPOUND_ON_FLUSH, getRandom().nextBoolean())
-                .put(InternalEngine.INDEX_CHECKSUM_ON_MERGE, getRandom().nextBoolean())
                 .put(InternalEngine.INDEX_GC_DELETES, "1h") // make sure this doesn't kick in on us
                 .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, randomBoolean())
                 .build(); // TODO randomize more settings
@@ -173,13 +174,34 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     }
 
     protected Store createStore() throws IOException {
-        DirectoryService directoryService = new RamDirectoryService(shardId, EMPTY_SETTINGS);
-        return new Store(shardId, EMPTY_SETTINGS, null, directoryService, new LeastUsedDistributor(directoryService));
+        final DirectoryService directoryService = new DirectoryService(shardId, EMPTY_SETTINGS) {
+            @Override
+            public Directory[] build() throws IOException {
+                return new Directory[] {new RAMDirectory() } ;
+            }
+
+            @Override
+            public long throttleTimeInNanos() {
+                return 0;
+            }
+        };
+        return new Store(shardId, EMPTY_SETTINGS, null, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
     }
 
     protected Store createStoreReplica() throws IOException {
-        DirectoryService directoryService = new RamDirectoryService(shardId, EMPTY_SETTINGS);
-        return new Store(shardId, EMPTY_SETTINGS, null, directoryService, new LeastUsedDistributor(directoryService));
+
+        final DirectoryService directoryService = new DirectoryService(shardId, EMPTY_SETTINGS) {
+            @Override
+            public Directory[] build() throws IOException {
+                return new Directory[] {new RAMDirectory() } ;
+            }
+
+            @Override
+            public long throttleTimeInNanos() {
+                return 0;
+            }
+        };
+        return new Store(shardId, EMPTY_SETTINGS, null, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
     }
 
     protected Translog createTranslog() {
@@ -326,6 +348,9 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     }
 
     public void testStartAndAcquireConcurrently() {
+        // Close engine from setUp (we create our own):
+        engine.close();
+
         ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS));
         final Engine engine = createEngine(engineSettingsService, store, createTranslog(), mergeSchedulerProvider);
         final AtomicBoolean startPending = new AtomicBoolean(true);
@@ -355,6 +380,9 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
     @Test
     public void testSegmentsWithMergeFlag() throws Exception {
+        // Close engine from setUp (we create our own):
+        engine.close();
+
         ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS));
         final AtomicReference<CountDownLatch> waitTillMerge = new AtomicReference<>();
         final AtomicReference<CountDownLatch> waitForMerge = new AtomicReference<>();
@@ -657,21 +685,21 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                 @Override
                 public void phase1(SnapshotIndexCommit snapshot) throws EngineException {
                    if (failInPhase == 1) {
-                       throw new RuntimeException("bar", new CorruptIndexException("Foo"));
+                       throw new RuntimeException("bar", new CorruptIndexException("Foo", "fake file description"));
                    }
                 }
 
                 @Override
                 public void phase2(Translog.Snapshot snapshot) throws EngineException {
                     if (failInPhase == 2) {
-                        throw new RuntimeException("bar", new CorruptIndexException("Foo"));
+                        throw new RuntimeException("bar", new CorruptIndexException("Foo", "fake file description"));
                     }
                 }
 
                 @Override
                 public void phase3(Translog.Snapshot snapshot) throws EngineException {
                     if (failInPhase == 3) {
-                        throw new RuntimeException("bar", new CorruptIndexException("Foo"));
+                        throw new RuntimeException("bar", new CorruptIndexException("Foo", "fake file description"));
                     }
                 }
             });
@@ -1284,6 +1312,9 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @Slow
     @Test
     public void testEnableGcDeletes() throws Exception {
+
+        // Close engine from setUp (we create our own):
+        engine.close();
 
         // Make sure enableGCDeletes == false works:
         Settings settings = ImmutableSettings.builder()

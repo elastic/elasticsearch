@@ -289,7 +289,7 @@ public class XPostingsHighlighter {
         query.extractTerms(queryTerms);
 
         IndexReaderContext readerContext = reader.getContext();
-        List<AtomicReaderContext> leaves = readerContext.leaves();
+        List<LeafReaderContext> leaves = readerContext.leaves();
 
         // Make our own copies because we sort in-place:
         int[] docids = new int[docidsIn.length];
@@ -384,8 +384,8 @@ public class XPostingsHighlighter {
     }
 
     //BEGIN EDIT: made protected so that we can call from our subclass and pass in the terms by ourselves
-    protected Map<Integer,Object> highlightField(String field, String contents[], BreakIterator bi, BytesRef terms[], int[] docids, List<AtomicReaderContext> leaves, int maxPassages) throws IOException {
-    //private Map<Integer,Object> highlightField(String field, String contents[], BreakIterator bi, BytesRef terms[], int[] docids, List<AtomicReaderContext > leaves, int maxPassages) throws IOException {
+    protected Map<Integer,Object> highlightField(String field, String contents[], BreakIterator bi, BytesRef terms[], int[] docids, List<LeafReaderContext> leaves, int maxPassages) throws IOException {
+    //private Map<Integer,Object> highlightField(String field, String contents[], BreakIterator bi, BytesRef terms[], int[] docids, List<LeafReaderContext > leaves, int maxPassages) throws IOException {
     //END EDIT
 
         Map<Integer,Object> highlights = new HashMap<>();
@@ -408,8 +408,8 @@ public class XPostingsHighlighter {
             bi.setText(content);
             int doc = docids[i];
             int leaf = ReaderUtil.subIndex(doc, leaves);
-            AtomicReaderContext subContext = leaves.get(leaf);
-            AtomicReader r = subContext.reader();
+            LeafReaderContext subContext = leaves.get(leaf);
+            LeafReader r = subContext.reader();
             Terms t = r.terms(field);
             if (t == null) {
                 continue; // nothing to do

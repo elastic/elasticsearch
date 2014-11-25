@@ -20,10 +20,11 @@
 package org.elasticsearch.index.mapper.internal;
 
 import com.google.common.collect.Iterables;
+
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.*;
@@ -49,6 +50,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -71,10 +73,9 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            FIELD_TYPE.setIndexed(false);
+            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
             FIELD_TYPE.freeze();
         }
 
@@ -94,6 +95,10 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
             this.path = path;
             return builder;
         }
+        // if we are indexed we use DOCS
+        protected IndexOptions getDefaultIndexOption() {
+            return IndexOptions.DOCS;
+        }
 
         @Override
         public IdFieldMapper build(BuilderContext context) {
@@ -106,11 +111,13 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             IdFieldMapper.Builder builder = id();
             parseField(builder, builder.name, node, parserContext);
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("path")) {
                     builder.path(fieldNode.toString());
+                    iterator.remove();
                 }
             }
             return builder;
@@ -168,7 +175,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        if (fieldType.indexed() || context == null) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
             return super.termQuery(value, context);
         }
         // no need for constant score filter, since we don't cache the filter, and it always takes deletes into account
@@ -177,7 +184,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        if (fieldType.indexed() || context == null) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
             return super.termFilter(value, context);
         }
         return new TermsFilter(UidFieldMapper.NAME, Uid.createTypeUids(context.queryTypes(), value));
@@ -185,7 +192,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public Filter termsFilter(List values, @Nullable QueryParseContext context) {
-        if (fieldType.indexed() || context == null) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
             return super.termsFilter(values, context);
         }
         return new TermsFilter(UidFieldMapper.NAME, Uid.createTypeUids(context.queryTypes(), values));
@@ -193,7 +200,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public Query prefixQuery(Object value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
-        if (fieldType.indexed() || context == null) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
             return super.prefixQuery(value, method, context);
         }
         Collection<String> queryTypes = context.queryTypes();
@@ -217,7 +224,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public Filter prefixFilter(Object value, @Nullable QueryParseContext context) {
-        if (fieldType.indexed() || context == null) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
             return super.prefixFilter(value, context);
         }
         Collection<String> queryTypes = context.queryTypes();
@@ -232,13 +239,14 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     @Override
-    public Query regexpQuery(Object value, int flags, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
-        if (fieldType.indexed() || context == null) {
-            return super.regexpQuery(value, flags, method, context);
+    public Query regexpQuery(Object value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
+            return super.regexpQuery(value, flags, maxDeterminizedStates, method, context);
         }
         Collection<String> queryTypes = context.queryTypes();
         if (queryTypes.size() == 1) {
-            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), BytesRefs.toBytesRef(value))), flags);
+            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), BytesRefs.toBytesRef(value))),
+                                                      flags, maxDeterminizedStates);
             if (method != null) {
                 regexpQuery.setRewriteMethod(method);
             }
@@ -246,7 +254,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         }
         BooleanQuery query = new BooleanQuery();
         for (String queryType : queryTypes) {
-            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))), flags);
+            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))), flags, maxDeterminizedStates);
             if (method != null) {
                 regexpQuery.setRewriteMethod(method);
             }
@@ -255,17 +263,19 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         return query;
     }
 
-    public Filter regexpFilter(Object value, int flags, @Nullable QueryParseContext context) {
-        if (fieldType.indexed() || context == null) {
-            return super.regexpFilter(value, flags, context);
+    public Filter regexpFilter(Object value, int flags, int maxDeterminizedStates, @Nullable QueryParseContext context) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
+            return super.regexpFilter(value, flags, maxDeterminizedStates, context);
         }
         Collection<String> queryTypes = context.queryTypes();
         if (queryTypes.size() == 1) {
-            return new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), BytesRefs.toBytesRef(value))), flags);
+            return new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), BytesRefs.toBytesRef(value))),
+                                    flags, maxDeterminizedStates);
         }
         XBooleanFilter filter = new XBooleanFilter();
         for (String queryType : queryTypes) {
-            filter.add(new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))), flags), BooleanClause.Occur.SHOULD);
+            filter.add(new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))),
+                                        flags, maxDeterminizedStates), BooleanClause.Occur.SHOULD);
         }
         return filter;
     }
@@ -308,7 +318,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
             context.id(id);
         } // else we are in the pre/post parse phase
 
-        if (fieldType.indexed() || fieldType.stored()) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             fields.add(new Field(names.indexName(), context.id(), fieldType));
         }
         if (hasDocValues()) {
@@ -327,7 +337,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
         // if all are defaults, no sense to write it at all
         if (!includeDefaults && fieldType.stored() == Defaults.FIELD_TYPE.stored()
-                && fieldType.indexed() == Defaults.FIELD_TYPE.indexed()
+                && fieldType.indexOptions() == Defaults.FIELD_TYPE.indexOptions()
                 && path == Defaults.PATH
                 && customFieldDataSettings == null
                 && (postingsFormat == null || postingsFormat.name().equals(defaultPostingFormat()))
@@ -338,8 +348,8 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType.stored());
         }
-        if (includeDefaults || fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
-            builder.field("index", indexTokenizeOptionToString(fieldType.indexed(), fieldType.tokenized()));
+        if (includeDefaults || fieldType.indexOptions() != Defaults.FIELD_TYPE.indexOptions()) {
+            builder.field("index", indexTokenizeOptionToString(fieldType.indexOptions() != IndexOptions.NONE, fieldType.tokenized()));
         }
         if (includeDefaults || path != Defaults.PATH) {
             builder.field("path", path);

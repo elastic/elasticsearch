@@ -21,6 +21,8 @@ package org.elasticsearch.index.translog;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.InputStreamDataInput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -141,7 +143,7 @@ public class TranslogStreams {
             } else {
                 throw new TranslogCorruptedException("Invalid first byte in translog file, got: " + Long.toHexString(b1) + ", expected 0x00 or 0x3f");
             }
-        } catch (CorruptIndexException e) {
+        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException e) {
             throw new TranslogCorruptedException("Translog header corrupted", e);
         }
     }

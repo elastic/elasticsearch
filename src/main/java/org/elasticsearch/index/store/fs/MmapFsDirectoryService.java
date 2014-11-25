@@ -30,6 +30,7 @@ import org.elasticsearch.index.store.IndexStore;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 
 /**
  */
@@ -41,7 +42,7 @@ public class MmapFsDirectoryService extends FsDirectoryService {
     }
 
     @Override
-    protected Directory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
+    protected Directory newFSDirectory(Path location, LockFactory lockFactory) throws IOException {
         return new MMapDirectory(location, buildLockFactory());
     }
 }

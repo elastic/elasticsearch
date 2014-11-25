@@ -37,6 +37,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
 
 /**
  * Aggregates Geo information into cells determined by geohashes of a given precision.
@@ -102,7 +103,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
     }
 
 
-    private static class GeoGridFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
+    private static class GeoGridFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, Map<String, Object>> {
 
         private int precision;
         private int requiredSize;
@@ -116,9 +117,9 @@ public class GeoHashGridParser implements Aggregator.Parser {
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-            final InternalAggregation aggregation = new InternalGeoHashGrid(name, requiredSize, Collections.<InternalGeoHashGrid.Bucket>emptyList());
-            return new NonCollectingAggregator(name, aggregationContext, parent) {
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+            final InternalAggregation aggregation = new InternalGeoHashGrid(name, requiredSize, Collections.<InternalGeoHashGrid.Bucket>emptyList(), metaData);
+            return new NonCollectingAggregator(name, aggregationContext, parent, metaData) {
                 public InternalAggregation buildEmptyAggregation() {
                     return aggregation;
                 }
@@ -126,10 +127,10 @@ public class GeoHashGridParser implements Aggregator.Parser {
         }
 
         @Override
-        protected Aggregator create(final ValuesSource.GeoPoint valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
+        protected Aggregator create(final ValuesSource.GeoPoint valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
             final CellValues cellIdValues = new CellValues(valuesSource, precision);
             ValuesSource.Numeric cellIdSource = new CellIdSource(cellIdValues, valuesSource.metaData());
-            return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, aggregationContext, parent);
+            return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, aggregationContext, parent, metaData);
 
         }
 
@@ -148,8 +149,8 @@ public class GeoHashGridParser implements Aggregator.Parser {
             public void setDocument(int docId) {
                 geoValues = geoPointValues.geoPointValues();
                 geoValues.setDocument(docId);
-                count = geoValues.count();
-                for (int i = 0; i < count; ++i) {
+                resize(geoValues.count());
+                for (int i = 0; i < count(); ++i) {
                     GeoPoint target = geoValues.valueAt(i);
                     values[i] = GeoHashUtils.encodeAsLong(target.getLat(), target.getLon(), precision);
                 }

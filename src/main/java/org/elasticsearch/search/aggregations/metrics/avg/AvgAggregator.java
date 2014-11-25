@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics.avg;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
@@ -44,8 +45,8 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     private LongArray counts;
     private DoubleArray sums;
 
-    public AvgAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context, Aggregator parent) {
-        super(name, estimatedBucketsCount, context, parent);
+    public AvgAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
+        super(name, estimatedBucketsCount, context, parent, metaData);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             final long initialSize = estimatedBucketsCount < 2 ? 1 : estimatedBucketsCount;
@@ -60,7 +61,7 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         values = valuesSource.doubleValues();
     }
 
@@ -87,30 +88,30 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null || owningBucketOrdinal >= counts.size()) {
-            return new InternalAvg(name, 0l, 0);
+            return new InternalAvg(name, 0l, 0, getMetaData());
         }
-        return new InternalAvg(name, sums.get(owningBucketOrdinal), counts.get(owningBucketOrdinal));
+        return new InternalAvg(name, sums.get(owningBucketOrdinal), counts.get(owningBucketOrdinal), getMetaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalAvg(name, 0.0, 0l);
+        return new InternalAvg(name, 0.0, 0l, getMetaData());
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
+    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, Map<String, Object>> {
 
         public Factory(String name, String type, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig) {
             super(name, type, valuesSourceConfig);
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-            return new AvgAggregator(name, 0, null, aggregationContext, parent);
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+            return new AvgAggregator(name, 0, null, aggregationContext, parent, metaData);
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
-            return new AvgAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent);
+        protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+            return new AvgAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent, metaData);
         }
     }
 

@@ -38,8 +38,8 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.IndexEngine;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
@@ -91,7 +91,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     final IndexFieldDataService fieldDataService;
 
-    final FixedBitSetFilterCache fixedBitSetFilterCache;
+    final BitsetFilterCache bitsetFilterCache;
 
     final IndexEngine indexEngine;
 
@@ -109,7 +109,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
                                    IndicesQueriesRegistry indicesQueriesRegistry,
                                    ScriptService scriptService, AnalysisService analysisService,
                                    MapperService mapperService, IndexCache indexCache, IndexFieldDataService fieldDataService,
-                                   IndexEngine indexEngine, FixedBitSetFilterCache fixedBitSetFilterCache,
+                                   IndexEngine indexEngine, BitsetFilterCache bitsetFilterCache,
                                    @Nullable SimilarityService similarityService,
                                    @Nullable Map<String, QueryParserFactory> namedQueryParsers,
                                    @Nullable Map<String, FilterParserFactory> namedFilterParsers) {
@@ -121,7 +121,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         this.indexCache = indexCache;
         this.fieldDataService = fieldDataService;
         this.indexEngine = indexEngine;
-        this.fixedBitSetFilterCache = fixedBitSetFilterCache;
+        this.bitsetFilterCache = bitsetFilterCache;
 
         this.defaultField = indexSettings.get(DEFAULT_FIELD, AllFieldMapper.NAME);
         this.queryStringLenient = indexSettings.getAsBoolean(QUERY_STRING_LENIENT, false);

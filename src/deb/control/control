@@ -7,7 +7,7 @@ Section: web
 Priority: optional
 Homepage: http://www.elasticsearch.org/
 Description: Open Source, Distributed, RESTful Search Engine
- Elasticsearch is a distributed RESTful search engine built for the cloud. 
+ Elasticsearch is a distributed RESTful search engine built for the cloud.
  .
  Features include:
  .
@@ -30,9 +30,9 @@ Description: Open Source, Distributed, RESTful Search Engine
  + (Near) Real Time Search.
  + Built on top of Lucene
    - Each shard is a fully functional Lucene index
-   - All the power of Lucene easily exposed through simple 
+   - All the power of Lucene easily exposed through simple
      configuration/plugins.
  + Per operation consistency
    - Single document level operations are atomic, consistent, isolated and
      durable.
- + Open Source under Apache 2 License.
+ + Open Source under the Apache License, version 2 ("ALv2").

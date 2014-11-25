@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -122,6 +123,9 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
     }
 
     public Object getProperty(List<String> path) {
+        if (path.isEmpty()) {
+            return this;
+        }
         String aggName = path.get(0);
         InternalAggregation aggregation = get(aggName);
         if (aggregation == null) {

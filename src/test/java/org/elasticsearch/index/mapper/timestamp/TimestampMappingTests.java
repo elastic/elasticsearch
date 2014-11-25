@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.timestamp;
 
+import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.action.index.IndexRequest;
@@ -93,7 +94,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1").timestamp(1));
 
         assertThat(doc.rootDoc().getField("_timestamp").fieldType().stored(), equalTo(true));
-        assertThat(doc.rootDoc().getField("_timestamp").fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, doc.rootDoc().getField("_timestamp").fieldType().indexOptions());
         assertThat(doc.rootDoc().getField("_timestamp").tokenStream(docMapper.indexAnalyzer(), null), notNullValue());
     }
 
@@ -106,7 +107,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 DocumentMapper docMapper = createIndex("test", ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build()).mapperService().documentMapperParser().parse(mapping);
                 assertThat(docMapper.timestampFieldMapper().enabled(), equalTo(TimestampFieldMapper.Defaults.ENABLED.enabled));
                 assertThat(docMapper.timestampFieldMapper().fieldType().stored(), equalTo(version.onOrAfter(Version.V_2_0_0) ? true : false));
-                assertThat(docMapper.timestampFieldMapper().fieldType().indexed(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.indexed()));
+                assertThat(docMapper.timestampFieldMapper().fieldType().indexOptions(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.indexOptions()));
                 assertThat(docMapper.timestampFieldMapper().path(), equalTo(TimestampFieldMapper.Defaults.PATH));
                 assertThat(docMapper.timestampFieldMapper().dateTimeFormatter().format(), equalTo(TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT));
                 assertAcked(client().admin().indices().prepareDelete("test").execute().get());
@@ -126,7 +127,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         assertThat(docMapper.timestampFieldMapper().enabled(), equalTo(true));
         assertThat(docMapper.timestampFieldMapper().fieldType().stored(), equalTo(false));
-        assertThat(docMapper.timestampFieldMapper().fieldType().indexed(), equalTo(false));
+        assertEquals(IndexOptions.NONE, docMapper.timestampFieldMapper().fieldType().indexOptions());
         assertThat(docMapper.timestampFieldMapper().path(), equalTo("timestamp"));
         assertThat(docMapper.timestampFieldMapper().dateTimeFormatter().format(), equalTo("year"));
     }

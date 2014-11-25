@@ -30,6 +30,8 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.FileSystemUtils;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  *
@@ -65,8 +67,12 @@ public class FsBlobContainer extends AbstractBlobContainer {
         return builder.immutableMap();
     }
 
-    public boolean deleteBlob(String blobName) throws IOException {
-        return new File(path, blobName).delete();
+    @Override
+    public void deleteBlob(String blobName) throws IOException {
+        Path blobPath = new File(path, blobName).toPath();
+        if (Files.exists(blobPath)) {
+            Files.delete(blobPath);
+        }
     }
 
     @Override
@@ -86,8 +92,8 @@ public class FsBlobContainer extends AbstractBlobContainer {
             @Override
             public void close() throws IOException {
                 super.close();
-                IOUtils.fsync(file, false);
-                IOUtils.fsync(path, true);
+                IOUtils.fsync(file.toPath(), false);
+                IOUtils.fsync(path.toPath(), true);
             }
         }, blobStore.bufferSizeInBytes());
     }

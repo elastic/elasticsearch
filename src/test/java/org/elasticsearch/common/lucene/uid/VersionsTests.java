@@ -27,7 +27,7 @@ import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
 import org.apache.lucene.document.*;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.index.*;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Numbers;
@@ -64,7 +64,7 @@ public class VersionsTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testVersions() throws Exception {
         Directory dir = newDirectory();
-        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
         DirectoryReader directoryReader = DirectoryReader.open(writer, true);
         MatcherAssert.assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(Versions.NOT_FOUND));
 
@@ -116,7 +116,7 @@ public class VersionsTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testNestedDocuments() throws IOException {
         Directory dir = newDirectory();
-        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         List<Document> docs = new ArrayList<>();
         for (int i = 0; i < 4; ++i) {
@@ -157,7 +157,7 @@ public class VersionsTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testBackwardCompatibility() throws IOException {
         Directory dir = newDirectory();
-        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         DirectoryReader directoryReader = DirectoryReader.open(writer, true);
         MatcherAssert.assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(Versions.NOT_FOUND));
@@ -186,7 +186,6 @@ public class VersionsTests extends ElasticsearchLuceneTestCase {
         private static final FieldType FIELD_TYPE = new FieldType();
         static {
             FIELD_TYPE.setTokenized(true);
-            FIELD_TYPE.setIndexed(true);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
             FIELD_TYPE.setStored(true);
             FIELD_TYPE.freeze();
@@ -224,7 +223,7 @@ public class VersionsTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testMergingOldIndices() throws Exception {
-        final IndexWriterConfig iwConf = new IndexWriterConfig(Lucene.VERSION, new KeywordAnalyzer());
+        final IndexWriterConfig iwConf = new IndexWriterConfig(new KeywordAnalyzer());
         iwConf.setMergePolicy(new ElasticsearchMergePolicy(iwConf.getMergePolicy()));
         final Directory dir = newDirectory();
         final IndexWriter iw = new IndexWriter(dir, iwConf);
@@ -267,7 +266,7 @@ public class VersionsTests extends ElasticsearchLuceneTestCase {
 
         // Force merge and check versions
         iw.forceMerge(1, true);
-        final AtomicReader ir = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(iw.getDirectory()));
+        final LeafReader ir = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(iw.getDirectory()));
         final NumericDocValues versions = ir.getNumericDocValues(VersionFieldMapper.NAME);
         assertThat(versions, notNullValue());
         for (int i = 0; i < ir.maxDoc(); ++i) {

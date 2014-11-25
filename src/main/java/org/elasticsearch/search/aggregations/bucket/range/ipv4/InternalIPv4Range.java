@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -116,8 +117,8 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket> i
         }
 
         @Override
-        public InternalIPv4Range create(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed) {
-            return new InternalIPv4Range(name, ranges, keyed);
+        public InternalIPv4Range create(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
+            return new InternalIPv4Range(name, ranges, keyed, metaData);
         }
 
         @Override
@@ -128,8 +129,8 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket> i
 
     public InternalIPv4Range() {} // for serialization
 
-    public InternalIPv4Range(String name, List<InternalIPv4Range.Bucket> ranges, boolean keyed) {
-        super(name, ranges, ValueFormatter.IPv4, keyed);
+    public InternalIPv4Range(String name, List<InternalIPv4Range.Bucket> ranges, boolean keyed, Map<String, Object> metaData) {
+        super(name, ranges, ValueFormatter.IPv4, keyed, metaData);
     }
 
     @Override

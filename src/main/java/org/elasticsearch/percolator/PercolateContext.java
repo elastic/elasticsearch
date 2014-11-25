@@ -21,7 +21,7 @@ package org.elasticsearch.percolator;
 import org.elasticsearch.search.reducers.SearchContextReducers;
 
 import com.google.common.collect.ImmutableList;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.*;
@@ -34,8 +34,8 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -135,7 +135,7 @@ public class PercolateContext extends SearchContext {
         this.docSearcher = docSearcher;
 
         IndexReader indexReader = docSearcher.reader();
-        AtomicReaderContext atomicReaderContext = indexReader.leaves().get(0);
+        LeafReaderContext atomicReaderContext = indexReader.leaves().get(0);
         lookup().setNextReader(atomicReaderContext);
         lookup().setNextDocId(0);
         lookup().source().setNextSource(parsedDocument.source());
@@ -453,8 +453,8 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public FixedBitSetFilterCache fixedBitSetFilterCache() {
-        return indexService.fixedBitSetFilterCache();
+    public BitsetFilterCache bitsetFilterCache() {
+        return indexService.bitsetFilterCache();
     }
 
     @Override

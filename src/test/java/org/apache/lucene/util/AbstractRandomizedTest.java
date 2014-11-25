@@ -364,7 +364,6 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
             .around(threadAndTestNameRule)
             .around(new SystemPropertiesInvariantRule(IGNORED_INVARIANT_PROPERTIES))
             .around(new TestRuleSetupAndRestoreInstanceEnv())
-            .around(new TestRuleFieldCacheSanity())
             .around(parentChainCallRule);
 
     // -----------------------------------------------------------------

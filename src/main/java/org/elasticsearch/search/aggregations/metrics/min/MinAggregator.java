@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics.min;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
@@ -44,8 +45,8 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
     private DoubleArray mins;
 
-    public MinAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context, Aggregator parent) {
-        super(name, estimatedBucketsCount, context, parent);
+    public MinAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
+        super(name, estimatedBucketsCount, context, parent, metaData);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             final long initialSize = estimatedBucketsCount < 2 ? 1 : estimatedBucketsCount;
@@ -60,7 +61,7 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         final SortedNumericDoubleValues values = valuesSource.doubleValues();
         this.values = MultiValueMode.MIN.select(values, Double.POSITIVE_INFINITY);
     }
@@ -86,31 +87,31 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
-            return new InternalMin(name, Double.POSITIVE_INFINITY);
+            return new InternalMin(name, Double.POSITIVE_INFINITY, getMetaData());
         }
         assert owningBucketOrdinal < mins.size();
-        return new InternalMin(name, mins.get(owningBucketOrdinal));
+        return new InternalMin(name, mins.get(owningBucketOrdinal), getMetaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMin(name, Double.POSITIVE_INFINITY);
+        return new InternalMin(name, Double.POSITIVE_INFINITY, getMetaData());
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
+    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, Map<String,Object>> {
 
         public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig) {
             super(name, InternalMin.TYPE.name(), valuesSourceConfig);
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-            return new MinAggregator(name, 0, null, aggregationContext, parent);
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+            return new MinAggregator(name, 0, null, aggregationContext, parent, metaData);
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
-            return new MinAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent);
+        protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+            return new MinAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent, metaData);
         }
     }
 

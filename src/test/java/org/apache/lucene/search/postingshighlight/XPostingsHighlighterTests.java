@@ -56,7 +56,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", "", offsetsType);
         final String firstValue = "This is a test. Just a test highlighting from postings highlighter.";
         Document doc = new Document();
@@ -153,7 +153,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", "", offsetsType);
         final String firstValue = "This is a test. Just a test highlighting from postings highlighter.";
         Document doc = new Document();
@@ -259,7 +259,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", "", offsetsType);
         final String firstValue = "This is a highlighting test. Just a test highlighting from postings highlighter.";
         Document doc = new Document();
@@ -332,7 +332,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", "", offsetsType);
         final String firstValue = "This is the first sentence. This is the second sentence.";
         Document doc = new Document();
@@ -429,7 +429,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", "", offsetsType);
         Document doc = new Document();
         doc.add(body);
@@ -495,7 +495,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", "", offsetsType);
         Field none = new Field("none", "", offsetsType);
         Document doc = new Document();
@@ -552,7 +552,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", "", offsetsType);
         Document doc = new Document();
         doc.add(body);
@@ -610,7 +610,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", "", offsetsType);
         Document doc = new Document();
         doc.add(body);
@@ -680,7 +680,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         final FieldType fieldType = new FieldType(TextField.TYPE_STORED);
-        fieldType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         final Field body = new Field("body", bodyText, fieldType);
 
         Document doc = new Document();
@@ -715,7 +715,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", "", offsetsType);
         Document doc = new Document();
         doc.add(body);
@@ -749,7 +749,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", "", offsetsType);
         Document doc = new Document();
         doc.add(body);
@@ -786,7 +786,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Document doc = new Document();
 
         for(int i = 0; i < 3 ; i++) {
@@ -822,7 +822,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", "", offsetsType);
         Field title = new Field("title", "", offsetsType);
         Document doc = new Document();
@@ -864,7 +864,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", "", offsetsType);
         Document doc = new Document();
         doc.add(body);
@@ -902,7 +902,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", "", offsetsType);
         Document doc = new Document();
         doc.add(body);
@@ -937,7 +937,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType positionsType = new FieldType(TextField.TYPE_STORED);
-        positionsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+        positionsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
         Field body = new Field("body", "", positionsType);
         Field title = new StringField("title", "", Field.Store.YES);
         Document doc = new Document();
@@ -992,7 +992,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, analyzer);
 
         FieldType positionsType = new FieldType(TextField.TYPE_STORED);
-        positionsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        positionsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", text, positionsType);
         Document document = new Document();
         document.add(body);
@@ -1023,7 +1023,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         Analyzer analyzer = new MockAnalyzer(random(), MockTokenizer.SIMPLE, true);
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, analyzer);
         FieldType positionsType = new FieldType(TextField.TYPE_STORED);
-        positionsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        positionsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", text, positionsType);
         Document document = new Document();
         document.add(body);
@@ -1054,7 +1054,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         Analyzer analyzer = new MockAnalyzer(random(), MockTokenizer.SIMPLE, true);
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, analyzer);
         FieldType positionsType = new FieldType(TextField.TYPE_STORED);
-        positionsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        positionsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", text, positionsType);
         Document document = new Document();
         document.add(body);
@@ -1085,7 +1085,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", "", offsetsType);
         Document doc = new Document();
         doc.add(body);
@@ -1115,7 +1115,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         Analyzer analyzer = new MockAnalyzer(random(), MockTokenizer.SIMPLE, true);
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, analyzer);
         FieldType positionsType = new FieldType(TextField.TYPE_STORED);
-        positionsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        positionsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", "This sentence has both terms.  This sentence has only terms.", positionsType);
         Document document = new Document();
         document.add(body);
@@ -1146,7 +1146,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", "", offsetsType);
         Document doc = new Document();
         doc.add(body);
@@ -1183,7 +1183,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", "", offsetsType);
         Document doc = new Document();
         doc.add(body);
@@ -1224,7 +1224,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         Document doc = new Document();
 
         FieldType offsetsType = new FieldType(TextField.TYPE_NOT_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         final String text = "This is a test.  Just highlighting from postings. This is also a much sillier test.  Feel free to test test test test test test test.";
         Field body = new Field("body", text, offsetsType);
         doc.add(body);
@@ -1272,7 +1272,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Document doc = new Document();
 
         Field body = new Field("body", "test this is.  another sentence this test has.  far away is that planet.", offsetsType);
@@ -1304,7 +1304,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Document doc = new Document();
 
         Field body = new Field("body", "test this is.  another sentence this test has.  far away is that planet.", offsetsType);
@@ -1341,7 +1341,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Document doc = new Document();
 
         Field body = new Field("body", "test this is.  another sentence this test has.  far away is that planet.", offsetsType);
@@ -1378,7 +1378,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Document doc = new Document();
 
         Field body = new Field("body", "test this is.  another sentence this test has.  far away is that planet.", offsetsType);
@@ -1408,7 +1408,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
 
         Document doc = new Document();
         doc.add(new Field("body", "   ", offsetsType));
@@ -1445,7 +1445,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
 
         Document doc = new Document();
         doc.add(new Field("body", "", offsetsType));
@@ -1482,7 +1482,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
 
         int numDocs = scaledRandomIntBetween(100, 1000);
         for(int i=0;i<numDocs;i++) {
@@ -1533,7 +1533,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", "", offsetsType);
         Field title = new Field("title", "", offsetsType);
         Document doc = new Document();
@@ -1568,7 +1568,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", "", offsetsType);
         Document doc = new Document();
         doc.add(body);
@@ -1606,7 +1606,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Document doc = new Document();
 
         Field body1 = new Field("body", "", offsetsType);
@@ -1649,7 +1649,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", "", offsetsType);
         Document doc = new Document();
         doc.add(body);

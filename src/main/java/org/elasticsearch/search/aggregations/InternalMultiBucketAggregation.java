@@ -23,14 +23,15 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.util.List;
+import java.util.Map;
 
 public abstract class InternalMultiBucketAggregation extends InternalAggregation implements MultiBucketsAggregation {
 
     public InternalMultiBucketAggregation() {
     }
 
-    public InternalMultiBucketAggregation(String name) {
-        super(name);
+    public InternalMultiBucketAggregation(String name, Map<String, Object> metaData) {
+        super(name, metaData);
     }
 
     @Override
@@ -49,9 +50,23 @@ public abstract class InternalMultiBucketAggregation extends InternalAggregation
 
     public static abstract class InternalBucket implements Bucket {
         public Object getProperty(String containingAggName, List<String> path) {
+            if (path.isEmpty()) {
+                return this;
+            }
             Aggregations aggregations = getAggregations();
             String aggName = path.get(0);
-            Aggregation aggregation = aggregations.get(aggName);
+            if (aggName.equals("_count")) {
+                if (path.size() > 1) {
+                    throw new ElasticsearchIllegalArgumentException("_count must be the last element in the path");
+                }
+                return getDocCount();
+            } else if (aggName.equals("_key")) {
+                if (path.size() > 1) {
+                    throw new ElasticsearchIllegalArgumentException("_key must be the last element in the path");
+                }
+                return getKey();
+            }
+            InternalAggregation aggregation = aggregations.get(aggName);
             if (aggregation == null) {
                 throw new ElasticsearchIllegalArgumentException("Cannot find an aggregation named [" + aggName + "] in [" + containingAggName + "]");
             }

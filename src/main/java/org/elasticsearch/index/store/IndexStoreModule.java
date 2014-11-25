@@ -31,7 +31,6 @@ import org.elasticsearch.index.store.fs.DefaultFsIndexStoreModule;
 import org.elasticsearch.index.store.fs.MmapFsIndexStoreModule;
 import org.elasticsearch.index.store.fs.NioFsIndexStoreModule;
 import org.elasticsearch.index.store.fs.SimpleFsIndexStoreModule;
-import org.elasticsearch.index.store.ram.RamIndexStoreModule;
 
 /**
  *
@@ -57,26 +56,8 @@ public class IndexStoreModule extends AbstractModule implements SpawnModules {
                 return super.match(setting) || "simple_fs".equalsIgnoreCase(setting);
             }
         },
-        RAM {
-            public  boolean fsStore() {
-                return false;
-            }
-        },
-        MEMORY {
-            public  boolean fsStore() {
-                return false;
-            }
-        },
         FS,
         DEFAULT,;
-
-        /**
-         * Returns true iff this store type is a filesystem based store.
-         */
-        public  boolean fsStore() {
-            return true;
-        }
-
         /**
          * Returns true iff this settings matches the type.
          */
@@ -104,11 +85,7 @@ public class IndexStoreModule extends AbstractModule implements SpawnModules {
             indexStoreModule = SimpleFsIndexStoreModule.class;
         }
         String storeType = settings.get("index.store.type");
-        if (Type.RAM.name().equalsIgnoreCase(storeType)) {
-            indexStoreModule = RamIndexStoreModule.class;
-        } else if (Type.MEMORY.match(storeType)) {
-            indexStoreModule = RamIndexStoreModule.class;
-        } else if (Type.FS.match(storeType)) {
+        if (Type.FS.match(storeType)) {
             // nothing to set here ... (we default to fs)
         } else if (Type.SIMPLEFS.match(storeType)) {
             indexStoreModule = SimpleFsIndexStoreModule.class;

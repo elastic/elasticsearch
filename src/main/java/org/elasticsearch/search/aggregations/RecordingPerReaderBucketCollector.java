@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.ElasticsearchException;
@@ -41,12 +41,12 @@ public class RecordingPerReaderBucketCollector extends RecordingBucketCollector 
     private boolean recordingComplete;
     
     static class PerSegmentCollects {
-        AtomicReaderContext readerContext;
+        LeafReaderContext readerContext;
         PackedLongValues.Builder docs;
         PackedLongValues.Builder buckets;
         int lastDocId = 0;
 
-        PerSegmentCollects(AtomicReaderContext readerContext) {
+        PerSegmentCollects(LeafReaderContext readerContext) {
             this.readerContext = readerContext;
         }
 
@@ -111,7 +111,7 @@ public class RecordingPerReaderBucketCollector extends RecordingBucketCollector 
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         if(recordingComplete){
             // The way registration works for listening on reader changes we have the potential to be called > once
             // TODO fixup the aggs framework so setNextReader calls are delegated to child aggs and not reliant on 

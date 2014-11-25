@@ -1186,7 +1186,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
 
         // No nested mapping yet, there shouldn't be anything in the fixed bit set cache
         ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
+        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0l));
 
         // Now add nested mapping
         assertAcked(
@@ -1207,7 +1207,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
 
         if (loadFixedBitSeLazily) {
             clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-            assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
+            assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0l));
 
             // only when querying with nested the fixed bitsets are loaded
             SearchResponse searchResponse = client().prepareSearch("test")
@@ -1217,11 +1217,11 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
             assertThat(searchResponse.getHits().totalHits(), equalTo(5l));
         }
         clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), greaterThan(0l));
+        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), greaterThan(0l));
 
         assertAcked(client().admin().indices().prepareDelete("test"));
         clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
+        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0l));
     }
 
     /**

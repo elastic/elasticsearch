@@ -95,6 +95,21 @@ curl -XGET localhost:9200/_template/
 
 
 [float]
+[[indices-templates-exists]]
+=== Templates exists
+
+Used to check if the template exists or not. For example:
+
+[source,js]
+-----------------------------------------------
+curl -XHEAD localhost:9200/_template/template_1
+-----------------------------------------------
+
+The HTTP status code indicates if the template with the given name
+exists or not. A status code `200` means it exists, a `404` it does not.
+
+
+[float]
 [[multiple-templates]]
 === Multiple Template Matching
 

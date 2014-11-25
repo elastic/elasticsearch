@@ -21,6 +21,7 @@ package org.elasticsearch.env;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -40,7 +41,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.hamcrest.CoreMatchers.equalTo;
+
 public class NodeEnvironmentTests extends ElasticsearchTestCase {
+
+    private final Settings idxSettings = ImmutableSettings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).build();
 
     @Test
     public void testNodeLockSingleEnvironment() throws IOException {
@@ -154,7 +160,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
         }
 
         try {
-            env.deleteShardDirectorySafe(new ShardId("foo", 1));
+            env.deleteShardDirectorySafe(new ShardId("foo", 1), idxSettings);
             fail("shard is locked");
         } catch (LockObtainFailedException ex) {
             // expected
@@ -166,7 +172,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
 
         }
 
-        env.deleteShardDirectorySafe(new ShardId("foo", 2));
+        env.deleteShardDirectorySafe(new ShardId("foo", 2), idxSettings);
 
         for (Path path : env.indexPaths(new Index("foo"))) {
             assertTrue(Files.exists(path.resolve("1")));
@@ -174,7 +180,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
         }
 
         try {
-            env.deleteIndexDirectorySafe(new Index("foo"), randomIntBetween(0, 10));
+            env.deleteIndexDirectorySafe(new Index("foo"), randomIntBetween(0, 10), idxSettings);
             fail("shard is locked");
         } catch (LockObtainFailedException ex) {
             // expected
@@ -204,7 +210,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
             t.start();
         }
 
-        env.deleteIndexDirectorySafe(new Index("foo"), 5000);
+        env.deleteIndexDirectorySafe(new Index("foo"), 5000, idxSettings);
 
         assertNull(threadException.get());
 
@@ -305,5 +311,85 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
             assertEquals(counts[i].value, countsAtomic[i].get());
         }
         env.close();
+    }
+
+    @Test
+    public void testCustomDataPaths() throws Exception {
+        String[] dataPaths = tmpPaths();
+        NodeEnvironment env = newNodeEnvironment(dataPaths, ImmutableSettings.EMPTY);
+
+        Settings s1 = ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).build();
+        Settings s2 = ImmutableSettings.builder().put(IndexMetaData.SETTING_DATA_PATH, "/tmp/foo").build();
+        ShardId sid = new ShardId("myindex", 0);
+        Index i = new Index("myindex");
+
+        assertFalse("no settings should mean no custom data path", NodeEnvironment.hasCustomDataPath(s1));
+        assertTrue("settings with path_data should have a custom data path", NodeEnvironment.hasCustomDataPath(s2));
+
+        assertThat(env.shardDataPaths(sid, s1), equalTo(env.shardPaths(sid)));
+        assertThat(env.shardDataPaths(sid, s2), equalTo(new Path[] {Paths.get("/tmp/foo/0/myindex/0")}));
+
+        assertThat("shard paths with a custom data_path should contain only regular paths",
+                env.shardPaths(sid),
+                equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/myindex/0")));
+
+        assertThat("index paths uses the regular template",
+                env.indexPaths(i), equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/myindex")));
+
+        env.close();
+        NodeEnvironment env2 = newNodeEnvironment(dataPaths,
+                ImmutableSettings.builder().put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH, false).build());
+
+        assertThat(env2.shardDataPaths(sid, s1), equalTo(env2.shardPaths(sid)));
+        assertThat(env2.shardDataPaths(sid, s2), equalTo(new Path[] {Paths.get("/tmp/foo/myindex/0")}));
+
+        assertThat("shard paths with a custom data_path should contain only regular paths",
+                env2.shardPaths(sid),
+                equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/myindex/0")));
+
+        assertThat("index paths uses the regular template",
+                env2.indexPaths(i), equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/myindex")));
+
+        env2.close();
+    }
+
+    /** Converts an array of Strings to an array of Paths, adding an additional child if specified */
+    private Path[] stringsToPaths(String[] strings, String additional) {
+        Path[] locations = new Path[strings.length];
+        for (int i = 0; i < strings.length; i++) {
+            locations[i] = Paths.get(strings[i], additional);
+        }
+        return locations;
+    }
+
+    public String[] tmpPaths() {
+        final int numPaths = randomIntBetween(1, 3);
+        final String[] absPaths = new String[numPaths];
+        for (int i = 0; i < numPaths; i++) {
+            absPaths[i] = newTempDirPath().toAbsolutePath().toString();
+        }
+        return absPaths;
+    }
+
+    public NodeEnvironment newNodeEnvironment() throws IOException {
+        return newNodeEnvironment(ImmutableSettings.EMPTY);
+    }
+
+    public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
+        Settings build = ImmutableSettings.builder()
+                .put(settings)
+                .put("path.home", newTempDirPath().toAbsolutePath().toString())
+                .put(NodeEnvironment.SETTING_CUSTOM_DATA_PATH_ENABLED, true)
+                .putArray("path.data", tmpPaths()).build();
+        return new NodeEnvironment(build, new Environment(build));
+    }
+
+    public NodeEnvironment newNodeEnvironment(String[] dataPaths, Settings settings) throws IOException {
+        Settings build = ImmutableSettings.builder()
+                .put(settings)
+                .put("path.home", newTempDirPath().toAbsolutePath().toString())
+                .put(NodeEnvironment.SETTING_CUSTOM_DATA_PATH_ENABLED, true)
+                .putArray("path.data", dataPaths).build();
+        return new NodeEnvironment(build, new Environment(build));
     }
 }

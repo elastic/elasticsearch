@@ -20,16 +20,15 @@
 package org.elasticsearch.indices.store;
 
 import org.apache.lucene.store.StoreRateLimiting;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -40,9 +39,9 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -171,7 +170,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                         }
                     } else {
                         if (!indexService.hasShard(shardId.id())) {
-                            if (indexService.store().canDeleteUnallocated(shardId)) {
+                            if (indexService.store().canDeleteUnallocated(shardId, indexService.settingsService().getSettings())) {
                                 deleteShardIfExistElseWhere(event.state(), indexShardRoutingTable);
                             }
                         }
@@ -229,6 +228,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         return true;
     }
 
+    // TODO will have to ammend this for shadow replicas so we don't delete the shared copy...
     private void deleteShardIfExistElseWhere(ClusterState state, IndexShardRoutingTable indexShardRoutingTable) {
         List<Tuple<DiscoveryNode, ShardActiveRequest>> requests = new ArrayList<>(indexShardRoutingTable.size());
         String indexUUID = state.getMetaData().index(indexShardRoutingTable.shardId().getIndex()).getUUID();
@@ -320,6 +320,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                     }
 
                     IndexService indexService = indicesService.indexService(shardId.getIndex());
+                    IndexMetaData indexMeta = clusterState.getMetaData().indices().get(shardId.getIndex());
                     if (indexService == null) {
                         // not physical allocation of the index, delete it from the file system if applicable
                         if (nodeEnv.hasNodeFile()) {
@@ -327,7 +328,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                             if (FileSystemUtils.exists(shardLocations)) {
                                 logger.debug("{} deleting shard that is no longer used", shardId);
                                 try {
-                                    nodeEnv.deleteShardDirectorySafe(shardId);
+                                    nodeEnv.deleteShardDirectorySafe(shardId, indexMeta.settings());
                                 } catch (Exception ex) {
                                     logger.debug("failed to delete shard locations", ex);
                                 }
@@ -335,10 +336,10 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                         }
                     } else {
                         if (!indexService.hasShard(shardId.id())) {
-                            if (indexService.store().canDeleteUnallocated(shardId)) {
+                            if (indexService.store().canDeleteUnallocated(shardId, indexMeta.settings())) {
                                 logger.debug("{} deleting shard that is no longer used", shardId);
                                 try {
-                                    indexService.store().deleteUnallocated(shardId);
+                                    indexService.store().deleteUnallocated(shardId, indexMeta.settings());
                                 } catch (Exception e) {
                                     logger.debug("{} failed to delete unallocated shard, ignoring", e, shardId);
                                 }

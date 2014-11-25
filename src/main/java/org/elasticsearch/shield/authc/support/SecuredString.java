@@ -13,7 +13,7 @@ import java.util.Arrays;
 /**
  * This is not a string but a CharSequence that can be cleared of its memory.  Important for handling passwords.
  *
- * @NotThreadSafe There is a chance that the chars could be cleared while doing operations on the chars.
+ * Not thread safe There is a chance that the chars could be cleared while doing operations on the chars.
  * <p/>
  * TODO: dot net's SecureString implementation does some obfuscation of the password to prevent gleaming passwords
  * from memory dumps.  (this is hard as dot net uses windows system crypto.  Thats probably the reason java still doesn't have it)
@@ -25,8 +25,6 @@ public class SecuredString implements CharSequence {
     /**
      * Note: the passed in chars are not duplicated, but used directly for performance/optimization.  DO NOT
      * modify or clear the chars after it has been passed into this constructor.
-     *
-     * @param chars
      */
     public SecuredString(char[] chars) {
         this.chars = new char[chars.length];
@@ -125,15 +123,6 @@ public class SecuredString implements CharSequence {
     public void finalize() throws Throwable {
         clear();
         super.finalize();
-    }
-
-    public int indexOf(char toFind) {
-        for (int i = 0; i < chars.length; i++) {
-            if (chars[i] == toFind) {
-                return i;
-            }
-        }
-        return -1;
     }
 
     /**

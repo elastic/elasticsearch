@@ -33,14 +33,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class ClusterDiscoveryConfiguration extends SettingsSource {
 
-    public static Settings DEFAULT_SETTINGS = ImmutableSettings.settingsBuilder()
-            .put("gateway.type", "local")
-            .put("discovery.type", "zen")
-            .build();
+    static Settings DEFAULT_NODE_SETTINGS = ImmutableSettings.settingsBuilder().put("discovery.type", "zen").build();
 
     final int numOfNodes;
-
-    final Settings baseSettings;
+    final Settings nodeSettings;
+    final Settings transportClientSettings;
 
     public ClusterDiscoveryConfiguration(int numOfNodes) {
         this(numOfNodes, ImmutableSettings.EMPTY);
@@ -48,17 +45,18 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
 
     public ClusterDiscoveryConfiguration(int numOfNodes, Settings extraSettings) {
         this.numOfNodes = numOfNodes;
-        this.baseSettings = ImmutableSettings.builder().put(DEFAULT_SETTINGS).put(extraSettings).build();
+        this.nodeSettings = ImmutableSettings.builder().put(DEFAULT_NODE_SETTINGS).put(extraSettings).build();
+        this.transportClientSettings = ImmutableSettings.builder().put(extraSettings).build();
     }
 
     @Override
     public Settings node(int nodeOrdinal) {
-        return baseSettings;
+        return nodeSettings;
     }
 
     @Override
     public Settings transportClient() {
-        return baseSettings;
+        return transportClientSettings;
     }
 
     public static class UnicastZen extends ClusterDiscoveryConfiguration {
@@ -120,7 +118,7 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
                     .put("discovery.zen.ping.multicast.enabled", false);
 
             String[] unicastHosts = new String[unicastHostOrdinals.length];
-            String mode = baseSettings.get("node.mode", InternalTestCluster.NODE_MODE);
+            String mode = nodeSettings.get("node.mode", InternalTestCluster.NODE_MODE);
             if (mode.equals("local")) {
                 builder.put(LocalTransport.TRANSPORT_LOCAL_ADDRESS, "node_" + nodeOrdinal);
                 for (int i = 0; i < unicastHosts.length; i++) {

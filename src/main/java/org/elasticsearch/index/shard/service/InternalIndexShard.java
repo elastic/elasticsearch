@@ -162,7 +162,6 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private volatile IndexShardState state;
 
     private TimeValue refreshInterval;
-    private final TimeValue mergeInterval;
 
     private volatile ScheduledFuture refreshScheduledFuture;
     private volatile ScheduledFuture mergeScheduleFuture;
@@ -211,7 +210,6 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         state = IndexShardState.CREATED;
 
         this.refreshInterval = indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, engine.defaultRefreshInterval());
-        this.mergeInterval = indexSettings.getAsTime("index.merge.async_interval", TimeValue.timeValueSeconds(1));
 
         indexSettingsService.addListener(applyRefreshSettings);
 
@@ -916,15 +914,6 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         } else {
             logger.debug("scheduled refresher disabled");
         }
-        // since we can do async merging, it will not be called explicitly when indexing (adding / deleting docs), and only when flushing
-        // so, make sure we periodically call it, this need to be a small enough value so mergine will actually
-        // happen and reduce the number of segments
-        if (mergeInterval.millis() > 0) {
-            mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.SAME, new EngineMerger());
-            logger.debug("scheduling optimizer / merger every {}", mergeInterval);
-        } else {
-            logger.debug("scheduled optimizer / merger disabled");
-        }
     }
 
     private Query filterQueryIfNeeded(Query query, String[] types) {
@@ -1010,53 +999,6 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, this);
                 }
             }
-        }
-    }
-
-    class EngineMerger implements Runnable {
-        @Override
-        public void run() {
-            if (!engine().possibleMergeNeeded()) {
-                synchronized (mutex) {
-                    if (state != IndexShardState.CLOSED) {
-                        mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.SAME, this);
-                    }
-                }
-                return;
-            }
-            threadPool.executor(ThreadPool.Names.MERGE).execute(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        engine.maybeMerge();
-                    } catch (EngineClosedException e) {
-                        // we are being closed, ignore
-                    } catch (OptimizeFailedEngineException e) {
-                        if (e.getCause() instanceof EngineClosedException) {
-                            // ignore, we are being shutdown
-                        } else if (e.getCause() instanceof InterruptedException) {
-                            // ignore, we are being shutdown
-                        } else if (e.getCause() instanceof ClosedByInterruptException) {
-                            // ignore, we are being shutdown
-                        } else if (e.getCause() instanceof ThreadInterruptedException) {
-                            // ignore, we are being shutdown
-                        } else {
-                            if (state != IndexShardState.CLOSED) {
-                                logger.warn("Failed to perform scheduled engine optimize/merge", e);
-                            }
-                        }
-                    } catch (Exception e) {
-                        if (state != IndexShardState.CLOSED) {
-                            logger.warn("Failed to perform scheduled engine optimize/merge", e);
-                        }
-                    }
-                    synchronized (mutex) {
-                        if (state != IndexShardState.CLOSED) {
-                            mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.SAME, EngineMerger.this);
-                        }
-                    }
-                }
-            });
         }
     }
 

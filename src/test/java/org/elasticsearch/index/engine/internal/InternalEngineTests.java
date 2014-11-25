@@ -1260,7 +1260,6 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
         @Override
         protected void append(LoggingEvent event) {
-            System.out.println("append: " + event.getMessage());
             if (event.getLevel() == Level.TRACE && event.getMessage().toString().contains("[index][1] ")) {
                 if (event.getLoggerName().endsWith("lucene.iw") &&
                     event.getMessage().toString().contains("IW: apply all deletes during flush")) {
@@ -1323,7 +1322,6 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         iwIFDLogger.setLevel(Level.DEBUG);
 
         try {
-            System.out.println("\nTEST: first with debug");
             // First, with DEBUG, which should NOT log IndexWriter output:
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
             engine.create(new Engine.Create(null, newUid("1"), doc));
@@ -1331,7 +1329,6 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             assertFalse(mockAppender.sawIndexWriterMessage);
             assertFalse(mockAppender.sawIndexWriterIFDMessage);
 
-            System.out.println("\nTEST: now with trace");
             // Again, with TRACE, which should only log IndexWriter IFD output:
             iwIFDLogger.setLevel(Level.TRACE);
             engine.create(new Engine.Create(null, newUid("2"), doc));

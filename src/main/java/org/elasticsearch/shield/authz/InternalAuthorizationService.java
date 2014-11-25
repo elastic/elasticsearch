@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authz;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.ClusterService;
@@ -38,12 +37,8 @@ public class InternalAuthorizationService extends AbstractComponent implements A
     private final AuditTrail auditTrail;
     private final IndicesResolver[] indicesResolvers;
 
-    static {
-        //see https://github.com/elasticsearch/elasticsearch/pull/8415
-        assert Version.CURRENT.onOrBefore(Version.V_1_4_0) : "replace the Provider<ClusterService> with ClusterService";
-    }
-
     @Inject
+    //TODO replace Provider<ClusterService> with ClusterService once 1.4.1 is out, see https://github.com/elasticsearch/elasticsearch/pull/8415
     public InternalAuthorizationService(Settings settings, RolesStore rolesStore, Provider<ClusterService> clusterServiceProvider, AuditTrail auditTrail) {
         super(settings);
         this.rolesStore = rolesStore;

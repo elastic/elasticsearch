@@ -17,31 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.common.lucene.search.function;
+package org.elasticsearch.search.functionscore;
 
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Explanation;
+import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.script.ScriptModule;
 
-import java.io.IOException;
+public class ExplainableScriptPlugin extends AbstractPlugin {
 
-/**
- *
- */
-public abstract class ScoreFunction {
-
-    private final CombineFunction scoreCombiner;
-
-    public abstract void setNextReader(LeafReaderContext context);
-
-    public abstract double score(int docId, float subQueryScore);
-
-    public abstract Explanation explainScore(int docId, float subQueryScore) throws IOException;
-
-    public CombineFunction getDefaultScoreCombiner() {
-        return scoreCombiner;
+    public ExplainableScriptPlugin() {}
+    @Override
+    public String name() {
+        return "native-explainable-script";
     }
 
-    protected ScoreFunction(CombineFunction scoreCombiner) {
-        this.scoreCombiner = scoreCombiner;
+    @Override
+    public String description() {
+        return "Native explainable script";
+    }
+
+    public void onModule(ScriptModule module) {
+        module.registerScript("native_explainable_script", ExplainableScriptTests.MyNativeScriptFactory.class);
     }
 }

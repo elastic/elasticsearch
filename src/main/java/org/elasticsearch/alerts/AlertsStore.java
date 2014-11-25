@@ -7,7 +7,9 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -21,7 +23,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
@@ -85,6 +86,7 @@ public class AlertsStore extends AbstractComponent {
      * Returns the alert with the specified name otherwise <code>null</code> is returned.
      */
     public Alert getAlert(String name) {
+        ensureStarted();
         return alertMap.get(name);
     }
 
@@ -92,29 +94,27 @@ public class AlertsStore extends AbstractComponent {
      * Creates an alert with the specified name and source. If an alert with the specified name already exists it will
      * get overwritten.
      */
-    public Tuple<Alert, IndexResponse> addAlert(String name, BytesReference alertSource) {
-        Alert alert = parseAlert(name, alertSource);
-        IndexResponse response = persistAlert(name, alertSource, IndexRequest.OpType.CREATE);
+    public AlertStoreModification putAlert(String alertName, BytesReference alertSource) {
+        ensureStarted();
+        Alert alert = parseAlert(alertName, alertSource);
+        IndexRequest indexRequest = createIndexRequest(alertName, alertSource);
+        IndexResponse response = client.index(indexRequest).actionGet();
         alert.version(response.getVersion());
-        alertMap.put(name, alert);
-        return new Tuple<>(alert, response);
+        Alert previous = alertMap.put(alertName, alert);
+        return new AlertStoreModification(previous, alert, response);
     }
 
     /**
      * Updates the specified alert by making sure that the made changes are persisted.
      */
-    public IndexResponse updateAlert(Alert alert) throws IOException {
-        IndexResponse response = client.prepareIndex(ALERT_INDEX, ALERT_TYPE, alert.alertName())
-                .setSource(jsonBuilder().value(alert)) // TODO: the content type should be based on the provided content type when the alert was initially added.
-                .setVersion(alert.version())
-                .setOpType(IndexRequest.OpType.INDEX)
-                .get();
+    public void updateAlert(Alert alert) throws IOException {
+        ensureStarted();
+        // TODO: the content type should be based on the provided content type when the alert was initially added.
+        BytesReference source = jsonBuilder().value(alert).bytes();
+        IndexResponse response = client.index(createIndexRequest(alert.alertName(), source)).actionGet();
         alert.version(response.getVersion());
-
-        // Don'<></> need to update the alertMap, since we are working on an instance from it.
+        // Don't need to update the alertMap, since we are working on an instance from it.
         assert verifySameInstance(alert);
-
-        return response;
     }
 
     private boolean verifySameInstance(Alert alert) {
@@ -127,14 +127,15 @@ public class AlertsStore extends AbstractComponent {
      * Deletes the alert with the specified name if exists
      */
     public DeleteResponse deleteAlert(String name) {
+        ensureStarted();
         Alert alert = alertMap.remove(name);
         if (alert == null) {
             return new DeleteResponse(ALERT_INDEX, ALERT_TYPE, name, Versions.MATCH_ANY, false);
         }
 
-        DeleteResponse deleteResponse = client.prepareDelete(ALERT_INDEX, ALERT_TYPE, name)
-                .setVersion(alert.version())
-                .get();
+        DeleteRequest deleteRequest = new DeleteRequest(ALERT_INDEX, ALERT_TYPE, name);
+        deleteRequest.version(alert.version());
+        DeleteResponse deleteResponse = client.delete(deleteRequest).actionGet();
         assert deleteResponse.isFound();
         return deleteResponse;
     }
@@ -191,12 +192,11 @@ public class AlertsStore extends AbstractComponent {
         }
     }
 
-    private IndexResponse persistAlert(String alertName, BytesReference alertSource, IndexRequest.OpType opType) {
+    private IndexRequest createIndexRequest(String alertName, BytesReference alertSource) {
         IndexRequest indexRequest = new IndexRequest(ALERT_INDEX, ALERT_TYPE, alertName);
         indexRequest.listenerThreaded(false);
         indexRequest.source(alertSource, false);
-        indexRequest.opType(opType);
-        return client.index(indexRequest).actionGet();
+        return indexRequest;
     }
 
     private void loadAlerts() {
@@ -291,6 +291,37 @@ public class AlertsStore extends AbstractComponent {
         }
 
         return alert;
+    }
+
+    private void ensureStarted() {
+        if (!started.get()) {
+            throw new ElasticsearchIllegalStateException("Alert store not started");
+        }
+    }
+
+    public final class AlertStoreModification {
+
+        private final Alert previous;
+        private final Alert current;
+        private final IndexResponse indexResponse;
+
+        public AlertStoreModification(Alert previous, Alert current, IndexResponse indexResponse) {
+            this.current = current;
+            this.previous = previous;
+            this.indexResponse = indexResponse;
+        }
+
+        public Alert getCurrent() {
+            return current;
+        }
+
+        public Alert getPrevious() {
+            return previous;
+        }
+
+        public IndexResponse getIndexResponse() {
+            return indexResponse;
+        }
     }
 
 }

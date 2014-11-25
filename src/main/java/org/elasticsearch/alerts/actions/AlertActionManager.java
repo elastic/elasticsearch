@@ -335,8 +335,8 @@ public class AlertActionManager extends AbstractComponent {
                     try {
                         entry.setErrorMsg(e.getMessage());
                         updateHistoryEntry(entry, AlertActionState.ERROR);
-                    } catch (IOException ioe) {
-                        logger.error("Failed store error message to update action history entry", ioe);
+                    } catch (Exception e2) {
+                        logger.error("Failed to update action history entry with the error message", e2);
                     }
                 } else {
                     logger.debug("Failed to execute alert action after shutdown", e);

@@ -23,6 +23,7 @@ import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -133,6 +134,29 @@ public class BasicAlertingTest extends AbstractAlertingTests {
                 .get();
         assertThat(indexResponse.indexResponse().isCreated(), is(true));
         assertAlertTriggered("my-first-alert", 1);
+    }
+
+    @Test
+    public void testModifyAlerts() throws Exception {
+        SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(matchAllQuery()));
+        alertClient().preparePutAlert("1")
+                .setAlertSource(createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1"))
+                .get();
+        assertAlertTriggered("1", 0, false);
+
+        alertClient().preparePutAlert("1")
+                .setAlertSource(createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 0"))
+                .get();
+        assertAlertTriggered("1", 1, false);
+
+        alertClient().preparePutAlert("1")
+                .setAlertSource(createAlertSource("0/5 * * * * ? 2020", searchRequest, "hits.total == 0"))
+                .get();
+
+        Thread.sleep(5000);
+        long triggered =  findNumberOfPerformedActions("1");
+        Thread.sleep(5000);
+        assertThat(triggered, equalTo(findNumberOfPerformedActions("1")));
     }
 
     private final SearchSourceBuilder searchSourceBuilder = searchSource().query(

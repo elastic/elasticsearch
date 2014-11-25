@@ -19,8 +19,10 @@ import org.quartz.*;
 import org.quartz.impl.StdSchedulerFactory;
 import org.quartz.simpl.SimpleJobFactory;
 
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 
 public class AlertScheduler extends AbstractComponent {
 
@@ -59,7 +61,7 @@ public class AlertScheduler extends AbstractComponent {
             scheduler = schFactory.getScheduler();
             scheduler.setJobFactory(new SimpleJobFactory());
             for (Map.Entry<String, Alert> entry : alerts.entrySet()) {
-                add(entry.getKey(), entry.getValue());
+                schedule(entry.getKey(), entry.getValue().schedule());
             }
             scheduler.start();
         } catch (SchedulerException se){
@@ -111,17 +113,23 @@ public class AlertScheduler extends AbstractComponent {
         }
     }
 
-    public void add(String alertName, Alert alert) {
+    /**
+     * Schedules the alert with the specified name to be fired according to the specified cron expression.
+     */
+    public void schedule(String alertName, String cronExpression) {
         JobDetail job = JobBuilder.newJob(AlertExecutorJob.class).withIdentity(alertName).build();
         job.getJobDataMap().put("manager", this);
         CronTrigger cronTrigger = TriggerBuilder.newTrigger()
-                .withSchedule(CronScheduleBuilder.cronSchedule(alert.schedule()))
+                .withSchedule(CronScheduleBuilder.cronSchedule(cronExpression))
                 .build();
         try {
-            logger.trace("Scheduling [{}] with schedule [{}]", alertName, alert.schedule());
-            scheduler.scheduleJob(job, cronTrigger);
+            logger.trace("Scheduling [{}] with schedule [{}]", alertName, cronExpression);
+            Set<CronTrigger> triggers = new HashSet<>();
+            triggers.add(cronTrigger);
+            scheduler.scheduleJob(job, triggers, true);
         } catch (SchedulerException se) {
             logger.error("Failed to schedule job",se);
+            throw new ElasticsearchException("Failed to schedule job", se);
         }
     }
 

@@ -53,7 +53,7 @@ public class TransportPutAlertAction extends TransportMasterNodeOperationAction<
     @Override
     protected void masterOperation(PutAlertRequest request, ClusterState state, ActionListener<PutAlertResponse> listener) throws ElasticsearchException {
         try {
-            IndexResponse indexResponse = alertManager.addAlert(request.getAlertName(), request.getAlertSource());
+            IndexResponse indexResponse = alertManager.putAlert(request.getAlertName(), request.getAlertSource());
             listener.onResponse(new PutAlertResponse(indexResponse));
         } catch (Exception e) {
             listener.onFailure(e);

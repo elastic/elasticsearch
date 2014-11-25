@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Inject;
@@ -93,13 +92,17 @@ public class AlertManager extends AbstractComponent {
         }
     }
 
-    public IndexResponse addAlert(String alertName, BytesReference alertSource) {
+    public IndexResponse putAlert(String alertName, BytesReference alertSource) {
         ensureStarted();
         alertLock.acquire(alertName);
         try {
-            Tuple<Alert, IndexResponse> result = alertsStore.addAlert(alertName, alertSource);
-            scheduler.add(alertName, result.v1());
-            return result.v2();
+            AlertsStore.AlertStoreModification result = alertsStore.putAlert(alertName, alertSource);
+            if (result.getPrevious() == null) {
+                scheduler.schedule(alertName, result.getCurrent().schedule());
+            } else if (!result.getPrevious().schedule().equals(result.getCurrent().schedule())) {
+                scheduler.schedule(alertName, result.getCurrent().schedule());
+            }
+            return result.getIndexResponse();
         } finally {
             alertLock.release(alertName);
         }
@@ -126,7 +129,7 @@ public class AlertManager extends AbstractComponent {
             try {
                 actionManager.addAlertAction(alert, scheduledFireTime, fireTime);
             } catch (Exception e) {
-                logger.error("Failed to add alert action for [{}]", e, alert);
+                logger.error("Failed to schedule alert action for [{}]", e, alert);
             }
         } finally {
             alertLock.release(alertName);

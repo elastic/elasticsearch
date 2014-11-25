@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Tests for the Memory Aggregating Circuit Breaker
@@ -182,9 +183,6 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
                             breaker.addEstimateBytesAndMaybeBreak(1L, "test");
                         } catch (CircuitBreakingException e) {
                             tripped.incrementAndGet();
-                            if (tripped.get() > 2) {
-                                assertThat("tripped too many times: " + tripped.get(), true, equalTo(false));
-                            }
                         } catch (Throwable e2) {
                             lastException.set(e2);
                         }
@@ -210,8 +208,8 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
         assertThat("no other exceptions were thrown", lastException.get(), equalTo(null));
         assertThat("breaker should be reset back to the parent limit after parent breaker trips",
                 breaker.getUsed(), equalTo((long)parentLimit));
-        assertThat("parent breaker was tripped exactly twice", parentTripped.get(), equalTo(2));
-        assertThat("total breaker was tripped exactly twice", tripped.get(), equalTo(2));
+        assertThat("parent breaker was tripped at least twice", parentTripped.get(), greaterThanOrEqualTo(2));
+        assertThat("total breaker was tripped at least twice", tripped.get(), greaterThanOrEqualTo(2));
         assertThat("breaker total is expected value: " + parentLimit, breaker.getUsed(), equalTo((long)
                 parentLimit));
     }

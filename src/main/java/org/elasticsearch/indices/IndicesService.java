@@ -55,6 +55,7 @@ import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
@@ -135,16 +136,16 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                     try {
                         removeIndex(index, "shutdown", false, new IndexCloseListener() {
                             @Override
-                            public void onAllShardsClosed(Index index, List<Throwable> failures) {
+                            public void onAllShardsClosed(Index index, @IndexSettings Settings indexSettings, List<Throwable> failures) {
                                 latch.countDown();
                             }
 
                             @Override
-                            public void onShardClosed(ShardId shardId) {
+                            public void onShardClosed(ShardId shardId, @IndexSettings Settings indexSettings) {
                             }
 
                             @Override
-                            public void onShardCloseFailed(ShardId shardId, Throwable t) {
+                            public void onShardCloseFailed(ShardId shardId, @IndexSettings Settings indexSettings, Throwable t) {
                             }
                         });
                     } catch (Throwable e) {
@@ -360,9 +361,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         removeIndex(index, reason, true, new IndexCloseListener() {
 
             @Override
-            public void onAllShardsClosed(Index index, List<Throwable> failures) {
+            public void onAllShardsClosed(Index index, @IndexSettings Settings indexSettings, List<Throwable> failures) {
                 try {
-                    nodeEnv.deleteIndexDirectorySafe(index);
+                    nodeEnv.deleteIndexDirectorySafe(index, indexSettings);
                     logger.debug("deleted index [{}] from filesystem - failures {}", index, failures);
                 } catch (Exception e) {
                     for (Throwable t : failures) {
@@ -374,10 +375,10 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             }
 
             @Override
-            public void onShardClosed(ShardId shardId) {
+            public void onShardClosed(ShardId shardId, @IndexSettings Settings indexSettings) {
                 try {
                     // this is called under the shard lock - we can safely delete it
-                    IOUtils.rm(nodeEnv.shardPaths(shardId));
+                    IOUtils.rm(nodeEnv.shardPaths(shardId, indexSettings));
                     logger.debug("deleted shard [{}] from filesystem", shardId);
                 } catch (IOException e) {
                     logger.warn("Can't delete shard {} ", e, shardId);
@@ -385,7 +386,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             }
 
             @Override
-            public void onShardCloseFailed(ShardId shardId, Throwable t) {
+            public void onShardCloseFailed(ShardId shardId, @IndexSettings Settings indexSettings, Throwable t) {
             }
         });
     }
@@ -482,19 +483,19 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
          * @param index the index that got closed
          * @param failures the recorded shard closing failures
          */
-        public void onAllShardsClosed(Index index, List<Throwable> failures);
+        public void onAllShardsClosed(Index index, @IndexSettings Settings indexSettings, List<Throwable> failures);
 
         /**
          * Invoked once the last resource using the given shard ID is released.
          * Yet, this method is called while still holding the shards lock such that
          * operations on the shards data can safely be executed in this callback.
          */
-        public void onShardClosed(ShardId shardId);
+        public void onShardClosed(ShardId shardId, @IndexSettings Settings indexSettings);
 
         /**
          * Invoked if closing the given shard failed.
          */
-        public void onShardCloseFailed(ShardId shardId, Throwable t);
+        public void onShardCloseFailed(ShardId shardId, @IndexSettings Settings indexSettings, Throwable t);
 
     }
 }

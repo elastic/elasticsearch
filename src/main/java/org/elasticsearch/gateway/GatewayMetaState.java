@@ -47,12 +47,11 @@ import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.file.*;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -216,7 +215,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                 if (currentMetaData == null) {
                     // a new event..., check from the state stored
                     try {
-                        currentIndexMetaData = loadIndexState(indexMetaData.index());
+                        currentIndexMetaData = loadIndexState(indexMetaData.index(), indexMetaData.settings());
                     } catch (IOException ex) {
                         throw new ElasticsearchException("failed to load index state", ex);
                     }
@@ -257,8 +256,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                     if (nodeEnv.hasNodeFile()) {
                         try {
                             final Index idx = new Index(current.index());
-                            MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(idx));
-                            nodeEnv.deleteIndexDirectorySafe(idx);
+                            MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(idx, current.settings()));
+                            nodeEnv.deleteIndexDirectorySafe(idx, current.settings());
                         } catch (LockObtainFailedException ex) {
                             logger.debug("[{}] failed to delete index - at least one shards is still locked", ex, current.index());
                         } catch (Exception ex) {
@@ -296,7 +295,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                                 // already dangling, continue
                                 continue;
                             }
-                            final IndexMetaData indexMetaData = loadIndexState(indexName);
+                            final IndexMetaData indexMetaData = loadIndexState(indexName, ImmutableSettings.EMPTY);
                             final Index index = new Index(indexName);
                             if (indexMetaData != null) {
                                 try {
@@ -309,7 +308,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                                     final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index);
                                     if (shardLocks.isEmpty()) {
                                         // no shards - try to remove the directory
-                                        nodeEnv.deleteIndexDirectorySafe(index);
+                                        nodeEnv.deleteIndexDirectorySafe(index, indexMetaData.settings());
                                         continue;
                                     }
                                     IOUtils.closeWhileHandlingException(shardLocks);
@@ -323,7 +322,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                                 } else if (danglingTimeout.millis() == 0) {
                                     logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, timeout set to 0, deleting now", indexName);
                                     try {
-                                        nodeEnv.deleteIndexDirectorySafe(index);
+                                        nodeEnv.deleteIndexDirectorySafe(index, indexMetaData.settings());
                                     } catch (LockObtainFailedException ex) {
                                         logger.debug("[{}] failed to delete index - at least one shards is still locked", ex, indexName);
                                     } catch (Exception ex) {
@@ -331,7 +330,11 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                                     }
                                 } else {
                                     logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, scheduling to delete in [{}], auto import to cluster state [{}]", indexName, danglingTimeout, autoImportDangled);
-                                    danglingIndices.put(indexName, new DanglingIndex(indexName, threadPool.schedule(danglingTimeout, ThreadPool.Names.SAME, new RemoveDanglingIndex(index))));
+                                    danglingIndices.put(indexName,
+                                            new DanglingIndex(indexName,
+                                                    threadPool.schedule(danglingTimeout,
+                                                            ThreadPool.Names.SAME,
+                                                            new RemoveDanglingIndex(index, indexMetaData.settings()))));
                                 }
                             }
                         }
@@ -345,7 +348,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                 for (String indexName : danglingIndices.keySet()) {
                     IndexMetaData indexMetaData;
                     try {
-                        indexMetaData = loadIndexState(indexName);
+                        indexMetaData = loadIndexState(indexName, ImmutableSettings.EMPTY);
                     } catch (IOException ex) {
                         throw new ElasticsearchException("failed to load index state", ex);
                     }
@@ -429,7 +432,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         final boolean deleteOldFiles = previousIndexMetaData != null && previousIndexMetaData.version() != indexMetaData.version();
         final MetaDataStateFormat<IndexMetaData> writer = indexStateFormat(format, formatParams, deleteOldFiles);
         try {
-            writer.write(indexMetaData, INDEX_STATE_FILE_PREFIX, indexMetaData.version(), nodeEnv.indexPaths(new Index(indexMetaData.index())));
+            writer.write(indexMetaData, INDEX_STATE_FILE_PREFIX, indexMetaData.version(),
+                    nodeEnv.indexPaths(new Index(indexMetaData.index()), indexMetaData.settings()));
         } catch (Throwable ex) {
             logger.warn("[{}]: failed to write index state", ex, indexMetaData.index());
             throw new IOException("failed to write state for [" + indexMetaData.index() + "]", ex);
@@ -458,7 +462,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
         final Set<String> indices = nodeEnv.findAllIndices();
         for (String index : indices) {
-            IndexMetaData indexMetaData = loadIndexState(index);
+            IndexMetaData indexMetaData = loadIndexState(index, ImmutableSettings.EMPTY);
             if (indexMetaData == null) {
                 logger.debug("[{}] failed to find metadata for existing index location", index);
             } else {
@@ -469,8 +473,9 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
     }
 
     @Nullable
-    private IndexMetaData loadIndexState(String index) throws IOException {
-        return MetaDataStateFormat.loadLatestState(logger, indexStateFormat(format, formatParams, true), INDEX_STATE_FILE_PATTERN, "[" + index + "]", nodeEnv.indexPaths(new Index(index)));
+    private IndexMetaData loadIndexState(String index, @IndexSettings Settings indexSettings) throws IOException {
+        return MetaDataStateFormat.loadLatestState(logger, indexStateFormat(format, formatParams, true),
+                INDEX_STATE_FILE_PATTERN, "[" + index + "]", nodeEnv.indexPaths(new Index(index), indexSettings));
     }
 
     private MetaData loadGlobalState() throws IOException {
@@ -541,9 +546,11 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
     class RemoveDanglingIndex implements Runnable {
 
         private final Index index;
+        private final Settings indexSettings;
 
-        RemoveDanglingIndex(Index index) {
+        RemoveDanglingIndex(Index index, @IndexSettings Settings indexSettings) {
             this.index = index;
+            this.indexSettings = indexSettings;
         }
 
         @Override
@@ -557,8 +564,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                 logger.warn("[{}] deleting dangling index", index);
 
                 try {
-                    MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(index));
-                    nodeEnv.deleteIndexDirectorySafe(index);
+                    MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(index, indexSettings));
+                    nodeEnv.deleteIndexDirectorySafe(index, indexSettings);
                 } catch (Exception ex) {
                     logger.debug("failed to delete dangling index", ex);
                 }

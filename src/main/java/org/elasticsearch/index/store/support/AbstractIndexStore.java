@@ -78,9 +78,9 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
     protected final IndexService indexService;
 
     protected final IndicesStore indicesStore;
-
     private volatile String rateLimitingType;
     private volatile ByteSizeValue rateLimitingThrottle;
+
     private volatile boolean nodeRateLimiting;
 
     private final StoreRateLimiting rateLimiting = new StoreRateLimiting();
@@ -107,7 +107,7 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
         indexService.settingsService().addListener(applySettings);
         this.nodeEnv = nodeEnv;
         if (nodeEnv.hasNodeFile()) {
-            this.locations = nodeEnv.indexPaths(index);
+            this.locations = nodeEnv.indexPaths(index, indexSettings);
         } else {
             this.locations = null;
         }
@@ -125,18 +125,18 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
 
 
     @Override
-    public boolean canDeleteUnallocated(ShardId shardId) {
+    public boolean canDeleteUnallocated(ShardId shardId, @IndexSettings Settings indexSettings) {
         if (locations == null) {
             return false;
         }
         if (indexService.hasShard(shardId.id())) {
             return false;
         }
-        return FileSystemUtils.exists(nodeEnv.shardPaths(shardId));
+        return FileSystemUtils.exists(nodeEnv.shardPaths(shardId, indexSettings));
     }
 
     @Override
-    public void deleteUnallocated(ShardId shardId) throws IOException {
+    public void deleteUnallocated(ShardId shardId, @IndexSettings Settings indexSettings) throws IOException {
         if (locations == null) {
             return;
         }
@@ -144,18 +144,39 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
             throw new ElasticsearchIllegalStateException(shardId + " allocated, can't be deleted");
         }
         try {
-            nodeEnv.deleteShardDirectorySafe(shardId);
+            nodeEnv.deleteShardDirectorySafe(shardId, indexSettings);
         } catch (Exception ex) {
             logger.debug("failed to delete shard locations", ex);
         }
     }
 
+    /**
+     * Return an array of all index folder locations for a given shard. Uses
+     * the index settings to determine if a custom data path is set for the
+     * index and uses that if applicable.
+     */
     public Path[] shardIndexLocations(ShardId shardId) {
-        Path[] shardLocations = nodeEnv.shardPaths(shardId);
-        Path[] shardIndexLocations = new Path[shardLocations.length];
+        Path[] shardLocations = nodeEnv.shardDataPaths(shardId, indexSettings);
+        Path[] locations = new Path[shardLocations.length];
         for (int i = 0; i < shardLocations.length; i++) {
-            shardIndexLocations[i] = shardLocations[i].resolve("index");
+            locations[i] = shardLocations[i].resolve("index");
         }
-        return shardIndexLocations;
+        logger.debug("using [{}] as shard's index location", locations);
+        return locations;
+    }
+
+    /**
+     * Return an array of all translog folder locations for a given shard. Uses
+     * the index settings to determine if a custom data path is set for the
+     * index and uses that if applicable.
+     */
+    public Path[] shardTranslogLocations(ShardId shardId) {
+        Path[] shardLocations = nodeEnv.shardDataPaths(shardId, indexSettings);
+        Path[] locations = new Path[shardLocations.length];
+        for (int i = 0; i < shardLocations.length; i++) {
+            locations[i] = shardLocations[i].resolve("translog");
+        }
+        logger.debug("using [{}] as shard's translog location", locations);
+        return locations;
     }
 }

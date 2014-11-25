@@ -44,7 +44,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.env.ShardLock;
-import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
@@ -54,7 +53,6 @@ import org.elasticsearch.index.store.distributor.Distributor;
 import java.io.*;
 import java.nio.file.NoSuchFileException;
 import java.util.*;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.zip.Adler32;
@@ -81,7 +79,7 @@ import java.util.zip.Checksum;
  *      }
  * </pre>
  */
-public class Store extends AbstractIndexShardComponent implements CloseableIndexComponent, Closeable, RefCounted {
+public class Store extends AbstractIndexShardComponent implements Closeable, RefCounted {
 
     private static final String CODEC = "store";
     private static final int VERSION_STACK_TRACE = 1; // we write the stack trace too since 1.4.0

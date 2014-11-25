@@ -26,6 +26,8 @@ import org.junit.Test;
 
 import java.io.EOFException;
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -36,8 +38,8 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
 
     @Test
     public void testV0LegacyTranslogVersion() throws Exception {
-        File translogFile = getResource("/org/elasticsearch/index/translog/translog-v0.binary");
-        assertThat("test file should exist", translogFile.exists(), equalTo(true));
+        Path translogFile = getResourcePath("/org/elasticsearch/index/translog/translog-v0.binary");
+        assertThat("test file should exist", Files.exists(translogFile), equalTo(true));
         TranslogStream stream = TranslogStreams.translogStreamFor(translogFile);
         assertThat("a version0 stream is returned", stream instanceof LegacyTranslogStream, equalTo(true));
 
@@ -69,8 +71,8 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
 
     @Test
     public void testV1ChecksummedTranslogVersion() throws Exception {
-        File translogFile = getResource("/org/elasticsearch/index/translog/translog-v1.binary");
-        assertThat("test file should exist", translogFile.exists(), equalTo(true));
+        Path translogFile = getResourcePath("/org/elasticsearch/index/translog/translog-v1.binary");
+        assertThat("test file should exist", Files.exists(translogFile), equalTo(true));
         TranslogStream stream = TranslogStreams.translogStreamFor(translogFile);
         assertThat("a version1 stream is returned", stream instanceof ChecksummedTranslogStream, equalTo(true));
 
@@ -105,8 +107,8 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
     @Test
     public void testCorruptedTranslogs() throws Exception {
         try {
-            File translogFile = getResource("/org/elasticsearch/index/translog/translog-v1-corrupted-magic.binary");
-            assertThat("test file should exist", translogFile.exists(), equalTo(true));
+            Path translogFile = getResourcePath("/org/elasticsearch/index/translog/translog-v1-corrupted-magic.binary");
+            assertThat("test file should exist", Files.exists(translogFile), equalTo(true));
             TranslogStream stream = TranslogStreams.translogStreamFor(translogFile);
             fail("should have thrown an exception about the header being corrupt");
         } catch (TranslogCorruptedException e) {
@@ -115,8 +117,8 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
         }
 
         try {
-            File translogFile = getResource("/org/elasticsearch/index/translog/translog-invalid-first-byte.binary");
-            assertThat("test file should exist", translogFile.exists(), equalTo(true));
+            Path translogFile = getResourcePath("/org/elasticsearch/index/translog/translog-invalid-first-byte.binary");
+            assertThat("test file should exist", Files.exists(translogFile), equalTo(true));
             TranslogStream stream = TranslogStreams.translogStreamFor(translogFile);
             fail("should have thrown an exception about the header being corrupt");
         } catch (TranslogCorruptedException e) {
@@ -125,8 +127,8 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
         }
 
         try {
-            File translogFile = getResource("/org/elasticsearch/index/translog/translog-v1-corrupted-body.binary");
-            assertThat("test file should exist", translogFile.exists(), equalTo(true));
+            Path translogFile = getResourcePath("/org/elasticsearch/index/translog/translog-v1-corrupted-body.binary");
+            assertThat("test file should exist", Files.exists(translogFile), equalTo(true));
             TranslogStream stream = TranslogStreams.translogStreamFor(translogFile);
             try (StreamInput in = stream.openInput(translogFile)) {
                 while (true) {

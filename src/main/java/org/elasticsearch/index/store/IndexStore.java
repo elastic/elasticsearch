@@ -20,20 +20,16 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.StoreRateLimiting;
-import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.store.IndicesStore;
 
-import java.io.File;
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 
 /**
  * Index store is an index level information of the {@link Store} each shard will use.
  */
-public interface IndexStore extends CloseableIndexComponent {
-
-    IndicesStore indicesStore();
+public interface IndexStore extends Closeable {
 
     /**
      * Returns the rate limiting, either of the index is explicitly configured, or

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices;
 
+import com.google.common.base.Function;
 import com.google.common.collect.*;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -73,6 +74,7 @@ import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.IndexPluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
@@ -373,59 +375,64 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
     }
 
     private void removeIndex(String index, String reason, boolean delete, @Nullable  IndexCloseListener listener) throws ElasticsearchException {
-        final IndexService indexService;
-        final Injector indexInjector;
-        synchronized (this) {
-            indexInjector = indicesInjectors.remove(index);
-            if (indexInjector == null) {
-                return;
+        try {
+            final IndexService indexService;
+            final Injector indexInjector;
+            synchronized (this) {
+                indexInjector = indicesInjectors.remove(index);
+                if (indexInjector == null) {
+                    return;
+                }
+
+                logger.debug("[{}] closing ... (reason [{}])", index, reason);
+                Map<String, IndexService> tmpMap = newHashMap(indices);
+                indexService = tmpMap.remove(index);
+                indices = ImmutableMap.copyOf(tmpMap);
             }
 
-            logger.debug("[{}] closing ... (reason [{}])", index, reason);
-            Map<String, IndexService> tmpMap = newHashMap(indices);
-            indexService = tmpMap.remove(index);
-            indices = ImmutableMap.copyOf(tmpMap);
+            indicesLifecycle.beforeIndexClosed(indexService);
+            if (delete) {
+                indicesLifecycle.beforeIndexDeleted(indexService);
+            }
+            IOUtils.close(Iterables.transform(pluginsService.indexServices(), new Function<Class<? extends Closeable>, Closeable>() {
+                @Override
+                public Closeable apply(Class<? extends Closeable> input) {
+                    return indexInjector.getInstance(input);
+                }
+            }));
+
+            logger.debug("[{}] closing index service (reason [{}])", index, reason);
+            ((InternalIndexService) indexService).close(reason, listener);
+
+            logger.debug("[{}] closing index cache (reason [{}])", index, reason);
+            indexInjector.getInstance(IndexCache.class).close();
+            logger.debug("[{}] clearing index field data (reason [{}])", index, reason);
+            indexInjector.getInstance(IndexFieldDataService.class).clear();
+            logger.debug("[{}] closing analysis service (reason [{}])", index, reason);
+            indexInjector.getInstance(AnalysisService.class).close();
+            logger.debug("[{}] closing index engine (reason [{}])", index, reason);
+            indexInjector.getInstance(IndexEngine.class).close();
+
+            logger.debug("[{}] closing index gateway (reason [{}])", index, reason);
+            indexInjector.getInstance(IndexGateway.class).close();
+            logger.debug("[{}] closing mapper service (reason [{}])", index, reason);
+            indexInjector.getInstance(MapperService.class).close();
+            logger.debug("[{}] closing index query parser service (reason [{}])", index, reason);
+            indexInjector.getInstance(IndexQueryParserService.class).close();
+
+            logger.debug("[{}] closing index service (reason [{}])", index, reason);
+            indexInjector.getInstance(IndexStore.class).close();
+
+            Injectors.close(injector);
+
+            logger.debug("[{}] closed... (reason [{}])", index, reason);
+            indicesLifecycle.afterIndexClosed(indexService.index());
+            if (delete) {
+                indicesLifecycle.afterIndexDeleted(indexService.index());
+            }
+        } catch (IOException ex) {
+            throw new ElasticsearchException("failed to remove index " + index, ex);
         }
-
-        indicesLifecycle.beforeIndexClosed(indexService);
-        if (delete) {
-            indicesLifecycle.beforeIndexDeleted(indexService);
-        }
-
-        for (Class<? extends CloseableIndexComponent> closeable : pluginsService.indexServices()) {
-            indexInjector.getInstance(closeable).close();
-        }
-
-        logger.debug("[{}] closing index service", index, reason);
-        ((InternalIndexService) indexService).close(reason, listener);
-
-        logger.debug("[{}] closing index cache", index, reason);
-        indexInjector.getInstance(IndexCache.class).close();
-        logger.debug("[{}] clearing index field data", index, reason);
-        indexInjector.getInstance(IndexFieldDataService.class).clear();
-        logger.debug("[{}] closing analysis service", index, reason);
-        indexInjector.getInstance(AnalysisService.class).close();
-        logger.debug("[{}] closing index engine", index, reason);
-        indexInjector.getInstance(IndexEngine.class).close();
-
-        logger.debug("[{}] closing index gateway", index, reason);
-        indexInjector.getInstance(IndexGateway.class).close();
-        logger.debug("[{}] closing mapper service", index, reason);
-        indexInjector.getInstance(MapperService.class).close();
-        logger.debug("[{}] closing index query parser service", index, reason);
-        indexInjector.getInstance(IndexQueryParserService.class).close();
-
-        logger.debug("[{}] closing index service", index, reason);
-        indexInjector.getInstance(IndexStore.class).close();
-
-        Injectors.close(injector);
-
-        logger.debug("[{}] closed... (reason [{}])", index, reason);
-        indicesLifecycle.afterIndexClosed(indexService.index());
-        if (delete) {
-            indicesLifecycle.afterIndexDeleted(indexService.index());
-        }
-
     }
 
     static class OldShardsStats extends IndicesLifecycle.Listener {

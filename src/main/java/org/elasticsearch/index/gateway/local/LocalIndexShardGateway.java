@@ -53,6 +53,9 @@ import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -195,21 +198,24 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             }
 
             // move an existing translog, if exists, to "recovering" state, and start reading from it
-            FsTranslog translog = (FsTranslog) indexShard.translog();
-            String translogName = "translog-" + translogId;
-            String recoverTranslogName = translogName + ".recovering";
+            Translog translog = indexShard.translog();
+            final Path translogName = translog.getPath(translogId);
+            final Path recoverTranslogName = translogName.resolveSibling(translogName.getFileName() + ".recovering");
 
 
-            File recoveringTranslogFile = null;
-            for (File translogLocation : translog.locations()) {
-                File tmpRecoveringFile = new File(translogLocation, recoverTranslogName);
-                if (!tmpRecoveringFile.exists()) {
-                    File tmpTranslogFile = new File(translogLocation, translogName);
-                    if (tmpTranslogFile.exists()) {
+            Path recoveringTranslogFile = null;
+            for (Path translogLocation : translog.locations()) {
+                final Path tmpRecoveringFile = translogLocation.resolve(recoverTranslogName);
+                if (Files.exists(tmpRecoveringFile) == false) {
+                    Path tmpTranslogFile = translogLocation.resolve(translogName);
+                    if (Files.exists(tmpTranslogFile)) {
                         for (int i = 0; i < RECOVERY_TRANSLOG_RENAME_RETRIES; i++) {
-                            if (tmpTranslogFile.renameTo(tmpRecoveringFile)) {
+                            try {
+                                Files.move(tmpTranslogFile, tmpRecoveringFile, StandardCopyOption.ATOMIC_MOVE);
                                 recoveringTranslogFile = tmpRecoveringFile;
                                 break;
+                            } catch (Exception ex) {
+                                logger.debug("Failed to rename tmp recovery file", ex);
                             }
                         }
                     }
@@ -219,7 +225,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 }
             }
 
-            if (recoveringTranslogFile == null || !recoveringTranslogFile.exists()) {
+            if (recoveringTranslogFile == null || Files.exists(recoveringTranslogFile) == false) {
                 // no translog to recovery from, start and bail
                 // no translog files, bail
                 indexShard.postRecovery("post recovery from gateway, no translog");
@@ -284,8 +290,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                     }
                 }
             } catch (Throwable e) {
-                // we failed to recovery, make sure to delete the translog file (and keep the recovering one)
-                indexShard.translog().closeWithDelete();
+                IOUtils.closeWhileHandlingException(indexShard.translog());
                 throw new IndexShardGatewayRecoveryException(shardId, "failed to recover shard", e);
             } finally {
                 IOUtils.closeWhileHandlingException(in);
@@ -293,7 +298,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             indexShard.performRecoveryFinalization(true);
 
             try {
-                Files.deleteIfExists(recoveringTranslogFile.toPath());
+                Files.deleteIfExists(recoveringTranslogFile);
             } catch (Exception ex) {
                 logger.debug("Failed to delete recovering translog file {}", ex, recoveringTranslogFile);
             }

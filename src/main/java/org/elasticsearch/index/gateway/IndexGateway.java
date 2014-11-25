@@ -19,13 +19,14 @@
 
 package org.elasticsearch.index.gateway;
 
-import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.IndexComponent;
+
+import java.io.Closeable;
 
 /**
  *
  */
-public interface IndexGateway extends IndexComponent, CloseableIndexComponent {
+public interface IndexGateway extends IndexComponent, Closeable {
 
     String type();
 

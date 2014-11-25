@@ -36,13 +36,13 @@ import java.nio.file.Paths;
 public class FsBufferedTranslogTests extends AbstractSimpleTranslogTests {
 
     @Override
-    protected Translog create() {
+    protected Translog create() throws IOException {
         return new FsTranslog(shardId,
                 ImmutableSettings.settingsBuilder()
                         .put("index.translog.fs.type", FsTranslogFile.Type.BUFFERED.name())
                         .put("index.translog.fs.buffer_size", 10 + randomInt(128 * 1024))
                         .build(),
-                new File(translogFileDirectory())
+                Paths.get(translogFileDirectory())
         );
     }
 

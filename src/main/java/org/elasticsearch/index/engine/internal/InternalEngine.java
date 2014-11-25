@@ -20,7 +20,6 @@
 package org.elasticsearch.index.engine.internal;
 
 import com.google.common.collect.Lists;
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
@@ -133,7 +132,6 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     private volatile ByteSizeValue indexingBufferSize;
     private volatile int indexConcurrency;
     private volatile boolean compoundOnFlush = true;
-    private volatile boolean checksumOnMerge = true;
 
     private long gcDeletesInMillis;
 
@@ -325,17 +323,14 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             try {
                 // commit on a just opened writer will commit even if there are no changes done to it
                 // we rely on that for the commit data translog id key
+                translogIdGenerator.set(Math.max(0, translog.findLargestPresentTranslogId()));
+                translogIdGenerator.incrementAndGet();
+                boolean mustCommitTranslogId = true;
                 if (Lucene.indexExists(store.directory())) {
-                    Map<String, String> commitUserData = Lucene.readSegmentInfos(store.directory()).getUserData();
-                    if (commitUserData.containsKey(Translog.TRANSLOG_ID_KEY)) {
-                        translogIdGenerator.set(Long.parseLong(commitUserData.get(Translog.TRANSLOG_ID_KEY)));
-                    } else {
-                        translogIdGenerator.set(System.currentTimeMillis());
-                        indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogIdGenerator.get())));
-                        indexWriter.commit();
-                    }
-                } else {
-                    translogIdGenerator.set(System.currentTimeMillis());
+                    final Map<String, String> commitUserData = Lucene.readSegmentInfos(store.directory()).getUserData();
+                    mustCommitTranslogId = !commitUserData.containsKey(Translog.TRANSLOG_ID_KEY);
+                }
+                if (mustCommitTranslogId) { // translog id is not in the metadata - fix this inconsistency some code relies on this and old indices might not have it.
                     indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogIdGenerator.get())));
                     indexWriter.commit();
                 }
@@ -931,7 +926,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                             translog.makeTransientCurrent();
 
                         } catch (Throwable e) {
-                            translog.revertTransient();
+                            try {
+                                translog.revertTransient();
+                            } catch (IOException ex) {
+                                e.addSuppressed(ex);
+                            }
                             throw new FlushFailedEngineException(shardId, e);
                         }
                     }

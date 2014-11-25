@@ -22,8 +22,8 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.CloseableIndexComponent;
 
+import java.io.Closeable;
 import java.util.Collection;
 
 /**
@@ -75,7 +75,7 @@ public interface Plugin {
     /**
      * Per index services that will be automatically closed.
      */
-    Collection<Class<? extends CloseableIndexComponent>> indexServices();
+    Collection<Class<? extends Closeable>> indexServices();
 
     /**
      * Per index shard module.
@@ -90,7 +90,7 @@ public interface Plugin {
     /**
      * Per index shard service that will be automatically closed.
      */
-    Collection<Class<? extends CloseableIndexComponent>> shardServices();
+    Collection<Class<? extends Closeable>> shardServices();
 
     /**
      * Process a specific module. Note, its simpler to implement a custom <tt>onModule(AnyModule module)</tt>

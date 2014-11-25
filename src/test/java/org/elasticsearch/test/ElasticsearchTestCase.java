@@ -63,6 +63,8 @@ import java.lang.annotation.Target;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.net.URI;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -200,9 +202,22 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
      * return URL encoded paths if the parent path contains spaces or other
      * non-standard characters.
      */
+    @Deprecated
     public File getResource(String relativePath) {
         URI uri = URI.create(getClass().getResource(relativePath).toString());
         return new File(uri);
+    }
+
+    /**
+     * Returns a {@link java.nio.file.Path} pointing to the class path relative resource given
+     * as the first argument. In contrast to
+     * <code>getClass().getResource(...).getFile()</code> this method will not
+     * return URL encoded paths if the parent path contains spaces or other
+     * non-standard characters.
+     */
+    public Path getResourcePath(String relativePath) {
+        URI uri = URI.create(getClass().getResource(relativePath).toString());
+        return Paths.get(uri);
     }
 
     @After

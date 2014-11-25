@@ -83,6 +83,7 @@ import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ShardsPluginsModule;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -399,7 +400,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
             indexShard = tmpShardsMap.remove(shardId);
             shards = ImmutableMap.copyOf(tmpShardsMap);
             indicesLifecycle.beforeIndexShardClosed(sId, indexShard);
-            for (Class<? extends CloseableIndexComponent> closeable : pluginsService.shardServices()) {
+            for (Class<? extends Closeable> closeable : pluginsService.shardServices()) {
                 try {
                     shardInjector.getInstance(closeable).close();
                 } catch (Throwable e) {

@@ -36,10 +36,10 @@ import java.nio.file.Paths;
 public class FsSimpleTranslogTests extends AbstractSimpleTranslogTests {
 
     @Override
-    protected Translog create() {
+    protected Translog create() throws IOException {
         return new FsTranslog(shardId,
                 ImmutableSettings.settingsBuilder().put("index.translog.fs.type", FsTranslogFile.Type.SIMPLE.name()).build(),
-                new File(translogFileDirectory()));
+                Paths.get(translogFileDirectory()));
     }
 
     @Override

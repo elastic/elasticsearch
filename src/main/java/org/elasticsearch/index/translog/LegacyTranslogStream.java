@@ -28,6 +28,8 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * Version 0 of the translog format, there is no header in this file
@@ -58,9 +60,9 @@ public class LegacyTranslogStream implements TranslogStream {
     }
 
     @Override
-    public StreamInput openInput(File translogFile) throws FileNotFoundException {
+    public StreamInput openInput(Path translogFile) throws IOException {
         // nothing to do, legacy translogs have no header
-        return new InputStreamStreamInput(new FileInputStream(translogFile));
+        return new InputStreamStreamInput(Files.newInputStream(translogFile));
     }
 
 }

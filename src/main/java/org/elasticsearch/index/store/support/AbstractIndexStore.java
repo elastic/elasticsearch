@@ -120,11 +120,6 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
     }
 
     @Override
-    public IndicesStore indicesStore() {
-        return indicesStore;
-    }
-
-    @Override
     public StoreRateLimiting rateLimiting() {
         return nodeRateLimiting ? indicesStore.rateLimiting() : this.rateLimiting;
     }

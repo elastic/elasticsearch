@@ -89,7 +89,16 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
     private final MappingUpdatedAction mappingUpdatedAction;
 
     private final RecoveryResponse response;
-    private final CancelableThreads cancelableThreads = new CancelableThreads();
+    private final CancelableThreads cancelableThreads = new CancelableThreads() {
+        @Override
+        protected void fail(String reason) {
+            if (shard.state() == IndexShardState.CLOSED) { // check if the shard got closed on us
+                throw new IndexShardClosedException(shard.shardId(), "shard is closed and recovery was canceled reason [" + reason + "]");
+            } else {
+                throw new ElasticsearchException("recovery was canceled reason [" + reason + "]");
+            }
+        }
+    };
 
     public ShardRecoveryHandler(final InternalIndexShard shard, final StartRecoveryRequest request, final RecoverySettings recoverySettings,
                                 final TransportService transportService, final TimeValue internalActionTimeout,
@@ -625,7 +634,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
         cancelableThreads.cancel(reason);
     }
 
-    private static final class CancelableThreads {
+    private static abstract class CancelableThreads {
         private final Set<Thread> threads = new HashSet<>();
         private boolean canceled = false;
         private String reason;
@@ -637,9 +646,12 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
 
         public synchronized void failIfCanceled() {
             if (isCanceled()) {
-                throw new ElasticsearchException("recovery was canceled reason [" + reason + "]");
+                fail(reason);
             }
         }
+
+        protected abstract  void fail(String reason);
+
         private synchronized void add() {
             failIfCanceled();
             threads.add(Thread.currentThread());

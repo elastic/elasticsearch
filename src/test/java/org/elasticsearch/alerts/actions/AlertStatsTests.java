@@ -25,7 +25,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numClientNodes = 0, transportClientRatio = 0)
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false)
 public class AlertStatsTests extends AbstractAlertingTests {
 
     @Test

@@ -64,7 +64,7 @@ public class TemplateHelper extends AbstractComponent {
 
             IndexTemplateMetaData templateMetaData = state.metaData().templates().get(templateName);
             if (templateMetaData != null) {
-                int foundVersion = templateMetaData.getSettings().getAsInt("alerts.template_version", -1);
+                int foundVersion = templateMetaData.getSettings().getAsInt("index.alerts.template_version", -1);
                 if (foundVersion < 0) {
                     logger.warn("found an existing index template [{}] but couldn't extract it's version. leaving it as is.", templateName);
                     return;

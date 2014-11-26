@@ -1,10 +1,10 @@
 {
   "template": ".alert_history*",
-  "order": 0,
+  "order": 2147483647,
   "settings": {
-    "number_of_shards": 1,
-    "number_of_replicas": 1,
-    "alerts.template_version": 1
+    "index.number_of_shards": 1,
+    "index.number_of_replicas": 1,
+    "index.alerts.template_version": 1
   },
   "mappings": {
     "alerthistory": {

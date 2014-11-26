@@ -43,7 +43,7 @@ import static org.hamcrest.core.IsNot.not;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0)
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false)
 public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -53,6 +53,10 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
                 .put("scroll.size", randomIntBetween(1, 100))
                 .put("plugin.types", AlertsPlugin.class.getName())
                 .build();
+    }
+
+    public boolean randomizeNumberOfShardsAndReplicas() {
+        return false;
     }
 
     @Override

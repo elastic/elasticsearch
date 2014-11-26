@@ -9,11 +9,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.alerts.AlertManager;
 import org.elasticsearch.alerts.AlertsStore;
-import org.elasticsearch.alerts.actions.AlertActionManager;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -22,10 +20,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 /**
  */
@@ -68,11 +62,7 @@ public class TransportPutAlertAction extends TransportMasterNodeOperationAction<
     @Override
     protected ClusterBlockException checkBlock(PutAlertRequest request, ClusterState state) {
         request.beforeLocalFork(); // This is the best place to make the alert source safe
-        String[] indices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), AlertActionManager.ALERT_HISTORY_INDEX_PREFIX + "*");
-        List<String> indicesToCheck = new ArrayList<>(Arrays.asList(indices));
-        indicesToCheck.add(AlertsStore.ALERT_INDEX);
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.WRITE, indicesToCheck.toArray(new String[indicesToCheck.size()]));
-
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.WRITE, new String[]{AlertsStore.ALERT_INDEX});
     }
 
 }

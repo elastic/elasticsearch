@@ -22,9 +22,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.hppc.cursors.ObjectCursor;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.format.DateTimeFormat;
@@ -148,11 +146,6 @@ public class AlertActionManager extends AbstractComponent {
 
     /**
      * Calculates the correct alert history index name for a given time using alertHistoryIndexTimeFormat
-<<<<<<< HEAD
-=======
-     * @param time
-     * @return
->>>>>>> 7462f14f6d6a8c1529fc4f4203184f30c83057d7
      */
     public static String getAlertHistoryIndexNameForTime(DateTime time) {
         StringBuffer sb = new StringBuffer(ALERT_HISTORY_INDEX_PREFIX);

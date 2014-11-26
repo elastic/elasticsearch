@@ -13,6 +13,7 @@ import org.elasticsearch.alerts.actions.AlertActionManager;
 import org.elasticsearch.alerts.actions.AlertActionState;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.plugin.AlertsPlugin;
+import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -28,6 +29,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.TestCluster;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -36,9 +38,7 @@ import java.util.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.Is.is;
 
 /**
@@ -63,14 +63,26 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         return new AlertingWrappingCluster(seed, testCluster);
     }
 
+    @Before
+    public void startAlertsIfNodesExist() throws Exception {
+        if (internalTestCluster().size() > 0) {
+            AlertsStatsResponse response = alertClient().prepareAlertsStats().get();
+            if (response.getAlertManagerStarted() == State.STOPPED) {
+                logger.info("[{}#{}]: starting alerts", getTestClass().getSimpleName(), getTestName());
+                startAlerting();
+            } else {
+                logger.info("[{}#{}]: not starting alerts, because alerts is in state [{}]", getTestClass().getSimpleName(), getTestName(), response.getAlertManagerStarted());
+            }
+        } else {
+            logger.info("[{}#{}]: not starting alerts, because test cluster has no nodes", getTestClass().getSimpleName(), getTestName());
+        }
+    }
+
     @After
     public void clearAlerts() throws Exception {
         // Clear all internal alerting state for the next test method:
+        logger.info("[{}#{}]: clearing alerts", getTestClass().getSimpleName(), getTestName());
         stopAlerting();
-        client().admin().indices().prepareDelete(AlertsStore.ALERT_INDEX, AlertActionManager.ALERT_HISTORY_INDEX)
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .get();
-        startAlerting();
     }
 
     protected BytesReference createAlertSource(String cron, SearchRequest request, String scriptTrigger) throws IOException {
@@ -282,12 +294,28 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
             }
 
             // Then stop alerting on elected master node and wait until alerting has stopped on it.
-            AlertManager alertManager = _testCluster.getInstance(AlertManager.class, masterNode);
-            if (alertManager.getState() == State.STARTING) {
-                while (alertManager.getState() != State.STARTED) {}
+            final AlertManager alertManager = _testCluster.getInstance(AlertManager.class, masterNode);
+            try {
+                assertBusy(new Runnable() {
+                    @Override
+                    public void run() {
+                        assertThat(alertManager.getState(), not(equalTo(State.STARTING)));
+                    }
+                });
+            } catch (Exception e) {
+                throw new RuntimeException(e);
             }
             alertManager.stop();
-            while (alertManager.getState() != State.STOPPED) {}
+            try {
+                assertBusy(new Runnable() {
+                    @Override
+                    public void run() {
+                        assertThat(alertManager.getState(), equalTo(State.STOPPED));
+                    }
+                });
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
 
             // Now when can close nodes, without alerting trying to become active while nodes briefly become master
             // during cluster shutdown.

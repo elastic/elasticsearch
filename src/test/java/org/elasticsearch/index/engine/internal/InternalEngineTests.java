@@ -1228,27 +1228,30 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     }
 
     private static class MockAppender extends AppenderSkeleton {
-      public boolean sawIndexWriterMessage;
+        public boolean sawIndexWriterMessage;
+        public boolean sawIndexWriterIFDMessage;
 
-      @Override
-      protected void append(LoggingEvent event) {
-        if (event.getLevel() == Level.TRACE &&
-            event.getLoggerName().endsWith("lucene.iw") &&
-            event.getMessage().toString().contains("IW: apply all deletes during flush") &&
-            event.getMessage().toString().contains("[index][1] ")) {
-
-          sawIndexWriterMessage = true;
+        @Override
+        protected void append(LoggingEvent event) {
+            if (event.getLevel() == Level.TRACE && event.getMessage().toString().contains("[index][1] ")) {
+                if (event.getLoggerName().endsWith("lucene.iw") &&
+                    event.getMessage().toString().contains("IW: apply all deletes during flush")) {
+                    sawIndexWriterMessage = true;
+                }
+                if (event.getLoggerName().endsWith("lucene.iw.ifd")) {
+                    sawIndexWriterIFDMessage = true;
+                }
+            }
         }
-      }
 
-      @Override
-      public boolean requiresLayout() {
-        return false;
-      }
+        @Override
+        public boolean requiresLayout() {
+            return false;
+        }
 
-      @Override
-      public void close() {
-      }
+        @Override
+        public void close() {
+        }
     }
 
     // #5891: make sure IndexWriter's infoStream output is
@@ -1279,6 +1282,36 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         } finally {
             rootLogger.removeAppender(mockAppender);
             rootLogger.setLevel(savedLevel);
+        }
+    }
+
+    // #8603: make sure we can separately log IFD's messages
+    public void testIndexWriterIFDInfoStream() {
+        MockAppender mockAppender = new MockAppender();
+
+        Logger iwIFDLogger = Logger.getLogger("lucene.iw.ifd");
+        Level savedLevel = iwIFDLogger.getLevel();
+        iwIFDLogger.addAppender(mockAppender);
+        iwIFDLogger.setLevel(Level.DEBUG);
+
+        try {
+            // First, with DEBUG, which should NOT log IndexWriter output:
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
+            engine.create(new Engine.Create(null, newUid("1"), doc));
+            engine.flush(new Engine.Flush());        
+            assertFalse(mockAppender.sawIndexWriterMessage);
+            assertFalse(mockAppender.sawIndexWriterIFDMessage);
+
+            // Again, with TRACE, which should only log IndexWriter IFD output:
+            iwIFDLogger.setLevel(Level.TRACE);
+            engine.create(new Engine.Create(null, newUid("2"), doc));
+            engine.flush(new Engine.Flush());        
+            assertFalse(mockAppender.sawIndexWriterMessage);
+            assertTrue(mockAppender.sawIndexWriterIFDMessage);
+
+        } finally {
+            iwIFDLogger.removeAppender(mockAppender);
+            iwIFDLogger.setLevel(null);
         }
     }
 

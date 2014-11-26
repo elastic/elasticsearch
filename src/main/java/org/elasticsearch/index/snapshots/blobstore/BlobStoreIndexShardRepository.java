@@ -802,6 +802,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     for (String storeFile : store.directory().listAll()) {
                         if (!Store.isChecksum(storeFile) && !snapshot.containPhysicalIndexFile(storeFile)) {
                             try {
+                                store.logDeleteFile("restore", storeFile);
                                 store.directory().deleteFile(storeFile);
                             } catch (IOException e) {
                                 // ignore

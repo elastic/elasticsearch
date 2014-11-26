@@ -519,6 +519,7 @@ public class RecoveryTarget extends AbstractComponent {
                     // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete checksum)
                     if (!request.snapshotFiles().contains(existingFile) && !Store.isChecksum(existingFile)) {
                         try {
+                            store.logDeleteFile("recovery CleanFilesRequestHandler", existingFile);
                             store.directory().deleteFile(existingFile);
                         } catch (Exception e) {
                             // ignore, we don't really care, will get deleted later on

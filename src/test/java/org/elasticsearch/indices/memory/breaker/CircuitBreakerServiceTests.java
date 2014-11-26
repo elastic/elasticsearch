@@ -34,6 +34,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -103,7 +104,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    //@TestLogging("indices.breaker:TRACE,index.fielddata:TRACE,common.breaker:TRACE")
+    @TestLogging("indices.breaker:TRACE,index.fielddata:TRACE,common.breaker:TRACE")
     public void testMemoryBreaker() throws Exception {
         if (noopBreakerUsed()) {
             logger.info("--> noop breakers used, skipping test");

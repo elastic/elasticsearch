@@ -17,35 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.stats;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.reducers.ReductionBuilder;
+package org.elasticsearch.search.reducers.metric.multi.stats;
 
-import java.io.IOException;
+import org.elasticsearch.search.reducers.metric.MetricResult;
+import org.elasticsearch.search.reducers.metric.MetricResultFactory;
 
-public class StatsBuilder extends ReductionBuilder<StatsBuilder> {
-
-    private String path = null;
-
-    protected StatsBuilder(String name) {
-        super(name, InternalStats.TYPE.name());
-    }
-
-    public void path(String path) {
-        this.path = path;
-    }
-
+public class StatsResultFactory implements MetricResultFactory {
     @Override
-    protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-
-        if (path != null) {
-            builder.field(StatsParser.BUCKETS_FIELD.getPreferredName(), path);
-        }
-
-        builder.endObject();
-        return builder;
+    public MetricResult newInstance() {
+        return new StatsResult();
     }
-
 }

@@ -22,7 +22,6 @@ package org.elasticsearch.search.reducers.metric.single;
 
 import org.elasticsearch.search.reducers.metric.MetricResult;
 import org.elasticsearch.search.reducers.metric.MetricResultFactory;
-import org.elasticsearch.search.reducers.metric.single.SingleMetricResult;
 
 public class SingleMetricResultFactory implements MetricResultFactory {
     @Override

@@ -17,20 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.stats;
+package org.elasticsearch.search.reducers.metric.multi.stats;
 
-import org.elasticsearch.search.reducers.ReducerFactory;
-import org.elasticsearch.search.reducers.metric.SimpleMultiValueMetricReducerParser;
+import org.elasticsearch.search.reducers.metric.SimpleMetricReducerParser;
 
-public class StatsParser extends SimpleMultiValueMetricReducerParser {
-
+public class StatsParser extends SimpleMetricReducerParser{
     @Override
     public String type() {
-        return InternalStats.TYPE.name();
-    }
-
-    @Override
-    public ReducerFactory createReducerFactory(String reducerName, String bucketsPath, String fieldName) {
-        return new StatsReducer.Factory(reducerName, bucketsPath, fieldName);
+        return "delta";
     }
 }

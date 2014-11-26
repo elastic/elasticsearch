@@ -19,7 +19,6 @@
 package org.elasticsearch.search.reducers;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
 import org.elasticsearch.search.reducers.bucket.range.InternalRange;
 import org.elasticsearch.search.reducers.bucket.range.RangeReducer;
 import org.elasticsearch.search.reducers.bucket.slidingwindow.InternalSlidingWindow;
@@ -30,9 +29,6 @@ import org.elasticsearch.search.reducers.bucket.unpacking.InternalUnpacking;
 import org.elasticsearch.search.reducers.bucket.unpacking.UnpackingReducer;
 import org.elasticsearch.search.reducers.metric.InternalMetric;
 import org.elasticsearch.search.reducers.metric.SimpleMetricReducer;
-import org.elasticsearch.search.reducers.metric.delta.DeltaReducer;
-import org.elasticsearch.search.reducers.metric.delta.InternalDelta;
-import org.elasticsearch.search.reducers.metric.stats.StatsReducer;
 
 /**
  * A module that registers all the transport streams for the addAggregation
@@ -45,17 +41,13 @@ public class TransportReductionModule extends AbstractModule {
         InternalSlidingWindow.registerStreams();
         InternalUnion.registerStreams();
         InternalUnpacking.registerStreams();
-        InternalDelta.registerStreams();
         InternalRange.registerStreams();
         InternalMetric.registerStreams();
-        InternalStats.registerStreams();
 
         SlidingWindowReducer.registerStreams();
         UnionReducer.registerStreams();
         UnpackingReducer.registerStreams();
-        DeltaReducer.registerStreams();
         SimpleMetricReducer.registerStreams();
         RangeReducer.registerStreams();
-        StatsReducer.registerStreams();
     }
 }

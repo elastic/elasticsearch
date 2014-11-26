@@ -17,23 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.stats;
 
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.stats.Stats;
+package org.elasticsearch.search.reducers.metric.multi.delta;
 
-import java.util.Map;
+import org.elasticsearch.search.reducers.metric.MetricResult;
+import org.elasticsearch.search.reducers.metric.MetricResultFactory;
 
-
-public class InternalStats extends org.elasticsearch.search.aggregations.metrics.stats.InternalStats implements Stats {
-
-    public InternalStats(String name, long count, double sum, double min, double max, Map<String, Object> metaData) {
-        super(name, count, sum, min, max, metaData);
-    }
-
+public class DeltaResultFactory implements MetricResultFactory {
     @Override
-    public InternalStats reduce(InternalAggregation.ReduceContext reduceContext) {
-        throw new UnsupportedOperationException("Not supported");
+    public MetricResult newInstance() {
+        return new DeltaResult();
     }
-
 }

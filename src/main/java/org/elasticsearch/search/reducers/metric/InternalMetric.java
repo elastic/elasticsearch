@@ -25,6 +25,8 @@ import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
+import org.elasticsearch.search.reducers.metric.multi.delta.DeltaResultFactory;
+import org.elasticsearch.search.reducers.metric.multi.stats.StatsResultFactory;
 import org.elasticsearch.search.reducers.metric.single.SingleMetricResultFactory;
 
 import java.io.IOException;
@@ -48,6 +50,8 @@ public class InternalMetric extends InternalNumericMetricsAggregation.MultiValue
 
     static {
         metricResultFactories.put("single_metric", new SingleMetricResultFactory());
+        metricResultFactories.put("delta_metric", new DeltaResultFactory());
+        metricResultFactories.put("stats_metric", new StatsResultFactory());
     }
 
     public static void registerStreams() {

@@ -27,6 +27,8 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.reducers.*;
+import org.elasticsearch.search.reducers.metric.multi.delta.Delta;
+import org.elasticsearch.search.reducers.metric.multi.stats.Stats;
 import org.elasticsearch.search.reducers.metric.single.avg.Avg;
 import org.elasticsearch.search.reducers.metric.single.max.Max;
 import org.elasticsearch.search.reducers.metric.single.min.Min;
@@ -124,6 +126,12 @@ public class SimpleMetricReducer extends Reducer {
             }
             if (opName.equals("max")) {
                 return new SimpleMetricReducer(name, bucketsPath, fieldName, new Max(), factories, context, parent);
+            }
+            if (opName.equals("delta")) {
+                return new SimpleMetricReducer(name, bucketsPath, fieldName, new Delta(), factories, context, parent);
+            }
+            if (opName.equals("stats")) {
+                return new SimpleMetricReducer(name, bucketsPath, fieldName, new Stats(), factories, context, parent);
             }
             return null;
         }

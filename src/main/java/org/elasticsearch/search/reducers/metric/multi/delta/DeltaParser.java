@@ -17,14 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.delta;
+package org.elasticsearch.search.reducers.metric.multi.delta;
 
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.reducers.metric.SimpleMetricReducerParser;
 
-public interface Delta extends Aggregation {
-
-    /**
-     * The delta value.
-     */
-    double getValue();
+public class DeltaParser extends SimpleMetricReducerParser{
+    @Override
+    public String type() {
+        return "delta";
+    }
 }

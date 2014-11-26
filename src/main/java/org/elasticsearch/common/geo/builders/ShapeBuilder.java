@@ -271,8 +271,10 @@ public abstract class ShapeBuilder implements ToXContent {
      *         returns {@link Double#NaN}
      */
     protected static final double intersection(Coordinate p1, Coordinate p2, double dateline) {
-        if (p1.x == p2.x) {
+        if (p1.x == p2.x && p1.x != dateline) {
             return Double.NaN;
+        } else if (p1.x == p2.x && p1.x == dateline) {
+            return 1.0;
         } else {
             final double t = (dateline - p1.x) / (p2.x - p1.x);
             if (t > 1 || t <= 0) {
@@ -468,8 +470,30 @@ public abstract class ShapeBuilder implements ToXContent {
             final int top = top(points, offset, length);
             final int prev = (offset + ((top + length - 1) % length));
             final int next = (offset + ((top + 1) % length));
-            final boolean orientation = points[offset + prev].x > points[offset + next].x;
+            boolean orientation = points[offset + prev].x > points[offset + next].x;
+
+            // OGC requires shell as ccw (Right-Handedness) and holes as cw (Left-Handedness) 
+            // since GeoJSON doesn't specify (and doesn't need to) GEO core will assume OGC standards
+            // thus no need to compute orientation at runtime (which fails on ambiguous polys anyway
+            final int rngIdx = (orientation) ? next : prev;
+            if ( ((orientation && component == 0) || (!orientation && component < 0)) &&
+                    points[offset+top].x - points[offset+rngIdx].x > DATELINE) {
+                transform(points);
+                orientation = !orientation;
+            }
             return concat(component, direction ^ orientation, points, offset, edges, toffset, length);
+        }
+
+        /**
+         * Transforms coordinates in the eastern hemisphere (-180:0) to a (180:360) range 
+         * @param points
+         */
+        protected static void transform(Coordinate[] points) {
+            for (Coordinate c : points) {
+                if (c.x < 0) {
+                    c.x += 2*DATELINE;
+                }
+            }
         }
 
         /**

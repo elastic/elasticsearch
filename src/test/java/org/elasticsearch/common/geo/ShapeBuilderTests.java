@@ -406,14 +406,50 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
 
         // test case 2: test the negative side of the dateline
         builder = ShapeBuilder.newPolygon()
-                .point(-180, 0)
                 .point(-176, 4)
+                .point(-180, 0)
                 .point(-180, -4)
-                .point(-180, 0);
+                .point(-176, 4);
 
         shape = builder.close().build();
         assertPolygon(shape);
      }
+
+    @Test
+    public void testShapeWithBoundaryHoles() {
+        // test case 1: test the positive side of the dateline
+        PolygonBuilder builder = ShapeBuilder.newPolygon()
+                .point(-177, 10)
+                .point(176, 15)
+                .point(172, 0)
+                .point(176, -15)
+                .point(-177, -10)
+                .point(-177, 10);
+        builder.hole()
+                .point(176, 10)
+                .point(180, 5)
+                .point(180, -5)
+                .point(176, -10)
+                .point(176, 10);
+        Shape shape = builder.close().build();
+        assertMultiPolygon(shape);
+
+        // test case 2: test the negative side of the dateline
+        builder = ShapeBuilder.newPolygon()
+                .point(-176, 15)
+                .point(179, 10)
+                .point(179, -10)
+                .point(-176, -15)
+                .point(-172,0);
+        builder.hole()
+                .point(-176, 10)
+                .point(-180, 5)
+                .point(-180, -5)
+                .point(-176, -10)
+                .point(-176, 10);
+        shape = builder.close().build();
+        assertMultiPolygon(shape);
+    }
 
     /**
      * Test an enveloping polygon around the max mercator bounds

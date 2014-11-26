@@ -79,6 +79,11 @@ public class S3Repository extends BlobStoreRepository {
             throw new RepositoryException(name.name(), "No bucket defined for s3 gateway");
         }
 
+        String endpoint = repositorySettings.settings().get("endpoint", componentSettings.get("endpoint"));
+        String protocol = componentSettings.get("protocol", "https").toLowerCase();
+        protocol = componentSettings.get("s3.protocol", protocol).toLowerCase();
+        protocol = repositorySettings.settings().get("protocol", protocol);
+
         String region = repositorySettings.settings().get("region", componentSettings.get("region"));
         if (region == null) {
             // Bucket setting is not set - use global region setting
@@ -124,10 +129,10 @@ public class S3Repository extends BlobStoreRepository {
         this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", componentSettings.getAsBytesSize("chunk_size", new ByteSizeValue(100, ByteSizeUnit.MB)));
         this.compress = repositorySettings.settings().getAsBoolean("compress", componentSettings.getAsBoolean("compress", false));
 
-        logger.debug("using bucket [{}], region [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], max_retries [{}]",
-                bucket, region, chunkSize, serverSideEncryption, bufferSize, maxRetries);
+        logger.debug("using bucket [{}], region [{}], endpoint [{}], protocol [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], max_retries [{}]",
+                bucket, region, endpoint, protocol, chunkSize, serverSideEncryption, bufferSize, maxRetries);
 
-        blobStore = new S3BlobStore(settings, s3Service.client(region, repositorySettings.settings().get("access_key"), repositorySettings.settings().get("secret_key"), maxRetries), bucket, region, serverSideEncryption, bufferSize, maxRetries);
+        blobStore = new S3BlobStore(settings, s3Service.client(endpoint, protocol, region, repositorySettings.settings().get("access_key"), repositorySettings.settings().get("secret_key"), maxRetries), bucket, region, serverSideEncryption, bufferSize, maxRetries);
         String basePath = repositorySettings.settings().get("base_path", null);
         if (Strings.hasLength(basePath)) {
             BlobPath path = new BlobPath();

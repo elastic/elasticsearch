@@ -50,7 +50,7 @@ public class AlertSerializationTest extends ElasticsearchIntegrationTest {
         Alert parsedAlert = alertsStore.parseAlert("test-serialization", jsonBuilder.bytes());
         assertEquals(parsedAlert.version(), alert.version());
         assertEquals(parsedAlert.actions(), alert.actions());
-        assertEquals(parsedAlert.lastActionFire().getMillis(), alert.lastActionFire().getMillis());
+        assertEquals(parsedAlert.lastExecuteTime().getMillis(), alert.lastExecuteTime().getMillis());
         assertEquals(parsedAlert.schedule(), alert.schedule());
         assertEquals(parsedAlert.getSearchRequest().source(), alert.getSearchRequest().source());
         assertEquals(parsedAlert.trigger(), alert.trigger());

@@ -142,24 +142,23 @@ public class AlertManager extends AbstractComponent {
             }
             TriggerResult triggerResult = triggerManager.isTriggered(alert, entry.getScheduledTime(), entry.getFireTime());
             entry.setSearchResponse(triggerResult.getResponse());
-
             if (triggerResult.isTriggered()) {
                 entry.setTriggered(true);
                 if (!isActionThrottled(alert)) {
                     actionRegistry.doAction(alert, triggerResult);
-                    alert.setTimeLastActionExecuted(entry.getFireTime());
+                    alert.setTimeLastActionExecuted(entry.getScheduledTime());
                     if (alert.getAckState() == AlertAckState.NOT_TRIGGERED) {
                         alert.setAckState(AlertAckState.NEEDS_ACK);
                     }
                 } else {
                     entry.setState(AlertActionState.THROTTLED);
                 }
-                alert.lastActionFire(entry.getFireTime());
-                alertsStore.updateAlert(alert);
+
             } else if (alert.getAckState() == AlertAckState.ACKED) {
                 alert.setAckState(AlertAckState.NOT_TRIGGERED);
-                alertsStore.updateAlert(alert);
             }
+            alert.lastExecuteTime(entry.getFireTime());
+            alertsStore.updateAlert(alert);
             return triggerResult;
         } finally {
             alertLock.release(entry.getAlertName());

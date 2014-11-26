@@ -24,7 +24,7 @@ public class Alert implements ToXContent {
     private AlertTrigger trigger;
     private List<AlertAction> actions;
     private String schedule;
-    private DateTime lastActionFire;
+    private DateTime lastExecuteTime;
     private long version;
     private TimeValue throttlePeriod = new TimeValue(0);
     private DateTime timeLastActionExecuted = null;
@@ -34,13 +34,14 @@ public class Alert implements ToXContent {
         actions = new ArrayList<>();
     }
 
-    public Alert(String alertName, SearchRequest searchRequest, AlertTrigger trigger, List<AlertAction> actions, String schedule, DateTime lastActionFire, long version, TimeValue throttlePeriod, AlertAckState ackState) {
+
+    public Alert(String alertName, SearchRequest searchRequest, AlertTrigger trigger, List<AlertAction> actions, String schedule, DateTime lastExecuteTime, long version, TimeValue throttlePeriod, AlertAckState ackState) {
         this.alertName = alertName;
         this.searchRequest = searchRequest;
         this.trigger = trigger;
         this.actions = actions;
         this.schedule = schedule;
-        this.lastActionFire = lastActionFire;
+        this.lastExecuteTime = lastExecuteTime;
         this.version = version;
         this.throttlePeriod = throttlePeriod;
         this.ackState = ackState;
@@ -59,8 +60,8 @@ public class Alert implements ToXContent {
             builder.field(AlertsStore.LAST_ACTION_EXECUTED_FIELD.getPreferredName(), timeLastActionExecuted);
         }
 
-        if (lastActionFire != null) {
-            builder.field(AlertsStore.LAST_ACTION_FIRE.getPreferredName(), lastActionFire);
+        if (lastExecuteTime != null) {
+            builder.field(AlertsStore.LAST_ACTION_FIRE.getPreferredName(), lastExecuteTime);
         }
 
         if (actions != null && !actions.isEmpty()) {
@@ -85,12 +86,12 @@ public class Alert implements ToXContent {
     /**
      * @return The last time this alert ran.
      */
-    public DateTime lastActionFire() {
-        return lastActionFire;
+    public DateTime lastExecuteTime() {
+        return lastExecuteTime;
     }
 
-    public void lastActionFire(DateTime lastActionFire) {
-        this.lastActionFire = lastActionFire;
+    public void lastExecuteTime(DateTime lastActionFire) {
+        this.lastExecuteTime = lastActionFire;
     }
 
     /**

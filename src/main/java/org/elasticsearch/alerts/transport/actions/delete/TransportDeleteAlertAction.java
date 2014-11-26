@@ -11,7 +11,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.alerts.AlertManager;
 import org.elasticsearch.alerts.AlertsStore;
-import org.elasticsearch.alerts.actions.AlertActionManager;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -62,7 +61,7 @@ public class TransportDeleteAlertAction extends TransportMasterNodeOperationActi
 
     @Override
     protected ClusterBlockException checkBlock(DeleteAlertRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.WRITE, new String[]{AlertsStore.ALERT_INDEX, AlertActionManager.ALERT_HISTORY_INDEX});
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.WRITE, new String[]{AlertsStore.ALERT_INDEX});
     }
 
 

@@ -13,6 +13,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.alerts.*;
 import org.elasticsearch.alerts.plugin.AlertsPlugin;
 import org.elasticsearch.alerts.triggers.TriggerManager;
@@ -24,6 +25,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.joda.time.format.DateTimeFormat;
+import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -54,7 +57,8 @@ public class AlertActionManager extends AbstractComponent {
     public static final String ACTIONS_FIELD = "actions";
     public static final String STATE = "state";
 
-    public static final String ALERT_HISTORY_INDEX = ".alert_history";
+    public static final String ALERT_HISTORY_INDEX_PREFIX = ".alert_history_";
+    public static final DateTimeFormatter alertHistoryIndexTimeFormat = DateTimeFormat.forPattern("YYYY-MM-dd");
     public static final String ALERT_HISTORY_TYPE = "alerthistory";
 
     private static AlertActionEntry END_ENTRY = new AlertActionEntry();
@@ -98,29 +102,34 @@ public class AlertActionManager extends AbstractComponent {
         if (started.get()) {
             return true;
         }
-
-        IndexMetaData indexMetaData = state.getMetaData().index(ALERT_HISTORY_INDEX);
-        if (indexMetaData != null) {
-            if (state.routingTable().index(ALERT_HISTORY_INDEX).allPrimaryShardsActive()) {
-                try {
-                    loadQueue();
-                } catch (Exception e) {
-                    logger.error("Unable to load unfinished jobs into the job queue", e);
-                    actionsToBeProcessed.clear();
-                }
-                templateHelper.checkAndUploadIndexTemplate(state, "alerthistory");
-                doStart();
-                return true;
-            } else {
-                logger.info("Not all primary shards of the .alertshistory index are started");
-                return false;
-            }
-        } else {
+        String[] indices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), ALERT_HISTORY_INDEX_PREFIX + "*");
+        if (indices.length == 0) {
             logger.info("No previous .alerthistory index, skip loading of alert actions");
             templateHelper.checkAndUploadIndexTemplate(state, "alerthistory");
             doStart();
             return true;
         }
+
+
+        for (String index : indices) {
+            IndexMetaData indexMetaData = state.getMetaData().index(index);
+            if (indexMetaData != null) {
+                if (!state.routingTable().index(index).allPrimaryShardsActive()) {
+                    logger.info("Not all primary shards of the [{}] index are started", index);
+                    return false;
+                }
+            }
+        }
+
+        try {
+            loadQueue();
+        } catch (Exception e) {
+            logger.error("Unable to load unfinished jobs into the job queue", e);
+            actionsToBeProcessed.clear();
+        }
+        templateHelper.checkAndUploadIndexTemplate(state, "alerthistory");
+        doStart();
+        return true;
     }
 
     public void stop() {
@@ -135,6 +144,15 @@ public class AlertActionManager extends AbstractComponent {
         return started.get();
     }
 
+    /**
+     * Calculates the correct alert history index name for a given time using alertHistoryIndexTimeFormat
+     */
+    public static String getAlertHistoryIndexNameForTime(DateTime time) {
+        StringBuffer sb = new StringBuffer(ALERT_HISTORY_INDEX_PREFIX);
+        alertHistoryIndexTimeFormat.printTo(sb, time);
+        return sb.toString();
+    }
+
     private void doStart() {
         logger.info("Starting job queue");
         if (started.compareAndSet(false, true)) {
@@ -143,9 +161,9 @@ public class AlertActionManager extends AbstractComponent {
     }
 
     public void loadQueue() {
-        client.admin().indices().refresh(new RefreshRequest(ALERT_HISTORY_INDEX)).actionGet();
+        client.admin().indices().refresh(new RefreshRequest(ALERT_HISTORY_INDEX_PREFIX + "*")).actionGet();
 
-        SearchResponse response = client.prepareSearch(ALERT_HISTORY_INDEX)
+        SearchResponse response = client.prepareSearch(ALERT_HISTORY_INDEX_PREFIX + "*")
                 .setQuery(QueryBuilders.termQuery(STATE, AlertActionState.SEARCH_NEEDED.toString()))
                 .setSearchType(SearchType.SCAN)
                 .setScroll(scrollTimeout)
@@ -241,7 +259,7 @@ public class AlertActionManager extends AbstractComponent {
     public void addAlertAction(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
         ensureStarted();
         AlertActionEntry entry = new AlertActionEntry(alert, scheduledFireTime, fireTime, AlertActionState.SEARCH_NEEDED);
-        IndexResponse response = client.prepareIndex(ALERT_HISTORY_INDEX, ALERT_HISTORY_TYPE, entry.getId())
+        IndexResponse response = client.prepareIndex(getAlertHistoryIndexNameForTime(scheduledFireTime), ALERT_HISTORY_TYPE, entry.getId())
                 .setSource(XContentFactory.jsonBuilder().value(entry))
                 .setOpType(IndexRequest.OpType.CREATE)
                 .get();
@@ -264,7 +282,7 @@ public class AlertActionManager extends AbstractComponent {
 
     private void updateHistoryEntry(AlertActionEntry entry) throws IOException {
         ensureStarted();
-        IndexResponse response = client.prepareIndex(ALERT_HISTORY_INDEX, ALERT_HISTORY_TYPE, entry.getId())
+        IndexResponse response = client.prepareIndex(getAlertHistoryIndexNameForTime(entry.getScheduledTime()), ALERT_HISTORY_TYPE, entry.getId())
                 .setSource(XContentFactory.jsonBuilder().value(entry))
                 .get();
         entry.setVersion(response.getVersion());

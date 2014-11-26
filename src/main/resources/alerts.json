@@ -16,7 +16,7 @@
         "last_fire_time": {
           "type": "date"
         },
-        "last_action_fire": {
+        "last_alert_executed": {
           "type": "date"
         },
         "last_action_executed": {

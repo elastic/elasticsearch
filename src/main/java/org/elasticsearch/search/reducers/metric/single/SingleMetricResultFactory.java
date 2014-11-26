@@ -17,22 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.max;
 
-import org.elasticsearch.search.reducers.ReductionExecutionException;
-import org.elasticsearch.search.reducers.metric.MetricOp;
-import org.elasticsearch.search.reducers.metric.SingleMetricResult;
+package org.elasticsearch.search.reducers.metric.single;
 
-public class Max implements MetricOp {
+import org.elasticsearch.search.reducers.metric.MetricResult;
+import org.elasticsearch.search.reducers.metric.MetricResultFactory;
+import org.elasticsearch.search.reducers.metric.single.SingleMetricResult;
 
-
-    public SingleMetricResult op(Object[] bucketProperties) throws ReductionExecutionException {
-
-        double max = -1 * Double.MAX_VALUE;
-        for (Object bucketValue : bucketProperties) {
-            max = Math.max(((Number) bucketValue).doubleValue(), max);
-        }
-        return new SingleMetricResult(max);
+public class SingleMetricResultFactory implements MetricResultFactory {
+    @Override
+    public MetricResult newInstance() {
+        return new SingleMetricResult();
     }
-
 }

@@ -17,12 +17,13 @@
  * under the License.
  */
 
+package org.elasticsearch.search.reducers.metric.single.min;
 
-package org.elasticsearch.search.reducers.metric;
+import org.elasticsearch.search.reducers.metric.SimpleMetricReducerParser;
 
-public class SingleMetricResultFactory implements MetricResultFactory {
+public class MinParser extends SimpleMetricReducerParser{
     @Override
-    public MetricResult newInstance() {
-        return new SingleMetricResult();
+    public String type() {
+        return "min";
     }
 }

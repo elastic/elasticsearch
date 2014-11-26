@@ -17,13 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.sum;
+package org.elasticsearch.search.reducers.metric.single.max;
 
-import org.elasticsearch.search.reducers.metric.SimpleMetricReducerParser;
+import org.elasticsearch.search.reducers.ReductionExecutionException;
+import org.elasticsearch.search.reducers.metric.MetricOp;
+import org.elasticsearch.search.reducers.metric.single.SingleMetricResult;
 
-public class SumParser extends SimpleMetricReducerParser{
-    @Override
-    public String type() {
-        return "sum";
+public class Max implements MetricOp {
+
+
+    public SingleMetricResult op(Object[] bucketProperties) throws ReductionExecutionException {
+
+        double max = -1 * Double.MAX_VALUE;
+        for (Object bucketValue : bucketProperties) {
+            max = Math.max(((Number) bucketValue).doubleValue(), max);
+        }
+        return new SingleMetricResult(max);
     }
+
 }

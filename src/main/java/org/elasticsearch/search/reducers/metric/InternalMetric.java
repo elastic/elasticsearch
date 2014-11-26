@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
+import org.elasticsearch.search.reducers.metric.single.SingleMetricResultFactory;
 
 import java.io.IOException;
 import java.util.HashMap;

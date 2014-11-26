@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.min;
+package org.elasticsearch.search.reducers.metric.single.avg;
 
 import org.elasticsearch.search.reducers.metric.SimpleMetricReducerParser;
 
-public class MinParser extends SimpleMetricReducerParser{
+public class AvgParser extends SimpleMetricReducerParser{
     @Override
     public String type() {
-        return "min";
+        return "avg";
     }
 }

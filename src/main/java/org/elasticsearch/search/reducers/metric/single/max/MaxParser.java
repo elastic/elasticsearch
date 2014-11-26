@@ -17,22 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.min;
+package org.elasticsearch.search.reducers.metric.single.max;
 
-import org.elasticsearch.search.reducers.ReductionExecutionException;
-import org.elasticsearch.search.reducers.metric.MetricOp;
-import org.elasticsearch.search.reducers.metric.SingleMetricResult;
+import org.elasticsearch.search.reducers.metric.SimpleMetricReducerParser;
 
-public class Min implements MetricOp {
-
-
-    public SingleMetricResult op(Object[] bucketProperties) throws ReductionExecutionException {
-
-        double min = Double.MAX_VALUE;
-        for (Object bucketValue : bucketProperties) {
-            min = Math.min(((Number) bucketValue).doubleValue(), min);
-        }
-        return new SingleMetricResult(min);
+public class MaxParser extends SimpleMetricReducerParser{
+    @Override
+    public String type() {
+        return "max";
     }
-
 }

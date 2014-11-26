@@ -26,12 +26,12 @@ import org.elasticsearch.search.reducers.bucket.range.RangeParser;
 import org.elasticsearch.search.reducers.bucket.slidingwindow.SlidingWindowParser;
 import org.elasticsearch.search.reducers.bucket.union.UnionParser;
 import org.elasticsearch.search.reducers.bucket.unpacking.UnpackingParser;
-import org.elasticsearch.search.reducers.metric.avg.AvgParser;
+import org.elasticsearch.search.reducers.metric.single.avg.AvgParser;
 import org.elasticsearch.search.reducers.metric.delta.DeltaParser;
-import org.elasticsearch.search.reducers.metric.max.MaxParser;
-import org.elasticsearch.search.reducers.metric.min.MinParser;
+import org.elasticsearch.search.reducers.metric.single.max.MaxParser;
+import org.elasticsearch.search.reducers.metric.single.min.MinParser;
 import org.elasticsearch.search.reducers.metric.stats.StatsParser;
-import org.elasticsearch.search.reducers.metric.sum.SumParser;
+import org.elasticsearch.search.reducers.metric.single.sum.SumParser;
 
 import java.util.List;
 

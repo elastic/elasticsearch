@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric;
+package org.elasticsearch.search.reducers.metric.single;
 
 
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.reducers.metric.MetricResult;
 
 import java.io.IOException;
 

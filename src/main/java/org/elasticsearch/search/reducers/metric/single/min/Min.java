@@ -17,23 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.avg;
+package org.elasticsearch.search.reducers.metric.single.min;
 
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.metric.MetricOp;
-import org.elasticsearch.search.reducers.metric.SingleMetricResult;
+import org.elasticsearch.search.reducers.metric.single.SingleMetricResult;
 
-public class Avg implements MetricOp {
+public class Min implements MetricOp {
 
 
     public SingleMetricResult op(Object[] bucketProperties) throws ReductionExecutionException {
 
-        double sum = 0;
+        double min = Double.MAX_VALUE;
         for (Object bucketValue : bucketProperties) {
-            sum += ((Number) bucketValue).doubleValue();
+            min = Math.min(((Number) bucketValue).doubleValue(), min);
         }
-
-        return new SingleMetricResult(sum/bucketProperties.length);
+        return new SingleMetricResult(min);
     }
 
 }

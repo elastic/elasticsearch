@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.max;
+package org.elasticsearch.search.reducers.metric.single.sum;
 
 import org.elasticsearch.search.reducers.metric.SimpleMetricReducerParser;
 
-public class MaxParser extends SimpleMetricReducerParser{
+public class SumParser extends SimpleMetricReducerParser{
     @Override
     public String type() {
-        return "max";
+        return "sum";
     }
 }

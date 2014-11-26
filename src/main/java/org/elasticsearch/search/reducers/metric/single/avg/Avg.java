@@ -17,13 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.avg;
+package org.elasticsearch.search.reducers.metric.single.avg;
 
-import org.elasticsearch.search.reducers.metric.SimpleMetricReducerParser;
+import org.elasticsearch.search.reducers.ReductionExecutionException;
+import org.elasticsearch.search.reducers.metric.MetricOp;
+import org.elasticsearch.search.reducers.metric.single.SingleMetricResult;
 
-public class AvgParser extends SimpleMetricReducerParser{
-    @Override
-    public String type() {
-        return "avg";
+public class Avg implements MetricOp {
+
+
+    public SingleMetricResult op(Object[] bucketProperties) throws ReductionExecutionException {
+
+        double sum = 0;
+        for (Object bucketValue : bucketProperties) {
+            sum += ((Number) bucketValue).doubleValue();
+        }
+
+        return new SingleMetricResult(sum/bucketProperties.length);
     }
+
 }

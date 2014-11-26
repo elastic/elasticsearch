@@ -27,10 +27,10 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.reducers.*;
-import org.elasticsearch.search.reducers.metric.avg.Avg;
-import org.elasticsearch.search.reducers.metric.max.Max;
-import org.elasticsearch.search.reducers.metric.min.Min;
-import org.elasticsearch.search.reducers.metric.sum.Sum;
+import org.elasticsearch.search.reducers.metric.single.avg.Avg;
+import org.elasticsearch.search.reducers.metric.single.max.Max;
+import org.elasticsearch.search.reducers.metric.single.min.Min;
+import org.elasticsearch.search.reducers.metric.single.sum.Sum;
 
 import java.io.IOException;
 import java.util.Map;

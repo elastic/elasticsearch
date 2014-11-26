@@ -210,6 +210,50 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testParse_polygonNoHolesOGCCompliance() throws IOException {
+        // test ccw poly (large poly intended to not cross dateline)
+        String polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
+                .startArray("coordinates")
+                .startArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .startArray().value(-177.0).value(10.0).endArray()
+                .startArray().value(-177.0).value(-10.0).endArray()
+                .startArray().value(176.0).value(-15.0).endArray()
+                .startArray().value(172.0).value(0.0).endArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+
+        XContentParser parser = JsonXContent.jsonXContent.createParser(polygonGeoJson);
+        parser.nextToken();
+        Shape shape = ShapeBuilder.parse(parser).build();
+
+        // test cw poly (small poly expected to cross dateline)
+        polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
+                .startArray("coordinates")
+                .startArray()
+                .startArray().value(-177.0).value(10.0).endArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .startArray().value(172.0).value(0.0).endArray()
+                .startArray().value(176.0).value(-15.0).endArray()
+                .startArray().value(-177.0).value(-10.0).endArray()
+                .startArray().value(-177.0).value(10.0).endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+
+        parser = JsonXContent.jsonXContent.createParser(polygonGeoJson);
+        parser.nextToken();
+        shape = ShapeBuilder.parse(parser).build();
+    }
+
+//    @Test
+//    public void testParse_polygonWithHolesWKTReorder() throws IOException {
+//
+//    }
+
+    @Test
     public void testParse_invalidPolygon() throws IOException {
         /**
          * The following 3 test cases ensure proper error handling of invalid polygons 

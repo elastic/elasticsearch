@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.alerts;
 
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -131,6 +132,8 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         assertBusy(new Runnable() {
             @Override
             public void run() {
+                IndicesExistsResponse indicesExistsResponse = client().admin().indices().prepareExists(AlertActionManager.ALERT_HISTORY_INDEX_PREFIX+"*").get();
+                assertThat(indicesExistsResponse.isExists(), is(true));
                 SearchResponse searchResponse = client().prepareSearch(AlertActionManager.ALERT_HISTORY_INDEX_PREFIX + "*")
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                         .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", AlertActionState.ACTION_PERFORMED.toString())))
@@ -155,6 +158,9 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         assertBusy(new Runnable() {
             @Override
             public void run() {
+                IndicesExistsResponse indicesExistsResponse = client().admin().indices().prepareExists(AlertActionManager.ALERT_HISTORY_INDEX_PREFIX+"*").get();
+                assertThat(indicesExistsResponse.isExists(), is(true));
+
                 SearchResponse searchResponse = client().prepareSearch(AlertActionManager.ALERT_HISTORY_INDEX_PREFIX + "*")
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                         .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", AlertActionState.NO_ACTION_NEEDED.toString())))

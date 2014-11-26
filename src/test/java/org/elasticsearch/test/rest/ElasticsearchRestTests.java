@@ -23,8 +23,10 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.google.common.collect.Lists;
 import org.apache.lucene.util.AbstractRandomizedTest;
+import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -59,6 +61,7 @@ import java.util.Set;
 //@ReplicateOnEachVm
 @AbstractRandomizedTest.Rest
 @ClusterScope(randomDynamicTemplates = false)
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE) // timeout the suite after 40min and fail the test.
 public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
 
     /**

@@ -102,25 +102,29 @@ public class AlertActionManager extends AbstractComponent {
         if (started.get()) {
             return true;
         }
-        String[] indices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), ALERT_HISTORY_INDEX_PREFIX + "*");
-        if (indices.length == 0) {
-            logger.info("No previous .alerthistory index, skip loading of alert actions");
-            templateHelper.checkAndUploadIndexTemplate(state, "alerthistory");
-            doStart();
-            return true;
-        }
+        try {
+            String[] indices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), ALERT_HISTORY_INDEX_PREFIX + "*");
+            if (indices.length == 0) {
+                logger.info("No previous .alerthistory index, skip loading of alert actions");
+                templateHelper.checkAndUploadIndexTemplate(state, "alerthistory");
+                doStart();
+                return true;
+            }
 
 
-        for (String index : indices) {
-            IndexMetaData indexMetaData = state.getMetaData().index(index);
-            if (indexMetaData != null) {
-                if (!state.routingTable().index(index).allPrimaryShardsActive()) {
-                    logger.info("Not all primary shards of the [{}] index are started", index);
-                    return false;
+            for (String index : indices) {
+                IndexMetaData indexMetaData = state.getMetaData().index(index);
+                if (indexMetaData != null) {
+                    if (!state.routingTable().index(index).allPrimaryShardsActive()) {
+                        logger.info("Not all primary shards of the [{}] index are started", index);
+                        return false;
+                    }
                 }
             }
+        } catch (Exception e){
+            logger.error("Unable to check index availability", e);
+            return false;
         }
-
         try {
             loadQueue();
         } catch (Exception e) {
@@ -258,12 +262,15 @@ public class AlertActionManager extends AbstractComponent {
 
     public void addAlertAction(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
         ensureStarted();
+        logger.debug("Adding alert action for alert [{}]", alert.alertName());
+
         AlertActionEntry entry = new AlertActionEntry(alert, scheduledFireTime, fireTime, AlertActionState.SEARCH_NEEDED);
-        IndexResponse response = client.prepareIndex(getAlertHistoryIndexNameForTime(scheduledFireTime), ALERT_HISTORY_TYPE, entry.getId())
+        String alertHistoryIndex = getAlertHistoryIndexNameForTime(scheduledFireTime);
+        IndexResponse response = client.prepareIndex(alertHistoryIndex, ALERT_HISTORY_TYPE, entry.getId())
                 .setSource(XContentFactory.jsonBuilder().value(entry))
                 .setOpType(IndexRequest.OpType.CREATE)
                 .get();
-        logger.debug("Adding alert action for alert [{}]", alert.alertName());
+
         entry.setVersion(response.getVersion());
         long currentSize = actionsToBeProcessed.size() + 1;
         actionsToBeProcessed.add(entry);

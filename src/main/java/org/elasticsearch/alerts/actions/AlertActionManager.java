@@ -33,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -103,28 +102,21 @@ public class AlertActionManager extends AbstractComponent {
         if (started.get()) {
             return true;
         }
-        try {
-            String[] indices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), ALERT_HISTORY_INDEX_PREFIX + "*");
-            if (indices.length == 0) {
-                logger.info("No previous .alerthistory index, skip loading of alert actions");
-                templateHelper.checkAndUploadIndexTemplate(state, "alerthistory");
-                doStart();
-                return true;
-            }
-
-
-            for (String index : indices) {
-                IndexMetaData indexMetaData = state.getMetaData().index(index);
-                if (indexMetaData != null) {
-                    if (!state.routingTable().index(index).allPrimaryShardsActive()) {
-                        logger.info("Not all primary shards of the [{}] index are started", index);
-                        return false;
-                    }
+        String[] indices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), ALERT_HISTORY_INDEX_PREFIX + "*");
+        if (indices.length == 0) {
+            logger.info("No previous .alerthistory index, skip loading of alert actions");
+            templateHelper.checkAndUploadIndexTemplate(state, "alerthistory");
+            doStart();
+            return true;
+        }
+        for (String index : indices) {
+            IndexMetaData indexMetaData = state.getMetaData().index(index);
+            if (indexMetaData != null) {
+                if (!state.routingTable().index(index).allPrimaryShardsActive()) {
+                    logger.info("Not all primary shards of the [{}] index are started", index);
+                    return false;
                 }
             }
-        } catch (Exception e){
-            logger.error("Unable to check index availability", e);
-            return false;
         }
 
         try {
@@ -263,30 +255,15 @@ public class AlertActionManager extends AbstractComponent {
     }
 
     public void addAlertAction(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
-        addAlertAction(alert, scheduledFireTime, fireTime, true);
-    }
-
-    public void addAlertAction(Alert alert, DateTime scheduledFireTime, DateTime fireTime, boolean retry) throws IOException {
         ensureStarted();
         logger.debug("Adding alert action for alert [{}]", alert.alertName());
         String alertHistoryIndex = getAlertHistoryIndexNameForTime(scheduledFireTime);
         AlertActionEntry entry = new AlertActionEntry(alert, scheduledFireTime, fireTime, AlertActionState.SEARCH_NEEDED);
-        try {
-            IndexResponse response = client.prepareIndex(alertHistoryIndex, ALERT_HISTORY_TYPE, entry.getId())
-                    .setSource(XContentFactory.jsonBuilder().value(entry))
-                    .setOpType(IndexRequest.OpType.CREATE)
-                    .get();
-            entry.setVersion(response.getVersion());
-        } catch (IndexMissingException ime) {
-            ///@TODO This really shouldn't be happening
-            if (retry) {
-                logger.error("Unable to dynamically implicitly create alert history index [" + alertHistoryIndex + "] creating explicitly");
-                client.admin().indices().prepareCreate(alertHistoryIndex).get();
-                addAlertAction(alert, scheduledFireTime, fireTime, false);
-            } else {
-                throw new ElasticsearchException("Unable to create alert history index [" + alertHistoryIndex + "]", ime);
-            }
-        }
+        IndexResponse response = client.prepareIndex(alertHistoryIndex, ALERT_HISTORY_TYPE, entry.getId())
+                .setSource(XContentFactory.jsonBuilder().value(entry))
+                .setOpType(IndexRequest.OpType.CREATE)
+                .get();
+        entry.setVersion(response.getVersion());
 
         long currentSize = actionsToBeProcessed.size() + 1;
         actionsToBeProcessed.add(entry);

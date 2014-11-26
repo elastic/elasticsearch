@@ -44,6 +44,7 @@ import java.io.IOException;
 public class ReverseNestedAggregator extends SingleBucketAggregator implements ReaderContextAware {
 
     private final Filter parentFilter;
+    private final String nestedPath;
     private DocIdSetIterator parentDocs;
 
     // TODO: Add LongIntPagedHashMap?
@@ -52,6 +53,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
 
     public ReverseNestedAggregator(String name, AggregatorFactories factories, String nestedPath, AggregationContext aggregationContext, Aggregator parent) {
         super(name, factories, aggregationContext, parent);
+        this.nestedPath = nestedPath;
 
         // Early validation
         NestedAggregator closestNestedAggregator = findClosestNestedAggregator(parent);
@@ -147,6 +149,10 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
 
     Filter getParentFilter() {
         return parentFilter;
+    }
+
+    public String getNestedPath() {
+        return nestedPath;
     }
 
     @Override

@@ -61,6 +61,11 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
         this.queryBuilder = null;
     }
 
+    public FunctionScoreQueryBuilder(QueryBuilder queryBuilder, FilterBuilder filterBuilder) {
+        this.filterBuilder = filterBuilder;
+        this.queryBuilder = queryBuilder;
+    }
+
     public FunctionScoreQueryBuilder() {
         this.filterBuilder = null;
         this.queryBuilder = null;
@@ -130,7 +135,8 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
         if (queryBuilder != null) {
             builder.field("query");
             queryBuilder.toXContent(builder, params);
-        } else if (filterBuilder != null) {
+        }
+        if (filterBuilder != null) {
             builder.field("filter");
             filterBuilder.toXContent(builder, params);
         }

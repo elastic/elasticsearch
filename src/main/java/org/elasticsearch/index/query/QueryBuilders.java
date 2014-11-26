@@ -474,6 +474,26 @@ public abstract class QueryBuilders {
     }
 
     /**
+     * A query that allows to define a custom scoring function.
+     *
+     * @param queryBuilder  The query to custom score
+     * @param filterBuilder The filterBuilder to custom score
+     */
+    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, FilterBuilder filterBuilder) {
+        return new FunctionScoreQueryBuilder(queryBuilder, filterBuilder);
+    }
+
+    /**
+     * A query that allows to define a custom scoring function.
+     *
+     * @param queryBuilder  The query to custom score
+     * @param filterBuilder The filterBuilder to custom score
+     */
+    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, FilterBuilder filterBuilder, ScoreFunctionBuilder function) {
+        return (new FunctionScoreQueryBuilder(queryBuilder, filterBuilder)).add(function);
+    }
+
+    /**
      * A more like this query that finds documents that are "like" the provided {@link MoreLikeThisQueryBuilder#likeText(String)}
      * which is checked against the fields the query is constructed with.
      *

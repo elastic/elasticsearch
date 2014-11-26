@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
@@ -84,6 +85,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         Query query = null;
+        Filter filter = null;
         float boost = 1.0f;
 
         FiltersFunctionScoreQuery.ScoreMode scoreMode = FiltersFunctionScoreQuery.ScoreMode.Multiply;
@@ -104,7 +106,7 @@ public class FunctionScoreQueryParser implements QueryParser {
             } else if ("query".equals(currentFieldName)) {
                 query = parseContext.parseInnerQuery();
             } else if ("filter".equals(currentFieldName)) {
-                query = new ConstantScoreQuery(parseContext.parseInnerFilter());
+                filter = parseContext.parseInnerFilter();
             } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
                 scoreMode = parseScoreMode(parseContext, parser);
             } else if ("boost_mode".equals(currentFieldName) || "boostMode".equals(currentFieldName)) {
@@ -144,8 +146,14 @@ public class FunctionScoreQueryParser implements QueryParser {
                 singleFunctionName = currentFieldName;
             }
         }
-        if (query == null) {
+        if (query == null && filter == null) {
             query = Queries.newMatchAllQuery();
+        }
+        if (query == null && filter != null) {
+            query = new ConstantScoreQuery(filter);
+        }
+        if (query != null && filter != null) {
+            query = new FilteredQuery(query, filter);
         }
         // if all filter elements returned null, just use the query
         if (filterFunctions.isEmpty()) {

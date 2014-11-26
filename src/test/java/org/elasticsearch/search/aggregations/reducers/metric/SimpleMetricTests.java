@@ -30,7 +30,7 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.reducers.bucket.BucketReducerAggregation;
 import org.elasticsearch.search.reducers.bucket.union.InternalUnion;
 import org.elasticsearch.search.reducers.metric.InternalMetric;
-import org.elasticsearch.search.reducers.metric.SimpleMetricsBuilder;
+import org.elasticsearch.search.reducers.metric.MetricsBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -74,7 +74,7 @@ public class SimpleMetricTests extends ElasticsearchIntegrationTest {
         testMetric(maxReducer("max_docs"), "max", 20d, "max_docs");
     }
 
-    private void testMetric(SimpleMetricsBuilder builder, String metricType, double expectedValue, String reducerName) throws IOException {
+    private void testMetric(MetricsBuilder builder, String metricType, double expectedValue, String reducerName) throws IOException {
         SearchResponse searchResponse = client().prepareSearch("index")
                 .addAggregation(histogram("histo").field("hist_field").interval(10))
                 .addReducer(builder.bucketsPath("histo").field("_count")).get();

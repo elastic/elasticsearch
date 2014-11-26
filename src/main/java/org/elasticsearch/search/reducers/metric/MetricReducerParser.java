@@ -29,7 +29,7 @@ import org.elasticsearch.search.reducers.ReducerFactory;
 
 import java.io.IOException;
 
-public abstract class SimpleMetricReducerParser implements Reducer.Parser {
+public abstract class MetricReducerParser implements Reducer.Parser {
 
     public static final ParseField BUCKETS_FIELD = new ParseField("buckets");
     public static final ParseField FIELD_NAME_FIELD = new ParseField("field");
@@ -68,7 +68,7 @@ public abstract class SimpleMetricReducerParser implements Reducer.Parser {
         if (fieldName == null) {
             throw new SearchParseException(context, "Missing [" + FIELD_NAME_FIELD.getPreferredName() + "] in " + type() + " reducer [" + reducerName + "]");
         }
-        return new SimpleMetricReducer.Factory(reducerName, buckets, fieldName, opName);
+        return new MetricReducer.Factory(reducerName, buckets, fieldName, opName);
     }
 }
 

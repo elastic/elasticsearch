@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.reducers.metric.single.min;
 
-import org.elasticsearch.search.reducers.metric.SimpleMetricReducerParser;
+import org.elasticsearch.search.reducers.metric.MetricReducerParser;
 
-public class MinParser extends SimpleMetricReducerParser{
+public class MinParser extends MetricReducerParser {
     @Override
     public String type() {
         return "min";

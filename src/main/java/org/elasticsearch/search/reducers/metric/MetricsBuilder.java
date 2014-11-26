@@ -25,20 +25,20 @@ import org.elasticsearch.search.reducers.ReductionBuilder;
 
 import java.io.IOException;
 
-public class SimpleMetricsBuilder extends ReductionBuilder<SimpleMetricsBuilder> {
+public class MetricsBuilder extends ReductionBuilder<MetricsBuilder> {
 
     private String path;
     private String field;
 
-    public SimpleMetricsBuilder(String name, String opName) {
+    public MetricsBuilder(String name, String opName) {
         super(name, opName);
     }
 
-    public SimpleMetricsBuilder bucketsPath(String path) {
+    public MetricsBuilder bucketsPath(String path) {
         this.path = path;
         return this;
     }
-    public SimpleMetricsBuilder field(String path) {
+    public MetricsBuilder field(String path) {
         this.field = path;
         return this;
     }
@@ -48,11 +48,11 @@ public class SimpleMetricsBuilder extends ReductionBuilder<SimpleMetricsBuilder>
         builder.startObject();
 
         if (path != null) {
-            builder.field(SimpleMetricReducerParser.BUCKETS_FIELD.getPreferredName(), path);
+            builder.field(MetricReducerParser.BUCKETS_FIELD.getPreferredName(), path);
         }
 
         if (field != null) {
-            builder.field(SimpleMetricReducerParser.FIELD_NAME_FIELD.getPreferredName(), field);
+            builder.field(MetricReducerParser.FIELD_NAME_FIELD.getPreferredName(), field);
         }
         builder.endObject();
         return builder;

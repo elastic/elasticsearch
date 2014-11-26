@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.reducers.metric.single.sum;
 
-import org.elasticsearch.search.reducers.metric.SimpleMetricReducerParser;
+import org.elasticsearch.search.reducers.metric.MetricReducerParser;
 
-public class SumParser extends SimpleMetricReducerParser{
+public class SumParser extends MetricReducerParser {
     @Override
     public String type() {
         return "sum";

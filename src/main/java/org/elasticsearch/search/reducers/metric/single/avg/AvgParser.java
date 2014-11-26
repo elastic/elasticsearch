@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.reducers.metric.single.avg;
 
-import org.elasticsearch.search.reducers.metric.SimpleMetricReducerParser;
+import org.elasticsearch.search.reducers.metric.MetricReducerParser;
 
-public class AvgParser extends SimpleMetricReducerParser{
+public class AvgParser extends MetricReducerParser {
     @Override
     public String type() {
         return "avg";

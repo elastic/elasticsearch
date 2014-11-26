@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.reducers.metric.multi.stats;
 
-import org.elasticsearch.search.reducers.metric.SimpleMetricReducerParser;
+import org.elasticsearch.search.reducers.metric.MetricReducerParser;
 
-public class StatsParser extends SimpleMetricReducerParser{
+public class StatsParser extends MetricReducerParser {
     @Override
     public String type() {
         return "stats";

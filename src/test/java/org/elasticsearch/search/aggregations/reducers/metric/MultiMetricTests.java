@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.reducers.metric.InternalMetric;
-import org.elasticsearch.search.reducers.metric.SimpleMetricsBuilder;
+import org.elasticsearch.search.reducers.metric.MetricsBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -59,7 +59,7 @@ public class MultiMetricTests extends ElasticsearchIntegrationTest {
         assertThat(metric.value("length"), equalTo(10d));
     }
 
-    private InternalMetric getAndSanityCheckMetric(SimpleMetricsBuilder builder, String reducerName) throws IOException {
+    private InternalMetric getAndSanityCheckMetric(MetricsBuilder builder, String reducerName) throws IOException {
         SearchResponse searchResponse = client().prepareSearch("index")
                 .addAggregation(histogram("histo").field("hist_field").interval(10))
                 .addReducer(builder.bucketsPath("histo").field("_count")).get();

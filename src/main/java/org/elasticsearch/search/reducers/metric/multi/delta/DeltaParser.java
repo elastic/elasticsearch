@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.reducers.metric.multi.delta;
 
-import org.elasticsearch.search.reducers.metric.SimpleMetricReducerParser;
+import org.elasticsearch.search.reducers.metric.MetricReducerParser;
 
-public class DeltaParser extends SimpleMetricReducerParser{
+public class DeltaParser extends MetricReducerParser {
     @Override
     public String type() {
         return "delta";

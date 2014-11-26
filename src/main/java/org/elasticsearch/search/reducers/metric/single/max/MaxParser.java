@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.reducers.metric.single.max;
 
-import org.elasticsearch.search.reducers.metric.SimpleMetricReducerParser;
+import org.elasticsearch.search.reducers.metric.MetricReducerParser;
 
-public class MaxParser extends SimpleMetricReducerParser{
+public class MaxParser extends MetricReducerParser {
     @Override
     public String type() {
         return "max";

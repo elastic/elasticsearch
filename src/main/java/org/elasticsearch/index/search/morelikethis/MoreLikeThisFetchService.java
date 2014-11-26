@@ -20,18 +20,18 @@
 package org.elasticsearch.index.search.morelikethis;
 
 import org.apache.lucene.index.Fields;
-import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
-import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
-import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
-import org.elasticsearch.action.termvectors.TermVectorsResponse;
+import org.elasticsearch.action.termvectors.*;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  *
@@ -46,10 +46,26 @@ public class MoreLikeThisFetchService extends AbstractComponent {
         this.client = client;
     }
 
-    public Fields[] fetch(MultiTermVectorsRequest request) throws IOException {
+    public Fields[] fetch(MultiTermVectorsRequest requests) throws IOException {
+        return getFields(fetchResponse(requests), requests);
+    }
+
+    public MultiTermVectorsResponse fetchResponse(MultiTermVectorsRequest requests) throws IOException {
+        return client.multiTermVectors(requests).actionGet();
+    }
+
+    public static Fields[] getFields(MultiTermVectorsResponse responses, MultiTermVectorsRequest requests) throws IOException {
         List<Fields> likeFields = new ArrayList<>();
-        MultiTermVectorsResponse responses = client.multiTermVectors(request).actionGet();
+
+        Set<Item> items = new HashSet<>();
+        for (TermVectorsRequest request : requests) {
+            items.add(new Item(request.index(), request.type(), request.id()));
+        }
+
         for (MultiTermVectorsItemResponse response : responses) {
+            if (!hasResponseFromRequest(response, items)) {
+                continue;
+            }
             if (response.isFailed()) {
                 continue;
             }
@@ -60,5 +76,9 @@ public class MoreLikeThisFetchService extends AbstractComponent {
             likeFields.add(getResponse.getFields());
         }
         return likeFields.toArray(Fields.EMPTY_ARRAY);
+    }
+
+    private static boolean hasResponseFromRequest(MultiTermVectorsItemResponse response, Set<Item> items) {
+        return items.contains(new Item(response.getIndex(), response.getType(), response.getId()));
     }
 }

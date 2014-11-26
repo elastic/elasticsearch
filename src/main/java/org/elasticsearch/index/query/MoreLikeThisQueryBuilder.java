@@ -19,10 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -47,6 +44,8 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
      * A single get item. Pure delegate to multi get.
      */
     public static final class Item extends MultiGetRequest.Item implements ToXContent {
+        public static final Item[] EMPTY_ARRAY = new Item[0];
+
         private BytesReference doc;
         private String likeText;
 
@@ -132,6 +131,7 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
 
     private final String[] fields;
     private List<Item> docs = new ArrayList<>();
+    private List<Item> ignoreDocs = new ArrayList<>();
     private Boolean include = null;
     private String minimumShouldMatch = null;
     private int minTermFreq = -1;
@@ -163,11 +163,21 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         this.fields = fields;
     }
 
+    /**
+     * Sets the documents to use in order to find documents that are "like" this.
+     *
+     * @param docs the documents to use when generating the 'More Like This' query.
+     */
     public MoreLikeThisQueryBuilder like(Item... docs) {
         this.docs = Arrays.asList(docs);
         return this;
     }
 
+    /**
+     * Sets the text to use in order to find documents that are "like" this.
+     *
+     * @param likeText the text to use when generating the 'More Like This' query.
+     */
     public MoreLikeThisQueryBuilder like(String... likeText) {
         this.docs = new ArrayList<>();
         for (String text : likeText) {
@@ -176,11 +186,36 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         return this;
     }
 
+    /**
+     * Sets the documents from which the terms should not be selected from.
+     */
+    public MoreLikeThisQueryBuilder ignoreLike(Item... docs) {
+        this.ignoreDocs = Arrays.asList(docs);
+        return this;
+    }
+
+    /**
+     * Sets the text from which the terms should not be selected from.
+     */
+    public MoreLikeThisQueryBuilder ignoreLike(String... likeText) {
+        this.ignoreDocs = new ArrayList<>();
+        for (String text : likeText) {
+            this.ignoreDocs.add(new Item(text));
+        }
+        return this;
+    }
+
+    /**
+     * Adds a document to use in order to find documents that are "like" this.
+     */
     public MoreLikeThisQueryBuilder addItem(Item item) {
         this.docs.add(item);
         return this;
     }
 
+    /**
+     * Adds some text to use in order to find documents that are "like" this.
+     */
     public MoreLikeThisQueryBuilder addLikeText(String likeText) {
         this.docs.add(new Item(likeText));
         return this;
@@ -349,11 +384,10 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         if (this.docs.isEmpty()) {
             throw new ElasticsearchIllegalArgumentException("more_like_this requires '" + likeFieldName + "' to be provided");
         } else {
-            if (docs.size() == 1) {
-                builder.field(likeFieldName, docs);
-            } else {
-                builder.array(likeFieldName, docs);
-            }
+            builder.field(likeFieldName, docs);
+        }
+        if (!ignoreDocs.isEmpty()) {
+            builder.field(MoreLikeThisQueryParser.Fields.LIKE.getPreferredName(), ignoreDocs);
         }
         if (minimumShouldMatch != null) {
             builder.field(MoreLikeThisQueryParser.Fields.MINIMUM_SHOULD_MATCH.getPreferredName(), minimumShouldMatch);

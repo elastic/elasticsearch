@@ -30,6 +30,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
+import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -73,6 +74,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
         public static final ParseField DOCUMENT_IDS = new ParseField("ids").withAllDeprecated("like");
         public static final ParseField DOCUMENTS = new ParseField("docs").withAllDeprecated("like");
         public static final ParseField LIKE = new ParseField("like");
+        public static final ParseField IGNORE_LIKE = new ParseField("ignore_like");
         public static final ParseField INCLUDE = new ParseField("include");
     }
 
@@ -106,7 +108,10 @@ public class MoreLikeThisQueryParser implements QueryParser {
         String currentFieldName = null;
 
         List<String> likeTexts = new ArrayList<>();
-        MultiTermVectorsRequest items = new MultiTermVectorsRequest();
+        MultiTermVectorsRequest likeItems = new MultiTermVectorsRequest();
+
+        List<String> ignoreTexts = new ArrayList<>();
+        MultiTermVectorsRequest ignoreItems = new MultiTermVectorsRequest();
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -115,7 +120,9 @@ public class MoreLikeThisQueryParser implements QueryParser {
                 if (Fields.LIKE_TEXT.match(currentFieldName, parseContext.parseFlags())) {
                     likeTexts.add(parser.text());
                 } else if (Fields.LIKE.match(currentFieldName, parseContext.parseFlags())) {
-                    parseLikeField(parser, likeTexts, items);
+                    parseLikeField(parser, likeTexts, likeItems);
+                } else if (Fields.IGNORE_LIKE.match(currentFieldName, parseContext.parseFlags())) {
+                    parseLikeField(parser, ignoreTexts, ignoreItems);
                 } else if (Fields.MIN_TERM_FREQ.match(currentFieldName, parseContext.parseFlags())) {
                     mltQuery.setMinTermFrequency(parser.intValue());
                 } else if (Fields.MAX_QUERY_TERMS.match(currentFieldName, parseContext.parseFlags())) {
@@ -168,33 +175,40 @@ public class MoreLikeThisQueryParser implements QueryParser {
                         if (!token.isValue()) {
                             throw new ElasticsearchIllegalArgumentException("ids array element should only contain ids");
                         }
-                        items.add(newTermVectorsRequest().id(parser.text()));
+                        likeItems.add(newTermVectorsRequest().id(parser.text()));
                     }
                 } else if (Fields.DOCUMENTS.match(currentFieldName, parseContext.parseFlags())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token != XContentParser.Token.START_OBJECT) {
                             throw new ElasticsearchIllegalArgumentException("docs array element should include an object");
                         }
-                        items.add(parseDocument(parser));
+                        likeItems.add(parseDocument(parser));
                     }
                 } else if (Fields.LIKE.match(currentFieldName, parseContext.parseFlags())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        parseLikeField(parser, likeTexts, items);
+                        parseLikeField(parser, likeTexts, likeItems);
+                    }
+                } else if (Fields.IGNORE_LIKE.match(currentFieldName, parseContext.parseFlags())) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        parseLikeField(parser, ignoreTexts, ignoreItems);
                     }
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (Fields.LIKE.match(currentFieldName, parseContext.parseFlags())) {
-                    parseLikeField(parser, likeTexts, items);
+                    parseLikeField(parser, likeTexts, likeItems);
+                }
+                else if (Fields.IGNORE_LIKE.match(currentFieldName, parseContext.parseFlags())) {
+                    parseLikeField(parser, ignoreTexts, ignoreItems);
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
-        if (likeTexts.isEmpty() && items.isEmpty()) {
-            throw new QueryParsingException(parseContext.index(), "more_like_this requires at least 'like_text' or 'ids/docs' to be specified");
+        if (likeTexts.isEmpty() && likeItems.isEmpty()) {
+            throw new QueryParsingException(parseContext.index(), "more_like_this requires 'like' to be specified");
         }
         if (moreLikeFields != null && moreLikeFields.isEmpty()) {
             throw new QueryParsingException(parseContext.index(), "more_like_this requires 'fields' to be non-empty");
@@ -227,10 +241,18 @@ public class MoreLikeThisQueryParser implements QueryParser {
         if (!likeTexts.isEmpty()) {
             mltQuery.setLikeText(likeTexts);
         }
+        if (!ignoreTexts.isEmpty()) {
+            mltQuery.setIgnoreText(ignoreTexts);
+        }
 
         // handle items
-        if (!items.isEmpty()) {
+        if (!likeItems.isEmpty()) {
             // set default index, type and fields if not specified
+            MultiTermVectorsRequest items = likeItems;
+            for (TermVectorsRequest item : ignoreItems) {
+                items.add(item);
+            }
+
             for (TermVectorsRequest item : items) {
                 if (item.index() == null) {
                     item.index(parseContext.index().name());
@@ -254,12 +276,24 @@ public class MoreLikeThisQueryParser implements QueryParser {
             }
             // fetching the items with multi-termvectors API
             BooleanQuery boolQuery = new BooleanQuery();
-            org.apache.lucene.index.Fields[] likeFields = fetchService.fetch(items);
-            mltQuery.setLikeText(likeFields);
+            MultiTermVectorsResponse responses = fetchService.fetchResponse(items);
+
+            // getting the Fields for liked items
+            mltQuery.setLikeText(MoreLikeThisFetchService.getFields(responses, likeItems));
+
+            // getting the Fields for ignored items
+            if (!ignoreItems.isEmpty()) {
+                org.apache.lucene.index.Fields[] ignoreFields = MoreLikeThisFetchService.getFields(responses, ignoreItems);
+                if (ignoreFields.length > 0) {
+                    mltQuery.setIgnoreText(ignoreFields);
+                }
+            }
+
             boolQuery.add(mltQuery, BooleanClause.Occur.SHOULD);
+
             // exclude the items from the search
             if (!include) {
-                handleExclude(boolQuery, items);
+                handleExclude(boolQuery, likeItems);
             }
             return boolQuery;
         }

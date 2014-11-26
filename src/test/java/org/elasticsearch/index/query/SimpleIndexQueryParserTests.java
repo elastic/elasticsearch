@@ -21,46 +21,13 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
-import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.MultiFields;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.*;
 import org.apache.lucene.index.memory.MemoryIndex;
-import org.apache.lucene.queries.BoostingQuery;
-import org.apache.lucene.queries.ExtendedCommonTermsQuery;
-import org.apache.lucene.queries.FilterClause;
-import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.queries.TermsFilter;
+import org.apache.lucene.queries.*;
 import org.apache.lucene.sandbox.queries.FuzzyLikeThisQuery;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
-import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.NumericRangeFilter;
-import org.apache.lucene.search.NumericRangeQuery;
-import org.apache.lucene.search.PrefixFilter;
-import org.apache.lucene.search.PrefixQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
-import org.apache.lucene.search.RegexpQuery;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TermRangeQuery;
-import org.apache.lucene.search.WildcardQuery;
-import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
-import org.apache.lucene.search.spans.SpanFirstQuery;
-import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
-import org.apache.lucene.search.spans.SpanNearQuery;
-import org.apache.lucene.search.spans.SpanNotQuery;
-import org.apache.lucene.search.spans.SpanOrQuery;
-import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.search.*;
+import org.apache.lucene.search.spans.*;
 import org.apache.lucene.spatial.prefix.IntersectsPrefixTreeFilter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -69,20 +36,11 @@ import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
-import org.elasticsearch.action.termvectors.TermVectorsRequest;
+import org.elasticsearch.action.termvectors.*;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedString;
-import org.elasticsearch.common.lucene.search.AndFilter;
-import org.elasticsearch.common.lucene.search.LimitFilter;
-import org.elasticsearch.common.lucene.search.MatchAllDocsFilter;
-import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
-import org.elasticsearch.common.lucene.search.NotFilter;
-import org.elasticsearch.common.lucene.search.OrFilter;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.RegexpFilter;
-import org.elasticsearch.common.lucene.search.XBooleanFilter;
+import org.elasticsearch.common.lucene.search.*;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
@@ -112,59 +70,19 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.andFilter;
-import static org.elasticsearch.index.query.FilterBuilders.boolFilter;
-import static org.elasticsearch.index.query.FilterBuilders.notFilter;
-import static org.elasticsearch.index.query.FilterBuilders.orFilter;
-import static org.elasticsearch.index.query.FilterBuilders.prefixFilter;
-import static org.elasticsearch.index.query.FilterBuilders.queryFilter;
-import static org.elasticsearch.index.query.FilterBuilders.rangeFilter;
-import static org.elasticsearch.index.query.FilterBuilders.termFilter;
-import static org.elasticsearch.index.query.FilterBuilders.termsFilter;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.index.query.QueryBuilders.boostingQuery;
-import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.disMaxQuery;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
-import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.fuzzyLikeThisFieldQuery;
-import static org.elasticsearch.index.query.QueryBuilders.fuzzyLikeThisQuery;
-import static org.elasticsearch.index.query.QueryBuilders.fuzzyQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
-import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
-import static org.elasticsearch.index.query.QueryBuilders.queryString;
-import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
-import static org.elasticsearch.index.query.QueryBuilders.regexpQuery;
-import static org.elasticsearch.index.query.QueryBuilders.spanFirstQuery;
-import static org.elasticsearch.index.query.QueryBuilders.spanNearQuery;
-import static org.elasticsearch.index.query.QueryBuilders.spanNotQuery;
-import static org.elasticsearch.index.query.QueryBuilders.spanOrQuery;
-import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
-import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
-import static org.elasticsearch.index.query.RegexpFlag.COMPLEMENT;
-import static org.elasticsearch.index.query.RegexpFlag.EMPTY;
-import static org.elasticsearch.index.query.RegexpFlag.INTERSECTION;
+import static org.elasticsearch.index.query.FilterBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.RegexpFlag.*;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.factorFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -1845,12 +1763,18 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         }
 
         @Override
-        public Fields[] fetch(MultiTermVectorsRequest items) throws IOException {
-            List<Fields> likeTexts = new ArrayList<>();
+        public MultiTermVectorsResponse fetchResponse(MultiTermVectorsRequest items) throws IOException {
+            MultiTermVectorsItemResponse[] responses = new MultiTermVectorsItemResponse[items.size()];
+            int i = 0;
             for (TermVectorsRequest item : items) {
-                likeTexts.add(generateFields(item.selectedFields().toArray(Strings.EMPTY_ARRAY), item.id()));
+                TermVectorsResponse response = new TermVectorsResponse(item.index(), item.type(), item.id());
+                response.setExists(true);
+                Fields generatedFields = generateFields(item.selectedFields().toArray(Strings.EMPTY_ARRAY), item.id());
+                EnumSet<TermVectorsRequest.Flag> flags = EnumSet.of(TermVectorsRequest.Flag.Positions, TermVectorsRequest.Flag.Offsets);
+                response.setFields(generatedFields, item.selectedFields(), flags, generatedFields);
+                responses[i++] = new MultiTermVectorsItemResponse(response, null);
             }
-            return likeTexts.toArray(Fields.EMPTY_ARRAY);
+            return new MultiTermVectorsResponse(responses);
         }
     }
 

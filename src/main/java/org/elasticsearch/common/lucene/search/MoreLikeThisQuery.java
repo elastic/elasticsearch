@@ -20,20 +20,23 @@
 package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.IOException;
 import java.io.Reader;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -48,6 +51,8 @@ public class MoreLikeThisQuery extends Query {
 
     private String[] likeText;
     private Fields[] likeFields;
+    private String[] ignoreText;
+    private Fields[] ignoreFields;
     private String[] moreLikeFields;
     private Analyzer analyzer;
     private String minimumShouldMatch = DEFAULT_MINIMUM_SHOULD_MATCH;
@@ -150,6 +155,10 @@ public class MoreLikeThisQuery extends Query {
         mlt.setBoost(boostTerms);
         mlt.setBoostFactor(boostTermsFactor);
 
+        if (this.ignoreText != null || this.ignoreFields != null) {
+            handleSkipTerms(mlt, this.ignoreText, this.ignoreFields);
+        }
+
         BooleanQuery bq = new BooleanQuery();
         if (this.likeFields != null) {
             Query mltQuery = mlt.like(this.likeFields);
@@ -169,6 +178,41 @@ public class MoreLikeThisQuery extends Query {
 
         bq.setBoost(getBoost());
         return bq;
+    }
+
+    private void handleSkipTerms(XMoreLikeThis mlt, String[] ignoreText, Fields[] ignoreFields) throws IOException {
+        Set<Term> skipTerms = new HashSet<>();
+        // handle like text
+        if (ignoreText != null) {
+            for (String text : ignoreText) {
+                // only use the first field to be consistent
+                String fieldName = moreLikeFields[0];
+                try (TokenStream ts = analyzer.tokenStream(fieldName, text)) {
+                    CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
+                    ts.reset();
+                    while (ts.incrementToken()) {
+                        skipTerms.add(new Term(fieldName, termAtt.toString()));
+                    }
+                    ts.end();
+                }
+            }
+        }
+        // handle like fields
+        if (ignoreFields != null) {
+            for (Fields fields : ignoreFields) {
+                for (String fieldName : fields) {
+                    Terms terms = fields.terms(fieldName);
+                    final TermsEnum termsEnum = terms.iterator(null);
+                    BytesRef text;
+                    while ((text = termsEnum.next()) != null) {
+                        skipTerms.add(new Term(fieldName, text.utf8ToString()));
+                    }
+                }
+            }
+        }
+        if (!skipTerms.isEmpty()) {
+            mlt.setSkipTerms(skipTerms);
+        }
     }
 
     @Override
@@ -202,6 +246,14 @@ public class MoreLikeThisQuery extends Query {
 
     public void setLikeText(List<String> likeText) {
         setLikeText(likeText.toArray(Strings.EMPTY_ARRAY));
+    }
+
+    public void setIgnoreText(Fields... ignoreFields) {
+        this.ignoreFields = ignoreFields;
+    }
+
+    public void setIgnoreText(List<String> ignoreText) {
+        this.ignoreText = ignoreText.toArray(Strings.EMPTY_ARRAY);
     }
 
     public String[] getMoreLikeFields() {

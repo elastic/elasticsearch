@@ -83,10 +83,6 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         // Clear all internal alerting state for the next test method:
         logger.info("[{}#{}]: clearing alerts", getTestClass().getSimpleName(), getTestName());
         stopAlerting();
-        client().admin().indices().prepareDelete(AlertsStore.ALERT_INDEX, AlertActionManager.ALERT_HISTORY_INDEX_PREFIX + "*")
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .get();
-        startAlerting();
     }
 
     protected BytesReference createAlertSource(String cron, SearchRequest request, String scriptTrigger) throws IOException {
@@ -121,7 +117,6 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
     protected AlertsClient alertClient() {
         return internalTestCluster().getInstance(AlertsClient.class);
     }
-
 
     protected void assertAlertTriggered(final String alertName, final long minimumExpectedAlertActionsWithActionPerformed) throws Exception {
         assertAlertTriggered(alertName, minimumExpectedAlertActionsWithActionPerformed, true);

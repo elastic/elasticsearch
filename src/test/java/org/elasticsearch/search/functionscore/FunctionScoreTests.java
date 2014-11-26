@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -511,6 +512,41 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         for (int hitId = numDocs - 1; (numDocs - hitId) < searchResponse.getHits().totalHits(); hitId--) {
             assertThat(searchResponse.getHits().getAt(pos).getId(), equalTo(Integer.toString(hitId)));
             pos++;
+        }
+    }
+
+    @Test
+    public void testFilterAndQueryGiven() throws IOException, ExecutionException, InterruptedException {
+        assertAcked(prepareCreate("test").addMapping(
+                "type",
+                jsonBuilder().startObject().startObject("type").startObject("properties")
+                        .startObject("filter_field").field("type", "string").endObject()
+                        .startObject("query_field").field("type", "string").endObject()
+                        .startObject("num").field("type", "float").endObject().endObject().endObject().endObject()));
+        ensureYellow();
+
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            indexRequests.add(
+                    client().prepareIndex()
+                            .setType("type")
+                            .setId(Integer.toString(i))
+                            .setIndex("test")
+                            .setSource(
+                                    jsonBuilder().startObject().field("query_field", Integer.toString(i % 3)).field("filter_field", Integer.toString(i % 2)).field("num", i).endObject()));
+        }
+
+        indexRandom(true, true, indexRequests);
+
+        SearchResponse response = client().search(
+                searchRequest().source(
+                        searchSource().query(
+                                functionScoreQuery(termQuery("query_field", "0"), termFilter("filter_field", "0"), scriptFunction("doc['num'].value")).boostMode("replace")))).get();
+
+        assertSearchResponse(response);
+        assertThat(response.getHits().totalHits(), equalTo(4l));
+        for (SearchHit hit : response.getHits().getHits()) {
+            assertThat(Float.parseFloat(hit.getId()), equalTo(hit.getScore()));
         }
     }
 }

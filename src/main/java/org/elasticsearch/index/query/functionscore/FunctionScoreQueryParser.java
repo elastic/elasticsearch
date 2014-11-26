@@ -30,6 +30,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.MatchAllDocsFilter;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.search.function.*;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -80,6 +81,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         Query query = null;
+        Filter filter = null;
         float boost = 1.0f;
 
         FiltersFunctionScoreQuery.ScoreMode scoreMode = FiltersFunctionScoreQuery.ScoreMode.Multiply;
@@ -101,7 +103,7 @@ public class FunctionScoreQueryParser implements QueryParser {
             } else if ("query".equals(currentFieldName)) {
                 query = parseContext.parseInnerQuery();
             } else if ("filter".equals(currentFieldName)) {
-                query = new XConstantScoreQuery(parseContext.parseInnerFilter());
+                filter = parseContext.parseInnerFilter();
             } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
                 scoreMode = parseScoreMode(parseContext, parser);
             } else if ("boost_mode".equals(currentFieldName) || "boostMode".equals(currentFieldName)) {
@@ -143,8 +145,12 @@ public class FunctionScoreQueryParser implements QueryParser {
                 singleFunctionName = currentFieldName;
             }
         }
-        if (query == null) {
+        if (query == null && filter == null) {
             query = Queries.newMatchAllQuery();
+        } else if (query == null && filter != null) {
+            query = new XConstantScoreQuery(filter);
+        } else if (query != null && filter != null) {
+            query = new XFilteredQuery(query, filter);
         }
         // if all filter elements returned null, just use the query
         if (filterFunctions.isEmpty()) {

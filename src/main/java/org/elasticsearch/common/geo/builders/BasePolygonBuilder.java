@@ -126,9 +126,9 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         Edge[] edges = new Edge[numEdges];
         Edge[] holeComponents = new Edge[holes.size()];
 
-        int offset = createEdges(0, true, shell, edges, 0);
+        int offset = createEdges(0, false, shell, edges, 0);
         for (int i = 0; i < holes.size(); i++) {
-            int length = createEdges(i+1, false, this.holes.get(i), edges, offset);
+            int length = createEdges(i+1, true, this.holes.get(i), edges, offset);
             holeComponents[i] = edges[offset];
             offset += length;
         }

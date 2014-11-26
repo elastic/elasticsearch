@@ -28,7 +28,7 @@ public class Max implements MetricOp {
 
     public SingleMetricResult op(Object[] bucketProperties) throws ReductionExecutionException {
 
-        double max = -1 * Double.MAX_VALUE;
+        double max = Double.NEGATIVE_INFINITY;
         for (Object bucketValue : bucketProperties) {
             max = Math.max(((Number) bucketValue).doubleValue(), max);
         }

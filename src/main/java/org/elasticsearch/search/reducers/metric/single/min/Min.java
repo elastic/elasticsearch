@@ -28,7 +28,7 @@ public class Min implements MetricOp {
 
     public SingleMetricResult op(Object[] bucketProperties) throws ReductionExecutionException {
 
-        double min = Double.MAX_VALUE;
+        double min = Double.POSITIVE_INFINITY;
         for (Object bucketValue : bucketProperties) {
             min = Math.min(((Number) bucketValue).doubleValue(), min);
         }

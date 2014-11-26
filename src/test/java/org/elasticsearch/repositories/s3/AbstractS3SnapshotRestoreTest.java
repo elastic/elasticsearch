@@ -287,10 +287,11 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
         logger.info("--> creating s3 repostoriy with endpoint [{}], bucket[{}] and path [{}]", bucketSettings.get("endpoint"), bucketSettings.get("bucket"), basePath);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("s3").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("protocol", bucketSettings.get("protocol"))
+                        .put("bucket", bucketSettings.get("bucket"))
                         .put("endpoint", bucketSettings.get("endpoint"))
                         .put("access_key", bucketSettings.get("access_key"))
                         .put("secret_key", bucketSettings.get("secret_key"))
+                        .put("base_path", basePath)
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
         assertRepositoryIsOperational(client, "test-repo");
@@ -445,7 +446,8 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
         Settings[] buckets = {
                 settings.getByPrefix("repositories.s3."),
                 settings.getByPrefix("repositories.s3.private-bucket."),
-                settings.getByPrefix("repositories.s3.remote-bucket.")
+                settings.getByPrefix("repositories.s3.remote-bucket."),
+                settings.getByPrefix("repositories.s3.external-bucket.")
             };
         for (Settings bucket : buckets) {
             String endpoint = bucket.get("endpoint", settings.get("repositories.s3.endpoint"));

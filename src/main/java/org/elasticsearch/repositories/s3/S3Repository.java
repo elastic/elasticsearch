@@ -80,9 +80,7 @@ public class S3Repository extends BlobStoreRepository {
         }
 
         String endpoint = repositorySettings.settings().get("endpoint", componentSettings.get("endpoint"));
-        String protocol = componentSettings.get("protocol", "https").toLowerCase();
-        protocol = componentSettings.get("s3.protocol", protocol).toLowerCase();
-        protocol = repositorySettings.settings().get("protocol", protocol);
+        String protocol = repositorySettings.settings().get("protocol", componentSettings.get("protocol"));
 
         String region = repositorySettings.settings().get("region", componentSettings.get("region"));
         if (region == null) {

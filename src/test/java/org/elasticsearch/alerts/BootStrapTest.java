@@ -110,17 +110,18 @@ public class BootStrapTest extends AbstractAlertingTests {
             String actionHistoryIndex = AlertActionManager.getAlertHistoryIndexNameForTime(historyIndexDate);
             createIndex(actionHistoryIndex);
             ensureGreen(actionHistoryIndex);
+
             for (int j=0; j<numberOfAlertHistoryEntriesPerIndex; ++j){
-                Alert alert = new Alert("entryTestAlert" + i + "-" + j,
+                Alert alert = new Alert("action-test-"+ i + " " + j,
                         searchRequest,
                         new ScriptedTrigger("hits.total == 1", ScriptService.ScriptType.INLINE, "groovy"),
                         new ArrayList< AlertAction>(),
                         "0 0/5 * * * ? *",
                         new DateTime(),
                         0,
-                        true,
                         new TimeValue(0),
                         AlertAckState.NOT_ACKABLE);
+
                 AlertActionEntry entry = new AlertActionEntry(alert, historyIndexDate, historyIndexDate, AlertActionState.SEARCH_NEEDED);
                 IndexResponse indexResponse = client().prepareIndex(actionHistoryIndex, AlertActionManager.ALERT_HISTORY_TYPE, entry.getId())
                         .setConsistencyLevel(WriteConsistencyLevel.ALL)
@@ -137,7 +138,6 @@ public class BootStrapTest extends AbstractAlertingTests {
 
         assertTrue(response.isAlertActionManagerStarted());
         assertThat(response.getAlertManagerStarted(), equalTo(State.STARTED));
-        assertThat(response.getNumberOfRegisteredAlerts(), equalTo(0L));
         assertThat(response.getAlertActionManagerLargestQueueSize(),
                 equalTo((long)(numberOfAlertHistoryEntriesPerIndex*numberOfAlertHistoryIndices)));
 

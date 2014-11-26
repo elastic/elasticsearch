@@ -22,6 +22,7 @@ import org.elasticsearch.script.ScriptService;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -96,5 +97,51 @@ public class BootStrapTest extends AbstractAlertingTests {
         assertThat(response.getNumberOfRegisteredAlerts(), equalTo(0L));
         assertThat(response.getAlertActionManagerLargestQueueSize(), equalTo(1L));
     }
+
+    @Test
+    public void testBootStrapManyHistoryIndices() throws Exception {
+        int numberOfAlertHistoryEntriesPerIndex = randomIntBetween(5,10);
+        int numberOfAlertHistoryIndices = randomIntBetween(2,8);
+        DateTime now = new DateTime();
+        SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
+
+        for (int i=0; i<numberOfAlertHistoryIndices; ++i) {
+            DateTime historyIndexDate = now.minus((new TimeValue(i, TimeUnit.DAYS)).getMillis());
+            String actionHistoryIndex = AlertActionManager.getAlertHistoryIndexNameForTime(historyIndexDate);
+            createIndex(actionHistoryIndex);
+            ensureGreen(actionHistoryIndex);
+            for (int j=0; j<numberOfAlertHistoryEntriesPerIndex; ++j){
+                Alert alert = new Alert("entryTestAlert" + i + "-" + j,
+                        searchRequest,
+                        new ScriptedTrigger("hits.total == 1", ScriptService.ScriptType.INLINE, "groovy"),
+                        new ArrayList< AlertAction>(),
+                        "0 0/5 * * * ? *",
+                        new DateTime(),
+                        0,
+                        true,
+                        new TimeValue(0),
+                        AlertAckState.NOT_ACKABLE);
+                AlertActionEntry entry = new AlertActionEntry(alert, historyIndexDate, historyIndexDate, AlertActionState.SEARCH_NEEDED);
+                IndexResponse indexResponse = client().prepareIndex(actionHistoryIndex, AlertActionManager.ALERT_HISTORY_TYPE, entry.getId())
+                        .setConsistencyLevel(WriteConsistencyLevel.ALL)
+                        .setSource(XContentFactory.jsonBuilder().value(entry))
+                        .get();
+                assertTrue(indexResponse.isCreated());
+            }
+            client().admin().indices().prepareRefresh(actionHistoryIndex).get();
+        }
+
+        stopAlerting();
+        startAlerting();
+        AlertsStatsResponse response = alertClient().prepareAlertsStats().get();
+
+        assertTrue(response.isAlertActionManagerStarted());
+        assertThat(response.getAlertManagerStarted(), equalTo(State.STARTED));
+        assertThat(response.getNumberOfRegisteredAlerts(), equalTo(0L));
+        assertThat(response.getAlertActionManagerLargestQueueSize(),
+                equalTo((long)(numberOfAlertHistoryEntriesPerIndex*numberOfAlertHistoryIndices)));
+
+    }
+
 
 }

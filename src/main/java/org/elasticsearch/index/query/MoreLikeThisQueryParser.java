@@ -27,6 +27,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
@@ -37,7 +38,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.Analysis;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
 
@@ -46,6 +46,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+
+import static org.elasticsearch.index.mapper.Uid.createUidAsBytes;
 
 /**
  *
@@ -71,6 +73,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
         public static final ParseField DOCUMENT_IDS = new ParseField("ids").withAllDeprecated("like");
         public static final ParseField DOCUMENTS = new ParseField("docs").withAllDeprecated("like");
         public static final ParseField LIKE = new ParseField("like");
+        public static final ParseField UNLIKE = new ParseField("unlike");
         public static final ParseField INCLUDE = new ParseField("include");
     }
 
@@ -104,7 +107,10 @@ public class MoreLikeThisQueryParser implements QueryParser {
         String currentFieldName = null;
 
         List<String> likeTexts = new ArrayList<>();
-        MultiTermVectorsRequest items = new MultiTermVectorsRequest();
+        MultiTermVectorsRequest likeItems = new MultiTermVectorsRequest();
+
+        List<String> unlikeTexts = new ArrayList<>();
+        MultiTermVectorsRequest unlikeItems = new MultiTermVectorsRequest();
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -113,7 +119,9 @@ public class MoreLikeThisQueryParser implements QueryParser {
                 if (Fields.LIKE_TEXT.match(currentFieldName, parseContext.parseFlags())) {
                     likeTexts.add(parser.text());
                 } else if (Fields.LIKE.match(currentFieldName, parseContext.parseFlags())) {
-                    parseLikeField(parser, likeTexts, items);
+                    parseLikeField(parser, likeTexts, likeItems);
+                } else if (Fields.UNLIKE.match(currentFieldName, parseContext.parseFlags())) {
+                    parseLikeField(parser, unlikeTexts, unlikeItems);
                 } else if (Fields.MIN_TERM_FREQ.match(currentFieldName, parseContext.parseFlags())) {
                     mltQuery.setMinTermFrequency(parser.intValue());
                 } else if (Fields.MAX_QUERY_TERMS.match(currentFieldName, parseContext.parseFlags())) {
@@ -166,32 +174,39 @@ public class MoreLikeThisQueryParser implements QueryParser {
                         if (!token.isValue()) {
                             throw new ElasticsearchIllegalArgumentException("ids array element should only contain ids");
                         }
-                        items.add(newTermVectorsRequest().id(parser.text()));
+                        likeItems.add(newTermVectorsRequest().id(parser.text()));
                     }
                 } else if (Fields.DOCUMENTS.match(currentFieldName, parseContext.parseFlags())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token != XContentParser.Token.START_OBJECT) {
                             throw new ElasticsearchIllegalArgumentException("docs array element should include an object");
                         }
-                        items.add(parseDocument(parser));
+                        likeItems.add(parseDocument(parser));
                     }
                 } else if (Fields.LIKE.match(currentFieldName, parseContext.parseFlags())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        parseLikeField(parser, likeTexts, items);
+                        parseLikeField(parser, likeTexts, likeItems);
+                    }
+                } else if (Fields.UNLIKE.match(currentFieldName, parseContext.parseFlags())) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        parseLikeField(parser, unlikeTexts, unlikeItems);
                     }
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (Fields.LIKE.match(currentFieldName, parseContext.parseFlags())) {
-                    parseLikeField(parser, likeTexts, items);
+                    parseLikeField(parser, likeTexts, likeItems);
+                }
+                else if (Fields.UNLIKE.match(currentFieldName, parseContext.parseFlags())) {
+                    parseLikeField(parser, unlikeTexts, unlikeItems);
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
-        if (likeTexts.isEmpty() && items.isEmpty()) {
+        if (likeTexts.isEmpty() && likeItems.isEmpty()) {
             throw new QueryParsingException(parseContext.index(), "more_like_this requires at least 'like_text' or 'ids/docs' to be specified");
         }
         if (moreLikeFields != null && moreLikeFields.isEmpty()) {
@@ -225,10 +240,18 @@ public class MoreLikeThisQueryParser implements QueryParser {
         if (!likeTexts.isEmpty()) {
             mltQuery.setLikeText(likeTexts);
         }
+        if (!unlikeTexts.isEmpty()) {
+            mltQuery.setUnlikeText(unlikeTexts);
+        }
 
         // handle items
-        if (!items.isEmpty()) {
+        if (!likeItems.isEmpty()) {
             // set default index, type and fields if not specified
+            MultiTermVectorsRequest items = likeItems;
+            for (TermVectorsRequest item : unlikeItems) {
+                items.add(item);
+            }
+
             for (TermVectorsRequest item : items) {
                 if (item.index() == null) {
                     item.index(parseContext.index().name());
@@ -252,14 +275,22 @@ public class MoreLikeThisQueryParser implements QueryParser {
             }
             // fetching the items with multi-termvectors API
             BooleanQuery boolQuery = new BooleanQuery();
-            org.apache.lucene.index.Fields[] likeFields = fetchService.fetch(items);
+            org.apache.lucene.index.Fields[] likeFields = fetchService.fetch(likeItems);
             mltQuery.setLikeText(likeFields);
+
+            // handle negative examples
+            if (!unlikeItems.isEmpty()) {
+                org.apache.lucene.index.Fields[] unlikeFields = fetchService.fetch(unlikeItems);
+                if (unlikeFields.length > 0) {
+                    mltQuery.setUnlikeText(unlikeFields);
+                }
+            }
+
             boolQuery.add(mltQuery, BooleanClause.Occur.SHOULD);
+
             // exclude the items from the search
             if (!include) {
-                TermsFilter filter = new TermsFilter(UidFieldMapper.NAME, Uid.createUids(items.getRequests()));
-                ConstantScoreQuery query = new ConstantScoreQuery(filter);
-                boolQuery.add(query, BooleanClause.Occur.MUST_NOT);
+                handleExclude(boolQuery, likeItems);
             }
             return boolQuery;
         }
@@ -304,5 +335,21 @@ public class MoreLikeThisQueryParser implements QueryParser {
             }
         }
         return moreLikeFields;
+    }
+
+    private void handleExclude(BooleanQuery boolQuery, MultiTermVectorsRequest likeItems) {
+        // artificial docs get assigned a random id and should be disregarded
+        List<BytesRef> uids = new ArrayList<>();
+        for (TermVectorsRequest item : likeItems) {
+            if (item.doc() != null) {
+                continue;
+            }
+            uids.add(createUidAsBytes(item.type(), item.id()));
+        }
+        if (!uids.isEmpty()) {
+            TermsFilter filter = new TermsFilter(UidFieldMapper.NAME, uids.toArray(new BytesRef[0]));
+            ConstantScoreQuery query = new ConstantScoreQuery(filter);
+            boolQuery.add(query, BooleanClause.Occur.MUST_NOT);
+        }
     }
 }

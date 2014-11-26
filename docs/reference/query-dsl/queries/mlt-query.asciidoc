@@ -129,6 +129,10 @@ The text is fetched from `fields` unless specified otherwise in each `doc`.
 The text is analyzed by the default analyzer at the field, unless specified by the
 `per_field_analyzer` parameter of the <<docs-termvectors-per-field-analyzer,Term Vectors API>>.
 
+|`unlike`|coming[2.0] Can either be some text, some documents or a combination
+of all. Similar to `like` but let the user provide negative examples. Under
+the hood the terms of the documents listed are ignored for selection.
+
 |`include` |When using `like` with document requests, specifies whether the documents should be
 included from the search. Defaults to `false`.
 

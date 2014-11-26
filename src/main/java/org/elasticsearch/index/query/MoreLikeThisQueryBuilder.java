@@ -19,11 +19,9 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.mlt.MoreLikeThisRequestBuilder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -47,6 +45,8 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
      * A single get item. Pure delegate to multi get.
      */
     public static final class Item extends MultiGetRequest.Item implements ToXContent {
+        public static final Item[] EMPTY_ARRAY = new Item[0];
+
         private BytesReference doc;
         private String likeText;
 
@@ -132,6 +132,7 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
 
     private final String[] fields;
     private List<Item> docs = new ArrayList<>();
+    private List<Item> unlike_docs = new ArrayList<>();
     private Boolean include = null;
     private String minimumShouldMatch = null;
     private int minTermFreq = -1;
@@ -172,6 +173,19 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         this.docs = new ArrayList<>();
         for (String text : likeText) {
             this.docs.add(new Item(text));
+        }
+        return this;
+    }
+
+    public MoreLikeThisQueryBuilder unlike(Item... docs) {
+        this.unlike_docs = Arrays.asList(docs);
+        return this;
+    }
+
+    public MoreLikeThisQueryBuilder unlike(String... likeText) {
+        this.unlike_docs = new ArrayList<>();
+        for (String text : likeText) {
+            this.unlike_docs.add(new Item(text));
         }
         return this;
     }
@@ -349,11 +363,10 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         if (this.docs.isEmpty()) {
             throw new ElasticsearchIllegalArgumentException("more_like_this requires '" + likeFieldName + "' to be provided");
         } else {
-            if (docs.size() == 1) {
-                builder.field(likeFieldName, docs);
-            } else {
-                builder.array(likeFieldName, docs);
-            }
+            builder.field(likeFieldName, docs);
+        }
+        if (!unlike_docs.isEmpty()) {
+            builder.field(MoreLikeThisQueryParser.Fields.LIKE.getPreferredName(), unlike_docs);
         }
         if (minimumShouldMatch != null) {
             builder.field(MoreLikeThisQueryParser.Fields.MINIMUM_SHOULD_MATCH.getPreferredName(), minimumShouldMatch);

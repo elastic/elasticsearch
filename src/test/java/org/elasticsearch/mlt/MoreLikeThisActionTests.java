@@ -40,6 +40,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -674,5 +675,55 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
                 .setQuery(mltQuery).get();
         assertSearchResponse(response);
         assertHitCount(response, 1);
+    }
+
+    @Test
+    public void testMoreLikeThisButUnlikeThis() throws ExecutionException, InterruptedException, IOException {
+        createIndex("test");
+        ensureGreen();
+
+        int numFields = randomIntBetween(5, 35);
+
+        logger.info("Create a document that has all the fields.");
+        XContentBuilder doc = jsonBuilder().startObject();
+        for (int i = 0; i < numFields; i++) {
+            doc.field("field"+i, i+"");
+        }
+        doc.endObject();
+
+        logger.info("Indexing each field value of this document as a single document.");
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < numFields; i++) {
+            builders.add(client().prepareIndex("test", "type1", i+"").setSource("field"+i, i+""));
+        }
+        indexRandom(true, builders);
+
+        logger.info("First check the document matches all indexed docs.");
+        MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery("field0")
+                .like((Item) new Item().doc(doc).index("test").type("type1"))
+                .minTermFreq(0)
+                .minDocFreq(0)
+                .maxQueryTerms(100)
+                .minimumShouldMatch("0%");
+        SearchResponse response = client().prepareSearch("test").setTypes("type1")
+                .setQuery(mltQuery).get();
+        assertSearchResponse(response);
+        assertHitCount(response, numFields);
+
+        logger.info("Now check like this doc, but unlike one doc in the index, then two and so on...");
+        List<Item> docs = new ArrayList<>();
+        for (int i = 0; i < numFields; i++) {
+            docs.add(new Item("test", "type1", i+""));
+            mltQuery = moreLikeThisQuery()
+                    .like((Item) new Item().doc(doc).index("test").type("type1"))
+                    .unlike(docs.toArray(Item.EMPTY_ARRAY))
+                    .minTermFreq(0)
+                    .minDocFreq(0)
+                    .maxQueryTerms(100)
+                    .minimumShouldMatch("0%");
+            response = client().prepareSearch("test").setTypes("type1").setQuery(mltQuery).get();
+            assertSearchResponse(response);
+            assertHitCount(response, numFields - (i + 1));
+        }
     }
 }

@@ -164,7 +164,7 @@ The following settings are supported:
 * `bucket`: The name of the bucket to be used for snapshots. (Mandatory)
 * `region`: The region where bucket is located. Defaults to US Standard
 * `endpoint`: The endpoint to the S3 API. Defaults to AWS's default S3 endpoint. Note that setting a region overrides the endpoint setting.
-* `protocol`: The protocol to use (`http` or `https`). Defaults to `https`.
+* `protocol`: The protocol to use (`http` or `https`). Defaults to value of `cloud.aws.protocol` or `cloud.aws.s3.protocol`.
 * `base_path`: Specifies the path within bucket to repository data. Defaults to root directory.
 * `access_key`: The access key to use for authentication. Defaults to value of `cloud.aws.access_key`.
 * `secret_key`: The secret key to use for authentication. Defaults to value of `cloud.aws.secret_key`.
@@ -266,8 +266,10 @@ The bucket needs to exist to register a repository for snapshots. If you did not
 
 ### Using other S3 endpoint
 
-If you are using any S3 api compatible service, you can set the endpoint you want to use by setting `cloud.aws.s3.endpoint`
-to your URL provider.
+If you are using any S3 api compatible service, you can set a global endpoint by setting `cloud.aws.s3.endpoint`
+to your URL provider. Note that this setting will be used for all S3 repositories.
+
+Different `endpoint`, `region` and `protocol` settings can be set on a per-repository basis (see [S3 Repository](#s3-repository) section for detail).
 
 
 ## Testing

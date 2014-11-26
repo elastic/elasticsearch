@@ -537,8 +537,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public final class StoreDirectory extends FilterDirectory {
 
+        public final ESLogger deletesLogger;
+
         StoreDirectory(Directory delegateDirectory) throws IOException {
             super(delegateDirectory);
+            deletesLogger = Loggers.getLogger("index.store.deletes", indexSettings, shardId);
         }
 
         public ShardId shardId() {
@@ -551,6 +554,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             assert false : "Nobody should close this directory except of the Store itself";
         }
 
+        @Override
+        public void deleteFile(String name) throws IOException {
+            logDeleteFile("StoreDirectory.deleteFile", name);
+            super.deleteFile(name);
+        }
+
         private void innerClose() throws IOException {
             super.close();
         }
@@ -561,8 +570,22 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
+    /** Log that we are about to delete this file, to the index.store.deletes component. */
+    public void logDeleteFile(String message, String fileName) {
+        logDeleteFile(directory(), message, fileName);
+    }
+
+    /** Log that we are about to delete this file, to the index.store.deletes component. */
+    public static void logDeleteFile(Directory dir, String message, String fileName) {
+        assert dir instanceof StoreDirectory;
+        if (dir instanceof StoreDirectory) {
+            ((StoreDirectory) dir).deletesLogger.trace("{}: delete file {}", message, fileName);
+        }
+        // else what to do...?
+    }
+
     /**
-     * Represents a snaphshot of the current directory build from the latest Lucene commit.
+     * Represents a snapshot of the current directory build from the latest Lucene commit.
      * Only files that are part of the last commit are considered in this datastrucutre.
      * For backwards compatibility the snapshot might include legacy checksums that
      * are derived from a dedicated checksum file written by older elasticsearch version pre 1.3

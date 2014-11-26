@@ -26,23 +26,38 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 
 /** An InfoStream (for Lucene's IndexWriter) that redirects
- *  messages to Logger.trace. */
+ *  messages to "lucene.iw.ifd" and "lucene.iw" Logger.trace. */
 
 public final class LoggerInfoStream extends InfoStream {
+    /** Used for component-specific logging: */
+
+    /** Logger for everything */
     private final ESLogger logger;
+
+    /** Logger for IndexFileDeleter */
+    private final ESLogger ifdLogger;
 
     public LoggerInfoStream(Settings settings, ShardId shardId) {
         logger = Loggers.getLogger("lucene.iw", settings, shardId);
+        ifdLogger = Loggers.getLogger("lucene.iw.ifd", settings, shardId);
     }
 
     public void message(String component, String message) {
-        logger.trace("{} {}: {}", Thread.currentThread().getName(), component, message);
+        getLogger(component).trace("{} {}: {}", Thread.currentThread().getName(), component, message);
     }
   
     public boolean isEnabled(String component) {
         // TP is a special "test point" component; we don't want
         // to log it:
-        return logger.isTraceEnabled() && component.equals("TP") == false;
+        return getLogger(component).isTraceEnabled() && component.equals("TP") == false;
+    }
+
+    private ESLogger getLogger(String component) {
+        if (component.equals("IFD")) {
+            return ifdLogger;
+        } else {
+            return logger;
+        }
     }
 
     @Override

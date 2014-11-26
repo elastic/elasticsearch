@@ -102,10 +102,8 @@ public class AlertActionsTest extends AbstractAlertingTests {
     @Test
     public void testAlertActions() throws Exception {
         createIndex("my-index");
-        createIndex(AlertsStore.ALERT_INDEX);
-        createIndex(AlertActionManager.ALERT_HISTORY_INDEX);
 
-        ensureGreen("my-index", AlertsStore.ALERT_INDEX, AlertActionManager.ALERT_HISTORY_INDEX);
+        ensureGreen("my-index");
 
         client().preparePutIndexedScript()
                 .setScriptLang("mustache")

@@ -73,12 +73,19 @@ public class BootStrapTest extends AbstractAlertingTests {
                 new TimeValue(0),
                 AlertAckState.NOT_ACKABLE);
 
-        AlertActionEntry entry = new AlertActionEntry(alert, new DateTime(), new DateTime(), AlertActionState.SEARCH_NEEDED);
-        IndexResponse indexResponse = client().prepareIndex(AlertActionManager.ALERT_HISTORY_INDEX, AlertActionManager.ALERT_HISTORY_TYPE, entry.getId())
+        DateTime scheduledFireTime = new DateTime();
+        AlertActionEntry entry = new AlertActionEntry(alert, scheduledFireTime, scheduledFireTime, AlertActionState.SEARCH_NEEDED);
+        String actionHistoryIndex = AlertActionManager.getAlertHistoryIndexNameForTime(scheduledFireTime);
+
+        createIndex(actionHistoryIndex);
+        ensureGreen(actionHistoryIndex);
+
+        IndexResponse indexResponse = client().prepareIndex(actionHistoryIndex, AlertActionManager.ALERT_HISTORY_TYPE, entry.getId())
                 .setConsistencyLevel(WriteConsistencyLevel.ALL)
                 .setSource(XContentFactory.jsonBuilder().value(entry))
                 .get();
         assertTrue(indexResponse.isCreated());
+        client().admin().indices().prepareRefresh(actionHistoryIndex).get();
 
         stopAlerting();
         startAlerting();

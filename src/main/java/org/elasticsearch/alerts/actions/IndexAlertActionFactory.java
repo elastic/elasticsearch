@@ -71,7 +71,7 @@ public class IndexAlertActionFactory implements AlertActionFactory {
             XContentBuilder resultBuilder = XContentFactory.jsonBuilder().prettyPrint();
             resultBuilder.startObject();
             resultBuilder.field("response", result.getResponse());
-            resultBuilder.field("timestamp", alert.lastActionFire()); ///@TODO FIXME the firetime should be in the result ?
+            resultBuilder.field("timestamp", alert.lastExecuteTime()); ///@TODO FIXME the firetime should be in the result ?
             resultBuilder.endObject();
             indexRequest.source(resultBuilder);
         } catch (IOException ie) {

@@ -56,8 +56,8 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         alert.trigger(new ScriptedTrigger("hits.total > 0", ScriptService.ScriptType.INLINE, "groovy"));
         alert.actions().add(new IndexAlertAction("action-index", "action-type"));
         alert.schedule( "0/5 * * * * ? *");
-        alert.lastActionFire(new DateTime());
 
+        alert.lastExecuteTime(new DateTime());
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
 
@@ -105,7 +105,7 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         assertThat(parsedAlert.getAckState(), equalTo(AlertAckState.NOT_TRIGGERED));
 
         CountResponse countOfThrottledActions = client()
-                .prepareCount(AlertActionManager.ALERT_HISTORY_INDEX)
+                .prepareCount(AlertActionManager.ALERT_HISTORY_INDEX_PREFIX + "*")
                 .setQuery(QueryBuilders.matchQuery(AlertActionManager.STATE, AlertActionState.THROTTLED.toString()))
                 .get();
         assertThat(countOfThrottledActions.getCount(), greaterThan(0L));
@@ -128,7 +128,7 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         alert.trigger(new ScriptedTrigger("hits.total > 0", ScriptService.ScriptType.INLINE, "groovy"));
         alert.actions().add(new IndexAlertAction("action-index", "action-type"));
         alert.schedule("0/5 * * * * ? *");
-        alert.lastActionFire(new DateTime());
+        alert.lastExecuteTime(new DateTime());
         alert.setThrottlePeriod(new TimeValue(10, TimeUnit.SECONDS));
 
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
@@ -149,7 +149,7 @@ public class AlertThrottleTests extends AbstractAlertingTests {
                         .get();
 
                 if (countResponse.getCount() != 1){
-                    SearchResponse actionResponse = client().prepareSearch(AlertActionManager.ALERT_HISTORY_INDEX)
+                    SearchResponse actionResponse = client().prepareSearch(AlertActionManager.ALERT_HISTORY_INDEX_PREFIX + "*")
                             .setQuery(matchAllQuery())
                             .get();
                     for (SearchHit hit : actionResponse.getHits()) {
@@ -176,7 +176,7 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         });
 
         CountResponse countOfThrottledActions = client()
-                .prepareCount(AlertActionManager.ALERT_HISTORY_INDEX)
+                .prepareCount(AlertActionManager.ALERT_HISTORY_INDEX_PREFIX + "*")
                 .setQuery(QueryBuilders.matchQuery(AlertActionManager.STATE, AlertActionState.THROTTLED.toString()))
                 .get();
         assertThat(countOfThrottledActions.getCount(), greaterThan(0L));

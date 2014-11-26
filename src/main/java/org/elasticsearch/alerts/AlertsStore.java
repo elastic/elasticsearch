@@ -51,7 +51,7 @@ public class AlertsStore extends AbstractComponent {
     public static final ParseField SCHEDULE_FIELD = new ParseField("schedule");
     public static final ParseField TRIGGER_FIELD = new ParseField("trigger");
     public static final ParseField ACTION_FIELD = new ParseField("actions");
-    public static final ParseField LAST_ACTION_FIRE = new ParseField("last_action_fire");
+    public static final ParseField LAST_ACTION_FIRE = new ParseField("last_alert_executed");
     public static final ParseField REQUEST_FIELD = new ParseField("request");
     public static final ParseField THROTTLE_PERIOD_FIELD = new ParseField("throttle_period");
     public static final ParseField LAST_ACTION_EXECUTED_FIELD = new ParseField("last_action_executed");
@@ -250,7 +250,7 @@ public class AlertsStore extends AbstractComponent {
                     if (SCHEDULE_FIELD.match(currentFieldName)) {
                         alert.schedule(parser.textOrNull());
                     } else if (LAST_ACTION_FIRE.match(currentFieldName)) {
-                        alert.lastActionFire(DateTime.parse(parser.textOrNull()));
+                        alert.lastExecuteTime(DateTime.parse(parser.textOrNull()));
                     } else if (LAST_ACTION_EXECUTED_FIELD.match(currentFieldName)) {
                         alert.setTimeLastActionExecuted(DateTime.parse(parser.textOrNull()));
                     } else if (THROTTLE_PERIOD_FIELD.match(currentFieldName)) {
@@ -268,8 +268,8 @@ public class AlertsStore extends AbstractComponent {
             throw new ElasticsearchException("Error during parsing alert", e);
         }
 
-        if (alert.lastActionFire() == null) {
-            alert.lastActionFire(new DateTime(0));
+        if (alert.lastExecuteTime() == null) {
+            alert.lastExecuteTime(new DateTime(0));
         }
 
         if (alert.schedule() == null) {

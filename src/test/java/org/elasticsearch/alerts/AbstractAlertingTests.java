@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.alerts;
 
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -17,7 +16,6 @@ import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -38,8 +36,10 @@ import java.util.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.core.Is.is;
+import static org.hamcrest.core.IsNot.not;
 
 /**
  */
@@ -83,6 +83,10 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         // Clear all internal alerting state for the next test method:
         logger.info("[{}#{}]: clearing alerts", getTestClass().getSimpleName(), getTestName());
         stopAlerting();
+        client().admin().indices().prepareDelete(AlertsStore.ALERT_INDEX, AlertActionManager.ALERT_HISTORY_INDEX_PREFIX + "*")
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .get();
+        startAlerting();
     }
 
     protected BytesReference createAlertSource(String cron, SearchRequest request, String scriptTrigger) throws IOException {
@@ -118,6 +122,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         return internalTestCluster().getInstance(AlertsClient.class);
     }
 
+
     protected void assertAlertTriggered(final String alertName, final long minimumExpectedAlertActionsWithActionPerformed) throws Exception {
         assertAlertTriggered(alertName, minimumExpectedAlertActionsWithActionPerformed, true);
     }
@@ -126,15 +131,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                // The alerthistory index gets created in the background when the first alert fires, so we to check first is this index is created and shards are started
-                IndicesExistsResponse indicesExistsResponse = client().admin().indices().prepareExists(AlertActionManager.ALERT_HISTORY_INDEX).get();
-                assertThat(indicesExistsResponse.isExists(), is(true));
-                ClusterState state = client().admin().cluster().prepareState().get().getState();
-                IndexRoutingTable routingTable = state.getRoutingTable().index(AlertActionManager.ALERT_HISTORY_INDEX);
-                assertThat(routingTable, notNullValue());
-                assertThat(routingTable.allPrimaryShardsActive(), is(true));
-
-                SearchResponse searchResponse = client().prepareSearch(AlertActionManager.ALERT_HISTORY_INDEX)
+                SearchResponse searchResponse = client().prepareSearch(AlertActionManager.ALERT_HISTORY_INDEX_PREFIX + "*")
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                         .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", AlertActionState.ACTION_PERFORMED.toString())))
                         .get();
@@ -147,7 +144,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
     }
 
     protected long findNumberOfPerformedActions(String alertName) {
-        SearchResponse searchResponse = client().prepareSearch(AlertActionManager.ALERT_HISTORY_INDEX)
+        SearchResponse searchResponse = client().prepareSearch(AlertActionManager.ALERT_HISTORY_INDEX_PREFIX + "*")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", AlertActionState.ACTION_PERFORMED.toString())))
                 .get();
@@ -158,15 +155,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                // The alerthistory index gets created in the background when the first alert fires, so we to check first is this index is created and shards are started
-                IndicesExistsResponse indicesExistsResponse = client().admin().indices().prepareExists(AlertActionManager.ALERT_HISTORY_INDEX).get();
-                assertThat(indicesExistsResponse.isExists(), is(true));
-                ClusterState state = client().admin().cluster().prepareState().get().getState();
-                IndexRoutingTable routingTable = state.getRoutingTable().index(AlertActionManager.ALERT_HISTORY_INDEX);
-                assertThat(routingTable, notNullValue());
-                assertThat(routingTable.allPrimaryShardsActive(), is(true));
-
-                SearchResponse searchResponse = client().prepareSearch(AlertActionManager.ALERT_HISTORY_INDEX)
+                SearchResponse searchResponse = client().prepareSearch(AlertActionManager.ALERT_HISTORY_INDEX_PREFIX + "*")
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                         .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", AlertActionState.NO_ACTION_NEEDED.toString())))
                         .get();

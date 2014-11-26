@@ -192,8 +192,8 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
 	Settings settings = internalCluster().getInstance(Settings.class);
 	Settings bucket = settings.getByPrefix("repositories.s3.");
 	AmazonS3 s3Client = internalCluster().getInstance(AwsS3Service.class).client(
-		bucket.get("endpoint", settings.get("repositories.s3.endpoint")),
-		bucket.get("protocol", settings.get("repositories.s3.protocol")),
+		null,
+		null,
 		bucket.get("region", settings.get("repositories.s3.region")),
 		bucket.get("access_key", settings.get("cloud.aws.access_key")),
 		bucket.get("secret_key", settings.get("cloud.aws.secret_key")));

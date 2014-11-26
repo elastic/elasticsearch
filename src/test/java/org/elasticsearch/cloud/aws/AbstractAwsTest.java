@@ -27,16 +27,50 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.junit.After;
+import org.junit.Before;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  *
  */
 public abstract class AbstractAwsTest extends ElasticsearchIntegrationTest {
+
+    /**
+     * Those properties are set by the AWS SDK v1.9.4 and if not ignored,
+     * lead to tests failure (see AbstractRandomizedTest#IGNORED_INVARIANT_PROPERTIES)
+     */
+    private static final String[] AWS_INVARIANT_PROPERTIES = {
+            "com.sun.org.apache.xml.internal.dtm.DTMManager",
+            "javax.xml.parsers.DocumentBuilderFactory"
+    };
+
+    private Map<String, String> properties = new HashMap<>();
+
+    @Before
+    public void saveProperties() {
+        for (String p : AWS_INVARIANT_PROPERTIES) {
+            properties.put(p, System.getProperty(p));
+        }
+    }
+
+    @After
+    public void restoreProperties() {
+        for (String p : AWS_INVARIANT_PROPERTIES) {
+            if (properties.get(p) != null) {
+                System.setProperty(p, properties.get(p));
+            } else {
+                System.clearProperty(p);
+            }
+        }
+    }
+
 
     /**
      * Annotation for tests that require AWS to run. AWS tests are disabled by default.

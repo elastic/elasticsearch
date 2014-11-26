@@ -84,6 +84,7 @@ The `cloud.aws.region` can be set to a region and will automatically use the rel
 * `ap-southeast-2`
 * `ap-northeast` (`ap-northeast-1`)
 * `eu-west` (`eu-west-1`)
+* `eu-central` (`eu-central-1`)
 * `sa-east` (`sa-east-1`).
 
 

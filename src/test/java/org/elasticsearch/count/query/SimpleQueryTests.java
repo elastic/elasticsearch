@@ -88,33 +88,33 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree") );
 
-        CountResponse countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3).lowFreqOperator(Operator.OR)).get();
+        CountResponse countResponse = client().prepareCount().setQuery(QueryBuilders.commonTermsQuery("field1", "the quick brown").cutoffFrequency(3).lowFreqOperator(Operator.OR)).get();
         assertHitCount(countResponse, 3l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3).lowFreqOperator(Operator.AND)).get();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTermsQuery("field1", "the quick brown").cutoffFrequency(3).lowFreqOperator(Operator.AND)).get();
         assertHitCount(countResponse, 2l);
 
         // Default
-        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3)).get();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTermsQuery("field1", "the quick brown").cutoffFrequency(3)).get();
         assertHitCount(countResponse, 3l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the huge fox").lowFreqMinimumShouldMatch("2")).get();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTermsQuery("field1", "the huge fox").lowFreqMinimumShouldMatch("2")).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("3")).get();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTermsQuery("field1", "the lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("3")).get();
         assertHitCount(countResponse, 2l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("4")).get();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTermsQuery("field1", "the lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("4")).get();
         assertHitCount(countResponse, 1l);
 
         countResponse = client().prepareCount().setSource(new BytesArray("{ \"query\" : { \"common\" : { \"field1\" : { \"query\" : \"the lazy fox brown\", \"cutoff_frequency\" : 1, \"minimum_should_match\" : { \"high_freq\" : 4 } } } } }").array()).get();
         assertHitCount(countResponse, 1l);
 
         // Default
-        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the lazy fox brown").cutoffFrequency(1)).get();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTermsQuery("field1", "the lazy fox brown").cutoffFrequency(1)).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3).analyzer("standard")).get();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTermsQuery("field1", "the quick brown").cutoffFrequency(3).analyzer("standard")).get();
         assertHitCount(countResponse, 3l);
         // standard drops "the" since its a stopword
 
@@ -141,19 +141,19 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").get();
         refresh();
 
-        CountResponse countResponse = client().prepareCount().setQuery(queryString("value*").analyzeWildcard(true)).get();
+        CountResponse countResponse = client().prepareCount().setQuery(queryStringQuery("value*").analyzeWildcard(true)).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(queryString("*ue*").analyzeWildcard(true)).get();
+        countResponse = client().prepareCount().setQuery(queryStringQuery("*ue*").analyzeWildcard(true)).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(queryString("*ue_1").analyzeWildcard(true)).get();
+        countResponse = client().prepareCount().setQuery(queryStringQuery("*ue_1").analyzeWildcard(true)).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(queryString("val*e_1").analyzeWildcard(true)).get();
+        countResponse = client().prepareCount().setQuery(queryStringQuery("val*e_1").analyzeWildcard(true)).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(queryString("v?l*e?1").analyzeWildcard(true)).get();
+        countResponse = client().prepareCount().setQuery(queryStringQuery("v?l*e?1").analyzeWildcard(true)).get();
         assertHitCount(countResponse, 1l);
     }
 
@@ -164,17 +164,17 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").get();
         refresh();
 
-        CountResponse countResponse = client().prepareCount().setQuery(queryString("VALUE_3~1").lowercaseExpandedTerms(true)).get();
+        CountResponse countResponse = client().prepareCount().setQuery(queryStringQuery("VALUE_3~1").lowercaseExpandedTerms(true)).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount().setQuery(queryString("VALUE_3~1").lowercaseExpandedTerms(false)).get();
+        countResponse = client().prepareCount().setQuery(queryStringQuery("VALUE_3~1").lowercaseExpandedTerms(false)).get();
         assertHitCount(countResponse, 0l);
-        countResponse = client().prepareCount().setQuery(queryString("ValUE_*").lowercaseExpandedTerms(true)).get();
+        countResponse = client().prepareCount().setQuery(queryStringQuery("ValUE_*").lowercaseExpandedTerms(true)).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount().setQuery(queryString("vAl*E_1")).get();
+        countResponse = client().prepareCount().setQuery(queryStringQuery("vAl*E_1")).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount().setQuery(queryString("[VALUE_1 TO VALUE_3]")).get();
+        countResponse = client().prepareCount().setQuery(queryStringQuery("[VALUE_1 TO VALUE_3]")).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount().setQuery(queryString("[VALUE_1 TO VALUE_3]").lowercaseExpandedTerms(false)).get();
+        countResponse = client().prepareCount().setQuery(queryStringQuery("[VALUE_1 TO VALUE_3]").lowercaseExpandedTerms(false)).get();
         assertHitCount(countResponse, 0l);
     }
 
@@ -195,13 +195,13 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type", "1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
         refresh();
 
-        CountResponse countResponse = client().prepareCount().setQuery(queryString("past:[now-2M/d TO now/d]")).get();
+        CountResponse countResponse = client().prepareCount().setQuery(queryStringQuery("past:[now-2M/d TO now/d]")).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(queryString("future:[now/d TO now+2M/d]").lowercaseExpandedTerms(false)).get();
+        countResponse = client().prepareCount().setQuery(queryStringQuery("future:[now/d TO now+2M/d]").lowercaseExpandedTerms(false)).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount("test").setQuery(queryString("future:[now/D TO now+2M/d]").lowercaseExpandedTerms(false)).get();
+        countResponse = client().prepareCount("test").setQuery(queryStringQuery("future:[now/D TO now+2M/d]").lowercaseExpandedTerms(false)).get();
         //D is an unsupported unit in date math
         assertThat(countResponse.getSuccessfulShards(), equalTo(0));
         assertThat(countResponse.getFailedShards(), equalTo(test.numPrimaries));
@@ -316,7 +316,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         countResponse = client().prepareCount().setQuery(constantScoreQuery(existsFilter("field1"))).get();
         assertHitCount(countResponse, 2l);
 
-        countResponse = client().prepareCount().setQuery(queryString("_exists_:field1")).get();
+        countResponse = client().prepareCount().setQuery(queryStringQuery("_exists_:field1")).get();
         assertHitCount(countResponse, 2l);
 
         countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("field2"))).get();
@@ -342,7 +342,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         countResponse = client().prepareCount().setQuery(constantScoreQuery(missingFilter("field1"))).get();
         assertHitCount(countResponse, 2l);
 
-        countResponse = client().prepareCount().setQuery(queryString("_missing_:field1")).get();
+        countResponse = client().prepareCount().setQuery(queryStringQuery("_missing_:field1")).get();
         assertHitCount(countResponse, 2l);
 
         // wildcard check
@@ -537,13 +537,13 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "2").setSource("str", "shay", "date", "2012-02-05", "num", 20).get();
         refresh();
 
-        CountResponse countResponse = client().prepareCount().setQuery(queryString("str:kimcy~1")).get();
+        CountResponse countResponse = client().prepareCount().setQuery(queryStringQuery("str:kimcy~1")).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(queryString("num:11~1")).get();
+        countResponse = client().prepareCount().setQuery(queryStringQuery("num:11~1")).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(queryString("date:2012-02-02~1d")).get();
+        countResponse = client().prepareCount().setQuery(queryStringQuery("date:2012-02-02~1d")).get();
         assertHitCount(countResponse, 1l);
     }
 
@@ -554,25 +554,25 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "2").setSource("str", "shay", "date", "2012-02-05", "num", 20).get();
         refresh();
 
-        CountResponse countResponse = client().prepareCount().setQuery(queryString("num:>19")).get();
+        CountResponse countResponse = client().prepareCount().setQuery(queryStringQuery("num:>19")).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(queryString("num:>20")).get();
+        countResponse = client().prepareCount().setQuery(queryStringQuery("num:>20")).get();
         assertHitCount(countResponse, 0l);
 
-        countResponse = client().prepareCount().setQuery(queryString("num:>=20")).get();
+        countResponse = client().prepareCount().setQuery(queryStringQuery("num:>=20")).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(queryString("num:>11")).get();
+        countResponse = client().prepareCount().setQuery(queryStringQuery("num:>11")).get();
         assertHitCount(countResponse, 2l);
 
-        countResponse = client().prepareCount().setQuery(queryString("num:<20")).get();
+        countResponse = client().prepareCount().setQuery(queryStringQuery("num:<20")).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(queryString("num:<=20")).get();
+        countResponse = client().prepareCount().setQuery(queryStringQuery("num:<=20")).get();
         assertHitCount(countResponse, 2l);
 
-        countResponse = client().prepareCount().setQuery(queryString("+num:>11 +num:<20")).get();
+        countResponse = client().prepareCount().setQuery(queryStringQuery("+num:>11 +num:<20")).get();
         assertHitCount(countResponse, 1l);
     }
 

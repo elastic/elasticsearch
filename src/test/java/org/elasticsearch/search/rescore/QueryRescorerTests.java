@@ -38,7 +38,6 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.rescore.RescoreBuilder.QueryRescorer;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -676,10 +675,10 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
 
         // Now use one rescore to drag the number we're looking for into the window of another
         QueryRescorer ninetyIsGood = RescoreBuilder.queryRescorer(
-                QueryBuilders.functionScoreQuery(QueryBuilders.queryString("*ninety*")).boostMode(CombineFunction.REPLACE)
+                QueryBuilders.functionScoreQuery(QueryBuilders.queryStringQuery("*ninety*")).boostMode(CombineFunction.REPLACE)
                 .add(ScoreFunctionBuilders.scriptFunction("1000.0f"))).setScoreMode("total");
         QueryRescorer oneToo = RescoreBuilder.queryRescorer(
-                QueryBuilders.functionScoreQuery(QueryBuilders.queryString("*one*")).boostMode(CombineFunction.REPLACE)
+                QueryBuilders.functionScoreQuery(QueryBuilders.queryStringQuery("*one*")).boostMode(CombineFunction.REPLACE)
                 .add(ScoreFunctionBuilders.scriptFunction("1000.0f"))).setScoreMode("total");
         request.clearRescorers().addRescorer(ninetyIsGood).addRescorer(oneToo, 10);
         response = request.setSize(2).get();

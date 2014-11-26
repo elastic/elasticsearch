@@ -93,14 +93,14 @@ public class SimpleCountTests extends ElasticsearchIntegrationTest {
         CountResponse countResponse = client().prepareCount().setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.queryString("_id:XXX1")).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.queryStringQuery("_id:XXX1")).execute().actionGet();
         assertHitCount(countResponse, 1l);
 
         // id is not index, but we can automatically support prefix as well
         countResponse = client().prepareCount().setQuery(QueryBuilders.prefixQuery("_id", "XXX")).execute().actionGet();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.queryString("_id:XXX*").lowercaseExpandedTerms(false)).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.queryStringQuery("_id:XXX*").lowercaseExpandedTerms(false)).execute().actionGet();
         assertHitCount(countResponse, 1l);
     }
 
@@ -114,7 +114,7 @@ public class SimpleCountTests extends ElasticsearchIntegrationTest {
         CountResponse countResponse = client().prepareCount("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-03||+2d").lte("2010-01-04||+2d")).execute().actionGet();
         assertHitCount(countResponse, 2l);
 
-        countResponse = client().prepareCount("test").setQuery(QueryBuilders.queryString("field:[2010-01-03||+2d TO 2010-01-04||+2d]")).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(QueryBuilders.queryStringQuery("field:[2010-01-03||+2d TO 2010-01-04||+2d]")).execute().actionGet();
         assertHitCount(countResponse, 2l);
     }
 

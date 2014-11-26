@@ -34,8 +34,8 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.index.query.QueryBuilders.queryString;
-import static org.elasticsearch.index.query.QueryBuilders.simpleQueryString;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.equalTo;
@@ -56,32 +56,32 @@ public class SimpleQueryStringTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "type1", "5").setSource("body", "quux baz spaghetti"),
                 client().prepareIndex("test", "type1", "6").setSource("otherbody", "spaghetti"));
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryString("foo bar")).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar")).get();
         assertHitCount(searchResponse, 3l);
         assertSearchHits(searchResponse, "1", "2", "3");
 
         searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("foo bar").defaultOperator(SimpleQueryStringBuilder.Operator.AND)).get();
+                simpleQueryStringQuery("foo bar").defaultOperator(SimpleQueryStringBuilder.Operator.AND)).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("3"));
 
-        searchResponse = client().prepareSearch().setQuery(simpleQueryString("\"quux baz\" +(eggplant | spaghetti)")).get();
+        searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("\"quux baz\" +(eggplant | spaghetti)")).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "4", "5");
 
         searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("eggplants").analyzer("snowball")).get();
+                simpleQueryStringQuery("eggplants").analyzer("snowball")).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("4"));
 
         searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("spaghetti").field("body", 10.0f).field("otherbody", 2.0f).queryName("myquery")).get();
+                simpleQueryStringQuery("spaghetti").field("body", 10.0f).field("otherbody", 2.0f).queryName("myquery")).get();
         assertHitCount(searchResponse, 2l);
         assertFirstHit(searchResponse, hasId("5"));
         assertSearchHits(searchResponse, "5", "6");
         assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("myquery"));
 
-        searchResponse = client().prepareSearch().setQuery(simpleQueryString("spaghetti").field("*body")).get();
+        searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("spaghetti").field("*body")).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "5", "6");
 
@@ -97,21 +97,21 @@ public class SimpleQueryStringTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "1").setSource("body", "Professional").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryString("Professio*")).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("Professio*")).get();
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, "1");
 
         searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("Professio*").lowercaseExpandedTerms(false)).get();
+                simpleQueryStringQuery("Professio*").lowercaseExpandedTerms(false)).get();
         assertHitCount(searchResponse, 0l);
 
         searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("Professionan~1")).get();
+                simpleQueryStringQuery("Professionan~1")).get();
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, "1");
 
         searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("Professionan~1").lowercaseExpandedTerms(false)).get();
+                simpleQueryStringQuery("Professionan~1").lowercaseExpandedTerms(false)).get();
         assertHitCount(searchResponse, 0l);
     }
 
@@ -121,17 +121,17 @@ public class SimpleQueryStringTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "1").setSource("body", "bılly").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryString("BILL*")).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("BILL*")).get();
         assertHitCount(searchResponse, 0l);
-        searchResponse = client().prepareSearch().setQuery(queryString("body:BILL*")).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("body:BILL*")).get();
         assertHitCount(searchResponse, 0l);
 
         searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("BILL*").locale(new Locale("tr", "TR"))).get();
+                simpleQueryStringQuery("BILL*").locale(new Locale("tr", "TR"))).get();
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, "1");
         searchResponse = client().prepareSearch().setQuery(
-                queryString("body:BILL*").locale(new Locale("tr", "TR"))).get();
+                queryStringQuery("body:BILL*").locale(new Locale("tr", "TR"))).get();
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, "1");
     }
@@ -156,22 +156,22 @@ public class SimpleQueryStringTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("foo bar baz").field("body")).get();
+                simpleQueryStringQuery("foo bar baz").field("body")).get();
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, "1");
 
         searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("foo bar baz").field("type1.body")).get();
+                simpleQueryStringQuery("foo bar baz").field("type1.body")).get();
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, "1");
 
         searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("foo bar baz").field("body.sub")).get();
+                simpleQueryStringQuery("foo bar baz").field("body.sub")).get();
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, "1");
 
         searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("foo bar baz").field("type1.body.sub")).get();
+                simpleQueryStringQuery("foo bar baz").field("type1.body.sub")).get();
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, "1");
     }
@@ -188,7 +188,7 @@ public class SimpleQueryStringTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "type1", "6").setSource("otherbody", "spaghetti"));
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("foo bar").flags(SimpleQueryStringFlag.ALL)).get();
+                simpleQueryStringQuery("foo bar").flags(SimpleQueryStringFlag.ALL)).get();
         assertHitCount(searchResponse, 3l);
         assertSearchHits(searchResponse, "1", "2", "3");
 
@@ -198,21 +198,21 @@ public class SimpleQueryStringTests extends ElasticsearchIntegrationTest {
         assertSearchHits(searchResponse, "1", "2", "3");
 
         searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("foo | bar")
+                simpleQueryStringQuery("foo | bar")
                         .defaultOperator(SimpleQueryStringBuilder.Operator.AND)
                         .flags(SimpleQueryStringFlag.OR)).get();
         assertHitCount(searchResponse, 3l);
         assertSearchHits(searchResponse, "1", "2", "3");
 
         searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("foo | bar")
+                simpleQueryStringQuery("foo | bar")
                         .defaultOperator(SimpleQueryStringBuilder.Operator.AND)
                         .flags(SimpleQueryStringFlag.NONE)).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("3"));
 
         searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("baz | egg*")
+                simpleQueryStringQuery("baz | egg*")
                         .defaultOperator(SimpleQueryStringBuilder.Operator.AND)
                         .flags(SimpleQueryStringFlag.NONE)).get();
         assertHitCount(searchResponse, 0l);
@@ -229,7 +229,7 @@ public class SimpleQueryStringTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 1l);
 
         searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("baz | egg*")
+                simpleQueryStringQuery("baz | egg*")
                         .defaultOperator(SimpleQueryStringBuilder.Operator.AND)
                         .flags(SimpleQueryStringFlag.WHITESPACE, SimpleQueryStringFlag.PREFIX)).get();
         assertHitCount(searchResponse, 1l);
@@ -243,12 +243,12 @@ public class SimpleQueryStringTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test2", "type1", "10").setSource("field", 5));
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryString("foo").field("field")).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo").field("field")).get();
         assertFailures(searchResponse);
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, "1");
 
-        searchResponse = client().prepareSearch().setQuery(simpleQueryString("foo").field("field").lenient(true)).get();
+        searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo").field("field").lenient(true)).get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, "1");
@@ -260,7 +260,7 @@ public class SimpleQueryStringTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "doc", "1").setSource("num", 1, "body", "foo bar baz"),
                 client().prepareIndex("test", "doc", "2").setSource("num", 2, "body", "eggplant spaghetti lasagna"));
 
-        BoolQueryBuilder q = boolQuery().should(simpleQueryString("bar").field("num").field("body").lenient(true));
+        BoolQueryBuilder q = boolQuery().should(simpleQueryStringQuery("bar").field("num").field("body").lenient(true));
         SearchResponse resp = client().prepareSearch("test").setQuery(q).get();
         assertNoFailures(resp);
         // the bug is that this would be parsed into basically a match_all
@@ -288,7 +288,7 @@ public class SimpleQueryStringTests extends ElasticsearchIntegrationTest {
         indexRandom(true, client().prepareIndex("test1", "type1", "1").setSource("location", "Köln"));
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryString("Köln*").analyzeWildcard(true).field("location")).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("Köln*").analyzeWildcard(true).field("location")).get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, "1");

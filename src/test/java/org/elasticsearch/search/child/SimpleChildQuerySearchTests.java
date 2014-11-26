@@ -210,7 +210,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getAt(1).id(), anyOf(equalTo("c1"), equalTo("c2")));
         assertThat(searchResponse.getHits().getAt(1).field("_parent").value().toString(), equalTo("p1"));
 
-        searchResponse = client().prepareSearch("test").setQuery(queryString("_parent:p1")).addFields("_parent").get();
+        searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("_parent:p1")).addFields("_parent").get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("c1"), equalTo("c2")));
@@ -636,16 +636,16 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setQuery(boolQuery().mustNot(hasChildQuery("child", boolQuery().should(queryString("c_field:*"))))).get();
+                .setQuery(boolQuery().mustNot(hasChildQuery("child", boolQuery().should(queryStringQuery("c_field:*"))))).get();
         assertNoFailures(searchResponse);
 
         searchResponse = client().prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setQuery(boolQuery().mustNot(hasParentQuery("parent", boolQuery().should(queryString("p_field:*"))))).execute()
+                .setQuery(boolQuery().mustNot(hasParentQuery("parent", boolQuery().should(queryStringQuery("p_field:*"))))).execute()
                 .actionGet();
         assertNoFailures(searchResponse);
 
         searchResponse = client().prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setQuery(boolQuery().mustNot(topChildrenQuery("child", boolQuery().should(queryString("c_field:*"))))).execute()
+                .setQuery(boolQuery().mustNot(topChildrenQuery("child", boolQuery().should(queryStringQuery("c_field:*"))))).execute()
                 .actionGet();
         assertNoFailures(searchResponse);
     }
@@ -668,7 +668,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
-                .setQuery(boolQuery().mustNot(topChildrenQuery("child", boolQuery().should(queryString("c_field:*"))))).execute()
+                .setQuery(boolQuery().mustNot(topChildrenQuery("child", boolQuery().should(queryStringQuery("c_field:*"))))).execute()
                 .actionGet();
         assertNoFailures(searchResponse);
     }
@@ -1524,7 +1524,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                                         hasChildQuery(
                                                 "child_type_one",
                                                 boolQuery().must(
-                                                        queryString("name:William*").analyzeWildcard(true)
+                                                        queryStringQuery("name:William*").analyzeWildcard(true)
                                                 )
                                         )
                                 )
@@ -1541,7 +1541,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                                         hasChildQuery(
                                                 "child_type_two",
                                                 boolQuery().must(
-                                                        queryString("name:William*").analyzeWildcard(true)
+                                                        queryStringQuery("name:William*").analyzeWildcard(true)
                                                 )
                                         )
                                 )

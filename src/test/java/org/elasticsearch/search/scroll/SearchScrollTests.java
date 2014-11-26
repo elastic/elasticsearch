@@ -193,7 +193,7 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
         assertThat(client().prepareCount().setQuery(termQuery("message", "update")).execute().actionGet().getCount(), equalTo(0l));
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(queryString("user:kimchy"))
+                .setQuery(queryStringQuery("user:kimchy"))
                 .setSize(35)
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .addSort("postDate", SortOrder.ASC)

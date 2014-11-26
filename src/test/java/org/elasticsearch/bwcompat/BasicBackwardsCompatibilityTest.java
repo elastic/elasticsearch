@@ -433,7 +433,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             countResponse = client().prepareCount().setQuery(constantScoreQuery(existsFilter("field1"))).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(queryString("_exists_:field1")).get();
+            countResponse = client().prepareCount().setQuery(queryStringQuery("_exists_:field1")).get();
             assertHitCount(countResponse, 2l);
 
             countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("field2"))).get();
@@ -459,7 +459,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             countResponse = client().prepareCount().setQuery(constantScoreQuery(missingFilter("field1"))).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(queryString("_missing_:field1")).get();
+            countResponse = client().prepareCount().setQuery(queryStringQuery("_missing_:field1")).get();
             assertHitCount(countResponse, 2l);
 
             // wildcard check

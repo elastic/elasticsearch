@@ -89,7 +89,7 @@ public class RestActions {
         if (queryString == null) {
             return null;
         }
-        QueryStringQueryBuilder queryBuilder = QueryBuilders.queryString(queryString);
+        QueryStringQueryBuilder queryBuilder = QueryBuilders.queryStringQuery(queryString);
         queryBuilder.defaultField(request.param("df"));
         queryBuilder.analyzer(request.param("analyzer"));
         String defaultOperator = request.param("default_operator");

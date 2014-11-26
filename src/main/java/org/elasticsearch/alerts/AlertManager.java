@@ -224,15 +224,15 @@ public class AlertManager extends AbstractComponent {
     private void internalStart(ClusterState initialState) {
         if (state.compareAndSet(State.STOPPED, State.STARTING)) {
             ClusterState clusterState = initialState;
+            // Try to load alert store before the action manager, b/c action depends on alert store
             while (true) {
-                if (actionManager.start(clusterState)) {
+                if (alertsStore.start(clusterState)) {
                     break;
                 }
                 clusterState = newClusterState(clusterState);
             }
-
             while (true) {
-                if (alertsStore.start(clusterState)) {
+                if (actionManager.start(clusterState)) {
                     break;
                 }
                 clusterState = newClusterState(clusterState);

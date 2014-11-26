@@ -317,7 +317,7 @@ http://en.wikipedia.org/wiki/.properties[properties] formats are also
 supported. Multiple configuration files can be loaded, in which case they will
 get merged, as long as they start with the `logging.` prefix and end with one
 of the supported suffixes (either `.yml`, `.yaml`, `.json` or `.properties`)
-coming[1.4.1,Previously only the `logging.` prefix was required].
+added[1.4.1,Previously only the `logging.` prefix was required].
 The logger section contains the java packages and their corresponding log
 level, where it is possible to omit the `org.elasticsearch` prefix. The
 appender section contains the destinations for the logs. Extensive information

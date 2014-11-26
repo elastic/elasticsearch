@@ -202,15 +202,19 @@ public class Version implements Serializable {
     public static final Version V_1_3_4 = new Version(V_1_3_4_ID, false, org.apache.lucene.util.Version.LUCENE_4_9);
     public static final int V_1_3_5_ID = /*00*/1030599;
     public static final Version V_1_3_5 = new Version(V_1_3_5_ID, false, org.apache.lucene.util.Version.LUCENE_4_9);
+    public static final int V_1_3_6_ID = /*00*/1030699;
+    public static final Version V_1_3_6 = new Version(V_1_3_6_ID, false, org.apache.lucene.util.Version.LUCENE_4_9);
     public static final int V_1_4_0_Beta1_ID = /*00*/1040001;
     public static final Version V_1_4_0_Beta1 = new Version(V_1_4_0_Beta1_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_1);
     public static final int V_1_4_0_ID = /*00*/1040099;
     public static final Version V_1_4_0 = new Version(V_1_4_0_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_2);
     public static final int V_1_4_1_ID = /*00*/1040199;
     public static final Version V_1_4_1 = new Version(V_1_4_1_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_2);
+    public static final int V_1_4_2_ID = /*00*/1040299;
+    public static final Version V_1_4_2 = new Version(V_1_4_2_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_2);
 
 
-    public static final Version CURRENT = V_1_4_1;
+    public static final Version CURRENT = V_1_4_2;
 
     static {
         assert CURRENT.luceneVersion.equals(Lucene.VERSION) : "Version must be upgraded to [" + Lucene.VERSION + "] is still set to [" + CURRENT.luceneVersion + "]";
@@ -222,12 +226,16 @@ public class Version implements Serializable {
 
     public static Version fromId(int id) {
         switch (id) {
+            case V_1_4_2_ID:
+                return V_1_4_2;
             case V_1_4_1_ID:
                 return V_1_4_1;
             case V_1_4_0_ID:
                 return V_1_4_0;
             case V_1_4_0_Beta1_ID:
                 return V_1_4_0_Beta1;
+            case V_1_3_6_ID:
+                return V_1_3_6;
             case V_1_3_5_ID:
                 return V_1_3_5;
             case V_1_3_4_ID:

@@ -146,9 +146,7 @@ public class AlertActionManager extends AbstractComponent {
      * Calculates the correct alert history index name for a given time using alertHistoryIndexTimeFormat
      */
     public static String getAlertHistoryIndexNameForTime(DateTime time) {
-        StringBuffer sb = new StringBuffer(ALERT_HISTORY_INDEX_PREFIX);
-        alertHistoryIndexTimeFormat.printTo(sb, time);
-        return sb.toString();
+        return ALERT_HISTORY_INDEX_PREFIX + alertHistoryIndexTimeFormat.print(time);
     }
 
     private void doStart() {

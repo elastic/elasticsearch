@@ -120,7 +120,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testQueryStringBuilder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(queryString("test").defaultField("content").phraseSlop(1)).query();
+        Query parsedQuery = queryParser.parse(queryStringQuery("test").defaultField("content").phraseSlop(1)).query();
 
         assertThat(parsedQuery, instanceOf(TermQuery.class));
         TermQuery termQuery = (TermQuery) parsedQuery;
@@ -140,7 +140,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testQueryStringBoostsBuilder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
-        QueryStringQueryBuilder builder = queryString("field:boosted^2");
+        QueryStringQueryBuilder builder = queryStringQuery("field:boosted^2");
         Query parsedQuery = queryParser.parse(builder).query();
         assertThat(parsedQuery, instanceOf(TermQuery.class));
         assertThat(((TermQuery) parsedQuery).getTerm(), equalTo(new Term("field", "boosted")));
@@ -149,7 +149,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         parsedQuery = queryParser.parse(builder).query();
         assertThat(parsedQuery.getBoost(), equalTo(4.0f));
 
-        builder = queryString("((field:boosted^2) AND (field:foo^1.5))^3");
+        builder = queryStringQuery("((field:boosted^2) AND (field:foo^1.5))^3");
         parsedQuery = queryParser.parse(builder).query();
         assertThat(parsedQuery, instanceOf(BooleanQuery.class));
         assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 0).getTerm(), equalTo(new Term("field", "boosted")));
@@ -165,7 +165,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testQueryStringFields1Builder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(queryString("test").field("content").field("name").useDisMax(false)).query();
+        Query parsedQuery = queryParser.parse(queryStringQuery("test").field("content").field("name").useDisMax(false)).query();
         assertThat(parsedQuery, instanceOf(BooleanQuery.class));
         BooleanQuery bQuery = (BooleanQuery) parsedQuery;
         assertThat(bQuery.clauses().size(), equalTo(2));
@@ -201,7 +201,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testQueryStringFields2Builder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(queryString("test").field("content").field("name").useDisMax(true)).query();
+        Query parsedQuery = queryParser.parse(queryStringQuery("test").field("content").field("name").useDisMax(true)).query();
         assertThat(parsedQuery, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) parsedQuery;
         List<Query> disjuncts = disMaxQuery.getDisjuncts();
@@ -224,7 +224,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testQueryStringFields3Builder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(queryString("test").field("content", 2.2f).field("name").useDisMax(true)).query();
+        Query parsedQuery = queryParser.parse(queryStringQuery("test").field("content", 2.2f).field("name").useDisMax(true)).query();
         assertThat(parsedQuery, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) parsedQuery;
         List<Query> disjuncts = disMaxQuery.getDisjuncts();

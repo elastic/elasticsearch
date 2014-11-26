@@ -126,7 +126,7 @@ public class IndicesLeaksTests extends ElasticsearchIntegrationTest {
     private void performCommonOperations() {
         client().prepareIndex("test", "type", "1").setSource("field1", "value", "field2", 2, "field3", 3.0f).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
-        client().prepareSearch("test").setQuery(QueryBuilders.queryString("field1:value")).execute().actionGet();
+        client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("field1:value")).execute().actionGet();
         client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field1", "value")).execute().actionGet();
     }
 }

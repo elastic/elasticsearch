@@ -817,55 +817,55 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         SearchRequestBuilder req = client().prepareSearch("test").addHighlightedField(fooField);
 
         // First check highlighting without any matched fields set
-        SearchResponse resp = req.setQuery(queryString("running scissors").field("foo")).get();
+        SearchResponse resp = req.setQuery(queryStringQuery("running scissors").field("foo")).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
 
         // And that matching a subfield doesn't automatically highlight it
-        resp = req.setQuery(queryString("foo.plain:running scissors").field("foo")).get();
+        resp = req.setQuery(queryStringQuery("foo.plain:running scissors").field("foo")).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("running with <em>scissors</em>"));
 
         // Add the subfield to the list of matched fields but don't match it.  Everything should still work
         // like before we added it.
         fooField.matchedFields("foo", "foo.plain");
-        resp = req.setQuery(queryString("running scissors").field("foo")).get();
+        resp = req.setQuery(queryStringQuery("running scissors").field("foo")).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
 
         // Now make half the matches come from the stored field and half from just a matched field.
-        resp = req.setQuery(queryString("foo.plain:running scissors").field("foo")).get();
+        resp = req.setQuery(queryStringQuery("foo.plain:running scissors").field("foo")).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
 
         // Now remove the stored field from the matched field list.  That should work too.
         fooField.matchedFields("foo.plain");
-        resp = req.setQuery(queryString("foo.plain:running scissors").field("foo")).get();
+        resp = req.setQuery(queryStringQuery("foo.plain:running scissors").field("foo")).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with scissors"));
 
         // Now make sure boosted fields don't blow up when matched fields is both the subfield and stored field.
         fooField.matchedFields("foo", "foo.plain");
-        resp = req.setQuery(queryString("foo.plain:running^5 scissors").field("foo")).get();
+        resp = req.setQuery(queryStringQuery("foo.plain:running^5 scissors").field("foo")).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
 
         // Now just all matches are against the matched field.  This still returns highlighting.
-        resp = req.setQuery(queryString("foo.plain:running foo.plain:scissors").field("foo")).get();
+        resp = req.setQuery(queryStringQuery("foo.plain:running foo.plain:scissors").field("foo")).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
 
         // And all matched field via the queryString's field parameter, just in case
-        resp = req.setQuery(queryString("running scissors").field("foo.plain")).get();
+        resp = req.setQuery(queryStringQuery("running scissors").field("foo.plain")).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
 
         // Finding the same string two ways is ok too
-        resp = req.setQuery(queryString("run foo.plain:running^5 scissors").field("foo")).get();
+        resp = req.setQuery(queryStringQuery("run foo.plain:running^5 scissors").field("foo")).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
 
         // But we use the best found score when sorting fragments
-        resp = req.setQuery(queryString("cats foo.plain:cats^5").field("foo")).get();
+        resp = req.setQuery(queryStringQuery("cats foo.plain:cats^5").field("foo")).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("junk junk <em>cats</em> junk junk"));
 
         // which can also be written by searching on the subfield
-        resp = req.setQuery(queryString("cats").field("foo").field("foo.plain^5")).get();
+        resp = req.setQuery(queryStringQuery("cats").field("foo").field("foo.plain^5")).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("junk junk <em>cats</em> junk junk"));
 
         // Speaking of two fields, you can have two fields, only one of which has matchedFields enabled
-        QueryBuilder twoFieldsQuery = queryString("cats").field("foo").field("foo.plain^5")
+        QueryBuilder twoFieldsQuery = queryStringQuery("cats").field("foo").field("foo.plain^5")
                 .field("bar").field("bar.plain^5");
         resp = req.setQuery(twoFieldsQuery).addHighlightedField(barField).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("junk junk <em>cats</em> junk junk"));
@@ -885,27 +885,27 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         // If the stored field doesn't have a value it doesn't matter what you match, you get nothing.
         barField.matchedFields("bar", "foo.plain");
-        resp = req.setQuery(queryString("running scissors").field("foo.plain").field("bar")).get();
+        resp = req.setQuery(queryStringQuery("running scissors").field("foo.plain").field("bar")).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
         assertThat(resp.getHits().getAt(0).getHighlightFields(), not(hasKey("bar")));
 
         // If the stored field is found but the matched field isn't then you don't get a result either.
         fooField.matchedFields("bar.plain");
-        resp = req.setQuery(queryString("running scissors").field("foo").field("foo.plain").field("bar").field("bar.plain")).get();
+        resp = req.setQuery(queryStringQuery("running scissors").field("foo").field("foo.plain").field("bar").field("bar.plain")).get();
         assertThat(resp.getHits().getAt(0).getHighlightFields(), not(hasKey("foo")));
 
         // But if you add the stored field to the list of matched fields then you'll get a result again
         fooField.matchedFields("foo", "bar.plain");
-        resp = req.setQuery(queryString("running scissors").field("foo").field("foo.plain").field("bar").field("bar.plain")).get();
+        resp = req.setQuery(queryStringQuery("running scissors").field("foo").field("foo.plain").field("bar").field("bar.plain")).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
         assertThat(resp.getHits().getAt(0).getHighlightFields(), not(hasKey("bar")));
 
         // You _can_ highlight fields that aren't subfields of one another.
-        resp = req.setQuery(queryString("weird").field("foo").field("foo.plain").field("bar").field("bar.plain")).get();
+        resp = req.setQuery(queryStringQuery("weird").field("foo").field("foo.plain").field("bar").field("bar.plain")).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("<em>weird</em>"));
         assertHighlight(resp, 0, "bar", 0, equalTo("<em>resul</em>t"));
 
-        assertFailures(req.setQuery(queryString("result").field("foo").field("foo.plain").field("bar").field("bar.plain")),
+        assertFailures(req.setQuery(queryStringQuery("result").field("foo").field("foo.plain").field("bar").field("bar.plain")),
                  RestStatus.INTERNAL_SERVER_ERROR, containsString("String index out of range"));
     }
 
@@ -1328,7 +1328,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource()
-                .query(commonTerms("field2", "quick brown").cutoffFrequency(100))
+                .query(commonTermsQuery("field2", "quick brown").cutoffFrequency(100))
                 .highlight(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
 
         SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
@@ -1343,7 +1343,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog").get();
         refresh();
         logger.info("--> highlighting and searching on field1");
-        SearchSourceBuilder source = searchSource().query(commonTerms("field2", "quick brown").cutoffFrequency(100))
+        SearchSourceBuilder source = searchSource().query(commonTermsQuery("field2", "quick brown").cutoffFrequency(100))
                 .highlight(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
 
         SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
@@ -2311,7 +2311,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.").get();
         refresh();
         logger.info("--> highlighting and searching on field1");
-        SearchSourceBuilder source = searchSource().query(commonTerms("field2", "quick brown").cutoffFrequency(100))
+        SearchSourceBuilder source = searchSource().query(commonTermsQuery("field2", "quick brown").cutoffFrequency(100))
                 .highlight(highlight().field("field2").preTags("<x>").postTags("</x>"));
         SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
         assertHitCount(searchResponse, 1l);
@@ -2423,7 +2423,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.").get();
         refresh();
         logger.info("--> highlighting and searching on field2");
-        SearchSourceBuilder source = searchSource().query(queryString("qui*").defaultField("field2").rewrite(randomFrom(REWRITE_METHODS)))
+        SearchSourceBuilder source = searchSource().query(queryStringQuery("qui*").defaultField("field2").rewrite(randomFrom(REWRITE_METHODS)))
                 .highlight(highlight().field("field2"));
         SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <em>quick</em> brown fox jumps over the lazy dog!"));
@@ -2458,7 +2458,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         SearchSourceBuilder source = searchSource().query(boolQuery()
                 .should(constantScoreQuery(FilterBuilders.missingFilter("field1")))
                 .should(matchQuery("field1", "test"))
-                .should(filteredQuery(queryString("field1:photo*").rewrite(randomFrom(REWRITE_METHODS)), null)))
+                .should(filteredQuery(queryStringQuery("field1:photo*").rewrite(randomFrom(REWRITE_METHODS)), null)))
                 .highlight(highlight().field("field1"));
         SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
         assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <em>photography</em> word will get highlighted"));
@@ -2490,7 +2490,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         refresh();
 
         logger.info("--> highlighting and searching on field1");
-        SearchSourceBuilder source = searchSource().query(filteredQuery(queryString("field1:photo*").rewrite(randomFrom(REWRITE_METHODS)), missingFilter("field_null")))
+        SearchSourceBuilder source = searchSource().query(filteredQuery(queryStringQuery("field1:photo*").rewrite(randomFrom(REWRITE_METHODS)), missingFilter("field_null")))
                 .highlight(highlight().field("field1"));
         SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
         assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <em>photography</em> word will get highlighted"));
@@ -2639,23 +2639,23 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         // Query string with a single field
         phraseBoostTestCaseForClauses(highlighterType, 100f,
-                queryString("highlight words together").field("field1"),
-                queryString("\"highlight words together\"").field("field1").autoGeneratePhraseQueries(true));
+                queryStringQuery("highlight words together").field("field1"),
+                queryStringQuery("\"highlight words together\"").field("field1").autoGeneratePhraseQueries(true));
 
         // Query string with a single field without dismax
         phraseBoostTestCaseForClauses(highlighterType, 100f,
-                queryString("highlight words together").field("field1").useDisMax(false),
-                queryString("\"highlight words together\"").field("field1").useDisMax(false).autoGeneratePhraseQueries(true));
+                queryStringQuery("highlight words together").field("field1").useDisMax(false),
+                queryStringQuery("\"highlight words together\"").field("field1").useDisMax(false).autoGeneratePhraseQueries(true));
 
         // Query string with more than one field
         phraseBoostTestCaseForClauses(highlighterType, 100f,
-                queryString("highlight words together").field("field1").field("field2"),
-                queryString("\"highlight words together\"").field("field1").field("field2").autoGeneratePhraseQueries(true));
+                queryStringQuery("highlight words together").field("field1").field("field2"),
+                queryStringQuery("\"highlight words together\"").field("field1").field("field2").autoGeneratePhraseQueries(true));
 
         // Query string boosting the field
         phraseBoostTestCaseForClauses(highlighterType, 1f,
-                queryString("highlight words together").field("field1"),
-                queryString("\"highlight words together\"").field("field1^100").autoGeneratePhraseQueries(true));
+                queryStringQuery("highlight words together").field("field1"),
+                queryStringQuery("\"highlight words together\"").field("field1^100").autoGeneratePhraseQueries(true));
     }
 
     private <P extends QueryBuilder & BoostableQueryBuilder<?>> void

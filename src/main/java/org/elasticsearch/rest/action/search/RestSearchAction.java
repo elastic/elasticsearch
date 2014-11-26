@@ -125,7 +125,7 @@ public class RestSearchAction extends BaseRestHandler {
         SearchSourceBuilder searchSourceBuilder = null;
         String queryString = request.param("q");
         if (queryString != null) {
-            QueryStringQueryBuilder queryBuilder = QueryBuilders.queryString(queryString);
+            QueryStringQueryBuilder queryBuilder = QueryBuilders.queryStringQuery(queryString);
             queryBuilder.defaultField(request.param("df"));
             queryBuilder.analyzer(request.param("analyzer"));
             queryBuilder.analyzeWildcard(request.paramAsBoolean("analyze_wildcard", false));

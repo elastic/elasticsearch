@@ -89,13 +89,13 @@ public class SimpleExistsTests extends ElasticsearchIntegrationTest {
         ExistsResponse existsResponse = client().prepareExists().setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
         assertExists(existsResponse, true);
 
-        existsResponse = client().prepareExists().setQuery(QueryBuilders.queryString("_id:XXX1")).execute().actionGet();
+        existsResponse = client().prepareExists().setQuery(QueryBuilders.queryStringQuery("_id:XXX1")).execute().actionGet();
         assertExists(existsResponse, true);
 
         existsResponse = client().prepareExists().setQuery(QueryBuilders.prefixQuery("_id", "XXX")).execute().actionGet();
         assertExists(existsResponse, true);
 
-        existsResponse = client().prepareExists().setQuery(QueryBuilders.queryString("_id:XXX*").lowercaseExpandedTerms(false)).execute().actionGet();
+        existsResponse = client().prepareExists().setQuery(QueryBuilders.queryStringQuery("_id:XXX*").lowercaseExpandedTerms(false)).execute().actionGet();
         assertExists(existsResponse, true);
     }
 
@@ -109,7 +109,7 @@ public class SimpleExistsTests extends ElasticsearchIntegrationTest {
         ExistsResponse existsResponse = client().prepareExists("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-03||+2d").lte("2010-01-04||+2d")).execute().actionGet();
         assertExists(existsResponse, true);
 
-        existsResponse = client().prepareExists("test").setQuery(QueryBuilders.queryString("field:[2010-01-03||+2d TO 2010-01-04||+2d]")).execute().actionGet();
+        existsResponse = client().prepareExists("test").setQuery(QueryBuilders.queryStringQuery("field:[2010-01-03||+2d TO 2010-01-04||+2d]")).execute().actionGet();
         assertExists(existsResponse, true);
     }
 
@@ -124,7 +124,7 @@ public class SimpleExistsTests extends ElasticsearchIntegrationTest {
         ExistsResponse existsResponse = client().prepareExists("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-07||+2d").lte("2010-01-21||+2d")).execute().actionGet();
         assertExists(existsResponse, false);
 
-        existsResponse = client().prepareExists("test").setQuery(QueryBuilders.queryString("_id:XXY*").lowercaseExpandedTerms(false)).execute().actionGet();
+        existsResponse = client().prepareExists("test").setQuery(QueryBuilders.queryStringQuery("_id:XXY*").lowercaseExpandedTerms(false)).execute().actionGet();
         assertExists(existsResponse, false);
     }
 

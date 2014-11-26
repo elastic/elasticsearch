@@ -223,8 +223,8 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
                     .setQuery(
                             boolQuery()
                                     .minimumNumberShouldMatch(1)
-                                    .should(queryString("dolor").queryName("dolor"))
-                                    .should(queryString("elit").queryName("elit"))
+                                    .should(queryStringQuery("dolor").queryName("dolor"))
+                                    .should(queryStringQuery("elit").queryName("elit"))
                     )
                     .setPreference("_primary")
                     .get();

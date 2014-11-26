@@ -38,6 +38,7 @@ public class InternalEngineIntegrationTest extends ElasticsearchIntegrationTest 
     @Test
     public void testSetIndexCompoundOnFlush() {
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.builder().put("number_of_replicas", 0).put("number_of_shards", 1)).get();
+        ensureGreen();
         client().prepareIndex("test", "foo").setSource("field", "foo").get();
         refresh();
         assertTotalCompoundSegments(1, 1, "test");

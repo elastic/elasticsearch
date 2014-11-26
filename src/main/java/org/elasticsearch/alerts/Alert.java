@@ -26,7 +26,6 @@ public class Alert implements ToXContent {
     private String schedule;
     private DateTime lastActionFire;
     private long version;
-    private boolean enabled;
     private TimeValue throttlePeriod = new TimeValue(0);
     private DateTime timeLastActionExecuted = null;
     private AlertAckState ackState = AlertAckState.NOT_ACKABLE;
@@ -35,7 +34,7 @@ public class Alert implements ToXContent {
         actions = new ArrayList<>();
     }
 
-    public Alert(String alertName, SearchRequest searchRequest, AlertTrigger trigger, List<AlertAction> actions, String schedule, DateTime lastActionFire, long version, boolean enabled, TimeValue throttlePeriod, AlertAckState ackState) {
+    public Alert(String alertName, SearchRequest searchRequest, AlertTrigger trigger, List<AlertAction> actions, String schedule, DateTime lastActionFire, long version, TimeValue throttlePeriod, AlertAckState ackState) {
         this.alertName = alertName;
         this.searchRequest = searchRequest;
         this.trigger = trigger;
@@ -43,7 +42,6 @@ public class Alert implements ToXContent {
         this.schedule = schedule;
         this.lastActionFire = lastActionFire;
         this.version = version;
-        this.enabled = enabled;
         this.throttlePeriod = throttlePeriod;
         this.ackState = ackState;
     }
@@ -52,7 +50,6 @@ public class Alert implements ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(AlertsStore.SCHEDULE_FIELD.getPreferredName(), schedule);
-        builder.field(AlertsStore.ENABLE.getPreferredName(), enabled);
         builder.field(AlertsStore.REQUEST_FIELD.getPreferredName());
         AlertUtils.writeSearchRequest(searchRequest, builder, params);
         builder.field(AlertsStore.THROTTLE_PERIOD_FIELD.getPreferredName(), throttlePeriod.millis());
@@ -94,17 +91,6 @@ public class Alert implements ToXContent {
 
     public void lastActionFire(DateTime lastActionFire) {
         this.lastActionFire = lastActionFire;
-    }
-
-    /**
-     * @return Whether this alert has been enabled.
-     */
-    public boolean enabled() {
-        return enabled;
-    }
-
-    public void enabled(boolean enabled) {
-        this.enabled = enabled;
     }
 
     /**

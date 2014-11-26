@@ -10,9 +10,6 @@
     "alert": {
       "dynamic" : "strict",
       "properties": {
-        "enable": {
-          "type": "boolean"
-        },
         "schedule": {
           "type": "string"
         },

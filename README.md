@@ -44,8 +44,7 @@ PUT /.alerts/alert/testalert
       }
     },
     
-    "schedule" : "0 0/1 * * * ?",
-    "enable" : true
+    "schedule" : "0 0/1 * * * ?"
 }
 
 ````
@@ -105,7 +104,6 @@ GET /.alerts/alert/testalert
             "logstash*"
          ]
       },
-      "enable": true,
       "actions": {
          "email": {
             "addresses": [
@@ -178,8 +176,7 @@ PUT _alert/404alert
         "addresses" : ["brian.murphy@elasticsearch.com"]
       }
     },
-    "schedule" : "0 0/1 * * * ?",
-    "enable" : true
+    "schedule" : "0 0/1 * * * ?"
 }
 ````
 

@@ -88,8 +88,6 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
     protected BytesReference createAlertSource(String cron, SearchRequest request, String scriptTrigger) throws IOException {
         XContentBuilder builder = jsonBuilder().startObject();
         builder.field("schedule", cron);
-        builder.field("enable", true);
-
         builder.field("request");
         AlertUtils.writeSearchRequest(request, builder, ToXContent.EMPTY_PARAMS);
 

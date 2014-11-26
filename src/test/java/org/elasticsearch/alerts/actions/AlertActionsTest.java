@@ -163,7 +163,6 @@ public class AlertActionsTest extends AbstractAlertingTests {
                 "0/5 * * * * ? *",
                 null,
                 1,
-                true,
                 new TimeValue(0),
                 AlertAckState.NOT_ACKABLE
         );

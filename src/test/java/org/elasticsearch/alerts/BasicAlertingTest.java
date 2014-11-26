@@ -98,7 +98,6 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         BytesReference alertSource = jsonBuilder().startObject()
                 .field("schedule", "0/5 * * * * ? *")
                 .startObject("trigger").startObject("script").field("script", "return true").endObject().endObject()
-                .field("enable", true)
                 .field("malformed_field", "x")
                 .endObject().bytes();
         try {

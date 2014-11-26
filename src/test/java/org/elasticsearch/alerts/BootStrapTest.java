@@ -70,7 +70,6 @@ public class BootStrapTest extends AbstractAlertingTests {
                 "0 0/5 * * * ? *",
                 new DateTime(),
                 0,
-                true,
                 new TimeValue(0),
                 AlertAckState.NOT_ACKABLE);
 

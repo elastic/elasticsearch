@@ -57,7 +57,6 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         alert.actions().add(new IndexAlertAction("action-index", "action-type"));
         alert.schedule( "0/5 * * * * ? *");
         alert.lastActionFire(new DateTime());
-        alert.enabled(true);
 
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
@@ -130,7 +129,6 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         alert.actions().add(new IndexAlertAction("action-index", "action-type"));
         alert.schedule("0/5 * * * * ? *");
         alert.lastActionFire(new DateTime());
-        alert.enabled(true);
         alert.setThrottlePeriod(new TimeValue(10, TimeUnit.SECONDS));
 
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();

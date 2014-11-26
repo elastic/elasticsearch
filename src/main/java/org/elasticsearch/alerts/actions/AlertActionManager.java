@@ -306,9 +306,6 @@ public class AlertActionManager extends AbstractComponent {
                     entry.setErrorMsg("Alert was not found in the alerts store");
                     updateHistoryEntry(entry, AlertActionState.ERROR);
                     return;
-                } else if (!alert.enabled()) {
-                    updateHistoryEntry(entry, AlertActionState.NO_ACTION_NEEDED); ///@TODO DISABLED
-                    return;
                 }
                 updateHistoryEntry(entry, AlertActionState.SEARCH_UNDERWAY);
                 logger.debug("Running an alert action entry for [{}]", entry.getAlertName());

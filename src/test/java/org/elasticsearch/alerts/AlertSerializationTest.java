@@ -37,7 +37,6 @@ public class AlertSerializationTest extends ElasticsearchIntegrationTest {
                 "0/5 * * * * ? *",
                 new DateTime(),
                 0,
-                false,
                 new TimeValue(0),
                 AlertAckState.NOT_TRIGGERED);
 
@@ -49,7 +48,6 @@ public class AlertSerializationTest extends ElasticsearchIntegrationTest {
                 internalCluster().getInstance(AlertsStore.class, internalCluster().getMasterName());
 
         Alert parsedAlert = alertsStore.parseAlert("test-serialization", jsonBuilder.bytes());
-        assertEquals(parsedAlert.enabled(), alert.enabled());
         assertEquals(parsedAlert.version(), alert.version());
         assertEquals(parsedAlert.actions(), alert.actions());
         assertEquals(parsedAlert.lastActionFire().getMillis(), alert.lastActionFire().getMillis());

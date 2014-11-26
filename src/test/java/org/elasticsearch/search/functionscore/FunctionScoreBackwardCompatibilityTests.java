@@ -20,8 +20,10 @@ package org.elasticsearch.search.functionscore;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.junit.Test;
 
@@ -84,6 +86,8 @@ public class FunctionScoreBackwardCompatibilityTests extends ElasticsearchBackwa
         indexRandom(true, indexBuilders);
         checkFunctionScoreStillWorks(ids);
         logClusterState();
+        // prevent any kind of allocation during the upgrade we recover from gateway
+        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "none")).get();
         boolean upgraded;
         int upgradedNodesCounter = 1;
         do {
@@ -93,6 +97,7 @@ public class FunctionScoreBackwardCompatibilityTests extends ElasticsearchBackwa
             logClusterState();
             checkFunctionScoreStillWorks(ids);
         } while (upgraded);
+        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
         logger.debug("done function_score while upgrading");
     }
 

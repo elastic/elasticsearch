@@ -192,6 +192,8 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
 	Settings settings = internalCluster().getInstance(Settings.class);
 	Settings bucket = settings.getByPrefix("repositories.s3.");
 	AmazonS3 s3Client = internalCluster().getInstance(AwsS3Service.class).client(
+		bucket.get("endpoint", settings.get("repositories.s3.endpoint")),
+		bucket.get("protocol", settings.get("repositories.s3.protocol")),
 		bucket.get("region", settings.get("repositories.s3.region")),
 		bucket.get("access_key", settings.get("cloud.aws.access_key")),
 		bucket.get("secret_key", settings.get("cloud.aws.secret_key")));
@@ -275,6 +277,22 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
+        assertRepositoryIsOperational(client, "test-repo");
+    }
+
+    @Test
+    public void testRepositoryWithCustomEndpointProtocol() {
+        Client client = client();
+        Settings bucketSettings = internalCluster().getInstance(Settings.class).getByPrefix("repositories.s3.external-bucket.");
+        logger.info("--> creating s3 repostoriy with endpoint [{}], bucket[{}] and path [{}]", bucketSettings.get("endpoint"), bucketSettings.get("bucket"), basePath);
+        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+                .setType("s3").setSettings(ImmutableSettings.settingsBuilder()
+                        .put("protocol", bucketSettings.get("protocol"))
+                        .put("endpoint", bucketSettings.get("endpoint"))
+                        .put("access_key", bucketSettings.get("access_key"))
+                        .put("secret_key", bucketSettings.get("secret_key"))
+                ).get();
+        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
         assertRepositoryIsOperational(client, "test-repo");
     }
 
@@ -430,6 +448,8 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
                 settings.getByPrefix("repositories.s3.remote-bucket.")
             };
         for (Settings bucket : buckets) {
+            String endpoint = bucket.get("endpoint", settings.get("repositories.s3.endpoint"));
+            String protocol = bucket.get("protocol", settings.get("repositories.s3.protocol"));
             String region = bucket.get("region", settings.get("repositories.s3.region"));
             String accessKey = bucket.get("access_key", settings.get("cloud.aws.access_key"));
             String secretKey = bucket.get("secret_key", settings.get("cloud.aws.secret_key"));
@@ -438,7 +458,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
             // We check that settings has been set in elasticsearch.yml integration test file
             // as described in README
             assertThat("Your settings in elasticsearch.yml are incorrects. Check README file.", bucketName, notNullValue());
-            AmazonS3 client = internalCluster().getInstance(AwsS3Service.class).client(region, accessKey, secretKey);
+            AmazonS3 client = internalCluster().getInstance(AwsS3Service.class).client(endpoint, protocol, region, accessKey, secretKey);
             try {
                 ObjectListing prevListing = null;
                 //From http://docs.amazonwebservices.com/AmazonS3/latest/dev/DeletingMultipleObjectsUsingJava.html

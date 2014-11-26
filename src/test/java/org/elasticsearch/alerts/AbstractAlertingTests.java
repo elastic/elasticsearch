@@ -122,6 +122,24 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         return internalTestCluster().getInstance(AlertsClient.class);
     }
 
+    protected void assertAlertTriggeredExact(final String alertName, final long expectedAlertActionsWithActionPerformed) throws Exception {
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                ClusterState state = client().admin().cluster().prepareState().get().getState();
+                String[] alertHistoryIndices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), AlertActionManager.ALERT_HISTORY_INDEX_PREFIX + "*");
+                assertThat(alertHistoryIndices, not(emptyArray()));
+                for (String index : alertHistoryIndices) {
+                    IndexRoutingTable routingTable = state.getRoutingTable().index(index);
+                    assertThat(routingTable, notNullValue());
+                    assertThat(routingTable.allPrimaryShardsActive(), is(true));
+                }
+
+                assertThat(findNumberOfPerformedActions(alertName), equalTo(expectedAlertActionsWithActionPerformed));
+            }
+        });
+    }
+
     protected void assertAlertTriggered(final String alertName, final long minimumExpectedAlertActionsWithActionPerformed) throws Exception {
         assertAlertTriggered(alertName, minimumExpectedAlertActionsWithActionPerformed, true);
     }

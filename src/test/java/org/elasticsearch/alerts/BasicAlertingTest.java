@@ -13,7 +13,12 @@ import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.Test;
 
@@ -156,6 +161,55 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         long triggered =  findNumberOfPerformedActions("1");
         Thread.sleep(5000);
         assertThat(triggered, equalTo(findNumberOfPerformedActions("1")));
+    }
+
+    @Test
+    public void testAggregations() throws Exception {
+        class R implements Runnable {
+
+            private final long sleepTime;
+            private final long totalTime;
+
+            R(long sleepTime, long totalTime) {
+                this.sleepTime = sleepTime;
+                this.totalTime = totalTime;
+            }
+
+            @Override
+            public void run() {
+                long startTime = System.currentTimeMillis();
+                while ((System.currentTimeMillis() - startTime) < totalTime) {
+                    client().prepareIndex("my-index", "my-type").setCreate(true).setSource("{}").get();
+                    try {
+                        Thread.sleep(sleepTime);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
+            }
+        }
+
+        assertAcked(prepareCreate("my-index").addMapping("my-type", "_timestamp", "enabled=true"));
+        SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(
+                searchSource()
+                        .query(QueryBuilders.constantScoreQuery(FilterBuilders.rangeFilter("_timestamp").from("{{SCHEDULED_FIRE_TIME}}||-1m").to("{{SCHEDULED_FIRE_TIME}}")))
+                        .aggregation(AggregationBuilders.dateHistogram("rate").field("_timestamp").interval(DateHistogram.Interval.SECOND).order(Histogram.Order.COUNT_DESC))
+        );
+        BytesReference reference = createAlertSource("* 0/1 * * * ? *", searchRequest, "aggregations.rate.buckets[0]?.doc_count > 5");
+        alertClient().preparePutAlert("rate-alert").setAlertSource(reference).get();
+
+        Thread indexThread = new Thread(new R(500, 60000));
+        indexThread.start();
+        indexThread.join();
+
+        assertAlertTriggeredExact("rate-alert", 0);
+        assertNoAlertTrigger("rate-alert", 1);
+
+        indexThread = new Thread(new R(100, 60000));
+        indexThread.start();
+        indexThread.join();
+        assertAlertTriggered("rate-alert", 1);
     }
 
     private final SearchSourceBuilder searchSourceBuilder = searchSource().query(

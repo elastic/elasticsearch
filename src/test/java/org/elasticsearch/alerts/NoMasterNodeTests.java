@@ -76,14 +76,18 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
         // Bring back the 2nd node and wait for elected master node to come back and alerting to work as expected.
         startElectedMasterNodeAndWait();
 
-        // Delete an existing alert
+        // Our first alert should at least have been triggered twice
+        assertAlertTriggered("my-first-alert", 2);
+
+        // Delete the existing alert
         DeleteAlertResponse response = alertClient().prepareDeleteAlert("my-first-alert").get();
         assertThat(response.deleteResponse().isFound(), is(true));
+
         // Add a new alert and wait for it get triggered
         alertClient().preparePutAlert("my-second-alert")
                 .setAlertSource(alertSource)
                 .get();
-        assertAlertTriggered("my-second-alert", 2);
+        assertAlertTriggered("my-second-alert", 1);
     }
 
     @Test

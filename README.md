@@ -163,6 +163,8 @@ The following settings are supported:
 
 * `bucket`: The name of the bucket to be used for snapshots. (Mandatory)
 * `region`: The region where bucket is located. Defaults to US Standard
+* `endpoint`: The endpoint to the S3 API. Defaults to AWS's default S3 endpoint. Note that setting a region overrides the endpoint setting.
+* `protocol`: The protocol to use (`http` or `https`). Defaults to `https`.
 * `base_path`: Specifies the path within bucket to repository data. Defaults to root directory.
 * `access_key`: The access key to use for authentication. Defaults to value of `cloud.aws.access_key`.
 * `secret_key`: The secret key to use for authentication. Defaults to value of `cloud.aws.secret_key`.
@@ -289,10 +291,16 @@ repositories:
         remote-bucket:
             bucket: <bucket in other region>
             region: <region>
+	external-bucket:
+	    bucket: <bucket>
+	    access_key: <access key>
+	    secret_key: <secret key>
+	    endpoint: <endpoint>
+	    protocol: <protocol>
 
 ```
 
-Replace all occurrences of `access_key`, `secret_key`, `bucket` and `region` with your settings. Please, note that the test will delete all snapshot/restore related files in the specified buckets.
+Replace all occurrences of `access_key`, `secret_key`, `endpoint`, `protocol`, `bucket` and `region` with your settings. Please, note that the test will delete all snapshot/restore related files in the specified buckets.
 
 To run test:
 

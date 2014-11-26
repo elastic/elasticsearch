@@ -60,33 +60,32 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
         String account = componentSettings.get("access_key", settings.get("cloud.account"));
         String key = componentSettings.get("secret_key", settings.get("cloud.key"));
 
-        return getClient(endpoint, account, key, null);
+        return getClient(endpoint, "https", account, key, null);
     }
 
     @Override
-    public AmazonS3 client(String region, String account, String key) {
-        return client(region, account, key, null);
+    public AmazonS3 client(String endpoint, String protocol, String region, String account, String key) {
+        return client(endpoint, protocol, region, account, key, null);
     }
 
     @Override
-    public synchronized AmazonS3 client(String region, String account, String key, Integer maxRetries) {
-        String endpoint;
-        if (region == null) {
-            endpoint = getDefaultEndpoint();
-        } else {
+    public synchronized AmazonS3 client(String endpoint, String protocol, String region, String account, String key, Integer maxRetries) {
+        if (region != null && endpoint == null) {
             endpoint = getEndpoint(region);
             logger.debug("using s3 region [{}], with endpoint [{}]", region, endpoint);
+        } else if (endpoint == null) {
+            endpoint = getDefaultEndpoint();
         }
         if (account == null || key == null) {
             account = componentSettings.get("access_key", settings.get("cloud.account"));
             key = componentSettings.get("secret_key", settings.get("cloud.key"));
         }
 
-        return getClient(endpoint, account, key, maxRetries);
+        return getClient(endpoint, protocol, account, key, maxRetries);
     }
 
 
-    private synchronized AmazonS3 getClient(String endpoint, String account, String key, Integer maxRetries) {
+    private synchronized AmazonS3 getClient(String endpoint, String protocol, String account, String key, Integer maxRetries) {
         Tuple<String, String> clientDescriptor = new Tuple<String, String>(endpoint, account);
         AmazonS3Client client = clients.get(clientDescriptor);
         if (client != null) {
@@ -94,8 +93,10 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
         }
 
         ClientConfiguration clientConfiguration = new ClientConfiguration();
-        String protocol = componentSettings.get("protocol", "https").toLowerCase();
-        protocol = componentSettings.get("s3.protocol", protocol).toLowerCase();
+        if (protocol == null) {
+            protocol = "https";
+        }
+
         if ("http".equals(protocol)) {
             clientConfiguration.setProtocol(Protocol.HTTP);
         } else if ("https".equals(protocol)) {

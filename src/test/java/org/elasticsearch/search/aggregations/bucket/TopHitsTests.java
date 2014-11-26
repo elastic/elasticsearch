@@ -30,8 +30,8 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
-import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
+import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -45,10 +45,9 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 /**
@@ -66,7 +65,16 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        createIndex("idx");
+        assertAcked(prepareCreate("idx").addMapping("nested", jsonBuilder().startObject().startObject("nested").startObject("properties")
+                .startObject("nested_field1")
+                    .field("type", "nested")
+                    .startObject("properties")
+                        .startObject("abc")
+                            .field("type", "string")
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endObject().endObject().endObject()));
         createIndex("empty");
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 50; i++) {
@@ -137,11 +145,11 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
     public void testBasics() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
-                        .executionHint(randomExecutionHint())
-                        .field(TERMS_AGGS_FIELD)
-                        .subAggregation(
-                                topHits("hits").addSort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
-                        )
+                                .executionHint(randomExecutionHint())
+                                .field(TERMS_AGGS_FIELD)
+                                .subAggregation(
+                                        topHits("hits").addSort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
+                                )
                 )
                 .get();
 
@@ -316,12 +324,12 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                                 .field(TERMS_AGGS_FIELD)
                                 .subAggregation(
                                         topHits("hits").setSize(1)
-                                            .addHighlightedField("text")
-                                            .setExplain(true)
-                                            .addFieldDataField("field1")
-                                            .addScriptField("script", "doc['field1'].value")
-                                            .setFetchSource("text", null)
-                                            .setVersion(true)
+                                                .addHighlightedField("text")
+                                                .setExplain(true)
+                                                .addFieldDataField("field1")
+                                                .addScriptField("script", "doc['field1'].value")
+                                                .setFetchSource("text", null)
+                                                .setVersion(true)
                                 )
                 )
                 .get();
@@ -411,7 +419,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
             assertThat(e.getMessage(), containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));
         }
     }
-    
+
     @Test
     public void testFailDeferredOnlyWhenScorerIsUsed() throws Exception {
         // No track_scores or score based sort defined in top_hits agg, so don't fail:
@@ -501,6 +509,36 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
             assertThat(hits.getMaxScore(), trackScore ? not(equalTo(Float.NaN)) : equalTo(Float.NaN));
             assertThat(hits.getAt(0).score(), trackScore ? not(equalTo(Float.NaN)) : equalTo(Float.NaN));
         }
+    }
+
+    @Test
+    public void testParsingFailsIfTopHitsAggIsDefinedUnderNestedAgg() throws Exception {
+        try {
+            client().prepareSearch("idx").setTypes("nested")
+                    .addAggregation(nested("nested")
+                                    .path("nested_field1")
+                                    .subAggregation(
+                                            topHits("hits")
+                                    )
+                    )
+                    .get();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getMessage(), containsString("Parse Failure [top_hits aggregation [hits] can not be defined under a nested aggregator]"));
+        }
+
+        // Valid since the top_hits is joined back to the root level via the reverse_nested agg
+        client().prepareSearch("idx").setTypes("nested")
+                .addAggregation(nested("nested")
+                                .path("nested_field1")
+                                .subAggregation(
+                                        terms("my-bucket").field("abc")
+                                                .subAggregation(
+                                                        reverseNested("go-back")
+                                                                .subAggregation(topHits("my-hits"))
+                                                )
+                                )
+                ).get();
     }
 
 }

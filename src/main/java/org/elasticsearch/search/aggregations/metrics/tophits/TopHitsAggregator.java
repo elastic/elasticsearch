@@ -26,7 +26,10 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
+import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator;
+import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedAggregator;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -156,8 +159,20 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
         }
 
         @Override
-        public Aggregator create(AggregationContext aggregationContext, Aggregator parent, long expectedBucketsCount) {
-            return new TopHitsAggregator(fetchPhase, topHitsContext, name, expectedBucketsCount, aggregationContext, parent);
+        public Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
+            boolean seenReverseNestedAgg = false;
+            for (; parent != null; parent = parent.parent()) {
+                if (parent instanceof ReverseNestedAggregator) {
+                    if (!seenReverseNestedAgg && ((ReverseNestedAggregator) parent).getNestedPath() == null) {
+                        // If the first reverse_nested agg doesn't have a nested path defined then it joins back to the root level.
+                        break;
+                    }
+                    seenReverseNestedAgg = true;
+                } else if (parent instanceof NestedAggregator) {
+                    throw new SearchParseException(context.searchContext(), "top_hits aggregation [" + name + "] can not be defined under a nested aggregator");
+                }
+            }
+            return new TopHitsAggregator(fetchPhase, topHitsContext, name, expectedBucketsCount, context, parent);
         }
 
         @Override

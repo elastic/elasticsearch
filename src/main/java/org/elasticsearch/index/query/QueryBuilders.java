@@ -51,15 +51,6 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * @deprecated by commonTermsQuery(String, Object)
-     * Will be removed in elasticsearch 2.0.0
-     */
-    @Deprecated
-    public static CommonTermsQueryBuilder commonTerms(String name, Object text) {
-        return commonTermsQuery(name, text);
-    }
-
-    /**
      * Creates a common query for the provided field name and text.
      *
      * @param name The field name.
@@ -84,56 +75,9 @@ public abstract class QueryBuilders {
      *
      * @param name The field name.
      * @param text The query text (to be analyzed).
-     * @deprecated use {@link #textPhraseQuery(String, Object)} instead
-     * Will be removed in elasticsearch 2.0.0
-     */
-    public static MatchQueryBuilder textPhrase(String name, Object text) {
-        return textPhraseQuery(name, text);
-    }
-
-    /**
-     * Creates a text query with type "PHRASE" for the provided field name and text.
-     *
-     * @param name The field name.
-     * @param text The query text (to be analyzed).
-     * @deprecated Use {@link #matchPhraseQuery(String, Object)}
-     */
-    public static MatchQueryBuilder textPhraseQuery(String name, Object text) {
-        return new MatchQueryBuilder(name, text).type(MatchQueryBuilder.Type.PHRASE);
-    }
-
-    /**
-     * Creates a text query with type "PHRASE" for the provided field name and text.
-     *
-     * @param name The field name.
-     * @param text The query text (to be analyzed).
      */
     public static MatchQueryBuilder matchPhraseQuery(String name, Object text) {
         return new MatchQueryBuilder(name, text).type(MatchQueryBuilder.Type.PHRASE);
-    }
-
-    /**
-     * Creates a text query with type "PHRASE_PREFIX" for the provided field name and text.
-     *
-     * @param name The field name.
-     * @param text The query text (to be analyzed).
-     * @deprecated use {@link #textPhrasePrefixQuery(String, Object)} instead
-     * Will be removed in elasticsearch 2.0.0
-     */
-    public static MatchQueryBuilder textPhrasePrefix(String name, Object text) {
-        return textPhrasePrefixQuery(name, text);
-    }
-
-    /**
-     * Creates a text query with type "PHRASE_PREFIX" for the provided field name and text.
-     *
-     * @param name The field name.
-     * @param text The query text (to be analyzed).
-     * @deprecated Use {@link #matchPhrasePrefixQuery(String, Object)}
-     * Will be removed in elasticsearch 2.0.0
-     */
-    public static MatchQueryBuilder textPhrasePrefixQuery(String name, Object text) {
-        return new MatchQueryBuilder(name, text).type(MatchQueryBuilder.Type.PHRASE_PREFIX);
     }
 
     /**
@@ -300,14 +244,6 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * @deprecated by queryStringQuery(String)
-     */
-    @Deprecated
-    public static QueryStringQueryBuilder queryString(String queryString) {
-        return queryStringQuery(queryString);
-    }
-
-    /**
      * A query that parses a query string and runs it. There are two modes that this operates. The first,
      * when no field is added (using {@link QueryStringQueryBuilder#field(String)}, will run the query once and non prefixed fields
      * will use the {@link QueryStringQueryBuilder#defaultField(String)} set. The second, when one or more fields are added
@@ -318,14 +254,6 @@ public abstract class QueryBuilders {
      */
     public static QueryStringQueryBuilder queryStringQuery(String queryString) {
         return new QueryStringQueryBuilder(queryString);
-    }
-
-    /**
-     * @deprecated by simpleQueryStringQuery(String)
-     */
-    @Deprecated
-    public static SimpleQueryStringBuilder simpleQueryString(String queryString) {
-        return simpleQueryStringQuery(queryString);
     }
 
     /**
@@ -406,18 +334,6 @@ public abstract class QueryBuilders {
 
     public static FieldMaskingSpanQueryBuilder fieldMaskingSpanQuery(SpanQueryBuilder query, String field) {
         return new FieldMaskingSpanQueryBuilder(query, field);
-    }
-
-    /**
-     * A query that applies a filter to the results of another query.
-     *
-     * @param queryBuilder  The query to apply the filter to
-     * @param filterBuilder The filter to apply on the query
-     * @deprecated Use filteredQuery instead (rename)
-     * Will be removed in elasticsearch 2.0.0
-     */
-    public static FilteredQueryBuilder filtered(QueryBuilder queryBuilder, @Nullable FilterBuilder filterBuilder) {
-        return new FilteredQueryBuilder(queryBuilder, filterBuilder);
     }
 
     /**
@@ -655,90 +571,6 @@ public abstract class QueryBuilders {
      * @param values The terms
      */
     public static TermsQueryBuilder termsQuery(String name, Collection<?> values) {
-        return new TermsQueryBuilder(name, values);
-    }
-
-    /**
-     * A filer for a field based on several terms matching on any of them.
-     *
-     * @param name   The field name
-     * @param values The terms
-     * @deprecated not used
-     * Will be removed in elasticsearch 2.0.0
-     */
-    public static TermsQueryBuilder inQuery(String name, String... values) {
-        return new TermsQueryBuilder(name, values);
-    }
-
-    /**
-     * A filer for a field based on several terms matching on any of them.
-     *
-     * @param name   The field name
-     * @param values The terms
-     * @deprecated not used
-     * Will be removed in elasticsearch 2.0.0
-     */
-    public static TermsQueryBuilder inQuery(String name, int... values) {
-        return new TermsQueryBuilder(name, values);
-    }
-
-    /**
-     * A filer for a field based on several terms matching on any of them.
-     *
-     * @param name   The field name
-     * @param values The terms
-     * @deprecated not used
-     * Will be removed in elasticsearch 2.0.0
-     */
-    public static TermsQueryBuilder inQuery(String name, long... values) {
-        return new TermsQueryBuilder(name, values);
-    }
-
-    /**
-     * A filer for a field based on several terms matching on any of them.
-     *
-     * @param name   The field name
-     * @param values The terms
-     * @deprecated not used
-     * Will be removed in elasticsearch 2.0.0
-     */
-    public static TermsQueryBuilder inQuery(String name, float... values) {
-        return new TermsQueryBuilder(name, values);
-    }
-
-    /**
-     * A filer for a field based on several terms matching on any of them.
-     *
-     * @param name   The field name
-     * @param values The terms
-     * @deprecated not used
-     * Will be removed in elasticsearch 2.0.0
-     */
-    public static TermsQueryBuilder inQuery(String name, double... values) {
-        return new TermsQueryBuilder(name, values);
-    }
-
-    /**
-     * A filer for a field based on several terms matching on any of them.
-     *
-     * @param name   The field name
-     * @param values The terms
-     * @deprecated not used
-     * Will be removed in elasticsearch 2.0.0
-     */
-    public static TermsQueryBuilder inQuery(String name, Object... values) {
-        return new TermsQueryBuilder(name, values);
-    }
-
-    /**
-     * A filer for a field based on several terms matching on any of them.
-     *
-     * @param name   The field name
-     * @param values The terms
-     * @deprecated not used
-     * Will be removed in elasticsearch 2.0.0
-     */
-    public static TermsQueryBuilder inQuery(String name, Collection<?> values) {
         return new TermsQueryBuilder(name, values);
     }
 

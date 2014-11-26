@@ -24,18 +24,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
-import org.elasticsearch.search.reducers.ReducerFactoryStreams;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
-/**
-*
-*/
-public class InternalMetric extends InternalNumericMetricsAggregation.SingleValue {
+public class InternalMetric extends InternalNumericMetricsAggregation.MultiValue {
 
-    public final static Type TYPE = new Type("simple_metric");
+    public final static Type TYPE = new Type("reducer_metric");
 
     public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
@@ -45,29 +42,33 @@ public class InternalMetric extends InternalNumericMetricsAggregation.SingleValu
             return result;
         }
     };
+    private MetricResult metricResult;
+    private static final Map<String, MetricResultFactory> metricResultFactories = new HashMap<>();
+
+    static {
+        metricResultFactories.put("single_metric", new SingleMetricResultFactory());
+    }
 
     public static void registerStreams() {
         AggregationStreams.registerStream(STREAM, TYPE.stream());
     }
 
-    private Number value;
-
-    InternalMetric() {} // for serialization
-
-    public InternalMetric(String name, Number value) {
-        super();
-        this.name = name;
-        this.value = value;
-    }
-
+    InternalMetric() {
+    } // for serialization
 
     @Override
-    public double value() {
-        return value.doubleValue();
+    public double value(String name) {
+        return metricResult.getValue(name);
     }
 
-    public double getValue() {
-        return value.doubleValue();
+    public double value() {
+        return metricResult.getValue();
+    }
+
+    public InternalMetric(String name, MetricResult metricResult) {
+        super();
+        this.name = name;
+        this.metricResult = metricResult;
     }
 
     @Override
@@ -80,28 +81,25 @@ public class InternalMetric extends InternalNumericMetricsAggregation.SingleValu
         throw new UnsupportedOperationException("Shard reducers not implemented yet.");
     }
 
-
     @Override
     public void doReadFrom(StreamInput in) throws IOException {
         name = in.readString();
         valueFormatter = ValueFormatterStreams.readOptional(in);
-        value = in.readDouble();
+        String metricType = in.readString();
+        metricResult = metricResultFactories.get(metricType).newInstance().readFrom(in);
     }
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(name);
         ValueFormatterStreams.writeOptional(valueFormatter, out);
-        out.writeDouble(value.doubleValue());
+        out.writeString(metricResult.getType());
+        metricResult.writeTo(out);
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(CommonFields.VALUE, value);
-        if (valueFormatter != null) {
-            builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(value.doubleValue()));
-        }
-        return builder;
+        return metricResult.doXContentBody(builder, params);
     }
 
 }

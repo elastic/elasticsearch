@@ -28,20 +28,21 @@ import org.elasticsearch.search.reducers.ReducerFactories;
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.metric.MetricOp;
 import org.elasticsearch.search.reducers.metric.SimpleMetricReducer;
+import org.elasticsearch.search.reducers.metric.SingleMetricResult;
 
 import java.io.IOException;
 
 public class Sum implements MetricOp {
 
 
-    public Number op(Object[] bucketProperties) throws ReductionExecutionException {
+    public SingleMetricResult op(Object[] bucketProperties) throws ReductionExecutionException {
 
         double sum = 0;
         for (Object bucketValue : bucketProperties) {
             sum += ((Number) bucketValue).doubleValue();
         }
 
-        return sum;
+        return new SingleMetricResult(sum);
     }
 
 }

@@ -21,17 +21,18 @@ package org.elasticsearch.search.reducers.metric.max;
 
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.metric.MetricOp;
+import org.elasticsearch.search.reducers.metric.SingleMetricResult;
 
 public class Max implements MetricOp {
 
 
-    public Number op(Object[] bucketProperties) throws ReductionExecutionException {
+    public SingleMetricResult op(Object[] bucketProperties) throws ReductionExecutionException {
 
         double max = -1 * Double.MAX_VALUE;
         for (Object bucketValue : bucketProperties) {
             max = Math.max(((Number) bucketValue).doubleValue(), max);
         }
-        return max;
+        return new SingleMetricResult(max);
     }
 
 }

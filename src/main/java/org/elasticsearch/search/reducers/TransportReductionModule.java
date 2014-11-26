@@ -19,10 +19,7 @@
 package org.elasticsearch.search.reducers;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
-import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
-import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
 import org.elasticsearch.search.reducers.bucket.range.InternalRange;
 import org.elasticsearch.search.reducers.bucket.range.RangeReducer;
 import org.elasticsearch.search.reducers.bucket.slidingwindow.InternalSlidingWindow;

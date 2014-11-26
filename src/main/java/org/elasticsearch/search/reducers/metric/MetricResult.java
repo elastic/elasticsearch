@@ -17,23 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.avg;
-
-import org.elasticsearch.search.reducers.ReductionExecutionException;
-import org.elasticsearch.search.reducers.metric.MetricOp;
-import org.elasticsearch.search.reducers.metric.SingleMetricResult;
-
-public class Avg implements MetricOp {
+package org.elasticsearch.search.reducers.metric;
 
 
-    public SingleMetricResult op(Object[] bucketProperties) throws ReductionExecutionException {
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
-        double sum = 0;
-        for (Object bucketValue : bucketProperties) {
-            sum += ((Number) bucketValue).doubleValue();
-        }
+import java.io.IOException;
 
-        return new SingleMetricResult(sum/bucketProperties.length);
-    }
+public interface MetricResult {
+    public MetricResult readFrom(StreamInput in) throws IOException;
 
+    public void writeTo(StreamOutput out) throws IOException;
+
+    String getType();
+
+    double getValue(String name);
+
+    XContentBuilder doXContentBody(XContentBuilder builder, ToXContent.Params params) throws IOException;
+
+    double getValue();
 }

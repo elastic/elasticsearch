@@ -20,7 +20,9 @@
 package org.elasticsearch.search.reducers.metric;
 
 
+import org.elasticsearch.common.io.stream.StreamInput;
+
 public interface MetricOp {
-    Number op(Object[] objects);
+    MetricResult op(Object[] objects);
 
 }

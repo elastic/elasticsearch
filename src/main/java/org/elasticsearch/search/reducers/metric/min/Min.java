@@ -21,17 +21,18 @@ package org.elasticsearch.search.reducers.metric.min;
 
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.metric.MetricOp;
+import org.elasticsearch.search.reducers.metric.SingleMetricResult;
 
 public class Min implements MetricOp {
 
 
-    public Number op(Object[] bucketProperties) throws ReductionExecutionException {
+    public SingleMetricResult op(Object[] bucketProperties) throws ReductionExecutionException {
 
         double min = Double.MAX_VALUE;
         for (Object bucketValue : bucketProperties) {
             min = Math.min(((Number) bucketValue).doubleValue(), min);
         }
-        return min;
+        return new SingleMetricResult(min);
     }
 
 }

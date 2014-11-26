@@ -17,23 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.avg;
 
-import org.elasticsearch.search.reducers.ReductionExecutionException;
-import org.elasticsearch.search.reducers.metric.MetricOp;
-import org.elasticsearch.search.reducers.metric.SingleMetricResult;
+package org.elasticsearch.search.reducers.metric;
 
-public class Avg implements MetricOp {
-
-
-    public SingleMetricResult op(Object[] bucketProperties) throws ReductionExecutionException {
-
-        double sum = 0;
-        for (Object bucketValue : bucketProperties) {
-            sum += ((Number) bucketValue).doubleValue();
-        }
-
-        return new SingleMetricResult(sum/bucketProperties.length);
+public class SingleMetricResultFactory implements MetricResultFactory {
+    @Override
+    public MetricResult newInstance() {
+        return new SingleMetricResult();
     }
-
 }

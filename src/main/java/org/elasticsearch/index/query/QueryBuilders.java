@@ -23,8 +23,10 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.Collection;
+import java.util.Map;
 
 /**
  * A static factory for simple "import static" usage.
@@ -49,12 +51,21 @@ public abstract class QueryBuilders {
     }
 
     /**
+     * @deprecated by commonTermsQuery(String, Object)
+     * Will be removed in elasticsearch 2.0.0
+     */
+    @Deprecated
+    public static CommonTermsQueryBuilder commonTerms(String name, Object text) {
+        return commonTermsQuery(name, text);
+    }
+
+    /**
      * Creates a common query for the provided field name and text.
      *
      * @param name The field name.
      * @param text The query text (to be analyzed).
      */
-    public static CommonTermsQueryBuilder commonTerms(String name, Object text) {
+    public static CommonTermsQueryBuilder commonTermsQuery(String name, Object text) {
         return new CommonTermsQueryBuilder(name, text);
     }
 
@@ -74,6 +85,7 @@ public abstract class QueryBuilders {
      * @param name The field name.
      * @param text The query text (to be analyzed).
      * @deprecated use {@link #textPhraseQuery(String, Object)} instead
+     * Will be removed in elasticsearch 2.0.0
      */
     public static MatchQueryBuilder textPhrase(String name, Object text) {
         return textPhraseQuery(name, text);
@@ -106,6 +118,7 @@ public abstract class QueryBuilders {
      * @param name The field name.
      * @param text The query text (to be analyzed).
      * @deprecated use {@link #textPhrasePrefixQuery(String, Object)} instead
+     * Will be removed in elasticsearch 2.0.0
      */
     public static MatchQueryBuilder textPhrasePrefix(String name, Object text) {
         return textPhrasePrefixQuery(name, text);
@@ -117,6 +130,7 @@ public abstract class QueryBuilders {
      * @param name The field name.
      * @param text The query text (to be analyzed).
      * @deprecated Use {@link #matchPhrasePrefixQuery(String, Object)}
+     * Will be removed in elasticsearch 2.0.0
      */
     public static MatchQueryBuilder textPhrasePrefixQuery(String name, Object text) {
         return new MatchQueryBuilder(name, text).type(MatchQueryBuilder.Type.PHRASE_PREFIX);
@@ -286,6 +300,14 @@ public abstract class QueryBuilders {
     }
 
     /**
+     * @deprecated by queryStringQuery(String)
+     */
+    @Deprecated
+    public static QueryStringQueryBuilder queryString(String queryString) {
+        return queryStringQuery(queryString);
+    }
+
+    /**
      * A query that parses a query string and runs it. There are two modes that this operates. The first,
      * when no field is added (using {@link QueryStringQueryBuilder#field(String)}, will run the query once and non prefixed fields
      * will use the {@link QueryStringQueryBuilder#defaultField(String)} set. The second, when one or more fields are added
@@ -294,8 +316,16 @@ public abstract class QueryBuilders {
      *
      * @param queryString The query string to run
      */
-    public static QueryStringQueryBuilder queryString(String queryString) {
+    public static QueryStringQueryBuilder queryStringQuery(String queryString) {
         return new QueryStringQueryBuilder(queryString);
+    }
+
+    /**
+     * @deprecated by simpleQueryStringQuery(String)
+     */
+    @Deprecated
+    public static SimpleQueryStringBuilder simpleQueryString(String queryString) {
+        return simpleQueryStringQuery(queryString);
     }
 
     /**
@@ -304,7 +334,7 @@ public abstract class QueryBuilders {
      * {@link org.apache.lucene.queryparser.XSimpleQueryParser} for the full
      * supported syntax.
      */
-    public static SimpleQueryStringBuilder simpleQueryString(String queryString) {
+    public static SimpleQueryStringBuilder simpleQueryStringQuery(String queryString) {
         return new SimpleQueryStringBuilder(queryString);
     }
 
@@ -384,6 +414,7 @@ public abstract class QueryBuilders {
      * @param queryBuilder  The query to apply the filter to
      * @param filterBuilder The filter to apply on the query
      * @deprecated Use filteredQuery instead (rename)
+     * Will be removed in elasticsearch 2.0.0
      */
     public static FilteredQueryBuilder filtered(QueryBuilder queryBuilder, @Nullable FilterBuilder filterBuilder) {
         return new FilteredQueryBuilder(queryBuilder, filterBuilder);
@@ -632,6 +663,8 @@ public abstract class QueryBuilders {
      *
      * @param name   The field name
      * @param values The terms
+     * @deprecated not used
+     * Will be removed in elasticsearch 2.0.0
      */
     public static TermsQueryBuilder inQuery(String name, String... values) {
         return new TermsQueryBuilder(name, values);
@@ -642,6 +675,8 @@ public abstract class QueryBuilders {
      *
      * @param name   The field name
      * @param values The terms
+     * @deprecated not used
+     * Will be removed in elasticsearch 2.0.0
      */
     public static TermsQueryBuilder inQuery(String name, int... values) {
         return new TermsQueryBuilder(name, values);
@@ -652,6 +687,8 @@ public abstract class QueryBuilders {
      *
      * @param name   The field name
      * @param values The terms
+     * @deprecated not used
+     * Will be removed in elasticsearch 2.0.0
      */
     public static TermsQueryBuilder inQuery(String name, long... values) {
         return new TermsQueryBuilder(name, values);
@@ -662,6 +699,8 @@ public abstract class QueryBuilders {
      *
      * @param name   The field name
      * @param values The terms
+     * @deprecated not used
+     * Will be removed in elasticsearch 2.0.0
      */
     public static TermsQueryBuilder inQuery(String name, float... values) {
         return new TermsQueryBuilder(name, values);
@@ -672,6 +711,8 @@ public abstract class QueryBuilders {
      *
      * @param name   The field name
      * @param values The terms
+     * @deprecated not used
+     * Will be removed in elasticsearch 2.0.0
      */
     public static TermsQueryBuilder inQuery(String name, double... values) {
         return new TermsQueryBuilder(name, values);
@@ -682,6 +723,8 @@ public abstract class QueryBuilders {
      *
      * @param name   The field name
      * @param values The terms
+     * @deprecated not used
+     * Will be removed in elasticsearch 2.0.0
      */
     public static TermsQueryBuilder inQuery(String name, Object... values) {
         return new TermsQueryBuilder(name, values);
@@ -692,6 +735,8 @@ public abstract class QueryBuilders {
      *
      * @param name   The field name
      * @param values The terms
+     * @deprecated not used
+     * Will be removed in elasticsearch 2.0.0
      */
     public static TermsQueryBuilder inQuery(String name, Collection<?> values) {
         return new TermsQueryBuilder(name, values);
@@ -732,6 +777,20 @@ public abstract class QueryBuilders {
 
     public static GeoShapeQueryBuilder geoShapeQuery(String name, String indexedShapeId, String indexedShapeType) {
         return new GeoShapeQueryBuilder(name, indexedShapeId, indexedShapeType);
+    }
+
+    /**
+     * Facilitates creating template query requests using an inline script
+     */
+    public static TemplateQueryBuilder templateQuery(String template, Map<String, Object> vars) {
+        return new TemplateQueryBuilder(template, vars);
+    }
+
+    /**
+     * Facilitates creating template query requests
+     */
+    public static TemplateQueryBuilder templateQuery(String template, ScriptService.ScriptType templateType, Map<String, Object> vars) {
+        return new TemplateQueryBuilder(template, templateType, vars);
     }
 
     private QueryBuilders() {

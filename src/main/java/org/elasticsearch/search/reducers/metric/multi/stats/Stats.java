@@ -29,7 +29,7 @@ public class Stats implements MetricOp {
         double min = Double.MAX_VALUE;
         double max = Double.MIN_VALUE;
         for (Object bucketValue : bucketProperties) {
-            double bucketDoubleValue = (double) bucketValue;
+            double bucketDoubleValue = ((Number)bucketValue).doubleValue();
             sum += bucketDoubleValue;
             if (bucketDoubleValue < min) {
                 min = bucketDoubleValue;

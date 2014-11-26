@@ -49,4 +49,12 @@ public class ReducerBuilders {
     public static SimpleMetricsBuilder maxReducer(String name) {
         return new SimpleMetricsBuilder(name, "max");
     }
+
+    public static SimpleMetricsBuilder deltaReducer(String name) {
+        return new SimpleMetricsBuilder(name, "delta");
+    }
+
+    public static SimpleMetricsBuilder statsReducer(String name) {
+        return new SimpleMetricsBuilder(name, "stats");
+    }
 }

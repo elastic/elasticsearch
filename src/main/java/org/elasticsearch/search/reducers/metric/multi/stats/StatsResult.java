@@ -89,7 +89,6 @@ public class StatsResult implements MetricResult {
 
     @Override
     public double getValue() {
-
-        return length;
+        throw new IllegalArgumentException("don't know which value you want.");
     }
 }

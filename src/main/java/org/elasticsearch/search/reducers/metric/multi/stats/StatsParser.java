@@ -24,6 +24,6 @@ import org.elasticsearch.search.reducers.metric.SimpleMetricReducerParser;
 public class StatsParser extends SimpleMetricReducerParser{
     @Override
     public String type() {
-        return "delta";
+        return "stats";
     }
 }

@@ -52,7 +52,11 @@ public class DeltaResult implements MetricResult {
     }
 
     public double getValue(String name) {
-        return value;
+        if (name.equals("delta")) {
+            return value;
+        }
+        throw new IllegalArgumentException("delta reducer only computes delta. " + name + " is not supported");
+
     }
 
     public XContentBuilder doXContentBody(XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -62,7 +66,6 @@ public class DeltaResult implements MetricResult {
 
     @Override
     public double getValue() {
-
-        return value;
+        throw new IllegalArgumentException("don't know which value you want.");
     }
 }

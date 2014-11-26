@@ -27,8 +27,8 @@ public class Delta implements MetricOp {
 
     boolean gradient = false; //NOCOMMIT must parse this parameter
     public DeltaResult op(Object[] bucketProperties) throws ReductionExecutionException {
-        double firstBucketValue = (double) bucketProperties[0];
-        double lastBucketValue = (double) bucketProperties[bucketProperties.length - 1];
+        double firstBucketValue = ((Number)bucketProperties[0]).doubleValue();
+        double lastBucketValue = ((Number)bucketProperties[bucketProperties.length - 1]).doubleValue();
         double deltaValue = lastBucketValue - firstBucketValue;
         if (this.gradient) {
             deltaValue = deltaValue / (bucketProperties.length - 1);

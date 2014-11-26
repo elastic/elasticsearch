@@ -14,6 +14,7 @@ import org.elasticsearch.alerts.actions.AlertActionManager;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -64,7 +65,7 @@ public class TransportAlertStatsAction extends TransportMasterNodeOperationActio
 
     @Override
     protected ClusterBlockException checkBlock(AlertsStatsRequest request, ClusterState state) {
-        return null;
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
     }
 
 

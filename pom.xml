@@ -1429,6 +1429,7 @@
                                 <exclude>src/main/java/org/elasticsearch/common/geo/GeoHashUtils.java</exclude>
                                 <exclude>src/main/java/org/elasticsearch/common/lucene/search/XBooleanFilter.java</exclude>
                                 <exclude>src/main/java/org/elasticsearch/common/lucene/search/XFilteredQuery.java</exclude>
+                                <exclude>src/main/java/org/elasticsearch/common/lucene/docset/RoaringDocIdSet.java</exclude>
                                 <exclude>src/main/java/org/apache/lucene/queryparser/XSimpleQueryParser.java</exclude>
                                 <exclude>src/main/java/org/apache/lucene/**/X*.java</exclude>
                                 <!-- t-digest -->

@@ -77,13 +77,13 @@ public class DocIdSets {
         if (set instanceof FixedBitSet) {
             return set;
         }
-        // TODO: should we use WAH8DocIdSet like Lucene?
-        FixedBitSet fixedBitSet = new FixedBitSet(reader.maxDoc());
-        do {
-            fixedBitSet.set(doc);
+
+        RoaringDocIdSet.Builder builder = new RoaringDocIdSet.Builder(reader.maxDoc());
+        do{
+            builder.add(doc);
             doc = it.nextDoc();
         } while (doc != DocIdSetIterator.NO_MORE_DOCS);
-        return fixedBitSet;
+        return builder.build();
     }
 
     /**

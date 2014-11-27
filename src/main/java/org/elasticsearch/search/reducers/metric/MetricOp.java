@@ -20,9 +20,29 @@
 package org.elasticsearch.search.reducers.metric;
 
 
-import org.elasticsearch.common.io.stream.StreamInput;
+import java.util.HashMap;
+import java.util.Map;
 
-public interface MetricOp {
-    MetricResult op(Object[] objects);
+public abstract class MetricOp {
+    protected String name;
+    protected Map<String, Object> parameters = new HashMap<>();
 
+    public abstract MetricResult op(Object[] objects);
+
+    public MetricOp(String name, Map<String, Object> parameters) {
+        this.name = name;
+        this.parameters = parameters;
+    }
+
+    public MetricOp(String name) {
+        this.name = name;
+    }
+
+    String name() {
+        return name;
+    }
+
+    Map<String, Object> parameters() {
+        return parameters;
+    }
 }

@@ -23,8 +23,14 @@ import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.metric.MetricOp;
 import org.elasticsearch.search.reducers.metric.single.SingleMetricResult;
 
-public class Avg implements MetricOp {
+import java.util.Map;
 
+public class Avg extends MetricOp {
+
+
+    public Avg(Map<String, Object> parameters) {
+        super("avg");
+    }
 
     public SingleMetricResult op(Object[] bucketProperties) throws ReductionExecutionException {
 

@@ -23,8 +23,14 @@ import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.metric.MetricOp;
 import org.elasticsearch.search.reducers.metric.single.SingleMetricResult;
 
-public class Sum implements MetricOp {
+import java.util.Map;
 
+public class Sum extends MetricOp {
+
+
+    public Sum(Map<String, Object> parameters) {
+        super("sum");
+    }
 
     public SingleMetricResult op(Object[] bucketProperties) throws ReductionExecutionException {
 

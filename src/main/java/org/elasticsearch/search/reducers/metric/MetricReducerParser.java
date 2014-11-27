@@ -20,14 +20,23 @@
 package org.elasticsearch.search.reducers.metric;
 
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.reducers.Reducer;
 import org.elasticsearch.search.reducers.ReducerFactory;
+import org.elasticsearch.search.reducers.metric.multi.delta.Delta;
+import org.elasticsearch.search.reducers.metric.multi.stats.Stats;
+import org.elasticsearch.search.reducers.metric.single.avg.Avg;
+import org.elasticsearch.search.reducers.metric.single.max.Max;
+import org.elasticsearch.search.reducers.metric.single.min.Min;
+import org.elasticsearch.search.reducers.metric.single.sum.Sum;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public abstract class MetricReducerParser implements Reducer.Parser {
 
@@ -42,6 +51,8 @@ public abstract class MetricReducerParser implements Reducer.Parser {
 
         XContentParser.Token token;
         String currentFieldName = null;
+
+        Map<String, Object> parameters = new HashMap<>();
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -68,7 +79,8 @@ public abstract class MetricReducerParser implements Reducer.Parser {
         if (fieldName == null) {
             throw new SearchParseException(context, "Missing [" + FIELD_NAME_FIELD.getPreferredName() + "] in " + type() + " reducer [" + reducerName + "]");
         }
-        return new MetricReducer.Factory(reducerName, buckets, fieldName, opName);
+
+        return new MetricReducer.Factory(reducerName, buckets, fieldName, OperationFactory.get(opName, parameters));
     }
 }
 

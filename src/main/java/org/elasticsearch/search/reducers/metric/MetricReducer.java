@@ -27,12 +27,6 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.reducers.*;
-import org.elasticsearch.search.reducers.metric.multi.delta.Delta;
-import org.elasticsearch.search.reducers.metric.multi.stats.Stats;
-import org.elasticsearch.search.reducers.metric.single.avg.Avg;
-import org.elasticsearch.search.reducers.metric.single.max.Max;
-import org.elasticsearch.search.reducers.metric.single.min.Min;
-import org.elasticsearch.search.reducers.metric.single.sum.Sum;
 
 import java.io.IOException;
 import java.util.Map;
@@ -43,6 +37,7 @@ public class MetricReducer extends Reducer {
     protected String fieldName;
     protected String bucketsPath;
     public final static InternalAggregation.Type TYPE = new InternalAggregation.Type("simple_metric");
+
     @Override
     public InternalAggregation reduce(Aggregations aggregationsTree, Aggregation currentAggregation) {
         MultiBucketsAggregation aggregation;
@@ -84,17 +79,17 @@ public class MetricReducer extends Reducer {
 
         protected String bucketsPath;
         protected String fieldName;
-        protected String opName;
+        protected MetricOp operation;
 
         public Factory() {
             super(TYPE);
         }
 
-        public Factory(String name, String bucketsPath, String fieldName, String opName) {
+        public Factory(String name, String bucketsPath, String fieldName, MetricOp operation) {
             super(name, TYPE);
             this.fieldName = fieldName;
             this.bucketsPath = bucketsPath;
-            this.opName = opName;
+            this.operation = operation;
         }
 
         @Override
@@ -102,7 +97,8 @@ public class MetricReducer extends Reducer {
             name = in.readString();
             bucketsPath = in.readString();
             fieldName = in.readString();
-            opName = in.readString();
+
+            operation = OperationFactory.get(in.readString(), in.readMap());
         }
 
         @Override
@@ -110,32 +106,16 @@ public class MetricReducer extends Reducer {
             out.writeString(name);
             out.writeString(bucketsPath);
             out.writeString(fieldName);
-            out.writeString(opName);
+            out.writeString(operation.name());
+            out.writeMap(operation.parameters());
         }
 
         @Override
         public Reducer doCreate(ReducerContext context, Reducer parent, Map<String, Object> metaData) {
-            if (opName.equals("sum")) {
-                return new MetricReducer(name, bucketsPath, fieldName, new Sum(), factories, context, parent);
-            }
-            if (opName.equals("avg")) {
-                return new MetricReducer(name, bucketsPath, fieldName, new Avg(), factories, context, parent);
-            }
-            if (opName.equals("min")) {
-                return new MetricReducer(name, bucketsPath, fieldName, new Min(), factories, context, parent);
-            }
-            if (opName.equals("max")) {
-                return new MetricReducer(name, bucketsPath, fieldName, new Max(), factories, context, parent);
-            }
-            if (opName.equals("delta")) {
-                return new MetricReducer(name, bucketsPath, fieldName, new Delta(), factories, context, parent);
-            }
-            if (opName.equals("stats")) {
-                return new MetricReducer(name, bucketsPath, fieldName, new Stats(), factories, context, parent);
-            }
-            return null;
+            return new MetricReducer(name, bucketsPath, fieldName, operation, factories, context, parent);
         }
     }
+
     public static final ReducerFactoryStreams.Stream STREAM = new ReducerFactoryStreams.Stream() {
         @Override
         public ReducerFactory readResult(StreamInput in) throws IOException {
@@ -144,6 +124,7 @@ public class MetricReducer extends Reducer {
             return factory;
         }
     };
+
     public static void registerStreams() {
         ReducerFactoryStreams.registerStream(STREAM, TYPE.stream());
     }

@@ -23,8 +23,14 @@ import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.metric.MetricOp;
 import org.elasticsearch.search.reducers.metric.single.SingleMetricResult;
 
-public class Max implements MetricOp {
+import java.util.Map;
 
+public class Max extends MetricOp {
+
+
+    public Max(Map<String, Object> parameters) {
+        super("max");
+    }
 
     public SingleMetricResult op(Object[] bucketProperties) throws ReductionExecutionException {
 

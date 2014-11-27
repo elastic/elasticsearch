@@ -23,9 +23,13 @@ import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.metric.MetricOp;
 import org.elasticsearch.search.reducers.metric.single.SingleMetricResult;
 
-public class Min implements MetricOp {
+import java.util.Map;
 
+public class Min extends MetricOp {
 
+    public Min(Map<String, Object> parameters) {
+        super("min");
+    }
     public SingleMetricResult op(Object[] bucketProperties) throws ReductionExecutionException {
 
         double min = Double.POSITIVE_INFINITY;

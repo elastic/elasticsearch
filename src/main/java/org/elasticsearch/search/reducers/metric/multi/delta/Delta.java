@@ -21,11 +21,18 @@ package org.elasticsearch.search.reducers.metric.multi.delta;
 
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.metric.MetricOp;
-import org.elasticsearch.search.reducers.metric.single.SingleMetricResult;
 
-public class Delta implements MetricOp {
+import java.util.Map;
+
+public class Delta extends MetricOp {
 
     boolean gradient = false; //NOCOMMIT must parse this parameter
+
+    public Delta(Map<String, Object> parameters) {
+        super("delta", parameters);
+        this.gradient = ((Boolean)parameters.get("gradient"));
+    }
+
     public DeltaResult op(Object[] bucketProperties) throws ReductionExecutionException {
         double firstBucketValue = ((Number)bucketProperties[0]).doubleValue();
         double lastBucketValue = ((Number)bucketProperties[bucketProperties.length - 1]).doubleValue();

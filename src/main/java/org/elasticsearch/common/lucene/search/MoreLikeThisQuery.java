@@ -51,8 +51,8 @@ public class MoreLikeThisQuery extends Query {
 
     private String[] likeText;
     private Fields[] likeFields;
-    private String[] unlikeText;
-    private Fields[] unlikeFields;
+    private String[] ignoreText;
+    private Fields[] ignoreFields;
     private String[] moreLikeFields;
     private Analyzer analyzer;
     private String minimumShouldMatch = DEFAULT_MINIMUM_SHOULD_MATCH;
@@ -155,8 +155,8 @@ public class MoreLikeThisQuery extends Query {
         mlt.setBoost(boostTerms);
         mlt.setBoostFactor(boostTermsFactor);
 
-        if (this.unlikeText != null || this.unlikeFields != null) {
-            handleSkipTerms(mlt, this.unlikeText, this.unlikeFields);
+        if (this.ignoreText != null || this.ignoreFields != null) {
+            handleSkipTerms(mlt, this.ignoreText, this.ignoreFields);
         }
 
         BooleanQuery bq = new BooleanQuery();
@@ -180,11 +180,11 @@ public class MoreLikeThisQuery extends Query {
         return bq;
     }
 
-    private void handleSkipTerms(XMoreLikeThis mlt, String[] unlikeText, Fields[] unlikeFields) throws IOException {
+    private void handleSkipTerms(XMoreLikeThis mlt, String[] ignoreText, Fields[] ignoreFields) throws IOException {
         Set<Term> skipTerms = new HashSet<>();
         // handle like text
-        if (unlikeText != null) {
-            for (String text : unlikeText) {
+        if (ignoreText != null) {
+            for (String text : ignoreText) {
                 // only use the first field to be consistent
                 String fieldName = moreLikeFields[0];
                 try (TokenStream ts = analyzer.tokenStream(fieldName, text)) {
@@ -198,8 +198,8 @@ public class MoreLikeThisQuery extends Query {
             }
         }
         // handle like fields
-        if (unlikeFields != null) {
-            for (Fields fields : unlikeFields) {
+        if (ignoreFields != null) {
+            for (Fields fields : ignoreFields) {
                 for (String fieldName : fields) {
                     Terms terms = fields.terms(fieldName);
                     final TermsEnum termsEnum = terms.iterator(null);
@@ -248,12 +248,12 @@ public class MoreLikeThisQuery extends Query {
         setLikeText(likeText.toArray(Strings.EMPTY_ARRAY));
     }
 
-    public void setUnlikeText(Fields... unlikeFields) {
-        this.unlikeFields = unlikeFields;
+    public void setIgnoreText(Fields... ignoreFields) {
+        this.ignoreFields = ignoreFields;
     }
 
-    public void setUnlikeText(List<String> unlikeText) {
-        this.unlikeText = unlikeText.toArray(Strings.EMPTY_ARRAY);
+    public void setIgnoreText(List<String> ignoreText) {
+        this.ignoreText = ignoreText.toArray(Strings.EMPTY_ARRAY);
     }
 
     public String[] getMoreLikeFields() {

@@ -678,7 +678,7 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testMoreLikeThisButUnlikeThis() throws ExecutionException, InterruptedException, IOException {
+    public void testMoreLikeThisIgnoreLike() throws ExecutionException, InterruptedException, IOException {
         createIndex("test");
         ensureGreen();
 
@@ -710,13 +710,13 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
         assertHitCount(response, numFields);
 
-        logger.info("Now check like this doc, but unlike one doc in the index, then two and so on...");
+        logger.info("Now check like this doc, but ignore one doc in the index, then two and so on...");
         List<Item> docs = new ArrayList<>();
         for (int i = 0; i < numFields; i++) {
             docs.add(new Item("test", "type1", i+""));
             mltQuery = moreLikeThisQuery()
                     .like((Item) new Item().doc(doc).index("test").type("type1"))
-                    .unlike(docs.toArray(Item.EMPTY_ARRAY))
+                    .ignoreLike(docs.toArray(Item.EMPTY_ARRAY))
                     .minTermFreq(0)
                     .minDocFreq(0)
                     .maxQueryTerms(100)

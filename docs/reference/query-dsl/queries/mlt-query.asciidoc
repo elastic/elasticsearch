@@ -129,10 +129,10 @@ The text is fetched from `fields` unless specified otherwise in each `doc`.
 The text is analyzed by the default analyzer at the field, unless specified by the
 `per_field_analyzer` parameter of the <<docs-termvectors-per-field-analyzer,Term Vectors API>>.
 
-|`unlike`|coming[2.0] The `unlike` parameter is used to skip terms from the
-documents specified by `like`.  In other words, we could ask for documents
-`like: "Apple"`, but `unlike: "cake crumble tree"`. Follows the same syntax as
-`like`.
+|`ignore_like`|coming[2.0] The `ignore_like` parameter is used to skip terms
+from the documents specified by `like`.  In other words, we could ask for
+documents `like: "Apple"`, but `ignore_like: "cake crumble tree"`. Follows the
+same syntax as `like`.
 
 |`include` |When using `like` with document requests, specifies whether the documents should be
 included from the search. Defaults to `false`.

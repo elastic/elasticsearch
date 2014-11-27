@@ -1,5 +1,5 @@
 ---
-"Basic mlt query with unlike":
+"Basic mlt query with ignore like":
   - do:
       indices.create:
         index: test_1
@@ -45,7 +45,7 @@
                     _index: test_1
                     _type: test
                     _id: 1
-                unlike:
+                ignore_like:
                     _index: test_1
                     _type: test
                     _id: 3

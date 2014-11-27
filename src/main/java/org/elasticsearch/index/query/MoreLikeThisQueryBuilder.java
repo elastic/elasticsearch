@@ -131,7 +131,7 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
 
     private final String[] fields;
     private List<Item> docs = new ArrayList<>();
-    private List<Item> unlikeDocs = new ArrayList<>();
+    private List<Item> ignoreDocs = new ArrayList<>();
     private Boolean include = null;
     private String minimumShouldMatch = null;
     private int minTermFreq = -1;
@@ -189,18 +189,18 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
     /**
      * Sets the documents from which the terms should not be selected from.
      */
-    public MoreLikeThisQueryBuilder unlike(Item... docs) {
-        this.unlikeDocs = Arrays.asList(docs);
+    public MoreLikeThisQueryBuilder ignoreLike(Item... docs) {
+        this.ignoreDocs = Arrays.asList(docs);
         return this;
     }
 
     /**
      * Sets the text from which the terms should not be selected from.
      */
-    public MoreLikeThisQueryBuilder unlike(String... likeText) {
-        this.unlikeDocs = new ArrayList<>();
+    public MoreLikeThisQueryBuilder ignoreLike(String... likeText) {
+        this.ignoreDocs = new ArrayList<>();
         for (String text : likeText) {
-            this.unlikeDocs.add(new Item(text));
+            this.ignoreDocs.add(new Item(text));
         }
         return this;
     }
@@ -386,8 +386,8 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         } else {
             builder.field(likeFieldName, docs);
         }
-        if (!unlikeDocs.isEmpty()) {
-            builder.field(MoreLikeThisQueryParser.Fields.LIKE.getPreferredName(), unlikeDocs);
+        if (!ignoreDocs.isEmpty()) {
+            builder.field(MoreLikeThisQueryParser.Fields.LIKE.getPreferredName(), ignoreDocs);
         }
         if (minimumShouldMatch != null) {
             builder.field(MoreLikeThisQueryParser.Fields.MINIMUM_SHOULD_MATCH.getPreferredName(), minimumShouldMatch);

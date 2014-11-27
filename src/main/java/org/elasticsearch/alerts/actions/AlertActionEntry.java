@@ -195,7 +195,9 @@ public class AlertActionEntry implements ToXContent {
         historyEntry.endObject();
         historyEntry.field("request");
         AlertUtils.writeSearchRequest(searchRequest, historyEntry, params);
-        historyEntry.field("response", searchResponse);
+        if (searchResponse != null) {
+            historyEntry.field("response", searchResponse);
+        }
 
         historyEntry.startObject("actions");
         for (AlertAction action : actions) {

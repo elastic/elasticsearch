@@ -240,11 +240,7 @@ public class AlertActionManager extends AbstractComponent {
                             throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }
                 } else {
-                    if (token == XContentParser.Token.VALUE_NULL) {
-                        logger.warn("Got null value for [{}]", currentFieldName);
-                    } else {
-                        throw new ElasticsearchIllegalArgumentException("Unexpected token [" + token + "] for [" + currentFieldName + "]");
-                    }
+                    throw new ElasticsearchIllegalArgumentException("Unexpected token [" + token + "] for [" + currentFieldName + "]");
                 }
             }
         } catch (IOException e) {

@@ -39,7 +39,7 @@
           "type" : "object",
           "enabled" : false,
           "dynamic" : true
-        },
+        },        
         "trigger": {
           "type": "object",
           "enabled" : false,
@@ -49,6 +49,10 @@
           "type" : "object",
           "enabled" : false,
           "dynamic" : true
+        },
+        "meta" : {
+          "type" : "object",
+          "dynamic": true
         }
       }
     }

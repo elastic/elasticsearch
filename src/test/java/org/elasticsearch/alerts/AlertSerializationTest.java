@@ -19,7 +19,9 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class AlertSerializationTest extends ElasticsearchIntegrationTest {
 
@@ -40,6 +42,10 @@ public class AlertSerializationTest extends ElasticsearchIntegrationTest {
                 new TimeValue(0),
                 AlertAckState.NOT_TRIGGERED);
 
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("foo","bar");
+        metadata.put("list", "baz");
+        alert.setMetadata(metadata);
 
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
@@ -58,7 +64,8 @@ public class AlertSerializationTest extends ElasticsearchIntegrationTest {
         if (parsedAlert.getTimeLastActionExecuted() == null) {
             assertNull(alert.getTimeLastActionExecuted());
         }
-        assertEquals(parsedAlert.getAckState(), parsedAlert.getAckState());
+        assertEquals(parsedAlert.getAckState(), alert.getAckState());
+        assertEquals(parsedAlert.getMetadata(), alert.getMetadata());
     }
 
 

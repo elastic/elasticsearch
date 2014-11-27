@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class Alert implements ToXContent {
 
@@ -29,6 +30,7 @@ public class Alert implements ToXContent {
     private TimeValue throttlePeriod = new TimeValue(0);
     private DateTime timeLastActionExecuted = null;
     private AlertAckState ackState = AlertAckState.NOT_ACKABLE;
+    private Map<String,Object> metadata = null;
 
     public Alert() {
         actions = new ArrayList<>();
@@ -78,6 +80,9 @@ public class Alert implements ToXContent {
             builder.field(trigger.getTriggerName());
             trigger.toXContent(builder, params);
             builder.endObject();
+        }
+        if (metadata != null) {
+            builder.field(AlertsStore.META_FIELD.getPreferredName(), metadata);
         }
         builder.endObject();
         return builder;
@@ -192,6 +197,18 @@ public class Alert implements ToXContent {
     public void setAckState(AlertAckState ackState) {
         this.ackState = ackState;
     }
+
+    /**
+     * @return The metadata that was associated with the alert
+     */
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+
+    public void setMetadata(Map<String, Object> metadata) {
+        this.metadata = metadata;
+    }
+
 
     @Override
     public boolean equals(Object o) {

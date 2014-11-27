@@ -56,6 +56,7 @@ public class AlertActionManager extends AbstractComponent {
     public static final String RESPONSE = "response";
     public static final String ACTIONS_FIELD = "actions";
     public static final String STATE = "state";
+    public static final String METADATA = "meta";
 
     public static final String ALERT_HISTORY_INDEX_PREFIX = ".alert_history_";
     public static final DateTimeFormatter alertHistoryIndexTimeFormat = DateTimeFormat.forPattern("YYYY-MM-dd");
@@ -217,6 +218,8 @@ public class AlertActionManager extends AbstractComponent {
                         case RESPONSE:
                             entry.setSearchResponse(parser.map());
                             break;
+                        case METADATA:
+                            entry.setMetadata(parser.map());
                         default:
                             throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }
@@ -258,6 +261,9 @@ public class AlertActionManager extends AbstractComponent {
         logger.debug("Adding alert action for alert [{}]", alert.alertName());
         String alertHistoryIndex = getAlertHistoryIndexNameForTime(scheduledFireTime);
         AlertActionEntry entry = new AlertActionEntry(alert, scheduledFireTime, fireTime, AlertActionState.SEARCH_NEEDED);
+        if (alert.getMetadata() != null) {
+            entry.setMetadata(alert.getMetadata());
+        }
         IndexResponse response = client.prepareIndex(alertHistoryIndex, ALERT_HISTORY_TYPE, entry.getId())
                 .setSource(XContentFactory.jsonBuilder().value(entry))
                 .setOpType(IndexRequest.OpType.CREATE)

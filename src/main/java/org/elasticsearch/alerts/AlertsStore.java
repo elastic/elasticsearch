@@ -56,6 +56,7 @@ public class AlertsStore extends AbstractComponent {
     public static final ParseField THROTTLE_PERIOD_FIELD = new ParseField("throttle_period");
     public static final ParseField LAST_ACTION_EXECUTED_FIELD = new ParseField("last_action_executed");
     public static final ParseField ACK_STATE_FIELD = new ParseField("ack_state");
+    public static final ParseField META_FIELD = new ParseField("meta");
 
     private final Client client;
     private final TriggerManager triggerManager;
@@ -249,6 +250,8 @@ public class AlertsStore extends AbstractComponent {
                         alert.actions(actions);
                     } else if (REQUEST_FIELD.match(currentFieldName)) {
                         alert.setSearchRequest(AlertUtils.readSearchRequest(parser));
+                    } else if (META_FIELD.match(currentFieldName)) {
+                        alert.setMetadata(parser.map());
                     } else {
                         throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }

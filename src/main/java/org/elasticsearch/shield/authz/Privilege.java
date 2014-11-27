@@ -111,10 +111,9 @@ public abstract class Privilege<P extends Privilege<P>> {
         public static final Index INDEX =           new Index("index",          "indices:data/write/index*", "indices:data/write/update");
         public static final Index DELETE =          new Index("delete",         "indices:data/write/delete*");
         public static final Index WRITE =           new Index("write",          "indices:data/write/*");
-        public static final Index BENCHMARK =       new Index("benchmark",      "indices:data/benchmark");
 
         private static final Index[] values = new Index[] {
-            NONE, ALL, MANAGE, CREATE_INDEX, MONITOR, DATA_ACCESS, CRUD, READ, SEARCH, GET, INDEX, DELETE, WRITE, BENCHMARK
+            NONE, ALL, MANAGE, CREATE_INDEX, MONITOR, DATA_ACCESS, CRUD, READ, SEARCH, GET, INDEX, DELETE, WRITE
         };
 
         public static final Predicate<String> ACTION_MATCHER = Privilege.Index.ALL.predicate();

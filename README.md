@@ -1,25 +1,31 @@
 elasticsearch-license
 =====================
 
-Internal Elasticsearch Licensing Plugin
+Elasticsearch Licensing core, tools and plugin
 
-## Getting Started
+## Core
 
-see [Getting Started] (https://github.com/elasticsearch/elasticsearch-license/blob/master/docs/getting-started.asciidoc)
+Contains core data structures, utilities used by **Licensor** and **Plugin**.
 
-## Licensing REST APIs
+See `core/` and `core-shaded/`
 
-Licensing REST APIs enable users to:
+## Licensor
 
- - register signed license(s) to their deployment provided by elasticsearch
- - view current status of signed and one-time-trial licenses effective in their deployment
+Contains a collection of tools to generate key-pairs, licenses and validate licenses.
+
+See `licensor/`
+
+see [wiki] (https://github.com/elasticsearch/elasticsearch-license/wiki) for documentation on
+**Licensing Tools Usage & Reference**
+
+## Plugin
+
+see [Getting Started] (https://github.com/elasticsearch/elasticsearch-license/blob/master/docs/getting-started.asciidoc) to install license plugin.
 
 see [Licensing REST APIs] (https://github.com/elasticsearch/elasticsearch-license/blob/master/docs/license.asciidoc)
+to use the license plugin from an elasticsearch deployment.
 
-## Internal Documentation
 see [wiki] (https://github.com/elasticsearch/elasticsearch-license/wiki) for documentation on
-
- - **Licensing Tools Usage & Reference**
  - **Licensing Consumer Plugin Interface**
  - **License Plugin Design**
  - **Licensing Test plan**

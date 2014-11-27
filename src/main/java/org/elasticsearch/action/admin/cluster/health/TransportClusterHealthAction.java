@@ -131,12 +131,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
         final ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger);
         final ClusterState state = observer.observedState();
         if (waitFor == 0 || request.timeout().millis() == 0) {
-            // we check for a timeout here since this method might be called from the wait_for_events
-            // response handler which might have timed out already.
-            ClusterHealthResponse response = clusterHealth(request, state);
-            response.timedOut = request.timeout().millis() == 0;
-            // no need to wait for anything
-            listener.onResponse(response);
+            listener.onResponse(getResponse(request, state, waitFor, request.timeout().millis() == 0));
             return;
         }
         final int concreteWaitFor = waitFor;
@@ -181,7 +176,12 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
         ClusterHealthResponse response = clusterHealth(request, clusterState);
         boolean valid = prepareResponse(request, response, clusterState, waitFor);
         assert valid || timedOut;
-        response.timedOut = timedOut;
+        // we check for a timeout here since this method might be called from the wait_for_events
+        // response handler which might have timed out already.
+        // if the state is sufficient for what we where waiting for we don't need to mark this as timedOut.
+        // We spend too much time in waiting for events such that we might already reached a valid state.
+        // this should not mark the request as timed out
+        response.timedOut = timedOut && valid == false;
         return response;
     }
 

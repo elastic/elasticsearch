@@ -157,6 +157,7 @@ public class AlertActionManager extends AbstractComponent {
     }
 
     public void loadQueue() {
+        assert actionsToBeProcessed.isEmpty() : "Queue should be empty, but contains " + actionsToBeProcessed.size() + " elements.";
         client.admin().indices().refresh(new RefreshRequest(ALERT_HISTORY_INDEX_PREFIX + "*")).actionGet();
 
         SearchResponse response = client.prepareSearch(ALERT_HISTORY_INDEX_PREFIX + "*")

@@ -7,7 +7,6 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.alerts.actions.AlertActionManager;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -15,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.alerts.actions.AlertActionManager.ALERT_HISTORY_INDEX_PREFIX;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -35,17 +35,16 @@ public class AlertMetadataTest extends AbstractAlertingTests {
         metaList.add("test");
 
         metadata.put("baz", metaList);
-        SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(matchAllQuery()));
+        SearchRequest triggerRequest = createTriggerSearchRequest("my-index").source(searchSource().query(matchAllQuery()));
         alertClient().preparePutAlert("1")
-                .setAlertSource(createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1", metadata))
+                .setAlertSource(createAlertSource("0/5 * * * * ? *", triggerRequest, "hits.total == 1", metadata))
                 .get();
         assertAlertTriggered("1", 0, false);
 
-        searchRequest = client()
-                .prepareSearch(AlertActionManager.ALERT_HISTORY_INDEX_PREFIX+"*").request();
-
-        searchRequest.source(searchSource().query(termQuery("meta.foo", "bar")));
-        SearchResponse searchResponse = client().search(searchRequest).actionGet();
+        refresh();
+        SearchResponse searchResponse = client().prepareSearch(ALERT_HISTORY_INDEX_PREFIX + "*")
+                .setQuery(termQuery("meta.foo", "bar"))
+                .get();
         assertThat(searchResponse.getHits().getTotalHits(), greaterThan(0L));
     }
 

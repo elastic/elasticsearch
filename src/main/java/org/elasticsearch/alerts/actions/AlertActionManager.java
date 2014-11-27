@@ -174,6 +174,7 @@ public class AlertActionManager extends AbstractComponent {
                         String historyId = sh.getId();
                         AlertActionEntry historyEntry = parseHistory(historyId, sh.getSourceRef(), sh.version(), actionRegistry);
                         assert historyEntry.getState() == AlertActionState.SEARCH_NEEDED;
+                        logger.debug("Adding entry: [{}/{}/{}]", sh.index(), sh.type(), sh.id());
                         actionsToBeProcessed.add(historyEntry);
                     }
                     response = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollTimeout).get();

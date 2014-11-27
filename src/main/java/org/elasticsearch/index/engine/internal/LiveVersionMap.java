@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine.internal;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -247,5 +248,11 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
      *  don't clear on refresh. */
     long ramBytesUsedForRefresh() {
         return ramBytesUsedCurrent.get();
+    }
+
+    @Override
+    public Iterable<? extends Accountable> getChildResources() {
+        // TODO: useful to break down RAM usage here?
+        return Collections.emptyList();
     }
 }

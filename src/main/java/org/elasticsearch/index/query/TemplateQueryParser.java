@@ -83,7 +83,7 @@ public class TemplateQueryParser implements QueryParser {
         BytesReference querySource = (BytesReference) executable.run();
 
         try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
-            final QueryParseContext context = new QueryParseContext(parseContext.index(), parseContext.indexQueryParser);
+            final QueryParseContext context = new QueryParseContext(parseContext.index(), parseContext.indexQueryParserService());
             context.reset(qSourceParser);
             Query result = context.parseInnerQuery();
             return result;
@@ -115,10 +115,7 @@ public class TemplateQueryParser implements QueryParser {
                 currentFieldName = parser.currentName();
             } else if (parameterMap.containsKey(currentFieldName)) {
                 type = parameterMap.get(currentFieldName);
-
-
-
-                if (token == XContentParser.Token.START_OBJECT && !parser.hasTextCharacters()) {
+                if (token == XContentParser.Token.START_OBJECT) {
                     XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
                     builder.copyCurrentStructure(parser);
                     templateNameOrTemplateContent = builder.string();

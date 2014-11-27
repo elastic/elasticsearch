@@ -21,13 +21,13 @@ package org.elasticsearch.index.percolator;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -46,6 +46,7 @@ import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -53,6 +54,7 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.percolator.PercolatorService;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -151,64 +153,70 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
     Query parsePercolatorDocument(String id, BytesReference source) {
         String type = null;
         BytesReference querySource = null;
-
-        XContentParser parser = null;
-        try {
-            parser = XContentHelper.createParser(source);
+        try (XContentParser sourceParser = XContentHelper.createParser(source)) {
             String currentFieldName = null;
-            XContentParser.Token token = parser.nextToken(); // move the START_OBJECT
+            XContentParser.Token token = sourceParser.nextToken(); // move the START_OBJECT
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new ElasticsearchException("failed to parse query [" + id + "], not starting with OBJECT");
             }
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            while ((token = sourceParser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
+                    currentFieldName = sourceParser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("query".equals(currentFieldName)) {
                         if (type != null) {
-                            return parseQuery(type, null, parser);
+                            return parseQuery(type, sourceParser);
                         } else {
-                            XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
-                            builder.copyCurrentStructure(parser);
+                            XContentBuilder builder = XContentFactory.contentBuilder(sourceParser.contentType());
+                            builder.copyCurrentStructure(sourceParser);
                             querySource = builder.bytes();
                             builder.close();
                         }
                     } else {
-                        parser.skipChildren();
+                        sourceParser.skipChildren();
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
-                    parser.skipChildren();
+                    sourceParser.skipChildren();
                 } else if (token.isValue()) {
                     if ("type".equals(currentFieldName)) {
-                        type = parser.text();
+                        type = sourceParser.text();
                     }
                 }
             }
-            return parseQuery(type, querySource, null);
+            try (XContentParser queryParser = XContentHelper.createParser(querySource)) {
+                return parseQuery(type, queryParser);
+            }
         } catch (Exception e) {
             throw new PercolatorException(shardId().index(), "failed to parse query [" + id + "]", e);
-        } finally {
-            if (parser != null) {
-                parser.close();
-            }
         }
     }
 
-    private Query parseQuery(String type, BytesReference querySource, XContentParser parser) {
+    private Query parseQuery(String type, XContentParser parser) {
         String[] previousTypes = null;
         if (type != null) {
             QueryParseContext.setTypesWithPrevious(new String[]{type});
         }
+        QueryParseContext context = cache.get();
         try {
-            if (parser != null) {
-                return queryParserService.parse(cache.get(), parser).query();
-            } else {
-                return queryParserService.parse(cache.get(), querySource).query();
-            }
+            context.reset(parser);
+            // This means that fields in the query need to exist in the mapping prior to registering this query
+            // The reason that this is required, is that if a field doesn't exist then the query assumes defaults, which may be undesired.
+            //
+            // Even worse when fields mentioned in percolator queries do go added to map after the queries have been registered
+            // then the percolator queries don't work as expected any more.
+            //
+            // Query parsing can't introduce new fields in mappings (which happens when registering a percolator query),
+            // because field type can't be inferred from queries (like document do) so the best option here is to disallow
+            // the usage of unmapped fields in percolator queries to avoid unexpected behaviour
+            context.setAllowUnmappedFields(false);
+            return queryParserService.parseInnerQuery(context);
+        } catch (IOException e) {
+            throw new QueryParsingException(queryParserService.index(), "Failed to parse", e);
         } finally {
             if (type != null) {
                 QueryParseContext.setTypes(previousTypes);
             }
+            context.reset(null);
         }
     }
 
@@ -260,7 +268,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
             shard.refresh(new Engine.Refresh("percolator_load_queries").force(true));
             // Maybe add a mode load? This isn't really a write. We need write b/c state=post_recovery
             try (Engine.Searcher searcher = shard.acquireSearcher("percolator_load_queries", IndexShard.Mode.WRITE)) {
-                Query query = new XConstantScoreQuery(
+                Query query = new ConstantScoreQuery(
                         indexCache.filter().cache(
                                 new TermFilter(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME))
                         )

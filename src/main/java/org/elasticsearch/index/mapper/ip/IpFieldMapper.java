@@ -23,11 +23,13 @@ import com.google.common.net.InetAddresses;
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
@@ -53,7 +55,7 @@ import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
-import java.io.Reader;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -138,11 +140,16 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             IpFieldMapper.Builder builder = ipField(name);
             parseNumberField(builder, name, node, parserContext);
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
+                    if (propNode == null) {
+                        throw new MapperParsingException("Property [null_value] cannot be null.");
+                    }
                     builder.nullValue(propNode.toString());
+                    iterator.remove();
                 }
             }
             return builder;
@@ -206,9 +213,9 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     @Override
     public BytesRef indexedValueForSearch(Object value) {
-        BytesRef bytesRef = new BytesRef();
+        BytesRefBuilder bytesRef = new BytesRefBuilder();
         NumericUtils.longToPrefixCoded(parseValue(value), 0, bytesRef); // 0 because of exact match
-        return bytesRef;
+        return bytesRef.get();
     }
 
     private long parseValue(Object value) {
@@ -296,7 +303,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         }
 
         final long value = ipToLong(ipAsString);
-        if (fieldType.indexed() || fieldType.stored()) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             CustomLongNumericField field = new CustomLongNumericField(this, value, fieldType);
             field.setBoost(boost);
             fields.add(field);
@@ -349,15 +356,15 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         }
 
         @Override
-        protected NumericIpTokenizer createNumericTokenizer(Reader reader, char[] buffer) throws IOException {
-            return new NumericIpTokenizer(reader, precisionStep, buffer);
+        protected NumericIpTokenizer createNumericTokenizer(char[] buffer) throws IOException {
+            return new NumericIpTokenizer(precisionStep, buffer);
         }
     }
 
     public static class NumericIpTokenizer extends NumericTokenizer {
 
-        public NumericIpTokenizer(Reader reader, int precisionStep, char[] buffer) throws IOException {
-            super(reader, new NumericTokenStream(precisionStep), buffer, null);
+        public NumericIpTokenizer(int precisionStep, char[] buffer) throws IOException {
+            super(new NumericTokenStream(precisionStep), buffer, null);
         }
 
         @Override

@@ -46,7 +46,11 @@ import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -182,7 +186,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                 .addAggregation(new AbstractAggregationBuilder("histo", "date_histogram") {
                     @Override
                     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                        return builder.startObject(name)
+                        return builder.startObject(getName())
                                 .startObject(type)
                                     .field("field", "date")
                                     .field("interval", "1d")
@@ -349,6 +353,9 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(3));
+        Object[] propertiesKeys = (Object[]) histo.getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) histo.getProperty("_count");
+        Object[] propertiesCounts = (Object[]) histo.getProperty("sum.value");
 
         long key = new DateTime(2012, 1, 1, 0, 0, DateTimeZone.UTC).getMillis();
         DateHistogram.Bucket bucket = histo.getBucketByKey(key);
@@ -358,6 +365,9 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
         Sum sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getValue(), equalTo(1.0));
+        assertThat((String) propertiesKeys[0], equalTo("2012-01-01T00:00:00.000Z"));
+        assertThat((long) propertiesDocCounts[0], equalTo(1l));
+        assertThat((double) propertiesCounts[0], equalTo(1.0));
 
         key = new DateTime(2012, 2, 1, 0, 0, DateTimeZone.UTC).getMillis();
         bucket = histo.getBucketByKey(key);
@@ -367,6 +377,9 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getValue(), equalTo(5.0));
+        assertThat((String) propertiesKeys[1], equalTo("2012-02-01T00:00:00.000Z"));
+        assertThat((long) propertiesDocCounts[1], equalTo(2l));
+        assertThat((double) propertiesCounts[1], equalTo(5.0));
 
         key = new DateTime(2012, 3, 1, 0, 0, DateTimeZone.UTC).getMillis();
         bucket = histo.getBucketByKey(key);
@@ -376,6 +389,9 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getValue(), equalTo(15.0));
+        assertThat((String) propertiesKeys[2], equalTo("2012-03-01T00:00:00.000Z"));
+        assertThat((long) propertiesDocCounts[2], equalTo(3l));
+        assertThat((double) propertiesCounts[2], equalTo(15.0));
     }
 
     @Test

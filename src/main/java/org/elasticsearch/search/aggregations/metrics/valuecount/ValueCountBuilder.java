@@ -22,10 +22,13 @@ package org.elasticsearch.search.aggregations.metrics.valuecount;
 import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregationBuilder;
 
 /**
- *
+ * Builder for the {@link ValueCount} aggregation.
  */
 public class ValueCountBuilder extends ValuesSourceMetricsAggregationBuilder<ValueCountBuilder> {
 
+    /**
+     * Sole constructor.
+     */
     public ValueCountBuilder(String name) {
         super(name, InternalValueCount.TYPE.name());
     }

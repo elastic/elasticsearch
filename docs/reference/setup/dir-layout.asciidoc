@@ -47,7 +47,7 @@ path.data: ["/mnt/first", "/mnt/second"]
 [[default-paths]]
 === Default Paths
 
-Below are the default paths that elasticsearch will use, if not explictly changed.
+Below are the default paths that elasticsearch will use, if not explicitly changed.
 
 [float]
 ==== deb and rpm

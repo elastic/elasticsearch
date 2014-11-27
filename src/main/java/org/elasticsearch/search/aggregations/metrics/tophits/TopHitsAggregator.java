@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.tophits;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.*;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lease.Releasables;
@@ -35,20 +35,31 @@ import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  */
 public class TopHitsAggregator extends MetricsAggregator implements ScorerAware {
 
+    /** Simple wrapper around a top-level collector and the current leaf collector. */
+    private static class TopDocsAndLeafCollector {
+        final TopDocsCollector<?> topLevelCollector;
+        LeafCollector leafCollector;
+
+        TopDocsAndLeafCollector(TopDocsCollector<?> topLevelCollector) {
+            this.topLevelCollector = topLevelCollector;
+        }
+    }
+
     private final FetchPhase fetchPhase;
     private final TopHitsContext topHitsContext;
-    private final LongObjectPagedHashMap<TopDocsCollector> topDocsCollectors;
+    private final LongObjectPagedHashMap<TopDocsAndLeafCollector> topDocsCollectors;
 
     private Scorer currentScorer;
-    private AtomicReaderContext currentContext;
+    private LeafReaderContext currentContext;
 
-    public TopHitsAggregator(FetchPhase fetchPhase, TopHitsContext topHitsContext, String name, long estimatedBucketsCount, AggregationContext context, Aggregator parent) {
-        super(name, estimatedBucketsCount, context, parent);
+    public TopHitsAggregator(FetchPhase fetchPhase, TopHitsContext topHitsContext, String name, long estimatedBucketsCount, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
+        super(name, estimatedBucketsCount, context, parent, metaData);
         this.fetchPhase = fetchPhase;
         topDocsCollectors = new LongObjectPagedHashMap<>(estimatedBucketsCount, context.bigArrays());
         this.topHitsContext = topHitsContext;
@@ -62,11 +73,11 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        TopDocsCollector topDocsCollector = topDocsCollectors.get(owningBucketOrdinal);
+        TopDocsAndLeafCollector topDocsCollector = topDocsCollectors.get(owningBucketOrdinal);
         if (topDocsCollector == null) {
             return buildEmptyAggregation();
         } else {
-            TopDocs topDocs = topDocsCollector.topDocs();
+            TopDocs topDocs = topDocsCollector.topLevelCollector.topDocs();
             if (topDocs.totalHits == 0) {
                 return buildEmptyAggregation();
             }
@@ -90,37 +101,36 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
                     searchHitFields.sortValues(fieldDoc.fields);
                 }
             }
-            return new InternalTopHits(name, topHitsContext.from(), topHitsContext.size(), topHitsContext.sort(), topDocs, fetchResult.hits());
+            return new InternalTopHits(name, topHitsContext.from(), topHitsContext.size(), topDocs, fetchResult.hits());
         }
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalTopHits(name, topHitsContext.from(), topHitsContext.size(), topHitsContext.sort(), Lucene.EMPTY_TOP_DOCS, InternalSearchHits.empty());
+        return new InternalTopHits(name, topHitsContext.from(), topHitsContext.size(), Lucene.EMPTY_TOP_DOCS, InternalSearchHits.empty());
     }
 
     @Override
     public void collect(int docId, long bucketOrdinal) throws IOException {
-        TopDocsCollector topDocsCollector = topDocsCollectors.get(bucketOrdinal);
-        if (topDocsCollector == null) {
+        TopDocsAndLeafCollector collectors = topDocsCollectors.get(bucketOrdinal);
+        if (collectors == null) {
             Sort sort = topHitsContext.sort();
             int topN = topHitsContext.from() + topHitsContext.size();
-            topDocsCollectors.put(
-                    bucketOrdinal,
-                    topDocsCollector = sort != null ? TopFieldCollector.create(sort, topN, true, topHitsContext.trackScores(), topHitsContext.trackScores(), false) : TopScoreDocCollector.create(topN, false)
-            );
-            topDocsCollector.setNextReader(currentContext);
-            topDocsCollector.setScorer(currentScorer);
+            TopDocsCollector<?> topLevelCollector = sort != null ? TopFieldCollector.create(sort, topN, true, topHitsContext.trackScores(), topHitsContext.trackScores(), false) : TopScoreDocCollector.create(topN, false);
+            collectors = new TopDocsAndLeafCollector(topLevelCollector);
+            collectors.leafCollector = collectors.topLevelCollector.getLeafCollector(currentContext);
+            collectors.leafCollector.setScorer(currentScorer);
+            topDocsCollectors.put(bucketOrdinal, collectors);
         }
-        topDocsCollector.collect(docId);
+        collectors.leafCollector.collect(docId);
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext context) {
+    public void setNextReader(LeafReaderContext context) {
         this.currentContext = context;
-        for (LongObjectPagedHashMap.Cursor<TopDocsCollector> cursor : topDocsCollectors) {
+        for (LongObjectPagedHashMap.Cursor<TopDocsAndLeafCollector> cursor : topDocsCollectors) {
             try {
-                cursor.value.setNextReader(context);
+                cursor.value.leafCollector = cursor.value.topLevelCollector.getLeafCollector(currentContext);
             } catch (IOException e) {
                 throw ExceptionsHelper.convertToElastic(e);
             }
@@ -130,9 +140,9 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
     @Override
     public void setScorer(Scorer scorer) {
         this.currentScorer = scorer;
-        for (LongObjectPagedHashMap.Cursor<TopDocsCollector> cursor : topDocsCollectors) {
+        for (LongObjectPagedHashMap.Cursor<TopDocsAndLeafCollector> cursor : topDocsCollectors) {
             try {
-                cursor.value.setScorer(scorer);
+                cursor.value.leafCollector.setScorer(scorer);
             } catch (IOException e) {
                 throw ExceptionsHelper.convertToElastic(e);
             }
@@ -156,8 +166,8 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
         }
 
         @Override
-        public Aggregator create(AggregationContext aggregationContext, Aggregator parent, long expectedBucketsCount) {
-            return new TopHitsAggregator(fetchPhase, topHitsContext, name, expectedBucketsCount, aggregationContext, parent);
+        public Aggregator createInternal(AggregationContext aggregationContext, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData) {
+            return new TopHitsAggregator(fetchPhase, topHitsContext, name, expectedBucketsCount, aggregationContext, parent, metaData);
         }
 
         @Override

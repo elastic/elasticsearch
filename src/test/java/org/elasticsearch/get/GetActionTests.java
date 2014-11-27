@@ -473,7 +473,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 .startObject(type)
                 .startObject("_source")
                 .array("includes", "included")
-                .array("exlcudes", "excluded")
+                .array("excludes", "excluded")
                 .endObject()
                 .endObject()
                 .endObject()
@@ -806,13 +806,13 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("my-index")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
                 .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
-                        .startObject("field1").field("type", "object")
-                        .startObject("field2").field("type", "object")
-                                .startObject("field3").field("type", "object")
+                        .startObject("field1").field("type", "object").startObject("properties")
+                        .startObject("field2").field("type", "object").startObject("properties")
+                                .startObject("field3").field("type", "object").startObject("properties")
                                     .startObject("field4").field("type", "string").field("store", "yes")
-                                .endObject()
-                            .endObject()
-                        .endObject()
+                                .endObject().endObject()
+                            .endObject().endObject()
+                        .endObject().endObject()
                         .endObject().endObject().endObject()));
 
         BytesReference source = jsonBuilder().startObject()
@@ -977,8 +977,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "        \"enabled\": " + randomBoolean() + "\n" +
                 "      },\n" +
                 "      \"_parent\": {\n" +
-                "        \"type\": \"parentdoc\",\n" +
-                "        \"store\": \"" + storedString + "\"\n" +
+                "        \"type\": \"parentdoc\"\n" +
                 "      },\n" +
                 "      \"_ttl\": {\n" +
                 "        \"enabled\": true,\n" +

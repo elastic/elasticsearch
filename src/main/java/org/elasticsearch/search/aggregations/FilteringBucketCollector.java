@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.lease.Releasable;
@@ -52,7 +52,7 @@ public class FilteringBucketCollector extends BucketCollector implements Releasa
     }
 
     @Override
-    public final void setNextReader(AtomicReaderContext reader) {
+    public final void setNextReader(LeafReaderContext reader) {
         delegate.setNextReader(reader);
     }
 

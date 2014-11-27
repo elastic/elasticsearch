@@ -26,6 +26,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
@@ -48,6 +50,11 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadOpe
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(GetIndexTemplatesRequest request, ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
     }
 
     @Override

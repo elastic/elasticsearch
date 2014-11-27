@@ -19,6 +19,7 @@
 package org.elasticsearch.cluster;
 
 import com.google.common.base.Predicate;
+import com.google.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
@@ -254,6 +255,58 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         assertThat(onFailure.get(), equalTo(false));
 
         assertThat(processedLatch.await(1, TimeUnit.SECONDS), equalTo(true));
+    }
+
+    @Test
+    public void testMasterAwareExecution() throws Exception {
+        Settings settings = settingsBuilder()
+                .put("discovery.type", "local")
+                .build();
+
+        ListenableFuture<String> master = internalCluster().startNodeAsync(settings);
+        ListenableFuture<String> nonMaster = internalCluster().startNodeAsync(settingsBuilder().put(settings).put("node.master", false).build());
+        master.get();
+        ensureGreen(); // make sure we have a cluster
+
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nonMaster.get());
+
+        final boolean[] taskFailed = {false};
+        final CountDownLatch latch1 = new CountDownLatch(1);
+        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                latch1.countDown();
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+                taskFailed[0] = true;
+                latch1.countDown();
+            }
+        });
+
+        latch1.await();
+        assertTrue("cluster state update task was executed on a non-master", taskFailed[0]);
+
+        taskFailed[0] = true;
+        final CountDownLatch latch2 = new CountDownLatch(1);
+        clusterService.submitStateUpdateTask("test", new ClusterStateNonMasterUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                taskFailed[0] = false;
+                latch2.countDown();
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+                taskFailed[0] = true;
+                latch2.countDown();
+            }
+        });
+        latch2.await();
+        assertFalse("non-master cluster state update task was not executed", taskFailed[0]);
     }
 
     @Test
@@ -550,12 +603,12 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 1)
-                .put("discovery.zen.ping_timeout", "200ms")
+                .put("discovery.zen.ping_timeout", "400ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .put("plugin.types", TestPlugin.class.getName())
                 .build();
 
-        internalCluster().startNode(settings);
+        String node_0 = internalCluster().startNode(settings);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
         MasterAwareService testService = internalCluster().getInstance(MasterAwareService.class);
 
@@ -582,24 +635,31 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("1").get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
-        // now that node1 is closed, node2 should be elected as master
+        // now that node0 is closed, node1 should be elected as master
         assertThat(clusterService1.state().nodes().localNodeMaster(), is(true));
         assertThat(testService1.master(), is(true));
+
+        // start another node and set min_master_node
+        internalCluster().startNode(ImmutableSettings.builder().put(settings));
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
         Settings transientSettings = settingsBuilder()
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .build();
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(transientSettings).get();
 
+        // and shutdown the second node
+        internalCluster().stopRandomNonMasterNode();
+
         // there should not be any master as the minimum number of required eligible masters is not met
         awaitBusy(new Predicate<Object>() {
             public boolean apply(Object obj) {
-                return clusterService1.state().nodes().masterNode() == null;
+                return clusterService1.state().nodes().masterNode() == null && clusterService1.state().status() == ClusterState.ClusterStateStatus.APPLIED;
             }
         });
         assertThat(testService1.master(), is(false));
 
-
+        // bring the node back up
         String node_2 = internalCluster().startNode(ImmutableSettings.builder().put(settings).put(transientSettings));
         ClusterService clusterService2 = internalCluster().getInstance(ClusterService.class, node_2);
         MasterAwareService testService2 = internalCluster().getInstance(MasterAwareService.class, node_2);
@@ -655,7 +715,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    private static class BlockingTask implements ClusterStateUpdateTask {
+    private static class BlockingTask extends ClusterStateUpdateTask {
         private final CountDownLatch latch = new CountDownLatch(1);
 
         @Override
@@ -674,7 +734,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
 
     }
 
-    private static class PrioritiezedTask implements ClusterStateUpdateTask {
+    private static class PrioritiezedTask extends ClusterStateUpdateTask {
 
         private final Priority priority;
         private final CountDownLatch latch;

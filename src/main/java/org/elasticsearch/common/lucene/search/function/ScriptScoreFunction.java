@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.SearchScript;
@@ -87,7 +87,7 @@ public class ScriptScoreFunction extends ScoreFunction {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext ctx) {
+    public void setNextReader(LeafReaderContext ctx) {
         script.setNextReader(ctx);
     }
 

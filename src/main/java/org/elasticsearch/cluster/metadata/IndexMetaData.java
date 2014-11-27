@@ -24,9 +24,12 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
+import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
+import org.elasticsearch.cluster.routing.operation.hash.murmur3.Murmur3HashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -162,7 +165,13 @@ public class IndexMetaData {
     public static final String SETTING_VERSION_CREATED = "index.version.created";
     public static final String SETTING_CREATION_DATE = "index.creation_date";
     public static final String SETTING_UUID = "index.uuid";
+    public static final String SETTING_LEGACY_ROUTING_HASH_FUNCTION = "index.legacy.routing.hash.type";
+    public static final String SETTING_LEGACY_ROUTING_USE_TYPE = "index.legacy.routing.use_type";
     public static final String INDEX_UUID_NA_VALUE = "_na_";
+
+    // hard-coded hash function as of 2.0
+    // older indices will read which hash function to use in their index settings
+    private static final HashFunction MURMUR3_HASH_FUNCTION = new Murmur3HashFunction();
 
     private final String index;
     private final long version;
@@ -183,9 +192,13 @@ public class IndexMetaData {
     private final DiscoveryNodeFilters includeFilters;
     private final DiscoveryNodeFilters excludeFilters;
 
+    private final Version indexCreatedVersion;
+    private final HashFunction routingHashFunction;
+    private final boolean useTypeForRouting;
+
     private IndexMetaData(String index, long version, State state, Settings settings, ImmutableOpenMap<String, MappingMetaData> mappings, ImmutableOpenMap<String, AliasMetaData> aliases, ImmutableOpenMap<String, Custom> customs) {
-        Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1) != -1, "must specify numberOfShards for index [" + index + "]");
-        Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1) != -1, "must specify numberOfReplicas for index [" + index + "]");
+        Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_SHARDS, null) != null, "must specify numberOfShards for index [" + index + "]");
+        Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, null) != null, "must specify numberOfReplicas for index [" + index + "]");
         this.index = index;
         this.version = version;
         this.state = state;
@@ -193,7 +206,6 @@ public class IndexMetaData {
         this.mappings = mappings;
         this.customs = customs;
         this.totalNumberOfShards = numberOfShards() * (numberOfReplicas() + 1);
-
         this.aliases = aliases;
 
         ImmutableMap<String, String> requireMap = settings.getByPrefix("index.routing.allocation.require.").getAsMap();
@@ -214,6 +226,18 @@ public class IndexMetaData {
         } else {
             excludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, excludeMap);
         }
+        indexCreatedVersion = Version.indexCreated(settings);
+        final Class<? extends HashFunction> hashFunctionClass = settings.getAsClass(SETTING_LEGACY_ROUTING_HASH_FUNCTION, null);
+        if (hashFunctionClass == null) {
+            routingHashFunction = MURMUR3_HASH_FUNCTION;
+        } else {
+            try {
+                routingHashFunction = hashFunctionClass.newInstance();
+            } catch (InstantiationException | IllegalAccessException e) {
+                throw new ElasticsearchIllegalStateException("Cannot instantiate hash function", e);
+            }
+        }
+        useTypeForRouting = settings.getAsBoolean(SETTING_LEGACY_ROUTING_USE_TYPE, false);
     }
 
     public String index() {
@@ -250,6 +274,41 @@ public class IndexMetaData {
 
     public long getVersion() {
         return this.version;
+    }
+
+    /**
+     * Return the {@link Version} on which this index has been created. This
+     * information is typically useful for backward compatibility.
+     */
+    public Version creationVersion() {
+        return indexCreatedVersion;
+    }
+
+    public Version getCreationVersion() {
+        return creationVersion();
+    }
+
+    /**
+     * Return the {@link HashFunction} that should be used for routing.
+     */
+    public HashFunction routingHashFunction() {
+        return routingHashFunction;
+    }
+
+    public HashFunction getRoutingHashFunction() {
+        return routingHashFunction();
+    }
+
+    /**
+     * Return whether routing should use the _type in addition to the _id in
+     * order to decide which shard a document should go to.
+     */
+    public boolean routingUseType() {
+        return useTypeForRouting;
+    }
+
+    public boolean getRoutingUseType() {
+        return routingUseType();
     }
 
     public long creationDate() {
@@ -615,7 +674,10 @@ public class IndexMetaData {
         }
 
         public static IndexMetaData fromXContent(XContentParser parser) throws IOException {
-            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            if (parser.currentToken() == null) { // fresh parser? move to the first token
+                parser.nextToken();
+            }
+            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {  // on a start object move to next token
                 parser.nextToken();
             }
             Builder builder = new Builder(parser.currentName());
@@ -639,7 +701,7 @@ public class IndexMetaData {
                             }
                         }
                     } else if ("aliases".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                             builder.putAlias(AliasMetaData.Builder.fromXContent(parser));
                         }
                     } else {

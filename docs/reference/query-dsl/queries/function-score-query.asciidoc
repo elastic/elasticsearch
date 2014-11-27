@@ -6,12 +6,6 @@ retrieved by a query. This can be useful if, for example, a score
 function is computationally expensive and it is sufficient to compute
 the score on a filtered set of documents.
 
-`function_score` provides the same functionality that
-`custom_boost_factor`, `custom_score` and
-`custom_filters_score` provided
-but furthermore adds futher scoring functionality such as
-distance and recency scoring (see description below).
-
 ==== Using function score
 
 To use `function_score`, the user has to define a query and one or
@@ -42,10 +36,15 @@ given filter:
     "functions": [
         {
             "filter": {},
-            "FUNCTION": {}
+            "FUNCTION": {},
+            "weight": number
         },
         {
             "FUNCTION": {}
+        },
+        {
+            "filter": {},
+            "weight": number
         }
     ],
     "max_boost": number,
@@ -68,6 +67,9 @@ First, each document is scored by the defined functions. The parameter
                 is applied
 `max`::         maximum score is used
 `min`::         minimum score is used
+
+Because scores can be on different scales (for example, between 0 and 1 for decay functions but arbitrary for `field_value_factor`) and also because sometimes a different impact of functions on the score is desirable, the score of each function can be adjusted with a user defined `weight` (). The `weight` can be defined per function in the `functions` array (example above) and is multiplied with the score computed by the respective function.
+If weight is given without any other function declaration, `weight` acts as a function that simply returns the `weight`.
 
 The new score can be restricted to not exceed a certain limit by setting
 the `max_boost` parameter. The default for `max_boost` is FLT_MAX.
@@ -126,22 +128,26 @@ Note that unlike the `custom_score` query, the
 score of the query is multiplied with the result of the script scoring. If
 you wish to inhibit this, set `"boost_mode": "replace"`
 
-===== Boost factor
+===== Weight
 
-The `boost_factor` score allows you to multiply the score by the provided
-`boost_factor`. This can sometimes be desired since boost value set on
+The `weight` score allows you to multiply the score by the provided
+`weight`. This can sometimes be desired since boost value set on
 specific queries gets normalized, while for this score function it does
 not.
 
 [source,js]
 --------------------------------------------------
-"boost_factor" : number
+"weight" : number
 --------------------------------------------------
 
 ===== Random
 
-The `random_score` generates scores via a pseudo random number algorithm
-that is initialized with a `seed`.
+The `random_score` generates scores using a hash of the `_uid` field,
+with a `seed` for variation. If `seed` is not specified, the current
+time is used.
+
+NOTE: Using this feature will load field data for `_uid`, which can
+be a memory intensive operation since the values are unique.
 
 [source,js]
 --------------------------------------------------
@@ -151,8 +157,6 @@ that is initialized with a `seed`.
 --------------------------------------------------
 
 ===== Field Value factor
-
-added[1.2.0]
 
 The `field_value_factor` function allows you to use a field from a document to
 influence the score. It's similar to using the `script_score` function, however,
@@ -172,7 +176,7 @@ doing so would look like:
 }
 --------------------------------------------------
 
-Which will translate into the following forumla for scoring:
+Which will translate into the following formula for scoring:
 
 `sqrt(1.2 * doc['popularity'].value)`
 
@@ -303,6 +307,10 @@ image:images/s_calc.png[]
 In contrast to the normal and exponential decay, this function actually
 sets the score to 0 if the field value exceeds twice the user given
 scale value.
+
+For single functions the three decay functions together with their parameters can be visualized like this (the field in this example called "age"):
+
+image:images/decay_2d.png[width=600]
 
 ===== Multiple values:
 
@@ -469,105 +477,3 @@ are supported.
 If the numeric field is missing in the document, the function will
 return 1.
 
-==== Relation to `custom_boost`, `custom_score` and `custom_filters_score`
-
-The `custom_boost_factor` query
-
-[source,js]
---------------------------------------------------
-"custom_boost_factor": {
-    "boost_factor": 5.2,
-    "query": {...}
-}
---------------------------------------------------
-
-becomes
-
-[source,js]
---------------------------------------------------
-"function_score": {
-    "boost_factor": 5.2,
-    "query": {...}
-}
---------------------------------------------------
-
-The `custom_score` query
-
-[source,js]
---------------------------------------------------
-"custom_score": {
-    "params": {
-        "param1": 2,
-        "param2": 3.1
-    },
-    "query": {...},
-    "script": "_score * doc['my_numeric_field'].value / pow(param1, param2)"
-}
---------------------------------------------------
-
-becomes
-
-[source,js]
---------------------------------------------------
-"function_score": {
-    "boost_mode": "replace",
-    "query": {...},
-    "script_score": {
-        "params": {
-            "param1": 2,
-            "param2": 3.1
-        },
-        "script": "_score * doc['my_numeric_field'].value / pow(param1, param2)"
-    }
-}
---------------------------------------------------
-
-and the `custom_filters_score`
-
-[source,js]
---------------------------------------------------
-"custom_filters_score": {
-    "filters": [
-        {
-            "boost": "3",
-            "filter": {...}
-        },
-        {
-            "filter": {...},
-            "script": "_score * doc['my_numeric_field'].value / pow(param1, param2)"
-        }
-    ],
-    "params": {
-        "param1": 2,
-        "param2": 3.1
-    },
-    "query": {...},
-    "score_mode": "first"
-}
---------------------------------------------------
-
-becomes:
-
-[source,js]
---------------------------------------------------
-"function_score": {
-    "functions": [
-        {
-            "boost_factor": "3",
-            "filter": {...}
-        },
-        {
-            "filter": {...},
-            "script_score": {
-                "params": {
-                    "param1": 2,
-                    "param2": 3.1
-                },
-                "script": "_score * doc['my_numeric_field'].value / pow(param1, param2)"
-            }
-        }
-    ],
-    "query": {...},
-    "score_mode": "first"
-}
---------------------------------------------------

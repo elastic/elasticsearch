@@ -26,16 +26,24 @@ import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import java.io.IOException;
 
 /**
- *
+ * Builder for the {@link Nested} aggregation.
  */
 public class NestedBuilder extends AggregationBuilder<NestedBuilder> {
 
     private String path;
 
+    /**
+     * Sole constructor.
+     */
     public NestedBuilder(String name) {
         super(name, InternalNested.TYPE.name());
     }
 
+    /**
+     * Set the path to use for this nested aggregation. The path must match
+     * the path to a nested object in the mappings. This parameter is
+     * compulsory.
+     */
     public NestedBuilder path(String path) {
         this.path = path;
         return this;
@@ -45,7 +53,7 @@ public class NestedBuilder extends AggregationBuilder<NestedBuilder> {
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (path == null) {
-            throw new SearchSourceBuilderException("nested path must be set on nested aggregation [" + name + "]");
+            throw new SearchSourceBuilderException("nested path must be set on nested aggregation [" + getName() + "]");
         }
         builder.field("path", path);
         return builder.endObject();

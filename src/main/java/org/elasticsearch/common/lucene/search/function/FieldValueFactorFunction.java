@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -48,7 +48,7 @@ public class FieldValueFactorFunction extends ScoreFunction {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext context) {
+    public void setNextReader(LeafReaderContext context) {
         this.values = this.indexFieldData.load(context).getDoubleValues();
     }
 

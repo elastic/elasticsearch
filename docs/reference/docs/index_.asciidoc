@@ -359,16 +359,21 @@ place in the background, set the `replication` parameter to `async`.
 When asynchronous replication is used, the index operation will return
 as soon as the operation succeeds on the primary shard.
 
+The default value for the `replication` setting is `sync` and this default can 
+be overridden on a node-by-node basis using the `action.replication_type`
+setting. Valid values for replication type are `sync` and `async`. To alter this
+behavior per-operation, the `replication` request parameter can be used.
+
 [float]
 [[index-refresh]]
 === Refresh
 
-To refresh the index immediately after the operation occurs, so that the
-document appears in search results immediately, the `refresh` parameter
-can be set to `true`. Setting this option to `true` should *ONLY* be
-done after careful thought and verification that it does not lead to
-poor performance, both from an indexing and a search standpoint. Note,
-getting a document using the get API is completely realtime.
+To refresh the shard (not the whole index) immediately after the operation
+occurs, so that the document appears in search results immediately, the
+`refresh` parameter can be set to `true`. Setting this option to `true` should
+*ONLY* be done after careful thought and verification that it does not lead to
+poor performance, both from an indexing and a search standpoint. Note, getting
+a document using the get API is completely realtime.
 
 [float]
 [[timeout]]

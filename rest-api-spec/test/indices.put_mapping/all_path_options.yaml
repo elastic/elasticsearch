@@ -43,7 +43,7 @@ setup:
   - match: {test_index2.mappings.test_type.properties.text.type:     string}
   - match: {test_index2.mappings.test_type.properties.text.analyzer: whitespace}
 
-  - is_false: foo
+  - match: { foo.mappings: {} }
 
 ---
 "put mapping in _all index":
@@ -118,7 +118,7 @@ setup:
   - match: {test_index2.mappings.test_type.properties.text.type:     string}
   - match: {test_index2.mappings.test_type.properties.text.analyzer: whitespace}
 
-  - is_false: foo
+  - match: { foo.mappings: {} }
 
 ---
 "put mapping in list of indices":
@@ -142,7 +142,7 @@ setup:
   - match: {test_index2.mappings.test_type.properties.text.type:     string}
   - match: {test_index2.mappings.test_type.properties.text.analyzer: whitespace}
 
-  - is_false: foo
+  - match: { foo.mappings: {} }
 
 ---
 "put mapping with blank index":
@@ -176,3 +176,37 @@ setup:
       catch: param
       indices.put_mapping: {}
 
+---
+"post a mapping with default analyzer twice":
+
+  - do:
+      indices.put_mapping:
+        index: test_index1
+        type: test_type
+        body:
+          test_type:
+            dynamic: false
+            properties:
+              text:
+                index:    analyzed
+                analyzer: default
+                type:     string
+
+  - do:
+      indices.put_mapping:
+        index: test_index1
+        type: test_type
+        body:
+          test_type:
+            dynamic: false
+            properties:
+              text:
+                index:    analyzed
+                analyzer: default
+                type:     string
+
+  - do:
+      indices.get_mapping: {}
+
+  - match: {test_index1.mappings.test_type.properties.text.type:     string}
+ 

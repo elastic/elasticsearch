@@ -35,7 +35,7 @@ import java.io.IOException;
  *
  */
 public final class RecoveryFileChunkRequest extends TransportRequest {  // public for testing
-
+    private boolean lastChunk;
     private long recoveryId;
     private ShardId shardId;
     private long position;
@@ -45,12 +45,13 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
     RecoveryFileChunkRequest() {
     }
 
-    public RecoveryFileChunkRequest(long recoveryId, ShardId shardId, StoreFileMetaData metaData, long position, BytesReference content) {
+    public RecoveryFileChunkRequest(long recoveryId, ShardId shardId, StoreFileMetaData metaData, long position, BytesReference content, boolean lastChunk) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.metaData = metaData;
         this.position = position;
         this.content = content;
+        this.lastChunk = lastChunk;
     }
 
     public long recoveryId() {
@@ -82,12 +83,6 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
         return content;
     }
 
-    public RecoveryFileChunkRequest readFileChunk(StreamInput in) throws IOException {
-        RecoveryFileChunkRequest request = new RecoveryFileChunkRequest();
-        request.readFrom(in);
-        return request;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -104,6 +99,11 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
             writtenBy = Lucene.parseVersionLenient(versionString, null);
         }
         metaData = new StoreFileMetaData(name, length, checksum, writtenBy);
+        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_1_4_0_Beta1)) {
+            lastChunk = in.readBoolean();
+        } else {
+            lastChunk = false;
+        }
     }
 
     @Override
@@ -117,7 +117,10 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
         out.writeOptionalString(metaData.checksum());
         out.writeBytesReference(content);
         if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_1_3_0)) {
-            out.writeOptionalString(metaData.writtenBy() == null ? null : metaData.writtenBy().name());
+            out.writeOptionalString(metaData.writtenBy() == null ? null : metaData.writtenBy().toString());
+        }
+        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_1_4_0_Beta1)) {
+            out.writeBoolean(lastChunk);
         }
     }
 
@@ -130,5 +133,12 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
 
     public StoreFileMetaData metadata() {
         return metaData;
+    }
+
+    /**
+     * Returns <code>true</code> if this chunk is the last chunk in the stream.
+     */
+    public boolean lastChunk() {
+        return lastChunk;
     }
 }

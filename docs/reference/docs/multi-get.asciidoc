@@ -113,8 +113,6 @@ GET /test/_mget/
 [[mget-source-filtering]]
 === Source filtering
 
-added[1.0.0.Beta1]
-
 By default, the `_source` field will be returned for every document (if stored).
 Similar to the <<get-source-filtering,get>> API, you can retrieve only parts of
 the `_source` (or not at all) by using the `_source` parameter. You can also use
@@ -180,10 +178,28 @@ curl 'localhost:9200/_mget' -d '{
 }'
 --------------------------------------------------
 
+Alternatively, you can specify the `fields` parameter in the query string
+as a default to be applied to all documents.
+
+[source,js]
+--------------------------------------------------
+curl 'localhost:9200/test/type/_mget?fields=field1,field2' -d '{
+    "docs" : [
+        {
+            "_id" : "1" <1>
+        },
+        {
+            "_id" : "2",
+            "fields" : ["field3", "field4"] <2>
+        }
+    ]
+}'
+--------------------------------------------------
+<1> Returns `field1` and `field2`
+<2> Returns `field3` and `field4`
+
 [float]
 === Generated fields
-
-added[1.4.0]
 
 See <<generated-fields>> for fields are generated only when indexing. 
 
@@ -191,7 +207,7 @@ See <<generated-fields>> for fields are generated only when indexing.
 [[mget-routing]]
 === Routing
 
-You can specify also specify routing value as a parameter:
+You can also specify routing value as a parameter:
 
 [source,js]
 --------------------------------------------------

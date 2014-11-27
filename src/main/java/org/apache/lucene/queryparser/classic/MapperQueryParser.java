@@ -21,16 +21,21 @@ package org.apache.lucene.queryparser.classic;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -79,12 +84,12 @@ public class MapperQueryParser extends QueryParser {
     private String quoteFieldSuffix;
 
     public MapperQueryParser(QueryParseContext parseContext) {
-        super(Lucene.QUERYPARSER_VERSION, null, null);
+        super(null, null);
         this.parseContext = parseContext;
     }
 
     public MapperQueryParser(QueryParserSettings settings, QueryParseContext parseContext) {
-        super(Lucene.QUERYPARSER_VERSION, settings.defaultField(), settings.defaultAnalyzer());
+        super(settings.defaultField(), settings.defaultAnalyzer());
         this.parseContext = parseContext;
         reset(settings);
     }
@@ -119,6 +124,7 @@ public class MapperQueryParser extends QueryParser {
         setMultiTermRewriteMethod(settings.rewriteMethod());
         setEnablePositionIncrements(settings.enablePositionIncrements());
         setAutoGeneratePhraseQueries(settings.autoGeneratePhraseQueries());
+        setMaxDeterminizedStates(settings.maxDeterminizedStates());
         setAllowLeadingWildcard(settings.allowLeadingWildcard());
         setLowercaseExpandedTerms(settings.lowercaseExpandedTerms());
         setPhraseSlop(settings.phraseSlop());
@@ -126,6 +132,9 @@ public class MapperQueryParser extends QueryParser {
         setFuzzyMinSim(settings.fuzzyMinSim());
         setFuzzyPrefixLength(settings.fuzzyPrefixLength());
         setLocale(settings.locale());
+        if (settings.timeZone() != null) {
+            setTimeZone(settings.timeZone().toTimeZone());
+        }
         this.analyzeWildcard = settings.analyzeWildcard();
     }
 
@@ -807,12 +816,12 @@ public class MapperQueryParser extends QueryParser {
                         if (fieldMappers.explicitTypeInNameWithDocMapper()) {
                             String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{fieldMappers.docMapper().type()});
                             try {
-                                query = currentMapper.regexpQuery(termStr, RegExp.ALL, multiTermRewriteMethod, parseContext);
+                                query = currentMapper.regexpQuery(termStr, RegExp.ALL, maxDeterminizedStates, multiTermRewriteMethod, parseContext);
                             } finally {
                                 QueryParseContext.setTypes(previousTypes);
                             }
                         } else {
-                            query = currentMapper.regexpQuery(termStr, RegExp.ALL, multiTermRewriteMethod, parseContext);
+                            query = currentMapper.regexpQuery(termStr, RegExp.ALL, maxDeterminizedStates, multiTermRewriteMethod, parseContext);
                         }
                     }
                     if (query == null) {
@@ -852,8 +861,8 @@ public class MapperQueryParser extends QueryParser {
     }
 
     private void applySlop(Query q, int slop) {
-        if (q instanceof XFilteredQuery) {
-            applySlop(((XFilteredQuery)q).getQuery(), slop);
+        if (q instanceof FilteredQuery) {
+            applySlop(((FilteredQuery)q).getQuery(), slop);
         }
         if (q instanceof PhraseQuery) {
             ((PhraseQuery) q).setSlop(slop);

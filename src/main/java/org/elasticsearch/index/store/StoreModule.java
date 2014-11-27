@@ -21,6 +21,7 @@ package org.elasticsearch.index.store;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.store.distributor.Distributor;
 import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
 import org.elasticsearch.index.store.distributor.RandomWeightedDistributor;
@@ -37,12 +38,14 @@ public class StoreModule extends AbstractModule {
     private final Settings settings;
 
     private final IndexStore indexStore;
+    private final ShardLock lock;
 
     private Class<? extends Distributor> distributor;
 
-    public StoreModule(Settings settings, IndexStore indexStore) {
+    public StoreModule(Settings settings, IndexStore indexStore, ShardLock lock) {
         this.indexStore = indexStore;
         this.settings = settings;
+        this.lock = lock;
     }
 
     public void setDistributor(Class<? extends Distributor> distributor) {
@@ -53,6 +56,7 @@ public class StoreModule extends AbstractModule {
     protected void configure() {
         bind(DirectoryService.class).to(indexStore.shardDirectory()).asEagerSingleton();
         bind(Store.class).asEagerSingleton();
+        bind(ShardLock.class).toInstance(lock);
         if (distributor == null) {
             distributor = loadDistributor(settings);
         }

@@ -22,14 +22,12 @@ import com.carrotsearch.hppc.IntObjectOpenHashMap;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.ToStringUtils;
+import org.apache.lucene.util.*;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -66,14 +64,14 @@ public class TopChildrenQuery extends Query {
     private final int factor;
     private final int incrementalFactor;
     private Query originalChildQuery;
-    private final Filter nonNestedDocsFilter;
+    private final BitDocIdSetFilter nonNestedDocsFilter;
 
     // This field will hold the rewritten form of originalChildQuery, so that we can reuse it
     private Query rewrittenChildQuery;
     private IndexReader rewriteIndexReader;
 
     // Note, the query is expected to already be filtered to only child type docs
-    public TopChildrenQuery(IndexParentChildFieldData parentChildIndexFieldData, Query childQuery, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor, Filter nonNestedDocsFilter) {
+    public TopChildrenQuery(IndexParentChildFieldData parentChildIndexFieldData, Query childQuery, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor, BitDocIdSetFilter nonNestedDocsFilter) {
         this.parentChildIndexFieldData = parentChildIndexFieldData;
         this.originalChildQuery = childQuery;
         this.childType = childType;
@@ -172,7 +170,7 @@ public class TopChildrenQuery extends Query {
         ObjectObjectOpenHashMap<Object, IntObjectOpenHashMap<ParentDoc>> parentDocsPerReader = new ObjectObjectOpenHashMap<>(context.searcher().getIndexReader().leaves().size());
         child_hits: for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
             int readerIndex = ReaderUtil.subIndex(scoreDoc.doc, context.searcher().getIndexReader().leaves());
-            AtomicReaderContext subContext = context.searcher().getIndexReader().leaves().get(readerIndex);
+            LeafReaderContext subContext = context.searcher().getIndexReader().leaves().get(readerIndex);
             SortedDocValues parentValues = parentChildIndexFieldData.load(subContext).getOrdinalsValues(parentType);
             int subDoc = scoreDoc.doc - subContext.docBase;
 
@@ -183,11 +181,14 @@ public class TopChildrenQuery extends Query {
                 continue;
             }
             // now go over and find the parent doc Id and reader tuple
-            for (AtomicReaderContext atomicReaderContext : context.searcher().getIndexReader().leaves()) {
-                AtomicReader indexReader = atomicReaderContext.reader();
-                FixedBitSet nonNestedDocs = null;
+            for (LeafReaderContext atomicReaderContext : context.searcher().getIndexReader().leaves()) {
+                LeafReader indexReader = atomicReaderContext.reader();
+                BitSet nonNestedDocs = null;
                 if (nonNestedDocsFilter != null) {
-                    nonNestedDocs = (FixedBitSet) nonNestedDocsFilter.getDocIdSet(atomicReaderContext, indexReader.getLiveDocs());
+                    BitDocIdSet nonNestedDocIdSet = nonNestedDocsFilter.getDocIdSet(atomicReaderContext);
+                    if (nonNestedDocIdSet != null) {
+                        nonNestedDocs = nonNestedDocIdSet.bits();
+                    }
                 }
 
                 Terms terms = indexReader.terms(UidFieldMapper.NAME);
@@ -207,7 +208,9 @@ public class TopChildrenQuery extends Query {
                     // we found a match, add it and break
                     IntObjectOpenHashMap<ParentDoc> readerParentDocs = parentDocsPerReader.get(indexReader.getCoreCacheKey());
                     if (readerParentDocs == null) {
-                        readerParentDocs = new IntObjectOpenHashMap<>(indexReader.maxDoc());
+                        //The number of docs in the reader and in the query both upper bound the size of parentDocsPerReader
+                        int mapSize =  Math.min(indexReader.maxDoc(), context.from() + context.size());
+                        readerParentDocs = new IntObjectOpenHashMap<>(mapSize);
                         parentDocsPerReader.put(indexReader.getCoreCacheKey(), readerParentDocs);
                     }
                     ParentDoc parentDoc = readerParentDocs.get(parentDocId);
@@ -217,11 +220,15 @@ public class TopChildrenQuery extends Query {
                         parentDoc.docId = parentDocId;
                         parentDoc.count = 1;
                         parentDoc.maxScore = scoreDoc.score;
+                        parentDoc.minScore = scoreDoc.score;
                         parentDoc.sumScores = scoreDoc.score;
                         readerParentDocs.put(parentDocId, parentDoc);
                     } else {
                         parentDoc.count++;
                         parentDoc.sumScores += scoreDoc.score;
+                        if (scoreDoc.score < parentDoc.minScore) {
+                            parentDoc.minScore = scoreDoc.score;
+                        }
                         if (scoreDoc.score > parentDoc.maxScore) {
                             parentDoc.maxScore = scoreDoc.score;
                         }
@@ -316,14 +323,22 @@ public class TopChildrenQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
             ParentDoc[] readerParentDocs = parentDocs.get(context.reader().getCoreCacheKey());
             if (readerParentDocs != null) {
-                if (scoreType == ScoreType.MAX) {
+                if (scoreType == ScoreType.MIN) {
                     return new ParentScorer(this, readerParentDocs) {
                         @Override
                         public float score() throws IOException {
-                            assert doc.docId >= 0 || doc.docId < NO_MORE_DOCS;
+                            assert doc.docId >= 0 && doc.docId != NO_MORE_DOCS;
+                            return doc.minScore;
+                        }
+                    };
+                } else if (scoreType == ScoreType.MAX) {
+                    return new ParentScorer(this, readerParentDocs) {
+                        @Override
+                        public float score() throws IOException {
+                            assert doc.docId >= 0 && doc.docId != NO_MORE_DOCS;
                             return doc.maxScore;
                         }
                     };
@@ -331,7 +346,7 @@ public class TopChildrenQuery extends Query {
                     return new ParentScorer(this, readerParentDocs) {
                         @Override
                         public float score() throws IOException {
-                            assert doc.docId >= 0 || doc.docId < NO_MORE_DOCS;
+                            assert doc.docId >= 0 && doc.docId != NO_MORE_DOCS;
                             return doc.sumScores / doc.count;
                         }
                     };
@@ -339,7 +354,7 @@ public class TopChildrenQuery extends Query {
                     return new ParentScorer(this, readerParentDocs) {
                         @Override
                         public float score() throws IOException {
-                            assert doc.docId >= 0 || doc.docId < NO_MORE_DOCS;
+                            assert doc.docId >= 0 && doc.docId != NO_MORE_DOCS;
                             return doc.sumScores;
                         }
 
@@ -351,7 +366,7 @@ public class TopChildrenQuery extends Query {
         }
 
         @Override
-        public Explanation explain(AtomicReaderContext context, int doc) throws IOException {
+        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
             return new Explanation(getBoost(), "not implemented yet...");
         }
     }
@@ -411,6 +426,7 @@ public class TopChildrenQuery extends Query {
     private static class ParentDoc {
         public int docId;
         public int count;
+        public float minScore = Float.NaN;
         public float maxScore = Float.NaN;
         public float sumScores = 0;
     }

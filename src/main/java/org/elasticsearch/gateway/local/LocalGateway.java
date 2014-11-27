@@ -22,6 +22,7 @@ package org.elasticsearch.gateway.local;
 import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
 import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.*;
@@ -197,7 +198,11 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
 
     @Override
     public void reset() throws Exception {
-        FileSystemUtils.deleteRecursively(nodeEnv.nodeDataLocations());
+        try {
+            IOUtils.rm(FileSystemUtils.toPaths(nodeEnv.nodeDataLocations()));
+        } catch (Exception ex) {
+            logger.debug("failed to delete shard locations", ex);
+        }
     }
 
     @Override

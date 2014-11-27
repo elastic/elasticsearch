@@ -37,6 +37,7 @@ import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -127,11 +128,14 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             ExternalMapper.Builder builder = new ExternalMapper.Builder(name, generatedValue, mapperName);
             parseField(builder, name, node, parserContext);
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
 
-                parseMultiField(builder, name, node, parserContext, propName, propNode);
+                if (parseMultiField(builder, name, parserContext, propName, propNode)) {
+                    iterator.remove();
+                }
             }
 
             return builder;

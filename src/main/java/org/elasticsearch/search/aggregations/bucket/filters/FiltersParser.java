@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.filters;
 
+import org.elasticsearch.common.lucene.search.MatchAllDocsFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.search.SearchParseException;
@@ -60,7 +61,7 @@ public class FiltersParser implements Aggregator.Parser {
                             key = parser.currentName();
                         } else {
                             ParsedFilter filter = context.queryParserService().parseInnerFilter(parser);
-                            filters.add(new FiltersAggregator.KeyedFilter(key, filter.filter()));
+                            filters.add(new FiltersAggregator.KeyedFilter(key, filter == null ? new MatchAllDocsFilter() : filter.filter()));
                         }
                     }
                 } else {
@@ -72,7 +73,8 @@ public class FiltersParser implements Aggregator.Parser {
                     int idx = 0;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         ParsedFilter filter = context.queryParserService().parseInnerFilter(parser);
-                        filters.add(new FiltersAggregator.KeyedFilter(String.valueOf(idx), filter.filter()));
+                        filters.add(new FiltersAggregator.KeyedFilter(String.valueOf(idx), filter == null ? new MatchAllDocsFilter()
+                                : filter.filter()));
                         idx++;
                     }
                 } else {

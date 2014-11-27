@@ -18,15 +18,14 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
@@ -89,7 +88,7 @@ public class ParentConstantScoreQuery extends Query {
         assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
 
         final long maxOrd;
-        List<AtomicReaderContext> leaves = searcher.getIndexReader().leaves();
+        List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
         if (globalIfd == null || leaves.isEmpty()) {
             return Queries.newMatchNoDocsQuery().createWeight(searcher);
         } else {
@@ -161,12 +160,12 @@ public class ParentConstantScoreQuery extends Query {
 
         private ChildrenWeight(Filter childrenFilter, ParentOrdsCollector collector, IndexParentChildFieldData globalIfd) {
             this.globalIfd = globalIfd;
-            this.childrenFilter = new ApplyAcceptedDocsFilter(childrenFilter);
+            this.childrenFilter = childrenFilter;
             this.parentOrds = collector.parentOrds;
         }
 
         @Override
-        public Explanation explain(AtomicReaderContext context, int doc) throws IOException {
+        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
             return new Explanation(getBoost(), "not implemented yet...");
         }
 
@@ -188,7 +187,7 @@ public class ParentConstantScoreQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
             DocIdSet childrenDocIdSet = childrenFilter.getDocIdSet(context, acceptDocs);
             if (DocIdSets.isEmpty(childrenDocIdSet)) {
                 return null;
@@ -257,7 +256,7 @@ public class ParentConstantScoreQuery extends Query {
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext readerContext) throws IOException {
+        public void doSetNextReader(LeafReaderContext readerContext) throws IOException {
             globalOrdinals = globalIfd.load(readerContext).getOrdinalsValues(parentType);
         }
 

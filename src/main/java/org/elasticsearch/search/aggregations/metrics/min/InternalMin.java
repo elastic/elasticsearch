@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggre
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
 *
@@ -53,8 +54,8 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
 
     InternalMin() {} // for serialization
 
-    public InternalMin(String name, double min) {
-        super(name);
+    public InternalMin(String name, double min, Map<String, Object> metaData) {
+        super(name, metaData);
         this.min = min;
     }
 
@@ -78,19 +79,17 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
         for (InternalAggregation aggregation : reduceContext.aggregations()) {
             min = Math.min(min, ((InternalMin) aggregation).min);
         }
-        return new InternalMin(getName(), min);
+        return new InternalMin(getName(), min, getMetaData());
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
         valueFormatter = ValueFormatterStreams.readOptional(in);
         min = in.readDouble();
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         ValueFormatterStreams.writeOptional(valueFormatter, out);
         out.writeDouble(min);
     }

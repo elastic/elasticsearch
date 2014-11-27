@@ -28,6 +28,7 @@ import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.gateway.IndexGateway;
@@ -50,6 +51,8 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard> {
     IndexCache cache();
 
     IndexFieldDataService fieldData();
+
+    BitsetFilterCache bitsetFilterCache();
 
     IndexSettingsService settingsService();
 
@@ -103,4 +106,5 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard> {
     Injector shardInjectorSafe(int shardId) throws IndexShardMissingException;
 
     String indexUUID();
+
 }

@@ -32,7 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
-import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.SuggestBuilders;
 
 import java.io.IOException;
 import java.util.List;
@@ -118,7 +118,7 @@ public class SuggestSearchBenchMark {
             String term = "prefix" + startChar;
             SearchResponse response = client.prepareSearch()
                     .setQuery(prefixQuery("field", term))
-                    .addSuggestion(SuggestBuilder.termSuggestion("field").field("field").text(term).suggestMode("always"))
+                    .addSuggestion(SuggestBuilders.termSuggestion("field").field("field").text(term).suggestMode("always"))
                     .execute().actionGet();
             if (response.getHits().totalHits() == 0) {
                 System.err.println("No hits");
@@ -135,7 +135,7 @@ public class SuggestSearchBenchMark {
             String term = "prefix" + startChar;
             SearchResponse response = client.prepareSearch()
                     .setQuery(matchQuery("field", term))
-                    .addSuggestion(SuggestBuilder.termSuggestion("field").text(term).field("field").suggestMode("always"))
+                    .addSuggestion(SuggestBuilders.termSuggestion("field").text(term).field("field").suggestMode("always"))
                     .execute().actionGet();
             timeTaken += response.getTookInMillis();
             if (response.getSuggest() == null) {

@@ -18,10 +18,16 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PagedMutable;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -59,6 +65,14 @@ public abstract class GeoPointCompressedAtomicFieldData extends AbstractAtomicGe
         @Override
         public long ramBytesUsed() {
             return RamUsageEstimator.NUM_BYTES_INT/*size*/ + lon.ramBytesUsed() + lat.ramBytesUsed();
+        }
+
+        @Override
+        public Iterable<? extends Accountable> getChildResources() {
+            List<Accountable> resources = new ArrayList<>();
+            resources.add(Accountables.namedAccountable("latitude", lat));
+            resources.add(Accountables.namedAccountable("longitude", lon));
+            return Collections.unmodifiableList(resources);
         }
 
         @Override
@@ -112,9 +126,9 @@ public abstract class GeoPointCompressedAtomicFieldData extends AbstractAtomicGe
 
         private final GeoPointFieldMapper.Encoding encoding;
         private final PagedMutable lon, lat;
-        private final FixedBitSet set;
+        private final BitSet set;
 
-        public Single(GeoPointFieldMapper.Encoding encoding, PagedMutable lon, PagedMutable lat, FixedBitSet set) {
+        public Single(GeoPointFieldMapper.Encoding encoding, PagedMutable lon, PagedMutable lat, BitSet set) {
             super();
             this.encoding = encoding;
             this.lon = lon;
@@ -125,6 +139,17 @@ public abstract class GeoPointCompressedAtomicFieldData extends AbstractAtomicGe
         @Override
         public long ramBytesUsed() {
             return RamUsageEstimator.NUM_BYTES_INT/*size*/ + lon.ramBytesUsed() + lat.ramBytesUsed() + (set == null ? 0 : set.ramBytesUsed());
+        }
+        
+        @Override
+        public Iterable<? extends Accountable> getChildResources() {
+            List<Accountable> resources = new ArrayList<>();
+            resources.add(Accountables.namedAccountable("latitude", lat));
+            resources.add(Accountables.namedAccountable("longitude", lon));
+            if (set != null) {
+                resources.add(Accountables.namedAccountable("missing bitset", set));
+            }
+            return Collections.unmodifiableList(resources);
         }
 
         @Override

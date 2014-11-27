@@ -21,7 +21,13 @@ package org.elasticsearch.search.aggregations.metrics.percentiles;
 
 import org.elasticsearch.search.aggregations.Aggregation;
 
+/**
+ * An aggregation that computes approximate percentiles given values.
+ */
 public interface PercentileRanks extends Aggregation, Iterable<Percentile>{
 
-    double percent(double percentile);
+    /**
+     * Return the percentile for the given value.
+     */
+    double percent(double value);
 }

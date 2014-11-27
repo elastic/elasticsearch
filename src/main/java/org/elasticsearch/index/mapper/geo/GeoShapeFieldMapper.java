@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper.geo;
 import com.spatial4j.core.shape.Shape;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.TermQueryPrefixTreeStrategy;
@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -91,12 +92,11 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
-            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setStoreTermVectors(false);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(FieldInfo.IndexOptions.DOCS_ONLY);
             FIELD_TYPE.freeze();
         }
 
@@ -173,19 +173,25 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = geoShapeField(name);
 
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (Names.TREE.equals(fieldName)) {
                     builder.tree(fieldNode.toString());
+                    iterator.remove();
                 } else if (Names.TREE_LEVELS.equals(fieldName)) {
                     builder.treeLevels(Integer.parseInt(fieldNode.toString()));
+                    iterator.remove();
                 } else if (Names.TREE_PRESISION.equals(fieldName)) {
                     builder.treeLevelsByDistance(DistanceUnit.parse(fieldNode.toString(), DistanceUnit.DEFAULT, DistanceUnit.DEFAULT));
+                    iterator.remove();
                 } else if (Names.DISTANCE_ERROR_PCT.equals(fieldName)) {
                     builder.distanceErrorPct(Double.parseDouble(fieldNode.toString()));
+                    iterator.remove();
                 } else if (Names.STRATEGY.equals(fieldName)) {
                     builder.strategy(fieldNode.toString());
+                    iterator.remove();
                 }
             }
             return builder;

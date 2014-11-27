@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.filters;
 
 import com.google.common.collect.Lists;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -52,9 +53,9 @@ public class FiltersAggregator extends BucketsAggregator {
     private boolean keyed;
 
     public FiltersAggregator(String name, AggregatorFactories factories, List<KeyedFilter> filters, boolean keyed, AggregationContext aggregationContext,
-            Aggregator parent) {
+            Aggregator parent, Map<String, Object> metaData) {
         super(name, BucketAggregationMode.MULTI_BUCKETS, factories, filters.size() * (parent == null ? 1 : parent.estimatedBucketCount()),
-                aggregationContext, parent);
+                aggregationContext, parent, metaData);
         this.keyed = keyed;
         this.filters = filters.toArray(new KeyedFilter[filters.size()]);
         this.bits = new Bits[this.filters.length];
@@ -66,10 +67,10 @@ public class FiltersAggregator extends BucketsAggregator {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         try {
             for (int i = 0; i < filters.length; i++) {
-                bits[i] = DocIdSets.toSafeBits(reader.reader(), filters[i].filter.getDocIdSet(reader, reader.reader().getLiveDocs()));
+                bits[i] = DocIdSets.toSafeBits(reader.reader(), filters[i].filter.getDocIdSet(reader, null));
             }
         } catch (IOException ioe) {
             throw new AggregationExecutionException("Failed to aggregate filter aggregator [" + name + "]", ioe);
@@ -91,10 +92,10 @@ public class FiltersAggregator extends BucketsAggregator {
         for (int i = 0; i < filters.length; i++) {
             KeyedFilter filter = filters[i];
             long bucketOrd = bucketOrd(owningBucketOrdinal, i);
-            InternalFilters.Bucket bucket = new InternalFilters.Bucket(filter.key, bucketDocCount(bucketOrd), bucketAggregations(bucketOrd));
+            InternalFilters.Bucket bucket = new InternalFilters.Bucket(filter.key, bucketDocCount(bucketOrd), bucketAggregations(bucketOrd), keyed);
             buckets.add(bucket);
         }
-        return new InternalFilters(name, buckets, keyed);
+        return new InternalFilters(name, buckets, keyed, getMetaData());
     }
 
     @Override
@@ -102,10 +103,10 @@ public class FiltersAggregator extends BucketsAggregator {
         InternalAggregations subAggs = buildEmptySubAggregations();
         List<InternalFilters.Bucket> buckets = Lists.newArrayListWithCapacity(filters.length);
         for (int i = 0; i < filters.length; i++) {
-            InternalFilters.Bucket bucket = new InternalFilters.Bucket(filters[i].key, 0, subAggs);
+            InternalFilters.Bucket bucket = new InternalFilters.Bucket(filters[i].key, 0, subAggs, keyed);
             buckets.add(bucket);
         }
-        return new InternalFilters(name, buckets, keyed);
+        return new InternalFilters(name, buckets, keyed, getMetaData());
     }
 
     private final long bucketOrd(long owningBucketOrdinal, int filterOrd) {
@@ -124,8 +125,8 @@ public class FiltersAggregator extends BucketsAggregator {
         }
 
         @Override
-        public Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
-            return new FiltersAggregator(name, factories, filters, keyed, context, parent);
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData) {
+            return new FiltersAggregator(name, factories, filters, keyed, context, parent, metaData);
         }
     }
 

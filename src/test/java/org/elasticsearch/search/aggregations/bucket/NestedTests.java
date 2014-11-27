@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -36,16 +39,19 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.nested;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 /**
@@ -69,7 +75,7 @@ public class NestedTests extends ElasticsearchIntegrationTest {
         numParents = randomIntBetween(3, 10);
         numChildren = new int[numParents];
         aggCollectionMode = randomFrom(SubAggCollectionMode.values());
-        System.out.println("AGG COLLECTION MODE: " + aggCollectionMode);
+        logger.info("AGG COLLECTION MODE: " + aggCollectionMode);
         int totalChildren = 0;
         for (int i = 0; i < numParents; ++i) {
             if (i == numParents - 1 && totalChildren == 0) {
@@ -232,6 +238,7 @@ public class NestedTests extends ElasticsearchIntegrationTest {
         assertThat(nested, notNullValue());
         assertThat(nested.getName(), equalTo("nested"));
         assertThat(nested.getDocCount(), equalTo(docCount));
+        assertThat((long) nested.getProperty("_count"), equalTo(docCount));
         assertThat(nested.getAggregations().asList().isEmpty(), is(false));
 
         LongTerms values = nested.getAggregations().get("values");
@@ -249,6 +256,7 @@ public class NestedTests extends ElasticsearchIntegrationTest {
                 assertEquals(counts[i], bucket.getDocCount());
             }
         }
+        assertThat((LongTerms) nested.getProperty("values"), sameInstance(values));
     }
 
     @Test

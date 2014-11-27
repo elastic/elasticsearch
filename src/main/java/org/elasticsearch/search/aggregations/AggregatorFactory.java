@@ -20,6 +20,8 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
+import java.util.Map;
+
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
@@ -29,6 +31,7 @@ public abstract class AggregatorFactory {
     protected String type;
     protected AggregatorFactory parent;
     protected AggregatorFactories factories = AggregatorFactories.EMPTY;
+    protected Map<String, Object> metaData;
 
     /**
      * Constructs a new aggregator factory.
@@ -79,9 +82,17 @@ public abstract class AggregatorFactory {
      *
      * @return                      The created aggregator
      */
-    public abstract Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount);
+    protected abstract Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData);
+
+    public Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
+        Aggregator aggregator = createInternal(context, parent, expectedBucketsCount, this.metaData);
+        return aggregator;
+    }
 
     public void doValidate() {
     }
 
+    public void setMetaData(Map<String, Object> metaData) {
+        this.metaData = metaData;
+    }
 }

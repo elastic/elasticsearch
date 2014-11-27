@@ -20,6 +20,7 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 
 import java.io.IOException;
 
@@ -30,8 +31,8 @@ interface PayloadProcessor {
     void parsePayload(BytesRef payload, SuggestPayload ref) throws IOException;
 
     static class SuggestPayload {
-        final BytesRef payload = new BytesRef();
+        final BytesRefBuilder payload = new BytesRefBuilder();
         long weight = 0;
-        final BytesRef surfaceForm = new BytesRef();
+        final BytesRefBuilder surfaceForm = new BytesRefBuilder();
     }
 }

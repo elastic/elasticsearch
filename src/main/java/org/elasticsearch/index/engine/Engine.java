@@ -25,6 +25,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -302,7 +303,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private int maxNumSegments = -1;
         private boolean onlyExpungeDeletes = false;
         private boolean flush = false;
-        private boolean force = false;
+        private boolean upgrade = false;
 
         public Optimize() {
         }
@@ -343,18 +344,18 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this;
         }
 
-        public boolean force() {
-            return force;
+        public boolean upgrade() {
+            return upgrade;
         }
 
-        public Optimize force(boolean force) {
-            this.force = force;
+        public Optimize upgrade(boolean upgrade) {
+            this.upgrade = upgrade;
             return this;
         }
 
         @Override
         public String toString() {
-            return "waitForMerge[" + waitForMerge + "], maxNumSegments[" + maxNumSegments + "], onlyExpungeDeletes[" + onlyExpungeDeletes + "], flush[" + flush + "], force[" + force + "]";
+            return "waitForMerge[" + waitForMerge + "], maxNumSegments[" + maxNumSegments + "], onlyExpungeDeletes[" + onlyExpungeDeletes + "], flush[" + flush + "], upgrade[" + upgrade + "]";
         }
     }
 
@@ -650,13 +651,13 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final String[] filteringAliases;
         private final Filter aliasFilter;
         private final String[] types;
-        private final Filter parentFilter;
+        private final BitDocIdSetFilter parentFilter;
         private final Operation.Origin origin;
 
         private final long startTime;
         private long endTime;
 
-        public DeleteByQuery(Query query, BytesReference source, @Nullable String[] filteringAliases, @Nullable Filter aliasFilter, Filter parentFilter, Operation.Origin origin, long startTime, String... types) {
+        public DeleteByQuery(Query query, BytesReference source, @Nullable String[] filteringAliases, @Nullable Filter aliasFilter, BitDocIdSetFilter parentFilter, Operation.Origin origin, long startTime, String... types) {
             this.query = query;
             this.source = source;
             this.types = types;
@@ -691,7 +692,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return parentFilter != null;
         }
 
-        public Filter parentFilter() {
+        public BitDocIdSetFilter parentFilter() {
             return parentFilter;
         }
 

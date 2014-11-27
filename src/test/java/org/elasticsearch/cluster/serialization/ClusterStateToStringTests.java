@@ -40,7 +40,7 @@ public class ClusterStateToStringTests extends ElasticsearchAllocationTestCase {
     @Test
     public void testClusterStateSerialization() throws Exception {
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test_idx").numberOfShards(10).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test_idx").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))
                 .put(IndexTemplateMetaData.builder("test_template").build())
                 .build();
 

@@ -20,6 +20,7 @@ package org.elasticsearch.plugins;
 
 import com.google.common.base.Predicate;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -46,13 +47,16 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Paths;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.io.FileSystemUtilsTests.assertFileContent;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDirectoryExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
 public class PluginManagerTests extends ElasticsearchIntegrationTest {
@@ -63,12 +67,12 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     private static final String PLUGIN_DIR = "plugins";
 
     @After
-    public void afterTest() {
+    public void afterTest() throws IOException {
         deletePluginsFolder();
     }
 
     @Before
-    public void beforeTest() {
+    public void beforeTest() throws IOException {
         deletePluginsFolder();
     }
 
@@ -113,16 +117,97 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
             File[] plugins = pluginManager.getListInstalledPlugins();
 
-            assertThat(plugins.length, is(1));
-            assertTrue(pluginBinDir.exists());
-            assertTrue(pluginConfigDir.exists());
+            assertThat(plugins, arrayWithSize(1));
+            assertDirectoryExists(pluginBinDir);
+            assertDirectoryExists(pluginConfigDir);
             File toolFile = new File(pluginBinDir, "tool");
-            assertThat(toolFile.exists(), is(true));
+            assertFileExists(toolFile);
             assertThat(toolFile.canExecute(), is(true));
         } finally {
             // we need to clean up the copied dirs
-            FileSystemUtils.deleteRecursively(pluginBinDir);
-            FileSystemUtils.deleteRecursively(pluginConfigDir);
+            IOUtils.rm(pluginBinDir.toPath(), pluginConfigDir.toPath());
+        }
+    }
+
+    /**
+     * Test for #7890
+     */
+    @Test
+    public void testLocalPluginInstallWithBinAndConfigInAlreadyExistingConfigDir_7890() throws Exception {
+        String pluginName = "plugin-test";
+        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
+                ImmutableSettings.settingsBuilder().build(), false);
+        Environment env = initialSettings.v2();
+
+        File configDir = env.configFile();
+        if (!configDir.exists() && !FileSystemUtils.mkdirs(configDir)) {
+            throw new IOException("Could not create config directory [" + configDir.getAbsolutePath() + "]");
+        }
+        File pluginConfigDir = new File(configDir, pluginName);
+
+        try {
+            PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_with_config_v1.zip"), initialSettings);
+            pluginManager.downloadAndExtract(pluginName);
+
+            File[] plugins = pluginManager.getListInstalledPlugins();
+            assertThat(plugins, arrayWithSize(1));
+
+            /*
+            First time, our plugin contains:
+            - config/test.txt (version1)
+             */
+            assertFileContent(pluginConfigDir, "test.txt", "version1\n");
+
+            // We now remove the plugin
+            pluginManager.removePlugin(pluginName);
+            // We should still have test.txt
+            assertFileContent(pluginConfigDir, "test.txt", "version1\n");
+
+            // Installing a new plugin version
+            /*
+            Second time, our plugin contains:
+            - config/test.txt (version2)
+            - config/dir/testdir.txt (version1)
+            - config/dir/subdir/testsubdir.txt (version1)
+             */
+            pluginManager = pluginManager(getPluginUrlForResource("plugin_with_config_v2.zip"), initialSettings);
+            pluginManager.downloadAndExtract(pluginName);
+
+            assertFileContent(pluginConfigDir, "test.txt", "version1\n");
+            assertFileContent(pluginConfigDir, "test.txt.new", "version2\n");
+            assertFileContent(pluginConfigDir, "dir/testdir.txt", "version1\n");
+            assertFileContent(pluginConfigDir, "dir/subdir/testsubdir.txt", "version1\n");
+
+            // Removing
+            pluginManager.removePlugin(pluginName);
+            assertFileContent(pluginConfigDir, "test.txt", "version1\n");
+            assertFileContent(pluginConfigDir, "test.txt.new", "version2\n");
+            assertFileContent(pluginConfigDir, "dir/testdir.txt", "version1\n");
+            assertFileContent(pluginConfigDir, "dir/subdir/testsubdir.txt", "version1\n");
+
+            // Installing a new plugin version
+            /*
+            Third time, our plugin contains:
+            - config/test.txt (version3)
+            - config/test2.txt (version1)
+            - config/dir/testdir.txt (version2)
+            - config/dir/testdir2.txt (version1)
+            - config/dir/subdir/testsubdir.txt (version2)
+             */
+            pluginManager = pluginManager(getPluginUrlForResource("plugin_with_config_v3.zip"), initialSettings);
+            pluginManager.downloadAndExtract(pluginName);
+
+            assertFileContent(pluginConfigDir, "test.txt", "version1\n");
+            assertFileContent(pluginConfigDir, "test2.txt", "version1\n");
+            assertFileContent(pluginConfigDir, "test.txt.new", "version3\n");
+            assertFileContent(pluginConfigDir, "dir/testdir.txt", "version1\n");
+            assertFileContent(pluginConfigDir, "dir/testdir.txt.new", "version2\n");
+            assertFileContent(pluginConfigDir, "dir/testdir2.txt", "version1\n");
+            assertFileContent(pluginConfigDir, "dir/subdir/testsubdir.txt", "version1\n");
+            assertFileContent(pluginConfigDir, "dir/subdir/testsubdir.txt.new", "version2\n");
+        } finally {
+            // we need to clean up the copied dirs
+            IOUtils.rm(pluginConfigDir.toPath());
         }
     }
 
@@ -143,10 +228,10 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
             pluginManager.downloadAndExtract(pluginName);
             File[] plugins = pluginManager.getListInstalledPlugins();
             assertThat(plugins.length, is(1));
-            assertTrue(pluginBinDir.exists());
+            assertDirectoryExists(pluginBinDir);
         } finally {
             // we need to clean up the copied dirs
-            FileSystemUtils.deleteRecursively(pluginBinDir);
+            IOUtils.rm(pluginBinDir.toPath());
         }
     }
 
@@ -299,7 +384,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
         // We want to check that Plugin Manager moves content to _site
         String pluginDir = PLUGIN_DIR.concat("/plugin-site/_site");
-        assertThat(FileSystemUtils.exists(new File(pluginDir)), is(true));
+        assertFileExists(new File(pluginDir));
     }
 
 
@@ -334,7 +419,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     @Network
     public void testInstallPluginWithElasticsearchDownloadService() throws IOException {
         assumeTrue(isDownloadServiceWorking("download.elasticsearch.org", 80, "/elasticsearch/ci-test.txt"));
-        singlePluginInstallAndRemove("elasticsearch/elasticsearch-transport-thrift/1.5.0", null);
+        singlePluginInstallAndRemove("elasticsearch/elasticsearch-transport-thrift/2.4.0", null);
     }
 
     /**
@@ -347,7 +432,8 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     @Network
     public void testInstallPluginWithMavenCentral() throws IOException {
         assumeTrue(isDownloadServiceWorking("search.maven.org", 80, "/"));
-        singlePluginInstallAndRemove("org.elasticsearch/elasticsearch-transport-thrift/1.5.0", null);
+        assumeTrue(isDownloadServiceWorking("repo1.maven.org", 443, "/maven2/org/elasticsearch/elasticsearch-transport-thrift/2.4.0/elasticsearch-transport-thrift-2.4.0.pom"));
+        singlePluginInstallAndRemove("org.elasticsearch/elasticsearch-transport-thrift/2.4.0", null);
     }
 
     /**
@@ -378,8 +464,8 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         return false;
     }
 
-    private void deletePluginsFolder() {
-        FileSystemUtils.deleteRecursively(new File(PLUGIN_DIR));
+    private void deletePluginsFolder() throws IOException {
+        IOUtils.rm(Paths.get(PLUGIN_DIR));
     }
 
     @Test

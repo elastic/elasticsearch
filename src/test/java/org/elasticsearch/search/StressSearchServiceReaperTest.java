@@ -42,7 +42,8 @@ public class StressSearchServiceReaperTest extends ElasticsearchIntegrationTest 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         // very frequent checks
-        return ImmutableSettings.builder().put(SearchService.KEEPALIVE_INTERVAL_KEY, TimeValue.timeValueMillis(1)).build();
+        return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal))
+                .put(SearchService.KEEPALIVE_INTERVAL_KEY, TimeValue.timeValueMillis(1)).build();
     }
 
     @Slow

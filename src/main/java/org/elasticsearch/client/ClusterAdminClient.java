@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.*;
-import org.elasticsearch.action.admin.cluster.ClusterAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -48,6 +47,9 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequestBuilder;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
@@ -81,7 +83,6 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
-import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  * Administrative actions/operations against indices.
@@ -232,10 +233,22 @@ public interface ClusterAdminClient extends ElasticsearchClient<ClusterAdminClie
      */
     NodesStatsRequestBuilder prepareNodesStats(String... nodesIds);
 
+    /**
+     * Returns top N hot-threads samples per node. The hot-threads are only sampled
+     * for the node ids specified in the request.
+     */
     ActionFuture<NodesHotThreadsResponse> nodesHotThreads(NodesHotThreadsRequest request);
 
+    /**
+     * Returns top N hot-threads samples per node. The hot-threads are only sampled
+     * for the node ids specified in the request.
+     */
     void nodesHotThreads(NodesHotThreadsRequest request, ActionListener<NodesHotThreadsResponse> listener);
 
+    /**
+     * Returns a request builder to fetch top N hot-threads samples per node. The hot-threads are only sampled
+     * for the node ids provided. Note: Use <tt>*</tt> to fetch samples for all nodes
+     */
     NodesHotThreadsRequestBuilder prepareNodesHotThreads(String... nodesIds);
 
     /**
@@ -348,6 +361,21 @@ public interface ClusterAdminClient extends ElasticsearchClient<ClusterAdminClie
      * Gets repositories.
      */
     GetRepositoriesRequestBuilder prepareGetRepositories(String... name);
+
+    /**
+     * Verifies a repository.
+     */
+    ActionFuture<VerifyRepositoryResponse> verifyRepository(VerifyRepositoryRequest request);
+
+    /**
+     * Verifies a repository.
+     */
+    void verifyRepository(VerifyRepositoryRequest request, ActionListener<VerifyRepositoryResponse> listener);
+
+    /**
+     * Verifies a repository.
+     */
+    VerifyRepositoryRequestBuilder prepareVerifyRepository(String name);
 
     /**
      * Creates a new snapshot.

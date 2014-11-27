@@ -31,10 +31,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.engine.internal.InternalEngine;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
@@ -56,11 +59,20 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
 
     private static class Holder {
         // lazy init on first access
-        private static final Node NODE = newNode();
+        private static Node NODE = newNode();
+
+        private static void reset() {
+            assert NODE != null;
+            node().stop();
+            Holder.NODE = newNode();
+        }
     }
 
-    static void cleanup() {
+    static void cleanup(boolean resetNode) {
         assertAcked(client().admin().indices().prepareDelete("*").get());
+        if (resetNode) {
+            Holder.reset();
+        }
         MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(),
                 metaData.persistentSettings().getAsMap().size(), equalTo(0));
@@ -70,7 +82,16 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
 
     @After
     public void after() {
-        cleanup();
+        cleanup(resetNodeAfterTest());
+    }
+
+    /**
+     * This method returns <code>true</code> if the node that is used in the background should be reset
+     * after each test. This is useful if the test changes the cluster state metadata etc. The default is
+     * <code>false</code>.
+     */
+    protected boolean resetNodeAfterTest() {
+        return false;
     }
 
     private static Node newNode() {
@@ -81,9 +102,8 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
                 .put("http.enabled", false)
-                .put("index.store.type", "ram")
                 .put("config.ignore_system_properties", true) // make sure we get what we set :)
-                .put("gateway.type", "none")).build();
+        ).build();
         build.start();
         assertThat(DiscoveryNode.localNode(build.settings()), is(true));
         return build;
@@ -160,7 +180,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
         return createIndex(index, createIndexRequestBuilder);
     }
 
-    private static IndexService createIndex(String index, CreateIndexRequestBuilder createIndexRequestBuilder) {
+    protected static IndexService createIndex(String index, CreateIndexRequestBuilder createIndexRequestBuilder) {
         assertAcked(createIndexRequestBuilder.get());
         // Wait for the index to be allocated so that cluster state updates don't override
         // changes that would have been done locally
@@ -172,6 +192,10 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
         return instanceFromNode.indexServiceSafe(index);
     }
 
+    protected static InternalEngine engine(IndexService service) {
+       return ((InternalEngine)((InternalIndexShard)service.shard(0)).engine());
+    }
+
     /**
      * Create a new search context.
      */
@@ -181,5 +205,35 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
         PageCacheRecycler pageCacheRecycler = indexService.injector().getInstance(PageCacheRecycler.class);
         return new TestSearchContext(threadPool, pageCacheRecycler, bigArrays, indexService, indexService.cache().filter(), indexService.fieldData());
     }
+
+    /**
+     * Ensures the cluster has a green state via the cluster health API. This method will also wait for relocations.
+     * It is useful to ensure that all action on the cluster have finished and all shards that were currently relocating
+     * are now allocated and started.
+     */
+    public ClusterHealthStatus  ensureGreen(String... indices) {
+        return ensureGreen(TimeValue.timeValueSeconds(30), indices);
+    }
+
+
+    /**
+     * Ensures the cluster has a green state via the cluster health API. This method will also wait for relocations.
+     * It is useful to ensure that all action on the cluster have finished and all shards that were currently relocating
+     * are now allocated and started.
+     *
+     * @param timeout time out value to set on {@link org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest}
+     */
+    public ClusterHealthStatus ensureGreen(TimeValue timeout, String... indices) {
+        ClusterHealthResponse actionGet = client().admin().cluster()
+                .health(Requests.clusterHealthRequest(indices).timeout(timeout).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
+        if (actionGet.isTimedOut()) {
+            logger.info("ensureGreen timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
+            assertThat("timed out waiting for green state", actionGet.isTimedOut(), equalTo(false));
+        }
+        assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        logger.debug("indices {} are green", indices.length == 0 ? "[_all]" : indices);
+        return actionGet.getStatus();
+    }
+
 
 }

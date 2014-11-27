@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 
 /**
+ * A builder for to ease the use of defining a {@link MultiPercolateRequest} instance.
  */
 public class MultiPercolateRequestBuilder extends ActionRequestBuilder<MultiPercolateRequest, MultiPercolateResponse, MultiPercolateRequestBuilder, Client> {
 

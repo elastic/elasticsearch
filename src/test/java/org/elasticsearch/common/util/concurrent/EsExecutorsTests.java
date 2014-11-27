@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -73,7 +72,7 @@ public class EsExecutorsTests extends ElasticsearchTestCase {
         final CountDownLatch exec3Wait = new CountDownLatch(1);
         executor.execute(new AbstractRunnable() {
             @Override
-            public void run() {
+            protected void doRun() {
                 executed3.set(true);
                 exec3Wait.countDown();
             }
@@ -81,6 +80,11 @@ public class EsExecutorsTests extends ElasticsearchTestCase {
             @Override
             public boolean isForceExecution() {
                 return true;
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                throw new AssertionError(t);
             }
         });
 
@@ -149,7 +153,7 @@ public class EsExecutorsTests extends ElasticsearchTestCase {
         assertThat(executed2.get(), equalTo(true));
         assertThat(executed3.get(), equalTo(false));
 
-        executor.shutdownNow();
+        terminate(executor);
     }
 
     @Test
@@ -185,7 +189,7 @@ public class EsExecutorsTests extends ElasticsearchTestCase {
         assertThat("wrong pool size", pool.getPoolSize(), equalTo(max));
         assertThat("wrong active size", pool.getActiveCount(), equalTo(max));
         barrier.await();
-        pool.shutdown();
+        terminate(pool);
     }
 
     @Test
@@ -228,6 +232,6 @@ public class EsExecutorsTests extends ElasticsearchTestCase {
                 assertThat("idle threads didn't shrink below max. (" + pool.getPoolSize() + ")", pool.getPoolSize(), lessThan(max));
             }
         });
-        pool.shutdown();
+        terminate(pool);
     }
 }

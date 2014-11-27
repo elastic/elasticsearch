@@ -22,14 +22,10 @@ package org.elasticsearch.index.analysis;
 import com.carrotsearch.hppc.IntObjectOpenHashMap;
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
-import java.io.Reader;
 import java.util.Map;
-import java.util.concurrent.ConcurrentMap;
 
 /**
  *
@@ -62,7 +58,7 @@ public class NumericDateAnalyzer extends NumericAnalyzer<NumericDateTokenizer> {
     }
 
     @Override
-    protected NumericDateTokenizer createNumericTokenizer(Reader reader, char[] buffer) throws IOException {
-        return new NumericDateTokenizer(reader, precisionStep, buffer, dateTimeFormatter);
+    protected NumericDateTokenizer createNumericTokenizer(char[] buffer) throws IOException {
+        return new NumericDateTokenizer(precisionStep, buffer, dateTimeFormatter);
     }
 }

@@ -22,6 +22,7 @@ package org.elasticsearch.discovery;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -37,6 +38,8 @@ import java.util.concurrent.TimeUnit;
  *
  */
 public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryService> {
+
+    public static final String SETTING_INITIAL_STATE_TIMEOUT = "discovery.initial_state_timeout";
 
     private static class InitialStateListener implements InitialStateDiscoveryListener {
 
@@ -60,12 +63,18 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
     private final TimeValue initialStateTimeout;
     private final Discovery discovery;
     private InitialStateListener initialStateListener;
+    private final DiscoverySettings discoverySettings;
 
     @Inject
-    public DiscoveryService(Settings settings, Discovery discovery) {
+    public DiscoveryService(Settings settings, DiscoverySettings discoverySettings, Discovery discovery) {
         super(settings);
+        this.discoverySettings = discoverySettings;
         this.discovery = discovery;
-        this.initialStateTimeout = componentSettings.getAsTime("initial_state_timeout", TimeValue.timeValueSeconds(30));
+        this.initialStateTimeout = settings.getAsTime(SETTING_INITIAL_STATE_TIMEOUT, TimeValue.timeValueSeconds(30));
+    }
+
+    public ClusterBlock getNoMasterBlock() {
+        return discoverySettings.getNoMasterBlock();
     }
 
     @Override
@@ -132,7 +141,7 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
     public static String generateNodeId(Settings settings) {
         String seed = settings.get("discovery.id.seed");
         if (seed != null) {
-            Strings.randomBase64UUID(new Random(Long.parseLong(seed)));
+            return Strings.randomBase64UUID(new Random(Long.parseLong(seed)));
         }
         return Strings.randomBase64UUID();
     }

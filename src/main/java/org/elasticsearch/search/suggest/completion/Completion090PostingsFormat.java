@@ -22,13 +22,12 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
 import org.apache.lucene.codecs.*;
 import org.apache.lucene.index.*;
-import org.apache.lucene.index.FilterAtomicReader.FilterTerms;
+import org.apache.lucene.index.FilterLeafReader.FilterTerms;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.store.IOContext.Context;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.InputStreamDataInput;
-import org.apache.lucene.store.OutputStreamDataOutput;
+import org.apache.lucene.store.*;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -40,8 +39,10 @@ import org.elasticsearch.search.suggest.completion.CompletionTokenStream.ToFinit
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.Comparator;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -131,35 +132,9 @@ public class Completion090PostingsFormat extends PostingsFormat {
         }
 
         @Override
-        public TermsConsumer addField(final FieldInfo field) throws IOException {
-            final TermsConsumer delegateConsumer = delegatesFieldsConsumer.addField(field);
-            final TermsConsumer suggestTermConsumer = suggestFieldsConsumer.addField(field);
-            final GroupedPostingsConsumer groupedPostingsConsumer = new GroupedPostingsConsumer(delegateConsumer, suggestTermConsumer);
-
-            return new TermsConsumer() {
-                @Override
-                public PostingsConsumer startTerm(BytesRef text) throws IOException {
-                    groupedPostingsConsumer.startTerm(text);
-                    return groupedPostingsConsumer;
-                }
-
-                @Override
-                public Comparator<BytesRef> getComparator() throws IOException {
-                    return delegateConsumer.getComparator();
-                }
-
-                @Override
-                public void finishTerm(BytesRef text, TermStats stats) throws IOException {
-                    suggestTermConsumer.finishTerm(text, stats);
-                    delegateConsumer.finishTerm(text, stats);
-                }
-
-                @Override
-                public void finish(long sumTotalTermFreq, long sumDocFreq, int docCount) throws IOException {
-                    suggestTermConsumer.finish(sumTotalTermFreq, sumDocFreq, docCount);
-                    delegateConsumer.finish(sumTotalTermFreq, sumDocFreq, docCount);
-                }
-            };
+        public void write(Fields fields) throws IOException {
+            delegatesFieldsConsumer.write(fields);
+            suggestFieldsConsumer.write(fields);
         }
 
         @Override
@@ -168,46 +143,9 @@ public class Completion090PostingsFormat extends PostingsFormat {
         }
     }
 
-    private class GroupedPostingsConsumer extends PostingsConsumer {
-
-        private TermsConsumer[] termsConsumers;
-        private PostingsConsumer[] postingsConsumers;
-
-        public GroupedPostingsConsumer(TermsConsumer... termsConsumersArgs) {
-            termsConsumers = termsConsumersArgs;
-            postingsConsumers = new PostingsConsumer[termsConsumersArgs.length];
-        }
-
-        @Override
-        public void startDoc(int docID, int freq) throws IOException {
-            for (PostingsConsumer postingsConsumer : postingsConsumers) {
-                postingsConsumer.startDoc(docID, freq);
-            }
-        }
-
-        @Override
-        public void addPosition(int position, BytesRef payload, int startOffset, int endOffset) throws IOException {
-            for (PostingsConsumer postingsConsumer : postingsConsumers) {
-                postingsConsumer.addPosition(position, payload, startOffset, endOffset);
-            }
-        }
-
-        @Override
-        public void finishDoc() throws IOException {
-            for (PostingsConsumer postingsConsumer : postingsConsumers) {
-                postingsConsumer.finishDoc();
-            }
-        }
-
-        public void startTerm(BytesRef text) throws IOException {
-            for (int i = 0; i < termsConsumers.length; i++) {
-                postingsConsumers[i] = termsConsumers[i].startTerm(text);
-            }
-        }
-    }
-
     private static class CompletionFieldsProducer extends FieldsProducer {
-
+        // TODO make this class lazyload all the things in order to take advantage of the new merge instance API
+        // today we just load everything up-front
         private final FieldsProducer delegateProducer;
         private final LookupFactory lookupFactory;
         private final int version;
@@ -280,8 +218,23 @@ public class Completion090PostingsFormat extends PostingsFormat {
         }
 
         @Override
+        public Iterable<? extends Accountable> getChildResources() {
+            List<Accountable> resources = new ArrayList<>();
+            if (lookupFactory != null) {
+                resources.add(Accountables.namedAccountable("lookup", lookupFactory));
+            }
+            resources.add(Accountables.namedAccountable("delegate", delegateProducer));
+            return Collections.unmodifiableList(resources);
+        }
+
+        @Override
         public void checkIntegrity() throws IOException {
             delegateProducer.checkIntegrity();
+        }
+
+        @Override
+        public FieldsProducer getMergeInstance() throws IOException {
+            return delegateProducer.getMergeInstance();
         }
     }
 
@@ -342,20 +295,20 @@ public class Completion090PostingsFormat extends PostingsFormat {
             ref.weight = input.readVLong() - 1;
             int len = input.readVInt();
             ref.surfaceForm.grow(len);
-            ref.surfaceForm.length = len;
-            input.readBytes(ref.surfaceForm.bytes, ref.surfaceForm.offset, ref.surfaceForm.length);
+            ref.surfaceForm.setLength(len);
+            input.readBytes(ref.surfaceForm.bytes(), 0, ref.surfaceForm.length());
             len = input.readVInt();
             ref.payload.grow(len);
-            ref.payload.length = len;
-            input.readBytes(ref.payload.bytes, ref.payload.offset, ref.payload.length);
+            ref.payload.setLength(len);
+            input.readBytes(ref.payload.bytes(), 0, ref.payload.length());
             input.close();
         }
     }
 
     public CompletionStats completionStats(IndexReader indexReader, String ... fields) {
         CompletionStats completionStats = new CompletionStats();
-        for (AtomicReaderContext atomicReaderContext : indexReader.leaves()) {
-            AtomicReader atomicReader = atomicReaderContext.reader();
+        for (LeafReaderContext atomicReaderContext : indexReader.leaves()) {
+            LeafReader atomicReader = atomicReaderContext.reader();
             try {
                 for (String fieldName : atomicReader.fields()) {
                     Terms terms = atomicReader.fields().terms(fieldName);
@@ -372,10 +325,9 @@ public class Completion090PostingsFormat extends PostingsFormat {
         return completionStats;
     }
 
-    public static abstract class LookupFactory {
+    public static abstract class LookupFactory implements Accountable {
         public abstract Lookup getLookup(CompletionFieldMapper mapper, CompletionSuggestionContext suggestionContext);
         public abstract CompletionStats stats(String ... fields);
         abstract AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder getAnalyzingSuggestHolder(CompletionFieldMapper mapper);
-        public abstract long ramBytesUsed();
     }
 }

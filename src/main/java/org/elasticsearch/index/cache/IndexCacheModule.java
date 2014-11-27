@@ -21,7 +21,7 @@ package org.elasticsearch.index.cache;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.docset.DocSetCacheModule;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCacheModule;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
 import org.elasticsearch.index.cache.query.parser.QueryParserCacheModule;
 
@@ -40,7 +40,7 @@ public class IndexCacheModule extends AbstractModule {
     protected void configure() {
         new FilterCacheModule(settings).configure(binder());
         new QueryParserCacheModule(settings).configure(binder());
-        new DocSetCacheModule(settings).configure(binder());
+        new BitsetFilterCacheModule(settings).configure(binder());
 
         bind(IndexCache.class).asEagerSingleton();
     }

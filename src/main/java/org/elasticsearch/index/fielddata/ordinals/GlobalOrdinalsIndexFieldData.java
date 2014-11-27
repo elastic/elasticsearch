@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import java.util.Collections;
+
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.Nullable;
@@ -47,7 +49,7 @@ public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponen
     }
 
     @Override
-    public AtomicOrdinalsFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
         return load(context);
     }
 
@@ -91,4 +93,9 @@ public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponen
         return memorySizeInBytes;
     }
 
+    @Override
+    public Iterable<? extends Accountable> getChildResources() {
+        // TODO: break down ram usage?
+        return Collections.emptyList();
+    }
 }

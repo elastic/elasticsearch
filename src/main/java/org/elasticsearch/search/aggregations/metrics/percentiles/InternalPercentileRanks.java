@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigest
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Map;
 
 /**
 *
@@ -48,8 +49,8 @@ public class InternalPercentileRanks extends AbstractInternalPercentiles impleme
     
     InternalPercentileRanks() {} // for serialization
 
-    public InternalPercentileRanks(String name, double[] cdfValues, TDigestState state, boolean keyed) {
-        super(name, cdfValues, state, keyed);
+    public InternalPercentileRanks(String name, double[] cdfValues, TDigestState state, boolean keyed, Map<String, Object> metaData) {
+        super(name, cdfValues, state, keyed, metaData);
     }
 
     @Override
@@ -67,8 +68,8 @@ public class InternalPercentileRanks extends AbstractInternalPercentiles impleme
         return percent(key);
     }
 
-    protected AbstractInternalPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed) {
-        return new InternalPercentileRanks(name, keys, merged, keyed);
+    protected AbstractInternalPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed, Map<String, Object> metaData) {
+        return new InternalPercentileRanks(name, keys, merged, keyed, metaData);
     }
 
     @Override

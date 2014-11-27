@@ -45,12 +45,12 @@ public class CustomPostingsHighlighterTests extends ElasticsearchLuceneTestCase 
     @Test
     public void testDiscreteHighlightingPerValue() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", "", offsetsType);
         final String firstValue = "This is a test. Just a test highlighting from postings highlighter.";
         Document doc = new Document();
@@ -130,12 +130,12 @@ public class CustomPostingsHighlighterTests extends ElasticsearchLuceneTestCase 
     public void testDiscreteHighlightingScoring() throws Exception {
 
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
 
         //good position but only one match
         final String firstValue = "This is a test. Just a test1 highlighting from postings highlighter.";
@@ -245,12 +245,12 @@ public class CustomPostingsHighlighterTests extends ElasticsearchLuceneTestCase 
     public void testMergeValuesScoring() throws Exception {
 
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
 
         //good position but only one match
         final String firstValue = "This is a test. Just a test1 highlighting from postings highlighter.";
@@ -357,12 +357,12 @@ public class CustomPostingsHighlighterTests extends ElasticsearchLuceneTestCase 
     @Test
     public void testRequireFieldMatch() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", "", offsetsType);
         Field none = new Field("none", "", offsetsType);
         Document doc = new Document();
@@ -413,12 +413,12 @@ public class CustomPostingsHighlighterTests extends ElasticsearchLuceneTestCase 
     @Test
     public void testNoMatchSize() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
-        offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        offsetsType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         Field body = new Field("body", "", offsetsType);
         Field none = new Field("none", "", offsetsType);
         Document doc = new Document();

@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * An internal implementation of {@link ValueCount}.
@@ -51,8 +52,8 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
 
     InternalValueCount() {} // for serialization
 
-    public InternalValueCount(String name, long value) {
-        super(name);
+    public InternalValueCount(String name, long value, Map<String, Object> metaData) {
+        super(name, metaData);
         this.value = value;
     }
 
@@ -77,18 +78,16 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
         for (InternalAggregation aggregation : reduceContext.aggregations()) {
             valueCount += ((InternalValueCount) aggregation).value;
         }
-        return new InternalValueCount(name, valueCount);
+        return new InternalValueCount(name, valueCount, getMetaData());
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
         value = in.readVLong();
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeVLong(value);
     }
 

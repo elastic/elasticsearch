@@ -21,12 +21,14 @@ package org.elasticsearch.search.aggregations.support;
 import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 
+import java.util.Map;
+
 /**
  *
  */
-public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> extends AggregatorFactory {
+public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, M extends Map<String, Object>> extends AggregatorFactory {
 
-    public static abstract class LeafOnly<VS extends ValuesSource> extends ValuesSourceAggregatorFactory<VS> {
+    public static abstract class LeafOnly<VS extends ValuesSource, M extends Map<String, Object>> extends ValuesSourceAggregatorFactory<VS, M> {
 
         protected LeafOnly(String name, String type, ValuesSourceConfig<VS> valuesSourceConfig) {
             super(name, type, valuesSourceConfig);
@@ -46,12 +48,12 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     }
 
     @Override
-    public Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
+    public Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData) {
         if (config.unmapped()) {
-            return createUnmapped(context, parent);
+            return createUnmapped(context, parent, (M)metaData);
         }
         VS vs = context.valuesSource(config, parent == null ? 0 : 1 + parent.depth());
-        return create(vs, expectedBucketsCount, context, parent);
+        return create(vs, expectedBucketsCount, context, parent, (M)metaData);
     }
 
     @Override
@@ -61,9 +63,9 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
         }
     }
 
-    protected abstract Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent);
+    protected abstract Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, M metaData);
 
-    protected abstract Aggregator create(VS valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent);
+    protected abstract Aggregator create(VS valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, M metaData);
 
     private void resolveValuesSourceConfigFromAncestors(String aggName, AggregatorFactory parent, Class<VS> requiredValuesSourceType) {
         ValuesSourceConfig config;

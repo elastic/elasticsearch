@@ -32,3 +32,5 @@
 
 * https://github.com/mattweber/es2graphite[es2graphite]:
   Send cluster and indices stats and status to Graphite for monitoring and graphing.
+  
+* https://scoutapp.com[Scout]: Provides plugins for monitoring Elasticsearch https://scoutapp.com/plugin_urls/1331-elasticsearch-node-status[nodes], https://scoutapp.com/plugin_urls/1321-elasticsearch-cluster-status[clusters], and https://scoutapp.com/plugin_urls/1341-elasticsearch-index-status[indices].

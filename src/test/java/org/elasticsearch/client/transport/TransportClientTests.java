@@ -20,21 +20,22 @@
 package org.elasticsearch.client.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Test;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 1.0)
 public class TransportClientTests extends ElasticsearchIntegrationTest {
@@ -52,12 +53,12 @@ public class TransportClientTests extends ElasticsearchIntegrationTest {
     public void testNodeVersionIsUpdated() {
         TransportClient client = (TransportClient)  internalCluster().client();
         TransportClientNodesService nodeService = client.nodeService();
-        Node node = NodeBuilder.nodeBuilder().data(false).settings(ImmutableSettings.builder()
+        Node node = nodeBuilder().data(false).settings(ImmutableSettings.builder()
                 .put(internalCluster().getDefaultSettings())
+                .put("node.name", "testNodeVersionIsUpdated")
                 .put("http.enabled", false)
                 .put("index.store.type", "ram")
                 .put("config.ignore_system_properties", true) // make sure we get what we set :)
-                .put("gateway.type", "none")
                 .build()).clusterName("foobar").build();
         node.start();
         try {
@@ -78,7 +79,22 @@ public class TransportClientTests extends ElasticsearchIntegrationTest {
                 assertThat(discoveryNode.getVersion(), equalTo(Version.CURRENT.minimumCompatibilityVersion()));
             }
         } finally {
-            node.stop();
+            node.close();
+        }
+    }
+
+    @Test
+    public void testThatTransportClientSettingIsSet() {
+        TransportClient client = (TransportClient)  internalCluster().client();
+        Settings settings = client.injector.getInstance(Settings.class);
+        assertThat(settings.get(Client.CLIENT_TYPE_SETTING), is("transport"));
+    }
+
+    @Test
+    public void testThatTransportClientSettingCannotBeChanged() {
+        try (TransportClient client = new TransportClient(settingsBuilder().put(Client.CLIENT_TYPE_SETTING, "anything"))) {
+            Settings settings = client.injector.getInstance(Settings.class);
+            assertThat(settings.get(Client.CLIENT_TYPE_SETTING), is("transport"));
         }
     }
 }

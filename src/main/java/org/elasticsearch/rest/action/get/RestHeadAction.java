@@ -38,8 +38,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestHeadAction extends BaseRestHandler {
 
     @Inject
-    public RestHeadAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestHeadAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(HEAD, "/{index}/{type}/{id}", this);
         controller.registerHandler(HEAD, "/{index}/{type}/{id}/_source", this);
     }

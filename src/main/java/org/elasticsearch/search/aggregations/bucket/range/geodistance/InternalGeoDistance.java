@@ -23,11 +23,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
+import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -45,25 +48,55 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
         }
     };
 
+    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
+        @Override
+        public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
+            Bucket buckets = new Bucket(context.keyed(), context.formatter());
+            buckets.readFrom(in);
+            return buckets;
+        }
+
+        @Override
+        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
+            BucketStreamContext context = new BucketStreamContext();
+            context.formatter(bucket.formatter());
+            context.keyed(bucket.keyed());
+            return context;
+        }
+    };
+
     public static void registerStream() {
         AggregationStreams.registerStream(STREAM, TYPE.stream());
+        BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 
     public static final Factory FACTORY = new Factory();
 
     static class Bucket extends InternalRange.Bucket implements GeoDistance.Bucket {
 
-        Bucket(String key, double from, double to, long docCount, List<InternalAggregation> aggregations, ValueFormatter formatter) {
-            this(key, from, to, docCount, new InternalAggregations(aggregations), formatter);
+        Bucket(boolean keyed, @Nullable ValueFormatter formatter) {
+            super(keyed, formatter);
         }
 
-        Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, ValueFormatter formatter) {
-            super(key, from, to, docCount, aggregations, formatter);
+        Bucket(String key, double from, double to, long docCount, List<InternalAggregation> aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
+            this(key, from, to, docCount, new InternalAggregations(aggregations), keyed, formatter);
+        }
+
+        Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
+            super(key, from, to, docCount, aggregations, keyed, formatter);
         }
 
         @Override
         protected InternalRange.Factory<Bucket, ?> getFactory() {
             return FACTORY;
+        }
+
+        boolean keyed() {
+            return keyed;
+        }
+
+        ValueFormatter formatter() {
+            return formatter;
         }
     }
 
@@ -75,20 +108,20 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
         }
 
         @Override
-        public InternalGeoDistance create(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed) {
-            return new InternalGeoDistance(name, ranges, formatter, keyed);
+        public InternalGeoDistance create(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
+            return new InternalGeoDistance(name, ranges, formatter, keyed, metaData);
         }
 
         @Override
-        public Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, @Nullable ValueFormatter formatter) {
-            return new Bucket(key, from, to, docCount, aggregations, formatter);
+        public Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
+            return new Bucket(key, from, to, docCount, aggregations, keyed, formatter);
         }
     }
 
     InternalGeoDistance() {} // for serialization
 
-    public InternalGeoDistance(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed) {
-        super(name, ranges, formatter, keyed);
+    public InternalGeoDistance(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
+        super(name, ranges, formatter, keyed, metaData);
     }
 
     @Override

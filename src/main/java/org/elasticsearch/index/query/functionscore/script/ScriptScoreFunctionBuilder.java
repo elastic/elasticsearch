@@ -31,7 +31,7 @@ import java.util.Map;
  * A function that uses a script to compute or influence the score of documents
  * that match with the inner query or filter.
  */
-public class ScriptScoreFunctionBuilder implements ScoreFunctionBuilder {
+public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder {
 
     private String script;
 
@@ -80,7 +80,7 @@ public class ScriptScoreFunctionBuilder implements ScoreFunctionBuilder {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
         builder.field("script", script);
         if (lang != null) {
@@ -89,7 +89,7 @@ public class ScriptScoreFunctionBuilder implements ScoreFunctionBuilder {
         if (this.params != null) {
             builder.field("params", this.params);
         }
-        return builder.endObject();
+        builder.endObject();
     }
 
     @Override

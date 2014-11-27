@@ -18,25 +18,37 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.children.Children;
-import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import java.util.*;
-
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.children;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  */
@@ -49,7 +61,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(
                 prepareCreate("test")
-                    .addMapping("article")
+                    .addMapping("article", "_id", "index=not_analyzed")
                     .addMapping("comment", "_parent", "type=article", "_id", "index=not_analyzed")
         );
 
@@ -125,7 +137,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
                 ).get();
         assertSearchResponse(searchResponse);
 
-        StringTerms categoryTerms = searchResponse.getAggregations().get("category");
+        Terms categoryTerms = searchResponse.getAggregations().get("category");
         assertThat(categoryTerms.getBuckets().size(), equalTo(categoryToControl.size()));
         for (Map.Entry<String, Control> entry1 : categoryToControl.entrySet()) {
             Terms.Bucket categoryBucket = categoryTerms.getBucketByKey(entry1.getKey());
@@ -135,8 +147,10 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
             Children childrenBucket = categoryBucket.getAggregations().get("to_comment");
             assertThat(childrenBucket.getName(), equalTo("to_comment"));
             assertThat(childrenBucket.getDocCount(), equalTo((long) entry1.getValue().commentIds.size()));
+            assertThat((long) childrenBucket.getProperty("_count"), equalTo((long) entry1.getValue().commentIds.size()));
 
-            StringTerms commentersTerms = childrenBucket.getAggregations().get("commenters");
+            Terms commentersTerms = childrenBucket.getAggregations().get("commenters");
+            assertThat((Terms) childrenBucket.getProperty("commenters"), sameInstance(commentersTerms));
             assertThat(commentersTerms.getBuckets().size(), equalTo(entry1.getValue().commenterToCommentId.size()));
             for (Map.Entry<String, Set<String>> entry2 : entry1.getValue().commenterToCommentId.entrySet()) {
                 Terms.Bucket commentBucket = commentersTerms.getBucketByKey(entry2.getKey());
@@ -162,8 +176,18 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
                 ).get();
         assertSearchResponse(searchResponse);
 
-        StringTerms categoryTerms = searchResponse.getAggregations().get("category");
+        Terms categoryTerms = searchResponse.getAggregations().get("category");
         assertThat(categoryTerms.getBuckets().size(), equalTo(3));
+
+        for (Terms.Bucket bucket : categoryTerms.getBuckets()) {
+            logger.info("bucket=" + bucket.getKey());
+            Children childrenBucket = bucket.getAggregations().get("to_comment");
+            TopHits topHits = childrenBucket.getAggregations().get("top_comments");
+            logger.info("total_hits={}", topHits.getHits().getTotalHits());
+            for (SearchHit searchHit : topHits.getHits()) {
+                logger.info("hit= {} {} {}", searchHit.sortValues()[0], searchHit.getType(), searchHit.getId());
+            }
+        }
 
         Terms.Bucket categoryBucket = categoryTerms.getBucketByKey("a");
         assertThat(categoryBucket.getKey(), equalTo("a"));
@@ -176,8 +200,10 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
         assertThat(topHits.getHits().totalHits(), equalTo(2l));
         assertThat(topHits.getHits().getAt(0).sortValues()[0].toString(), equalTo("a"));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("a"));
+        assertThat(topHits.getHits().getAt(0).getType(), equalTo("comment"));
         assertThat(topHits.getHits().getAt(1).sortValues()[0].toString(), equalTo("c"));
         assertThat(topHits.getHits().getAt(1).getId(), equalTo("c"));
+        assertThat(topHits.getHits().getAt(1).getType(), equalTo("comment"));
 
         categoryBucket = categoryTerms.getBucketByKey("b");
         assertThat(categoryBucket.getKey(), equalTo("b"));
@@ -189,6 +215,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
         topHits = childrenBucket.getAggregations().get("top_comments");
         assertThat(topHits.getHits().totalHits(), equalTo(1l));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("c"));
+        assertThat(topHits.getHits().getAt(0).getType(), equalTo("comment"));
 
         categoryBucket = categoryTerms.getBucketByKey("c");
         assertThat(categoryBucket.getKey(), equalTo("c"));
@@ -200,6 +227,46 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
         topHits = childrenBucket.getAggregations().get("top_comments");
         assertThat(topHits.getHits().totalHits(), equalTo(1l));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("c"));
+        assertThat(topHits.getHits().getAt(0).getType(), equalTo("comment"));
+    }
+
+    @Test
+    public void testWithDeletes() throws Exception {
+        String indexName = "xyz";
+        assertAcked(
+                prepareCreate(indexName)
+                        .addMapping("parent")
+                        .addMapping("child", "_parent", "type=parent", "count", "type=long")
+        );
+
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        requests.add(client().prepareIndex(indexName, "parent", "1").setSource("{}"));
+        requests.add(client().prepareIndex(indexName, "child", "0").setParent("1").setSource("count", 1));
+        requests.add(client().prepareIndex(indexName, "child", "1").setParent("1").setSource("count", 1));
+        requests.add(client().prepareIndex(indexName, "child", "2").setParent("1").setSource("count", 1));
+        requests.add(client().prepareIndex(indexName, "child", "3").setParent("1").setSource("count", 1));
+        indexRandom(true, requests);
+
+        for (int i = 0; i < 10; i++) {
+            SearchResponse searchResponse = client().prepareSearch(indexName)
+                    .addAggregation(children("children").childType("child").subAggregation(sum("counts").field("count")))
+                    .get();
+
+            assertNoFailures(searchResponse);
+            Children children = searchResponse.getAggregations().get("children");
+            assertThat(children.getDocCount(), equalTo(4l));
+
+            Sum count = children.getAggregations().get("counts");
+            assertThat(count.getValue(), equalTo(4.));
+
+            String idToUpdate = Integer.toString(randomInt(3));
+            UpdateResponse updateResponse = client().prepareUpdate(indexName, "child", idToUpdate)
+                    .setParent("1")
+                    .setDoc("count", 1)
+                    .get();
+            assertThat(updateResponse.getVersion(), greaterThan(1l));
+            refresh();
+        }
     }
 
     private static final class Control {

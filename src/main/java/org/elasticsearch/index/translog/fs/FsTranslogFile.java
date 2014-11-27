@@ -24,27 +24,30 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
+import org.elasticsearch.index.translog.TranslogStream;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Path;
 
-public interface FsTranslogFile {
+public interface FsTranslogFile extends Closeable {
 
     public static enum Type {
 
         SIMPLE() {
             @Override
-            public FsTranslogFile create(ShardId shardId, long id, RafReference raf, int bufferSize) throws IOException {
-                return new SimpleFsTranslogFile(shardId, id, raf);
+            public FsTranslogFile create(ShardId shardId, long id, ChannelReference channelReference, int bufferSize) throws IOException {
+                return new SimpleFsTranslogFile(shardId, id, channelReference);
             }
         },
         BUFFERED() {
             @Override
-            public FsTranslogFile create(ShardId shardId, long id, RafReference raf, int bufferSize) throws IOException {
-                return new BufferingFsTranslogFile(shardId, id, raf, bufferSize);
+            public FsTranslogFile create(ShardId shardId, long id, ChannelReference channelReference, int bufferSize) throws IOException {
+                return new BufferingFsTranslogFile(shardId, id, channelReference, bufferSize);
             }
         };
 
-        public abstract FsTranslogFile create(ShardId shardId, long id, RafReference raf, int bufferSize) throws IOException;
+        public abstract FsTranslogFile create(ShardId shardId, long id, ChannelReference raf, int bufferSize) throws IOException;
 
         public static Type fromString(String type) throws ElasticsearchIllegalArgumentException {
             if (SIMPLE.name().equalsIgnoreCase(type)) {
@@ -66,8 +69,6 @@ public interface FsTranslogFile {
 
     byte[] read(Translog.Location location) throws IOException;
 
-    void close(boolean delete) throws TranslogException;
-
     FsChannelSnapshot snapshot() throws TranslogException;
 
     void reuse(FsTranslogFile other) throws TranslogException;
@@ -77,4 +78,8 @@ public interface FsTranslogFile {
     void sync() throws IOException;
 
     boolean syncNeeded();
+
+    TranslogStream getStream();
+
+    public Path getPath();
 }

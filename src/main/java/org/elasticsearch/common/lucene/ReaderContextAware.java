@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.common.lucene;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 
 /**
  *
  */
 public interface ReaderContextAware {
 
-    public void setNextReader(AtomicReaderContext reader);
+    public void setNextReader(LeafReaderContext reader);
 }

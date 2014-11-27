@@ -19,16 +19,20 @@
 
 package org.elasticsearch.search.internal;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.*;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TimeLimitingCollector;
+import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.MultiCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.common.lucene.search.XCollector;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
@@ -60,9 +64,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private Stage currentState = Stage.NA;
 
-    private boolean enableMainDocIdSetCollector;
-    private DocIdSetCollector mainDocIdSetCollector;
-
     public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
         super(searcher.reader());
         in = searcher.searcher();
@@ -72,7 +73,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public void close() {
-        Releasables.close(mainDocIdSetCollector);
     }
 
     public void dfSource(CachedDfSource dfSource) {
@@ -89,14 +89,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             queryCollectors = new ArrayList<>();
         }
         queryCollectors.add(collector);
-    }
-
-    public DocIdSetCollector mainDocIdSetCollector() {
-        return this.mainDocIdSetCollector;
-    }
-
-    public void enableMainDocIdSetCollector() {
-        this.enableMainDocIdSetCollector = true;
     }
 
     public void inStage(Stage stage) {
@@ -138,24 +130,20 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     @Override
-    public void search(List<AtomicReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+    public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         final boolean timeoutSet = searchContext.timeoutInMillis() != -1;
         final boolean terminateAfterSet = searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER;
 
         if (timeoutSet) {
             // TODO: change to use our own counter that uses the scheduler in ThreadPool
             // throws TimeLimitingCollector.TimeExceededException when timeout has reached
-            collector = Lucene.wrapTimeLimitingCollector(collector, searchContext.timeoutInMillis());
+            collector = Lucene.wrapTimeLimitingCollector(collector, searchContext.timeEstimateCounter(), searchContext.timeoutInMillis());
         }
         if (terminateAfterSet) {
             // throws Lucene.EarlyTerminationException when given count is reached
             collector = Lucene.wrapCountBasedEarlyTerminatingCollector(collector, searchContext.terminateAfter());
         }
         if (currentState == Stage.MAIN_QUERY) {
-            if (enableMainDocIdSetCollector) {
-                // TODO should we create a cache of segment->docIdSets so we won't create one each time?
-                collector = this.mainDocIdSetCollector = new DocIdSetCollector(searchContext.docSetCache(), collector);
-            }
             if (searchContext.parsedPostFilter() != null) {
                 // this will only get applied to the actual search collector and not
                 // to any scoped collectors, also, it will only be applied to the main collector
@@ -192,10 +180,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
 
             if (currentState == Stage.MAIN_QUERY) {
-                if (enableMainDocIdSetCollector) {
-                    enableMainDocIdSetCollector = false;
-                    mainDocIdSetCollector.postCollection();
-                }
                 if (queryCollectors != null && !queryCollectors.isEmpty()) {
                     for (Collector queryCollector : queryCollectors) {
                         if (queryCollector instanceof XCollector) {
@@ -215,7 +199,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             if (searchContext.aliasFilter() == null) {
                 return super.explain(query, doc);
             }
-            XFilteredQuery filteredQuery = new XFilteredQuery(query, searchContext.aliasFilter());
+            FilteredQuery filteredQuery = new FilteredQuery(query, searchContext.aliasFilter());
             return super.explain(filteredQuery, doc);
         } finally {
             searchContext.clearReleasables(Lifetime.COLLECTION);

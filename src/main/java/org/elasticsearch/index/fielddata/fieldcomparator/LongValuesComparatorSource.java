@@ -18,13 +18,12 @@
  */
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.FieldCache.Longs;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -61,24 +60,19 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         final Long dMissingValue = (Long) missingObject(missingValue, reversed);
         // NOTE: it's important to pass null as a missing value in the constructor so that
         // the comparator doesn't check docsWithField since we replace missing values in select()
-        return new FieldComparator.LongComparator(numHits, null, null, null) {
+        return new FieldComparator.LongComparator(numHits, null, null) {
             @Override
-            protected Longs getLongValues(AtomicReaderContext context, String field) throws IOException {
+            protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
                 final SortedNumericDocValues values = indexFieldData.load(context).getLongValues();
                 final NumericDocValues selectedValues;
                 if (nested == null) {
                     selectedValues = sortMode.select(values, dMissingValue);
                 } else {
-                    final FixedBitSet rootDocs = nested.rootDocs(context);
-                    final FixedBitSet innerDocs = nested.innerDocs(context);
+                    final BitSet rootDocs = nested.rootDocs(context).bits();
+                    final BitSet innerDocs = nested.innerDocs(context).bits();
                     selectedValues = sortMode.select(values, dMissingValue, rootDocs, innerDocs, context.reader().maxDoc());
                 }
-                return new Longs() {
-                    @Override
-                    public long get(int docID) {
-                        return selectedValues.get(docID);
-                    }
-                };
+                return selectedValues;
             }
 
         };

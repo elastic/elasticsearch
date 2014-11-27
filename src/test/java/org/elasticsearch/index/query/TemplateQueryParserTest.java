@@ -20,7 +20,9 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -46,7 +48,9 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -66,6 +70,7 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("path.conf", this.getResource("config").getPath())
                 .put("name", getClass().getName())
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
 
         Index index = new Index("test");
@@ -95,6 +100,12 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
 
         IndexQueryParserService queryParserService = injector.getInstance(IndexQueryParserService.class);
         context = new QueryParseContext(index, queryParserService);
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+        terminate(injector.getInstance(ThreadPool.class));
     }
 
     @Test

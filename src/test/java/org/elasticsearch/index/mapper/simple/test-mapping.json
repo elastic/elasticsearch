@@ -7,17 +7,13 @@
         dynamic:false,
         enabled:true,
         _id:{
-            name:"_id",
             index_name:"_id"
         },
         _source:{
-            name:"_source"
         },
         _type:{
-            name:"_type"
         },
         _boost:{
-            name:"_boost",
             null_value:2.0
         },
         properties:{

@@ -40,6 +40,6 @@ public class StandardTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new StandardFilter(version, tokenStream);
+        return new StandardFilter(tokenStream);
     }
 }

@@ -35,6 +35,7 @@ import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuild
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertMatchCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -48,7 +49,7 @@ public class PercolatorFacetsAndAggregationsTests extends ElasticsearchIntegrati
     @Test
     // Just test the integration with facets and aggregations, not the facet and aggregation functionality!
     public void testFacetsAndAggregations() throws Exception {
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=string", "field2", "type=string"));
         ensureGreen();
 
         int numQueries = scaledRandomIntBetween(250, 500);

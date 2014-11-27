@@ -21,10 +21,13 @@ package org.elasticsearch.search.aggregations.metrics.percentiles;
 import org.elasticsearch.search.aggregations.Aggregation;
 
 /**
- *
+ * An aggregation that computes approximate percentiles.
  */
 public interface Percentiles extends Aggregation, Iterable<Percentile> {
 
+    /**
+     * Return the value associated with the provided percentile.
+     */
     double percentile(double percent);
 
 }

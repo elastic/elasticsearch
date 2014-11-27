@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -46,6 +46,7 @@ import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -74,12 +75,12 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = AllFieldMapper.NAME;
         public static final String INDEX_NAME = AllFieldMapper.NAME;
-        public static final boolean ENABLED = true;
+        public static final EnabledAttributeMapper ENABLED = EnabledAttributeMapper.UNSET_ENABLED;
 
         public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
-            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
             FIELD_TYPE.setTokenized(true);
             FIELD_TYPE.freeze();
         }
@@ -87,7 +88,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
 
     public static class Builder extends AbstractFieldMapper.Builder<Builder, AllFieldMapper> {
 
-        private boolean enabled = Defaults.ENABLED;
+        private EnabledAttributeMapper enabled = Defaults.ENABLED;
 
         // an internal flag, automatically set if we encounter boosting
         boolean autoBoost = false;
@@ -98,7 +99,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
             indexName = Defaults.INDEX_NAME;
         }
 
-        public Builder enabled(boolean enabled) {
+        public Builder enabled(EnabledAttributeMapper enabled) {
             this.enabled = enabled;
             return this;
         }
@@ -106,7 +107,10 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
         @Override
         public AllFieldMapper build(BuilderContext context) {
             // In case the mapping overrides these
-            fieldType.setIndexed(true);
+            // TODO: this should be an exception! it doesnt make sense to not index this field
+            if (fieldType.indexOptions() == IndexOptions.NONE) {
+                fieldType.setIndexOptions(Defaults.FIELD_TYPE.indexOptions());
+            }
             fieldType.setTokenized(true);
 
             return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, autoBoost, postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings());
@@ -118,13 +122,16 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             AllFieldMapper.Builder builder = all();
             parseField(builder, builder.name, node, parserContext);
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    builder.enabled(nodeBooleanValue(fieldNode));
+                    builder.enabled(nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
+                    iterator.remove();
                 } else if (fieldName.equals("auto_boost")) {
                     builder.autoBoost = nodeBooleanValue(fieldNode);
+                    iterator.remove();
                 }
             }
             return builder;
@@ -132,7 +139,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
     }
 
 
-    private boolean enabled;
+    private EnabledAttributeMapper enabledState;
     // The autoBoost flag is automatically set based on indexed docs on the mappings
     // if a doc is indexed with a specific boost value and part of _all, it is automatically
     // set to true. This allows to optimize (automatically, which we like) for the common case
@@ -145,18 +152,21 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
     }
 
     protected AllFieldMapper(String name, FieldType fieldType, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
-                             boolean enabled, boolean autoBoost, PostingsFormatProvider postingsProvider,
+                             EnabledAttributeMapper enabled, boolean autoBoost, PostingsFormatProvider postingsProvider,
                              DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity, Loading normsLoading,
                              @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(name, name, name, name), 1.0f, fieldType, null, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider,
                 similarity, normsLoading, fieldDataSettings, indexSettings);
-        this.enabled = enabled;
+        if (hasDocValues()) {
+            throw new MapperParsingException("Field [" + names.fullName() + "] is always tokenized and cannot have doc values");
+        }
+        this.enabledState = enabled;
         this.autoBoost = autoBoost;
 
     }
 
     public boolean enabled() {
-        return this.enabled;
+        return this.enabledState.enabled;
     }
 
     @Override
@@ -206,7 +216,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        if (!enabled) {
+        if (!enabledState.enabled) {
             return;
         }
         // reset the entries
@@ -273,8 +283,8 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
     }
 
     private void innerToXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
-        if (includeDefaults || enabled != Defaults.ENABLED) {
-            builder.field("enabled", enabled);
+        if (includeDefaults || enabledState != Defaults.ENABLED) {
+            builder.field("enabled", enabledState.enabled);
         }
         if (includeDefaults || autoBoost != false) {
             builder.field("auto_boost", autoBoost);
@@ -341,15 +351,12 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
         }
     }
 
-
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        // do nothing here, no merging, but also no exception
-    }
-
-    @Override
-    public boolean hasDocValues() {
-        return false;
+        if (((AllFieldMapper)mergeWith).enabled() != this.enabled() && ((AllFieldMapper)mergeWith).enabledState != Defaults.ENABLED) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] enabled is " + this.enabled() + " now encountering "+ ((AllFieldMapper)mergeWith).enabled());
+        }
+        super.merge(mergeWith, mergeContext);
     }
 
     @Override

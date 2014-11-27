@@ -24,14 +24,23 @@ import org.elasticsearch.search.aggregations.ValuesSourceAggregationBuilder;
 
 import java.io.IOException;
 
+/**
+ * Builder for the {@link GeoBounds} aggregation.
+ */
 public class GeoBoundsBuilder extends ValuesSourceAggregationBuilder<GeoBoundsBuilder> {
 
     private Boolean wrapLongitude;
-    
+
+    /**
+     * Sole constructor.
+     */
     public GeoBoundsBuilder(String name) {
         super(name, InternalGeoBounds.TYPE.name());
     }
-    
+
+    /**
+     * Set whether to wrap longitudes. Defaults to true.
+     */
     public GeoBoundsBuilder wrapLongitude(boolean wrapLongitude) {
         this.wrapLongitude = wrapLongitude;
         return this;

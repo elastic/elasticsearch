@@ -18,18 +18,28 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BitsFilteredDocIdSet;
+import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.XFilteredDocIdSetIterator;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
@@ -64,12 +74,12 @@ public class ChildrenQuery extends Query {
     protected final int minChildren;
     protected final int maxChildren;
     protected final int shortCircuitParentDocSet;
-    protected final Filter nonNestedDocsFilter;
+    protected final BitDocIdSetFilter nonNestedDocsFilter;
 
     protected Query rewrittenChildQuery;
     protected IndexReader rewriteIndexReader;
 
-    public ChildrenQuery(ParentChildIndexFieldData ifd, String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType, int minChildren, int maxChildren, int shortCircuitParentDocSet, Filter nonNestedDocsFilter) {
+    public ChildrenQuery(ParentChildIndexFieldData ifd, String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType, int minChildren, int maxChildren, int shortCircuitParentDocSet, BitDocIdSetFilter nonNestedDocsFilter) {
         this.ifd = ifd;
         this.parentType = parentType;
         this.childType = childType;
@@ -175,6 +185,9 @@ public class ChildrenQuery extends Query {
         try {
             if (minChildren == 0 && maxChildren == 0 && scoreType != ScoreType.NONE) {
                 switch (scoreType) {
+                case MIN:
+                    collector = new MinCollector(globalIfd, sc, parentType);
+                    break;
                 case MAX:
                     collector = new MaxCollector(globalIfd, sc, parentType);
                     break;
@@ -185,6 +198,9 @@ public class ChildrenQuery extends Query {
             }
             if (collector == null) {
                 switch (scoreType) {
+                case MIN:
+                    collector = new MinCountCollector(globalIfd, sc, parentType);
+                    break;
                 case MAX:
                     collector = new MaxCountCollector(globalIfd, sc, parentType);
                     break;
@@ -217,7 +233,7 @@ public class ChildrenQuery extends Query {
             parentFilter = ParentIdsFilter.createShortCircuitFilter(nonNestedDocsFilter, sc, parentType, collector.values,
                     collector.parentIdxs, numFoundParents);
         } else {
-            parentFilter = new ApplyAcceptedDocsFilter(this.parentFilter);
+            parentFilter = this.parentFilter;
         }
         return new ParentWeight(rewrittenChildQuery.createWeight(searcher), parentFilter, numFoundParents, collector, minChildren,
                 maxChildren);
@@ -245,7 +261,7 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
-        public Explanation explain(AtomicReaderContext context, int doc) throws IOException {
+        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
             return new Explanation(getBoost(), "not implemented yet...");
         }
 
@@ -272,7 +288,7 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
             DocIdSet parentsSet = parentFilter.getDocIdSet(context, acceptDocs);
             if (DocIdSets.isEmpty(parentsSet) || remaining == 0) {
                 return null;
@@ -357,7 +373,7 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext context) throws IOException {
+        protected void doSetNextReader(LeafReaderContext context) throws IOException {
             values = globalIfd.load(context).getOrdinalsValues(parentType);
         }
 
@@ -467,6 +483,21 @@ public class ChildrenQuery extends Query {
         }
     }
 
+    private final static class MinCollector extends ParentScoreCollector {
+
+        private MinCollector(IndexParentChildFieldData globalIfd, SearchContext searchContext, String parentType) {
+            super(globalIfd, searchContext, parentType);
+        }
+
+        @Override
+        protected void existingParent(long parentIdx) throws IOException {
+            float currentScore = scorer.score();
+            if (currentScore < scores.get(parentIdx)) {
+                scores.set(parentIdx, currentScore);
+            }
+        }
+    }
+
     private final static class MaxCountCollector extends ParentScoreCountCollector {
 
         private MaxCountCollector(IndexParentChildFieldData globalIfd, SearchContext searchContext, String parentType) {
@@ -477,6 +508,22 @@ public class ChildrenQuery extends Query {
         protected void existingParent(long parentIdx) throws IOException {
             float currentScore = scorer.score();
             if (currentScore > scores.get(parentIdx)) {
+                scores.set(parentIdx, currentScore);
+            }
+            occurrences.increment(parentIdx, 1);
+        }
+    }
+
+    private final static class MinCountCollector extends ParentScoreCountCollector {
+
+        private MinCountCollector(IndexParentChildFieldData globalIfd, SearchContext searchContext, String parentType) {
+            super(globalIfd, searchContext, parentType);
+        }
+
+        @Override
+        protected void existingParent(long parentIdx) throws IOException {
+            float currentScore = scorer.score();
+            if (currentScore < scores.get(parentIdx)) {
                 scores.set(parentIdx, currentScore);
             }
             occurrences.increment(parentIdx, 1);
@@ -653,7 +700,7 @@ public class ChildrenQuery extends Query {
         }
     }
 
-    private final static class CountParentOrdIterator extends FilteredDocIdSetIterator {
+    private final static class CountParentOrdIterator extends XFilteredDocIdSetIterator {
 
         private final LongHash parentIds;
         protected final IntArray occurrences;
@@ -675,12 +722,7 @@ public class ChildrenQuery extends Query {
         @Override
         protected boolean match(int doc) {
             if (parentWeight.remaining == 0) {
-                try {
-                    advance(DocIdSetIterator.NO_MORE_DOCS);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-                return false;
+                throw new CollectionTerminatedException();
             }
 
             final long parentOrd = ordinals.getOrd(doc);

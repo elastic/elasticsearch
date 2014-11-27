@@ -19,6 +19,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -51,8 +52,8 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends Elasticsearc
         logger.info("create 2 indices with [{}] no replicas, and wait till all are allocated", numberOfShards);
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test1").numberOfShards(numberOfShards).numberOfReplicas(0))
-                .put(IndexMetaData.builder("test2").numberOfShards(numberOfShards).numberOfReplicas(0))
+                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(numberOfShards).numberOfReplicas(0))
+                .put(IndexMetaData.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(numberOfShards).numberOfReplicas(0))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -78,12 +79,12 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends Elasticsearc
         logger.info("remove one of the nodes and apply filter to move everything from another node");
 
         metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test1").settings(settingsBuilder()
+                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)
                         .put("index.number_of_shards", numberOfShards)
                         .put("index.number_of_replicas", 0)
                         .put("index.routing.allocation.exclude.tag1", "value2")
                         .build()))
-                .put(IndexMetaData.builder("test2").settings(settingsBuilder()
+                .put(IndexMetaData.builder("test2").settings(settings(Version.CURRENT)
                         .put("index.number_of_shards", numberOfShards)
                         .put("index.number_of_replicas", 0)
                         .put("index.routing.allocation.exclude.tag1", "value2")

@@ -27,7 +27,9 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
-final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
+import java.util.Map;
+
+final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, Map<String, Object>> {
 
     private final long precisionThreshold;
     private final boolean rehash;
@@ -43,16 +45,16 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<V
     }
 
     @Override
-    protected Aggregator createUnmapped(AggregationContext context, Aggregator parent) {
-        return new CardinalityAggregator(name, parent == null ? 1 : parent.estimatedBucketCount(), null, true, precision(parent), context, parent);
+    protected Aggregator createUnmapped(AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
+        return new CardinalityAggregator(name, parent == null ? 1 : parent.estimatedBucketCount(), null, true, precision(parent), context, parent, metaData);
     }
 
     @Override
-    protected Aggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext context, Aggregator parent) {
+    protected Aggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
         if (!(valuesSource instanceof ValuesSource.Numeric) && !rehash) {
             throw new AggregationExecutionException("Turning off rehashing for cardinality aggregation [" + name + "] on non-numeric values in not allowed");
         }
-        return new CardinalityAggregator(name, parent == null ? 1 : parent.estimatedBucketCount(), valuesSource, rehash, precision(parent), context, parent);
+        return new CardinalityAggregator(name, parent == null ? 1 : parent.estimatedBucketCount(), valuesSource, rehash, precision(parent), context, parent, metaData);
     }
 
     /*

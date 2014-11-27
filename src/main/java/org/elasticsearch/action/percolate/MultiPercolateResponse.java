@@ -20,6 +20,7 @@ package org.elasticsearch.action.percolate;
 
 import com.google.common.collect.Iterators;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -31,16 +32,20 @@ import java.io.IOException;
 import java.util.Iterator;
 
 /**
+ * Represents the response of a multi percolate request.
+ *
+ * Each item represents the response of a percolator request and the order of the items is in the same order as the
+ * percolator requests were defined in the multi percolate request.
  */
 public class MultiPercolateResponse extends ActionResponse implements Iterable<MultiPercolateResponse.Item>, ToXContent {
 
     private Item[] items;
 
-    public MultiPercolateResponse(Item[] items) {
+    MultiPercolateResponse(Item[] items) {
         this.items = items;
     }
 
-    public MultiPercolateResponse() {
+    MultiPercolateResponse() {
         this.items = new Item[0];
     }
 
@@ -49,10 +54,16 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
         return Iterators.forArray(items);
     }
 
+    /**
+     * Same as {@link #getItems()}
+     */
     public Item[] items() {
         return items;
     }
 
+    /**
+     * @return the percolate responses as items.
+     */
     public Item[] getItems() {
         return items;
     }
@@ -95,38 +106,61 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
         }
     }
 
+    /**
+     * Encapsulates a single percolator response which may contain an error or the actual percolator response itself.
+     */
     public static class Item implements Streamable {
 
         private PercolateResponse response;
         private String errorMessage;
 
-        public Item(PercolateResponse response) {
+        Item(PercolateResponse response) {
             this.response = response;
         }
 
-        public Item(String errorMessage) {
+        Item(String errorMessage) {
             this.errorMessage = errorMessage;
         }
 
-        public Item() {
+        Item() {
         }
 
+        /**
+         * @return The percolator response or <code>null</code> if there was error.
+         */
+        @Nullable
         public PercolateResponse response() {
             return response;
         }
 
+        /**
+         * @return An error description if there was an error or <code>null</code> if the percolate request was successful
+         */
+        @Nullable
         public String errorMessage() {
             return errorMessage;
         }
 
+        /**
+         * @return The percolator response or <code>null</code> if there was error.
+         */
+        @Nullable
         public PercolateResponse getResponse() {
             return response;
         }
 
+        /**
+         * @return An error description if there was an error or <code>null</code> if the percolate request was successful
+         */
+        @Nullable
         public String getErrorMessage() {
             return errorMessage;
         }
 
+        /**
+         * @return <code>true</code> if the percolator request that this item represents failed otherwise
+         * <code>false</code> is returned.
+         */
         public boolean isFailure() {
             return errorMessage != null;
         }

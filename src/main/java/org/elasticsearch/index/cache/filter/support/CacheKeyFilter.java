@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.cache.filter.support;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
@@ -87,7 +87,7 @@ public interface CacheKeyFilter {
         }
 
         @Override
-        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
             return filter.getDocIdSet(context, acceptDocs);
         }
 
@@ -98,7 +98,10 @@ public interface CacheKeyFilter {
 
         @Override
         public boolean equals(Object obj) {
-            return filter.equals(obj);
+            if (obj instanceof Wrapper == false) {
+                return false;
+            }
+            return filter.equals(((Wrapper) obj).filter);
         }
 
         @Override

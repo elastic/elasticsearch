@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import com.carrotsearch.hppc.LongOpenHashSet;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -39,10 +40,18 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.matchAllFilter;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 /**
@@ -293,6 +302,9 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
+        Object[] propertiesKeys = (Object[]) histo.getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) histo.getProperty("_count");
+        Object[] propertiesCounts = (Object[]) histo.getProperty("sum.value");
 
         List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
@@ -310,6 +322,9 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                 }
             }
             assertThat(sum.getValue(), equalTo((double) s));
+            assertThat((String) propertiesKeys[i], equalTo(String.valueOf((long) i * interval)));
+            assertThat((long) propertiesDocCounts[i], equalTo(valueCounts[i]));
+            assertThat((double) propertiesCounts[i], equalTo((double) s));
         }
     }
 
@@ -755,7 +770,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
     @Test
     public void script_MultiValued() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values").interval(interval))
+                .addAggregation(histogram("histo").script("doc['" + MULTI_VALUED_FIELD_NAME + "']").interval(interval))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -777,7 +792,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
     @Test
     public void script_MultiValued_WithAggregatorInherited() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values").interval(interval)
+                .addAggregation(histogram("histo").script("doc['" + MULTI_VALUED_FIELD_NAME + "']").interval(interval)
                         .subAggregation(sum("sum")))
                 .execute().actionGet();
 

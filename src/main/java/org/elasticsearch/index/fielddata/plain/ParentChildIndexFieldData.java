@@ -23,12 +23,13 @@ import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableSortedSet;
 import org.apache.lucene.index.*;
+import org.apache.lucene.index.MultiDocValues.OrdinalMap;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.PagedBytes;
-import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
 import org.apache.lucene.util.packed.PackedInts;
+import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
@@ -85,8 +86,8 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     }
 
     @Override
-    public ParentChildAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
-        AtomicReader reader = context.reader();
+    public ParentChildAtomicFieldData loadDirect(LeafReaderContext context) throws Exception {
+        LeafReader reader = context.reader();
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat(
                 "acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO
         );
@@ -136,7 +137,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
 
                     typeToAtomicFieldData.put(
                             cursor.key,
-                            new PagedBytesAtomicFieldData(bytesReader, cursor.value.termOrdToBytesOffset, ordinals)
+                            new PagedBytesAtomicFieldData(bytesReader, cursor.value.termOrdToBytesOffset.build(), ordinals)
                     );
                 }
                 data = new ParentChildAtomicFieldData(typeToAtomicFieldData.build());
@@ -183,12 +184,12 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     class TypeBuilder {
 
         final PagedBytes bytes;
-        final MonotonicAppendingLongBuffer termOrdToBytesOffset;
+        final PackedLongValues.Builder termOrdToBytesOffset;
         final OrdinalsBuilder builder;
 
-        TypeBuilder(float acceptableTransientOverheadRatio, AtomicReader reader) throws IOException {
+        TypeBuilder(float acceptableTransientOverheadRatio, LeafReader reader) throws IOException {
             bytes = new PagedBytes(15);
-            termOrdToBytesOffset = new MonotonicAppendingLongBuffer();
+            termOrdToBytesOffset = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
             builder = new OrdinalsBuilder(-1, reader.maxDoc(), acceptableTransientOverheadRatio);
         }
     }
@@ -285,7 +286,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         for (Map.Entry<String, SortedDocValues[]> entry : types.entrySet()) {
             final String parentType = entry.getKey();
             final SortedDocValues[] values = entry.getValue();
-            for (AtomicReaderContext context : indexReader.leaves()) {
+            for (LeafReaderContext context : indexReader.leaves()) {
                 SortedDocValues vals = load(context).getOrdinalsValues(parentType);
                 if (vals != null) {
                     values[context.ord] = vals;
@@ -299,7 +300,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         for (Map.Entry<String, SortedDocValues[]> entry : types.entrySet()) {
             final String parentType = entry.getKey();
             final SortedDocValues[] values = entry.getValue();
-            final XOrdinalMap ordinalMap = XOrdinalMap.build(null, entry.getValue(), PackedInts.DEFAULT);
+            final OrdinalMap ordinalMap = OrdinalMap.build(null, entry.getValue(), PackedInts.DEFAULT);
             ramBytesUsed += ordinalMap.ramBytesUsed();
             for (int i = 0; i < values.length; ++i) {
                 final SortedDocValues segmentValues = values[i];
@@ -367,6 +368,12 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
                     }
 
                     @Override
+                    public Iterable<? extends Accountable> getChildResources() {
+                        // TODO: is this really the best?
+                        return Collections.emptyList();
+                    }
+
+                    @Override
                     public void close() {
                     }
 
@@ -384,7 +391,12 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
                         return dv;
                     }
                 };
-            }
+            }   
+        }
+
+        @Override
+        public Iterable<? extends Accountable> getChildResources() {
+            return Collections.emptyList();
         }
 
         @Override
@@ -398,13 +410,13 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         }
 
         @Override
-        public AtomicParentChildFieldData load(AtomicReaderContext context) {
+        public AtomicParentChildFieldData load(LeafReaderContext context) {
             assert context.reader().getCoreCacheKey() == reader.leaves().get(context.ord).reader().getCoreCacheKey();
             return atomicFDs[context.ord];
         }
 
         @Override
-        public AtomicParentChildFieldData loadDirect(AtomicReaderContext context) throws Exception {
+        public AtomicParentChildFieldData loadDirect(LeafReaderContext context) throws Exception {
             return load(context);
         }
 

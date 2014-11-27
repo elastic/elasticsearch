@@ -19,12 +19,13 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -40,7 +41,7 @@ import java.io.IOException;
 
 /**
  * Thread-safe utility class that allows to get per-segment values via the
- * {@link #load(AtomicReaderContext)} method.
+ * {@link #load(LeafReaderContext)} method.
  */
 public interface IndexFieldData<FD extends AtomicFieldData> extends IndexComponent {
 
@@ -86,12 +87,12 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
     /**
      * Loads the atomic field data for the reader, possibly cached.
      */
-    FD load(AtomicReaderContext context);
+    FD load(LeafReaderContext context);
 
     /**
      * Loads directly the atomic field data for the reader, ignoring any caching involved.
      */
-    FD loadDirect(AtomicReaderContext context) throws Exception;
+    FD loadDirect(LeafReaderContext context) throws Exception;
 
     /**
      * Comparator used for sorting.
@@ -114,9 +115,10 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
          *  since {@link Character#MAX_CODE_POINT} is a noncharacter and thus shouldn't appear in an index term. */
         public static final BytesRef MAX_TERM;
         static {
-            MAX_TERM = new BytesRef();
+            BytesRefBuilder builder = new BytesRefBuilder();
             final char[] chars = Character.toChars(Character.MAX_CODE_POINT);
-            UnicodeUtil.UTF16toUTF8(chars, 0, chars.length, MAX_TERM);
+            builder.copyChars(chars, 0, chars.length);
+            MAX_TERM = builder.toBytesRef();
         }
 
         /**
@@ -127,41 +129,25 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
          * parent + 1, or 0 if there is no previous parent, and R (excluded).
          */
         public static class Nested {
-            private final Filter rootFilter, innerFilter;
+            private final BitDocIdSetFilter rootFilter, innerFilter;
 
-            public Nested(Filter rootFilter, Filter innerFilter) {
+            public Nested(BitDocIdSetFilter rootFilter, BitDocIdSetFilter innerFilter) {
                 this.rootFilter = rootFilter;
                 this.innerFilter = innerFilter;
             }
 
-            // TODO: nested docs should not be random filters but specialized
-            // ones that guarantee that you always get a FixedBitSet
-            @Deprecated
-            private static FixedBitSet toFixedBitSet(DocIdSet set, int maxDoc) throws IOException {
-                if (set == null || set instanceof FixedBitSet) {
-                    return (FixedBitSet) set;
-                } else {
-                    final FixedBitSet fixedBitSet = new FixedBitSet(maxDoc);
-                    final DocIdSetIterator it = set.iterator();
-                    if (it != null) {
-                        fixedBitSet.or(it);
-                    }
-                    return fixedBitSet;
-                }
+            /**
+             * Get a {@link BitDocIdSet} that matches the root documents.
+             */
+            public BitDocIdSet rootDocs(LeafReaderContext ctx) throws IOException {
+                return rootFilter.getDocIdSet(ctx);
             }
 
             /**
-             * Get a {@link FixedBitSet} that matches the root documents.
+             * Get a {@link BitDocIdSet} that matches the inner documents.
              */
-            public FixedBitSet rootDocs(AtomicReaderContext ctx) throws IOException {
-                return toFixedBitSet(rootFilter.getDocIdSet(ctx, null), ctx.reader().maxDoc());
-            }
-
-            /**
-             * Get a {@link FixedBitSet} that matches the inner documents.
-             */
-            public FixedBitSet innerDocs(AtomicReaderContext ctx) throws IOException {
-                return toFixedBitSet(innerFilter.getDocIdSet(ctx, null), ctx.reader().maxDoc());
+            public BitDocIdSet innerDocs(LeafReaderContext ctx) throws IOException {
+                return innerFilter.getDocIdSet(ctx);
             }
         }
 

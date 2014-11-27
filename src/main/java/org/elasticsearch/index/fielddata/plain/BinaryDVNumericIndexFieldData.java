@@ -20,11 +20,12 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import com.google.common.base.Preconditions;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -40,6 +41,7 @@ import org.elasticsearch.index.mapper.FieldMapper.Names;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
+import java.util.Collections;
 
 public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData implements IndexNumericFieldData {
 
@@ -64,7 +66,7 @@ public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData imple
     }
 
     @Override
-    public AtomicNumericFieldData load(AtomicReaderContext context) {
+    public AtomicNumericFieldData load(LeafReaderContext context) {
         try {
             final BinaryDocValues values = DocValues.getBinary(context.reader(), fieldNames.indexName());
             if (numericType.isFloatingPoint()) {
@@ -81,14 +83,24 @@ public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData imple
                             throw new ElasticsearchIllegalArgumentException("" + numericType);
                         }
                     }
+                    
+                    @Override
+                    public Iterable<? extends Accountable> getChildResources() {
+                        return Collections.emptyList();
+                    }
 
                 };
             } else {
-                return new AtomicLongFieldData(-1) {
+                return new AtomicLongFieldData(0) {
 
                     @Override
                     public SortedNumericDocValues getLongValues() {
                         return new BinaryAsSortedNumericDocValues(values);
+                    }
+                    
+                    @Override
+                    public Iterable<? extends Accountable> getChildResources() {
+                        return Collections.emptyList();
                     }
 
                 };
@@ -99,7 +111,7 @@ public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData imple
     }
 
     @Override
-    public AtomicNumericFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
         return load(context);
     }
 

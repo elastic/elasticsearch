@@ -18,7 +18,7 @@ This client provides:
 
 * Full support for all Elasticsearch APIs
 
-* HTTP backend (currently synchronous only - Any::Event support will be added later)
+* HTTP backend (blocking and asynchronous with https://metacpan.org/module/Search::Elasticsearch::Async)
 
 * Robust networking support which handles load balancing, failure detection and failover
 

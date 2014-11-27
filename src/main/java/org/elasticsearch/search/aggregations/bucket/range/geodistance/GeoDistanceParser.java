@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range.geodistance;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -42,6 +42,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -152,7 +153,7 @@ public class GeoDistanceParser implements Aggregator.Parser {
         return new GeoDistanceFactory(aggregationName, vsParser.config(), InternalGeoDistance.FACTORY, origin, unit, distanceType, ranges, keyed);
     }
 
-    private static class GeoDistanceFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
+    private static class GeoDistanceFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, Map<String, Object>> {
 
         private final GeoPoint origin;
         private final DistanceUnit unit;
@@ -174,15 +175,15 @@ public class GeoDistanceParser implements Aggregator.Parser {
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-            return new Unmapped(name, ranges, keyed, null, aggregationContext, parent, rangeFactory);
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+            return new Unmapped(name, ranges, keyed, null, aggregationContext, parent, rangeFactory, metaData);
         }
 
         @Override
-        protected Aggregator create(final ValuesSource.GeoPoint valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
+        protected Aggregator create(final ValuesSource.GeoPoint valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
             DistanceSource distanceSource = new DistanceSource(valuesSource, distanceType, origin, unit);
             aggregationContext.registerReaderContextAware(distanceSource);
-            return new RangeAggregator(name, factories, distanceSource, null, rangeFactory, ranges, keyed, aggregationContext, parent);
+            return new RangeAggregator(name, factories, distanceSource, null, rangeFactory, ranges, keyed, aggregationContext, parent, metaData);
         }
 
         private static class DistanceSource extends ValuesSource.Numeric implements ReaderContextAware {
@@ -204,7 +205,7 @@ public class GeoDistanceParser implements Aggregator.Parser {
             }
 
             @Override
-            public void setNextReader(AtomicReaderContext reader) {
+            public void setNextReader(LeafReaderContext reader) {
                 final MultiGeoPointValues geoValues = source.geoPointValues();
                 final FixedSourceDistance distance = distanceType.fixedSourceDistance(origin.getLat(), origin.getLon(), unit);
                 distanceValues = GeoDistance.distanceValues(geoValues, distance);

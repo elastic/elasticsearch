@@ -20,8 +20,10 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
@@ -60,7 +62,7 @@ public interface Terms extends MultiBucketsAggregation {
     /**
      * A bucket that is associated with a single term
      */
-    static abstract class Bucket implements MultiBucketsAggregation.Bucket {
+    static abstract class Bucket extends InternalMultiBucketAggregation.InternalBucket {
 
         public abstract Number getKeyAsNumber();
 
@@ -75,9 +77,21 @@ public interface Terms extends MultiBucketsAggregation {
      */
     List<Bucket> getBuckets();
 
+    /**
+     * Get the bucket for the given term, or null if there is no such bucket.
+     */
     Bucket getBucketByKey(String term);
     
+    /**
+     * Get an upper bound of the error on document counts in this aggregation.
+     */
     long getDocCountError();
+
+    /**
+     * Return the sum of the document counts of all buckets that did not make
+     * it to the top buckets.
+     */
+    long getSumOfOtherDocCounts();
 
     /**
      * Determines the order by which the term buckets will be sorted
@@ -120,6 +134,24 @@ public interface Terms extends MultiBucketsAggregation {
         }
 
         /**
+         * Creates a bucket ordering strategy which sorts buckets based multiple criteria
+         *
+         * @param   orders a list of {@link Order} objects to sort on, in order of priority
+         */
+        public static Order compound(List<Order> orders) {
+            return new InternalOrder.CompoundOrder(orders);
+        }
+
+        /**
+         * Creates a bucket ordering strategy which sorts buckets based multiple criteria
+         *
+         * @param   orders a list of {@link Order} parameters to sort on, in order of priority
+         */
+        public static Order compound(Order... orders) {
+            return compound(Arrays.asList(orders));
+        }
+
+        /**
          * @return  A comparator for the bucket based on the given terms aggregator. The comparator is used in two phases:
          *
          *          - aggregation phase, where each shard builds a list of term buckets to be sent to the coordinating node.
@@ -130,6 +162,8 @@ public interface Terms extends MultiBucketsAggregation {
          *            to a final bucket list. In this case, the passed in aggregator will be {@code null}
          */
         protected abstract Comparator<Bucket> comparator(Aggregator aggregator);
+
+        abstract byte id();
 
     }
 }

@@ -59,7 +59,7 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * @see org.elasticsearch.client.Client#search(SearchRequest)
  * @see SearchResponse
  */
-public class SearchRequest extends ActionRequest<SearchRequest> implements IndicesRequest {
+public class SearchRequest extends ActionRequest<SearchRequest> implements IndicesRequest.Replaceable {
 
     private SearchType searchType = SearchType.DEFAULT;
 
@@ -74,7 +74,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     private boolean templateSourceUnsafe;
     private String templateName;
     private ScriptService.ScriptType templateType;
-    private Map<String, String> templateParams = Collections.emptyMap();
+    private Map<String, Object> templateParams = Collections.emptyMap();
 
     private BytesReference source;
     private boolean sourceUnsafe;
@@ -173,6 +173,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     /**
      * Sets the indices the search will be executed on.
      */
+    @Override
     public SearchRequest indices(String... indices) {
         if (indices == null) {
             throw new ElasticsearchIllegalArgumentException("indices must not be null");
@@ -370,7 +371,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             builder.map(extraSource);
             return extraSource(builder);
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + extraSource + "]", e);
         }
     }
 
@@ -451,7 +452,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     /**
      * Template parameters used for rendering
      */
-    public void templateParams(Map<String, String> params) {
+    public void templateParams(Map<String, Object> params) {
         this.templateParams = params;
     }
 
@@ -472,7 +473,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     /**
      * Template parameters used for rendering
      */
-    public Map<String, String> templateParams() {
+    public Map<String, Object> templateParams() {
         return templateParams;
     }
 
@@ -578,11 +579,11 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
                 templateType = ScriptService.ScriptType.readFrom(in);
             }
             if (in.readBoolean()) {
-                templateParams = (Map<String, String>) in.readGenericValue();
+                templateParams = (Map<String, Object>) in.readGenericValue();
             }
         }
 
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             queryCache = in.readOptionalBoolean();
         }
     }
@@ -627,7 +628,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             }
         }
 
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeOptionalBoolean(queryCache);
         }
     }

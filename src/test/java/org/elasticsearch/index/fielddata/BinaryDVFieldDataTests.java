@@ -20,7 +20,7 @@
 package org.elasticsearch.index.fielddata;
 
 import com.carrotsearch.hppc.ObjectArrayList;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -75,7 +75,7 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTests {
         d = mapper.parse("test", "4", doc.bytes());
         writer.addDocument(d.rootDoc());
 
-        AtomicReaderContext reader = refreshReader();
+        LeafReaderContext reader = refreshReader();
         IndexFieldData<?> indexFieldData = getForField("field");
         AtomicFieldData fieldData = indexFieldData.load(reader);
 

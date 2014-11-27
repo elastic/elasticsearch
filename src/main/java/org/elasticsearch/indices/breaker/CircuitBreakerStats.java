@@ -91,7 +91,7 @@ public class CircuitBreakerStats implements Streamable, ToXContent {
         } else {
             this.trippedCount = -1;
         }
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             this.name = CircuitBreaker.Name.readFrom(in);
         } else {
             this.name = CircuitBreaker.Name.FIELDDATA;
@@ -106,7 +106,7 @@ public class CircuitBreakerStats implements Streamable, ToXContent {
         if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
             out.writeLong(trippedCount);
         }
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             CircuitBreaker.Name.writeTo(name, out);
         }
     }

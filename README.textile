@@ -28,7 +28,7 @@ Elasticsearch is a distributed RESTful search engine built for the cloud. Featur
 ** All the power of Lucene easily exposed through simple configuration / plugins.
 * Per operation consistency
 ** Single document level operations are atomic, consistent, isolated and durable.
-* Open Source under Apache 2 License.
+* Open Source under the Apache License, version 2 ("ALv2")
 
 h2. Getting Started
 
@@ -49,17 +49,17 @@ Let's try and index some twitter like information. First, let's create a twitter
 curl -XPUT 'http://localhost:9200/twitter/user/kimchy' -d '{ "name" : "Shay Banon" }'
 
 curl -XPUT 'http://localhost:9200/twitter/tweet/1' -d '
-{ 
-    "user": "kimchy", 
-    "postDate": "2009-11-15T13:12:00", 
-    "message": "Trying out Elasticsearch, so far so good?" 
+{
+    "user": "kimchy",
+    "postDate": "2009-11-15T13:12:00",
+    "message": "Trying out Elasticsearch, so far so good?"
 }'
 
 curl -XPUT 'http://localhost:9200/twitter/tweet/2' -d '
-{ 
-    "user": "kimchy", 
-    "postDate": "2009-11-15T14:12:12", 
-    "message": "Another tweet, will it be indexed?" 
+{
+    "user": "kimchy",
+    "postDate": "2009-11-15T14:12:12",
+    "message": "Another tweet, will it be indexed?"
 }'
 </pre>
 
@@ -73,7 +73,7 @@ curl -XGET 'http://localhost:9200/twitter/tweet/2?pretty=true'
 
 h3. Searching
 
-Mmm search..., shouldn't it be elastic? 
+Mmm search..., shouldn't it be elastic?
 Let's find all the tweets that @kimchy@ posted:
 
 <pre>
@@ -84,10 +84,10 @@ We can also use the JSON query language Elasticsearch provides instead of a quer
 
 <pre>
 curl -XGET 'http://localhost:9200/twitter/tweet/_search?pretty=true' -d '
-{ 
-    "query" : { 
+{
+    "query" : {
         "match" : { "user": "kimchy" }
-    } 
+    }
 }'
 </pre>
 
@@ -95,10 +95,10 @@ Just for kicks, let's get all the documents stored (we should see the user as we
 
 <pre>
 curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -d '
-{ 
-    "query" : { 
-        "matchAll" : {} 
-    } 
+{
+    "query" : {
+        "matchAll" : {}
+    }
 }'
 </pre>
 
@@ -106,12 +106,12 @@ We can also do range search (the @postDate@ was automatically identified as date
 
 <pre>
 curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -d '
-{ 
-    "query" : { 
-        "range" : { 
-            "postDate" : { "from" : "2009-11-15T13:00:00", "to" : "2009-11-15T14:00:00" } 
-        } 
-    } 
+{
+    "query" : {
+        "range" : {
+            "postDate" : { "from" : "2009-11-15T13:00:00", "to" : "2009-11-15T14:00:00" }
+        }
+    }
 }'
 </pre>
 
@@ -119,41 +119,41 @@ There are many more options to perform search, after all, it's a search product 
 
 h3. Multi Tenant - Indices and Types
 
-Maan, that twitter index might get big (in this case, index size == valuation). Let's see if we can structure our twitter system a bit differently in order to support such large amount of data.
+Maan, that twitter index might get big (in this case, index size == valuation). Let's see if we can structure our twitter system a bit differently in order to support such large amounts of data.
 
-Elasticsearch support multiple indices, as well as multiple types per index. In the previous example we used an index called @twitter@, with two types, @user@ and @tweet@.
+Elasticsearch supports multiple indices, as well as multiple types per index. In the previous example we used an index called @twitter@, with two types, @user@ and @tweet@.
 
-Another way to define our simple twitter system is to have a different index per user (though note that an index has an overhead). Here is the indexing curl's in this case:
+Another way to define our simple twitter system is to have a different index per user (note, though that each index has an overhead). Here is the indexing curl's in this case:
 
 <pre>
 curl -XPUT 'http://localhost:9200/kimchy/info/1' -d '{ "name" : "Shay Banon" }'
 
 curl -XPUT 'http://localhost:9200/kimchy/tweet/1' -d '
-{ 
-    "user": "kimchy", 
-    "postDate": "2009-11-15T13:12:00", 
-    "message": "Trying out Elasticsearch, so far so good?" 
+{
+    "user": "kimchy",
+    "postDate": "2009-11-15T13:12:00",
+    "message": "Trying out Elasticsearch, so far so good?"
 }'
 
 curl -XPUT 'http://localhost:9200/kimchy/tweet/2' -d '
-{ 
-    "user": "kimchy", 
-    "postDate": "2009-11-15T14:12:12", 
-    "message": "Another tweet, will it be indexed?" 
+{
+    "user": "kimchy",
+    "postDate": "2009-11-15T14:12:12",
+    "message": "Another tweet, will it be indexed?"
 }'
 </pre>
 
-The above index information into the @kimchy@ index, with two types, @info@ and @tweet@. Each user will get his own special index.
+The above will index information into the @kimchy@ index, with two types, @info@ and @tweet@. Each user will get his own special index.
 
 Complete control on the index level is allowed. As an example, in the above case, we would want to change from the default 5 shards with 1 replica per index, to only 1 shard with 1 replica per index (== per twitter user). Here is how this can be done (the configuration can be in yaml as well):
 
 <pre>
 curl -XPUT http://localhost:9200/another_user/ -d '
-{ 
-    "index" : { 
-        "numberOfShards" : 1, 
-        "numberOfReplicas" : 1 
-    } 
+{
+    "index" : {
+        "numberOfShards" : 1,
+        "numberOfReplicas" : 1
+    }
 }'
 </pre>
 
@@ -162,10 +162,10 @@ index (twitter user), for example:
 
 <pre>
 curl -XGET 'http://localhost:9200/kimchy,another_user/_search?pretty=true' -d '
-{ 
-    "query" : { 
-        "matchAll" : {} 
-    } 
+{
+    "query" : {
+        "matchAll" : {}
+    }
 }'
 </pre>
 
@@ -173,14 +173,14 @@ Or on all the indices:
 
 <pre>
 curl -XGET 'http://localhost:9200/_search?pretty=true' -d '
-{ 
-    "query" : { 
-        "matchAll" : {} 
-    } 
+{
+    "query" : {
+        "matchAll" : {}
+    }
 }'
 </pre>
 
-{One liner teaser}: And the cool part about that? You can easily search on multiple twitter users (indices), with different boost levels per user (index), making social search so much simpler (results from my friends rank higher than results from my friends friends).
+{One liner teaser}: And the cool part about that? You can easily search on multiple twitter users (indices), with different boost levels per user (index), making social search so much simpler (results from my friends rank higher than results from friends of my friends).
 
 h3. Distributed, Highly Available
 
@@ -188,7 +188,7 @@ Let's face it, things will fail....
 
 Elasticsearch is a highly available and distributed search engine. Each index is broken down into shards, and each shard can have one or more replica. By default, an index is created with 5 shards and 1 replica per shard (5/1). There are many topologies that can be used, including 1/10 (improve search performance), or 20/1 (improve indexing performance, with search executed in a map reduce fashion across shards).
 
-In order to play with Elasticsearch distributed nature, simply bring more nodes up and shut down nodes. The system will continue to serve requests (make sure you use the correct http port) with the latest data indexed.
+In order to play with the distributed nature of Elasticsearch, simply bring more nodes up and shut down nodes. The system will continue to serve requests (make sure you use the correct http port) with the latest data indexed.
 
 h3. Where to go from here?
 
@@ -213,7 +213,7 @@ In order to ensure a smooth upgrade process from earlier versions of Elasticsear
 h1. License
 
 <pre>
-This software is licensed under the Apache 2 license, quoted below.
+This software is licensed under the Apache License, version 2 ("ALv2"), quoted below.
 
 Copyright 2009-2014 Elasticsearch <http://www.elasticsearch.org>
 

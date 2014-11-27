@@ -21,44 +21,59 @@ package org.elasticsearch.gateway.local.state.meta;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
+import org.elasticsearch.bootstrap.Elasticsearch;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
+import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
+import java.util.regex.Pattern;
 
 /**
  *
  */
 public class LocalGatewayMetaState extends AbstractComponent implements ClusterStateListener {
+
+    static final String GLOBAL_STATE_FILE_PREFIX = "global-";
+    private static final String INDEX_STATE_FILE_PREFIX = "state-";
+    static final Pattern GLOBAL_STATE_FILE_PATTERN = Pattern.compile(GLOBAL_STATE_FILE_PREFIX + "(\\d+)(" + MetaDataStateFormat.STATE_FILE_EXTENSION + ")?");
+    static final Pattern INDEX_STATE_FILE_PATTERN = Pattern.compile(INDEX_STATE_FILE_PREFIX + "(\\d+)(" + MetaDataStateFormat.STATE_FILE_EXTENSION + ")?");
+    private static final String GLOBAL_STATE_LOG_TYPE = "[_global]";
+    private static final String DEPRECATED_SETTING_ROUTING_HASH_FUNCTION = "cluster.routing.operation.hash.type";
+    private static final String DEPRECATED_SETTING_ROUTING_USE_TYPE = "cluster.routing.operation.use_type";
 
     static enum AutoImportDangledState {
         NO() {
@@ -106,7 +121,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
     private final XContentType format;
     private final ToXContent.Params formatParams;
-    private final ToXContent.Params globalOnlyFormatParams;
+    private final ToXContent.Params gatewayModeFormatParams;
 
 
     private final AutoImportDangledState autoImportDangled;
@@ -130,27 +145,28 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             Map<String, String> params = Maps.newHashMap();
             params.put("binary", "true");
             formatParams = new ToXContent.MapParams(params);
-            Map<String, String> globalOnlyParams = Maps.newHashMap();
-            globalOnlyParams.put("binary", "true");
-            globalOnlyParams.put(MetaData.PERSISTENT_ONLY_PARAM, "true");
-            globalOnlyParams.put(MetaData.GLOBAL_ONLY_PARAM, "true");
-            globalOnlyFormatParams = new ToXContent.MapParams(globalOnlyParams);
+            Map<String, String> gatewayModeParams = Maps.newHashMap();
+            gatewayModeParams.put("binary", "true");
+            gatewayModeParams.put(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_GATEWAY);
+            gatewayModeFormatParams = new ToXContent.MapParams(gatewayModeParams);
         } else {
             formatParams = ToXContent.EMPTY_PARAMS;
-            Map<String, String> globalOnlyParams = Maps.newHashMap();
-            globalOnlyParams.put(MetaData.PERSISTENT_ONLY_PARAM, "true");
-            globalOnlyParams.put(MetaData.GLOBAL_ONLY_PARAM, "true");
-            globalOnlyFormatParams = new ToXContent.MapParams(globalOnlyParams);
+            Map<String, String> gatewayModeParams = Maps.newHashMap();
+            gatewayModeParams.put(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_GATEWAY);
+            gatewayModeFormatParams = new ToXContent.MapParams(gatewayModeParams);
         }
 
         this.autoImportDangled = AutoImportDangledState.fromString(settings.get("gateway.local.auto_import_dangled", AutoImportDangledState.YES.toString()));
         this.danglingTimeout = settings.getAsTime("gateway.local.dangling_timeout", TimeValue.timeValueHours(2));
 
         logger.debug("using gateway.local.auto_import_dangled [{}], with gateway.local.dangling_timeout [{}]", this.autoImportDangled, this.danglingTimeout);
-
+        if (DiscoveryNode.masterNode(settings) || DiscoveryNode.dataNode(settings)) {
+            nodeEnv.ensureAtomicMoveSupported();
+        }
         if (DiscoveryNode.masterNode(settings)) {
             try {
                 pre019Upgrade();
+                pre20Upgrade();
                 long start = System.currentTimeMillis();
                 loadState();
                 logger.debug("took {} to load state", TimeValue.timeValueMillis(System.currentTimeMillis() - start));
@@ -186,7 +202,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             // check if the global state changed?
             if (currentMetaData == null || !MetaData.isGlobalStateEquals(currentMetaData, newMetaData)) {
                 try {
-                    writeGlobalState("changed", newMetaData, currentMetaData);
+                    writeGlobalState("changed", newMetaData);
                 } catch (Throwable e) {
                     success = false;
                 }
@@ -198,7 +214,11 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                 IndexMetaData currentIndexMetaData;
                 if (currentMetaData == null) {
                     // a new event..., check from the state stored
-                    currentIndexMetaData = loadIndex(indexMetaData.index());
+                    try {
+                        currentIndexMetaData = loadIndexState(indexMetaData.index());
+                    } catch (IOException ex) {
+                        throw new ElasticsearchException("failed to load index state", ex);
+                    }
                 } else {
                     currentIndexMetaData = currentMetaData.index(indexMetaData.index());
                 }
@@ -234,7 +254,15 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                 if (!newMetaData.hasIndex(current.index())) {
                     logger.debug("[{}] deleting index that is no longer part of the metadata (indices: [{}])", current.index(), newMetaData.indices().keys());
                     if (nodeEnv.hasNodeFile()) {
-                        FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(current.index())));
+                        try {
+                            final Index idx = new Index(current.index());
+                            MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(idx));
+                            nodeEnv.deleteIndexDirectorySafe(idx);
+                        } catch (LockObtainFailedException ex) {
+                            logger.debug("[{}] failed to delete index - at least one shards is still locked", ex, current.index());
+                        } catch (Exception ex) {
+                            logger.warn("[{}] failed to delete index", ex, current.index());
+                        }
                     }
                     try {
                         nodeIndexDeletedAction.nodeIndexStoreDeleted(event.state(), current.index(), event.state().nodes().localNodeId());
@@ -253,7 +281,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                         if (newMetaData.hasIndex(danglingIndex)) {
                             logger.debug("[{}] no longer dangling (created), removing", danglingIndex);
                             DanglingIndex removed = danglingIndices.remove(danglingIndex);
-                            removed.future.cancel(false);
+                            FutureUtils.cancel(removed.future);
                         }
                     }
                     // delete indices that are no longer part of the metadata
@@ -267,14 +295,42 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                                 // already dangling, continue
                                 continue;
                             }
-                            IndexMetaData indexMetaData = loadIndex(indexName);
+                            final IndexMetaData indexMetaData = loadIndexState(indexName);
+                            final Index index = new Index(indexName);
                             if (indexMetaData != null) {
-                                if (danglingTimeout.millis() == 0) {
+                                try {
+                                    // the index deletion might not have worked due to shards still being locked
+                                    // we have three cases here:
+                                    //  - we acquired all shards locks here --> we can import the dangeling index
+                                    //  - we failed to acquire the lock --> somebody else uses it - DON'T IMPORT
+                                    //  - we acquired successfully but the lock list is empty --> no shards present - DON'T IMPORT
+                                    // in the last case we should in-fact try to delete the directory since it might be a leftover...
+                                    final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index);
+                                    if (shardLocks.isEmpty()) {
+                                        // no shards - try to remove the directory
+                                        nodeEnv.deleteIndexDirectorySafe(index);
+                                        continue;
+                                    }
+                                    IOUtils.closeWhileHandlingException(shardLocks);
+                                } catch (IOException ex) {
+                                    logger.warn("[{}] skipping locked dangling index, exists on local file system, but not in cluster metadata, auto import to cluster state is set to [{}]", ex, indexName, autoImportDangled);
+                                    continue;
+                                }
+                                if(autoImportDangled.shouldImport()){
+                                    logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, auto import to cluster state [{}]", indexName, autoImportDangled);
+                                    danglingIndices.put(indexName, new DanglingIndex(indexName, null));
+                                } else if (danglingTimeout.millis() == 0) {
                                     logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, timeout set to 0, deleting now", indexName);
-                                    FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(indexName)));
+                                    try {
+                                        nodeEnv.deleteIndexDirectorySafe(index);
+                                    } catch (LockObtainFailedException ex) {
+                                        logger.debug("[{}] failed to delete index - at least one shards is still locked", ex, indexName);
+                                    } catch (Exception ex) {
+                                        logger.warn("[{}] failed to delete dangling index", ex, indexName);
+                                    }
                                 } else {
                                     logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, scheduling to delete in [{}], auto import to cluster state [{}]", indexName, danglingTimeout, autoImportDangled);
-                                    danglingIndices.put(indexName, new DanglingIndex(indexName, threadPool.schedule(danglingTimeout, ThreadPool.Names.SAME, new RemoveDanglingIndex(indexName))));
+                                    danglingIndices.put(indexName, new DanglingIndex(indexName, threadPool.schedule(danglingTimeout, ThreadPool.Names.SAME, new RemoveDanglingIndex(index))));
                                 }
                             }
                         }
@@ -286,7 +342,12 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             if (autoImportDangled.shouldImport() && !danglingIndices.isEmpty()) {
                 final List<IndexMetaData> dangled = Lists.newArrayList();
                 for (String indexName : danglingIndices.keySet()) {
-                    IndexMetaData indexMetaData = loadIndex(indexName);
+                    IndexMetaData indexMetaData;
+                    try {
+                        indexMetaData = loadIndexState(indexName);
+                    } catch (IOException ex) {
+                        throw new ElasticsearchException("failed to load index state", ex);
+                    }
                     if (indexMetaData == null) {
                         logger.debug("failed to find state for dangling index [{}]", indexName);
                         continue;
@@ -327,124 +388,61 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
         }
     }
 
-    private void deleteIndex(String index) {
-        logger.trace("[{}] delete index state", index);
-        File[] indexLocations = nodeEnv.indexLocations(new Index(index));
-        for (File indexLocation : indexLocations) {
-            if (!indexLocation.exists()) {
-                continue;
+    /**
+     * Returns a StateFormat that can read and write {@link MetaData}
+     */
+    static MetaDataStateFormat<MetaData> globalStateFormat(XContentType format, final ToXContent.Params formatParams, final boolean deleteOldFiles) {
+        return new MetaDataStateFormat<MetaData>(format, deleteOldFiles) {
+
+            @Override
+            public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
+                MetaData.Builder.toXContent(state, builder, formatParams);
             }
-            FileSystemUtils.deleteRecursively(new File(indexLocation, "_state"));
-        }
+
+            @Override
+            public MetaData fromXContent(XContentParser parser) throws IOException {
+                return MetaData.Builder.fromXContent(parser);
+            }
+        };
+    }
+
+    /**
+     * Returns a StateFormat that can read and write {@link IndexMetaData}
+     */
+    static MetaDataStateFormat<IndexMetaData> indexStateFormat(XContentType format, final ToXContent.Params formatParams, boolean deleteOldFiles) {
+        return new MetaDataStateFormat<IndexMetaData>(format, deleteOldFiles) {
+
+            @Override
+            public void toXContent(XContentBuilder builder, IndexMetaData state) throws IOException {
+                IndexMetaData.Builder.toXContent(state, builder, formatParams);            }
+
+            @Override
+            public IndexMetaData fromXContent(XContentParser parser) throws IOException {
+                return IndexMetaData.Builder.fromXContent(parser);
+            }
+        };
     }
 
     private void writeIndex(String reason, IndexMetaData indexMetaData, @Nullable IndexMetaData previousIndexMetaData) throws Exception {
         logger.trace("[{}] writing state, reason [{}]", indexMetaData.index(), reason);
-        XContentBuilder builder = XContentFactory.contentBuilder(format, new BytesStreamOutput());
-        builder.startObject();
-        IndexMetaData.Builder.toXContent(indexMetaData, builder, formatParams);
-        builder.endObject();
-        builder.flush();
-
-        String stateFileName = "state-" + indexMetaData.version();
-        Throwable lastFailure = null;
-        boolean wroteAtLeastOnce = false;
-        for (File indexLocation : nodeEnv.indexLocations(new Index(indexMetaData.index()))) {
-            File stateLocation = new File(indexLocation, "_state");
-            FileSystemUtils.mkdirs(stateLocation);
-            File stateFile = new File(stateLocation, stateFileName);
-
-            FileOutputStream fos = null;
-            try {
-                fos = new FileOutputStream(stateFile);
-                BytesReference bytes = builder.bytes();
-                bytes.writeTo(fos);
-                fos.getChannel().force(true);
-                fos.close();
-                wroteAtLeastOnce = true;
-            } catch (Throwable e) {
-                lastFailure = e;
-            } finally {
-                IOUtils.closeWhileHandlingException(fos);
-            }
-        }
-
-        if (!wroteAtLeastOnce) {
-            logger.warn("[{}]: failed to write index state", lastFailure, indexMetaData.index());
-            throw new IOException("failed to write state for [" + indexMetaData.index() + "]", lastFailure);
-        }
-
-        // delete the old files
-        if (previousIndexMetaData != null && previousIndexMetaData.version() != indexMetaData.version()) {
-            for (File indexLocation : nodeEnv.indexLocations(new Index(indexMetaData.index()))) {
-                File[] files = new File(indexLocation, "_state").listFiles();
-                if (files == null) {
-                    continue;
-                }
-                for (File file : files) {
-                    if (!file.getName().startsWith("state-")) {
-                        continue;
-                    }
-                    if (file.getName().equals(stateFileName)) {
-                        continue;
-                    }
-                    file.delete();
-                }
-            }
+        final boolean deleteOldFiles = previousIndexMetaData != null && previousIndexMetaData.version() != indexMetaData.version();
+        final MetaDataStateFormat<IndexMetaData> writer = indexStateFormat(format, formatParams, deleteOldFiles);
+        try {
+            writer.write(indexMetaData, INDEX_STATE_FILE_PREFIX, indexMetaData.version(), nodeEnv.indexPaths(new Index(indexMetaData.index())));
+        } catch (Throwable ex) {
+            logger.warn("[{}]: failed to write index state", ex, indexMetaData.index());
+            throw new IOException("failed to write state for [" + indexMetaData.index() + "]", ex);
         }
     }
 
-    private void writeGlobalState(String reason, MetaData metaData, @Nullable MetaData previousMetaData) throws Exception {
-        logger.trace("[_global] writing state, reason [{}]", reason);
-
-        XContentBuilder builder = XContentFactory.contentBuilder(format);
-        builder.startObject();
-        MetaData.Builder.toXContent(metaData, builder, globalOnlyFormatParams);
-        builder.endObject();
-        builder.flush();
-        String globalFileName = "global-" + metaData.version();
-        Throwable lastFailure = null;
-        boolean wroteAtLeastOnce = false;
-        for (File dataLocation : nodeEnv.nodeDataLocations()) {
-            File stateLocation = new File(dataLocation, "_state");
-            FileSystemUtils.mkdirs(stateLocation);
-            File stateFile = new File(stateLocation, globalFileName);
-
-            FileOutputStream fos = null;
-            try {
-                fos = new FileOutputStream(stateFile);
-                BytesReference bytes = builder.bytes();
-                bytes.writeTo(fos);
-                fos.getChannel().force(true);
-                fos.close();
-                wroteAtLeastOnce = true;
-            } catch (Throwable e) {
-                lastFailure = e;
-            } finally {
-                IOUtils.closeWhileHandlingException(fos);
-            }
-        }
-
-        if (!wroteAtLeastOnce) {
-            logger.warn("[_global]: failed to write global state", lastFailure);
-            throw new IOException("failed to write global state", lastFailure);
-        }
-
-        // delete the old files
-        for (File dataLocation : nodeEnv.nodeDataLocations()) {
-            File[] files = new File(dataLocation, "_state").listFiles();
-            if (files == null) {
-                continue;
-            }
-            for (File file : files) {
-                if (!file.getName().startsWith("global-")) {
-                    continue;
-                }
-                if (file.getName().equals(globalFileName)) {
-                    continue;
-                }
-                file.delete();
-            }
+    private void writeGlobalState(String reason, MetaData metaData) throws Exception {
+        logger.trace("{} writing state, reason [{}]", GLOBAL_STATE_LOG_TYPE, reason);
+        final MetaDataStateFormat<MetaData> writer = globalStateFormat(format, gatewayModeFormatParams, true);
+        try {
+            writer.write(metaData, GLOBAL_STATE_FILE_PREFIX, metaData.version(), nodeEnv.nodeDataPaths());
+        } catch (Throwable ex) {
+            logger.warn("{}: failed to write global state", ex, GLOBAL_STATE_LOG_TYPE);
+            throw new IOException("failed to write global state", ex);
         }
     }
 
@@ -457,9 +455,9 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             metaDataBuilder = MetaData.builder();
         }
 
-        Set<String> indices = nodeEnv.findAllIndices();
+        final Set<String> indices = nodeEnv.findAllIndices();
         for (String index : indices) {
-            IndexMetaData indexMetaData = loadIndex(index);
+            IndexMetaData indexMetaData = loadIndexState(index);
             if (indexMetaData == null) {
                 logger.debug("[{}] failed to find metadata for existing index location", index);
             } else {
@@ -470,96 +468,14 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
     }
 
     @Nullable
-    private IndexMetaData loadIndex(String index) {
-        long highestVersion = -1;
-        IndexMetaData indexMetaData = null;
-        for (File indexLocation : nodeEnv.indexLocations(new Index(index))) {
-            File stateDir = new File(indexLocation, "_state");
-            if (!stateDir.exists() || !stateDir.isDirectory()) {
-                continue;
-            }
-            // now, iterate over the current versions, and find latest one
-            File[] stateFiles = stateDir.listFiles();
-            if (stateFiles == null) {
-                continue;
-            }
-            for (File stateFile : stateFiles) {
-                if (!stateFile.getName().startsWith("state-")) {
-                    continue;
-                }
-                try {
-                    long version = Long.parseLong(stateFile.getName().substring("state-".length()));
-                    if (version > highestVersion) {
-                        byte[] data = Streams.copyToByteArray(new FileInputStream(stateFile));
-                        if (data.length == 0) {
-                            logger.debug("[{}]: no data for [" + stateFile.getAbsolutePath() + "], ignoring...", index);
-                            continue;
-                        }
-                        XContentParser parser = null;
-                        try {
-                            parser = XContentHelper.createParser(data, 0, data.length);
-                            parser.nextToken(); // move to START_OBJECT
-                            indexMetaData = IndexMetaData.Builder.fromXContent(parser);
-                            highestVersion = version;
-                        } finally {
-                            if (parser != null) {
-                                parser.close();
-                            }
-                        }
-                    }
-                } catch (Throwable e) {
-                    logger.debug("[{}]: failed to read [" + stateFile.getAbsolutePath() + "], ignoring...", e, index);
-                }
-            }
-        }
-        return indexMetaData;
+    private IndexMetaData loadIndexState(String index) throws IOException {
+        return MetaDataStateFormat.loadLatestState(logger, indexStateFormat(format, formatParams, true), INDEX_STATE_FILE_PATTERN, "[" + index + "]", nodeEnv.indexPaths(new Index(index)));
     }
 
-    private MetaData loadGlobalState() {
-        long highestVersion = -1;
-        MetaData metaData = null;
-        for (File dataLocation : nodeEnv.nodeDataLocations()) {
-            File stateLocation = new File(dataLocation, "_state");
-            if (!stateLocation.exists()) {
-                continue;
-            }
-            File[] stateFiles = stateLocation.listFiles();
-            if (stateFiles == null) {
-                continue;
-            }
-            for (File stateFile : stateFiles) {
-                String name = stateFile.getName();
-                if (!name.startsWith("global-")) {
-                    continue;
-                }
-                try {
-                    long version = Long.parseLong(stateFile.getName().substring("global-".length()));
-                    if (version > highestVersion) {
-                        byte[] data = Streams.copyToByteArray(new FileInputStream(stateFile));
-                        if (data.length == 0) {
-                            logger.debug("[_global] no data for [" + stateFile.getAbsolutePath() + "], ignoring...");
-                            continue;
-                        }
-
-                        XContentParser parser = null;
-                        try {
-                            parser = XContentHelper.createParser(data, 0, data.length);
-                            metaData = MetaData.Builder.fromXContent(parser);
-                            highestVersion = version;
-                        } finally {
-                            if (parser != null) {
-                                parser.close();
-                            }
-                        }
-                    }
-                } catch (Throwable e) {
-                    logger.debug("failed to load global state from [{}]", e, stateFile.getAbsolutePath());
-                }
-            }
-        }
-
-        return metaData;
+    private MetaData loadGlobalState() throws IOException {
+        return MetaDataStateFormat.loadLatestState(logger, globalStateFormat(format, gatewayModeFormatParams, true), GLOBAL_STATE_FILE_PATTERN, GLOBAL_STATE_LOG_TYPE, nodeEnv.nodeDataPaths());
     }
+
 
     private void pre019Upgrade() throws Exception {
         long index = -1;
@@ -622,9 +538,9 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             return;
         }
 
-        logger.info("found old metadata state, loading metadata from [{}] and converting to new metadata location and strucutre...", metaDataFile.getAbsolutePath());
+        logger.info("found old metadata state, loading metadata from [{}] and converting to new metadata location and structure...", metaDataFile.getAbsolutePath());
 
-        writeGlobalState("upgrade", MetaData.builder(metaData).version(version).build(), null);
+        writeGlobalState("upgrade", MetaData.builder(metaData).version(version).build());
         for (IndexMetaData indexMetaData : metaData) {
             IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(indexMetaData).version(version);
             // set the created version to 0.18
@@ -653,31 +569,76 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                 if (!name.startsWith("metadata-")) {
                     continue;
                 }
-                stateFile.delete();
+                try {
+                    Files.delete(stateFile.toPath());
+                } catch (Exception ex) {
+                    logger.debug("failed to delete file " + stateFile, ex);
+                }
             }
         }
 
         logger.info("conversion to new metadata location and format done, backup create at [{}]", backupFile.getAbsolutePath());
     }
 
+    /**
+     * Elasticsearch 2.0 deprecated custom routing hash functions. So what we do here is that for old indices, we
+     * move this old & deprecated node setting to an index setting so that we can keep things backward compatible.
+     */
+    private void pre20Upgrade() throws Exception {
+        final Class<? extends HashFunction> pre20HashFunction = settings.getAsClass(DEPRECATED_SETTING_ROUTING_HASH_FUNCTION, null, "org.elasticsearch.cluster.routing.operation.hash.", "HashFunction");
+        final Boolean pre20UseType = settings.getAsBoolean(DEPRECATED_SETTING_ROUTING_USE_TYPE, null);
+        MetaData metaData = loadMetaState();
+        for (IndexMetaData indexMetaData : metaData) {
+            if (indexMetaData.settings().get(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION) == null
+                    && indexMetaData.getCreationVersion().before(Version.V_2_0_0)) {
+                // these settings need an upgrade
+                Settings indexSettings = ImmutableSettings.builder().put(indexMetaData.settings())
+                        .put(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION, pre20HashFunction == null ? DjbHashFunction.class : pre20HashFunction)
+                        .put(IndexMetaData.SETTING_LEGACY_ROUTING_USE_TYPE, pre20UseType == null ? false : pre20UseType)
+                        .build();
+                IndexMetaData newMetaData = IndexMetaData.builder(indexMetaData)
+                        .version(indexMetaData.version())
+                        .settings(indexSettings)
+                        .build();
+                writeIndex("upgrade", newMetaData, null);
+            } else if (indexMetaData.getCreationVersion().onOrAfter(Version.V_2_0_0)) {
+                if (indexMetaData.getSettings().get(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION) != null
+                        || indexMetaData.getSettings().get(IndexMetaData.SETTING_LEGACY_ROUTING_USE_TYPE) != null) {
+                    throw new ElasticsearchIllegalStateException("Indices created on or after 2.0 should NOT contain [" + IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION
+                            + "] + or [" + IndexMetaData.SETTING_LEGACY_ROUTING_USE_TYPE + "] in their index settings");
+                }
+            }
+        }
+        if (pre20HashFunction != null || pre20UseType != null) {
+            logger.warn("Settings [{}] and [{}] are deprecated. Index settings from your old indices have been updated to record the fact that they "
+                    + "used some custom routing logic, you can now remove these settings from your `elasticsearch.yml` file", DEPRECATED_SETTING_ROUTING_HASH_FUNCTION, DEPRECATED_SETTING_ROUTING_USE_TYPE);
+        }
+    }
+
     class RemoveDanglingIndex implements Runnable {
 
-        private final String index;
+        private final Index index;
 
-        RemoveDanglingIndex(String index) {
+        RemoveDanglingIndex(Index index) {
             this.index = index;
         }
 
         @Override
         public void run() {
             synchronized (danglingMutex) {
-                DanglingIndex remove = danglingIndices.remove(index);
+                DanglingIndex remove = danglingIndices.remove(index.name());
                 // no longer there...
                 if (remove == null) {
                     return;
                 }
-                logger.info("[{}] deleting dangling index", index);
-                FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(index)));
+                logger.warn("[{}] deleting dangling index", index);
+
+                try {
+                    MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(index));
+                    nodeEnv.deleteIndexDirectorySafe(index);
+                } catch (Exception ex) {
+                    logger.debug("failed to delete dangling index", ex);
+                }
             }
         }
     }
@@ -691,4 +652,5 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             this.future = future;
         }
     }
+
 }

@@ -39,6 +39,8 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAc
 import org.elasticsearch.action.admin.cluster.repositories.get.TransportGetRepositoriesAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
+import org.elasticsearch.action.admin.cluster.repositories.verify.TransportVerifyRepositoryAction;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
@@ -83,6 +85,8 @@ import org.elasticsearch.action.admin.indices.exists.types.TransportTypesExistsA
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsAction;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
+import org.elasticsearch.action.admin.indices.get.GetIndexAction;
+import org.elasticsearch.action.admin.indices.get.TransportGetIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.delete.TransportDeleteMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.get.*;
@@ -155,7 +159,8 @@ import org.elasticsearch.action.suggest.TransportSuggestAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.action.termvector.*;
+import org.elasticsearch.action.termvectors.*;
+import org.elasticsearch.action.termvectors.dfs.TransportDfsOnlyAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -236,6 +241,7 @@ public class ActionModule extends AbstractModule {
         registerAction(PutRepositoryAction.INSTANCE, TransportPutRepositoryAction.class);
         registerAction(GetRepositoriesAction.INSTANCE, TransportGetRepositoriesAction.class);
         registerAction(DeleteRepositoryAction.INSTANCE, TransportDeleteRepositoryAction.class);
+        registerAction(VerifyRepositoryAction.INSTANCE, TransportVerifyRepositoryAction.class);
         registerAction(GetSnapshotsAction.INSTANCE, TransportGetSnapshotsAction.class);
         registerAction(DeleteSnapshotAction.INSTANCE, TransportDeleteSnapshotAction.class);
         registerAction(CreateSnapshotAction.INSTANCE, TransportCreateSnapshotAction.class);
@@ -246,6 +252,7 @@ public class ActionModule extends AbstractModule {
         registerAction(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
         registerAction(CreateIndexAction.INSTANCE, TransportCreateIndexAction.class);
         registerAction(DeleteIndexAction.INSTANCE, TransportDeleteIndexAction.class);
+        registerAction(GetIndexAction.INSTANCE, TransportGetIndexAction.class);
         registerAction(OpenIndexAction.INSTANCE, TransportOpenIndexAction.class);
         registerAction(CloseIndexAction.INSTANCE, TransportCloseIndexAction.class);
         registerAction(IndicesExistsAction.INSTANCE, TransportIndicesExistsAction.class);
@@ -274,9 +281,10 @@ public class ActionModule extends AbstractModule {
 
         registerAction(IndexAction.INSTANCE, TransportIndexAction.class);
         registerAction(GetAction.INSTANCE, TransportGetAction.class);
-        registerAction(TermVectorAction.INSTANCE, TransportSingleShardTermVectorAction.class);
+        registerAction(TermVectorsAction.INSTANCE, TransportTermVectorsAction.class,
+                TransportDfsOnlyAction.class);
         registerAction(MultiTermVectorsAction.INSTANCE, TransportMultiTermVectorsAction.class,
-                TransportSingleShardMultiTermsVectorAction.class);
+                TransportShardMultiTermsVectorAction.class);
         registerAction(DeleteAction.INSTANCE, TransportDeleteAction.class,
                 TransportIndexDeleteAction.class, TransportShardDeleteAction.class);
         registerAction(CountAction.INSTANCE, TransportCountAction.class);

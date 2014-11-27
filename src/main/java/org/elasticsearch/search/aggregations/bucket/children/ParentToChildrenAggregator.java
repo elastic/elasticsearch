@@ -18,12 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.bucket.children;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.join.FixedBitSetCachingWrapperFilter;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
@@ -46,6 +45,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 // The RecordingPerReaderBucketCollector assumes per segment recording which isn't the case for this
 // aggregation, for this reason that collector can't be used
@@ -66,18 +66,20 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
     private final LongObjectPagedHashMap<long[]> parentOrdToOtherBuckets;
     private boolean multipleBucketsPerParentOrd = false;
 
-    private List<AtomicReaderContext> replay = new ArrayList<>();
+    private List<LeafReaderContext> replay = new ArrayList<>();
     private SortedDocValues globalOrdinals;
     private Bits parentDocs;
 
     public ParentToChildrenAggregator(String name, AggregatorFactories factories, AggregationContext aggregationContext,
                                       Aggregator parent, String parentType, Filter childFilter, Filter parentFilter,
-                                      ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource, long maxOrd) {
-        super(name, factories, aggregationContext, parent);
+                                      ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource, long maxOrd, Map<String, Object> metaData) {
+        super(name, factories, aggregationContext, parent, metaData);
         this.parentType = parentType;
-        this.childFilter = childFilter;
-        // TODO: remove FixedBitSetCachingWrapperFilter once #7031 gets in
-        this.parentFilter = new FixedBitSetCachingWrapperFilter(parentFilter);
+        // The child filter doesn't rely on random access it just used to iterate over all docs with a specific type,
+        // so use the filter cache instead. When the filter cache is smarter with what filter impl to pick we can benefit
+        // from it here
+        this.childFilter = aggregationContext.searchContext().filterCache().cache(childFilter);
+        this.parentFilter = aggregationContext.searchContext().filterCache().cache(parentFilter);
         this.parentOrdToBuckets = aggregationContext.bigArrays().newLongArray(maxOrd, false);
         this.parentOrdToBuckets.fill(0, maxOrd, -1);
         this.parentOrdToOtherBuckets = new LongObjectPagedHashMap<>(aggregationContext.bigArrays());
@@ -86,17 +88,17 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        return new InternalChildren(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal));
+        return new InternalChildren(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), getMetaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalChildren(name, 0, buildEmptySubAggregations());
+        return new InternalChildren(name, 0, buildEmptySubAggregations(), getMetaData());
     }
 
     @Override
     public void collect(int docId, long bucketOrdinal) throws IOException {
-        if (parentDocs != null && parentDocs.get(docId)) {
+        if (parentDocs.get(docId)) {
             long globalOrdinal = globalOrdinals.getOrd(docId);
             if (globalOrdinal != -1) {
                 if (parentOrdToBuckets.get(globalOrdinal) == -1) {
@@ -117,7 +119,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         if (replay == null) {
             return;
         }
@@ -126,11 +128,10 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
         assert globalOrdinals != null;
         try {
             DocIdSet parentDocIdSet = parentFilter.getDocIdSet(reader, null);
-            if (parentDocIdSet != null) {
-                parentDocs = parentDocIdSet.bits();
-            } else {
-                parentDocs = null;
-            }
+            // The DocIdSets.toSafeBits(...) can convert to FixedBitSet, but this
+            // will only happen if the none filter cache is used. (which only happens in tests)
+            // Otherwise the filter cache will produce a bitset based filter.
+            parentDocs = DocIdSets.toSafeBits(reader.reader(), parentDocIdSet);
             DocIdSet childDocIdSet = childFilter.getDocIdSet(reader, null);
             if (globalOrdinals != null && !DocIdSets.isEmpty(childDocIdSet)) {
                 replay.add(reader);
@@ -142,10 +143,10 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
 
     @Override
     protected void doPostCollection() throws IOException {
-        List<AtomicReaderContext> replay = this.replay;
+        List<LeafReaderContext> replay = this.replay;
         this.replay = null;
 
-        for (AtomicReaderContext atomicReaderContext : replay) {
+        for (LeafReaderContext atomicReaderContext : replay) {
             context.setNextReader(atomicReaderContext);
 
             SortedDocValues globalOrdinals = valuesSource.globalOrdinalsValues(parentType);
@@ -186,7 +187,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
         Releasables.close(parentOrdToBuckets, parentOrdToOtherBuckets);
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.Bytes.WithOrdinals.ParentChild> {
+    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.Bytes.WithOrdinals.ParentChild, Map<String, Object>> {
 
         private final String parentType;
         private final Filter parentFilter;
@@ -200,14 +201,14 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
             throw new ElasticsearchIllegalStateException("[children] aggregation doesn't support unmapped");
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
+        protected Aggregator create(ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
             long maxOrd = valuesSource.globalMaxOrd(aggregationContext.searchContext().searcher(), parentType);
-            return new ParentToChildrenAggregator(name, factories, aggregationContext, parent, parentType, childFilter, parentFilter, valuesSource, maxOrd);
+            return new ParentToChildrenAggregator(name, factories, aggregationContext, parent, parentType, childFilter, parentFilter, valuesSource, maxOrd, metaData);
         }
 
     }

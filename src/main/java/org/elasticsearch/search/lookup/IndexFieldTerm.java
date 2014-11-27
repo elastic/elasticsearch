@@ -65,7 +65,7 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
 
     // when the reader changes, we have to get the posting list for this term
     // and reader
-    void setNextReader(AtomicReader reader) {
+    void setNextReader(LeafReader reader) {
         try {
             // Get the posting list for a specific term. Depending on the flags,
             // this
@@ -104,7 +104,7 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
     }
 
     // get the DocsAndPositionsEnum from the reader.
-    private DocsEnum getDocsAndPosEnum(int luceneFlags, AtomicReader reader) throws IOException {
+    private DocsEnum getDocsAndPosEnum(int luceneFlags, LeafReader reader) throws IOException {
         assert identifier.field() != null;
         assert identifier.bytes() != null;
         final Fields fields = reader.fields();
@@ -125,7 +125,7 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
     }
 
     // get the DocsEnum from the reader.
-    private DocsEnum getOnlyDocsEnum(int luceneFlags, AtomicReader reader) throws IOException {
+    private DocsEnum getOnlyDocsEnum(int luceneFlags, LeafReader reader) throws IOException {
         assert identifier.field() != null;
         assert identifier.bytes() != null;
         final Fields fields = reader.fields();

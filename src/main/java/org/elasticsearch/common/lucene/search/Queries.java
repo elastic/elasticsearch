@@ -21,6 +21,7 @@ package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.search.*;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 
 import java.util.List;
@@ -41,7 +42,7 @@ public class Queries {
         // We don't use MatchAllDocsQuery, its slower than the one below ... (much slower)
         // NEVER cache this XConstantScore Query it's not immutable and based on #3521
         // some code might set a boost on this query.
-        return new XConstantScoreQuery(MATCH_ALL_FILTER);
+        return new ConstantScoreQuery(MATCH_ALL_FILTER);
     }
 
     /** Return a query that matches no document. */
@@ -73,8 +74,8 @@ public class Queries {
     }
 
     public static boolean isConstantMatchAllQuery(Query query) {
-        if (query instanceof XConstantScoreQuery) {
-            XConstantScoreQuery scoreQuery = (XConstantScoreQuery) query;
+        if (query instanceof ConstantScoreQuery) {
+            ConstantScoreQuery scoreQuery = (ConstantScoreQuery) query;
             if (scoreQuery.getFilter() instanceof MatchAllDocsFilter) {
                 return true;
             }
@@ -123,7 +124,7 @@ public class Queries {
             return result;
         }
 
-        /* otherwise, simple expresion */
+        /* otherwise, simple expression */
 
         if (-1 < spec.indexOf('%')) {
             /* percentage - assume the % was the last char.  If not, let Integer.parseInt fail. */
@@ -141,8 +142,14 @@ public class Queries {
 
     }
 
-    public static Filter wrap(Query query) {
-        return FACTORY.wrap(query);
+    /**
+     * Wraps a query in a filter.
+     *
+     * If a filter has an anti per segment execution / caching nature then @{@link CustomQueryWrappingFilter} is returned
+     * otherwise the standard {@link org.apache.lucene.search.QueryWrapperFilter} is returned.
+     */
+    public static Filter wrap(Query query, QueryParseContext context) {
+        return FACTORY.wrap(query, context);
     }
 
     private static final QueryWrapperFilterFactory FACTORY = new QueryWrapperFilterFactory();
@@ -151,8 +158,8 @@ public class Queries {
     // and potentially miss a forbidden API usage!
     private static final class QueryWrapperFilterFactory {
 
-        public Filter wrap(Query query) {
-            if (CustomQueryWrappingFilter.shouldUseCustomQueryWrappingFilter(query)) {
+        public Filter wrap(Query query, QueryParseContext context) {
+            if (context.requireCustomQueryWrappingFilter() || CustomQueryWrappingFilter.shouldUseCustomQueryWrappingFilter(query)) {
                 return new CustomQueryWrappingFilter(query);
             } else {
                 return new QueryWrapperFilter(query);

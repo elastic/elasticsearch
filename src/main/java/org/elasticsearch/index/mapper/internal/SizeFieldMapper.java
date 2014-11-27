@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -80,13 +81,16 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             SizeFieldMapper.Builder builder = size();
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
                     builder.enabled(nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
+                    iterator.remove();
                 } else if (fieldName.equals("store")) {
                     builder.store(parseStore(fieldName, fieldNode.toString()));
+                    iterator.remove();
                 }
             }
             return builder;
@@ -95,8 +99,8 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
 
     private EnabledAttributeMapper enabledState;
 
-    public SizeFieldMapper() {
-        this(Defaults.ENABLED_STATE, new FieldType(Defaults.SIZE_FIELD_TYPE), null, null, null, ImmutableSettings.EMPTY);
+    public SizeFieldMapper(Settings indexSettings) {
+        this(Defaults.ENABLED_STATE, new FieldType(Defaults.SIZE_FIELD_TYPE), null, null, null, indexSettings);
     }
 
     public SizeFieldMapper(EnabledAttributeMapper enabled, FieldType fieldType, PostingsFormatProvider postingsProvider,
@@ -161,10 +165,10 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
             return builder;
         }
         builder.startObject(contentType());
-        if (includeDefaults || enabledState.enabled != Defaults.ENABLED_STATE.enabled) {
+        if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
             builder.field("enabled", enabledState.enabled);
         }
-        if (includeDefaults || fieldType().stored() != Defaults.SIZE_FIELD_TYPE.stored() && enabledState.enabled) {
+        if (includeDefaults || fieldType().stored() != Defaults.SIZE_FIELD_TYPE.stored()) {
             builder.field("store", fieldType().stored());
         }
         builder.endObject();

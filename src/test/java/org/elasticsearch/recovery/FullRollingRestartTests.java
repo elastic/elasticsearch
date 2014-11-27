@@ -30,7 +30,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 /**
@@ -54,7 +54,7 @@ public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow
-    @TestLogging("indices.cluster:TRACE,cluster.service:TRACE")
+    @TestLogging("indices.cluster:TRACE,cluster.service:TRACE,action.count:TRACE,indices.recovery:TRACE")
     public void testFullRollingRestart() throws Exception {
         internalCluster().startNode();
         createIndex("test");
@@ -69,13 +69,13 @@ public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
         }
 
-        // now start adding nodes
+        logger.info("--> now start adding nodes");
         internalCluster().startNodesAsync(2).get();
 
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("3"));
 
-        // now start adding nodes
+        logger.info("--> add two more nodes");
         internalCluster().startNodesAsync(2).get();
 
         // We now have 5 nodes
@@ -84,6 +84,7 @@ public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("5"));
 
+        logger.info("--> refreshing and checking data");
         refresh();
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 2000l);
@@ -101,6 +102,7 @@ public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("3"));
 
+        logger.info("--> stopped two nodes, verifying data");
         refresh();
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 2000l);
@@ -118,6 +120,7 @@ public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForYellowStatus().setWaitForRelocatingShards(0).setWaitForNodes("1"));
 
+        logger.info("--> one node left, verifying data");
         refresh();
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 2000l);

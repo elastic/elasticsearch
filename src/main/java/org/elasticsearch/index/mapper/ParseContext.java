@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -124,6 +125,26 @@ public abstract class ParseContext {
                 }
             }
             return f.toArray(new IndexableField[f.size()]);
+        }
+
+        /**
+         * Returns an array of values of the field specified as the method parameter.
+         * This method returns an empty array when there are no
+         * matching fields.  It never returns null.
+         * For {@link org.apache.lucene.document.IntField}, {@link org.apache.lucene.document.LongField}, {@link
+         * org.apache.lucene.document.FloatField} and {@link org.apache.lucene.document.DoubleField} it returns the string value of the number.
+         * If you want the actual numeric field instances back, use {@link #getFields}.
+         * @param name the name of the field
+         * @return a <code>String[]</code> of field values
+         */
+        public final String[] getValues(String name) {
+            List<String> result = new ArrayList<>();
+            for (IndexableField field : fields) {
+                if (field.name().equals(name) && field.stringValue() != null) {
+                    result.add(field.stringValue());
+                }
+            }
+            return result.toArray(new String[result.size()]);
         }
 
         public IndexableField getField(String name) {
@@ -741,7 +762,7 @@ public abstract class ParseContext {
     public abstract void version(Field version);
 
     public final boolean includeInAll(Boolean includeInAll, FieldMapper mapper) {
-        return includeInAll(includeInAll, mapper.fieldType().indexed());
+        return includeInAll(includeInAll, mapper.fieldType().indexOptions() != IndexOptions.NONE);
     }
 
     /**

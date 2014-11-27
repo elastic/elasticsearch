@@ -19,64 +19,47 @@
 
 package org.elasticsearch.index.fielddata;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.util.SlicedDoubleList;
-import org.elasticsearch.common.util.SlicedLongList;
-import org.elasticsearch.common.util.SlicedObjectList;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 
-import java.util.Arrays;
+import java.util.AbstractList;
 import java.util.List;
+
 
 /**
  * Script level doc values, the assumption is that any implementation will implement a <code>getValue</code>
  * and a <code>getValues</code> that return the relevant type that then can be used in scripts.
  */
-public abstract class ScriptDocValues {
+public interface ScriptDocValues<T> extends List<T> {
 
-    protected int docId;
-    protected boolean listLoaded = false;
+    /**
+     * Set the current doc ID.
+     */
+    void setNextDocId(int docId);
 
-    public void setNextDocId(int docId) {
-        this.docId = docId;
-        this.listLoaded = false;
-    }
+    /**
+     * Return a copy of the list of the values for the current document.
+     */
+    List<T> getValues();
 
-    public abstract boolean isEmpty();
-
-    public abstract List<?> getValues();
-
-    public final static class Strings extends ScriptDocValues {
+    public final static class Strings extends AbstractList<String> implements ScriptDocValues<String> {
 
         private final SortedBinaryDocValues values;
-        private SlicedObjectList<String> list;
 
         public Strings(SortedBinaryDocValues values) {
             this.values = values;
-            list = new SlicedObjectList<String>(new String[0]) {
-
-                @Override
-                public void grow(int newLength) {
-                    assert offset == 0; // NOTE: senseless if offset != 0
-                    if (values.length >= newLength) {
-                        return;
-                    }
-                    values = Arrays.copyOf(values, ArrayUtil.oversize(newLength, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
-                }
-            };
         }
 
         @Override
-        public boolean isEmpty() {
+        public void setNextDocId(int docId) {
             values.setDocument(docId);
-            return values.count() == 0;
         }
 
         public SortedBinaryDocValues getInternalValues() {
@@ -84,7 +67,6 @@ public abstract class ScriptDocValues {
         }
 
         public BytesRef getBytesValue() {
-            values.setDocument(docId);
             if (values.count() > 0) {
                 return values.valueAt(0);
             } else {
@@ -101,46 +83,42 @@ public abstract class ScriptDocValues {
             }
         }
 
+        @Override
         public List<String> getValues() {
-            if (!listLoaded) {
-                values.setDocument(docId);
-                final int numValues = values.count();
-                list.offset = 0;
-                list.grow(numValues);
-                list.length = numValues;
-                for (int i = 0; i < numValues; i++) {
-                    list.values[i] = values.valueAt(i).utf8ToString();
-                }
-                listLoaded = true;
-            }
-            return list;
+            return ImmutableList.copyOf(this);
+        }
+
+        @Override
+        public String get(int index) {
+            return values.valueAt(index).utf8ToString();
+        }
+
+        @Override
+        public int size() {
+            return values.count();
         }
 
     }
 
-    public static class Longs extends ScriptDocValues {
+    public static class Longs extends AbstractList<Long> implements ScriptDocValues<Long> {
 
         private final SortedNumericDocValues values;
         private final MutableDateTime date = new MutableDateTime(0, DateTimeZone.UTC);
-        private final SlicedLongList list;
 
         public Longs(SortedNumericDocValues values) {
             this.values = values;
-            this.list = new SlicedLongList(0);
+        }
+
+        @Override
+        public void setNextDocId(int docId) {
+            values.setDocument(docId);
         }
 
         public SortedNumericDocValues getInternalValues() {
             return this.values;
         }
 
-        @Override
-        public boolean isEmpty() {
-            values.setDocument(docId);
-            return values.count() == 0;
-        }
-
         public long getValue() {
-            values.setDocument(docId);
             int numValues = values.count();
             if (numValues == 0) {
                 return 0l;
@@ -148,19 +126,9 @@ public abstract class ScriptDocValues {
             return values.valueAt(0);
         }
 
+        @Override
         public List<Long> getValues() {
-            if (!listLoaded) {
-                values.setDocument(docId);
-                final int numValues = values.count();
-                list.offset = 0;
-                list.grow(numValues);
-                list.length = numValues;
-                for (int i = 0; i < numValues; i++) {
-                    list.values[i] = values.valueAt(i);
-                }
-                listLoaded = true;
-            }
-            return list;
+            return ImmutableList.copyOf(this);
         }
 
         public MutableDateTime getDate() {
@@ -168,32 +136,36 @@ public abstract class ScriptDocValues {
             return date;
         }
 
+        @Override
+        public Long get(int index) {
+            return values.valueAt(index);
+        }
+
+        @Override
+        public int size() {
+            return values.count();
+        }
+
     }
 
-    public static class Doubles extends ScriptDocValues {
+    public static class Doubles extends AbstractList<Double> implements ScriptDocValues<Double> {
 
         private final SortedNumericDoubleValues values;
-        private final SlicedDoubleList list;
 
         public Doubles(SortedNumericDoubleValues values) {
             this.values = values;
-            this.list = new SlicedDoubleList(0);
+        }
 
+        @Override
+        public void setNextDocId(int docId) {
+            values.setDocument(docId);
         }
 
         public SortedNumericDoubleValues getInternalValues() {
             return this.values;
         }
 
-        @Override
-        public boolean isEmpty() {
-            values.setDocument(docId);
-            return values.count() == 0;
-        }
-
-
         public double getValue() {
-            values.setDocument(docId);
             int numValues = values.count();
             if (numValues == 0) {
                 return 0d;
@@ -201,50 +173,36 @@ public abstract class ScriptDocValues {
             return values.valueAt(0);
         }
 
+        @Override
         public List<Double> getValues() {
-            if (!listLoaded) {
-                values.setDocument(docId);
-                int numValues = values.count();
-                list.offset = 0;
-                list.grow(numValues);
-                list.length = numValues;
-                for (int i = 0; i < numValues; i++) {
-                    list.values[i] = values.valueAt(i);
-                }
-                listLoaded = true;
-            }
-            return list;
-        }
-    }
-
-    public static class GeoPoints extends ScriptDocValues {
-
-        private final MultiGeoPointValues values;
-        private final SlicedObjectList<GeoPoint> list;
-
-        public GeoPoints(MultiGeoPointValues values) {
-            this.values = values;
-            list = new SlicedObjectList<GeoPoint>(new GeoPoint[0]) {
-
-                @Override
-                public void grow(int newLength) {
-                    assert offset == 0; // NOTE: senseless if offset != 0
-                    if (values.length >= newLength) {
-                        return;
-                    }
-                    values = Arrays.copyOf(values, ArrayUtil.oversize(newLength, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
-                }
-            };
+            return ImmutableList.copyOf(this);
         }
 
         @Override
-        public boolean isEmpty() {
+        public Double get(int index) {
+            return values.valueAt(index);
+        }
+
+        @Override
+        public int size() {
+            return values.count();
+        }
+    }
+
+    public static class GeoPoints extends AbstractList<GeoPoint> implements ScriptDocValues<GeoPoint> {
+
+        private final MultiGeoPointValues values;
+
+        public GeoPoints(MultiGeoPointValues values) {
+            this.values = values;
+        }
+
+        @Override
+        public void setNextDocId(int docId) {
             values.setDocument(docId);
-            return values.count() == 0;
         }
 
         public GeoPoint getValue() {
-            values.setDocument(docId);
             int numValues = values.count();
             if (numValues == 0) {
                 return null;
@@ -279,25 +237,18 @@ public abstract class ScriptDocValues {
         }
 
         public List<GeoPoint> getValues() {
-            if (!listLoaded) {
-                values.setDocument(docId);
-                int numValues = values.count();
-                list.offset = 0;
-                list.grow(numValues);
-                list.length = numValues;
-                for (int i = 0; i < numValues; i++) {
-                    GeoPoint next = values.valueAt(i);
-                    GeoPoint point = list.values[i];
-                    if (point == null) {
-                        point = list.values[i] = new GeoPoint();
-                    }
-                    point.reset(next.lat(), next.lon());
-                    list.values[i] = point;
-                }
-                listLoaded = true;
-            }
-            return list;
+            return ImmutableList.copyOf(this);
+        }
 
+        @Override
+        public GeoPoint get(int index) {
+            final GeoPoint point = values.valueAt(index);
+            return new GeoPoint(point.lat(), point.lon());
+        }
+
+        @Override
+        public int size() {
+            return values.count();
         }
 
         public double factorDistance(double lat, double lon) {

@@ -21,6 +21,9 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.AndFilterBuilder;
+import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
@@ -35,7 +38,9 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.matchAllFilter;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -64,12 +69,17 @@ public class FilterTests extends ElasticsearchIntegrationTest {
                     .endObject()));
         }
         for (int i = numTag1Docs; i < numDocs; i++) {
-            builders.add(client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder()
+            XContentBuilder source = jsonBuilder()
                     .startObject()
                     .field("value", i)
                     .field("tag", "tag2")
                     .field("name", "name" + i)
-                    .endObject()));
+                    .endObject();
+            builders.add(client().prepareIndex("idx", "type", ""+i).setSource(source));
+            if (randomBoolean()) {
+                // randomly index the document twice so that we have deleted docs that match the filter
+                builders.add(client().prepareIndex("idx", "type", ""+i).setSource(source));
+            }
         }
         prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").execute().actionGet();
         for (int i = 0; i < 2; i++) {
@@ -97,6 +107,20 @@ public class FilterTests extends ElasticsearchIntegrationTest {
         assertThat(filter.getDocCount(), equalTo((long) numTag1Docs));
     }
 
+    // See NullPointer issue when filters are empty:
+    // https://github.com/elasticsearch/elasticsearch/issues/8438
+    @Test
+    public void emptyFilterDeclarations() throws Exception {
+        FilterBuilder emptyFilter = new AndFilterBuilder();
+        SearchResponse response = client().prepareSearch("idx").addAggregation(filter("tag1").filter(emptyFilter)).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Filter filter = response.getAggregations().get("tag1");
+        assertThat(filter, notNullValue());
+        assertThat(filter.getDocCount(), equalTo((long) numDocs));
+    }
+
     @Test
     public void withSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
@@ -112,6 +136,7 @@ public class FilterTests extends ElasticsearchIntegrationTest {
         assertThat(filter, notNullValue());
         assertThat(filter.getName(), equalTo("tag1"));
         assertThat(filter.getDocCount(), equalTo((long) numTag1Docs));
+        assertThat((long) filter.getProperty("_count"), equalTo((long) numTag1Docs));
 
         long sum = 0;
         for (int i = 0; i < numTag1Docs; ++i) {
@@ -122,6 +147,7 @@ public class FilterTests extends ElasticsearchIntegrationTest {
         assertThat(avgValue, notNullValue());
         assertThat(avgValue.getName(), equalTo("avg_value"));
         assertThat(avgValue.getValue(), equalTo((double) sum / numTag1Docs));
+        assertThat((double) filter.getProperty("avg_value.value"), equalTo((double) sum / numTag1Docs));
     }
 
     @Test

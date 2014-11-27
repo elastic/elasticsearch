@@ -19,8 +19,6 @@
 package org.elasticsearch.rest.action.script;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptRequest;
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
 import org.elasticsearch.client.Client;
@@ -28,14 +26,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -46,18 +42,38 @@ import static org.elasticsearch.rest.RestStatus.OK;
  */
 public class RestGetIndexedScriptAction extends BaseRestHandler {
 
+    private final static String LANG_FIELD = "lang";
+    private final static String ID_FIELD = "_id";
+    private final static String VERSION_FIELD = "_version";
+    private final static String SCRIPT_FIELD = "script";
+
     @Inject
-    public RestGetIndexedScriptAction(Settings settings, Client client,
-                                      ScriptService scriptService, RestController controller) {
-        super(settings, client);
-        controller.registerHandler(GET, "/_scripts/{lang}/{id}", this);
+    public RestGetIndexedScriptAction(Settings settings, RestController controller, Client client) {
+        this(settings, controller, true, client);
     }
+
+    protected RestGetIndexedScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers, Client client) {
+        super(settings, controller, client);
+        if (registerDefaultHandlers) {
+            controller.registerHandler(GET, "/_scripts/{lang}/{id}", this);
+        }
+    }
+
+    protected String getScriptFieldName() {
+        return SCRIPT_FIELD;
+    }
+
+    protected String getScriptLang(RestRequest request) {
+        return request.param(LANG_FIELD);
+    }
+
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
-
-        final GetIndexedScriptRequest getRequest = new GetIndexedScriptRequest(ScriptService.SCRIPT_INDEX, request.param("lang"), request.param("id"));
-        RestResponseListener<GetIndexedScriptResponse> responseListener = new RestResponseListener<GetIndexedScriptResponse>(channel) {
+        final GetIndexedScriptRequest getRequest = new GetIndexedScriptRequest(getScriptLang(request), request.param("id"));
+        getRequest.version(request.paramAsLong("version", getRequest.version()));
+        getRequest.versionType(VersionType.fromString(request.param("version_type"), getRequest.versionType()));
+        client.getIndexedScript(getRequest, new RestResponseListener<GetIndexedScriptResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetIndexedScriptResponse response) throws Exception {
                 XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -67,7 +83,10 @@ public class RestGetIndexedScriptAction extends BaseRestHandler {
                     try{
                         String script = response.getScript();
                         builder.startObject();
-                        builder.field("script",script);
+                        builder.field(getScriptFieldName(), script);
+                        builder.field(VERSION_FIELD, response.getVersion());
+                        builder.field(LANG_FIELD, response.getScriptLang());
+                        builder.field(ID_FIELD, response.getId());
                         builder.endObject();
                         return new BytesRestResponse(OK, builder);
                     } catch( IOException|ClassCastException e ){
@@ -75,7 +94,6 @@ public class RestGetIndexedScriptAction extends BaseRestHandler {
                     }
                 }
             }
-        };
-        client.getIndexedScript(getRequest, responseListener);
+        });
     }
 }

@@ -511,6 +511,7 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("persian_normalization", PersianNormalizationFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("scandinavian_normalization", ScandinavianNormalizationFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("scandinavian_folding", ScandinavianFoldingFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("serbian_normalization", SerbianNormalizationFilterFactory.class);
 
             tokenFiltersBindings.processTokenFilter("hunspell", HunspellTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("cjk_bigram", CJKBigramFilterFactory.class);

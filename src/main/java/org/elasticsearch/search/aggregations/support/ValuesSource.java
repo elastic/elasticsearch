@@ -84,7 +84,7 @@ public abstract class ValuesSource {
         public static MetaData load(IndexFieldData<?> indexFieldData, SearchContext context) {
             MetaData metaData = new MetaData();
             metaData.uniqueness = Uniqueness.UNIQUE;
-            for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
+            for (LeafReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
                 AtomicFieldData fieldData = indexFieldData.load(readerContext);
                 if (fieldData instanceof AtomicOrdinalsFieldData) {
                     AtomicOrdinalsFieldData fd = (AtomicOrdinalsFieldData) fieldData;
@@ -224,7 +224,7 @@ public abstract class ValuesSource {
                 }
 
                 @Override
-                public void setNextReader(AtomicReaderContext reader) {
+                public void setNextReader(LeafReaderContext reader) {
                     atomicFieldData = indexFieldData.load(reader);
                     if (bytesValues != null) {
                         bytesValues = atomicFieldData.getBytesValues();
@@ -281,7 +281,7 @@ public abstract class ValuesSource {
                     if (indexReader.leaves().isEmpty()) {
                         return maxOrd = 0;
                     } else {
-                        AtomicReaderContext atomicReaderContext = indexReader.leaves().get(0);
+                        LeafReaderContext atomicReaderContext = indexReader.leaves().get(0);
                         IndexOrdinalsFieldData globalFieldData = indexFieldData.loadGlobal(indexReader);
                         AtomicOrdinalsFieldData afd = globalFieldData.load(atomicReaderContext);
                         RandomAccessOrds values = afd.getOrdinalsValues();
@@ -307,7 +307,7 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public void setNextReader(AtomicReaderContext reader) {
+            public void setNextReader(LeafReaderContext reader) {
                 atomicFieldData = globalFieldData.load(reader);
             }
 
@@ -329,7 +329,7 @@ public abstract class ValuesSource {
                 if (indexReader.leaves().isEmpty()) {
                     return maxOrd = 0;
                 } else {
-                    AtomicReaderContext atomicReaderContext = indexReader.leaves().get(0);
+                    LeafReaderContext atomicReaderContext = indexReader.leaves().get(0);
                     IndexParentChildFieldData globalFieldData = indexFieldData.loadGlobal(indexReader);
                     AtomicParentChildFieldData afd = globalFieldData.load(atomicReaderContext);
                     SortedDocValues values = afd.getOrdinalsValues(type);
@@ -339,7 +339,7 @@ public abstract class ValuesSource {
 
             @Override
             public SortedBinaryDocValues bytesValues() {
-                throw new UnsupportedOperationException();
+                return atomicFieldData.getBytesValues();
             }
 
             @Override
@@ -366,7 +366,7 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public void setNextReader(AtomicReaderContext reader) {
+            public void setNextReader(LeafReaderContext reader) {
                 atomicFieldData = indexFieldData.load(reader);
                 if (bytesValues != null) {
                     bytesValues = atomicFieldData.getBytesValues();
@@ -484,9 +484,8 @@ public abstract class ValuesSource {
                 public void setDocument(int docId) {
                     script.setNextDocId(docId);
                     source.longValues().setDocument(docId);
-                    count = source.longValues().count();
-                    grow();
-                    for (int i = 0; i < count; ++i) {
+                    resize(source.longValues().count());
+                    for (int i = 0; i < count(); ++i) {
                         script.setNextVar("_value", source.longValues().valueAt(i));
                         values[i] = script.runAsLong();
                     }
@@ -546,7 +545,7 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public void setNextReader(AtomicReaderContext reader) {
+            public void setNextReader(LeafReaderContext reader) {
                 atomicFieldData = indexFieldData.load(reader);
                 if (bytesValues != null) {
                     bytesValues = atomicFieldData.getBytesValues();
@@ -699,7 +698,7 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext reader) {
+        public void setNextReader(LeafReaderContext reader) {
             atomicFieldData = indexFieldData.load(reader);
             if (bytesValues != null) {
                 bytesValues = atomicFieldData.getBytesValues();

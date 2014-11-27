@@ -33,7 +33,7 @@ import java.io.IOException;
 /**
  *
  */
-public class IndicesReplicationOperationRequest<T extends IndicesReplicationOperationRequest> extends ActionRequest<T> implements IndicesRequest {
+public abstract class IndicesReplicationOperationRequest<T extends IndicesReplicationOperationRequest> extends ActionRequest<T> implements IndicesRequest.Replaceable {
 
     protected TimeValue timeout = ShardReplicationOperationRequest.DEFAULT_TIMEOUT;
     protected String[] indices;
@@ -44,6 +44,13 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
 
     public TimeValue timeout() {
         return timeout;
+    }
+
+    protected IndicesReplicationOperationRequest() {
+    }
+
+    protected IndicesReplicationOperationRequest(ActionRequest actionRequest) {
+        super(actionRequest);
     }
 
     /**
@@ -74,6 +81,7 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
         return indicesOptions;
     }
 
+    @SuppressWarnings("unchecked")
     public T indicesOptions(IndicesOptions indicesOptions) {
         if (indicesOptions == null) {
             throw new IllegalArgumentException("IndicesOptions must not be null");
@@ -86,6 +94,7 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
      * The indices the request will execute against.
      */
     @SuppressWarnings("unchecked")
+    @Override
     public final T indices(String[] indices) {
         this.indices = indices;
         return (T) this;

@@ -19,9 +19,13 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
+import java.util.Collections;
+
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PackedInts;
@@ -46,6 +50,11 @@ public class SinglePackedOrdinals extends Ordinals {
     @Override
     public long ramBytesUsed() {
         return RamUsageEstimator.NUM_BYTES_OBJECT_REF + reader.ramBytesUsed();
+    }
+
+    @Override
+    public Iterable<? extends Accountable> getChildResources() {
+        return Collections.singleton(Accountables.namedAccountable("reader", reader));
     }
 
     @Override

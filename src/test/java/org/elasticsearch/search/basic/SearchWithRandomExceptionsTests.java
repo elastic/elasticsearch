@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.basic;
 
-import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.util.English;
 import org.elasticsearch.ElasticsearchException;
@@ -36,7 +36,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.engine.MockInternalEngine;
-import org.elasticsearch.test.engine.ThrowingAtomicReaderWrapper;
+import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.elasticsearch.test.store.MockFSDirectoryService;
@@ -92,22 +92,20 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
         if (createIndexWithoutErrors) {
             Builder settings = settingsBuilder()
                     .put("index.number_of_replicas", randomIntBetween(0, 1))
-                    .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, true)
                     .put("gateway.type", "local");
             logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
             client().admin().indices().prepareCreate("test")
                     .setSettings(settings)
                     .addMapping("type", mapping).execute().actionGet();
             numInitialDocs = between(10, 100);
-            ensureYellow();
+            ensureGreen();
             for (int i = 0; i < numInitialDocs ; i++) {
-                client().prepareIndex("test", "initial", "" + i).setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", "init").get();
+                client().prepareIndex("test", "initial", "" + i).setSource("test", "init").get();
             }
             client().admin().indices().prepareRefresh("test").execute().get();
             client().admin().indices().prepareFlush("test").setWaitIfOngoing(true).execute().get();
             client().admin().indices().prepareClose("test").execute().get();
             client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder()
-                    .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, true)
                     .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE, exceptionRate)
                     .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, exceptionOnOpenRate));
             client().admin().indices().prepareOpen("test").execute().get();
@@ -294,7 +292,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
 
     public static class RandomExceptionDirectoryReaderWrapper extends MockInternalEngine.DirectoryReaderWrapper {
         private final Settings settings;
-        static class ThrowingSubReaderWrapper extends SubReaderWrapper implements ThrowingAtomicReaderWrapper.Thrower {
+        static class ThrowingSubReaderWrapper extends SubReaderWrapper implements ThrowingLeafReaderWrapper.Thrower {
              private final Random random;
             private final double topLevelRatio;
             private final double lowLevelRatio;
@@ -307,12 +305,12 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
             }
 
             @Override
-            public AtomicReader wrap(AtomicReader reader) {
-                return new ThrowingAtomicReaderWrapper(reader, this);
+            public LeafReader wrap(LeafReader reader) {
+                return new ThrowingLeafReaderWrapper(reader, this);
             }
 
             @Override
-            public void maybeThrow(ThrowingAtomicReaderWrapper.Flags flag) throws IOException {
+            public void maybeThrow(ThrowingLeafReaderWrapper.Flags flag) throws IOException {
                 switch (flag) {
                     case Fields:
                     case TermVectors:

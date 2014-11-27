@@ -46,9 +46,8 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.IOException;
@@ -640,19 +639,17 @@ public final class XMoreLikeThis {
                 fieldNames.add(fieldName);
             }
         }
-        // to create one query per field name only
+        // term selection is per field, then appended to a single boolean query
         BooleanQuery bq = new BooleanQuery();
         for (String fieldName : fieldNames) {
             Map<String, Int> termFreqMap = new HashMap<>();
-            this.setFieldNames(new String[]{fieldName});
             for (Fields fields : likeFields) {
                 Terms vector = fields.terms(fieldName);
                 if (vector != null) {
                     addTermFrequencies(termFreqMap, vector);
                 }
             }
-            Query query = createQuery(createQueue(termFreqMap));
-            bq.add(query, BooleanClause.Occur.SHOULD);
+            addToQuery(createQueue(termFreqMap, fieldName), bq);
         }
         return bq;
     }
@@ -662,6 +659,14 @@ public final class XMoreLikeThis {
      */
     private Query createQuery(PriorityQueue<ScoreTerm> q) {
         BooleanQuery query = new BooleanQuery();
+        addToQuery(q, query);
+        return query;
+    }
+
+    /**
+     * Add to an existing boolean query the More Like This query from this PriorityQueue
+     */
+    private void addToQuery(PriorityQueue<ScoreTerm> q, BooleanQuery query) {
         ScoreTerm scoreTerm;
         float bestScore = -1;
 
@@ -683,7 +688,6 @@ public final class XMoreLikeThis {
                 break;
             }
         }
-        return query;
     }
 
     /**
@@ -692,6 +696,16 @@ public final class XMoreLikeThis {
      * @param words a map of words keyed on the word(String) with Int objects as the values.
      */
     private PriorityQueue<ScoreTerm> createQueue(Map<String, Int> words) throws IOException {
+        return createQueue(words, this.fieldNames);
+    }
+
+    /**
+     * Create a PriorityQueue from a word->tf map.
+     *
+     * @param words a map of words keyed on the word(String) with Int objects as the values.
+     * @param fieldNames an array of field names to override defaults.
+     */
+    private PriorityQueue<ScoreTerm> createQueue(Map<String, Int> words, String... fieldNames) throws IOException {
         // have collected all words in doc and their freqs
         int numDocs = ir.numDocs();
         final int limit = Math.min(maxQueryTerms, words.size());
@@ -804,10 +818,10 @@ public final class XMoreLikeThis {
      */
     private void addTermFrequencies(Map<String, Int> termFreqMap, Terms vector) throws IOException {
         final TermsEnum termsEnum = vector.iterator(null);
-        final CharsRef spare = new CharsRef();
+        final CharsRefBuilder spare = new CharsRefBuilder();
         BytesRef text;
         while((text = termsEnum.next()) != null) {
-            UnicodeUtil.UTF8toUTF16(text, spare);
+            spare.copyUTF8Bytes(text);
             final String term = spare.toString();
             if (isNoiseWord(term)) {
                 continue;

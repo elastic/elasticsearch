@@ -24,7 +24,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.*;
@@ -34,12 +33,15 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotAndRestoreService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
+import java.io.IOException;
+
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 /**
  *
  */
-public class IndexShardGatewayService extends AbstractIndexShardComponent implements CloseableIndexComponent {
+public class IndexShardGatewayService extends AbstractIndexShardComponent implements Closeable {
 
     private final ThreadPool threadPool;
 
@@ -62,6 +64,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
         this.shardGateway = shardGateway;
         this.snapshotService = snapshotService;
         this.recoveryState = new RecoveryState(shardId);
+        this.recoveryState.setType(RecoveryState.Type.GATEWAY);
         this.clusterService = clusterService;
     }
 
@@ -189,7 +192,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
     }
 
     @Override
-    public synchronized void close() {
+    public synchronized void close() throws IOException {
         shardGateway.close();
     }
 }

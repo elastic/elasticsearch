@@ -22,11 +22,14 @@ package org.elasticsearch.index.translog.fs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.TranslogStream;
+import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -37,7 +40,9 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
 
     private final long id;
     private final ShardId shardId;
-    private final RafReference raf;
+    private final ChannelReference channelReference;
+    private final TranslogStream translogStream;
+    private final int headerSize;
 
     private final ReadWriteLock rwl = new ReentrantReadWriteLock();
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -53,12 +58,16 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
     private int bufferCount;
     private WrapperOutputStream bufferOs = new WrapperOutputStream();
 
-    public BufferingFsTranslogFile(ShardId shardId, long id, RafReference raf, int bufferSize) throws IOException {
+    public BufferingFsTranslogFile(ShardId shardId, long id, ChannelReference channelReference, int bufferSize) throws IOException {
         this.shardId = shardId;
         this.id = id;
-        this.raf = raf;
+        this.channelReference = channelReference;
         this.buffer = new byte[bufferSize];
-        raf.raf().setLength(0);
+        this.translogStream = TranslogStreams.translogStreamFor(this.channelReference.file());
+        this.headerSize = this.translogStream.writeHeader(channelReference.channel());
+        this.lastPosition += headerSize;
+        this.lastWrittenPosition += headerSize;
+        this.lastSyncPosition += headerSize;
     }
 
     public long id() {
@@ -83,7 +92,7 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
                 flushBuffer();
                 // we use the channel to write, since on windows, writing to the RAF might not be reflected
                 // when reading through the channel
-                data.writeTo(raf.channel());
+                data.writeTo(channelReference.channel());
                 lastWrittenPosition += data.length();
                 lastPosition += data.length();
                 return new Translog.Location(id, position, data.length());
@@ -104,7 +113,7 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
         if (bufferCount > 0) {
             // we use the channel to write, since on windows, writing to the RAF might not be reflected
             // when reading through the channel
-            Channels.writeToChannel(buffer, 0, bufferCount, raf.channel());
+            Channels.writeToChannel(buffer, 0, bufferCount, channelReference.channel());
 
             lastWrittenPosition += bufferCount;
             bufferCount = 0;
@@ -125,18 +134,19 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
         }
         // we don't have to have a read lock here because we only write ahead to the file, so all writes has been complete
         // for the requested location.
-        return Channels.readFromFileChannel(raf.channel(), location.translogLocation, location.size);
+        return Channels.readFromFileChannel(channelReference.channel(), location.translogLocation, location.size);
     }
 
     @Override
     public FsChannelSnapshot snapshot() throws TranslogException {
-        if (raf.increaseRefCount()) {
+        if (channelReference.tryIncRef()) {
             boolean success = false;
             try {
                 rwl.writeLock().lock();
                 try {
                     flushBuffer();
-                    FsChannelSnapshot snapshot = new FsChannelSnapshot(this.id, raf, lastWrittenPosition, operationCounter);
+                    FsChannelSnapshot snapshot = new FsChannelSnapshot(this.id, channelReference, lastWrittenPosition, operationCounter);
+                    snapshot.seekTo(this.headerSize);
                     success = true;
                     return snapshot;
                 } catch (Exception e) {
@@ -146,7 +156,7 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
                 }
             } finally {
                 if (!success) {
-                    raf.decreaseRefCount(false);
+                    channelReference.decRef();
                 }
             }
         }
@@ -156,6 +166,11 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
     @Override
     public boolean syncNeeded() {
         return lastPosition != lastSyncPosition;
+    }
+
+    @Override
+    public TranslogStream getStream() {
+        return this.translogStream;
     }
 
     @Override
@@ -170,24 +185,17 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
         } finally {
             rwl.writeLock().unlock();
         }
-        raf.channel().force(false);
+        channelReference.channel().force(false);
     }
 
     @Override
-    public void close(boolean delete) {
-        if (!closed.compareAndSet(false, true)) {
-            return;
-        }
-        try {
-            if (!delete) {
-                try {
-                    sync();
-                } catch (Exception e) {
-                    throw new TranslogException(shardId, "failed to sync on close", e);
-                }
+    public void close() throws IOException {
+        if (closed.compareAndSet(false, true)) {
+            try {
+                sync();
+            } finally {
+                channelReference.decRef();
             }
-        } finally {
-            raf.decreaseRefCount(delete);
         }
     }
 
@@ -221,6 +229,11 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
         } finally {
             rwl.writeLock().unlock();
         }
+    }
+
+    @Override
+    public Path getPath() {
+        return channelReference.file();
     }
 
     class WrapperOutputStream extends OutputStream {

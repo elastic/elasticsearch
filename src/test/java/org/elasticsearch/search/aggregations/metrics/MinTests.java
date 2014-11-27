@@ -19,11 +19,13 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.min.Min;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
 import static org.hamcrest.Matchers.equalTo;
@@ -82,6 +84,31 @@ public class MinTests extends AbstractNumericTests {
         assertThat(min, notNullValue());
         assertThat(min.getName(), equalTo("min"));
         assertThat(min.getValue(), equalTo(1.0));
+    }
+
+    @Test
+    public void testSingleValuedField_getProperty() throws Exception {
+
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(global("global").subAggregation(min("min").field("value"))).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Global global = searchResponse.getAggregations().get("global");
+        assertThat(global, notNullValue());
+        assertThat(global.getName(), equalTo("global"));
+        assertThat(global.getDocCount(), equalTo(10l));
+        assertThat(global.getAggregations(), notNullValue());
+        assertThat(global.getAggregations().asMap().size(), equalTo(1));
+
+        Min min = global.getAggregations().get("min");
+        assertThat(min, notNullValue());
+        assertThat(min.getName(), equalTo("min"));
+        double expectedMinValue = 1.0;
+        assertThat(min.getValue(), equalTo(expectedMinValue));
+        assertThat((Min) global.getProperty("min"), equalTo(min));
+        assertThat((double) global.getProperty("min.value"), equalTo(expectedMinValue));
+        assertThat((double) min.getProperty("value"), equalTo(expectedMinValue));
     }
 
     @Test
@@ -269,7 +296,7 @@ public class MinTests extends AbstractNumericTests {
     public void testScript_MultiValued_WithParams() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(min("min").script("List values = doc['values'].values; double[] res = new double[values.length]; for (int i = 0; i < res.length; i++) { res[i] = values.get(i) - dec; }; return res;").param("dec", 1))
+                .addAggregation(min("min").script("List values = doc['values'].values; double[] res = new double[values.size()]; for (int i = 0; i < res.length; i++) { res[i] = values.get(i) - dec; }; return res;").param("dec", 1))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));

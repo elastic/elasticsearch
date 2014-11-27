@@ -54,7 +54,7 @@ public class SameShardRoutingTests extends ElasticsearchAllocationTestCase {
         AllocationService strategy = createAllocationService(settingsBuilder().put(SameShardAllocationDecider.SAME_HOST_SETTING, true).build());
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(2).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()

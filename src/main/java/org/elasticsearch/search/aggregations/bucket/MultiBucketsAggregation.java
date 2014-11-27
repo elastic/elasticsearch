@@ -19,14 +19,17 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.Comparators;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.HasAggregations;
-import org.elasticsearch.search.aggregations.support.OrderPath;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.util.Collection;
+import java.util.List;
 
 /**
  * An aggregation that returns multiple buckets
@@ -38,7 +41,7 @@ public interface MultiBucketsAggregation extends Aggregation {
      * A bucket represents a criteria to which all documents that fall in it adhere to. It is also uniquely identified
      * by a key, and can potentially hold sub-aggregations computed over all documents in it.
      */
-    public interface Bucket extends HasAggregations {
+    public interface Bucket extends HasAggregations, ToXContent, Streamable {
 
         /**
          * @return  The key associated with the bucket as a string
@@ -60,21 +63,23 @@ public interface MultiBucketsAggregation extends Aggregation {
          */
         Aggregations getAggregations();
 
+        Object getProperty(String containingAggName, List<String> path);
+
         static class SubAggregationComparator<B extends Bucket> implements java.util.Comparator<B> {
 
-            private final OrderPath path;
+            private final AggregationPath path;
             private final boolean asc;
 
             public SubAggregationComparator(String expression, boolean asc) {
                 this.asc = asc;
-                this.path = OrderPath.parse(expression);
+                this.path = AggregationPath.parse(expression);
             }
 
             public boolean asc() {
                 return asc;
             }
 
-            public OrderPath path() {
+            public AggregationPath path() {
                 return path;
             }
 
@@ -90,7 +95,7 @@ public interface MultiBucketsAggregation extends Aggregation {
     /**
      * @return  The buckets of this aggregation.
      */
-    Collection<? extends Bucket> getBuckets();
+    List<? extends Bucket> getBuckets();
 
     /**
      * The bucket that is associated with the given key.

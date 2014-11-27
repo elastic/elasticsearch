@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.query.plugin;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -55,8 +57,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class IndexQueryParserPlugin2Tests extends ElasticsearchTestCase {
 
     @Test
-    public void testCustomInjection() {
-        Settings settings = ImmutableSettings.builder().put("name", "testCustomInjection").build();
+    public void testCustomInjection() throws InterruptedException {
+        Settings settings = ImmutableSettings.builder().put("name", "testCustomInjection").put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
         IndexQueryParserModule queryParserModule = new IndexQueryParserModule(settings);
         queryParserModule.addQueryParser("my", PluginJsonQueryParser.class);
@@ -95,6 +97,6 @@ public class IndexQueryParserPlugin2Tests extends ElasticsearchTestCase {
         PluginJsonFilterParser myJsonFilterParser = (PluginJsonFilterParser) indexQueryParserService.filterParser("my");
         assertThat(myJsonFilterParser.names()[0], equalTo("my"));
 
-        injector.getInstance(ThreadPool.class).shutdownNow();
+        terminate(injector.getInstance(ThreadPool.class));
     }
 }

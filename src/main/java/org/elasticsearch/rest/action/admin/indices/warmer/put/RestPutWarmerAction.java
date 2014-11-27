@@ -26,10 +26,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -40,8 +37,8 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestPutWarmerAction extends BaseRestHandler {
 
     @Inject
-    public RestPutWarmerAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestPutWarmerAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(PUT, "/_warmer/{name}", this);
         controller.registerHandler(PUT, "/{index}/_warmer/{name}", this);
         controller.registerHandler(PUT, "/{index}/{type}/_warmer/{name}", this);

@@ -25,8 +25,8 @@ import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.client.Client;
@@ -72,7 +72,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
      */
     @Override
     public Suggestion<? extends Entry<? extends Option>> innerExecute(String name, PhraseSuggestionContext suggestion,
-            IndexReader indexReader, CharsRef spare) throws IOException {
+            IndexReader indexReader, CharsRefBuilder spare) throws IOException {
         double realWordErrorLikelihood = suggestion.realworldErrorLikelyhood();
         final PhraseSuggestion response = new PhraseSuggestion(name, suggestion.getSize());
 
@@ -103,7 +103,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             PhraseSuggestion.Entry resultEntry = buildResultEntry(suggestion, spare, checkerResult.cutoffScore);
             response.addTerm(resultEntry);
 
-            BytesRef byteSpare = new BytesRef();
+            BytesRefBuilder byteSpare = new BytesRefBuilder();
 
             MultiSearchResponse multiSearchResponse = collate(suggestion, checkerResult, byteSpare, spare);
             final boolean collateEnabled = multiSearchResponse != null;
@@ -115,11 +115,11 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     continue;
                 }
                 Correction correction = checkerResult.corrections[i];
-                UnicodeUtil.UTF8toUTF16(correction.join(SEPARATOR, byteSpare, null, null), spare);
+                spare.copyUTF8Bytes(correction.join(SEPARATOR, byteSpare, null, null));
                 Text phrase = new StringText(spare.toString());
                 Text highlighted = null;
                 if (suggestion.getPreTag() != null) {
-                    UnicodeUtil.UTF8toUTF16(correction.join(SEPARATOR, byteSpare, suggestion.getPreTag(), suggestion.getPostTag()), spare);
+                    spare.copyUTF8Bytes(correction.join(SEPARATOR, byteSpare, suggestion.getPreTag(), suggestion.getPostTag()));
                     highlighted = new StringText(spare.toString());
                 }
                 if (collateEnabled && collatePrune) {
@@ -134,12 +134,12 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         return response;
     }
 
-    private PhraseSuggestion.Entry buildResultEntry(PhraseSuggestionContext suggestion, CharsRef spare, double cutoffScore) {
-        UnicodeUtil.UTF8toUTF16(suggestion.getText(), spare);
-        return new PhraseSuggestion.Entry(new StringText(spare.toString()), 0, spare.length, cutoffScore);
+    private PhraseSuggestion.Entry buildResultEntry(PhraseSuggestionContext suggestion, CharsRefBuilder spare, double cutoffScore) {
+        spare.copyUTF8Bytes(suggestion.getText());
+        return new PhraseSuggestion.Entry(new StringText(spare.toString()), 0, spare.length(), cutoffScore);
     }
 
-    private MultiSearchResponse collate(PhraseSuggestionContext suggestion, Result checkerResult, BytesRef byteSpare, CharsRef spare) throws IOException {
+    private MultiSearchResponse collate(PhraseSuggestionContext suggestion, Result checkerResult, BytesRefBuilder byteSpare, CharsRefBuilder spare) throws IOException {
         CompiledScript collateQueryScript = suggestion.getCollateQueryScript();
         CompiledScript collateFilterScript = suggestion.getCollateFilterScript();
         MultiSearchResponse multiSearchResponse = null;
@@ -153,14 +153,14 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
 
     private MultiSearchResponse fetchMatchingDocCountResponses(Correction[] corrections, CompiledScript collateScript,
                                                                boolean isFilter, PhraseSuggestionContext suggestions,
-                                                               BytesRef byteSpare, CharsRef spare) throws IOException {
+                                                               BytesRefBuilder byteSpare, CharsRefBuilder spare) throws IOException {
         Map<String, Object> vars = suggestions.getCollateScriptParams();
         MultiSearchResponse multiSearchResponse = null;
         MultiSearchRequestBuilder multiSearchRequestBuilder = client.prepareMultiSearch();
         boolean requestAdded = false;
         SearchRequestBuilder req;
         for (Correction correction : corrections) {
-            UnicodeUtil.UTF8toUTF16(correction.join(SEPARATOR, byteSpare, null, null), spare);
+            spare.copyUTF8Bytes(correction.join(SEPARATOR, byteSpare, null, null));
             vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
             ExecutableScript executable = scriptService.executable(collateScript, vars);
             BytesReference querySource = (BytesReference) executable.run();

@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormatterStream
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 public final class InternalCardinality extends InternalNumericMetricsAggregation.SingleValue implements Cardinality {
 
@@ -50,8 +51,8 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
 
     private HyperLogLogPlusPlus counts;
 
-    InternalCardinality(String name, HyperLogLogPlusPlus counts) {
-        super(name);
+    InternalCardinality(String name, HyperLogLogPlusPlus counts, Map<String, Object> metaData) {
+        super(name, metaData);
         this.counts = counts;
     }
 
@@ -74,8 +75,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
         valueFormatter = ValueFormatterStreams.readOptional(in);
         if (in.readBoolean()) {
             counts = HyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
@@ -85,8 +85,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         ValueFormatterStreams.writeOptional(valueFormatter, out);
         if (counts != null) {
             out.writeBoolean(true);
@@ -104,7 +103,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
             final InternalCardinality cardinality = (InternalCardinality) aggregation;
             if (cardinality.counts != null) {
                 if (reduced == null) {
-                    reduced = new InternalCardinality(name, new HyperLogLogPlusPlus(cardinality.counts.precision(), BigArrays.NON_RECYCLING_INSTANCE, 1));
+                    reduced = new InternalCardinality(name, new HyperLogLogPlusPlus(cardinality.counts.precision(), BigArrays.NON_RECYCLING_INSTANCE, 1), getMetaData());
                 }
                 reduced.merge(cardinality);
             }

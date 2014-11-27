@@ -101,23 +101,6 @@ due to forced awareness or allocation filtering.
        unlimited. See also <<modules-cluster>>.
 
 [float]
-===== Disable allocation
-
-added[1.0.0.RC1]
-
-All the disable allocation settings have been deprecated in favour for
-`cluster.routing.allocation.enable` setting.
-
-`cluster.routing.allocation.disable_allocation`::
-     See <<modules-cluster>>.
-
-`cluster.routing.allocation.disable_replica_allocation`::
-     See <<modules-cluster>>.
-
-`cluster.routing.allocation.disable_new_allocation`::
-     See <<modules-cluster>>.
-
-[float]
 ===== Enable allocation
 
 `cluster.routing.allocation.enable`::
@@ -156,7 +139,7 @@ All the disable allocation settings have been deprecated in favour for
 `discovery.zen.minimum_master_nodes`::
      See <<modules-discovery-zen>>
 
-`discovery.zen.publish_timeout` added[1.1.0, The setting existed before but wasn't dynamic]::
+`discovery.zen.publish_timeout`::
      See <<modules-discovery-zen>>
 
 [float]

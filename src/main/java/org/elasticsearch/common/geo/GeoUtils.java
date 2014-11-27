@@ -421,4 +421,7 @@ public class GeoUtils {
             throw new ElasticsearchParseException("geo_point expected");
         }
     }
+
+    private GeoUtils() {
+    }
 }

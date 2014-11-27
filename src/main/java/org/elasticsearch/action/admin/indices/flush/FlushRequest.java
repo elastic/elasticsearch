@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,6 +46,14 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
 
     FlushRequest() {
 
+    }
+
+    /**
+     * Copy constructor that creates a new flush request that is a copy of the one provided as an argument.
+     * The new request will inherit though headers and context from the original request that caused it.
+     */
+    public FlushRequest(ActionRequest originalRequest) {
+        super(originalRequest);
     }
 
     /**
@@ -107,7 +116,7 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
         super.writeTo(out);
         out.writeBoolean(full);
         out.writeBoolean(force);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeBoolean(waitIfOngoing);
         }
     }
@@ -117,7 +126,7 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
         super.readFrom(in);
         full = in.readBoolean();
         force = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             waitIfOngoing = in.readBoolean();
         } else {
             waitIfOngoing = false;

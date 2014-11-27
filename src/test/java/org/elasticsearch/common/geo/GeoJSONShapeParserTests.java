@@ -19,11 +19,15 @@
 
 package org.elasticsearch.common.geo;
 
+import com.spatial4j.core.shape.Circle;
+import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
 import com.spatial4j.core.shape.ShapeCollection;
 import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.spatial4j.core.shape.jts.JtsPoint;
 import com.vividsolutions.jts.geom.*;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -104,6 +108,30 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testParse_circle() throws IOException {
+        String multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "circle")
+                .startArray("coordinates").value(100.0).value(0.0).endArray()
+                .field("radius", "100m")
+                .endObject().string();
+
+        Circle expected = SPATIAL_CONTEXT.makeCircle(100.0, 0.0, 360 * 100 / GeoUtils.EARTH_EQUATOR);
+        assertGeometryEquals(expected, multilinesGeoJson);
+    }
+
+    @Test
+    public void testParse_envelope() throws IOException {
+        String multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "envelope")
+                .startArray("coordinates")
+                .startArray().value(-50).value(30).endArray()
+                .startArray().value(50).value(-30).endArray()
+                .endArray()
+                .endObject().string();
+
+        Rectangle expected = SPATIAL_CONTEXT.makeRectangle(-50, 50, -30, 30);
+        assertGeometryEquals(expected, multilinesGeoJson);
+    }
+
+    @Test
     public void testParse_polygonNoHoles() throws IOException {
         String polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
                 .startArray("coordinates")
@@ -127,6 +155,76 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
         LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
         assertGeometryEquals(jtsGeom(expected), polygonGeoJson);
+    }
+
+    @Test
+    public void testParse_invalidPolygon() throws IOException {
+        /**
+         * The following 3 test cases ensure proper error handling of invalid polygons 
+         * per the GeoJSON specification
+         */
+        // test case 1: create an invalid polygon with only 2 points
+        String invalidPoly1 = XContentFactory.jsonBuilder().startObject().field("type", "polygon")
+                .startArray("coordinates")
+                .startArray()
+                .startArray().value(-74.011).value(40.753).endArray()
+                .startArray().value(-75.022).value(41.783).endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+        XContentParser parser = JsonXContent.jsonXContent.createParser(invalidPoly1);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+
+        // test case 2: create an invalid polygon with only 1 point
+        String invalidPoly2 = XContentFactory.jsonBuilder().startObject().field("type", "polygon")
+                .startArray("coordinates")
+                .startArray()
+                .startArray().value(-74.011).value(40.753).endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+
+        parser = JsonXContent.jsonXContent.createParser(invalidPoly2);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+
+        // test case 3: create an invalid polygon with 0 points
+        String invalidPoly3 = XContentFactory.jsonBuilder().startObject().field("type", "polygon")
+                .startArray("coordinates")
+                .startArray()
+                .startArray().endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+
+        parser = JsonXContent.jsonXContent.createParser(invalidPoly3);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+
+        // test case 4: create an invalid polygon with null value points
+        String invalidPoly4 = XContentFactory.jsonBuilder().startObject().field("type", "polygon")
+                .startArray("coordinates")
+                .startArray()
+                .startArray().nullValue().nullValue().endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+
+        parser = JsonXContent.jsonXContent.createParser(invalidPoly4);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchIllegalArgumentException.class);
+
+        // test case 5: create an invalid polygon with 1 invalid LinearRing
+        String invalidPoly5 = XContentFactory.jsonBuilder().startObject().field("type", "polygon")
+                .startArray("coordinates")
+                .nullValue().nullValue()
+                .endArray()
+                .endObject().string();
+
+        parser = JsonXContent.jsonXContent.createParser(invalidPoly5);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchIllegalArgumentException.class);
     }
 
     @Test

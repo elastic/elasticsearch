@@ -18,9 +18,11 @@
  */
 package org.elasticsearch.snapshots.mockstore;
 
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
+
+import java.io.IOException;
 
 /**
  *
@@ -34,12 +36,12 @@ public class BlobStoreWrapper implements BlobStore {
     }
 
     @Override
-    public ImmutableBlobContainer immutableBlobContainer(BlobPath path) {
-        return delegate.immutableBlobContainer(path);
+    public BlobContainer blobContainer(BlobPath path) {
+        return delegate.blobContainer(path);
     }
 
     @Override
-    public void delete(BlobPath path) {
+    public void delete(BlobPath path) throws IOException {
         delegate.delete(path);
     }
 

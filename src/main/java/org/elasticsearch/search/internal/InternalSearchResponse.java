@@ -113,7 +113,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         }
         timedOut = in.readBoolean();
 
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             terminatedEarly = in.readOptionalBoolean();
         }
     }
@@ -135,7 +135,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         }
         out.writeBoolean(timedOut);
 
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeOptionalBoolean(terminatedEarly);
 
         }

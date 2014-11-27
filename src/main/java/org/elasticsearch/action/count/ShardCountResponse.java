@@ -59,7 +59,7 @@ class ShardCountResponse extends BroadcastShardOperationResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         count = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             terminatedEarly = in.readBoolean();
         }
     }
@@ -68,7 +68,7 @@ class ShardCountResponse extends BroadcastShardOperationResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVLong(count);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeBoolean(terminatedEarly);
         }
     }

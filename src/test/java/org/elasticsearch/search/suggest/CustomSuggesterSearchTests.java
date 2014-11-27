@@ -44,7 +44,7 @@ public class CustomSuggesterSearchTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder().put("plugin.types", CustomSuggesterPlugin.class.getName()).put(super.nodeSettings(nodeOrdinal)).build();
+        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("plugin.types", CustomSuggesterPlugin.class.getName()).build();
     }
 
     @Test

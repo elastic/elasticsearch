@@ -54,8 +54,8 @@ public class UnmappedTerms extends InternalTerms {
 
     UnmappedTerms() {} // for serialization
 
-    public UnmappedTerms(String name, InternalOrder order, int requiredSize, int shardSize, long minDocCount) {
-        super(name, order, requiredSize, shardSize, minDocCount, BUCKETS, false, 0);
+    public UnmappedTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount, Map<String, Object> metaData) {
+        super(name, order, requiredSize, shardSize, minDocCount, BUCKETS, false, 0, 0, metaData);
     }
 
     @Override
@@ -64,8 +64,7 @@ public class UnmappedTerms extends InternalTerms {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        this.name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
         this.docCountError = 0;
         this.order = InternalOrder.Streams.readOrder(in);
         this.requiredSize = readSize(in);
@@ -75,8 +74,7 @@ public class UnmappedTerms extends InternalTerms {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         InternalOrder.Streams.writeOrder(order, out);
         writeSize(requiredSize, out);
         out.writeVLong(minDocCount);
@@ -93,13 +91,14 @@ public class UnmappedTerms extends InternalTerms {
     }
 
     @Override
-    protected InternalTerms newAggregation(String name, List<Bucket> buckets, boolean showTermDocCountError, long docCountError) {
+    protected InternalTerms newAggregation(String name, List<Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount, Map<String, Object> metaData) {
         throw new UnsupportedOperationException("How did you get there?");
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, docCountError);
+        builder.field(SUM_OF_OTHER_DOC_COUNTS, 0);
         builder.startArray(CommonFields.BUCKETS).endArray();
         return builder;
     }

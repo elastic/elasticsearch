@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormatterStream
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
@@ -40,8 +41,8 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
 
     AbstractInternalPercentiles() {} // for serialization
 
-    public AbstractInternalPercentiles(String name, double[] keys, TDigestState state, boolean keyed) {
-        super(name);
+    public AbstractInternalPercentiles(String name, double[] keys, TDigestState state, boolean keyed, Map<String, Object> metaData) {
+        super(name, metaData);
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
@@ -65,14 +66,13 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
             }
             merged.add(percentiles.state);
         }
-        return createReduced(getName(), keys, merged, keyed);
+        return createReduced(getName(), keys, merged, keyed, getMetaData());
     }
 
-    protected abstract AbstractInternalPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed);
+    protected abstract AbstractInternalPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed, Map<String, Object> metaData);
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
         valueFormatter = ValueFormatterStreams.readOptional(in);
         if (in.getVersion().before(Version.V_1_2_0)) {
             final byte id = in.readByte();
@@ -89,8 +89,7 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         ValueFormatterStreams.writeOptional(valueFormatter, out);
         if (out.getVersion().before(Version.V_1_2_0)) {
             out.writeByte((byte) 0);

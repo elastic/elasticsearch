@@ -35,15 +35,25 @@ public class GeoHashGridBuilder extends AggregationBuilder<GeoHashGridBuilder> {
     private int requiredSize = GeoHashGridParser.DEFAULT_MAX_NUM_CELLS;
     private int shardSize = 0;
 
+    /**
+     * Sole constructor.
+     */
     public GeoHashGridBuilder(String name) {
         super(name, InternalGeoHashGrid.TYPE.name());
     }
 
+    /**
+     * Set the field to use to get geo points.
+     */
     public GeoHashGridBuilder field(String field) {
         this.field = field;
         return this;
     }
 
+    /**
+     * Set the geohash precision to use for this aggregation. The higher the
+     * precision, the more fine-grained this aggregation will be.
+     */
     public GeoHashGridBuilder precision(int precision) {
         if ((precision < 1) || (precision > 12)) {
             throw new ElasticsearchIllegalArgumentException("Invalid geohash aggregation precision of " + precision
@@ -53,11 +63,18 @@ public class GeoHashGridBuilder extends AggregationBuilder<GeoHashGridBuilder> {
         return this;
     }
 
+    /**
+     * Set the number of buckets to return.
+     */
     public GeoHashGridBuilder size(int requiredSize) {
         this.requiredSize = requiredSize;
         return this;
     }
 
+    /**
+     * Expert: Set the number of buckets to get on each shard to improve
+     * accuracy.
+     */
     public GeoHashGridBuilder shardSize(int shardSize) {
         this.shardSize = shardSize;
         return this;

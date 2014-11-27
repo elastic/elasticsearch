@@ -462,6 +462,99 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testContextVariables() throws Exception {
+        createTestIndex();
+
+        // Add child type for testing the _parent context variable
+        client().admin().indices().preparePutMapping("test")
+                .setType("subtype1")
+                .setSource(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("subtype1")
+                        .startObject("_parent").field("type", "type1").endObject()
+                        .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
+                        .startObject("_ttl").field("enabled", true).field("store", "yes").endObject()
+                        .endObject()
+                        .endObject())
+                .execute().actionGet();
+        ensureGreen();
+
+        // Index some documents
+        long timestamp = System.currentTimeMillis();
+        client().prepareIndex()
+                .setIndex("test")
+                .setType("type1")
+                .setId("parentId1")
+                .setTimestamp(String.valueOf(timestamp-1))
+                .setSource("field1", 0, "content", "bar")
+                .execute().actionGet();
+
+        long ttl = 10000;
+        client().prepareIndex()
+                .setIndex("test")
+                .setType("subtype1")
+                .setId("id1")
+                .setParent("parentId1")
+                .setRouting("routing1")
+                .setTimestamp(String.valueOf(timestamp))
+                .setTTL(ttl)
+                .setSource("field1", 1, "content", "foo")
+                .execute().actionGet();
+
+        // Update the first object and note context variables values
+        Map<String, Object> scriptParams = new HashMap<>();
+        scriptParams.put("delim", "_");
+        UpdateResponse updateResponse = client().prepareUpdate("test", "subtype1", "id1")
+                .setRouting("routing1")
+                .setScript("assert ctx._index == \"test\" : \"index should be \\\"test\\\"\"\n" +
+                                "assert ctx._type == \"subtype1\" : \"type should be \\\"subtype1\\\"\"\n" +
+                                "assert ctx._id == \"id1\" : \"id should be \\\"id1\\\"\"\n" +
+                                "assert ctx._version == 1 : \"version should be 1\"\n" +
+                                "assert ctx._parent == \"parentId1\" : \"parent should be \\\"parentId1\\\"\"\n" +
+                                "assert ctx._routing == \"routing1\" : \"routing should be \\\"routing1\\\"\"\n" +
+                                "assert ctx._timestamp == " + timestamp + " : \"timestamp should be " + timestamp + "\"\n" +
+                                // ttl has a 3-second leeway, because it's always counting down
+                                "assert ctx._ttl <= " + ttl + " : \"ttl should be <= " + ttl + " but was \" + ctx._ttl\n" +
+                                "assert ctx._ttl >= " + (ttl-3000) + " : \"ttl should be <= " + (ttl-3000) + " but was \" + ctx._ttl\n" +
+                                "ctx._source.content = ctx._source.content + delim + ctx._source.content;\n" +
+                                "ctx._source.field1 += 1;\n",
+                        ScriptService.ScriptType.INLINE)
+                .setScriptParams(scriptParams)
+                .execute().actionGet();
+
+        assertEquals(2, updateResponse.getVersion());
+
+        GetResponse getResponse = client().prepareGet("test", "subtype1", "id1").setRouting("routing1").execute().actionGet();
+        assertEquals(2, getResponse.getSourceAsMap().get("field1"));
+        assertEquals("foo_foo", getResponse.getSourceAsMap().get("content"));
+
+        // Idem with the second object
+        scriptParams = new HashMap<>();
+        scriptParams.put("delim", "_");
+        updateResponse = client().prepareUpdate("test", "type1", "parentId1")
+                .setScript(
+                        "assert ctx._index == \"test\" : \"index should be \\\"test\\\"\"\n" +
+                        "assert ctx._type == \"type1\" : \"type should be \\\"type1\\\"\"\n" +
+                        "assert ctx._id == \"parentId1\" : \"id should be \\\"parentId1\\\"\"\n" +
+                        "assert ctx._version == 1 : \"version should be 1\"\n" +
+                        "assert ctx._parent == null : \"parent should be null\"\n" +
+                        "assert ctx._routing == null : \"routing should be null\"\n" +
+                        "assert ctx._timestamp == " + (timestamp - 1) + " : \"timestamp should be " + (timestamp - 1) + "\"\n" +
+                        "assert ctx._ttl == null : \"ttl should be null\"\n" +
+                        "ctx._source.content = ctx._source.content + delim + ctx._source.content;\n" +
+                        "ctx._source.field1 += 1;\n",
+                        ScriptService.ScriptType.INLINE)
+                .setScriptParams(scriptParams)
+                .execute().actionGet();
+
+        assertEquals(2, updateResponse.getVersion());
+
+        getResponse = client().prepareGet("test", "type1", "parentId1").execute().actionGet();
+        assertEquals(1, getResponse.getSourceAsMap().get("field1"));
+        assertEquals("bar_bar", getResponse.getSourceAsMap().get("content"));
+    }
+
+    @Test
     @Slow
     public void testConcurrentUpdateWithRetryOnConflict() throws Exception {
         final boolean useBulkApi = randomBoolean();
@@ -529,7 +622,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
         }
 
         @Override
-        public MergePolicy newMergePolicy() {
+        public MergePolicy getMergePolicy() {
             return NoMergePolicy.INSTANCE;
         }
 
@@ -692,7 +785,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                 long start = System.currentTimeMillis();
                 do {
                     long msRemaining = timeOut.getMillis() - (System.currentTimeMillis() - start);
-                    logger.info("[{}] going to try and aquire [{}] in [{}]ms [{}] available to aquire right now",name, maxRequests,msRemaining, requestsOutstanding.availablePermits());
+                    logger.info("[{}] going to try and acquire [{}] in [{}]ms [{}] available to acquire right now",name, maxRequests,msRemaining, requestsOutstanding.availablePermits());
                     try {
                         requestsOutstanding.tryAcquire(maxRequests, msRemaining, TimeUnit.MILLISECONDS );
                         return;
@@ -718,7 +811,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
             ut.join(); //Threads should have finished because of the latch.await
         }
 
-        //If are no errors every request recieved a response otherwise the test would have timedout
+        //If are no errors every request received a response otherwise the test would have timedout
         //aquiring the request outstanding semaphores.
         for (Throwable throwable : failures) {
             logger.info("Captured failure on concurrent update:", throwable);

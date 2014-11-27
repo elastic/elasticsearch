@@ -22,7 +22,7 @@ package org.elasticsearch.script.groovy;
 import groovy.lang.Binding;
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.Script;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.codehaus.groovy.ast.ClassCodeExpressionTransformer;
 import org.codehaus.groovy.ast.ClassNode;
@@ -85,6 +85,16 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             loader.close();
         } catch (IOException e) {
             logger.warn("Unable to close Groovy loader", e);
+        }
+    }
+
+    @Override
+    public void scriptRemoved(@Nullable CompiledScript script) {
+        // script could be null, meaning the script has already been garbage collected
+        if (script == null || "groovy".equals(script.lang())) {
+            // Clear the cache, this removes old script versions from the
+            // cache to prevent running out of PermGen space
+            loader.clearCache();
         }
     }
 
@@ -186,6 +196,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         private final SearchLookup lookup;
         private final Map<String, Object> variables;
         private final ESLogger logger;
+        private Scorer scorer;
 
         public GroovyScript(Script script, ESLogger logger) {
             this(script, null, logger);
@@ -196,21 +207,16 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             this.lookup = lookup;
             this.logger = logger;
             this.variables = script.getBinding().getVariables();
-            if (lookup != null) {
-                // Add the _score variable, which will access score from lookup.doc()
-                this.variables.put("_score", new ScoreAccessor(lookup.doc()));
-            }
         }
 
         @Override
         public void setScorer(Scorer scorer) {
-            if (lookup != null) {
-                lookup.setScorer(scorer);
-            }
+            this.scorer = scorer;
+            this.variables.put("_score", new ScoreAccessor(scorer));
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext context) {
+        public void setNextReader(LeafReaderContext context) {
             if (lookup != null) {
                 lookup.setNextReader(context);
             }

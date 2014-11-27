@@ -19,20 +19,28 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.*;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
+import org.elasticsearch.index.mapper.MapperBuilders;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.After;
 import org.junit.Before;
+
+import static org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 
 // we might wanna cut this over to LuceneTestCase
 @SuppressCodecs({"Lucene3x", "Lucene40", "Lucene41", "Lucene42", "Lucene45", "Lucene46"}) 
@@ -43,7 +51,7 @@ public abstract class AbstractFieldDataTests extends ElasticsearchSingleNodeTest
     protected IndexFieldDataService ifdService;
     protected MapperService mapperService;
     protected IndexWriter writer;
-    protected AtomicReaderContext readerContext;
+    protected LeafReaderContext readerContext;
     protected IndexReader topLevelReader;
     protected IndicesFieldDataCache indicesFieldDataCache;
 
@@ -94,14 +102,14 @@ public abstract class AbstractFieldDataTests extends ElasticsearchSingleNodeTest
         indicesFieldDataCache = indexService.injector().getInstance(IndicesFieldDataCache.class);
         ifdService = indexService.fieldData();
         // LogByteSizeMP to preserve doc ID order
-        writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.VERSION, new StandardAnalyzer(Lucene.VERSION)).setMergePolicy(new LogByteSizeMergePolicy()));
+        writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy()));
     }
 
-    protected AtomicReaderContext refreshReader() throws Exception {
+    protected LeafReaderContext refreshReader() throws Exception {
         if (readerContext != null) {
             readerContext.reader().close();
         }
-        AtomicReader reader = SlowCompositeReaderWrapper.wrap(topLevelReader = DirectoryReader.open(writer, true));
+        LeafReader reader = SlowCompositeReaderWrapper.wrap(topLevelReader = DirectoryReader.open(writer, true));
         readerContext = reader.getContext();
         return readerContext;
     }
@@ -113,6 +121,11 @@ public abstract class AbstractFieldDataTests extends ElasticsearchSingleNodeTest
             readerContext.reader().close();
         }
         writer.close();
+    }
+
+    protected Nested createNested(Filter parentFilter, Filter childFilter) {
+        BitsetFilterCache s = indexService.bitsetFilterCache();
+        return new Nested(s.getBitDocIdSetFilter(parentFilter), s.getBitDocIdSetFilter(childFilter));
     }
 
 }

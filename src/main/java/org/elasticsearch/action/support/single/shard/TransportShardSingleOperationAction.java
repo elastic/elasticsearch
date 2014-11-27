@@ -172,7 +172,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
             if (shardRouting == null) {
                 Throwable failure = lastFailure;
                 if (failure == null || isShardNotAvailableException(failure)) {
-                    failure = new NoShardAvailableActionException(shardIt.shardId());
+                    failure = new NoShardAvailableActionException(shardIt.shardId(), null, failure);
                 } else {
                     if (logger.isDebugEnabled()) {
                         logger.debug("{}: failed to execute [{}]", failure, shardIt.shardId(), internalRequest.request());
@@ -338,7 +338,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
             super.readFrom(in);
             request = newRequest();
             request.readFrom(in);
-            if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
                 shardId = ShardId.readShardId(in);
             } else {
                 //older nodes will send the concrete index as part of the request
@@ -349,12 +349,12 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().before(Version.V_1_4_0)) {
+            if (out.getVersion().before(Version.V_1_4_0_Beta1)) {
                 //older nodes expect the concrete index as part of the request
                 request.index(shardId.getIndex());
             }
             request.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
                 shardId.writeTo(out);
             } else {
                 out.writeVInt(shardId.id());

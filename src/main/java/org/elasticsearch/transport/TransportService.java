@@ -34,6 +34,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -41,6 +42,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
@@ -50,6 +52,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_
  */
 public class TransportService extends AbstractLifecycleComponent<TransportService> {
 
+    private final AtomicBoolean started = new AtomicBoolean(false);
     protected final Transport transport;
     protected final ThreadPool threadPool;
 
@@ -92,10 +95,14 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         if (transport.boundAddress() != null && logger.isInfoEnabled()) {
             logger.info("{}", transport.boundAddress());
         }
+        boolean setStarted = started.compareAndSet(false, true);
+        assert setStarted : "service was already started";
     }
 
     @Override
     protected void doStop() throws ElasticsearchException {
+        final boolean setStopped = started.compareAndSet(true, false);
+        assert setStopped : "service has already been stopped";
         try {
             transport.stop();
         } finally {
@@ -191,19 +198,24 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         final long requestId = newRequestId();
         TimeoutHandler timeoutHandler = null;
         try {
+            clientHandlers.put(requestId, new RequestHolder<>(handler, node, action, timeoutHandler));
+            if (started.get() == false) {
+                // if we are not started the exception handling will remove the RequestHolder again and calls the handler to notify the caller.
+                // it will only notify if the toStop code hasn't done the work yet.
+                throw new TransportException("TransportService is closed stopped can't send request");
+            }
             if (options.timeout() != null) {
                 timeoutHandler = new TimeoutHandler(requestId);
                 timeoutHandler.future = threadPool.schedule(options.timeout(), ThreadPool.Names.GENERIC, timeoutHandler);
             }
-            clientHandlers.put(requestId, new RequestHolder<>(handler, node, action, timeoutHandler));
             transport.sendRequest(node, requestId, action, request, options);
         } catch (final Throwable e) {
             // usually happen either because we failed to connect to the node
             // or because we failed serializing the message
             final RequestHolder holderToNotify = clientHandlers.remove(requestId);
             // if the scheduler raise a EsRejectedExecutionException (due to shutdown), we may have a timeout handler, but no future
-            if (timeoutHandler != null && timeoutHandler.future != null) {
-                timeoutHandler.future.cancel(false);
+            if (timeoutHandler != null) {
+                FutureUtils.cancel(timeoutHandler.future);
             }
 
             // If holderToNotify == null then handler has already been taken care of.
@@ -243,6 +255,10 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         synchronized (serverHandlersMutex) {
             serverHandlers = MapBuilder.newMapBuilder(serverHandlers).remove(action).immutableMap();
         }
+    }
+
+    protected TransportRequestHandler getHandler(String action) {
+        return serverHandlers.get(action);
     }
 
     class Adapter implements TransportServiceAdapter {
@@ -429,7 +445,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
         public void cancel() {
             if (timeout != null) {
-                timeout.future.cancel(false);
+                FutureUtils.cancel(timeout.future);
             }
         }
     }

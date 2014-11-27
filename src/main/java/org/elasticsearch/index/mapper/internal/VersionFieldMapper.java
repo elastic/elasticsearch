@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -75,12 +76,14 @@ public class VersionFieldMapper extends AbstractFieldMapper<Long> implements Int
         @Override
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = version();
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals(DOC_VALUES_FORMAT)) {
                     String docValuesFormatName = fieldNode.toString();
                     builder.docValuesFormat(parserContext.docValuesFormatService().get(docValuesFormatName));
+                    iterator.remove();
                 }
             }
             return builder;
@@ -131,11 +134,11 @@ public class VersionFieldMapper extends AbstractFieldMapper<Long> implements Int
 
     @Override
     public void postParse(ParseContext context) throws IOException {
-        // In the case of nested docs, let's fill nested docs with version=0 so that Lucene doesn't write a Bitset for documents
-        // that don't have the field
+        // In the case of nested docs, let's fill nested docs with version=1 so that Lucene doesn't write a Bitset for documents
+        // that don't have the field. This is consistent with the default value for efficiency.
         for (int i = 1; i < context.docs().size(); i++) {
             final Document doc = context.docs().get(i);
-            doc.add(new NumericDocValuesField(NAME, 0L));
+            doc.add(new NumericDocValuesField(NAME, 1L));
         }
     }
 

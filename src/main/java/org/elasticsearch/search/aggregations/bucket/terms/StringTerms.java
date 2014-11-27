@@ -29,10 +29,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
+import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -50,8 +54,27 @@ public class StringTerms extends InternalTerms {
         }
     };
 
+    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
+        @Override
+        public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
+            Bucket buckets = new Bucket((boolean) context.attributes().get("showDocCountError"));
+            buckets.readFrom(in);
+            return buckets;
+        }
+
+        @Override
+        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
+            BucketStreamContext context = new BucketStreamContext();
+            Map<String, Object> attributes = new HashMap<>();
+            attributes.put("showDocCountError", bucket.showDocCountError);
+            context.attributes(attributes);
+            return context;
+        }
+    };
+
     public static void registerStreams() {
         AggregationStreams.registerStream(STREAM, TYPE.stream());
+        BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 
 
@@ -59,8 +82,12 @@ public class StringTerms extends InternalTerms {
 
         BytesRef termBytes;
 
+        public Bucket(boolean showDocCountError) {
+            super(null, showDocCountError);
+        }
+
         public Bucket(BytesRef term, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError) {
-            super(docCount, aggregations, showDocCountError, docCountError);
+            super(docCount, aggregations, showDocCountError, docCountError, null);
             this.termBytes = term;
         }
 
@@ -94,12 +121,46 @@ public class StringTerms extends InternalTerms {
         Bucket newBucket(long docCount, InternalAggregations aggs, long docCountError) {
             return new Bucket(termBytes, docCount, aggs, showDocCountError, docCountError);
         }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            termBytes = in.readBytesRef();
+            docCount = in.readVLong();
+            docCountError = -1;
+            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1) && showDocCountError) {
+                docCountError = in.readLong();
+            }
+            aggregations = InternalAggregations.readAggregations(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBytesRef(termBytes);
+            out.writeVLong(getDocCount());
+            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1) && showDocCountError) {
+                out.writeLong(docCountError);
+            }
+            aggregations.writeTo(out);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.utf8Field(CommonFields.KEY, termBytes);
+            builder.field(CommonFields.DOC_COUNT, getDocCount());
+            if (showDocCountError) {
+                builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, getDocCountError());
+            }
+            aggregations.toXContentInternal(builder, params);
+            builder.endObject();
+            return builder;
+        }
     }
 
     StringTerms() {} // for serialization
 
-    public StringTerms(String name, InternalOrder order, int requiredSize, int shardSize, long minDocCount, List<InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError) {
-        super(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError);
+    public StringTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount, List<InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount, Map<String, Object> metaData) {
+        super(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, metaData);
     }
 
     @Override
@@ -108,21 +169,20 @@ public class StringTerms extends InternalTerms {
     }
 
     @Override
-    protected InternalTerms newAggregation(String name, List<InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError) {
-        return new StringTerms(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError);
+    protected InternalTerms newAggregation(String name, List<InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount, Map<String, Object> metaData) {
+        return new StringTerms(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, metaData);
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        this.name = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+    protected void doReadFrom(StreamInput in) throws IOException {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             this.docCountError = in.readLong();
         } else {
             this.docCountError = -1;
         }
         this.order = InternalOrder.Streams.readOrder(in);
         this.requiredSize = readSize(in);
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             this.shardSize = readSize(in);
             this.showTermDocCountError = in.readBoolean();
         } else {
@@ -130,59 +190,48 @@ public class StringTerms extends InternalTerms {
             this.showTermDocCountError = false;
         }
         this.minDocCount = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            this.otherDocCount = in.readVLong();
+        }
         int size = in.readVInt();
         List<InternalTerms.Bucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            BytesRef termBytes = in.readBytesRef();
-            long docCount = in.readVLong();
-            long bucketDocCountError = -1;
-            if (in.getVersion().onOrAfter(Version.V_1_4_0) && showTermDocCountError) {
-                bucketDocCountError = in.readLong();
-        }
-            InternalAggregations aggregations = InternalAggregations.readAggregations(in);
-            buckets.add(new Bucket(termBytes, docCount, aggregations, showTermDocCountError, bucketDocCountError));
+            Bucket bucket = new Bucket(showTermDocCountError);
+            bucket.readFrom(in);
+            buckets.add(bucket);
         }
         this.buckets = buckets;
         this.bucketMap = null;
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeLong(docCountError);
         }
         InternalOrder.Streams.writeOrder(order, out);
         writeSize(requiredSize, out);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             writeSize(shardSize, out);
             out.writeBoolean(showTermDocCountError);
         }
         out.writeVLong(minDocCount);
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeVLong(otherDocCount);
+        }
         out.writeVInt(buckets.size());
         for (InternalTerms.Bucket bucket : buckets) {
-            out.writeBytesRef(((Bucket) bucket).termBytes);
-            out.writeVLong(bucket.getDocCount());
-            if (out.getVersion().onOrAfter(Version.V_1_4_0) && showTermDocCountError) {
-                out.writeLong(bucket.docCountError);
-            }
-            ((InternalAggregations) bucket.getAggregations()).writeTo(out);
+            bucket.writeTo(out);
         }
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, docCountError);
+        builder.field(SUM_OF_OTHER_DOC_COUNTS, otherDocCount);
         builder.startArray(CommonFields.BUCKETS);
         for (InternalTerms.Bucket bucket : buckets) {
-            builder.startObject();
-            builder.utf8Field(CommonFields.KEY, ((Bucket) bucket).termBytes);
-            builder.field(CommonFields.DOC_COUNT, bucket.getDocCount());
-            if (showTermDocCountError) {
-                builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, bucket.getDocCountError());
-            }
-            ((InternalAggregations) bucket.getAggregations()).toXContentInternal(builder, params);
-            builder.endObject();
+            bucket.toXContent(builder, params);
         }
         builder.endArray();
         return builder;

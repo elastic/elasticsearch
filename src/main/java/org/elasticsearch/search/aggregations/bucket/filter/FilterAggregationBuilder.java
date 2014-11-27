@@ -27,16 +27,23 @@ import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import java.io.IOException;
 
 /**
- *
+ * Builder for the {@link Filter} aggregation.
  */
 public class FilterAggregationBuilder extends AggregationBuilder<FilterAggregationBuilder> {
 
     private FilterBuilder filter;
 
+    /**
+     * Sole constructor.
+     */
     public FilterAggregationBuilder(String name) {
         super(name, InternalFilter.TYPE.name());
     }
 
+    /**
+     * Set the filter to use, only documents that match this filter will fall
+     * into the bucket defined by this {@link Filter} aggregation.
+     */
     public FilterAggregationBuilder filter(FilterBuilder filter) {
         this.filter = filter;
         return this;
@@ -45,7 +52,7 @@ public class FilterAggregationBuilder extends AggregationBuilder<FilterAggregati
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         if (filter == null) {
-            throw new SearchSourceBuilderException("filter must be set on filter aggregation [" + name + "]");
+            throw new SearchSourceBuilderException("filter must be set on filter aggregation [" + getName() + "]");
         }
         filter.toXContent(builder, params);
         return builder;

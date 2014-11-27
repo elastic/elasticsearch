@@ -32,7 +32,7 @@ public class TestReplaceMissing extends ElasticsearchLuceneTestCase {
     
     public void test() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, null);
+        IndexWriterConfig iwc = newIndexWriterConfig(null);
         iwc.setMergePolicy(newLogMergePolicy());
         IndexWriter iw = new IndexWriter(dir, iwc);
         
@@ -50,7 +50,7 @@ public class TestReplaceMissing extends ElasticsearchLuceneTestCase {
         iw.close();
         
         DirectoryReader reader = DirectoryReader.open(dir);
-        AtomicReader ar = getOnlySegmentReader(reader);
+        LeafReader ar = getOnlySegmentReader(reader);
         SortedDocValues raw = ar.getSortedDocValues("field");
         assertEquals(2, raw.getValueCount());
         

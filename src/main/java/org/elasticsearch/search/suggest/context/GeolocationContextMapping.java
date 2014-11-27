@@ -23,10 +23,11 @@ import com.carrotsearch.hppc.IntOpenHashSet;
 import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.PrefixAnalyzer.PrefixTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.BasicAutomata;
-import org.apache.lucene.util.automaton.BasicOperations;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.fst.FST;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoHashUtils;
@@ -126,12 +127,16 @@ public class GeolocationContextMapping extends ContextMapping {
                 // ignore precision
             } else if (configPrecision instanceof Integer) {
                 builder.precision((Integer) configPrecision);
+                config.remove(FIELD_PRECISION);
             } else if (configPrecision instanceof Long) {
                 builder.precision((Long) configPrecision);
+                config.remove(FIELD_PRECISION);
             } else if (configPrecision instanceof Double) {
                 builder.precision((Double) configPrecision);
+                config.remove(FIELD_PRECISION);
             } else if (configPrecision instanceof Float) {
                 builder.precision((Float) configPrecision);
+                config.remove(FIELD_PRECISION);
             } else if (configPrecision instanceof Iterable) {
                 for (Object precision : (Iterable)configPrecision) {
                     if (precision instanceof Integer) {
@@ -146,13 +151,16 @@ public class GeolocationContextMapping extends ContextMapping {
                         builder.precision(precision.toString());
                     }
                 }
+                config.remove(FIELD_PRECISION);
             } else {
                 builder.precision(configPrecision.toString());
+                config.remove(FIELD_PRECISION);
             }
 
             final Object configNeighbors = config.get(FIELD_NEIGHBORS);
             if (configNeighbors != null) {
                 builder.neighbors((Boolean) configNeighbors);
+                config.remove(FIELD_NEIGHBORS);
             }
 
             final Object def = config.get(FIELD_MISSING);
@@ -175,11 +183,13 @@ public class GeolocationContextMapping extends ContextMapping {
                 } else {
                     throw new ElasticsearchParseException("field [" + FIELD_MISSING + "] must be of type string or list");
                 }
+                config.remove(FIELD_MISSING);
             }
 
             final Object fieldName = config.get(FIELD_FIELDNAME);
             if (fieldName != null) {
                 builder.field(fieldName.toString());
+                config.remove(FIELD_FIELDNAME);
             }
         }
         return builder.build();
@@ -224,6 +234,7 @@ public class GeolocationContextMapping extends ContextMapping {
                 ArrayList<String> result = Lists.newArrayList();
                 while (token != Token.END_ARRAY) {
                     result.add(GeoUtils.parseGeoPoint(parser).geohash());
+                    token = parser.nextToken(); //infinite loop without this line
                 }
                 return result;
             }
@@ -621,9 +632,9 @@ public class GeolocationContextMapping extends ContextMapping {
                             for (int i = 0 ; i < lonFields.length ; i++) {
                                 IndexableField lonField = lonFields[i];
                                 IndexableField latField = latFields[i];
-                                assert lonField.fieldType().docValueType() == latField.fieldType().docValueType();
+                                assert lonField.fieldType().docValuesType() == latField.fieldType().docValuesType();
                                 // we write doc values fields differently: one field for all values, so we need to only care about indexed fields
-                                if (lonField.fieldType().docValueType() == null) {
+                                if (lonField.fieldType().docValuesType() == DocValuesType.NONE) {
                                     spare.reset(latField.numericValue().doubleValue(), lonField.numericValue().doubleValue());
                                     geohashes.add(spare.geohash());
                                 }
@@ -650,11 +661,11 @@ public class GeolocationContextMapping extends ContextMapping {
             for (String geohash : geohashes) {
                 for (int p : mapping.precision) {
                     int precision = Math.min(p, geohash.length());
-                    geohash = geohash.substring(0, precision);
+                    String truncatedGeohash = geohash.substring(0, precision);
                     if(mapping.neighbors) {
-                        GeoHashUtils.addNeighbors(geohash, precision, locations);
+                        GeoHashUtils.addNeighbors(truncatedGeohash, precision, locations);
                     }
-                    locations.add(geohash);
+                    locations.add(truncatedGeohash);
                 }
             }
 
@@ -688,12 +699,12 @@ public class GeolocationContextMapping extends ContextMapping {
         public Automaton toAutomaton() {
             Automaton automaton;
             if(precisions == null || precisions.length == 0) {
-                 automaton = BasicAutomata.makeString(location);
+                 automaton = Automata.makeString(location);
             } else {
-                automaton = BasicAutomata.makeString(location.substring(0, Math.max(1, Math.min(location.length(), precisions[0]))));
+                automaton = Automata.makeString(location.substring(0, Math.max(1, Math.min(location.length(), precisions[0]))));
                 for (int i = 1; i < precisions.length; i++) {
-                    final String cell = location.substring(0, Math.max(1, Math.min(location.length(), precisions[0])));
-                    automaton = BasicOperations.union(automaton, BasicAutomata.makeString(cell));
+                    final String cell = location.substring(0, Math.max(1, Math.min(location.length(), precisions[i])));
+                    automaton = Operations.union(automaton, Automata.makeString(cell));
                 }
             }
             return automaton;

@@ -26,9 +26,7 @@ import java.io.IOException;
  * An extension to {@link Collector} that allows for a callback when
  * collection is done.
  */
-public abstract class XCollector extends Collector {
+public interface XCollector extends Collector {
 
-    public void postCollection() throws IOException {
-
-    }
+    public void postCollection() throws IOException;
 }

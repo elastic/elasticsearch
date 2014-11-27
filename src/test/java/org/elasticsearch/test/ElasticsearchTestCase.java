@@ -23,23 +23,34 @@ import com.carrotsearch.randomizedtesting.annotations.*;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
-import org.apache.lucene.search.FieldCache;
 import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.AbstractRandomizedTest;
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
+import org.apache.lucene.uninverting.UninvertingReader;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryService;
+import org.elasticsearch.index.store.fs.SimpleFsDirectoryService;
+import org.elasticsearch.index.store.fs.SimpleFsIndexStore;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.store.MockDirectoryHelper;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.*;
 
 import java.io.Closeable;
@@ -52,8 +63,11 @@ import java.lang.annotation.Target;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.net.URI;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
@@ -64,7 +78,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
  * Base testcase for randomized unit testing with Elasticsearch
  */
 @ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchThreadFilter.class})
-@ThreadLeakScope(Scope.NONE)
+@ThreadLeakScope(Scope.SUITE)
+@ThreadLeakLingering(linger = 5000) // 5 sec lingering
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE) // timeout the suite after 20min and fail the test.
 @Listeners(LoggingListener.class)
 public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
@@ -72,8 +87,6 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     private static Thread.UncaughtExceptionHandler defaultHandler;
 
     protected final ESLogger logger = Loggers.getLogger(getClass());
-
-    public static final String CHILD_VM_ID = System.getProperty("junit4.childvm.id", "" + System.currentTimeMillis());
 
     public static final String TESTS_SECURITY_MANAGER = System.getProperty("tests.security.manager");
 
@@ -97,19 +110,11 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 
     }
 
-    @Before
-    public void cleanFieldCache() {
-        FieldCache.DEFAULT.purgeAllCaches();
-    }
-
     @After
     public void ensureNoFieldCacheUse() {
-        // We use the lucene comparators, and by default they work on field cache.
-        // However, given the way that we use them, field cache should NEVER get loaded.
-        if (getClass().getAnnotation(UsesLuceneFieldCacheOnPurpose.class) == null) {
-            FieldCache.CacheEntry[] entries = FieldCache.DEFAULT.getCacheEntries();
-            assertEquals("fieldcache must never be used, got=" + Arrays.toString(entries), 0, entries.length);
-        }
+        // field cache should NEVER get loaded.
+        String[] entries = UninvertingReader.getUninvertedStats();
+        assertEquals("fieldcache must never be used, got=" + Arrays.toString(entries), 0, entries.length);
     }
 
     /**
@@ -197,9 +202,22 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
      * return URL encoded paths if the parent path contains spaces or other
      * non-standard characters.
      */
+    @Deprecated
     public File getResource(String relativePath) {
         URI uri = URI.create(getClass().getResource(relativePath).toString());
         return new File(uri);
+    }
+
+    /**
+     * Returns a {@link java.nio.file.Path} pointing to the class path relative resource given
+     * as the first argument. In contrast to
+     * <code>getClass().getResource(...).getFile()</code> this method will not
+     * return URL encoded paths if the parent path contains spaces or other
+     * non-standard characters.
+     */
+    public Path getResourcePath(String relativePath) {
+        URI uri = URI.create(getClass().getResource(relativePath).toString());
+        return Paths.get(uri);
     }
 
     @After
@@ -262,7 +280,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     }
 
     public static boolean maybeDocValues() {
-        return LuceneTestCase.defaultCodecSupportsSortedSet() && randomBoolean();
+        return randomBoolean();
     }
 
     private static final List<Version> SORTED_VERSIONS;
@@ -322,6 +340,13 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     public static Version randomVersion(Random random) {
         return SORTED_VERSIONS.get(random.nextInt(SORTED_VERSIONS.size()));
     }
+    
+    /**
+     * Returns immutable list of all known versions.
+     */
+    public static List<Version> allVersions() {
+        return Collections.unmodifiableList(SORTED_VERSIONS);
+    }
 
     /**
      * A random {@link Version} from <code>minVersion</code> to
@@ -369,6 +394,17 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
             int range = minVersionIndex + 1 - maxVersionIndex;
             return SORTED_VERSIONS.get(maxVersionIndex + random.nextInt(range));
         }
+    }
+
+    /**
+     * Return consistent index settings for the provided index version.
+     */
+    public static ImmutableSettings.Builder settings(Version version) {
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version);
+        if (version.before(Version.V_2_0_0)) {
+            builder.put(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION, DjbHashFunction.class);
+        }
+        return builder;
     }
 
     static final class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
@@ -473,15 +509,6 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     }
 
     /**
-     * Most tests don't use {@link FieldCache} but some of them might do.
-     */
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target({ElementType.TYPE})
-    @Ignore
-    public @interface UsesLuceneFieldCacheOnPurpose {
-    }
-
-    /**
      * Returns a global compatibility version that is set via the
      * {@value #TESTS_COMPATIBILITY} or {@value #TESTS_BACKWARDS_COMPATIBILITY_VERSION} system property.
      * If both are unset the current version is used as the global compatibility version. This
@@ -496,18 +523,18 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
      * Retruns the tests compatibility version.
      */
     public Version compatibilityVersion() {
-        return compatibiltyVersion(getClass());
+        return compatibilityVersion(getClass());
     }
 
-    private Version compatibiltyVersion(Class<?> clazz) {
+    private Version compatibilityVersion(Class<?> clazz) {
         if (clazz == Object.class || clazz == ElasticsearchIntegrationTest.class) {
             return globalCompatibilityVersion();
         }
         CompatibilityVersion annotation = clazz.getAnnotation(CompatibilityVersion.class);
         if (annotation != null) {
-            return  Version.smallest(Version.fromId(annotation.version()), compatibiltyVersion(clazz.getSuperclass()));
+            return  Version.smallest(Version.fromId(annotation.version()), compatibilityVersion(clazz.getSuperclass()));
         }
-        return compatibiltyVersion(clazz.getSuperclass());
+        return compatibilityVersion(clazz.getSuperclass());
     }
 
     private static String compatibilityVersionProperty() {
@@ -516,6 +543,21 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
             return version;
         }
         return System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_VERSION);
+    }
+
+
+    public static boolean terminate(ExecutorService... services) throws InterruptedException {
+        boolean terminated = true;
+        for (ExecutorService service : services) {
+            if (service != null) {
+                terminated &= ThreadPool.terminate(service, 10, TimeUnit.SECONDS);
+            }
+        }
+        return terminated;
+    }
+
+    public static boolean terminate(ThreadPool service) throws InterruptedException {
+        return ThreadPool.terminate(service, 10, TimeUnit.SECONDS);
     }
 
 }

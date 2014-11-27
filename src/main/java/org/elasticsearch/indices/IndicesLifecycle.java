@@ -130,7 +130,7 @@ public interface IndicesLifecycle {
          *
          * @param shardId The shard id
          */
-        public void afterIndexShardClosed(ShardId shardId) {
+        public void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard) {
 
         }
 
@@ -144,6 +144,28 @@ public interface IndicesLifecycle {
          * @param reason the reason for the state change if there is one, null otherwise
          */
         public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, IndexShardState currentState, @Nullable String reason) {
+
+        }
+
+        /**
+         * Called after the index has been deleted.
+         * This listener method is invoked after {@link #afterIndexClosed(org.elasticsearch.index.Index)}
+         * when an index is deleted
+         *
+         * @param index The index
+         */
+        public void afterIndexDeleted(Index index) {
+
+        }
+
+        /**
+         * Called before the index gets deleted.
+         * This listener method is invoked after
+         * {@link #beforeIndexClosed(org.elasticsearch.index.service.IndexService)} when an index is deleted
+         *
+         * @param indexService The index service
+         */
+        public void beforeIndexDeleted(IndexService indexService) {
 
         }
     }

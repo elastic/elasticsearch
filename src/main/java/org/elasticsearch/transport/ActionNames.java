@@ -92,8 +92,8 @@ import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.suggest.SuggestAction;
-import org.elasticsearch.action.termvector.MultiTermVectorsAction;
-import org.elasticsearch.action.termvector.TermVectorAction;
+import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
+import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
@@ -127,7 +127,7 @@ final class ActionNames {
     }
 
     static String incomingAction(String action, Version version) {
-        if (version.before(Version.V_1_4_0)) {
+        if (version.before(Version.V_1_4_0_Beta1)) {
             String post_1_4_action = post_1_4_action(action);
             //custom action e.g. registered through plugin are not mapped, fallback to the original one
             if (post_1_4_action != null) {
@@ -138,7 +138,7 @@ final class ActionNames {
     }
 
     static String outgoingAction(String action, Version version) {
-        if (version.before(Version.V_1_4_0)) {
+        if (version.before(Version.V_1_4_0_Beta1)) {
             String pre_1_4_Action = pre_1_4_Action(action);
             //custom actions e.g. registered through plugins are not mapped, fallback to the original one
             if (pre_1_4_Action != null) {
@@ -266,7 +266,7 @@ final class ActionNames {
         builder.put(SearchServiceTransportAction.SCAN_SCROLL_ACTION_NAME, "search/phase/scan/scroll");
 
         addShardAction(SuggestAction.NAME, "suggest", builder);
-        addShardAction(TermVectorAction.NAME, "tv", builder);
+        addShardAction(TermVectorsAction.NAME, "tv", builder);
 
         builder.put(BulkAction.NAME, "bulk");
         builder.put(BulkAction.NAME + "[s]", "bulk/shard");

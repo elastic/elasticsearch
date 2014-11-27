@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -58,11 +59,10 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
             FIELD_TYPE.freeze();
         }
 
@@ -95,12 +95,14 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
             IndexFieldMapper.Builder builder = MapperBuilders.index();
             parseField(builder, builder.name, node, parserContext);
 
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
                     EnabledAttributeMapper mapper = nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED;
                     builder.enabled(mapper);
+                    iterator.remove();
                 }
             }
             return builder;
@@ -194,14 +196,14 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // if all defaults, no need to write it at all
-        if (!includeDefaults && fieldType().stored() == Defaults.FIELD_TYPE.stored() && enabledState == Defaults.ENABLED_STATE) {
+        if (!includeDefaults && fieldType().stored() == Defaults.FIELD_TYPE.stored() && enabledState == Defaults.ENABLED_STATE && customFieldDataSettings == null) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (includeDefaults || fieldType().stored() != Defaults.FIELD_TYPE.stored() && enabledState.enabled) {
+        if (includeDefaults || fieldType().stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType().stored());
         }
-        if (includeDefaults || enabledState.enabled != Defaults.ENABLED_STATE.enabled) {
+        if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
             builder.field("enabled", enabledState.enabled);
         }
 

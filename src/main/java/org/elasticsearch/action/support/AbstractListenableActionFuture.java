@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
@@ -33,11 +34,8 @@ import java.util.List;
 public abstract class AbstractListenableActionFuture<T, L> extends AdapterActionFuture<T, L> implements ListenableActionFuture<T> {
 
     final boolean listenerThreaded;
-
     final ThreadPool threadPool;
-
     volatile Object listeners;
-
     boolean executedListeners = false;
 
     protected AbstractListenableActionFuture(boolean listenerThreaded, ThreadPool threadPool) {
@@ -57,11 +55,7 @@ public abstract class AbstractListenableActionFuture<T, L> extends AdapterAction
         internalAddListener(listener);
     }
 
-    public void addListener(final Runnable listener) {
-        internalAddListener(listener);
-    }
-
-    public void internalAddListener(Object listener) {
+    public void internalAddListener(ActionListener<T> listener) {
         boolean executeImmediate = false;
         synchronized (this) {
             if (executedListeners) {
@@ -97,41 +91,35 @@ public abstract class AbstractListenableActionFuture<T, L> extends AdapterAction
             if (listeners instanceof List) {
                 List list = (List) listeners;
                 for (Object listener : list) {
-                    executeListener(listener);
+                    executeListener((ActionListener<T>) listener);
                 }
             } else {
-                executeListener(listeners);
+                executeListener((ActionListener<T>) listeners);
             }
         }
     }
 
-    private void executeListener(final Object listener) {
+    private void executeListener(final ActionListener<T> listener) {
         if (listenerThreaded) {
-            if (listener instanceof Runnable) {
-                threadPool.generic().execute((Runnable) listener);
-            } else {
-                threadPool.generic().execute(new Runnable() {
+            try {
+                threadPool.executor(ThreadPool.Names.LISTENER).execute(new Runnable() {
                     @Override
                     public void run() {
-                        ActionListener<T> lst = (ActionListener<T>) listener;
                         try {
-                            lst.onResponse(actionGet());
+                            listener.onResponse(actionGet());
                         } catch (ElasticsearchException e) {
-                            lst.onFailure(e);
+                            listener.onFailure(e);
                         }
                     }
                 });
+            } catch (EsRejectedExecutionException e) {
+                listener.onFailure(e);
             }
         } else {
-            if (listener instanceof Runnable) {
-                ((Runnable) listener).run();
-            } else {
-                ActionListener<T> lst = (ActionListener<T>) listener;
-                try {
-                    lst.onResponse(actionGet());
-                } catch (ElasticsearchException e) {
-                    lst.onFailure(e);
-                }
+            try {
+                listener.onResponse(actionGet());
+            } catch (Throwable e) {
+                listener.onFailure(e);
             }
         }
     }

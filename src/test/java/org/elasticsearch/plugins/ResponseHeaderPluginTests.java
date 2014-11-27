@@ -42,9 +42,9 @@ public class ResponseHeaderPluginTests extends ElasticsearchIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder()
+                .put(super.nodeSettings(nodeOrdinal))
                 .put("plugin.types", TestResponseHeaderPlugin.class.getName())
                 .put("force.http.enabled", true)
-                .put(super.nodeSettings(nodeOrdinal))
                 .build();
     }
 

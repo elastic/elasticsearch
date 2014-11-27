@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService;
@@ -35,16 +34,13 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportGetIndexedScriptAction extends HandledTransportAction<GetIndexedScriptRequest, GetIndexedScriptResponse> {
 
-    public static final boolean REFRESH_FORCE = false;
-    ScriptService scriptService;
-    Client client;
+    private final ScriptService scriptService;
 
     @Inject
     public TransportGetIndexedScriptAction(Settings settings, ThreadPool threadPool, ScriptService scriptService,
-                                           TransportService transportService, Client client, ActionFilters actionFilters) {
+                                           TransportService transportService, ActionFilters actionFilters) {
         super(settings, GetIndexedScriptAction.NAME, threadPool,transportService,  actionFilters);
         this.scriptService = scriptService;
-        this.client = client;
     }
 
     @Override
@@ -53,12 +49,18 @@ public class TransportGetIndexedScriptAction extends HandledTransportAction<GetI
     }
 
     @Override
-    public void doExecute(GetIndexedScriptRequest request, ActionListener<GetIndexedScriptResponse> listener){
-        try {
-            GetResponse scriptResponse = scriptService.queryScriptIndex(client, request.scriptLang(), request.id(), request.version(), request.versionType());
-            listener.onResponse(new GetIndexedScriptResponse(scriptResponse));
-        } catch(Throwable e){
-            listener.onFailure(e);
-        }
+    public void doExecute(GetIndexedScriptRequest request, final ActionListener<GetIndexedScriptResponse> listener){
+        // forward the handling to the script service we are running on a network thread here...
+        scriptService.queryScriptIndex(request,new ActionListener<GetResponse>() {
+            @Override
+            public void onResponse(GetResponse getFields) {
+                listener.onResponse(new GetIndexedScriptResponse(getFields));
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                listener.onFailure(e);
+            }
+        });
     }
 }

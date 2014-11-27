@@ -25,52 +25,86 @@ import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import java.util.regex.Pattern;
 
 /**
- *
+ * Builder for the {@link IPv4Range} aggregation.
  */
 public class IPv4RangeBuilder extends AbstractRangeBuilder<IPv4RangeBuilder> {
 
     private static final Pattern MASK_PATTERN = Pattern.compile("[\\.|/]");
 
+    /**
+     * Sole constructor.
+     */
     public IPv4RangeBuilder(String name) {
         super(name, InternalIPv4Range.TYPE.name());
     }
 
+    /**
+     * Add a new range to this aggregation.
+     *
+     * @param key  the key to use for this range in the response
+     * @param from the lower bound on the distances, inclusive
+     * @parap to   the upper bound on the distances, exclusive
+     */
     public IPv4RangeBuilder addRange(String key, String from, String to) {
         ranges.add(new Range(key, from, to));
         return this;
     }
 
+    /**
+     * Same as {@link #addMaskRange(String, String)} but uses the mask itself as a key.
+     */
     public IPv4RangeBuilder addMaskRange(String mask) {
         return addMaskRange(mask, mask);
     }
 
+    /**
+     * Add a range based on a CIDR mask.
+     */
     public IPv4RangeBuilder addMaskRange(String key, String mask) {
         long[] fromTo = cidrMaskToMinMax(mask);
         if (fromTo == null) {
-            throw new SearchSourceBuilderException("invalid CIDR mask [" + mask + "] in ip_range aggregation [" + name + "]");
+            throw new SearchSourceBuilderException("invalid CIDR mask [" + mask + "] in ip_range aggregation [" + getName() + "]");
         }
         ranges.add(new Range(key, fromTo[0] < 0 ? null : fromTo[0], fromTo[1] < 0 ? null : fromTo[1]));
         return this;
     }
 
+    /**
+     * Same as {@link #addRange(String, String, String)} but the key will be
+     * automatically generated.
+     */
     public IPv4RangeBuilder addRange(String from, String to) {
         return addRange(null, from, to);
     }
 
+    /**
+     * Same as {@link #addRange(String, String, String)} but there will be no lower bound.
+     */
     public IPv4RangeBuilder addUnboundedTo(String key, String to) {
         ranges.add(new Range(key, null, to));
         return this;
     }
 
+    /**
+     * Same as {@link #addUnboundedTo(String, String)} but the key will be
+     * generated automatically.
+     */
     public IPv4RangeBuilder addUnboundedTo(String to) {
         return addUnboundedTo(null, to);
     }
 
+    /**
+     * Same as {@link #addRange(String, String, String)} but there will be no upper bound.
+     */
     public IPv4RangeBuilder addUnboundedFrom(String key, String from) {
         ranges.add(new Range(key, from, null));
         return this;
     }
 
+    /**
+     * Same as {@link #addUnboundedFrom(String, String)} but the key will be
+     * generated automatically.
+     */
     public IPv4RangeBuilder addUnboundedFrom(String from) {
         return addUnboundedFrom(null, from);
     }
@@ -120,7 +154,7 @@ public class IPv4RangeBuilder extends AbstractRangeBuilder<IPv4RangeBuilder> {
         return new long[] { longFrom, longTo };
     }
 
-    public static long intIpToLongIp(int i) {
+    private static long intIpToLongIp(int i) {
         long p1 = ((long) ((i >> 24 ) & 0xFF)) << 24;
         int p2 = ((i >> 16 ) & 0xFF) << 16;
         int p3 = ((i >>  8 ) & 0xFF) << 8;

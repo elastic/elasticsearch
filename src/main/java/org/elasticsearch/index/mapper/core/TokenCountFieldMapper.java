@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.mapper.core.StringFieldMapper.ValueAndBoost;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -91,20 +93,23 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
         @SuppressWarnings("unchecked")
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             TokenCountFieldMapper.Builder builder = tokenCountField(name);
-            parseNumberField(builder, name, node, parserContext);
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
                     builder.nullValue(nodeIntegerValue(propNode));
+                    iterator.remove();
                 } else if (propName.equals("analyzer")) {
                     NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
                     if (analyzer == null) {
                         throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                     }
                     builder.analyzer(analyzer);
+                    iterator.remove();
                 }
             }
+            parseNumberField(builder, name, node, parserContext);
             if (builder.analyzer() == null) {
                 throw new MapperParsingException("Analyzer must be set for field [" + name + "] but wasn't.");
             }
@@ -131,7 +136,7 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
             return;
         }
 
-        if (fieldType.indexed() || fieldType.stored() || hasDocValues()) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored() || hasDocValues()) {
             int count;
             if (valueAndBoost.value() == null) {
                 count = nullValue();

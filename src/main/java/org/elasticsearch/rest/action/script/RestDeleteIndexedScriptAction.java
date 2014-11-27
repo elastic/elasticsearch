@@ -18,17 +18,16 @@
  */
 package org.elasticsearch.rest.action.script;
 
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptRequest;
+import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
-import org.elasticsearch.script.ScriptService;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -36,24 +35,30 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestDeleteIndexedScriptAction extends BaseRestHandler {
 
-    private ScriptService scriptService;
-
     @Inject
-    public RestDeleteIndexedScriptAction(Settings settings, Client client,
-                                         ScriptService scriptService, RestController controller) {
-        super(settings, client);
-        controller.registerHandler(DELETE, "/_scripts/{lang}/{id}", this);
-        this.scriptService = scriptService;
+    public RestDeleteIndexedScriptAction(Settings settings, RestController controller, Client client) {
+        this(settings, controller, true, client);
+    }
+
+    protected RestDeleteIndexedScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers, Client client) {
+        super(settings, controller, client);
+        if (registerDefaultHandlers) {
+            controller.registerHandler(DELETE, "/_scripts/{lang}/{id}", this);
+        }
+    }
+
+    protected String getScriptLang(RestRequest request) {
+        return request.param("lang");
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
-
-        final String id = request.param("id");
-        final long version = request.paramAsLong("version", Versions.MATCH_ANY);
-        scriptService.deleteScriptFromIndex(client,request.param("lang"), id, version, new RestBuilderListener<DeleteResponse>(channel) {
+        DeleteIndexedScriptRequest deleteIndexedScriptRequest = new DeleteIndexedScriptRequest(getScriptLang(request), request.param("id"));
+        deleteIndexedScriptRequest.version(request.paramAsLong("version", deleteIndexedScriptRequest.version()));
+        deleteIndexedScriptRequest.versionType(VersionType.fromString(request.param("version_type"), deleteIndexedScriptRequest.versionType()));
+        client.deleteIndexedScript(deleteIndexedScriptRequest, new RestBuilderListener<DeleteIndexedScriptResponse>(channel) {
             @Override
-            public RestResponse buildResponse(DeleteResponse result, XContentBuilder builder) throws Exception {
+            public RestResponse buildResponse(DeleteIndexedScriptResponse result, XContentBuilder builder) throws Exception {
                 builder.startObject()
                         .field(Fields.FOUND, result.isFound())
                         .field(Fields._INDEX, result.getIndex())
@@ -77,6 +82,4 @@ public class RestDeleteIndexedScriptAction extends BaseRestHandler {
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
         static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
     }
-
-
 }

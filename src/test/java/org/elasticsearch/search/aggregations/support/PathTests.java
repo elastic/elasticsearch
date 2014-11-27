@@ -58,7 +58,7 @@ public class PathTests extends ElasticsearchTestCase {
 
     private void assertInvalidPath(String path, String reason) {
         try {
-            OrderPath.parse(path);
+            AggregationPath.parse(path);
             fail("Expected parsing path [" + path + "] to fail - " + reason);
         } catch (AggregationExecutionException aee) {
             // expected
@@ -66,12 +66,12 @@ public class PathTests extends ElasticsearchTestCase {
     }
 
     private void assertValidPath(String path, Tokens tokenz) {
-        OrderPath.Token[] tokens = tokenz.toArray();
-        OrderPath p = OrderPath.parse(path);
-        assertThat(p.tokens.length, equalTo(tokens.length));
-        for (int i = 0; i < p.tokens.length; i++) {
-            OrderPath.Token t1 = p.tokens[i];
-            OrderPath.Token t2 = tokens[i];
+        AggregationPath.PathElement[] tokens = tokenz.toArray();
+        AggregationPath p = AggregationPath.parse(path);
+        assertThat(p.getPathElements().size(), equalTo(tokens.length));
+        for (int i = 0; i < p.getPathElements().size(); i++) {
+            AggregationPath.PathElement t1 = p.getPathElements().get(i);
+            AggregationPath.PathElement t2 = tokens[i];
             assertThat(t1, equalTo(t2));
         }
     }
@@ -82,24 +82,24 @@ public class PathTests extends ElasticsearchTestCase {
 
     private static class Tokens {
 
-        private List<OrderPath.Token> tokens = new ArrayList<>();
+        private List<AggregationPath.PathElement> tokens = new ArrayList<>();
 
         Tokens add(String name) {
-            tokens.add(new OrderPath.Token(name, name, null));
+            tokens.add(new AggregationPath.PathElement(name, name, null));
             return this;
         }
 
         Tokens add(String name, String key) {
             if (Math.random() > 0.5) {
-                tokens.add(new OrderPath.Token(name + "." + key, name, key));
+                tokens.add(new AggregationPath.PathElement(name + "." + key, name, key));
             } else {
-                tokens.add(new OrderPath.Token(name + "[" + key + "]", name, key));
+                tokens.add(new AggregationPath.PathElement(name + "[" + key + "]", name, key));
             }
             return this;
         }
 
-        OrderPath.Token[] toArray() {
-            return tokens.toArray(new OrderPath.Token[tokens.size()]);
+        AggregationPath.PathElement[] toArray() {
+            return tokens.toArray(new AggregationPath.PathElement[tokens.size()]);
         }
 
 

@@ -34,7 +34,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to open an index.
  */
-public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> implements IndicesRequest {
+public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, false, true);
@@ -72,6 +72,7 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> impl
      * @param indices the indices to be opened
      * @return the request itself
      */
+    @Override
     public OpenIndexRequest indices(String... indices) {
         this.indices = indices;
         return this;

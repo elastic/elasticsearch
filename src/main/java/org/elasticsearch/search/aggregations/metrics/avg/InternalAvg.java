@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggre
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
 *
@@ -53,8 +54,8 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
 
     InternalAvg() {} // for serialization
 
-    public InternalAvg(String name, double sum, long count) {
-        super(name);
+    public InternalAvg(String name, double sum, long count, Map<String, Object> metaData) {
+        super(name, metaData);
         this.sum = sum;
         this.count = count;
     }
@@ -81,20 +82,18 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
             count += ((InternalAvg) aggregation).count;
             sum += ((InternalAvg) aggregation).sum;
         }
-        return new InternalAvg(getName(), sum, count);
+        return new InternalAvg(getName(), sum, count, getMetaData());
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
         valueFormatter = ValueFormatterStreams.readOptional(in);
         sum = in.readDouble();
         count = in.readVLong();
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         ValueFormatterStreams.writeOptional(valueFormatter, out);
         out.writeDouble(sum);
         out.writeVLong(count);

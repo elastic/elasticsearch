@@ -28,8 +28,6 @@ example, can be set to `5m` for a 5 minute expiry.
 [[circuit-breaker]]
 === Circuit Breaker
 
-coming[1.4.0,Prior to 1.4.0 there was only a single circuit breaker for fielddata]
-
 Elasticsearch contains multiple circuit breakers used to prevent operations from
 causing an OutOfMemoryError. Each breaker specifies a limit for how much memory
 it can use. Additionally, there is a parent-level breaker that specifies the
@@ -59,17 +57,9 @@ parameters:
     A constant that all field data estimations are multiplied with to determine a
     final estimation. Defaults to 1.03
 
-`indices.fielddata.breaker.limit`::
-    deprecated[1.4.0,Replaced by `indices.breaker.fielddata.limit`]
-
-`indices.fielddata.breaker.overhead`::
-    deprecated[1.4.0,Replaced by `indices.breaker.fielddata.overhead`]
-
 [float]
 [[request-circuit-breaker]]
 ==== Request circuit breaker
-
-coming[1.4.0]
 
 The request circuit breaker allows Elasticsearch to prevent per-request data
 structures (for example, memory used for calculating aggregations during a
@@ -138,7 +128,7 @@ field data format.
 `doc_values`::
     Computes and stores field data data-structures on disk at indexing time.
     Lowers memory usage but only works on non-analyzed strings (`index`: `no` or
-    `not_analyzed`) and doesn't support filtering.
+    `not_analyzed`).
 
 [float]
 ==== Numeric field data types
@@ -148,7 +138,6 @@ field data format.
 
 `doc_values`::
     Computes and stores field data data-structures on disk at indexing time.
-    Doesn't support filtering.
 
 [float]
 ==== Geo point field data types
@@ -161,8 +150,6 @@ field data format.
 
 [float]
 ==== Global ordinals
-
-added[1.2.0]
 
 Global ordinals is a data-structure on top of field data, that maintains an
 incremental numbering for all the terms in field data in a lexicographic order.

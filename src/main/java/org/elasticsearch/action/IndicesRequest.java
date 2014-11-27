@@ -39,4 +39,11 @@ public interface IndicesRequest {
      * accepted, whether an empty array will be converted to _all, and how wildcards will be expanded if needed.
      */
     IndicesOptions indicesOptions();
+
+    static interface Replaceable extends IndicesRequest {
+        /*
+         * Sets the array of indices that the action relates to
+         */
+        IndicesRequest indices(String[] indices);
+    }
 }

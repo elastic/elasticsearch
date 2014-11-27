@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.watcher;
 
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+
 import java.io.File;
 import java.util.Arrays;
 
@@ -29,6 +32,8 @@ import java.util.Arrays;
 public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
 
     private FileObserver rootFileObserver;
+
+    private static final ESLogger logger = Loggers.getLogger(FileWatcher.class);
 
     /**
      * Creates new file watcher on the given directory
@@ -228,32 +233,49 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
 
         private void onFileCreated(boolean initial) {
             for (FileChangesListener listener : listeners()) {
-                if (initial) {
-                    listener.onFileInit(file);
-                } else {
-                    listener.onFileCreated(file);
+                try {
+                    if (initial) {
+                        listener.onFileInit(file);
+                    } else {
+                        listener.onFileCreated(file);
+                    }
+                } catch (Throwable t) {
+                    logger.warn("cannot notify file changes listener", t);
                 }
             }
         }
 
         private void onFileDeleted() {
             for (FileChangesListener listener : listeners()) {
-                listener.onFileDeleted(file);
+                try {
+                    listener.onFileDeleted(file);
+                } catch (Throwable t) {
+                    logger.warn("cannot notify file changes listener", t);
+                }
             }
         }
 
         private void onFileChanged() {
             for (FileChangesListener listener : listeners()) {
-                listener.onFileChanged(file);
+                try {
+                    listener.onFileChanged(file);
+                } catch (Throwable t) {
+                    logger.warn("cannot notify file changes listener", t);
+                }
+
             }
         }
 
         private void onDirectoryCreated(boolean initial) {
             for (FileChangesListener listener : listeners()) {
-                if (initial) {
-                    listener.onDirectoryInit(file);
-                } else {
-                    listener.onDirectoryCreated(file);
+                try {
+                    if (initial) {
+                        listener.onDirectoryInit(file);
+                    } else {
+                        listener.onDirectoryCreated(file);
+                    }
+                } catch (Throwable t) {
+                    logger.warn("cannot notify file changes listener", t);
                 }
             }
             children = listChildren(initial);
@@ -265,7 +287,11 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
                 deleteChild(child);
             }
             for (FileChangesListener listener : listeners()) {
-                listener.onDirectoryDeleted(file);
+                try {
+                    listener.onDirectoryDeleted(file);
+                } catch (Throwable t) {
+                    logger.warn("cannot notify file changes listener", t);
+                }
             }
         }
 

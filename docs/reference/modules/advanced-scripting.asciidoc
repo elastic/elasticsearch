@@ -79,7 +79,7 @@ The number of terms in a field cannot be accessed using the `_index` variable. S
 Term statistics for a field can be accessed with a subscript operator like
 this: `_index['FIELD']['TERM']`. This will never return null, even if term or field does not exist.
 If you do not need the term frequency, call `_index['FIELD'].get('TERM', 0)`
-to avoid uneccesary initialization of the frequencies. The flag will have only
+to avoid unnecessary initialization of the frequencies. The flag will have only
 affect is your set the `index_options` to `docs` (see <<mapping-core-types, mapping documentation>>).
 
 

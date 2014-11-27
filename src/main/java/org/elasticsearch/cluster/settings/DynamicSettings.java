@@ -42,7 +42,7 @@ public class DynamicSettings {
 
     public String validateDynamicSetting(String dynamicSetting, String value) {
         for (Map.Entry<String, Validator> setting : dynamicSettings.entrySet()) {
-            if (Regex.simpleMatch(dynamicSetting, setting.getKey())) {
+            if (Regex.simpleMatch(setting.getKey(), dynamicSetting)) {
                 return setting.getValue().validate(dynamicSetting, value);
             }
         }

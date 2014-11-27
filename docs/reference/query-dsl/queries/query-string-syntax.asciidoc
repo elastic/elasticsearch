@@ -292,6 +292,5 @@ being touched by the query string parser: `"wi\ fi"`.
 
 ===== Empty Query
 
-If the query string is empty or only contains whitespaces the
-query string is interpreted as a `no_docs_query` and will yield
-an empty result set. 
+If the query string is empty or only contains whitespaces the query will
+yield an empty result set.

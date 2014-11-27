@@ -60,7 +60,7 @@ public class PrioritizedExecutorsTests extends ElasticsearchTestCase {
 
     @Test
     public void testSubmitPrioritizedExecutorWithRunnables() throws Exception {
-        ExecutorService executor = EsExecutors.newSinglePrioritizing(Executors.defaultThreadFactory());
+        ExecutorService executor = EsExecutors.newSinglePrioritizing(EsExecutors.daemonThreadFactory(getTestName()));
         List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(8);
@@ -85,11 +85,12 @@ public class PrioritizedExecutorsTests extends ElasticsearchTestCase {
         assertThat(results.get(5), equalTo(5));
         assertThat(results.get(6), equalTo(6));
         assertThat(results.get(7), equalTo(7));
+        terminate(executor);
     }
 
     @Test
     public void testExecutePrioritizedExecutorWithRunnables() throws Exception {
-        ExecutorService executor = EsExecutors.newSinglePrioritizing(Executors.defaultThreadFactory());
+        ExecutorService executor = EsExecutors.newSinglePrioritizing(EsExecutors.daemonThreadFactory(getTestName()));
         List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(8);
@@ -114,11 +115,12 @@ public class PrioritizedExecutorsTests extends ElasticsearchTestCase {
         assertThat(results.get(5), equalTo(5));
         assertThat(results.get(6), equalTo(6));
         assertThat(results.get(7), equalTo(7));
+        terminate(executor);
     }
 
     @Test
     public void testSubmitPrioritizedExecutorWithCallables() throws Exception {
-        ExecutorService executor = EsExecutors.newSinglePrioritizing(Executors.defaultThreadFactory());
+        ExecutorService executor = EsExecutors.newSinglePrioritizing(EsExecutors.daemonThreadFactory(getTestName()));
         List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(8);
@@ -143,11 +145,12 @@ public class PrioritizedExecutorsTests extends ElasticsearchTestCase {
         assertThat(results.get(5), equalTo(5));
         assertThat(results.get(6), equalTo(6));
         assertThat(results.get(7), equalTo(7));
+        terminate(executor);
     }
 
     @Test
     public void testSubmitPrioritizedExecutorWithMixed() throws Exception {
-        ExecutorService executor = EsExecutors.newSinglePrioritizing(Executors.defaultThreadFactory());
+        ExecutorService executor = EsExecutors.newSinglePrioritizing(EsExecutors.daemonThreadFactory(getTestName()));
         List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(8);
@@ -172,12 +175,13 @@ public class PrioritizedExecutorsTests extends ElasticsearchTestCase {
         assertThat(results.get(5), equalTo(5));
         assertThat(results.get(6), equalTo(6));
         assertThat(results.get(7), equalTo(7));
+        terminate(executor);
     }
 
     @Test
     public void testTimeout() throws Exception {
-        ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
-        PrioritizedEsThreadPoolExecutor executor = EsExecutors.newSinglePrioritizing(Executors.defaultThreadFactory());
+        ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(EsExecutors.daemonThreadFactory(getTestName()));
+        PrioritizedEsThreadPoolExecutor executor = EsExecutors.newSinglePrioritizing(EsExecutors.daemonThreadFactory(getTestName()));
         final CountDownLatch invoked = new CountDownLatch(1);
         final CountDownLatch block = new CountDownLatch(1);
         executor.execute(new Runnable() {
@@ -233,9 +237,7 @@ public class PrioritizedExecutorsTests extends ElasticsearchTestCase {
         block.countDown();
         Thread.sleep(100); // sleep a bit to double check that execute on the timed out update task is not called...
         assertThat(executeCalled.get(), equalTo(false));
-
-        timer.shutdownNow();
-        executor.shutdownNow();
+        assertTrue(terminate(timer, executor));
     }
 
     static class AwaitingJob extends PrioritizedRunnable {

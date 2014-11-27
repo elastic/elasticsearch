@@ -164,7 +164,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
             suggest = Suggest.readSuggest(Suggest.Fields.SUGGEST, in);
         }
         searchTimedOut = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             terminatedEarly = in.readOptionalBoolean();
         }
     }
@@ -194,7 +194,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
             suggest.writeTo(out);
         }
         out.writeBoolean(searchTimedOut);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeOptionalBoolean(terminatedEarly);
         }
     }

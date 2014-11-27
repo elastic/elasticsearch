@@ -29,11 +29,14 @@ class FakeRestRequest extends RestRequest {
     private final Map<String, String> headers;
 
     FakeRestRequest() {
-        this(new HashMap<String, String>());
+        this(new HashMap<String, String>(), new HashMap<String, String>());
     }
 
-    FakeRestRequest(Map<String, String> headers) {
+    FakeRestRequest(Map<String, String> headers, Map<String, String> context) {
         this.headers = headers;
+        for (Map.Entry<String, String> entry : context.entrySet()) {
+            putInContext(entry.getKey(), entry.getValue());
+        }
     }
 
     @Override

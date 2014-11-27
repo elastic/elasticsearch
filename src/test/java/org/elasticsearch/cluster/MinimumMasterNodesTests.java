@@ -24,8 +24,10 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -34,14 +36,17 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope = Scope.TEST, numDataNodes =0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
     @Test
@@ -60,7 +65,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> should be blocked, no master...");
         ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
+        assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
         assertThat(state.nodes().size(), equalTo(1)); // verify that we still see the local node in the cluster state
 
         logger.info("--> start second node, cluster should be formed");
@@ -70,9 +75,9 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(false));
+        assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(false));
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(false));
+        assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(false));
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().size(), equalTo(2));
@@ -97,12 +102,12 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         internalCluster().stopCurrentMasterNode();
         awaitBusy(new Predicate<Object>() {
             public boolean apply(Object obj) {
-                ClusterState  state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                return state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
+                ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+                return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
             }
         });
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
+        assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
         assertThat(state.nodes().size(), equalTo(1)); // verify that we still see the local node in the cluster state
 
         logger.info("--> starting the previous master node again...");
@@ -112,9 +117,9 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(false));
+        assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(false));
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(false));
+        assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(false));
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().size(), equalTo(2));
@@ -135,7 +140,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         assertThat(awaitBusy(new Predicate<Object>() {
             public boolean apply(Object obj) {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                return state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
+                return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
             }
         }), equalTo(true));
 
@@ -146,9 +151,9 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(false));
+        assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(false));
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(false));
+        assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(false));
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().size(), equalTo(2));
@@ -169,7 +174,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 3)
-                .put("discovery.zen.ping_timeout", "200ms")
+                .put("discovery.zen.ping_timeout", "1s")
                 .put("discovery.initial_state_timeout", "500ms")
                 .put("gateway.type", "local")
                 .build();
@@ -183,25 +188,24 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         awaitBusy(new Predicate<Object>() {
             public boolean apply(Object obj) {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                return state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
+                return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
             }
         });
-        
+
         awaitBusy(new Predicate<Object>() {
             public boolean apply(Object obj) {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                return state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
+                return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
             }
         });
 
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
+        assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
+        assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
 
         logger.info("--> start two more nodes");
-        internalCluster().startNode(settings);
-        internalCluster().startNode(settings);
+        internalCluster().startNodesAsync(2, settings).get();
 
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("4").execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
@@ -234,20 +238,21 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         assertNoMasterBlockOnAllNodes();
 
         logger.info("--> start back the 2 nodes ");
-        internalCluster().startNode(settings);
-        internalCluster().startNode(settings);
+        String[] newNodes = internalCluster().startNodesAsync(2, settings).get().toArray(Strings.EMPTY_ARRAY);
 
-        clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("4").execute().actionGet();
+        clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("4").execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
-        logger.info("Running Cluster Health");
+        logger.info("--> running Cluster Health");
         ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        logger.info("--> done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().size(), equalTo(4));
+        // we prefer to elect up and running nodes
+        assertThat(state.nodes().masterNodeId(), not(isOneOf(newNodes)));
 
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {
@@ -298,13 +303,53 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
                 boolean success = true;
                 for (Client client : internalCluster()) {
                     ClusterState state = client.admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                    success &= state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
+                    success &= state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
                     if (logger.isDebugEnabled()) {
-                        logger.debug("Checking for NO_MASTER_BLOCK on client: {} NO_MASTER_BLOCK: [{}]", client, state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK));
+                        logger.debug("Checking for NO_MASTER_BLOCK on client: {} NO_MASTER_BLOCK: [{}]", client, state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID));
                     }
                 }
                 return success;
             }
         }, 20, TimeUnit.SECONDS), equalTo(true));
+    }
+
+    @Test
+    public void testCanNotBringClusterDown() throws ExecutionException, InterruptedException {
+        int nodeCount = scaledRandomIntBetween(1, 5);
+        ImmutableSettings.Builder settings = settingsBuilder()
+                .put("discovery.type", "zen")
+                .put("discovery.zen.ping_timeout", "200ms")
+                .put("discovery.initial_state_timeout", "500ms")
+                .put("gateway.type", "local");
+
+        // set an initial value which is at least quorum to avoid split brains during initial startup
+        int initialMinMasterNodes = randomIntBetween(nodeCount / 2 + 1, nodeCount);
+        settings.put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, initialMinMasterNodes);
+
+
+        logger.info("--> starting [{}] nodes. min_master_nodes set to [{}]", nodeCount, initialMinMasterNodes);
+        internalCluster().startNodesAsync(nodeCount, settings.build()).get();
+
+        logger.info("--> waiting for nodes to join");
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nodeCount)).get().isTimedOut());
+
+        int updateCount = randomIntBetween(1, nodeCount);
+
+        logger.info("--> updating [{}] to [{}]", ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount);
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+                .setPersistentSettings(settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount)));
+
+        logger.info("--> verifying no node left and master is up");
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nodeCount)).get().isTimedOut());
+
+        updateCount = nodeCount + randomIntBetween(1, 2000);
+        logger.info("--> trying to updating [{}] to [{}]", ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount);
+        assertThat(client().admin().cluster().prepareUpdateSettings()
+                        .setPersistentSettings(settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount))
+                        .get().getPersistentSettings().getAsMap().keySet(),
+                empty());
+
+        logger.info("--> verifying no node left and master is up");
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nodeCount)).get().isTimedOut());
     }
 }

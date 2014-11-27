@@ -21,6 +21,7 @@ package org.elasticsearch.action.deletebyquery;
 
 import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.replication.IndicesReplicationOperationRequest;
@@ -72,6 +73,14 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
     public DeleteByQueryRequest() {
     }
 
+    /**
+     * Copy constructor that creates a new delete by query request that is a copy of the one provided as an argument.
+     * The new request will inherit though headers and context from the original request that caused it.
+     */
+    public DeleteByQueryRequest(ActionRequest originalRequest) {
+        super(originalRequest);
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
@@ -113,6 +122,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
     /**
      * The source to execute in the form of a map.
      */
+    @SuppressWarnings("unchecked")
     public DeleteByQueryRequest source(Map source) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);

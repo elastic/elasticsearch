@@ -29,7 +29,7 @@ import java.util.List;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
- * An error message and the context in which it occured. Messages are usually created internally by
+ * An error message and the context in which it occurred. Messages are usually created internally by
  * Guice and its extensions. Messages can be created explicitly in a module using {@link
  * org.elasticsearch.common.inject.Binder#addError(Throwable) addError()} statements:
  * <pre>

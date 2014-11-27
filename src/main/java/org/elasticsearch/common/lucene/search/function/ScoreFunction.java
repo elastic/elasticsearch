@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 
 /**
@@ -28,8 +28,8 @@ import org.apache.lucene.search.Explanation;
 public abstract class ScoreFunction {
 
     private final CombineFunction scoreCombiner;
-    
-    public abstract void setNextReader(AtomicReaderContext context);
+
+    public abstract void setNextReader(LeafReaderContext context);
 
     public abstract double score(int docId, float subQueryScore);
 
@@ -42,5 +42,4 @@ public abstract class ScoreFunction {
     protected ScoreFunction(CombineFunction scoreCombiner) {
         this.scoreCombiner = scoreCombiner;
     }
-
 }

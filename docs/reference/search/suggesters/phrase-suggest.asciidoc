@@ -13,7 +13,7 @@ suggestions are required in order to present to the end-user. The
 to select entire corrected phrases instead of individual tokens weighted
 based on `ngram-language` models. In practice this suggester will be
 able to make better decisions about which tokens to pick based on
-co-occurence and frequencies.
+co-occurrence and frequencies.
 
 ==== API Example
 
@@ -106,8 +106,8 @@ can contain misspellings (See parameter descriptions below).
 
 `real_word_error_likelihood`:: 
     the likelihood of a term being a
-    misspelled even if the term exists in the dictionary. The default it
-    `0.95` corresponding to 5% or the real words are misspelled.
+    misspelled even if the term exists in the dictionary. The default is
+    `0.95` corresponding to 5% of the real words are misspelled.
 
 
 `confidence`:: 

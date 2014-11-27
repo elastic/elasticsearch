@@ -55,3 +55,14 @@ How many merge operations have the shards for the `wiki` completed?
 health index docs.count mt pri.mt
 green  wiki        9646 16     16
 --------------------------------------------------
+
+How much memory is used per index?
+
+[source,shell]
+--------------------------------------------------
+% curl 'localhost:9200/_cat/indices?v&h=i,tm'
+i     tm
+wiki  8.1gb
+test  30.5kb
+user  1.9mb
+--------------------------------------------------

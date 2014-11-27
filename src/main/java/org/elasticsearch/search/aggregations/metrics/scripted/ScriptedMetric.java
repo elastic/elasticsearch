@@ -21,7 +21,13 @@ package org.elasticsearch.search.aggregations.metrics.scripted;
 
 import org.elasticsearch.search.aggregations.Aggregation;
 
+/**
+ * A metric aggregation that computes both its final and intermediate states using scripts.
+ */
 public interface ScriptedMetric extends Aggregation {
 
+    /**
+     * The result of the aggregation. The type of the object depends on the aggregation that was run.
+     */
     Object aggregation();
 }

@@ -131,12 +131,6 @@ the `nested_filter` then a missing value is used.
 
 ==== Ignoring Unmapped Fields
 
-coming[1.4.0] Before 1.4.0 there was the `ignore_unmapped` boolean
-parameter, which was not enough information to decide on the sort
-values to emit, and didn't work for cross-index search. It is still
-supported but users are encouraged to migrate to the new
-`unmapped_type` instead.
-
 By default, the search request will fail if there is no mapping
 associated with a field. The `unmapped_type` option allows to ignore
 fields that have no mapping and not sort by them. The value of this
@@ -284,8 +278,6 @@ conform with http://geojson.org/[GeoJSON].
 
 
 ==== Multiple reference points
-
-added[1.4.0]
 
 Multiple geo points can be passed as an array containing any `geo_point` format, for example
 

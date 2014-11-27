@@ -51,8 +51,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestExplainAction extends BaseRestHandler {
 
     @Inject
-    public RestExplainAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestExplainAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_explain", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_explain", this);
     }

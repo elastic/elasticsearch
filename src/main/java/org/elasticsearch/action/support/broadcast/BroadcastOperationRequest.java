@@ -32,13 +32,17 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequest> extends ActionRequest<T> implements IndicesRequest {
+public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequest> extends ActionRequest<T> implements IndicesRequest.Replaceable {
 
     protected String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
 
     protected BroadcastOperationRequest() {
 
+    }
+
+    protected BroadcastOperationRequest(ActionRequest originalRequest) {
+        super(originalRequest);
     }
 
     protected BroadcastOperationRequest(String[] indices) {
@@ -51,6 +55,7 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
     }
 
     @SuppressWarnings("unchecked")
+    @Override
     public final T indices(String... indices) {
         this.indices = indices;
         return (T) this;

@@ -12,7 +12,6 @@
                 test:
                   _ttl:
                     enabled:  1
-                    store:    yes
                     default:  10s
  - do:
       cluster.health:

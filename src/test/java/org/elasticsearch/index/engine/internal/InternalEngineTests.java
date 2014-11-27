@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.engine.internal;
 
+import com.google.common.base.Predicate;
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
@@ -31,8 +32,12 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
@@ -64,10 +69,10 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
-import org.elasticsearch.index.store.ram.RamDirectoryService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogSizeMatcher;
 import org.elasticsearch.index.translog.fs.FsTranslog;
+import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
@@ -75,11 +80,12 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
@@ -121,13 +127,13 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         store.deleteContent();
         storeReplica = createStoreReplica();
         storeReplica.deleteContent();
-        engineSettingsService = new IndexSettingsService(shardId.index(), EMPTY_SETTINGS);
+        engineSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         engine = createEngine(engineSettingsService, store, createTranslog());
         if (randomBoolean()) {
             engine.enableGcDeletes(false);
         }
         engine.start();
-        replicaSettingsService = new IndexSettingsService(shardId.index(), EMPTY_SETTINGS);
+        replicaSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         replicaEngine = createEngine(replicaSettingsService, storeReplica, createTranslogReplica());
         if (randomBoolean()) {
             replicaEngine.enableGcDeletes(false);
@@ -143,10 +149,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
         engine.close();
         store.close();
-
-        if (threadPool != null) {
-            threadPool.shutdownNow();
-        }
+        terminate(threadPool);
     }
 
     private Document testDocumentWithTextField() {
@@ -169,21 +172,42 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     }
 
     protected Store createStore() throws IOException {
-        DirectoryService directoryService = new RamDirectoryService(shardId, EMPTY_SETTINGS);
-        return new Store(shardId, EMPTY_SETTINGS, null, null, directoryService, new LeastUsedDistributor(directoryService));
+        final DirectoryService directoryService = new DirectoryService(shardId, EMPTY_SETTINGS) {
+            @Override
+            public Directory[] build() throws IOException {
+                return new Directory[] {new RAMDirectory() } ;
+            }
+
+            @Override
+            public long throttleTimeInNanos() {
+                return 0;
+            }
+        };
+        return new Store(shardId, EMPTY_SETTINGS, null, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
     }
 
     protected Store createStoreReplica() throws IOException {
-        DirectoryService directoryService = new RamDirectoryService(shardId, EMPTY_SETTINGS);
-        return new Store(shardId, EMPTY_SETTINGS, null, null, directoryService, new LeastUsedDistributor(directoryService));
+
+        final DirectoryService directoryService = new DirectoryService(shardId, EMPTY_SETTINGS) {
+            @Override
+            public Directory[] build() throws IOException {
+                return new Directory[] {new RAMDirectory() } ;
+            }
+
+            @Override
+            public long throttleTimeInNanos() {
+                return 0;
+            }
+        };
+        return new Store(shardId, EMPTY_SETTINGS, null, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
     }
 
-    protected Translog createTranslog() {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, new File("work/fs-translog/primary"));
+    protected Translog createTranslog() throws IOException {
+        return new FsTranslog(shardId, EMPTY_SETTINGS, Paths.get("work/fs-translog/primary"));
     }
 
-    protected Translog createTranslogReplica() {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, new File("work/fs-translog/replica"));
+    protected Translog createTranslogReplica() throws IOException {
+        return new FsTranslog(shardId, EMPTY_SETTINGS, Paths.get("work/fs-translog/replica"));
     }
 
     protected IndexDeletionPolicy createIndexDeletionPolicy() {
@@ -208,7 +232,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
     protected Engine createEngine(IndexSettingsService indexSettingsService, Store store, Translog translog, MergeSchedulerProvider mergeSchedulerProvider) {
         return new InternalEngine(shardId, defaultSettings, threadPool, indexSettingsService, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), null, store, createSnapshotDeletionPolicy(), translog, createMergePolicy(), mergeSchedulerProvider,
-                new AnalysisService(shardId.index()), new SimilarityService(shardId.index()), new CodecService(shardId.index()));
+                new AnalysisService(shardId.index(), indexSettingsService.getSettings()), new SimilarityService(shardId.index()), new CodecService(shardId.index()));
     }
 
     protected static final BytesReference B_1 = new BytesArray(new byte[]{1});
@@ -321,9 +345,42 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         assertThat(segments.get(2).isCompound(), equalTo(true));
     }
 
+    public void testStartAndAcquireConcurrently() throws IOException {
+        // Close engine from setUp (we create our own):
+        engine.close();
+
+        ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS));
+        final Engine engine = createEngine(engineSettingsService, store, createTranslog(), mergeSchedulerProvider);
+        final AtomicBoolean startPending = new AtomicBoolean(true);
+        Thread thread = new Thread() {
+            public void run() {
+                try {
+                    Thread.yield();
+                    engine.start();
+                } finally {
+                    startPending.set(false);
+                }
+
+            }
+        };
+        thread.start();
+        while(startPending.get()) {
+            try {
+                engine.acquireSearcher("foobar").close();
+                break;
+            } catch (EngineClosedException ex) {
+                // all good
+            }
+        }
+        engine.close();
+    }
+
 
     @Test
     public void testSegmentsWithMergeFlag() throws Exception {
+        // Close engine from setUp (we create our own):
+        engine.close();
+
         ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS));
         final AtomicReference<CountDownLatch> waitTillMerge = new AtomicReference<>();
         final AtomicReference<CountDownLatch> waitForMerge = new AtomicReference<>();
@@ -347,7 +404,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             }
         });
 
-        Engine engine = createEngine(engineSettingsService, store, createTranslog(), mergeSchedulerProvider);
+        final Engine engine = createEngine(engineSettingsService, store, createTranslog(), mergeSchedulerProvider);
         engine.start();
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), Lucene.STANDARD_ANALYZER, B_1, false);
         Engine.Index index = new Engine.Index(null, newUid("1"), doc);
@@ -383,26 +440,38 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         index = new Engine.Index(null, newUid("4"), doc);
         engine.index(index);
         engine.flush(new Engine.Flush());
-
+        final long gen1 = store.readLastCommittedSegmentsInfo().getGeneration();
         // now, optimize and wait for merges, see that we have no merge flag
         engine.optimize(new Engine.Optimize().flush(true).maxNumSegments(1).waitForMerge(true));
 
         for (Segment segment : engine.segments()) {
             assertThat(segment.getMergeId(), nullValue());
         }
+        // we could have multiple underlying merges, so the generation may increase more than once
+        assertTrue(store.readLastCommittedSegmentsInfo().getGeneration() > gen1);
 
-        // forcing an optimize will merge this single segment shard
-        final boolean force = randomBoolean();
-        if (force) {
-            waitTillMerge.set(new CountDownLatch(1));
-            waitForMerge.set(new CountDownLatch(1));
-        }
-        engine.optimize(new Engine.Optimize().flush(true).maxNumSegments(1).force(force).waitForMerge(false));
+        final boolean flush = randomBoolean();
+        final long gen2 = store.readLastCommittedSegmentsInfo().getGeneration();
+        engine.optimize(new Engine.Optimize().flush(flush).maxNumSegments(1).waitForMerge(false));
         waitTillMerge.get().await();
         for (Segment segment : engine.segments()) {
-            assertThat(segment.getMergeId(), force ? notNullValue() : nullValue());
+            assertThat(segment.getMergeId(), nullValue());
         }
         waitForMerge.get().countDown();
+        
+        if (flush) {
+            awaitBusy(new Predicate<Object>() {
+                @Override
+                public boolean apply(Object o) {
+                    try {
+                        // we should have had just 1 merge, so last generation should be exact
+                        return store.readLastCommittedSegmentsInfo().getLastGeneration() == gen2;
+                    } catch (IOException e) {
+                        throw ExceptionsHelper.convertToRuntime(e);
+                    }
+                }
+            });
+        }
 
         engine.close();
     }
@@ -614,21 +683,21 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                 @Override
                 public void phase1(SnapshotIndexCommit snapshot) throws EngineException {
                    if (failInPhase == 1) {
-                       throw new RuntimeException("bar", new CorruptIndexException("Foo"));
+                       throw new RuntimeException("bar", new CorruptIndexException("Foo", "fake file description"));
                    }
                 }
 
                 @Override
                 public void phase2(Translog.Snapshot snapshot) throws EngineException {
                     if (failInPhase == 2) {
-                        throw new RuntimeException("bar", new CorruptIndexException("Foo"));
+                        throw new RuntimeException("bar", new CorruptIndexException("Foo", "fake file description"));
                     }
                 }
 
                 @Override
                 public void phase3(Translog.Snapshot snapshot) throws EngineException {
                     if (failInPhase == 3) {
-                        throw new RuntimeException("bar", new CorruptIndexException("Foo"));
+                        throw new RuntimeException("bar", new CorruptIndexException("Foo", "fake file description"));
                     }
                 }
             });
@@ -717,10 +786,10 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
             @Override
             public void phase2(Translog.Snapshot snapshot) throws EngineException {
-                assertThat(snapshot.hasNext(), equalTo(true));
                 Translog.Create create = (Translog.Create) snapshot.next();
+                assertThat("translog snapshot should not read null", create != null, equalTo(true));
                 assertThat(create.source().toBytesArray(), equalTo(B_2));
-                assertThat(snapshot.hasNext(), equalTo(false));
+                assertThat(snapshot.next(), equalTo(null));
             }
 
             @Override
@@ -748,9 +817,9 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
             @Override
             public void phase2(Translog.Snapshot snapshot) throws EngineException {
-                assertThat(snapshot.hasNext(), equalTo(true));
                 Translog.Create create = (Translog.Create) snapshot.next();
-                assertThat(snapshot.hasNext(), equalTo(false));
+                assertThat(create != null, equalTo(true));
+                assertThat(snapshot.next(), equalTo(null));
                 assertThat(create.source().toBytesArray(), equalTo(B_2));
 
                 // add for phase3
@@ -760,9 +829,9 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
             @Override
             public void phase3(Translog.Snapshot snapshot) throws EngineException {
-                assertThat(snapshot.hasNext(), equalTo(true));
                 Translog.Create create = (Translog.Create) snapshot.next();
-                assertThat(snapshot.hasNext(), equalTo(false));
+                assertThat(create != null, equalTo(true));
+                assertThat(snapshot.next(), equalTo(null));
                 assertThat(create.source().toBytesArray(), equalTo(B_3));
             }
         });
@@ -1184,27 +1253,30 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     }
 
     private static class MockAppender extends AppenderSkeleton {
-      public boolean sawIndexWriterMessage;
+        public boolean sawIndexWriterMessage;
+        public boolean sawIndexWriterIFDMessage;
 
-      @Override
-      protected void append(LoggingEvent event) {
-        if (event.getLevel() == Level.TRACE &&
-            event.getLoggerName().endsWith("lucene.iw") &&
-            event.getMessage().toString().contains("IW: apply all deletes during flush") &&
-            event.getMessage().toString().contains("[index][1] ")) {
-
-          sawIndexWriterMessage = true;
+        @Override
+        protected void append(LoggingEvent event) {
+            if (event.getLevel() == Level.TRACE && event.getMessage().toString().contains("[index][1] ")) {
+                if (event.getLoggerName().endsWith("lucene.iw") &&
+                    event.getMessage().toString().contains("IW: apply all deletes during flush")) {
+                    sawIndexWriterMessage = true;
+                }
+                if (event.getLoggerName().endsWith("lucene.iw.ifd")) {
+                    sawIndexWriterIFDMessage = true;
+                }
+            }
         }
-      }
 
-      @Override
-      public boolean requiresLayout() {
-        return false;
-      }
+        @Override
+        public boolean requiresLayout() {
+            return false;
+        }
 
-      @Override
-      public void close() {
-      }
+        @Override
+        public void close() {
+        }
     }
 
     // #5891: make sure IndexWriter's infoStream output is
@@ -1238,9 +1310,42 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         }
     }
 
+    // #8603: make sure we can separately log IFD's messages
+    public void testIndexWriterIFDInfoStream() {
+        MockAppender mockAppender = new MockAppender();
+
+        Logger iwIFDLogger = Logger.getLogger("lucene.iw.ifd");
+        Level savedLevel = iwIFDLogger.getLevel();
+        iwIFDLogger.addAppender(mockAppender);
+        iwIFDLogger.setLevel(Level.DEBUG);
+
+        try {
+            // First, with DEBUG, which should NOT log IndexWriter output:
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
+            engine.create(new Engine.Create(null, newUid("1"), doc));
+            engine.flush(new Engine.Flush());        
+            assertFalse(mockAppender.sawIndexWriterMessage);
+            assertFalse(mockAppender.sawIndexWriterIFDMessage);
+
+            // Again, with TRACE, which should only log IndexWriter IFD output:
+            iwIFDLogger.setLevel(Level.TRACE);
+            engine.create(new Engine.Create(null, newUid("2"), doc));
+            engine.flush(new Engine.Flush());        
+            assertFalse(mockAppender.sawIndexWriterMessage);
+            assertTrue(mockAppender.sawIndexWriterIFDMessage);
+
+        } finally {
+            iwIFDLogger.removeAppender(mockAppender);
+            iwIFDLogger.setLevel(null);
+        }
+    }
+
     @Slow
     @Test
     public void testEnableGcDeletes() throws Exception {
+
+        // Close engine from setUp (we create our own):
+        engine.close();
 
         // Make sure enableGCDeletes == false works:
         Settings settings = ImmutableSettings.builder()
@@ -1252,7 +1357,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                                            new ShardIndexingService(shardId, settings,
                                                                     new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, engineSettingsService)),
                                            null, store, createSnapshotDeletionPolicy(), createTranslog(), createMergePolicy(), createMergeScheduler(engineSettingsService),
-                                           new AnalysisService(shardId.index()), new SimilarityService(shardId.index()), new CodecService(shardId.index()));
+                                           new AnalysisService(shardId.index(), engineSettingsService.getSettings()), new SimilarityService(shardId.index()), new CodecService(shardId.index()));
         engine.start();
         engine.enableGcDeletes(false);
 

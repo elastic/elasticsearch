@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -37,9 +36,7 @@ import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.*;
 
 @ElasticsearchIntegrationTest.ClusterScope(numDataNodes = 0, scope = ElasticsearchIntegrationTest.Scope.TEST, numClientNodes = 0, transportClientRatio = 0.0)
 public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsCompatIntegrationTest {
@@ -49,8 +46,7 @@ public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsC
         return ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("action.admin.cluster.node.shutdown.delay", "10ms")
-                .put("gateway.recover_after_nodes", 3)
-                .put(BalancedShardsAllocator.SETTING_THRESHOLD, 1.1f).build(); // use less agressive settings
+                .put("gateway.recover_after_nodes", 2).build();
     }
 
     protected int minExternalNodes() {
@@ -64,8 +60,11 @@ public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsC
 
     @Test
     @LuceneTestCase.Slow
+    @TestLogging("discovery.zen:TRACE")
     public void testReusePeerRecovery() throws Exception {
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put(indexSettings()).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)));
+        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put(indexSettings())
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)));
         logger.info("--> indexing docs");
         int numDocs = scaledRandomIntBetween(100, 1000);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];

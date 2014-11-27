@@ -19,6 +19,10 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
+import java.util.Collections;
+
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.fielddata.*;
 
@@ -59,7 +63,12 @@ abstract class AtomicLongFieldData implements AtomicNumericFieldData {
 
             @Override
             public SortedNumericDocValues getLongValues() {
-                return FieldData.emptySortedNumeric(maxDoc);
+                return DocValues.emptySortedNumeric(maxDoc);
+            }
+
+            @Override
+            public Iterable<? extends Accountable> getChildResources() {
+                return Collections.emptyList();
             }
 
         };

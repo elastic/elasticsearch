@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Map;
 
 /**
  *
@@ -35,8 +36,8 @@ public abstract class BucketsAggregator extends Aggregator {
     private IntArray docCounts;
 
     public BucketsAggregator(String name, BucketAggregationMode bucketAggregationMode, AggregatorFactories factories,
-                             long estimatedBucketsCount, AggregationContext context, Aggregator parent) {
-        super(name, bucketAggregationMode, factories, estimatedBucketsCount, context, parent);
+                             long estimatedBucketsCount, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
+        super(name, bucketAggregationMode, factories, estimatedBucketsCount, context, parent, metaData);
         docCounts = bigArrays.newIntArray(estimatedBucketsCount, true);
     }
 

@@ -25,7 +25,8 @@ import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 
 /**
- *
+ * A builder for the {@link DeleteWarmerRequest}
+ * @see DeleteWarmerRequest for details
  */
 public class DeleteWarmerRequestBuilder extends AcknowledgedRequestBuilder<DeleteWarmerRequest, DeleteWarmerResponse, DeleteWarmerRequestBuilder, IndicesAdminClient> {
 

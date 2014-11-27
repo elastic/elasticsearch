@@ -25,9 +25,9 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.action.termvector.MultiTermVectorsResponse;
-import org.elasticsearch.action.termvector.TermVectorRequest;
-import org.elasticsearch.action.termvector.TermVectorResponse;
+import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
+import org.elasticsearch.action.termvectors.TermVectorsRequest;
+import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -372,12 +372,12 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
         }
 
         logger.info("--> verifying term vector with id [1], with routing [0], should succeed");
-        TermVectorResponse termVectorResponse = client().prepareTermVector(indexOrAlias(), "type1", "1").setRouting("0").get();
-        assertThat(termVectorResponse.isExists(), equalTo(true));
-        assertThat(termVectorResponse.getId(), equalTo("1"));
+        TermVectorsResponse termVectorsResponse = client().prepareTermVectors(indexOrAlias(), "type1", "1").setRouting("0").get();
+        assertThat(termVectorsResponse.isExists(), equalTo(true));
+        assertThat(termVectorsResponse.getId(), equalTo("1"));
 
         try {
-            client().prepareTermVector(indexOrAlias(), "type1", "1").get();
+            client().prepareTermVectors(indexOrAlias(), "type1", "1").get();
             fail();
         } catch (RoutingMissingException e) {
             assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
@@ -418,8 +418,8 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
         assertThat(multiGetResponse.getResponses()[1].getFailure().getMessage(), equalTo("routing is required for [test]/[type1]/[2]"));
 
         MultiTermVectorsResponse multiTermVectorsResponse = client().prepareMultiTermVectors()
-                .add(new TermVectorRequest(indexOrAlias(), "type1", "1").routing("0"))
-                .add(new TermVectorRequest(indexOrAlias(), "type1", "2").routing("0")).get();
+                .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").routing("0"))
+                .add(new TermVectorsRequest(indexOrAlias(), "type1", "2").routing("0")).get();
         assertThat(multiTermVectorsResponse.getResponses().length, equalTo(2));
         assertThat(multiTermVectorsResponse.getResponses()[0].getId(), equalTo("1"));
         assertThat(multiTermVectorsResponse.getResponses()[0].isFailed(), equalTo(false));
@@ -431,8 +431,8 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
         assertThat(multiTermVectorsResponse.getResponses()[1].getResponse().isExists(), equalTo(true));
 
         multiTermVectorsResponse = client().prepareMultiTermVectors()
-                .add(new TermVectorRequest(indexOrAlias(), "type1", "1"))
-                .add(new TermVectorRequest(indexOrAlias(), "type1", "2")).get();
+                .add(new TermVectorsRequest(indexOrAlias(), "type1", "1"))
+                .add(new TermVectorsRequest(indexOrAlias(), "type1", "2")).get();
         assertThat(multiTermVectorsResponse.getResponses().length, equalTo(2));
         assertThat(multiTermVectorsResponse.getResponses()[0].getId(), equalTo("1"));
         assertThat(multiTermVectorsResponse.getResponses()[0].isFailed(), equalTo(true));

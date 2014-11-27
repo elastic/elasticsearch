@@ -24,6 +24,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Set;
@@ -104,9 +105,9 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
         if (!enabled) {
             return;
         }
-        lowFuture.cancel(true);
-        mediumFuture.cancel(true);
-        highFuture.cancel(true);
+        FutureUtils.cancel(lowFuture);
+        FutureUtils.cancel(mediumFuture);
+        FutureUtils.cancel(highFuture);
     }
 
     @Override
@@ -137,6 +138,26 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
         }
     }
 
+    public void notifyNow() {
+        notifyNow(Frequency.MEDIUM);
+    }
+
+    public void notifyNow(Frequency frequency) {
+        switch (frequency) {
+            case LOW:
+                lowMonitor.run();
+                break;
+            case MEDIUM:
+                mediumMonitor.run();
+                break;
+            case HIGH:
+                highMonitor.run();
+                break;
+            default:
+                throw new ElasticsearchIllegalArgumentException("Unknown frequency [" + frequency + "]");
+        }
+    }
+
     static class ResourceMonitor implements Runnable {
 
         final TimeValue interval;
@@ -155,7 +176,7 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
         }
 
         @Override
-        public void run() {
+        public synchronized void run() {
             for(ResourceWatcher watcher : watchers) {
                 watcher.checkAndNotify();
             }

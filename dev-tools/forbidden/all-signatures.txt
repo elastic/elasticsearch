@@ -1,0 +1,9 @@
+@defaultMessage Convert to URI
+java.net.URL#getPath()
+java.net.URL#getFile()
+
+java.io.File#delete() @ use Files.delete for real exception, IOUtils.deleteFilesIgnoringExceptions if you dont care
+
+# temporary situation, until we upgrade with LUCENE-6051 fix 
+# (at which point forbidden apis will fail and we remove this section)
+@defaultMessage Use FileSystemUtils methods for now to workaround LUCENE-6051

@@ -21,6 +21,7 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.ContextHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -38,7 +39,7 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 /**
  *
  */
-public abstract class RestRequest implements ToXContent.Params {
+public abstract class RestRequest extends ContextHolder implements ToXContent.Params {
 
     public enum Method {
         GET, POST, PUT, DELETE, OPTIONS, HEAD

@@ -19,16 +19,17 @@
 package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SimpleCollector;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XCollector;
-import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
@@ -96,6 +97,7 @@ public class AggregationPhase implements SearchPhase {
     @Override
     public void execute(SearchContext context) throws ElasticsearchException {
         if (context.aggregations() == null) {
+            context.queryResult().aggregations(null);
             return;
         }
 
@@ -115,10 +117,10 @@ public class AggregationPhase implements SearchPhase {
         // optimize the global collector based execution
         if (!globals.isEmpty()) {
             AggregationsCollector collector = new AggregationsCollector(globals, context.aggregations().aggregationContext());
-            Query query = new XConstantScoreQuery(Queries.MATCH_ALL_FILTER);
+            Query query = new ConstantScoreQuery(Queries.MATCH_ALL_FILTER);
             Filter searchFilter = context.searchFilter(context.types());
             if (searchFilter != null) {
-                query = new XFilteredQuery(query, searchFilter);
+                query = new FilteredQuery(query, searchFilter);
             }
             try {
                 context.searcher().search(query, collector);
@@ -133,10 +135,13 @@ public class AggregationPhase implements SearchPhase {
             aggregations.add(aggregator.buildAggregation(0));
         }
         context.queryResult().aggregations(new InternalAggregations(aggregations));
+
+        // disable aggregations so that they don't run on next pages in case of scrolling
+        context.aggregations(null);
     }
 
 
-    public static class AggregationsCollector extends XCollector {
+    public static class AggregationsCollector extends SimpleCollector implements XCollector {
 
         private final AggregationContext aggregationContext;
         private final Aggregator[] collectors;
@@ -159,7 +164,7 @@ public class AggregationPhase implements SearchPhase {
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext context) throws IOException {
+        public void doSetNextReader(LeafReaderContext context) throws IOException {
             aggregationContext.setNextReader(context);
         }
 

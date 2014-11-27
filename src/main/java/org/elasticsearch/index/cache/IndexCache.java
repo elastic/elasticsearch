@@ -29,7 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.cache.docset.DocSetCache;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.cache.query.parser.QueryParserCache;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -41,16 +41,16 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
 
     private final FilterCache filterCache;
     private final QueryParserCache queryParserCache;
-    private final DocSetCache docSetCache;
+    private final BitsetFilterCache bitsetFilterCache;
 
     private ClusterService clusterService;
 
     @Inject
-    public IndexCache(Index index, @IndexSettings Settings indexSettings, FilterCache filterCache, QueryParserCache queryParserCache, DocSetCache docSetCache) {
+    public IndexCache(Index index, @IndexSettings Settings indexSettings, FilterCache filterCache, QueryParserCache queryParserCache, BitsetFilterCache bitsetFilterCache) {
         super(index, indexSettings);
         this.filterCache = filterCache;
         this.queryParserCache = queryParserCache;
-        this.docSetCache = docSetCache;
+        this.bitsetFilterCache = bitsetFilterCache;
     }
 
     @Inject(optional = true)
@@ -65,8 +65,11 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         return filterCache;
     }
 
-    public DocSetCache docSet() {
-        return this.docSetCache;
+    /**
+     * Return the {@link BitsetFilterCache} for this index.
+     */
+    public BitsetFilterCache bitsetFilterCache() {
+        return bitsetFilterCache;
     }
 
     public QueryParserCache queryParserCache() {
@@ -77,7 +80,7 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
     public void close() throws ElasticsearchException {
         filterCache.close();
         queryParserCache.close();
-        docSetCache.clear("close");
+        bitsetFilterCache.close();
         if (clusterService != null) {
             clusterService.remove(this);
         }
@@ -86,7 +89,7 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
     public void clear(String reason) {
         filterCache.clear(reason);
         queryParserCache.clear();
-        docSetCache.clear(reason);
+        bitsetFilterCache.clear(reason);
     }
 
     @Override

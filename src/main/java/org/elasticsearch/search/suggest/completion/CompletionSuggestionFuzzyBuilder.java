@@ -27,7 +27,9 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 import java.io.IOException;
 
 /**
- *
+ * A form of {@link CompletionSuggestionBuilder} that supports fuzzy queries allowing 
+ * matches on typos. 
+ * Various settings control when and how fuzziness is counted.
  */
 public class CompletionSuggestionFuzzyBuilder extends SuggestBuilder.SuggestionBuilder<CompletionSuggestionFuzzyBuilder> {
 
@@ -45,6 +47,10 @@ public class CompletionSuggestionFuzzyBuilder extends SuggestBuilder.SuggestionB
         return fuzziness;
     }
 
+    /**
+     * Sets the level of fuzziness used to create suggestions using a {@link Fuzziness} instance.
+     * The default value is {@link Fuzziness#ONE} which allows for an "edit distance" of one.
+     */
     public CompletionSuggestionFuzzyBuilder setFuzziness(Fuzziness fuzziness) {
         this.fuzziness = fuzziness;
         return this;
@@ -54,6 +60,12 @@ public class CompletionSuggestionFuzzyBuilder extends SuggestBuilder.SuggestionB
         return fuzzyTranspositions;
     }
 
+    /**
+     * Sets if transpositions (swapping one character for another) counts as one character 
+     * change or two.
+     * Defaults to true, meaning it uses the fuzzier option of counting transpositions as 
+     * a single change.   
+     */
     public CompletionSuggestionFuzzyBuilder setFuzzyTranspositions(boolean fuzzyTranspositions) {
         this.fuzzyTranspositions = fuzzyTranspositions;
         return this;
@@ -63,6 +75,10 @@ public class CompletionSuggestionFuzzyBuilder extends SuggestBuilder.SuggestionB
         return fuzzyMinLength;
     }
 
+    /**
+     * Sets the minimum length of input string before fuzzy suggestions are returned, defaulting
+     * to 3.   
+     */
     public CompletionSuggestionFuzzyBuilder setFuzzyMinLength(int fuzzyMinLength) {
         this.fuzzyMinLength = fuzzyMinLength;
         return this;
@@ -72,6 +88,9 @@ public class CompletionSuggestionFuzzyBuilder extends SuggestBuilder.SuggestionB
         return fuzzyPrefixLength;
     }
 
+    /**
+     * Sets the minimum length of the input, which is not checked for fuzzy alternatives, defaults to 1
+     */
     public CompletionSuggestionFuzzyBuilder setFuzzyPrefixLength(int fuzzyPrefixLength) {
         this.fuzzyPrefixLength = fuzzyPrefixLength;
         return this;
@@ -81,6 +100,10 @@ public class CompletionSuggestionFuzzyBuilder extends SuggestBuilder.SuggestionB
         return unicodeAware;
     }
 
+    /**
+     * Set to true if all measurements (like edit distance, transpositions and lengths) are in unicode 
+     * code points (actual letters) instead of bytes. Default is false.
+     */
     public CompletionSuggestionFuzzyBuilder setUnicodeAware(boolean unicodeAware) {
         this.unicodeAware = unicodeAware;
         return this;

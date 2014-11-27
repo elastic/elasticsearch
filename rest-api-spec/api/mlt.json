@@ -45,7 +45,7 @@
         },
         "min_term_freq": {
           "type" : "number",
-          "description" : "The term frequency as percent: terms with lower occurence in the source document will be ignored"
+          "description" : "The term frequency as percent: terms with lower occurrence in the source document will be ignored"
         },
         "min_word_length": {
           "type" : "number",
@@ -70,10 +70,6 @@
         "search_indices": {
           "type" : "list",
           "description" : "A comma-separated list of indices to perform the query against (default: the index containing the document)"
-        },
-        "search_query_hint": {
-          "type" : "string",
-          "description" : "The search query hint"
         },
         "search_scroll": {
           "type" : "string",

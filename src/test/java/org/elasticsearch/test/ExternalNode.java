@@ -20,14 +20,19 @@ package org.elasticsearch.test;
 
 import com.google.common.base.Predicate;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.transport.TransportModule;
 
 import java.io.Closeable;
 import java.io.File;
@@ -36,13 +41,21 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 
+import static junit.framework.Assert.assertFalse;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
 /**
  * Simple helper class to start external nodes to be used within a test cluster
  */
 final class ExternalNode implements Closeable {
+
+    public static final Settings REQUIRED_SETTINGS = ImmutableSettings.builder()
+            .put("config.ignore_system_properties", true)
+            .put(DiscoveryModule.DISCOVERY_TYPE_KEY, "zen")
+            .put("node.mode", "network") // we need network mode for this
+            .put("gateway.type", "local").build(); // we require local gateway to mimic upgrades of nodes
 
     private final File path;
     private final Random random;
@@ -51,6 +64,10 @@ final class ExternalNode implements Closeable {
     private NodeInfo nodeInfo;
     private final String clusterName;
     private TransportClient client;
+
+    private final ESLogger logger = Loggers.getLogger(getClass());
+    private Settings externalNodeSettings;
+
 
     ExternalNode(File path, long seed, SettingsSource settingsSource) {
         this(path, null, seed, settingsSource);
@@ -68,7 +85,7 @@ final class ExternalNode implements Closeable {
 
     synchronized ExternalNode start(Client localNode, Settings defaultSettings, String nodeName, String clusterName, int nodeOrdinal) throws IOException, InterruptedException {
         ExternalNode externalNode = new ExternalNode(path, clusterName, random.nextLong(), settingsSource);
-        Settings settings = ImmutableSettings.builder().put(settingsSource.node(nodeOrdinal)).put(defaultSettings).build();
+        Settings settings = ImmutableSettings.builder().put(defaultSettings).put(settingsSource.node(nodeOrdinal)).build();
         externalNode.startInternal(localNode, settings, nodeName, clusterName);
         return externalNode;
     }
@@ -86,28 +103,39 @@ final class ExternalNode implements Closeable {
         }
         params.add("-Des.cluster.name=" + clusterName);
         params.add("-Des.node.name=" + nodeName);
+        ImmutableSettings.Builder externaNodeSettingsBuilder = ImmutableSettings.builder();
         for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
             switch (entry.getKey()) {
                 case "cluster.name":
                 case "node.name":
                 case "path.home":
                 case "node.mode":
+                case "node.local":
+                case TransportModule.TRANSPORT_TYPE_KEY:
+                case DiscoveryModule.DISCOVERY_TYPE_KEY:
                 case "gateway.type":
+                case TransportModule.TRANSPORT_SERVICE_TYPE_KEY:
                 case "config.ignore_system_properties":
                     continue;
                 default:
-                    params.add("-Des." + entry.getKey() + "=" + entry.getValue());
+                    externaNodeSettingsBuilder.put(entry.getKey(), entry.getValue());
 
             }
         }
+        this.externalNodeSettings = externaNodeSettingsBuilder.put(REQUIRED_SETTINGS).build();
+        for (Map.Entry<String, String> entry : externalNodeSettings.getAsMap().entrySet()) {
+            params.add("-Des." + entry.getKey() + "=" + entry.getValue());
+        }
 
-        params.add("-Des.gateway.type=local");
         params.add("-Des.path.home=" + new File("").getAbsolutePath());
+        params.add("-Des.path.conf=" + path + "/config");
+
         ProcessBuilder builder = new ProcessBuilder(params);
         builder.directory(path);
         builder.inheritIO();
         boolean success = false;
         try {
+            logger.debug("starting external node [{}] with: {}", nodeName, builder.command());
             process = builder.start();
             this.nodeInfo = null;
             if (waitForNode(client, nodeName)) {
@@ -137,7 +165,7 @@ final class ExternalNode implements Closeable {
                 }
                 return false;
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     static NodeInfo nodeInfo(final Client client, final String nodeName) {
@@ -164,9 +192,13 @@ final class ExternalNode implements Closeable {
         }
         if (client == null) {
             TransportAddress addr = nodeInfo.getTransport().getAddress().publishAddress();
-            TransportClient client = new TransportClient(settingsBuilder().put("client.transport.nodes_sampler_interval", "1s")
+            // verify that the end node setting will have network enabled.
+
+            Settings clientSettings = settingsBuilder().put(externalNodeSettings)
+                    .put("client.transport.nodes_sampler_interval", "1s")
                     .put("name", "transport_client_" + nodeInfo.getNode().name())
-                    .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", false).build());
+                    .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", false).build();
+            TransportClient client = new TransportClient(clientSettings);
             client.addTransportAddress(addr);
             this.client = client;
         }
@@ -185,8 +217,10 @@ final class ExternalNode implements Closeable {
         if (running()) {
             try {
                 if (forceKill == false && nodeInfo != null && random.nextBoolean()) {
-                    // sometimes shut down gracefully
-                    getClient().admin().cluster().prepareNodesShutdown(this.nodeInfo.getNode().id()).setExit(random.nextBoolean()).setDelay("0s").get();
+                    if (nodeInfo.getVersion().onOrAfter(Version.V_1_3_3)) {
+                        // sometimes shut down gracefully
+                        getClient().admin().cluster().prepareNodesShutdown(this.nodeInfo.getNode().id()).setExit(random.nextBoolean()).setDelay("0s").get();
+                    }
                 }
                 if (this.client != null) {
                     client.close();

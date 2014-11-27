@@ -25,10 +25,19 @@ import org.elasticsearch.search.aggregations.metrics.stats.Stats;
  */
 public interface ExtendedStats extends Stats {
 
+    /**
+     * The sum of the squares of the collected values.
+     */
     double getSumOfSquares();
 
+    /**
+     * The variance of the collected values.
+     */
     double getVariance();
 
+    /**
+     * The standard deviation of the collected values.
+     */
     double getStdDeviation();
 
 }

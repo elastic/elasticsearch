@@ -24,8 +24,8 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Objects;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -98,10 +98,9 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
         public static final FieldType FIELD_TYPE = new FieldType(StringFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
             FIELD_TYPE.freeze();
         }
     }
@@ -186,7 +185,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
             }
             StringFieldMapper geohashMapper = null;
             if (enableGeoHash) {
-                geohashMapper = stringField(Names.GEOHASH).index(true).tokenized(false).includeInAll(false).omitNorms(true).indexOptions(IndexOptions.DOCS_ONLY).build(context);
+                geohashMapper = stringField(Names.GEOHASH).index(true).tokenized(false).includeInAll(false).omitNorms(true).indexOptions(IndexOptions.DOCS).build(context);
             }
             context.path().remove();
 
@@ -208,44 +207,57 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = geoPointField(name);
             parseField(builder, name, node, parserContext);
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("path")) {
                     builder.multiFieldPathType(parsePathType(name, fieldNode.toString()));
+                    iterator.remove();
                 } else if (fieldName.equals("lat_lon")) {
                     builder.enableLatLon(XContentMapValues.nodeBooleanValue(fieldNode));
+                    iterator.remove();
                 } else if (fieldName.equals("geohash")) {
                     builder.enableGeoHash(XContentMapValues.nodeBooleanValue(fieldNode));
+                    iterator.remove();
                 } else if (fieldName.equals("geohash_prefix")) {
                     builder.geohashPrefix(XContentMapValues.nodeBooleanValue(fieldNode));
                     if (XContentMapValues.nodeBooleanValue(fieldNode)) {
                         builder.enableGeoHash(true);
                     }
+                    iterator.remove();
                 } else if (fieldName.equals("precision_step")) {
                     builder.precisionStep(XContentMapValues.nodeIntegerValue(fieldNode));
+                    iterator.remove();
                 } else if (fieldName.equals("geohash_precision")) {
                     if (fieldNode instanceof Integer) {
                         builder.geoHashPrecision(XContentMapValues.nodeIntegerValue(fieldNode));
                     } else {
                         builder.geoHashPrecision(GeoUtils.geoHashLevelsForPrecision(fieldNode.toString()));
                     }
+                    iterator.remove();
                 } else if (fieldName.equals("validate")) {
                     builder.validateLat = XContentMapValues.nodeBooleanValue(fieldNode);
                     builder.validateLon = XContentMapValues.nodeBooleanValue(fieldNode);
+                    iterator.remove();
                 } else if (fieldName.equals("validate_lon")) {
                     builder.validateLon = XContentMapValues.nodeBooleanValue(fieldNode);
+                    iterator.remove();
                 } else if (fieldName.equals("validate_lat")) {
                     builder.validateLat = XContentMapValues.nodeBooleanValue(fieldNode);
+                    iterator.remove();
                 } else if (fieldName.equals("normalize")) {
                     builder.normalizeLat = XContentMapValues.nodeBooleanValue(fieldNode);
                     builder.normalizeLon = XContentMapValues.nodeBooleanValue(fieldNode);
+                    iterator.remove();
                 } else if (fieldName.equals("normalize_lat")) {
                     builder.normalizeLat = XContentMapValues.nodeBooleanValue(fieldNode);
+                    iterator.remove();
                 } else if (fieldName.equals("normalize_lon")) {
                     builder.normalizeLon = XContentMapValues.nodeBooleanValue(fieldNode);
-                } else {
-                    parseMultiField(builder, name, node, parserContext, fieldName, fieldNode);
+                    iterator.remove();
+                } else if (parseMultiField(builder, name, parserContext, fieldName, fieldNode)) {
+                    iterator.remove();
                 }
             }
             return builder;
@@ -568,7 +580,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
             }
         }
 
-        if (fieldType.indexed() || fieldType.stored()) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             Field field = new Field(names.indexName(), Double.toString(point.lat()) + ',' + Double.toString(point.lon()), fieldType);
             context.doc().add(field);
         }
@@ -716,7 +728,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
 
         public static final FieldType TYPE = new FieldType();
         static {
-          TYPE.setDocValueType(FieldInfo.DocValuesType.BINARY);
+          TYPE.setDocValuesType(DocValuesType.BINARY);
           TYPE.freeze();
         }
 

@@ -305,7 +305,7 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
         } else if (realtime == 1) {
             this.realtime = true;
         }
-        if(in.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if(in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             this.ignoreErrorsOnGeneratedFields = in.readBoolean();
         }
 
@@ -339,7 +339,7 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
         } else {
             out.writeByte((byte) 1);
         }
-        if(out.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if(out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeBoolean(ignoreErrorsOnGeneratedFields);
         }
         out.writeByte(versionType.getValue());

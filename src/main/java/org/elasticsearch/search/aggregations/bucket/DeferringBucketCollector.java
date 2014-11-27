@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -56,7 +56,7 @@ public class DeferringBucketCollector extends BucketCollector implements Releasa
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         recording.setNextReader(reader);
     }
 
@@ -82,7 +82,7 @@ public class DeferringBucketCollector extends BucketCollector implements Releasa
         
         BucketCollector subs = new BucketCollector() {
             @Override
-            public void setNextReader(AtomicReaderContext reader) {
+            public void setNextReader(LeafReaderContext reader) {
                 // Need to set AggregationContext otherwise ValueSources in aggs
                 // don't read any values
               context.setNextReader(reader);

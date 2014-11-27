@@ -11,11 +11,19 @@
           "description" : "Template ID",
           "required" : true
         }
+      },
+      "params" : {
+        "version": {
+          "type": "number",
+          "description": "Explicit version number for concurrency control"
+        },
+        "version_type": {
+          "type": "enum",
+          "options": ["internal", "external", "external_gte", "force"],
+          "description": "Specific version type"
+        }
       }
     },
-    "body": {
-      "description" : "The document",
-      "required" : false
-    }
+    "body": null
   }
 }

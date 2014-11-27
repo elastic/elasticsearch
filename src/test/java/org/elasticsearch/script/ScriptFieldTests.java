@@ -40,7 +40,7 @@ public class ScriptFieldTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder().put("plugin.types", CustomScriptPlugin.class.getName()).put(super.nodeSettings(nodeOrdinal)).build();
+        return settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("plugin.types", CustomScriptPlugin.class.getName()).build();
     }
 
     static int[] intArray = { Integer.MAX_VALUE, Integer.MIN_VALUE, 3 };

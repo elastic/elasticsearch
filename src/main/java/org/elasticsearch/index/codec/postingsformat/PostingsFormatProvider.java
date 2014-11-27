@@ -101,9 +101,7 @@ public interface PostingsFormatProvider {
 
     /**
      * A simple factory used to create {@link PostingsFormatProvider} used by
-     * delegating providers like {@link BloomFilterLucenePostingsFormatProvider} or
-     * {@link PulsingPostingsFormatProvider}. Those providers wrap other
-     * postings formats to enrich their capabilities.
+     * delegating providers.
      */
     public interface Factory {
         PostingsFormatProvider create(String name, Settings settings);

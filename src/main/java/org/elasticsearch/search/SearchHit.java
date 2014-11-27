@@ -23,6 +23,7 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.highlight.HighlightField;
 
@@ -74,6 +75,11 @@ public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitFie
      * The type of the document.
      */
     String getType();
+
+    /**
+     * If this is a nested hit then nested reference information is returned otherwise <code>null</code> is returned.
+     */
+    NestedIdentity getNestedIdentity();
 
     /**
      * The version of the hit.
@@ -192,4 +198,27 @@ public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitFie
      * The shard of the search hit.
      */
     SearchShardTarget getShard();
+
+    /**
+     * Encapsulates the nested identity of a hit.
+     */
+    public interface NestedIdentity {
+
+        /**
+         * Returns the nested field in the source this hit originates from
+         */
+        public Text getField();
+
+        /**
+         * Returns the offset in the nested array of objects in the source this hit
+         */
+        public int getOffset();
+
+        /**
+         * Returns the next child nested level if there is any, otherwise <code>null</code> is returned.
+         *
+         * In the case of mappings with multiple levels of nested object fields
+         */
+        public NestedIdentity getChild();
+    }
 }

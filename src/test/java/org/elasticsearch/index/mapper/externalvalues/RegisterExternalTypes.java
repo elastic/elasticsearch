@@ -35,6 +35,7 @@ public class RegisterExternalTypes extends AbstractIndexComponent {
     public RegisterExternalTypes(Index index, @IndexSettings Settings indexSettings, MapperService mapperService) {
         super(index, indexSettings);
 
+        mapperService.documentMapperParser().putRootTypeParser(ExternalRootMapper.CONTENT_TYPE, new ExternalRootMapper.TypeParser());
         mapperService.documentMapperParser().putTypeParser(EXTERNAL, new ExternalMapper.TypeParser(EXTERNAL, "foo"));
         mapperService.documentMapperParser().putTypeParser(EXTERNAL_BIS, new ExternalMapper.TypeParser(EXTERNAL_BIS, "bar"));
         mapperService.documentMapperParser().putTypeParser(EXTERNAL_UPPER, new ExternalMapper.TypeParser(EXTERNAL_UPPER, "FOO BAR"));

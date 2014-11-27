@@ -19,12 +19,14 @@
 
 package org.elasticsearch.search.sort;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.*;
@@ -135,12 +137,12 @@ public class ScriptSortParser implements SortParser {
                 throw new ElasticsearchIllegalArgumentException("mapping for explicit nested path is not mapped as nested: [" + nestedPath + "]");
             }
 
-            Filter rootDocumentsFilter = context.filterCache().cache(NonNestedDocsFilter.INSTANCE);
-            Filter innerDocumentsFilter;
+            BitDocIdSetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE);
+            BitDocIdSetFilter innerDocumentsFilter;
             if (nestedFilter != null) {
-                innerDocumentsFilter = context.filterCache().cache(nestedFilter);
+                innerDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(nestedFilter);
             } else {
-                innerDocumentsFilter = context.filterCache().cache(objectMapper.nestedTypeFilter());
+                innerDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(objectMapper.nestedTypeFilter());
             }
             nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
         } else {
@@ -152,15 +154,15 @@ public class ScriptSortParser implements SortParser {
             case STRING_SORT_TYPE:
                 fieldComparatorSource = new BytesRefFieldComparatorSource(null, null, sortMode, nested) {
                     @Override
-                    protected SortedBinaryDocValues getValues(AtomicReaderContext context) {
+                    protected SortedBinaryDocValues getValues(LeafReaderContext context) {
                         searchScript.setNextReader(context);
                         final BinaryDocValues values = new BinaryDocValues() {
-                            final BytesRef spare = new BytesRef();
+                            final BytesRefBuilder spare = new BytesRefBuilder();
                             @Override
                             public BytesRef get(int docID) {
                                 searchScript.setNextDocId(docID);
                                 spare.copyChars(searchScript.run().toString());
-                                return spare;
+                                return spare.get();
                             }
                         };
                         return FieldData.singleton(values, null);
@@ -175,7 +177,7 @@ public class ScriptSortParser implements SortParser {
                 // TODO: should we rather sort missing values last?
                 fieldComparatorSource = new DoubleValuesComparatorSource(null, Double.MAX_VALUE, sortMode, nested) {
                     @Override
-                    protected SortedNumericDoubleValues getValues(AtomicReaderContext context) {
+                    protected SortedNumericDoubleValues getValues(LeafReaderContext context) {
                         searchScript.setNextReader(context);
                         final NumericDoubleValues values = new NumericDoubleValues() {
                             @Override

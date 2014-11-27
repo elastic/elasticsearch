@@ -44,9 +44,9 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
-import org.elasticsearch.search.fetch.FetchSearchRequest;
+import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -77,7 +77,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
         this.searchPhaseController = searchPhaseController;
     }
 
-    protected abstract class BaseAsyncAction<FirstResult extends SearchPhaseResult> {
+    protected abstract class BaseAsyncAction<FirstResult extends SearchPhaseResult> extends AbstractAsyncAction {
 
         protected final ActionListener<SearchResponse> listener;
 
@@ -100,7 +100,6 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
         protected volatile ScoreDoc[] sortedShardList;
 
         protected final boolean useSlowScroll;
-        protected final long startTime = System.currentTimeMillis();
 
         protected BaseAsyncAction(SearchRequest request, ActionListener<SearchResponse> listener) {
             this.request = request;
@@ -142,7 +141,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
         public void start() {
             if (expectedSuccessfulOps == 0) {
                 // no search shards to search on, bail with empty response (it happens with search across _all with no indices around and consistent with broadcast operations)
-                listener.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, System.currentTimeMillis() - startTime, ShardSearchFailure.EMPTY_ARRAY));
+                listener.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, buildTookInMillis(), ShardSearchFailure.EMPTY_ARRAY));
                 return;
             }
             request.beforeStart();
@@ -169,7 +168,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                     onFirstPhaseResult(shardIndex, shard, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
                 } else {
                     String[] filteringAliases = clusterState.metaData().filteringAliases(shard.index(), request.indices());
-                    sendExecuteFirstPhase(node, internalSearchRequest(shard, shardsIts.size(), request, filteringAliases, startTime, useSlowScroll), new SearchServiceListener<FirstResult>() {
+                    sendExecuteFirstPhase(node, internalSearchRequest(shard, shardsIts.size(), request, filteringAliases, startTime(), useSlowScroll), new SearchServiceListener<FirstResult>() {
                         @Override
                         public void onResult(FirstResult result) {
                             onFirstPhaseResult(shardIndex, shard, result, shardIt);
@@ -271,13 +270,6 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             }
         }
 
-        /**
-         * Builds how long it took to execute the search.
-         */
-        protected final long buildTookInMillis() {
-            return System.currentTimeMillis() - startTime;
-        }
-
         protected final ShardSearchFailure[] buildShardFailures() {
             AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures;
             if (shardFailures == null) {
@@ -356,16 +348,16 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             }
         }
 
-        protected FetchSearchRequest createFetchRequest(QuerySearchResult queryResult, AtomicArray.Entry<IntArrayList> entry, ScoreDoc[] lastEmittedDocPerShard) {
+        protected ShardFetchSearchRequest createFetchRequest(QuerySearchResult queryResult, AtomicArray.Entry<IntArrayList> entry, ScoreDoc[] lastEmittedDocPerShard) {
             if (lastEmittedDocPerShard != null) {
                 ScoreDoc lastEmittedDoc = lastEmittedDocPerShard[entry.index];
-                return new FetchSearchRequest(request, queryResult.id(), entry.value, lastEmittedDoc);
+                return new ShardFetchSearchRequest(request, queryResult.id(), entry.value, lastEmittedDoc);
             } else {
-                return new FetchSearchRequest(request, queryResult.id(), entry.value);
+                return new ShardFetchSearchRequest(request, queryResult.id(), entry.value);
             }
         }
 
-        protected abstract void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchRequest request, SearchServiceListener<FirstResult> listener);
+        protected abstract void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request, SearchServiceListener<FirstResult> listener);
 
         protected final void processFirstPhaseResult(int shardIndex, ShardRouting shard, FirstResult result) {
             firstResults.set(shardIndex, result);

@@ -19,11 +19,13 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.hamcrest.Matchers.equalTo;
@@ -84,6 +86,30 @@ public class MaxTests extends AbstractNumericTests {
         assertThat(max.getValue(), equalTo(10.0));
     }
 
+    @Test
+    public void testSingleValuedField_getProperty() throws Exception {
+
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(global("global").subAggregation(max("max").field("value"))).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Global global = searchResponse.getAggregations().get("global");
+        assertThat(global, notNullValue());
+        assertThat(global.getName(), equalTo("global"));
+        assertThat(global.getDocCount(), equalTo(10l));
+        assertThat(global.getAggregations(), notNullValue());
+        assertThat(global.getAggregations().asMap().size(), equalTo(1));
+
+        Max max = global.getAggregations().get("max");
+        assertThat(max, notNullValue());
+        assertThat(max.getName(), equalTo("max"));
+        double expectedMaxValue = 10.0;
+        assertThat(max.getValue(), equalTo(expectedMaxValue));
+        assertThat((Max) global.getProperty("max"), equalTo(max));
+        assertThat((double) global.getProperty("max.value"), equalTo(expectedMaxValue));
+        assertThat((double) max.getProperty("value"), equalTo(expectedMaxValue));
+    }
 
     @Test
     public void testSingleValuedField_PartiallyUnmapped() throws Exception {

@@ -53,6 +53,8 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class TribeTests extends ElasticsearchIntegrationTest {
 
+    public static final String SECOND_CLUSTER_NODE_PREFIX = "node_tribe2";
+
     private static InternalTestCluster cluster2;
 
     private Node tribeNode;
@@ -62,7 +64,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
     public static void setupSecondCluster() throws Exception {
         ElasticsearchIntegrationTest.beforeClass();
         // create another cluster
-        cluster2 = new InternalTestCluster(randomLong(), 2, 2, Strings.randomBase64UUID(getRandom()), 0, false);
+        cluster2 = new InternalTestCluster(randomLong(), 2, 2, Strings.randomBase64UUID(getRandom()), 0, false, false, CHILD_JVM_ID, SECOND_CLUSTER_NODE_PREFIX);
         cluster2.beforeTest(getRandom(), 0.1);
         cluster2.ensureAtLeastNumDataNodes(2);
     }

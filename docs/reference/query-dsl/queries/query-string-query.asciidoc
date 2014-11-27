@@ -61,7 +61,11 @@ phrase matches are required. Default value is `0`.
 not analyzed. By setting this value to `true`, a best effort will be
 made to analyze those as well.
 
-|`auto_generate_phrase_queries` |Default to `false`.
+|`auto_generate_phrase_queries` |Defaults to `false`.
+
+|`max_determinized_states` |Limit on how many automaton states regexp
+queries are allowed to create.  This protects against too-difficult
+(e.g. exponentially hard) regexps.  Defaults to 10000.
 
 |`minimum_should_match` |A value controlling how many "should" clauses
 in the resulting boolean query should match. It can be an absolute value
@@ -72,8 +76,11 @@ both>>.
 |`lenient` |If set to `true` will cause format based failures (like
 providing text to a numeric field) to be ignored.
 
-|`locale` | added[1.1.0] Locale that should be used for string conversions.
+|`locale` | Locale that should be used for string conversions.
 Defaults to `ROOT`.
+
+|`time_zone` | Time Zone to be applied to any range query related to dates. See also
+http://joda-time.sourceforge.net/api-release/org/joda/time/DateTimeZone.html[JODA timezone].
 |=======================================================================
 
 When a multi term query is being generated, one can control how it gets
@@ -121,7 +128,7 @@ matches the same words as
 --------------------------------------------------
 {
     "query_string": {
-      "query": "(content:this OR content:thus) AND (name:this OR name:thus)"
+      "query": "(content:this OR content:that) AND (name:this OR name:that)"
     }
 }
 --------------------------------------------------

@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 
 /**
@@ -98,6 +99,14 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
         sourceBuilder().setQuery(queryBinary);
         return this;
     }
+    
+    /**
+     * Constructs a new builder with a raw search query.
+     */
+    public CountRequestBuilder setQuery(XContentBuilder query) {
+        return setQuery(query.bytes());
+    }
+
 
     /**
      * The source to execute.

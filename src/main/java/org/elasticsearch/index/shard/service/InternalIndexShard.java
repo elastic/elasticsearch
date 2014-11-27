@@ -23,13 +23,14 @@ import com.google.common.base.Charsets;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Booleans;
@@ -40,20 +41,27 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
+import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.filter.ShardFilterCache;
 import org.elasticsearch.index.cache.id.IdCacheStats;
 import org.elasticsearch.index.cache.query.ShardQueryCache;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.index.engine.*;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineClosedException;
+import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.IgnoreOnRecoveryEngineException;
+import org.elasticsearch.index.engine.OptimizeFailedEngineException;
+import org.elasticsearch.index.engine.RefreshFailedEngineException;
+import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldData;
@@ -62,7 +70,11 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
@@ -76,19 +88,30 @@ import org.elasticsearch.index.search.stats.ShardSearchService;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.shard.AbstractIndexShardComponent;
+import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
+import org.elasticsearch.index.shard.IndexShardClosedException;
+import org.elasticsearch.index.shard.IndexShardException;
+import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
+import org.elasticsearch.index.shard.IndexShardNotStartedException;
+import org.elasticsearch.index.shard.IndexShardRecoveringException;
+import org.elasticsearch.index.shard.IndexShardRelocatedException;
+import org.elasticsearch.index.shard.IndexShardStartedException;
+import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.suggest.stats.ShardSuggestService;
 import org.elasticsearch.index.suggest.stats.SuggestStats;
-import org.elasticsearch.index.termvectors.ShardTermVectorService;
+import org.elasticsearch.index.termvectors.ShardTermVectorsService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
-import org.elasticsearch.indices.recovery.RecoveryStatus;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -127,10 +150,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private final PercolatorQueriesRegistry percolatorQueriesRegistry;
     private final ShardPercolateService shardPercolateService;
     private final CodecService codecService;
-    private final ShardTermVectorService termVectorService;
+    private final ShardTermVectorsService termVectorsService;
     private final IndexFieldDataService indexFieldDataService;
     private final IndexService indexService;
     private final ShardSuggestService shardSuggestService;
+    private final ShardBitsetFilterCache shardBitsetFilterCache;
 
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
@@ -138,13 +162,13 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private volatile IndexShardState state;
 
     private TimeValue refreshInterval;
-    private final TimeValue mergeInterval;
 
     private volatile ScheduledFuture refreshScheduledFuture;
     private volatile ScheduledFuture mergeScheduleFuture;
     private volatile ShardRouting shardRouting;
 
-    private RecoveryStatus recoveryStatus;
+    @Nullable
+    private RecoveryState recoveryState;
 
     private ApplyRefreshSettings applyRefreshSettings = new ApplyRefreshSettings();
 
@@ -155,7 +179,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, Engine engine, MergeSchedulerProvider mergeScheduler, Translog translog,
                               ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
                               ShardFilterCache shardFilterCache, ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService,
-                              ShardTermVectorService termVectorService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache) {
+                              ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardBitsetFilterCache) {
         super(shardId, indexSettings);
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indexSettingsService = indexSettingsService;
@@ -170,7 +194,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         this.indexAliasesService = indexAliasesService;
         this.indexingService = indexingService;
         this.getService = getService.setIndexShard(this);
-        this.termVectorService = termVectorService.setIndexShard(this);
+        this.termVectorsService = termVectorsService.setIndexShard(this);
         this.searchService = searchService;
         this.shardWarmerService = shardWarmerService;
         this.shardFilterCache = shardFilterCache;
@@ -182,10 +206,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         this.indexService = indexService;
         this.codecService = codecService;
         this.shardSuggestService = shardSuggestService;
+        this.shardBitsetFilterCache = shardBitsetFilterCache;
         state = IndexShardState.CREATED;
 
         this.refreshInterval = indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, engine.defaultRefreshInterval());
-        this.mergeInterval = indexSettings.getAsTime("index.merge.async_interval", TimeValue.timeValueSeconds(1));
 
         indexSettingsService.addListener(applyRefreshSettings);
 
@@ -220,13 +244,18 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public ShardTermVectorService termVectorService() {
-        return termVectorService;
+    public ShardTermVectorsService termVectorsService() {
+        return termVectorsService;
     }
 
     @Override
     public ShardSuggestService shardSuggestService() {
         return shardSuggestService;
+    }
+
+    @Override
+    public ShardBitsetFilterCache shardBitsetFilterCache() {
+        return shardBitsetFilterCache;
     }
 
     @Override
@@ -458,7 +487,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         query = filterQueryIfNeeded(query, types);
 
         Filter aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
-        Filter parentFilter = mapperService.hasNested() ? indexCache.filter().cache(NonNestedDocsFilter.INSTANCE) : null;
+        BitDocIdSetFilter parentFilter = mapperService.hasNested() ? indexCache.bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE) : null;
         return new Engine.DeleteByQuery(query, source, filteringAliases, aliasFilter, parentFilter, origin, startTime, types);
     }
 
@@ -544,7 +573,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override
     public SegmentsStats segmentStats() {
-        return engine.segmentsStats();
+        SegmentsStats segmentsStats = engine.segmentsStats();
+        segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());
+        return segmentsStats;
     }
 
     @Override
@@ -665,14 +696,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         synchronized (mutex) {
             indexSettingsService.removeListener(applyRefreshSettings);
             if (state != IndexShardState.CLOSED) {
-                if (refreshScheduledFuture != null) {
-                    refreshScheduledFuture.cancel(true);
-                    refreshScheduledFuture = null;
-                }
-                if (mergeScheduleFuture != null) {
-                    mergeScheduleFuture.cancel(true);
-                    mergeScheduleFuture = null;
-                }
+                FutureUtils.cancel(refreshScheduledFuture);
+                refreshScheduledFuture = null;
+                FutureUtils.cancel(mergeScheduleFuture);
+                mergeScheduleFuture = null;
             }
             changeState(IndexShardState.CLOSED, reason);
         }
@@ -723,15 +750,15 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     /**
-     * The peer recovery status if this shard recovered from a peer shard.
+     * The peer recovery state if this shard recovered from a peer shard, null o.w.
      */
-    public RecoveryStatus recoveryStatus() {
-        return this.recoveryStatus;
+    public RecoveryState recoveryState() {
+        return this.recoveryState;
     }
 
-    public void performRecoveryFinalization(boolean withFlush, RecoveryStatus recoveryStatus) throws ElasticsearchException {
+    public void performRecoveryFinalization(boolean withFlush, RecoveryState recoveryState) throws ElasticsearchException {
         performRecoveryFinalization(withFlush);
-        this.recoveryStatus = recoveryStatus;
+        this.recoveryState = recoveryState;
     }
 
     public void performRecoveryFinalization(boolean withFlush) throws ElasticsearchException {
@@ -887,21 +914,12 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         } else {
             logger.debug("scheduled refresher disabled");
         }
-        // since we can do async merging, it will not be called explicitly when indexing (adding / deleting docs), and only when flushing
-        // so, make sure we periodically call it, this need to be a small enough value so mergine will actually
-        // happen and reduce the number of segments
-        if (mergeInterval.millis() > 0) {
-            mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.SAME, new EngineMerger());
-            logger.debug("scheduling optimizer / merger every {}", mergeInterval);
-        } else {
-            logger.debug("scheduled optimizer / merger disabled");
-        }
     }
 
     private Query filterQueryIfNeeded(Query query, String[] types) {
         Filter searchFilter = mapperService.searchFilter(types);
         if (searchFilter != null) {
-            query = new XFilteredQuery(query, indexCache.filter().cache(searchFilter));
+            query = new FilteredQuery(query, indexCache.filter().cache(searchFilter));
         }
         return query;
     }
@@ -919,7 +937,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 if (!refreshInterval.equals(InternalIndexShard.this.refreshInterval)) {
                     logger.info("updating refresh_interval from [{}] to [{}]", InternalIndexShard.this.refreshInterval, refreshInterval);
                     if (refreshScheduledFuture != null) {
-                        refreshScheduledFuture.cancel(false);
+                        // NOTE: we pass false here so we do NOT attempt Thread.interrupt if EngineRefresher.run is currently running.  This is
+                        // very important, because doing so can cause files to suddenly be closed if they were doing IO when the interrupt
+                        // hit.  See https://issues.apache.org/jira/browse/LUCENE-2239
+                        FutureUtils.cancel(refreshScheduledFuture);
                         refreshScheduledFuture = null;
                     }
                     InternalIndexShard.this.refreshInterval = refreshInterval;
@@ -936,11 +957,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         public void run() {
             // we check before if a refresh is needed, if not, we reschedule, otherwise, we fork, refresh, and then reschedule
             if (!engine().refreshNeeded()) {
-                synchronized (mutex) {
-                    if (state != IndexShardState.CLOSED) {
-                        refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, this);
-                    }
-                }
+                reschedule();
                 return;
             }
             threadPool.executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
@@ -969,60 +986,19 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                             logger.warn("Failed to perform scheduled engine refresh", e);
                         }
                     }
-                    synchronized (mutex) {
-                        if (state != IndexShardState.CLOSED) {
-                            refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, EngineRefresher.this);
-                        }
-                    }
+
+                    reschedule();
                 }
             });
         }
-    }
 
-    class EngineMerger implements Runnable {
-        @Override
-        public void run() {
-            if (!engine().possibleMergeNeeded()) {
-                synchronized (mutex) {
-                    if (state != IndexShardState.CLOSED) {
-                        mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.SAME, this);
-                    }
+        /** Schedules another (future) refresh, if refresh_interval is still enabled. */
+        private void reschedule() {
+            synchronized (mutex) {
+                if (state != IndexShardState.CLOSED && refreshInterval.millis() > 0) {
+                    refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, this);
                 }
-                return;
             }
-            threadPool.executor(ThreadPool.Names.MERGE).execute(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        engine.maybeMerge();
-                    } catch (EngineClosedException e) {
-                        // we are being closed, ignore
-                    } catch (OptimizeFailedEngineException e) {
-                        if (e.getCause() instanceof EngineClosedException) {
-                            // ignore, we are being shutdown
-                        } else if (e.getCause() instanceof InterruptedException) {
-                            // ignore, we are being shutdown
-                        } else if (e.getCause() instanceof ClosedByInterruptException) {
-                            // ignore, we are being shutdown
-                        } else if (e.getCause() instanceof ThreadInterruptedException) {
-                            // ignore, we are being shutdown
-                        } else {
-                            if (state != IndexShardState.CLOSED) {
-                                logger.warn("Failed to perform scheduled engine optimize/merge", e);
-                            }
-                        }
-                    } catch (Exception e) {
-                        if (state != IndexShardState.CLOSED) {
-                            logger.warn("Failed to perform scheduled engine optimize/merge", e);
-                        }
-                    }
-                    synchronized (mutex) {
-                        if (state != IndexShardState.CLOSED) {
-                            mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.SAME, EngineMerger.this);
-                        }
-                    }
-                }
-            });
         }
     }
 
@@ -1049,7 +1025,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     if (logger.isDebugEnabled()) {
                         logger.debug("fixing index, writing new segments file ...");
                     }
-                    checkIndex.fixIndex(status);
+                    checkIndex.exorciseIndex(status);
                     if (logger.isDebugEnabled()) {
                         logger.debug("index fixed, wrote new segments file \"{}\"", status.segmentsFileName);
                     }

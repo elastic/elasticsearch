@@ -20,11 +20,13 @@
 package org.elasticsearch.search.sort;
 
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -66,8 +68,47 @@ import static org.hamcrest.Matchers.*;
  */
 public class SimpleSortTests extends ElasticsearchIntegrationTest {
 
+    public void testIssue8226() {
+        int numIndices = between(5, 10);
+        final boolean useMapping = randomBoolean();
+        for (int i = 0; i < numIndices; i++) {
+            if (useMapping) {
+                assertAcked(prepareCreate("test_" + i).addAlias(new Alias("test")).addMapping("foo", "entry", "type=long"));
+            } else {
+                assertAcked(prepareCreate("test_" + i).addAlias(new Alias("test")));
+            }
+            if (i > 0) {
+                client().prepareIndex("test_" + i, "foo", "" + i).setSource("{\"entry\": " + i + "}").get();
+            }
+        }
+        ensureYellow();
+        refresh();
+        // sort DESC
+        SearchResponse searchResponse = client().prepareSearch()
+                .addSort(new FieldSortBuilder("entry").order(SortOrder.DESC).unmappedType(useMapping ? null : "long"))
+                .setSize(10).get();
+        assertSearchResponse(searchResponse);
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "simon is working on this")
+        for (int j = 1; j < searchResponse.getHits().hits().length; j++) {
+            Number current = (Number) searchResponse.getHits().hits()[j].getSource().get("entry");
+            Number previous = (Number) searchResponse.getHits().hits()[j-1].getSource().get("entry");
+            assertThat(searchResponse.toString(), current.intValue(), lessThan(previous.intValue()));
+        }
+
+        // sort ASC
+        searchResponse = client().prepareSearch()
+                .addSort(new FieldSortBuilder("entry").order(SortOrder.ASC).unmappedType(useMapping ? null : "long"))
+                .setSize(10).get();
+        assertSearchResponse(searchResponse);
+
+        for (int j = 1; j < searchResponse.getHits().hits().length; j++) {
+            Number current = (Number) searchResponse.getHits().hits()[j].getSource().get("entry");
+            Number previous = (Number) searchResponse.getHits().hits()[j-1].getSource().get("entry");
+            assertThat(searchResponse.toString(), current.intValue(), greaterThan(previous.intValue()));
+        }
+    }
+
+    @LuceneTestCase.BadApple(bugUrl = "simon is working on this")
     public void testIssue6614() throws ExecutionException, InterruptedException {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         boolean strictTimeBasedIndices = randomBoolean();
@@ -88,7 +129,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         SearchResponse allDocsResponse = client().prepareSearch().setQuery(QueryBuilders.filteredQuery(matchAllQuery(),
                 FilterBuilders.boolFilter().must(FilterBuilders.termFilter("foo", "bar"),
                         FilterBuilders.rangeFilter("timeUpdated").gte("2014/0" + randomIntBetween(1, 7) + "/01").cache(randomBoolean()))))
-                .addSort(new FieldSortBuilder("timeUpdated").order(SortOrder.ASC).ignoreUnmapped(true))
+                .addSort(new FieldSortBuilder("timeUpdated").order(SortOrder.ASC).unmappedType("date"))
                 .setSize(docs).get();
         assertSearchResponse(allDocsResponse);
 
@@ -97,7 +138,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
             SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.filteredQuery(matchAllQuery(),
                     FilterBuilders.boolFilter().must(FilterBuilders.termFilter("foo", "bar"),
                             FilterBuilders.rangeFilter("timeUpdated").gte("2014/" + String.format(Locale.ROOT, "%02d", randomIntBetween(1, 7)) + "/01").cache(randomBoolean()))))
-                    .addSort(new FieldSortBuilder("timeUpdated").order(SortOrder.ASC).ignoreUnmapped(true))
+                    .addSort(new FieldSortBuilder("timeUpdated").order(SortOrder.ASC).unmappedType("date"))
                     .setSize(scaledRandomIntBetween(1, docs)).get();
             assertSearchResponse(searchResponse);
             for (int j = 0; j < searchResponse.getHits().hits().length; j++) {
@@ -1089,7 +1130,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addSort(SortBuilders.fieldSort("kkk").ignoreUnmapped(true))
+                .addSort(SortBuilders.fieldSort("kkk").unmappedType("string"))
                 .execute().actionGet();
         assertNoFailures(searchResponse);
     }
@@ -1864,6 +1905,85 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         assertOrderedSearchHits(searchResponse, "d1", "d2");
         assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2.5, 1, 2, 1, DistanceUnit.KILOMETERS), 1.e-5));
         assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(4.5, 1, 2, 1, DistanceUnit.KILOMETERS), 1.e-5));
+    }
+
+    public void testSinglePointGeoDistanceSort() throws ExecutionException, InterruptedException, IOException {
+        assertAcked(prepareCreate("index").addMapping("type", "location", "type=geo_point"));
+        indexRandom(true,
+                client().prepareIndex("index", "type", "d1").setSource(jsonBuilder().startObject().startObject("location").field("lat", 1).field("lon", 1).endObject().endObject()),
+                client().prepareIndex("index", "type", "d2").setSource(jsonBuilder().startObject().startObject("location").field("lat", 1).field("lon", 2).endObject().endObject()));
+        ensureYellow();
+
+        String hashPoint = "s037ms06g7h0";
+
+        GeoDistanceSortBuilder geoDistanceSortBuilder = new GeoDistanceSortBuilder("location");
+        geoDistanceSortBuilder.geohashes(hashPoint);
+
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(geoDistanceSortBuilder.sortMode("min").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .execute().actionGet();
+        checkCorrectSortOrderForGeoSort(searchResponse);
+
+        geoDistanceSortBuilder = new GeoDistanceSortBuilder("location");
+        geoDistanceSortBuilder.points(new GeoPoint(2, 2));
+
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(geoDistanceSortBuilder.sortMode("min").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .execute().actionGet();
+        checkCorrectSortOrderForGeoSort(searchResponse);
+
+        geoDistanceSortBuilder = new GeoDistanceSortBuilder("location");
+        geoDistanceSortBuilder.point(2, 2);
+
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(geoDistanceSortBuilder.sortMode("min").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .execute().actionGet();
+        checkCorrectSortOrderForGeoSort(searchResponse);
+
+        String geoSortRequest = jsonBuilder().startObject().startArray("sort").startObject()
+                .startObject("_geo_distance")
+                .startArray("location").value(2f).value(2f).endArray()
+                .field("unit", "km")
+                .field("distance_type", "plane")
+                .endObject()
+                .endObject().endArray().string();
+        searchResponse = client().prepareSearch().setSource(geoSortRequest)
+                .execute().actionGet();
+        checkCorrectSortOrderForGeoSort(searchResponse);
+
+        geoSortRequest = jsonBuilder().startObject().startArray("sort").startObject()
+                .startObject("_geo_distance")
+                .field("location", "s037ms06g7h0")
+                .field("unit", "km")
+                .field("distance_type", "plane")
+                .endObject()
+                .endObject().endArray().string();
+        searchResponse = client().prepareSearch().setSource(geoSortRequest)
+                .execute().actionGet();
+        checkCorrectSortOrderForGeoSort(searchResponse);
+
+        geoSortRequest = jsonBuilder().startObject().startArray("sort").startObject()
+                .startObject("_geo_distance")
+                .startObject("location")
+                .field("lat", 2)
+                .field("lon", 2)
+                .endObject()
+                .field("unit", "km")
+                .field("distance_type", "plane")
+                .endObject()
+                .endObject().endArray().string();
+        searchResponse = client().prepareSearch().setSource(geoSortRequest)
+                .execute().actionGet();
+        checkCorrectSortOrderForGeoSort(searchResponse);
+    }
+
+    private void checkCorrectSortOrderForGeoSort(SearchResponse searchResponse) {
+        assertOrderedSearchHits(searchResponse, "d2", "d1");
+        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 2, 1, 2, DistanceUnit.KILOMETERS), 1.e-5));
+        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 2, 1, 1, DistanceUnit.KILOMETERS), 1.e-5));
     }
 
     protected void createQPoints(List<String> qHashes, List<GeoPoint> qPoints) {

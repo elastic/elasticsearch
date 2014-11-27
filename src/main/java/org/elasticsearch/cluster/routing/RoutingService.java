@@ -29,6 +29,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.Future;
@@ -83,10 +84,8 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
 
     @Override
     protected void doClose() throws ElasticsearchException {
-        if (scheduledRoutingTableFuture != null) {
-            scheduledRoutingTableFuture.cancel(true);
-            scheduledRoutingTableFuture = null;
-        }
+        FutureUtils.cancel(scheduledRoutingTableFuture);
+        scheduledRoutingTableFuture = null;
         clusterService.remove(this);
     }
 
@@ -123,10 +122,8 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                 }
             }
         } else {
-            if (scheduledRoutingTableFuture != null) {
-                scheduledRoutingTableFuture.cancel(true);
-                scheduledRoutingTableFuture = null;
-            }
+            FutureUtils.cancel(scheduledRoutingTableFuture);
+            scheduledRoutingTableFuture = null;
         }
     }
 
@@ -150,9 +147,14 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                 }
 
                 @Override
+                public void onNoLongerMaster(String source) {
+                    // no biggie
+                }
+
+                @Override
                 public void onFailure(String source, Throwable t) {
-                    ClusterState state = clusterService.state();
-                    logger.error("unexpected failure during [{}], current state:\n{}", t, source, state.prettyPrint());
+                        ClusterState state = clusterService.state();
+                        logger.error("unexpected failure during [{}], current state:\n{}", t, source, state.prettyPrint());
                 }
             });
             routingTableDirty = false;

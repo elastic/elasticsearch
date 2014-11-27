@@ -28,6 +28,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.metadata.SnapshotMetaData;
 import org.elasticsearch.common.Strings;
@@ -64,6 +66,11 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
     @Override
     protected String executor() {
         return ThreadPool.Names.GENERIC;
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(SnapshotsStatusRequest request, ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
     }
 
     @Override
@@ -105,22 +112,22 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
 
             transportNodesSnapshotsStatus.status(nodesIds.toArray(new String[nodesIds.size()]),
                     snapshotIds, request.masterNodeTimeout(), new ActionListener<TransportNodesSnapshotsStatus.NodesSnapshotStatus>() {
-                @Override
-                public void onResponse(TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) {
-                    try {
-                        ImmutableList<SnapshotMetaData.Entry> currentSnapshots =
-                                snapshotsService.currentSnapshots(request.repository(), request.snapshots());
-                        listener.onResponse(buildResponse(request, currentSnapshots, nodeSnapshotStatuses));
-                    } catch (Throwable e) {
-                        listener.onFailure(e);
-                    }
-                }
+                        @Override
+                        public void onResponse(TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) {
+                            try {
+                                ImmutableList<SnapshotMetaData.Entry> currentSnapshots =
+                                        snapshotsService.currentSnapshots(request.repository(), request.snapshots());
+                                listener.onResponse(buildResponse(request, currentSnapshots, nodeSnapshotStatuses));
+                            } catch (Throwable e) {
+                                listener.onFailure(e);
+                            }
+                        }
 
-                @Override
-                public void onFailure(Throwable e) {
-                    listener.onFailure(e);
-                }
-            });
+                        @Override
+                        public void onFailure(Throwable e) {
+                            listener.onFailure(e);
+                        }
+                    });
         } else {
             // We don't have any in-progress shards, just return current stats
             listener.onResponse(buildResponse(request, currentSnapshots, null));

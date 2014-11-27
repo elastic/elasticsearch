@@ -11,13 +11,16 @@ using `term`, `terms` or `prefix` queries/filters (including the
 specific `ids` query/filter).
 
 The `_id` field can be enabled to be indexed, and possibly stored,
-using:
+using the appropriate mapping attributes:
 
 [source,js]
 --------------------------------------------------
 {
     "tweet" : {
-        "_id" : {"index": "not_analyzed", "store" : false }
+        "_id" : {
+            "index" : "not_analyzed",
+            "store" : true
+        }
     }
 }
 --------------------------------------------------

@@ -20,17 +20,15 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.UTF8StreamWriter;
 import org.elasticsearch.common.text.Text;
 import org.joda.time.ReadableInstant;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.lang.ref.SoftReference;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -195,14 +193,14 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    private final BytesRef spare = new BytesRef();
+    private final BytesRefBuilder spare = new BytesRefBuilder();
 
     public void writeText(Text text) throws IOException {
         if (!text.hasBytes()) {
             final String string = text.string();
-            UnicodeUtil.UTF16toUTF8(string, 0, string.length(), spare);
-            writeInt(spare.length);
-            write(spare.bytes, spare.offset, spare.length);
+            spare.copyChars(string);
+            writeInt(spare.length());
+            write(spare.bytes(), 0, spare.length());
         } else {
             BytesReference bytes = text.bytes();
             writeInt(bytes.length());

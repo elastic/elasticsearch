@@ -23,14 +23,16 @@ import com.google.common.collect.Sets;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
@@ -41,8 +43,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogStreams;
+import org.elasticsearch.index.translog.*;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.rest.RestStatus;
@@ -50,8 +51,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.EOFException;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -62,6 +66,8 @@ import java.util.concurrent.TimeUnit;
  *
  */
 public class LocalIndexShardGateway extends AbstractIndexShardComponent implements IndexShardGateway {
+
+    private static final int RECOVERY_TRANSLOG_RENAME_RETRIES = 3;
 
     private final ThreadPool threadPool;
     private final MappingUpdatedAction mappingUpdatedAction;
@@ -127,13 +133,18 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                     } catch (Throwable e1) {
                         files += " (failure=" + ExceptionsHelper.detailedMessage(e1) + ")";
                     }
-                    if (indexShouldExists && indexShard.store().indexStore().persistent()) {
+                    if (indexShouldExists) {
                         throw new IndexShardGatewayRecoveryException(shardId(), "shard allocated for local recovery (post api), should exist, but doesn't, current files: " + files, e);
                     }
                 }
                 if (si != null) {
                     if (indexShouldExists) {
                         version = si.getVersion();
+                        /**
+                         * We generate the translog ID before each lucene commit to ensure that
+                         * we can read the current translog ID safely when we recover. The commits metadata
+                         * therefor contains always the current / active translog ID.
+                         */
                         if (si.getUserData().containsKey(Translog.TRANSLOG_ID_KEY)) {
                             translogId = Long.parseLong(si.getUserData().get(Translog.TRANSLOG_ID_KEY));
                         } else {
@@ -144,7 +155,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                         // it exists on the directory, but shouldn't exist on the FS, its a leftover (possibly dangling)
                         // its a "new index create" API, we have to do something, so better to clean it than use same data
                         logger.trace("cleaning existing shard, shouldn't exists");
-                        IndexWriter writer = new IndexWriter(indexShard.store().directory(), new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER).setOpenMode(IndexWriterConfig.OpenMode.CREATE));
+                        IndexWriter writer = new IndexWriter(indexShard.store().directory(), new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setOpenMode(IndexWriterConfig.OpenMode.CREATE));
                         writer.close();
                     }
                 }
@@ -187,21 +198,24 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             }
 
             // move an existing translog, if exists, to "recovering" state, and start reading from it
-            FsTranslog translog = (FsTranslog) indexShard.translog();
-            String translogName = "translog-" + translogId;
-            String recoverTranslogName = translogName + ".recovering";
+            Translog translog = indexShard.translog();
+            final Path translogName = translog.getPath(translogId);
+            final Path recoverTranslogName = translogName.resolveSibling(translogName.getFileName() + ".recovering");
 
 
-            File recoveringTranslogFile = null;
-            for (File translogLocation : translog.locations()) {
-                File tmpRecoveringFile = new File(translogLocation, recoverTranslogName);
-                if (!tmpRecoveringFile.exists()) {
-                    File tmpTranslogFile = new File(translogLocation, translogName);
-                    if (tmpTranslogFile.exists()) {
-                        for (int i = 0; i < 3; i++) {
-                            if (tmpTranslogFile.renameTo(tmpRecoveringFile)) {
+            Path recoveringTranslogFile = null;
+            for (Path translogLocation : translog.locations()) {
+                final Path tmpRecoveringFile = translogLocation.resolve(recoverTranslogName);
+                if (Files.exists(tmpRecoveringFile) == false) {
+                    Path tmpTranslogFile = translogLocation.resolve(translogName);
+                    if (Files.exists(tmpTranslogFile)) {
+                        for (int i = 0; i < RECOVERY_TRANSLOG_RENAME_RETRIES; i++) {
+                            try {
+                                Files.move(tmpTranslogFile, tmpRecoveringFile, StandardCopyOption.ATOMIC_MOVE);
                                 recoveringTranslogFile = tmpRecoveringFile;
                                 break;
+                            } catch (Exception ex) {
+                                logger.debug("Failed to rename tmp recovery file", ex);
                             }
                         }
                     }
@@ -211,7 +225,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 }
             }
 
-            if (recoveringTranslogFile == null || !recoveringTranslogFile.exists()) {
+            if (recoveringTranslogFile == null || Files.exists(recoveringTranslogFile) == false) {
                 // no translog to recovery from, start and bail
                 // no translog files, bail
                 indexShard.postRecovery("post recovery from gateway, no translog");
@@ -228,22 +242,34 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
 
             recoveryState.getTranslog().startTime(System.currentTimeMillis());
             recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
-            FileInputStream fs = null;
+            StreamInput in = null;
 
             final Set<String> typesToUpdate = Sets.newHashSet();
             try {
-                fs = new FileInputStream(recoveringTranslogFile);
-                InputStreamStreamInput si = new InputStreamStreamInput(fs);
+                TranslogStream stream = TranslogStreams.translogStreamFor(recoveringTranslogFile);
+                try {
+                    in = stream.openInput(recoveringTranslogFile);
+                } catch (TruncatedTranslogException e) {
+                    // file is empty or header has been half-written and should be ignored
+                    logger.trace("ignoring truncation exception, the translog is either empty or half-written ([{}])", e.getMessage());
+                }
                 while (true) {
+                    if (in == null) {
+                        break;
+                    }
                     Translog.Operation operation;
                     try {
-                        int opSize = si.readInt();
-                        operation = TranslogStreams.readTranslogOperation(si);
+                        if (stream instanceof LegacyTranslogStream) {
+                            in.readInt(); // ignored opSize
+                        }
+                        operation = stream.read(in);
                     } catch (EOFException e) {
                         // ignore, not properly written the last op
+                        logger.trace("ignoring translog EOF exception, the last operation was not properly written ([{}])", e.getMessage());
                         break;
                     } catch (IOException e) {
                         // ignore, not properly written last op
+                        logger.trace("ignoring translog IO exception, the last operation was not properly written ([{}])", e.getMessage());
                         break;
                     }
                     try {
@@ -264,19 +290,18 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                     }
                 }
             } catch (Throwable e) {
-                // we failed to recovery, make sure to delete the translog file (and keep the recovering one)
-                indexShard.translog().closeWithDelete();
+                IOUtils.closeWhileHandlingException(indexShard.translog());
                 throw new IndexShardGatewayRecoveryException(shardId, "failed to recover shard", e);
             } finally {
-                try {
-                    fs.close();
-                } catch (IOException e) {
-                    // ignore
-                }
+                IOUtils.closeWhileHandlingException(in);
             }
             indexShard.performRecoveryFinalization(true);
 
-            recoveringTranslogFile.delete();
+            try {
+                Files.deleteIfExists(recoveringTranslogFile);
+            } catch (Exception ex) {
+                logger.debug("Failed to delete recovering translog file {}", ex, recoveringTranslogFile);
+            }
 
             for (final String type : typesToUpdate) {
                 final CountDownLatch latch = new CountDownLatch(1);
@@ -317,9 +342,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
 
     @Override
     public void close() {
-        if (flushScheduler != null) {
-            flushScheduler.cancel(false);
-        }
+        FutureUtils.cancel(flushScheduler);
     }
 
     class Sync implements Runnable {

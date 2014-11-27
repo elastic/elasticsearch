@@ -103,7 +103,6 @@ public class SearchSourceBuilder implements ToXContent {
     private List<String> fieldNames;
     private List<String> fieldDataFields;
     private List<ScriptField> scriptFields;
-    private List<PartialField> partialFields;
     private FetchSourceContext fetchSourceContext;
 
     private List<AbstractAggregationBuilder> aggregations;
@@ -593,46 +592,6 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
-     * Adds a partial field based on _source, with an "include" and/or "exclude" set which can include simple wildcard
-     * elements.
-     *
-     * @deprecated since 1.0.0
-     * use {@link SearchSourceBuilder#fetchSource(String, String)} instead
-     *
-     * @param name    The name of the field
-     * @param include An optional include (optionally wildcarded) pattern from _source
-     * @param exclude An optional exclude (optionally wildcarded) pattern from _source
-     */
-    @Deprecated
-    public SearchSourceBuilder partialField(String name, @Nullable String include, @Nullable String exclude) {
-        if (partialFields == null) {
-            partialFields = Lists.newArrayList();
-        }
-        partialFields.add(new PartialField(name, include, exclude));
-        return this;
-    }
-
-    /**
-     * Adds a partial field based on _source, with an "includes" and/or "excludes set which can include simple wildcard
-     * elements.
-     *
-     * @deprecated since 1.0.0
-     * use {@link SearchSourceBuilder#fetchSource(String[], String[])} instead
-     *
-     * @param name     The name of the field
-     * @param includes An optional list of includes (optionally wildcarded) patterns from _source
-     * @param excludes An optional list of excludes (optionally wildcarded) patterns from _source
-     */
-    @Deprecated
-    public SearchSourceBuilder partialField(String name, @Nullable String[] includes, @Nullable String[] excludes) {
-        if (partialFields == null) {
-            partialFields = Lists.newArrayList();
-        }
-        partialFields.add(new PartialField(name, includes, excludes));
-        return this;
-    }
-
-    /**
      * Sets the boost a specific index will receive when the query is executeed against it.
      *
      * @param index      The index to apply the boost against
@@ -766,29 +725,6 @@ public class SearchSourceBuilder implements ToXContent {
                 builder.value(fieldName);
             }
             builder.endArray();
-        }
-
-        if (partialFields != null) {
-            builder.startObject("partial_fields");
-            for (PartialField partialField : partialFields) {
-                builder.startObject(partialField.name());
-                if (partialField.includes() != null) {
-                    if (partialField.includes().length == 1) {
-                        builder.field("include", partialField.includes()[0]);
-                    } else {
-                        builder.field("include", partialField.includes());
-                    }
-                }
-                if (partialField.excludes() != null) {
-                    if (partialField.excludes().length == 1) {
-                        builder.field("exclude", partialField.excludes()[0]);
-                    } else {
-                        builder.field("exclude", partialField.excludes());
-                    }
-                }
-                builder.endObject();
-            }
-            builder.endObject();
         }
 
         if (scriptFields != null) {

@@ -19,16 +19,17 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import com.google.common.collect.Sets;
-
-import org.apache.lucene.util.Constants;
-
 import java.util.Deque;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.*;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.LinkedTransferQueue;
 
-import jsr166e.ConcurrentHashMapV8;
+import com.google.common.collect.Sets;
 
 /**
  *
@@ -47,21 +48,11 @@ public abstract class ConcurrentCollections {
      * Creates a new CHM with an aggressive concurrency level, aimed at high concurrent update rate long living maps.
      */
     public static <K, V> ConcurrentMap<K, V> newConcurrentMapWithAggressiveConcurrency() {
-        if (Constants.JRE_IS_MINIMUM_JAVA8) {
-            // Just use JDK's impl when we are on Java8:
-            return new ConcurrentHashMap<>(16, 0.75f, aggressiveConcurrencyLevel);
-        } else {
-            return new ConcurrentHashMapV8<>(16, 0.75f, aggressiveConcurrencyLevel);
-        }
+        return new ConcurrentHashMap<>(16, 0.75f, aggressiveConcurrencyLevel);
     }
 
     public static <K, V> ConcurrentMap<K, V> newConcurrentMap() {
-        if (Constants.JRE_IS_MINIMUM_JAVA8) {
-            // Just use JDK's impl when we are on Java8:
-            return new ConcurrentHashMap<>();
-        } else {
-            return new ConcurrentHashMapV8<>();
-        }
+        return new ConcurrentHashMap<>();
     }
 
     /**

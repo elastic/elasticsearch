@@ -21,22 +21,26 @@ package org.elasticsearch.test.store;
 
 import com.google.common.base.Charsets;
 import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.StoreRateLimiting;
+import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShardException;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.distributor.Distributor;
 import org.elasticsearch.index.store.fs.FsDirectoryService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
@@ -45,9 +49,15 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.file.Path;
+import java.util.EnumSet;
 import java.util.Random;
 
 public class MockFSDirectoryService extends FsDirectoryService {
+
+    private static final EnumSet<IndexShardState> validCheckIndexStates = EnumSet.of(
+            IndexShardState.STARTED, IndexShardState.RELOCATED , IndexShardState.POST_RECOVERY
+    );
 
     private final MockDirectoryHelper helper;
     private FsDirectoryService delegateService;
@@ -60,15 +70,38 @@ public class MockFSDirectoryService extends FsDirectoryService {
         final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.SETTING_INDEX_SEED, 0l);
         Random random = new Random(seed);
         helper = new MockDirectoryHelper(shardId, indexSettings, logger, random, seed);
-        checkIndexOnClose = indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, random.nextDouble() < 0.1);
+        checkIndexOnClose = indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, true);
 
         delegateService = helper.randomDirectorService(indexStore);
         if (checkIndexOnClose) {
             final IndicesLifecycle.Listener listener = new IndicesLifecycle.Listener() {
+
+                boolean canRun = false;
+
                 @Override
                 public void beforeIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard) {
-                    if (shardId.equals(sid) && indexShard != null) {
-                        checkIndex(((InternalIndexShard) indexShard).store());
+                    if (indexShard != null && shardId.equals(sid)) {
+                        logger.info("Shard state before potentially flushing is {}", indexShard.state());
+                        if (validCheckIndexStates.contains(indexShard.state())) {
+                            canRun = true;
+                            // When the the internal engine closes we do a rollback, which removes uncommitted segments
+                            // By doing a commit flush we perform a Lucene commit, but don't clear the translog,
+                            // so that even in tests where don't flush we can check the integrity of the Lucene index
+                            indexShard.flush(
+                                    new Engine.Flush()
+                                            .type(Engine.Flush.Type.COMMIT) // Keep translog for tests that rely on replaying it
+                                            .waitIfOngoing(true)
+                            );
+                            logger.info("flush finished in beforeIndexShardClosed");
+                        }
+                    }
+                }
+
+                @Override
+                public void afterIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard) {
+                    if (shardId.equals(sid) && indexShard != null && canRun) {
+                        assert indexShard.state() == IndexShardState.CLOSED : "Current state must be closed";
+                        checkIndex(((InternalIndexShard) indexShard).store(), sid);
                     }
                     service.indicesLifecycle().removeListener(this);
                 }
@@ -79,36 +112,48 @@ public class MockFSDirectoryService extends FsDirectoryService {
 
     @Override
     public Directory[] build() throws IOException {
-        return helper.wrapAllInplace(delegateService.build());
+        return delegateService.build();
     }
     
     @Override
-    protected synchronized Directory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
+    protected synchronized Directory newFSDirectory(Path location, LockFactory lockFactory) throws IOException {
         throw new UnsupportedOperationException();
     }
 
-
-    public  void checkIndex(Store store) throws IndexShardException {
-        try {
-            if (!Lucene.indexExists(store.directory())) {
-                return;
-            }
-            CheckIndex checkIndex = new CheckIndex(store.directory());
-            BytesStreamOutput os = new BytesStreamOutput();
-            PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
-            checkIndex.setInfoStream(out);
-            out.flush();
-            CheckIndex.Status status = checkIndex.checkIndex();
-            if (!status.clean) {
-                logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
-                throw new IndexShardException(shardId, "index check failure");
-            } else {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+    public void checkIndex(Store store, ShardId shardId) throws IndexShardException {
+        if (store.tryIncRef()) {
+            logger.info("start check index");
+            try {
+                Directory dir = store.directory();
+                if (!Lucene.indexExists(dir)) {
+                    return;
                 }
+                if (IndexWriter.isLocked(dir)) {
+                    AbstractRandomizedTest.checkIndexFailed = true;
+                    throw new IllegalStateException("IndexWriter is still open on shard " + shardId);
+                }
+                try (CheckIndex checkIndex = new CheckIndex(dir)) {
+                    BytesStreamOutput os = new BytesStreamOutput();
+                    PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
+                    checkIndex.setInfoStream(out);
+                    out.flush();
+                    CheckIndex.Status status = checkIndex.checkIndex();
+                    if (!status.clean) {
+                        AbstractRandomizedTest.checkIndexFailed = true;
+                        logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+                        throw new IndexShardException(shardId, "index check failure");
+                    } else {
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("failed to check index", e);
+            } finally {
+                logger.info("end check index");
+                store.decRef();
             }
-        } catch (Exception e) {
-            logger.warn("failed to check index", e);
         }
     }
 
@@ -125,5 +170,10 @@ public class MockFSDirectoryService extends FsDirectoryService {
     @Override
     public long throttleTimeInNanos() {
         return delegateService.throttleTimeInNanos();
+    }
+
+    @Override
+    public Directory newFromDistributor(Distributor distributor) throws IOException {
+        return helper.wrap(super.newFromDistributor(distributor));
     }
 }

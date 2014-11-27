@@ -24,8 +24,7 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -35,7 +34,9 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockDirectoryHelper;
+import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -53,6 +54,7 @@ import static org.hamcrest.Matchers.*;
  */
 @ClusterScope(numDataNodes = 0, scope = Scope.TEST)
 @Slow
+@TestLogging("index.shard.service:TRACE,index.gateway.local:TRACE")
 public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTest {
 
     private ImmutableSettings.Builder settingsBuilder() {
@@ -344,14 +346,17 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
     @Test
     @Slow
     public void testReusePeerRecovery() throws Exception {
-        ImmutableSettings.Builder settings = settingsBuilder()
+        final Settings settings = settingsBuilder()
                 .put("action.admin.cluster.node.shutdown.delay", "10ms")
+                .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
                 .put("gateway.recover_after_nodes", 4)
-                .put(MockDirectoryHelper.CRASH_INDEX, false)
-                .put(BalancedShardsAllocator.SETTING_THRESHOLD, 1.1f); // use less agressive settings
+                .put(MockDirectoryHelper.CRASH_INDEX, false).build();
 
-        internalCluster().startNodesAsync(4, settings.build()).get();
-
+        internalCluster().startNodesAsync(4, settings).get();
+        // prevent any rebalance actions during the peer recovery
+        // if we run into a relocation the reuse count will be 0 and this fails the test. We are testing here if
+        // we reuse the files on disk after full restarts for replicas.
+        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put(indexSettings()).put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)));
         logger.info("--> indexing docs");
         for (int i = 0; i < 1000; i++) {
             client().prepareIndex("test", "type").setSource("field", "value").execute().actionGet();
@@ -365,16 +370,22 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
         ensureGreen();
 
         logger.info("--> shutting down the nodes");
+
         // Disable allocations while we are closing nodes
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true)).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(settingsBuilder()
+                        .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE))
+                .get();
         internalCluster().fullRestart();
 
         logger.info("Running Cluster Health");
         ensureGreen();
-
         logger.info("--> shutting down the nodes");
         // Disable allocations while we are closing nodes
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true)).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(settingsBuilder()
+                        .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE))
+                .get();
         internalCluster().fullRestart();
 
 

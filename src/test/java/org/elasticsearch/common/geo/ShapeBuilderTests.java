@@ -69,6 +69,34 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
         assertEquals(exterior.getCoordinateN(2), new Coordinate(45, -30));
         assertEquals(exterior.getCoordinateN(3), new Coordinate(-45, -30));
     }
+
+    @Test
+    public void testNewPolygon_coordinate() {
+        Polygon polygon = ShapeBuilder.newPolygon()
+                .point(new Coordinate(-45, 30))
+                .point(new Coordinate(45, 30))
+                .point(new Coordinate(45, -30))
+                .point(new Coordinate(-45, -30))
+                .point(new Coordinate(-45, 30)).toPolygon();
+
+        LineString exterior = polygon.getExteriorRing();
+        assertEquals(exterior.getCoordinateN(0), new Coordinate(-45, 30));
+        assertEquals(exterior.getCoordinateN(1), new Coordinate(45, 30));
+        assertEquals(exterior.getCoordinateN(2), new Coordinate(45, -30));
+        assertEquals(exterior.getCoordinateN(3), new Coordinate(-45, -30));
+    }
+
+    @Test
+    public void testNewPolygon_coordinates() {
+        Polygon polygon = ShapeBuilder.newPolygon()
+                .points(new Coordinate(-45, 30), new Coordinate(45, 30), new Coordinate(45, -30), new Coordinate(-45, -30), new Coordinate(-45, 30)).toPolygon();
+
+        LineString exterior = polygon.getExteriorRing();
+        assertEquals(exterior.getCoordinateN(0), new Coordinate(-45, 30));
+        assertEquals(exterior.getCoordinateN(1), new Coordinate(45, 30));
+        assertEquals(exterior.getCoordinateN(2), new Coordinate(45, -30));
+        assertEquals(exterior.getCoordinateN(3), new Coordinate(-45, -30));
+    }
     
     @Test
     public void testLineStringBuilder() {
@@ -366,6 +394,7 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
 
     @Test
     public void testShapeWithEdgeAlongDateline() {
+        // test case 1: test the positive side of the dateline
         PolygonBuilder builder = ShapeBuilder.newPolygon()
                 .point(180, 0)
                 .point(176, 4)
@@ -373,9 +402,34 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
                 .point(180, 0);
 
         Shape shape = builder.close().build();
+        assertPolygon(shape);
 
-         assertPolygon(shape);
+        // test case 2: test the negative side of the dateline
+        builder = ShapeBuilder.newPolygon()
+                .point(-180, 0)
+                .point(-176, 4)
+                .point(-180, -4)
+                .point(-180, 0);
+
+        shape = builder.close().build();
+        assertPolygon(shape);
      }
+
+    /**
+     * Test an enveloping polygon around the max mercator bounds
+     */
+    @Test
+    public void testBoundaryShape() {
+        PolygonBuilder builder = ShapeBuilder.newPolygon()
+                .point(-180, 90)
+                .point(180, 90)
+                .point(180, -90)
+                .point(-180, -90);
+
+        Shape shape = builder.close().build();
+
+        assertPolygon(shape);
+    }
 
     @Test
     public void testShapeWithEdgeAcrossDateline() {

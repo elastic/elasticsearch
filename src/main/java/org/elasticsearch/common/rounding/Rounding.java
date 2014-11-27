@@ -219,7 +219,7 @@ public abstract class Rounding implements Streamable {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             rounding = Rounding.Streams.read(in);
-            if (in.getVersion().before(Version.V_1_4_0)) {
+            if (in.getVersion().before(Version.V_1_4_0_Beta1)) {
                 preOffset = in.readVLong();
                 postOffset = in.readVLong();
             } else {
@@ -231,7 +231,7 @@ public abstract class Rounding implements Streamable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             Rounding.Streams.write(rounding, out);
-            if (out.getVersion().before(Version.V_1_4_0)) {
+            if (out.getVersion().before(Version.V_1_4_0_Beta1)) {
                 out.writeVLong(preOffset);
                 out.writeVLong(postOffset);
             } else {

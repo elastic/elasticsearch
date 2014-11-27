@@ -21,6 +21,7 @@ package org.elasticsearch.cluster;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -42,8 +43,9 @@ import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * InternalClusterInfoService provides the ClusterInfoService interface,
@@ -56,7 +58,7 @@ import java.util.Map;
  * Every time the timer runs, gathers information about the disk usage and
  * shard sizes across the cluster.
  */
-public final class InternalClusterInfoService extends AbstractComponent implements ClusterInfoService, LocalNodeMasterListener, ClusterStateListener {
+public class InternalClusterInfoService extends AbstractComponent implements ClusterInfoService, LocalNodeMasterListener, ClusterStateListener {
 
     public static final String INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL = "cluster.info.update.interval";
 
@@ -70,6 +72,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
     private final TransportIndicesStatsAction transportIndicesStatsAction;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
+    private final Set<Listener> listeners = Collections.synchronizedSet(new HashSet<Listener>());
 
     @Inject
     public InternalClusterInfoService(Settings settings, NodeSettingsService nodeSettingsService,
@@ -84,7 +87,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.updateFrequency = settings.getAsTime(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, TimeValue.timeValueSeconds(30));
-        this.enabled = settings.getAsBoolean(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, false);
+        this.enabled = settings.getAsBoolean(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true);
         nodeSettingsService.addListener(new ApplySettings());
 
         // Add InternalClusterInfoService to listen for Master changes
@@ -188,6 +191,11 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         return new ClusterInfo(usages, shardSizes);
     }
 
+    @Override
+    public void addListener(Listener listener) {
+        this.listeners.add(listener);
+    }
+
     /**
      * Class used to submit {@link ClusterInfoUpdateJob}s on the
      * {@link InternalClusterInfoService} threadpool, these jobs will
@@ -210,6 +218,34 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         }
     }
 
+    /**
+     * Retrieve the latest nodes stats, calling the listener when complete
+     * @return a latch that can be used to wait for the nodes stats to complete if desired
+     */
+    protected CountDownLatch updateNodeStats(final ActionListener<NodesStatsResponse> listener) {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
+        nodesStatsRequest.clear();
+        nodesStatsRequest.fs(true);
+        nodesStatsRequest.timeout(TimeValue.timeValueSeconds(15));
+
+        transportNodesStatsAction.execute(nodesStatsRequest, new LatchedActionListener<>(listener, latch));
+        return latch;
+    }
+
+    /**
+     * Retrieve the latest indices stats, calling the listener when complete
+     * @return a latch that can be used to wait for the indices stats to complete if desired
+     */
+    protected CountDownLatch updateIndicesStats(final ActionListener<IndicesStatsResponse> listener) {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+        indicesStatsRequest.clear();
+        indicesStatsRequest.store(true);
+
+        transportIndicesStatsAction.execute(indicesStatsRequest, new LatchedActionListener<>(listener, latch));
+        return latch;
+    }
 
     /**
      * Runnable class that performs a {@Link NodesStatsRequest} to retrieve
@@ -252,12 +288,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                 return;
             }
 
-            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
-            nodesStatsRequest.clear();
-            nodesStatsRequest.fs(true);
-            nodesStatsRequest.timeout(TimeValue.timeValueSeconds(15));
-
-            transportNodesStatsAction.execute(nodesStatsRequest, new ActionListener<NodesStatsResponse>() {
+            CountDownLatch nodeLatch = updateNodeStats(new ActionListener<NodesStatsResponse>() {
                 @Override
                 public void onResponse(NodesStatsResponse nodeStatses) {
                     Map<String, DiskUsage> newUsages = new HashMap<>();
@@ -273,10 +304,11 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                                 total += info.getTotal().bytes();
                             }
                             String nodeId = nodeStats.getNode().id();
+                            String nodeName = nodeStats.getNode().getName();
                             if (logger.isTraceEnabled()) {
                                 logger.trace("node: [{}], total disk: {}, available disk: {}", nodeId, total, available);
                             }
-                            newUsages.put(nodeId, new DiskUsage(nodeId, total, available));
+                            newUsages.put(nodeId, new DiskUsage(nodeId, nodeName, total, available));
                         }
                     }
                     usages = ImmutableMap.copyOf(newUsages);
@@ -294,10 +326,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                 }
             });
 
-            IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
-            indicesStatsRequest.clear();
-            indicesStatsRequest.store(true);
-            transportIndicesStatsAction.execute(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
+            CountDownLatch indicesLatch = updateIndicesStats(new ActionListener<IndicesStatsResponse>() {
                 @Override
                 public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                     ShardStats[] stats = indicesStatsResponse.getShards();
@@ -325,8 +354,24 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                 }
             });
 
-            if (logger.isTraceEnabled()) {
-                logger.trace("Finished ClusterInfoUpdateJob");
+            try {
+                nodeLatch.await(15, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                logger.warn("Failed to update node information for ClusterInfoUpdateJob within 15s timeout");
+            }
+
+            try {
+                indicesLatch.await(15, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                logger.warn("Failed to update shard information for ClusterInfoUpdateJob within 15s timeout");
+            }
+
+            for (Listener l : listeners) {
+                try {
+                    l.onNewInfo(getClusterInfo());
+                } catch (Exception e) {
+                    logger.info("Failed executing ClusterInfoService listener", e);
+                }
             }
         }
     }

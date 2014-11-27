@@ -43,7 +43,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsT
 /**
  * Request for an update index settings action
  */
-public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsRequest> implements IndicesRequest {
+public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
@@ -88,6 +88,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     /**
      * Sets the indices to apply to settings update to
      */
+    @Override
     public UpdateSettingsRequest indices(String... indices) {
         this.indices = indices;
         return this;

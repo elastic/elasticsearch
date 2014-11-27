@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.lookup;
 
-import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.CollectionStatistics;
 import org.elasticsearch.common.util.MinimalMap;
 
@@ -57,7 +57,7 @@ public class IndexField extends MinimalMap<String, IndexFieldTerm> {
     /*
      * Uodate posting lists in all TermInfo objects
      */
-    void setReader(AtomicReader reader) {
+    void setReader(LeafReader reader) {
         for (IndexFieldTerm ti : terms.values()) {
             ti.setNextReader(reader);
         }

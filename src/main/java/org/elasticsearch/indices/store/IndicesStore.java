@@ -245,6 +245,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
         ShardActiveResponseHandler responseHandler = new ShardActiveResponseHandler(indexShardRoutingTable.shardId(), state, requests.size());
         for (Tuple<DiscoveryNode, ShardActiveRequest> request : requests) {
+            logger.trace("{} sending shard active check to {}", request.v2().shardId, request.v1());
             transportService.sendRequest(request.v1(), ACTION_SHARD_EXISTS, request.v2(), responseHandler);
         }
     }
@@ -272,8 +273,8 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
         @Override
         public void handleResponse(ShardActiveResponse response) {
+            logger.trace("{} is {}active on node {}", shardId, response.shardActive ? "" : "not ", response.node);
             if (response.shardActive) {
-                logger.trace("[{}] exists on node [{}]", shardId, response.node);
                 activeCopies.incrementAndGet();
             }
 
@@ -307,7 +308,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                 return;
             }
 
-            clusterService.submitStateUpdateTask("indices_store", new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("indices_store", new ClusterStateNonMasterUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     if (clusterState.getVersion() != currentState.getVersion()) {
@@ -322,7 +323,11 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                             File[] shardLocations = nodeEnv.shardLocations(shardId);
                             if (FileSystemUtils.exists(shardLocations)) {
                                 logger.debug("{} deleting shard that is no longer used", shardId);
-                                FileSystemUtils.deleteRecursively(shardLocations);
+                                try {
+                                    nodeEnv.deleteShardDirectorySafe(shardId);
+                                } catch (Exception ex) {
+                                    logger.debug("failed to delete shard locations", ex);
+                                }
                             }
                         }
                     } else {

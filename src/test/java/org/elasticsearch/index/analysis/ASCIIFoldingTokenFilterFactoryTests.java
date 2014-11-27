@@ -38,7 +38,8 @@ public class ASCIIFoldingTokenFilterFactoryTests extends ElasticsearchTokenStrea
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_ascii_folding");
         String source = "Ansprüche";
         String[] expected = new String[]{"Anspruche"};
-        Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+        Tokenizer tokenizer = new WhitespaceTokenizer();
+        tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
@@ -51,7 +52,8 @@ public class ASCIIFoldingTokenFilterFactoryTests extends ElasticsearchTokenStrea
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_ascii_folding");
         String source = "Ansprüche";
         String[] expected = new String[]{"Anspruche", "Ansprüche"};
-        Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+        Tokenizer tokenizer = new WhitespaceTokenizer();
+        tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 

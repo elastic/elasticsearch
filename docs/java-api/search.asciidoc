@@ -62,10 +62,11 @@ SearchResponse scrollResp = client.prepareSearch(test)
         .setSize(100).execute().actionGet(); //100 hits per shard will be returned for each scroll
 //Scroll until no hits are returned
 while (true) {
-    scrollResp = client.prepareSearchScroll(scrollResp.getScrollId()).setScroll(new TimeValue(600000)).execute().actionGet();
+
     for (SearchHit hit : scrollResp.getHits()) {
         //Handle the hit...
     }
+    scrollResp = client.prepareSearchScroll(scrollResp.getScrollId()).setScroll(new TimeValue(600000)).execute().actionGet();
     //Break condition: No hits are returned
     if (scrollResp.getHits().getHits().length == 0) {
         break;

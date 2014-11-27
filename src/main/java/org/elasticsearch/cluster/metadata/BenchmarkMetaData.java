@@ -155,7 +155,7 @@ public class BenchmarkMetaData implements MetaData.Custom {
     }
 
 
-    public static class Factory implements MetaData.Custom.Factory<BenchmarkMetaData> {
+    public static class Factory extends MetaData.Custom.Factory<BenchmarkMetaData> {
 
         @Override
         public String type() {
@@ -208,10 +208,6 @@ public class BenchmarkMetaData implements MetaData.Custom {
             }
             builder.endArray();
             builder.endObject();
-        }
-
-        public boolean isPersistent() {
-            return false;
         }
     }
 

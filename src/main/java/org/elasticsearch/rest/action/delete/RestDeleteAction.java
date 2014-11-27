@@ -43,8 +43,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestDeleteAction extends BaseRestHandler {
 
     @Inject
-    public RestDeleteAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestDeleteAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(DELETE, "/{index}/{type}/{id}", this);
     }
 

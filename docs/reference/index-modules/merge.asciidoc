@@ -70,7 +70,7 @@ This policy has the following settings:
 	>= than the `max_merge_at_once` otherwise you'll force too many merges to
 	occur.
 
-`index.reclaim_deletes_weight`::
+`index.merge.policy.reclaim_deletes_weight`::
 
 	Controls how aggressively merges that reclaim more deletions are favored.
 	Higher values favor selecting merges that reclaim deletions. A value of

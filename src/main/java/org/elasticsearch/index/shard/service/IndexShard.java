@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.filter.ShardFilterCache;
 import org.elasticsearch.index.cache.id.IdCacheStats;
@@ -50,14 +51,11 @@ import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchService;
 import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.index.shard.DocsStats;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
-import org.elasticsearch.index.shard.IndexShardComponent;
-import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.suggest.stats.ShardSuggestService;
 import org.elasticsearch.index.suggest.stats.SuggestStats;
-import org.elasticsearch.index.termvectors.ShardTermVectorService;
+import org.elasticsearch.index.termvectors.ShardTermVectorsService;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
@@ -125,9 +123,11 @@ public interface IndexShard extends IndexShardComponent {
 
     ShardPercolateService shardPercolateService();
 
-    ShardTermVectorService termVectorService();
+    ShardTermVectorsService termVectorsService();
 
     ShardSuggestService shardSuggestService();
+
+    ShardBitsetFilterCache shardBitsetFilterCache();
 
     MapperService mapperService();
 
@@ -179,6 +179,8 @@ public interface IndexShard extends IndexShardComponent {
     void readAllowed() throws IllegalIndexShardStateException;
 
     void readAllowed(Mode mode) throws IllegalIndexShardStateException;
+
+    ShardId shardId();
 
     public enum Mode {
         READ,

@@ -141,7 +141,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest<
         } else {
             nowInMillis = System.currentTimeMillis();
         }
-        originalIndices = OriginalIndices.readOriginalIndices(in);
+        originalIndices = OriginalIndices.readOptionalOriginalIndices(in);
     }
 
     @Override
@@ -169,7 +169,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest<
         if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
             out.writeVLong(nowInMillis);
         }
-        OriginalIndices.writeOriginalIndices(originalIndices, out);
+        OriginalIndices.writeOptionalOriginalIndices(originalIndices, out);
     }
 
     @Override

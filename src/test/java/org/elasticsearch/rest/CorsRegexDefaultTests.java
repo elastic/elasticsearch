@@ -31,13 +31,12 @@ import static org.hamcrest.Matchers.*;
 public class CorsRegexDefaultTests extends ElasticsearchIntegrationTest {
 
     @Test
-    public void testCorsSettingDefaultBehaviour() throws Exception {
+    public void testCorsSettingDefaultBehaviourDoesNotReturnAnything() throws Exception {
         String corsValue = "http://localhost:9200";
         HttpResponse response = httpClient().method("GET").path("/").addHeader("User-Agent", "Mozilla Bar").addHeader("Origin", corsValue).execute();
 
         assertThat(response.getStatusCode(), is(200));
-        assertThat(response.getHeaders(), hasKey("Access-Control-Allow-Origin"));
-        assertThat(response.getHeaders().get("Access-Control-Allow-Origin"), is("*"));
+        assertThat(response.getHeaders(), not(hasKey("Access-Control-Allow-Origin")));
         assertThat(response.getHeaders(), not(hasKey("Access-Control-Allow-Credentials")));
     }
 

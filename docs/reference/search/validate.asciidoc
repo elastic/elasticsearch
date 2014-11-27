@@ -43,7 +43,7 @@ curl -XGET 'http://localhost:9200/twitter/tweet/_validate/query' -d '{
 --------------------------------------------------
 
 NOTE: The query being sent in the body must be nested in a `query` key, same as
-the <<search-search,search api>> works added[1.0.0.RC1,The query was previously the top-level object].
+the <<search-search,search api>> works
 
 If the query is invalid, `valid` will be `false`. Here the query is
 invalid because Elasticsearch knows the post_date field should be a date

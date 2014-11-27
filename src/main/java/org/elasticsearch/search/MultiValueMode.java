@@ -22,8 +22,9 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
@@ -437,9 +438,10 @@ public enum MultiValueMode {
      *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      */
-    public NumericDocValues select(final SortedNumericDocValues values, final long missingValue, final FixedBitSet rootDocs, final FixedBitSet innerDocs, int maxDoc) {
+    // TODO: technically innerDocs need not be BitSet: only needs advance() ?
+    public NumericDocValues select(final SortedNumericDocValues values, final long missingValue, final BitSet rootDocs, final BitSet innerDocs, int maxDoc) {
         if (rootDocs == null || innerDocs == null) {
-            return select(FieldData.emptySortedNumeric(maxDoc), missingValue);
+            return select(DocValues.emptySortedNumeric(maxDoc), missingValue);
         }
         return new NumericDocValues() {
 
@@ -529,7 +531,8 @@ public enum MultiValueMode {
      *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      */
-    public NumericDoubleValues select(final SortedNumericDoubleValues values, final double missingValue, final FixedBitSet rootDocs, final FixedBitSet innerDocs, int maxDoc) {
+    // TODO: technically innerDocs need not be BitSet: only needs advance() ?
+    public NumericDoubleValues select(final SortedNumericDoubleValues values, final double missingValue, final BitSet rootDocs, final BitSet innerDocs, int maxDoc) {
         if (rootDocs == null || innerDocs == null) {
             return select(FieldData.emptySortedNumericDoubles(maxDoc), missingValue);
         }
@@ -612,7 +615,8 @@ public enum MultiValueMode {
      *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      */
-    public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue, final FixedBitSet rootDocs, final FixedBitSet innerDocs, int maxDoc) {
+    // TODO: technically innerDocs need not be BitSet: only needs advance() ?
+    public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue, final BitSet rootDocs, final BitSet innerDocs, int maxDoc) {
         if (rootDocs == null || innerDocs == null) {
             return select(FieldData.emptySortedBinary(maxDoc), missingValue);
         }
@@ -625,7 +629,7 @@ public enum MultiValueMode {
         }
         return new BinaryDocValues() {
 
-            final BytesRef spare = new BytesRef();
+            final BytesRefBuilder spare = new BytesRefBuilder();
 
             @Override
             public BytesRef get(int rootDoc) {
@@ -637,7 +641,7 @@ public enum MultiValueMode {
                 final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
                 final int firstNestedDoc = innerDocs.nextSetBit(prevRootDoc + 1);
 
-                BytesRef accumulated = null;
+                BytesRefBuilder accumulated = null;
 
                 for (int doc = firstNestedDoc; doc != -1 && doc < rootDoc; doc = innerDocs.nextSetBit(doc + 1)) {
                     values.setDocument(doc);
@@ -647,7 +651,7 @@ public enum MultiValueMode {
                             spare.copyBytes(innerValue);
                             accumulated = spare;
                         } else {
-                            final BytesRef applied = apply(accumulated, innerValue);
+                            final BytesRef applied = apply(accumulated.get(), innerValue);
                             if (applied == innerValue) {
                                 accumulated.copyBytes(innerValue);
                             }
@@ -655,7 +659,7 @@ public enum MultiValueMode {
                     }
                 }
 
-                return accumulated == null ? missingValue : accumulated;
+                return accumulated == null ? missingValue : accumulated.get();
             }
         };
     }
@@ -705,7 +709,8 @@ public enum MultiValueMode {
      *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      */
-    public SortedDocValues select(final RandomAccessOrds values, final FixedBitSet rootDocs, final FixedBitSet innerDocs) {
+    // TODO: technically innerDocs need not be BitSet: only needs advance() ?
+    public SortedDocValues select(final RandomAccessOrds values, final BitSet rootDocs, final BitSet innerDocs) {
         if (rootDocs == null || innerDocs == null) {
             return select((RandomAccessOrds) DocValues.emptySortedSet());
         }

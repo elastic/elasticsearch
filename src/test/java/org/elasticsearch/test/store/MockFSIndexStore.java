@@ -25,10 +25,10 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.store.DirectoryService;
-import org.elasticsearch.index.store.fs.FsIndexStore;
+import org.elasticsearch.index.store.support.AbstractIndexStore;
 import org.elasticsearch.indices.store.IndicesStore;
 
-public class MockFSIndexStore extends FsIndexStore {
+public class MockFSIndexStore extends AbstractIndexStore {
 
     @Inject
     public MockFSIndexStore(Index index, Settings indexSettings, IndexService indexService, IndicesStore indicesStore, NodeEnvironment nodeEnv) {

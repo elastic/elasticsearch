@@ -18,7 +18,13 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
+
 import com.google.common.collect.Sets;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -31,17 +37,15 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
-
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.geoDistance;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 /**
@@ -309,6 +313,9 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(geoDist, notNullValue());
         assertThat(geoDist.getName(), equalTo("amsterdam_rings"));
         assertThat(geoDist.getBuckets().size(), equalTo(3));
+        Object[] propertiesKeys = (Object[]) geoDist.getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) geoDist.getProperty("_count");
+        Object[] propertiesCities = (Object[]) geoDist.getProperty("cities");
 
         GeoDistance.Bucket bucket = geoDist.getBucketByKey("*-500.0");
         assertThat(bucket, notNullValue());
@@ -324,6 +331,9 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
             names.add(city.getKey());
         }
         assertThat(names.contains("utrecht") && names.contains("haarlem"), is(true));
+        assertThat((String) propertiesKeys[0], equalTo("*-500.0"));
+        assertThat((long) propertiesDocCounts[0], equalTo(2l));
+        assertThat((Terms) propertiesCities[0], sameInstance(cities));
 
         bucket = geoDist.getBucketByKey("500.0-1000.0");
         assertThat(bucket, notNullValue());
@@ -339,6 +349,9 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
             names.add(city.getKey());
         }
         assertThat(names.contains("berlin") && names.contains("prague"), is(true));
+        assertThat((String) propertiesKeys[1], equalTo("500.0-1000.0"));
+        assertThat((long) propertiesDocCounts[1], equalTo(2l));
+        assertThat((Terms) propertiesCities[1], sameInstance(cities));
 
         bucket = geoDist.getBucketByKey("1000.0-*");
         assertThat(bucket, notNullValue());
@@ -354,6 +367,9 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
             names.add(city.getKey());
         }
         assertThat(names.contains("tel-aviv"), is(true));
+        assertThat((String) propertiesKeys[2], equalTo("1000.0-*"));
+        assertThat((long) propertiesDocCounts[2], equalTo(1l));
+        assertThat((Terms) propertiesCities[2], sameInstance(cities));
     }
 
     @Test

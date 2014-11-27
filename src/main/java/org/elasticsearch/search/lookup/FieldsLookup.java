@@ -20,8 +20,8 @@ package org.elasticsearch.search.lookup;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
@@ -45,7 +45,7 @@ public class FieldsLookup implements Map {
     @Nullable
     private final String[] types;
 
-    private AtomicReader reader;
+    private LeafReader reader;
 
     private int docId = -1;
 
@@ -59,7 +59,7 @@ public class FieldsLookup implements Map {
         this.fieldVisitor = new SingleFieldsVisitor(null);
     }
 
-    public void setNextReader(AtomicReaderContext context) {
+    public void setNextReader(LeafReaderContext context) {
         if (this.reader == context.reader()) { // if we are called with the same reader, don't invalidate source
             return;
         }

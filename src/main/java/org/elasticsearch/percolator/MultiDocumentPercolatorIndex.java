@@ -69,7 +69,7 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
         }
         MultiReader mReader = new MultiReader(memoryIndices, true);
         try {
-            AtomicReader slowReader = SlowCompositeReaderWrapper.wrap(mReader);
+            LeafReader slowReader = SlowCompositeReaderWrapper.wrap(mReader);
             DocSearcher docSearcher = new DocSearcher(new IndexSearcher(slowReader), rootDocMemoryIndex);
             context.initialize(docSearcher, parsedDocument);
         } catch (IOException e) {
@@ -79,7 +79,7 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
 
     MemoryIndex indexDoc(ParseContext.Document d, Analyzer analyzer, MemoryIndex memoryIndex) {
         for (IndexableField field : d.getFields()) {
-            if (!field.fieldType().indexed() && field.name().equals(UidFieldMapper.NAME)) {
+            if (field.fieldType().indexOptions() == IndexOptions.NONE && field.name().equals(UidFieldMapper.NAME)) {
                 continue;
             }
             try {

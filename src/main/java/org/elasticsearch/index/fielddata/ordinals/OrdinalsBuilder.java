@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Comparator;
 
 /**
  * Simple class to build document ID <-> ordinal mapping. Note: Ordinals are
@@ -379,10 +378,10 @@ public final class OrdinalsBuilder implements Closeable {
     }
 
     /**
-     * Builds a {@link FixedBitSet} where each documents bit is that that has one or more ordinals associated with it.
+     * Builds a {@link BitSet} where each documents bit is that that has one or more ordinals associated with it.
      * if every document has an ordinal associated with it this method returns <code>null</code>
      */
-    public FixedBitSet buildDocsWithValuesSet() {
+    public BitSet buildDocsWithValuesSet() {
         if (numDocsWithValue == maxDoc) {
             return null;
         }
@@ -478,11 +477,6 @@ public final class OrdinalsBuilder implements Closeable {
                     }
                 }
                 return ref;
-            }
-
-            @Override
-            public Comparator<BytesRef> getComparator() {
-                return termsEnum.getComparator();
             }
         };
     }

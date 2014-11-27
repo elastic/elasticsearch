@@ -22,13 +22,14 @@ package org.elasticsearch.index.cache.filter.weighted;
 import com.google.common.cache.Cache;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.Weigher;
-import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.search.BitsFilteredDocIdSet;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -102,7 +103,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     @Override
     public void clear(String reason, String[] keys) {
         logger.debug("clear keys [], reason [{}]", reason, keys);
-        final BytesRef spare = new BytesRef();
+        final BytesRefBuilder spare = new BytesRefBuilder();
         for (String key : keys) {
             final byte[] keyBytes = Strings.toUTF8Bytes(key, spare);
             for (Object readerKey : seenReaders.keySet()) {
@@ -154,7 +155,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
 
 
         @Override
-        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
             Object filterKey = filter;
             if (filter instanceof CacheKeyFilter) {
                 filterKey = ((CacheKeyFilter) filter).cacheKey();
@@ -188,10 +189,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
                 innerCache.put(cacheKey, cacheValue);
             }
 
-            // note, we don't wrap the return value with a BitsFilteredDocIdSet.wrap(docIdSet, acceptDocs) because
-            // we rely on our custom XFilteredQuery to do the wrapping if needed, so we don't have the wrap each
-            // filter on its own
-            return DocIdSets.isEmpty(cacheValue) ? null : cacheValue;
+            return BitsFilteredDocIdSet.wrap(DocIdSets.isEmpty(cacheValue) ? null : cacheValue, acceptDocs);
         }
 
         public String toString() {
@@ -209,12 +207,19 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     }
 
 
+    /** A weigher for the Guava filter cache that uses a minimum entry size */
     public static class FilterCacheValueWeigher implements Weigher<WeightedFilterCache.FilterCacheKey, DocIdSet> {
+
+        private final int minimumEntrySize;
+
+        public FilterCacheValueWeigher(int minimumEntrySize) {
+            this.minimumEntrySize = minimumEntrySize;
+        }
 
         @Override
         public int weigh(FilterCacheKey key, DocIdSet value) {
             int weight = (int) Math.min(DocIdSets.sizeInBytes(value), Integer.MAX_VALUE);
-            return weight == 0 ? 1 : weight;
+            return Math.max(weight, this.minimumEntrySize);
         }
     }
 

@@ -33,12 +33,13 @@ import java.io.IOException;
 
 /**
  */
-public class GetSettingsRequest extends MasterNodeReadOperationRequest<GetSettingsRequest> implements IndicesRequest {
+public class GetSettingsRequest extends MasterNodeReadOperationRequest<GetSettingsRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true);
     private String[] names = Strings.EMPTY_ARRAY;
 
+    @Override
     public GetSettingsRequest indices(String... indices) {
         this.indices = indices;
         return this;

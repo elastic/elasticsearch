@@ -18,12 +18,13 @@
  */
 package org.elasticsearch.search.aggregations.bucket.nested;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.join.FixedBitSetCachingWrapperFilter;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.index.mapper.MapperService;
@@ -35,6 +36,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
@@ -43,14 +45,14 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
 
     private final String nestedPath;
     private final Aggregator parentAggregator;
-    private Filter parentFilter;
+    private BitDocIdSetFilter parentFilter;
     private final Filter childFilter;
 
-    private Bits childDocs;
-    private FixedBitSet parentDocs;
+    private DocIdSetIterator childDocs;
+    private BitSet parentDocs;
 
-    public NestedAggregator(String name, AggregatorFactories factories, String nestedPath, AggregationContext aggregationContext, Aggregator parentAggregator) {
-        super(name, factories, aggregationContext, parentAggregator);
+    public NestedAggregator(String name, AggregatorFactories factories, String nestedPath, AggregationContext aggregationContext, Aggregator parentAggregator, Map<String, Object> metaData) {
+        super(name, factories, aggregationContext, parentAggregator, metaData);
         this.nestedPath = nestedPath;
         this.parentAggregator = parentAggregator;
         MapperService.SmartNameObjectMapper mapper = aggregationContext.searchContext().smartNameObjectMapper(nestedPath);
@@ -65,11 +67,20 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
             throw new AggregationExecutionException("[nested] nested path [" + nestedPath + "] is not nested");
         }
 
+        // TODO: Revise the cache usage for childFilter
+        // Typical usage of the childFilter in this agg is that not all parent docs match and because this agg executes
+        // in order we are maybe better off not caching? We can then iterate over the posting list and benefit from skip pointers.
+        // Even if caching does make sense it is likely that it shouldn't be forced as is today, but based on heuristics that
+        // the filter cache maintains that the childFilter should be cached.
+
+        // By caching the childFilter we're consistent with other features and previous versions.
         childFilter = aggregationContext.searchContext().filterCache().cache(objectMapper.nestedTypeFilter());
+        // The childDocs need to be consumed in docId order, this ensures that:
+        aggregationContext.ensureScoreDocsInOrder();
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         if (parentFilter == null) {
             // The aggs are instantiated in reverse, first the most inner nested aggs and lastly the top level aggs
             // So at the time a nested 'nested' aggs is parsed its closest parent nested aggs hasn't been constructed.
@@ -79,19 +90,22 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
             if (parentFilterNotCached == null) {
                 parentFilterNotCached = NonNestedDocsFilter.INSTANCE;
             }
-            parentFilter = SearchContext.current().filterCache().cache(parentFilterNotCached);
-            // if the filter cache is disabled, we still need to produce bit sets
-            parentFilter = new FixedBitSetCachingWrapperFilter(parentFilter);
+            parentFilter = SearchContext.current().bitsetFilterCache().getBitDocIdSetFilter(parentFilterNotCached);
         }
 
         try {
-            DocIdSet docIdSet = parentFilter.getDocIdSet(reader, null);
-            // In ES if parent is deleted, then also the children are deleted. Therefore acceptedDocs can also null here.
-            childDocs = DocIdSets.toSafeBits(reader.reader(), childFilter.getDocIdSet(reader, null));
-            if (DocIdSets.isEmpty(docIdSet)) {
+            BitDocIdSet parentSet = parentFilter.getDocIdSet(reader);
+            if (DocIdSets.isEmpty(parentSet)) {
                 parentDocs = null;
             } else {
-                parentDocs = (FixedBitSet) docIdSet;
+                parentDocs = parentSet.bits();
+            }
+            // In ES if parent is deleted, then also the children are deleted. Therefore acceptedDocs can also null here.
+            DocIdSet childDocIdSet = childFilter.getDocIdSet(reader, null);
+            if (DocIdSets.isEmpty(childDocIdSet)) {
+                childDocs = null;
+            } else {
+                childDocs = childDocIdSet.iterator();
             }
         } catch (IOException ioe) {
             throw new AggregationExecutionException("Failed to aggregate [" + name + "]", ioe);
@@ -100,30 +114,36 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
 
     @Override
     public void collect(int parentDoc, long bucketOrd) throws IOException {
-        // here we translate the parent doc to a list of its nested docs, and then call super.collect for evey one of them
-        // so they'll be collected
-        if (parentDoc == 0 || parentDocs == null) {
+        // here we translate the parent doc to a list of its nested docs, and then call super.collect for evey one of them so they'll be collected
+
+        // if parentDoc is 0 then this means that this parent doesn't have child docs (b/c these appear always before the parent doc), so we can skip:
+        if (parentDoc == 0 || childDocs == null) {
             return;
         }
         int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
+        int childDocId;
+        if (childDocs.docID() > prevParentDoc) {
+            childDocId = childDocs.docID();
+        } else {
+            childDocId = childDocs.advance(prevParentDoc + 1);
+        }
+
         int numChildren = 0;
-        for (int i = (parentDoc - 1); i > prevParentDoc; i--) {
-            if (childDocs.get(i)) {
-                ++numChildren;
-                collectBucketNoCounts(i, bucketOrd);
-            }
+        for (; childDocId < parentDoc; childDocId = childDocs.nextDoc()) {
+            numChildren++;
+            collectBucketNoCounts(childDocId, bucketOrd);
         }
         incrementBucketDocCount(bucketOrd, numChildren);
     }
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        return new InternalNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal));
+        return new InternalNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), getMetaData());
     }
 
-    @Override
+        @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalNested(name, 0, buildEmptySubAggregations());
+        return new InternalNested(name, 0, buildEmptySubAggregations(), getMetaData());
     }
 
     public String getNestedPath() {
@@ -151,8 +171,8 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
         }
 
         @Override
-        public Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
-            return new NestedAggregator(name, factories, path, context, parent);
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData) {
+            return new NestedAggregator(name, factories, path, context, parent, metaData);
         }
     }
 }

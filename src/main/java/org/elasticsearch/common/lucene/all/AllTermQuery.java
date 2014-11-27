@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.lucene.all;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.DocsAndPositionsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ComplexExplanation;
@@ -62,7 +62,7 @@ public class AllTermQuery extends SpanTermQuery {
         }
 
         @Override
-        public AllTermSpanScorer scorer(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public AllTermSpanScorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
             if (this.stats == null) {
                 return null;
             }
@@ -145,7 +145,7 @@ public class AllTermQuery extends SpanTermQuery {
         }
         
         @Override
-        public Explanation explain(AtomicReaderContext context, int doc) throws IOException{
+        public Explanation explain(LeafReaderContext context, int doc) throws IOException{
             AllTermSpanScorer scorer = scorer(context, context.reader().getLiveDocs());
             if (scorer != null) {
               int newDoc = scorer.advance(doc);

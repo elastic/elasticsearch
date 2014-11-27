@@ -19,10 +19,11 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -137,7 +138,7 @@ public class HasChildFilterParser implements FilterParser {
         String parentType = parentFieldMapper.type();
 
         // wrap the query with type query
-        query = new XFilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
+        query = new FilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
 
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
@@ -148,9 +149,9 @@ public class HasChildFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "[has_child] 'max_children' is less than 'min_children'");
         }
 
-        Filter nonNestedDocsFilter = null;
+        BitDocIdSetFilter nonNestedDocsFilter = null;
         if (parentDocMapper.hasNestedObjects()) {
-            nonNestedDocsFilter = parseContext.cacheFilter(NonNestedDocsFilter.INSTANCE, null);
+            nonNestedDocsFilter = parseContext.bitsetFilter(NonNestedDocsFilter.INSTANCE);
         }
 
         Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);

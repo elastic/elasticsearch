@@ -20,8 +20,8 @@
 package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MultiDocValues.OrdinalMap;
 import org.apache.lucene.index.RandomAccessOrds;
-import org.apache.lucene.index.XOrdinalMap;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.ESLogger;
@@ -51,7 +51,7 @@ public enum GlobalOrdinalsBuilder {
             atomicFD[i] = indexFieldData.load(indexReader.leaves().get(i));
             subs[i] = atomicFD[i].getOrdinalsValues();
         }
-        final XOrdinalMap ordinalMap = XOrdinalMap.build(null, subs, PackedInts.DEFAULT);
+        final OrdinalMap ordinalMap = OrdinalMap.build(null, subs, PackedInts.DEFAULT);
         final long memorySizeInBytes = ordinalMap.ramBytesUsed();
         breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA).addWithoutBreaking(memorySizeInBytes);
 

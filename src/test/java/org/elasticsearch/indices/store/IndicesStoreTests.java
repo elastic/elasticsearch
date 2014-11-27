@@ -69,7 +69,7 @@ public class IndicesStoreTests extends ElasticsearchTestCase {
         int numReplicas = randomInt(2);
 
         ClusterState.Builder clusterState = ClusterState.builder(new ClusterName("test"));
-        clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").numberOfShards(numShards).numberOfReplicas(numReplicas)));
+        clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(numShards).numberOfReplicas(numReplicas)));
         IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", 1), false);
 
         assertFalse(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()));
@@ -81,7 +81,7 @@ public class IndicesStoreTests extends ElasticsearchTestCase {
         int numReplicas = randomInt(2);
 
         ClusterState.Builder clusterState = ClusterState.builder(new ClusterName("test"));
-        clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").numberOfShards(numShards).numberOfReplicas(numReplicas)));
+        clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(numShards).numberOfReplicas(numReplicas)));
         IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", 1), false);
 
         for (int i = 0; i < numShards; i++) {
@@ -105,7 +105,7 @@ public class IndicesStoreTests extends ElasticsearchTestCase {
         int numReplicas = randomInt(2);
 
         ClusterState.Builder clusterState = ClusterState.builder(new ClusterName("test"));
-        clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").numberOfShards(numShards).numberOfReplicas(numReplicas)));
+        clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(numShards).numberOfReplicas(numReplicas)));
         clusterState.nodes(DiscoveryNodes.builder().localNodeId(localNode.id()).put(localNode).put(new DiscoveryNode("xyz", new LocalTransportAddress("xyz"), Version.CURRENT)));
         IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", 1), false);
         int localShardId = randomInt(numShards - 1);
@@ -128,7 +128,7 @@ public class IndicesStoreTests extends ElasticsearchTestCase {
         int numReplicas = randomInt(2);
 
         ClusterState.Builder clusterState = ClusterState.builder(new ClusterName("test"));
-        clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").numberOfShards(numShards).numberOfReplicas(numReplicas)));
+        clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(numShards).numberOfReplicas(numReplicas)));
         clusterState.nodes(DiscoveryNodes.builder().localNodeId(localNode.id()).put(localNode));
         IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", 1), false);
         for (int i = 0; i < numShards; i++) {
@@ -151,7 +151,7 @@ public class IndicesStoreTests extends ElasticsearchTestCase {
         // Most of the times don't test bwc and use current version
         final Version nodeVersion = randomBoolean() ? Version.CURRENT : randomVersion();
         ClusterState.Builder clusterState = ClusterState.builder(new ClusterName("test"));
-        clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").numberOfShards(numShards).numberOfReplicas(numReplicas)));
+        clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(numShards).numberOfReplicas(numReplicas)));
         clusterState.nodes(DiscoveryNodes.builder().localNodeId(localNode.id()).put(localNode).put(new DiscoveryNode("xyz", new LocalTransportAddress("xyz"), nodeVersion)));
         IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", 1), false);
         for (int i = 0; i < numShards; i++) {
@@ -178,7 +178,7 @@ public class IndicesStoreTests extends ElasticsearchTestCase {
         int numReplicas = randomInt(2);
 
         ClusterState.Builder clusterState = ClusterState.builder(new ClusterName("test"));
-        clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").numberOfShards(numShards).numberOfReplicas(numReplicas)));
+        clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(numShards).numberOfReplicas(numReplicas)));
         final Version nodeVersion = randomBoolean() ? Version.CURRENT : randomVersion();
 
         clusterState.nodes(DiscoveryNodes.builder().localNodeId(localNode.id())

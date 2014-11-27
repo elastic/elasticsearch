@@ -19,7 +19,8 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BitsFilteredDocIdSet;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
@@ -45,19 +46,19 @@ public class AndFilter extends Filter {
     }
 
     @Override
-    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+    public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
         if (filters.size() == 1) {
             return filters.get(0).getDocIdSet(context, acceptDocs);
         }
         DocIdSet[] sets = new DocIdSet[filters.size()];
         for (int i = 0; i < filters.size(); i++) {
-            DocIdSet set = filters.get(i).getDocIdSet(context, acceptDocs);
+            DocIdSet set = filters.get(i).getDocIdSet(context, null);
             if (DocIdSets.isEmpty(set)) { // none matching for this filter, we AND, so return EMPTY
                 return null;
             }
             sets[i] = set;
         }
-        return new AndDocIdSet(sets);
+        return BitsFilteredDocIdSet.wrap(new AndDocIdSet(sets), acceptDocs);
     }
 
     @Override

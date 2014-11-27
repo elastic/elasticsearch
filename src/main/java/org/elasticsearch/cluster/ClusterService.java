@@ -92,7 +92,9 @@ public interface ClusterService extends LifecycleComponent<ClusterService> {
     void remove(LocalNodeMasterListener listener);
 
     /**
-     * Adds a cluster state listener that will timeout after the provided timeout.
+     * Adds a cluster state listener that will timeout after the provided timeout,
+     * and is executed after the clusterstate has been successfully applied ie. is
+     * in state {@link org.elasticsearch.cluster.ClusterState.ClusterStateStatus#APPLIED}
      */
     void add(TimeValue timeout, TimeoutClusterStateListener listener);
 
@@ -110,4 +112,5 @@ public interface ClusterService extends LifecycleComponent<ClusterService> {
      * Returns the tasks that are pending.
      */
     List<PendingClusterTask> pendingTasks();
+
 }

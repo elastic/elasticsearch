@@ -10,8 +10,6 @@ This feature is marked as experimental, and may be subject to change in the
 future.  If you use this feature, please let us know your experience with it!
 =====
 
-added[1.1.0]
-
 
 .Example use cases:
 * Suggesting "H5N1" when users search for "bird flu" in text
@@ -231,8 +229,6 @@ are presented unstemmed, highlighted, with the right case, in the right order an
 ============
 
 ==== Custom background sets
-added[1.2.0]
-
 
 Ordinarily, the foreground set of documents is "diffed" against a background set of all the documents in your index.
 However, sometimes it may prove useful to use a narrower background set as the basis for comparisons. 
@@ -284,8 +280,6 @@ However, the `size` and `shard size` settings covered in the next section provid
 The scores are derived from the doc frequencies in _foreground_ and _background_ sets. The _absolute_ change in popularity (foregroundPercent - backgroundPercent) would favor common terms whereas the _relative_ change in popularity (foregroundPercent/ backgroundPercent) would favor rare terms. Rare vs common is essentially a precision vs recall balance and so the absolute and relative changes are multiplied to provide a sweet spot between precision and recall.
 
 ===== mutual information
-added[1.3.0]
-
 Mutual information as described in "Information Retrieval", Manning et al., Chapter 13.5.1 can be used as significance score by adding the parameter
 	
 [source,js]
@@ -308,8 +302,6 @@ Per default, the assumption is that the documents in the bucket are also contain
 
 
 ===== Chi square
-added[1.4.0]
-
 Chi square as described in "Information Retrieval", Manning et al., Chapter 13.5.2 can be used as significance score by adding the parameter
 	
 [source,js]
@@ -323,8 +315,6 @@ Chi square behaves like mutual information and can be configured with the same p
 
 
 ===== google normalized distance
-added[1.4.0]
-
 Google normalized distance  as described in "The Google Similarity Distance", Cilibrasi and Vitanyi, 2007 (http://arxiv.org/pdf/cs/0412098v3.pdf) can be used as significance score by adding the parameter
 	
 [source,js]
@@ -339,7 +329,7 @@ Google normalized distance  as described in "The Google Similarity Distance", Ci
 ===== Which one is best?
 
 
-Roughly, `mutual_information` prefers high frequent terms even if they occur also frequently in the background. For example, in an analysis of natural language text this might lead to selection of stop words. `mutual_information` is unlikely to select very rare terms like misspellings. `gnd` prefers terms with a high co-occurence and avoids selection of stopwords. It might be better suited for synonym detection. However, `gnd` has a tendency to select very rare terms that are, for example, a result of misspelling. `chi_square` and `jlh` are somewhat in-between.
+Roughly, `mutual_information` prefers high frequent terms even if they occur also frequently in the background. For example, in an analysis of natural language text this might lead to selection of stop words. `mutual_information` is unlikely to select very rare terms like misspellings. `gnd` prefers terms with a high co-occurrence and avoids selection of stopwords. It might be better suited for synonym detection. However, `gnd` has a tendency to select very rare terms that are, for example, a result of misspelling. `chi_square` and `jlh` are somewhat in-between.
 
 It is hard to say which one of the different heuristics will be the best choice as it depends on what the significant terms are used for (see for example [Yang and Pedersen, "A Comparative Study on Feature Selection in Text Categorization", 1997](http://courses.ischool.berkeley.edu/i256/f06/papers/yang97comparative.pdf) for a study on using significant terms for feature selection for text classification).
 
@@ -355,7 +345,7 @@ If the number of unique terms is greater than `size`, the returned list can be s
 (it could be that the term counts are slightly off and it could even be that a term that should have been in the top
 size buckets was not returned). 
 
-added[1.2.0] If set to `0`, the `size` will be set to `Integer.MAX_VALUE`.
+If set to `0`, the `size` will be set to `Integer.MAX_VALUE`.
 
 To ensure better accuracy a multiple of the final `size` is used as the number of terms to request from each shard
 using a heuristic based on the number of shards. To take manual control of this setting the `shard_size` parameter
@@ -368,7 +358,7 @@ a consolidated review by the reducing node before the final selection. Obviously
 will cause extra network traffic and RAM usage so this is  quality/cost trade off that needs to be balanced.  If `shard_size` is set to -1 (the default) then `shard_size` will be automatically estimated based on the number of shards and the `size` parameter. 
 
 
-added[1.2.0] If set to `0`, the `shard_size` will be set to `Integer.MAX_VALUE`.
+If set to `0`, the `shard_size` will be set to `Integer.MAX_VALUE`.
  
 
 NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, elasticsearch will
@@ -399,7 +389,7 @@ The above aggregation would only return tags which have been found in 10 hits or
 
 Terms that score highly will be collected on a shard level and merged with the terms collected from other shards in a second step. However, the shard does not have the information about the global term frequencies available. The decision if a term is added to a candidate list depends only on the score computed on the shard using local shard frequencies, not the global frequencies of the word. The `min_doc_count` criterion is only applied after merging local terms statistics of all shards. In a way the decision to add the term as a candidate is made without being very _certain_ about if the term will actually reach the required `min_doc_count`. This might cause many (globally) high frequent terms to be missing in the final result if low frequent but high scoring terms populated the candidate lists. To avoid this, the `shard_size` parameter can be increased to allow more candidate terms on the shards. However, this increases memory consumption and network traffic.
 
-added[1.2.0] `shard_min_doc_count` parameter
+`shard_min_doc_count` parameter
 
 The parameter `shard_min_doc_count` regulates the _certainty_ a shard has if the term should actually be added to the candidate list or not with respect to the `min_doc_count`. Terms will only be considered if their local shard frequency within the set is higher than the `shard_min_doc_count`. If your dictionary contains many low frequent words and you are not interested in these (for example misspellings), then you can set the `shard_min_doc_count` parameter to filter out candidate terms on a shard level that will with a reasonable certainty not reach the required `min_doc_count` even after merging the local frequencies. `shard_min_doc_count` is set to `1` per default and has no effect unless you explicitly set it.
 
@@ -449,75 +439,32 @@ WARNING: Use of background filters will slow the query as each term's postings m
 ===== Filtering Values
 
 It is possible (although rarely required) to filter the values for which buckets will be created. This can be done using the `include` and
-`exclude` parameters which are based on regular expressions. This functionality mirrors the features
-offered by the `terms` aggregation.
+`exclude` parameters which are based on a regular expression string or arrays of exact terms. This functionality mirrors the features
+described in the <<search-aggregations-bucket-terms-aggregation,terms aggregation>> documentation.
 
-
-[source,js]
---------------------------------------------------
-{
-    "aggs" : {
-        "tags" : {
-            "significant_terms" : {
-                "field" : "tags",
-                "include" : ".*sport.*",
-                "exclude" : "water_.*"
-            }
-        }
-    }
-}
---------------------------------------------------
-
-In the above example, buckets will be created for all the tags that has the word `sport` in them, except those starting
-with `water_` (so the tag `water_sports` will no be aggregated). The `include` regular expression will determine what
-values are "allowed" to be aggregated, while the `exclude` determines the values that should not be aggregated. When
-both are defined, the `exclude` has precedence, meaning, the `include` is evaluated first and only then the `exclude`.
-
-The regular expression are based on the Java(TM) http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html[Pattern],
-and as such, they it is also possible to pass in flags that will determine how the compiled regular expression will work:
-
-[source,js]
---------------------------------------------------
-{
-    "aggs" : {
-        "tags" : {
-             "terms" : {
-                 "field" : "tags",
-                 "include" : {
-                     "pattern" : ".*sport.*",
-                     "flags" : "CANON_EQ|CASE_INSENSITIVE" <1>
-                 },
-                 "exclude" : {
-                     "pattern" : "water_.*",
-                     "flags" : "CANON_EQ|CASE_INSENSITIVE"
-                 }
-             }
-         }
-    }
-}
---------------------------------------------------
-
-<1> the flags are concatenated using the `|` character as a separator
-
-The possible flags that can be used are:
-http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#CANON_EQ[`CANON_EQ`],
-http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#CASE_INSENSITIVE[`CASE_INSENSITIVE`],
-http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#COMMENTS[`COMMENTS`],
-http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#DOTALL[`DOTALL`],
-http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#LITERAL[`LITERAL`],
-http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#MULTILINE[`MULTILINE`],
-http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#UNICODE_CASE[`UNICODE_CASE`],
-http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#UNICODE_CHARACTER_CLASS[`UNICODE_CHARACTER_CLASS`] and
-http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#UNIX_LINES[`UNIX_LINES`]
 
 ===== Execution hint
 
-There are two mechanisms by which terms aggregations can be executed: either by using field values directly in order to aggregate
-data per-bucket (`map`), or by using ordinals of the field values instead of the values themselves (`ordinals`). Although the
-latter execution mode can be expected to be slightly faster, it is only available for use when the underlying data source exposes
-those terms ordinals. Moreover, it may actually be slower if most field values are unique. Elasticsearch tries to have sensible
-defaults when it comes to the execution mode that should be used, but in case you know that an execution mode may perform better
-than the other one, you have the ability to provide Elasticsearch with a hint:
+
+There are different mechanisms by which terms aggregations can be executed:
+
+ - by using field values directly in order to aggregate data per-bucket (`map`)
+ - by using ordinals of the field and preemptively allocating one bucket per ordinal value (`global_ordinals`)
+ - by using ordinals of the field and dynamically allocating one bucket per ordinal value (`global_ordinals_hash`)
+ 
+Elasticsearch tries to have sensible defaults so this is something that generally doesn't need to be configured.
+
+`map` should only be considered when very few documents match a query. Otherwise the ordinals-based execution modes
+are significantly faster. By default, `map` is only used when running an aggregation on scripts, since they don't have
+ordinals.
+
+`global_ordinals` is the second fastest option, but the fact that it preemptively allocates buckets can be memory-intensive,
+especially if you have one or more sub aggregations. It is used by default on top-level terms aggregations.
+
+`global_ordinals_hash` on the contrary to `global_ordinals` and `global_ordinals_low_cardinality` allocates buckets dynamically
+so memory usage is linear to the number of values of the documents that are part of the aggregation scope. It is used by default
+in inner aggregations.
+
 
 [source,js]
 --------------------------------------------------
@@ -533,6 +480,7 @@ than the other one, you have the ability to provide Elasticsearch with a hint:
 }
 --------------------------------------------------
 
-<1> the possible values are `map` and `ordinals`
+<1> the possible values are `map`, `global_ordinals` and `global_ordinals_hash`
 
 Please note that Elasticsearch will ignore this execution hint if it is not applicable.
+

@@ -29,13 +29,16 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
+import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -53,6 +56,30 @@ public class SignificantStringTerms extends InternalSignificantTerms {
         }
     };
 
+    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
+        @Override
+        public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
+            Bucket buckets = new Bucket((long) context.attributes().get("subsetSize"), (long) context.attributes().get("supersetSize"));
+            buckets.readFrom(in);
+            return buckets;
+        }
+
+        @Override
+        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
+            BucketStreamContext context = new BucketStreamContext();
+            Map<String, Object> attributes = new HashMap<>();
+            attributes.put("subsetSize", bucket.subsetSize);
+            attributes.put("supersetSize", bucket.supersetSize);
+            context.attributes(attributes);
+            return context;
+        }
+    };
+
+    public static void registerStream() {
+        AggregationStreams.registerStream(STREAM, TYPE.stream());
+        BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
+    }
+
     public static void registerStreams() {
         AggregationStreams.registerStream(STREAM, TYPE.stream());
     }
@@ -61,6 +88,10 @@ public class SignificantStringTerms extends InternalSignificantTerms {
 
         BytesRef termBytes;
 
+        public Bucket(long subsetSize, long supersetSize) {
+            // for serialization
+            super(subsetSize, supersetSize);
+        }
 
         public Bucket(BytesRef term, long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations) {
             super(subsetDf, subsetSize, supersetDf, supersetSize, aggregations);
@@ -92,13 +123,41 @@ public class SignificantStringTerms extends InternalSignificantTerms {
         Bucket newBucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations) {
             return new Bucket(termBytes, subsetDf, subsetSize, supersetDf, supersetSize, aggregations);
         }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            termBytes = in.readBytesRef();
+            subsetDf = in.readVLong();
+            supersetDf = in.readVLong();
+            aggregations = InternalAggregations.readAggregations(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBytesRef(termBytes);
+            out.writeVLong(subsetDf);
+            out.writeVLong(supersetDf);
+            aggregations.writeTo(out);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.utf8Field(CommonFields.KEY, termBytes);
+            builder.field(CommonFields.DOC_COUNT, getDocCount());
+            builder.field("score", score);
+            builder.field("bg_count", supersetDf);
+            aggregations.toXContentInternal(builder, params);
+            builder.endObject();
+            return builder;
+        }
     }
 
     SignificantStringTerms() {} // for serialization
 
     public SignificantStringTerms(long subsetSize, long supersetSize, String name, int requiredSize,
-            long minDocCount, SignificanceHeuristic significanceHeuristic, Collection<InternalSignificantTerms.Bucket> buckets) {
-        super(subsetSize, supersetSize, name, requiredSize, minDocCount, significanceHeuristic, buckets);
+            long minDocCount, SignificanceHeuristic significanceHeuristic, List<InternalSignificantTerms.Bucket> buckets, Map<String, Object> metaData) {
+        super(subsetSize, supersetSize, name, requiredSize, minDocCount, significanceHeuristic, buckets, metaData);
     }
 
     @Override
@@ -109,12 +168,11 @@ public class SignificantStringTerms extends InternalSignificantTerms {
     @Override
     InternalSignificantTerms newAggregation(long subsetSize, long supersetSize,
             List<InternalSignificantTerms.Bucket> buckets) {
-        return new SignificantStringTerms(subsetSize, supersetSize, getName(), requiredSize, minDocCount, significanceHeuristic, buckets);
+        return new SignificantStringTerms(subsetSize, supersetSize, getName(), requiredSize, minDocCount, significanceHeuristic, buckets, getMetaData());
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        this.name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
         this.requiredSize = readSize(in);
         this.minDocCount = in.readVLong();
         this.subsetSize = in.readVLong();
@@ -123,20 +181,17 @@ public class SignificantStringTerms extends InternalSignificantTerms {
         int size = in.readVInt();
         List<InternalSignificantTerms.Bucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            BytesRef term = in.readBytesRef();
-            long subsetDf = in.readVLong();
-            long supersetDf = in.readVLong();
-            Bucket readBucket = new Bucket(term, subsetDf, subsetSize, supersetDf, supersetSize, InternalAggregations.readAggregations(in));
-            readBucket.updateScore(significanceHeuristic);
-            buckets.add(readBucket);
+            Bucket bucket = new Bucket(subsetSize, supersetSize);
+            bucket.readFrom(in);
+            bucket.updateScore(significanceHeuristic);
+            buckets.add(bucket);
         }
         this.buckets = buckets;
         this.bucketMap = null;
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         writeSize(requiredSize, out);
         out.writeVLong(minDocCount);
         out.writeVLong(subsetSize);
@@ -146,10 +201,7 @@ public class SignificantStringTerms extends InternalSignificantTerms {
         }
         out.writeVInt(buckets.size());
         for (InternalSignificantTerms.Bucket bucket : buckets) {
-            out.writeBytesRef(((Bucket) bucket).termBytes);
-            out.writeVLong(((Bucket) bucket).subsetDf);
-            out.writeVLong(((Bucket) bucket).supersetDf);
-            ((InternalAggregations) bucket.getAggregations()).writeTo(out);
+            bucket.writeTo(out);
         }
     }
 
@@ -161,13 +213,7 @@ public class SignificantStringTerms extends InternalSignificantTerms {
             //There is a condition (presumably when only one shard has a bucket?) where reduce is not called
             // and I end up with buckets that contravene the user's min_doc_count criteria in my reducer
             if (bucket.subsetDf >= minDocCount) {
-                builder.startObject();
-                builder.utf8Field(CommonFields.KEY, ((Bucket) bucket).termBytes);
-                builder.field(CommonFields.DOC_COUNT, bucket.getDocCount());
-                builder.field("score", bucket.score);
-                builder.field("bg_count", bucket.supersetDf);
-                ((InternalAggregations) bucket.getAggregations()).toXContentInternal(builder, params);
-                builder.endObject();
+                bucket.toXContent(builder, params);
             }
         }
         builder.endArray();

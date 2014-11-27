@@ -99,7 +99,7 @@ public class SimpleTimestampTests  extends ElasticsearchIntegrationTest {
         assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
 
         // check mapping again
-        assertTimestampMappingEnabled(index, type);
+        assertTimestampMappingEnabled(index, type, true);
 
         // update some field in the mapping
         XContentBuilder updateMappingBuilder = jsonBuilder().startObject().startObject("properties").startObject("otherField").field("type", "string").endObject().endObject();
@@ -107,14 +107,34 @@ public class SimpleTimestampTests  extends ElasticsearchIntegrationTest {
         assertAcked(putMappingResponse);
 
         // make sure timestamp field is still in mapping
-        assertTimestampMappingEnabled(index, type);
+        assertTimestampMappingEnabled(index, type, true);
     }
 
-    private void assertTimestampMappingEnabled(String index, String type) {
+    @Test
+    public void testThatTimestampCanBeSwitchedOnAndOff() throws Exception {
+        String index = "foo";
+        String type = "mytype";
+
+        XContentBuilder builder = jsonBuilder().startObject().startObject("_timestamp").field("enabled", true).field("store", true).endObject().endObject();
+        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+
+        // check mapping again
+        assertTimestampMappingEnabled(index, type, true);
+
+        // update some field in the mapping
+        XContentBuilder updateMappingBuilder = jsonBuilder().startObject().startObject("_timestamp").field("enabled", false).field("store", true).endObject().endObject();
+        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(index).setType(type).setSource(updateMappingBuilder).get();
+        assertAcked(putMappingResponse);
+
+        // make sure timestamp field is still in mapping
+        assertTimestampMappingEnabled(index, type, false);
+    }
+
+    private void assertTimestampMappingEnabled(String index, String type, boolean enabled) {
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(index).addTypes(type).get();
         MappingMetaData.Timestamp timestamp = getMappingsResponse.getMappings().get(index).get(type).timestamp();
         assertThat(timestamp, is(notNullValue()));
-        String errMsg = String.format(Locale.ROOT, "Expected timestamp field mapping to be enabled for %s/%s", index, type);
-        assertThat(errMsg, timestamp.enabled(), is(true));
+        String errMsg = String.format(Locale.ROOT, "Expected timestamp field mapping to be "+ (enabled ? "enabled" : "disabled") +" for %s/%s", index, type);
+        assertThat(errMsg, timestamp.enabled(), is(enabled));
     }
 }

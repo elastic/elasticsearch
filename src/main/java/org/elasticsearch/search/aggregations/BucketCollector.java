@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.Iterables;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
 
@@ -49,7 +49,7 @@ public abstract class BucketCollector implements ReaderContextAware {
             // no-op
         }
         @Override
-        public void setNextReader(AtomicReaderContext reader) {
+        public void setNextReader(LeafReaderContext reader) {
             // no-op
         }
         @Override
@@ -83,7 +83,7 @@ public abstract class BucketCollector implements ReaderContextAware {
                     }
 
                     @Override
-                    public void setNextReader(AtomicReaderContext reader) {
+                    public void setNextReader(LeafReaderContext reader) {
                         for (BucketCollector collector : collectors) {
                             collector.setNextReader(reader);
                         }

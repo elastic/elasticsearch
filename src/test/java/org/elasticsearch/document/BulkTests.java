@@ -20,8 +20,10 @@
 package org.elasticsearch.document;
 
 import com.google.common.base.Charsets;
+
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.count.CountResponse;
@@ -46,8 +48,15 @@ import java.util.ArrayList;
 import java.util.concurrent.CyclicBarrier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class BulkTests extends ElasticsearchIntegrationTest {
 
@@ -473,6 +482,40 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         assertSearchHits(searchResponse, "child1");
     }
 
+    /*
+     * Test for https://github.com/elasticsearch/elasticsearch/issues/8365
+     */
+    @Test
+    public void testBulkUpdateChildMissingParentRouting() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("parent", "{\"parent\":{}}").addMapping("child",
+                "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}"));
+        ensureGreen();
+
+        BulkRequestBuilder builder = client().prepareBulk();
+
+        byte[] addParent = new BytesArray("{\"index\" : { \"_index\" : \"test\", \"_type\" : \"parent\", \"_id\" : \"parent1\"}}\n"
+                + "{\"field1\" : \"value1\"}\n").array();
+
+        byte[] addChildOK = new BytesArray(
+                "{\"index\" : { \"_id\" : \"child1\", \"_type\" : \"child\", \"_index\" : \"test\", \"parent\" : \"parent1\"} }\n"
+                        + "{ \"field1\" : \"value1\"}\n").array();
+        byte[] addChildMissingRouting = new BytesArray(
+                "{\"index\" : { \"_id\" : \"child2\", \"_type\" : \"child\", \"_index\" : \"test\"} }\n" + "{ \"field1\" : \"value1\"}\n")
+                .array();
+
+        builder.add(addParent, 0, addParent.length, false);
+        builder.add(addChildOK, 0, addChildOK.length, false);
+        builder.add(addChildMissingRouting, 0, addChildMissingRouting.length, false);
+        builder.add(addChildOK, 0, addChildOK.length, false);
+
+        BulkResponse bulkResponse = builder.get();
+        assertThat(bulkResponse.getItems().length, equalTo(4));
+        assertThat(bulkResponse.getItems()[0].isFailed(), equalTo(false));
+        assertThat(bulkResponse.getItems()[1].isFailed(), equalTo(false));
+        assertThat(bulkResponse.getItems()[2].isFailed(), equalTo(true));
+        assertThat(bulkResponse.getItems()[3].isFailed(), equalTo(false));
+    }
+
     @Test
     public void testFailingVersionedUpdatedOnBulk() throws Exception {
         createIndex("test");
@@ -651,8 +694,32 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         assertThat(bulkItemResponse.getItems()[5].getOpType(), is("delete"));
     }
 
+
     private static String indexOrAlias() {
         return randomBoolean() ? "test" : "alias";
+    }
+
+    @Test // issue 6410
+    public void testThatMissingIndexDoesNotAbortFullBulkRequest() throws Exception{
+        createIndex("bulkindex1", "bulkindex2");
+        ensureYellow();
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest("bulkindex1", "index1_type", "1").source("text", "hallo1"))
+                   .add(new IndexRequest("bulkindex2", "index2_type", "1").source("text", "hallo2"))
+                   .add(new IndexRequest("bulkindex2", "index2_type").source("text", "hallo2"))
+                   .add(new UpdateRequest("bulkindex2", "index2_type", "2").doc("foo", "bar"))
+                   .add(new DeleteRequest("bulkindex2", "index2_type", "3"))
+                   .refresh(true);
+
+        client().bulk(bulkRequest).get();
+        SearchResponse searchResponse = client().prepareSearch("bulkindex*").get();
+        assertHitCount(searchResponse, 3);
+
+        assertAcked(client().admin().indices().prepareClose("bulkindex2"));
+
+        BulkResponse bulkResponse = client().bulk(bulkRequest).get();
+        assertThat(bulkResponse.hasFailures(), is(true));
+        assertThat(bulkResponse.getItems().length, is(5));
     }
 }
 

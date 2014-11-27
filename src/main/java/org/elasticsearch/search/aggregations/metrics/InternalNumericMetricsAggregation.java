@@ -18,7 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -31,29 +35,51 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
 
         protected SingleValue() {}
 
-        protected SingleValue(String name) {
-            super(name);
+        protected SingleValue(String name, Map<String, Object> metaData) {
+            super(name, metaData);
         }
 
         public abstract double value();
+
+        @Override
+        public Object getProperty(List<String> path) {
+            if (path.isEmpty()) {
+                return this;
+            } else if (path.size() == 1 && "value".equals(path.get(0))) {
+                return value();
+            } else {
+                throw new ElasticsearchIllegalArgumentException("path not supported for [" + getName() + "]: " + path);
+            }
+        }
+
     }
 
     public static abstract class MultiValue extends InternalNumericMetricsAggregation {
 
         protected MultiValue() {}
 
-        protected MultiValue(String name) {
-            super(name);
+        protected MultiValue(String name, Map<String, Object> metaData) {
+            super(name, metaData);
         }
 
         public abstract double value(String name);
 
+        @Override
+        public Object getProperty(List<String> path) {
+            if (path.isEmpty()) {
+                return this;
+            } else if (path.size() == 1) {
+                return value(path.get(0));
+            } else {
+                throw new ElasticsearchIllegalArgumentException("path not supported for [" + getName() + "]: " + path);
+            }
+        }
     }
 
     private InternalNumericMetricsAggregation() {} // for serialization
 
-    private InternalNumericMetricsAggregation(String name) {
-        super(name);
+    private InternalNumericMetricsAggregation(String name, Map<String, Object> metaData) {
+        super(name, metaData);
     }
 
 }

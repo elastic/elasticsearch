@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -30,8 +31,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -67,6 +70,8 @@ public class InternalSearchHit implements SearchHit {
     private Text id;
     private Text type;
 
+    private InternalNestedIdentity nestedIdentity;
+
     private long version = -1;
 
     private BytesReference source;
@@ -95,6 +100,14 @@ public class InternalSearchHit implements SearchHit {
         this.docId = docId;
         this.id = new StringAndBytesText(id);
         this.type = type;
+        this.fields = fields;
+    }
+
+    public InternalSearchHit(int nestedTopDocId, String id, Text type, InternalNestedIdentity nestedIdentity, Map<String, SearchHitField> fields) {
+        this.docId = nestedTopDocId;
+        this.id = new StringAndBytesText(id);
+        this.type = type;
+        this.nestedIdentity = nestedIdentity;
         this.fields = fields;
     }
 
@@ -164,6 +177,10 @@ public class InternalSearchHit implements SearchHit {
         return type();
     }
 
+    @Override
+    public NestedIdentity getNestedIdentity() {
+        return nestedIdentity;
+    }
 
     /**
      * Returns bytes reference, also un compress the source if needed.
@@ -401,6 +418,9 @@ public class InternalSearchHit implements SearchHit {
         builder.field(Fields._INDEX, shard.indexText());
         builder.field(Fields._TYPE, type);
         builder.field(Fields._ID, id);
+        if (nestedIdentity != null) {
+            nestedIdentity.toXContent(builder, params);
+        }
         if (version != -1) {
             builder.field(Fields._VERSION, version);
         }
@@ -505,6 +525,9 @@ public class InternalSearchHit implements SearchHit {
         score = in.readFloat();
         id = in.readText();
         type = in.readSharedText();
+        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+            nestedIdentity = in.readOptionalStreamable(new InternalNestedIdentity());
+        }
         version = in.readLong();
         source = in.readBytesReference();
         if (source.length() == 0) {
@@ -640,6 +663,9 @@ public class InternalSearchHit implements SearchHit {
         out.writeFloat(score);
         out.writeText(id);
         out.writeSharedText(type);
+        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+            out.writeOptionalStreamable(nestedIdentity);
+        }
         out.writeLong(version);
         out.writeBytesReference(source);
         if (explanation == null) {
@@ -732,4 +758,74 @@ public class InternalSearchHit implements SearchHit {
             }
         }
     }
+
+    public final static class InternalNestedIdentity implements NestedIdentity, Streamable, ToXContent {
+
+        private Text field;
+        private int offset;
+        private InternalNestedIdentity child;
+
+        public InternalNestedIdentity(String field, int offset, InternalNestedIdentity child) {
+            this.field = new StringAndBytesText(field);
+            this.offset = offset;
+            this.child = child;
+        }
+
+        InternalNestedIdentity() {
+        }
+
+        @Override
+        public Text getField() {
+            return field;
+        }
+
+        @Override
+        public int getOffset() {
+            return offset;
+        }
+
+        @Override
+        public NestedIdentity getChild() {
+            return child;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            field = in.readOptionalText();
+            offset = in.readInt();
+            child = in.readOptionalStreamable(new InternalNestedIdentity());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalText(field);
+            out.writeInt(offset);
+            out.writeOptionalStreamable(child);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(Fields._NESTED);
+            if (field != null) {
+                builder.field(Fields._NESTED_FIELD, field);
+            }
+            if (offset != -1) {
+                builder.field(Fields._NESTED_OFFSET, offset);
+            }
+            if (child != null) {
+                builder = child.toXContent(builder, params);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        public static class Fields {
+
+            static final XContentBuilderString _NESTED = new XContentBuilderString("_nested");
+            static final XContentBuilderString _NESTED_FIELD = new XContentBuilderString("field");
+            static final XContentBuilderString _NESTED_OFFSET = new XContentBuilderString("offset");
+
+        }
+    }
+
 }

@@ -29,10 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.exists.RestExistsAction;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 import org.elasticsearch.search.Scroll;
@@ -44,7 +41,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.search.suggest.SuggestBuilder.termSuggestion;
+import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 
 /**
  *
@@ -52,8 +49,8 @@ import static org.elasticsearch.search.suggest.SuggestBuilder.termSuggestion;
 public class RestSearchAction extends BaseRestHandler {
 
     @Inject
-    public RestSearchAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestSearchAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_search", this);
         controller.registerHandler(POST, "/_search", this);
         controller.registerHandler(GET, "/{index}/_search", this);
@@ -67,7 +64,7 @@ public class RestSearchAction extends BaseRestHandler {
         controller.registerHandler(GET, "/{index}/{type}/_search/template", this);
         controller.registerHandler(POST, "/{index}/{type}/_search/template", this);
 
-        RestExistsAction restExistsAction = new RestExistsAction(settings, client);
+        RestExistsAction restExistsAction = new RestExistsAction(settings, controller, client);
         controller.registerHandler(GET, "/_search/exists", restExistsAction);
         controller.registerHandler(POST, "/_search/exists", restExistsAction);
         controller.registerHandler(GET, "/{index}/_search/exists", restExistsAction);

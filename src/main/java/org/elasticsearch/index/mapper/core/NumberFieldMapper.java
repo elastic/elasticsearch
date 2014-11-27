@@ -28,8 +28,8 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.Filter;
@@ -75,7 +75,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         static {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setStoreTermVectors(false);
             FIELD_TYPE.freeze();
         }
@@ -200,7 +200,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         this.ignoreMalformed = ignoreMalformed;
         this.coerce = coerce;
         Version v = Version.indexCreated(indexSettings);
-        this.useSortedNumericDocValues = v.onOrAfter(Version.V_1_4_0);
+        this.useSortedNumericDocValues = v.onOrAfter(Version.V_1_4_0_Beta1);
     }
 
     @Override
@@ -433,7 +433,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
         public static final FieldType TYPE = new FieldType();
         static {
-          TYPE.setDocValueType(FieldInfo.DocValuesType.BINARY);
+          TYPE.setDocValuesType(DocValuesType.BINARY);
           TYPE.freeze();
         }
 
@@ -484,7 +484,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
         public static final FieldType TYPE = new FieldType();
         static {
-          TYPE.setDocValueType(FieldInfo.DocValuesType.BINARY);
+          TYPE.setDocValuesType(DocValuesType.BINARY);
           TYPE.freeze();
         }
 

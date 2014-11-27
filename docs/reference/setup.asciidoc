@@ -30,12 +30,6 @@ To run it in the background, add the `-d` switch to it:
 $ bin/elasticsearch -d
 --------------------------------------------------
 
-Elasticsearch is built using Java, and requires at least
-http://java.sun.com/javase/downloads/index.jsp[Java 7] in order to run
-added[1.2.0,Was at least Java 6 before].
-The version of Java that will be used can be set by setting the
-`JAVA_HOME` environment variable.
-
 .*NIX
 *************************************************************************
 There are added features when using the `elasticsearch` shell script.
@@ -51,6 +45,23 @@ anything set using either `JAVA_OPTS` or `ES_JAVA_OPTS`. For example:
 $ bin/elasticsearch -Xmx2g -Xms2g -Des.index.store.type=memory --node.name=my-node
 --------------------------------------------------
 *************************************************************************
+
+[float]
+[[jvm-version]]
+== Java version
+
+Elasticsearch is built using Java, and requires at least
+http://www.oracle.com/technetwork/java/javase/downloads/index.html[Java 7] in
+order to run Only Oracle's Java and
+the OpenJDK are supported.
+
+We recommend installing the *Java 8 update 20 or later*, or *Java 7 update 55
+or later*.  Previous versions of Java 7 are known to have bugs that can cause
+index corruption and data loss.
+
+The version of Java to use can be configured by setting the `JAVA_HOME`
+environment variable.
+
 --
 
 include::setup/configuration.asciidoc[]

@@ -19,17 +19,19 @@
 package org.elasticsearch.watcher;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.io.Files.*;
-import static org.elasticsearch.common.io.FileSystemUtils.deleteRecursively;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -114,7 +116,7 @@ public class FileWatcherTest extends ElasticsearchTestCase {
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), hasSize(0));
 
-        testFile.delete();
+        Files.delete(testFile.toPath());
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(equalTo("onFileDeleted: test.txt")));
 
@@ -160,8 +162,8 @@ public class FileWatcherTest extends ElasticsearchTestCase {
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), hasSize(0));
 
-        new File(testDir, "test1.txt").delete();
-        new File(testDir, "test2.txt").delete();
+        Files.delete(new File(testDir, "test1.txt").toPath());
+        Files.delete(new File(testDir, "test2.txt").toPath());
 
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(
@@ -173,7 +175,7 @@ public class FileWatcherTest extends ElasticsearchTestCase {
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), hasSize(0));
 
-        new File(testDir, "test0.txt").delete();
+        Files.delete(new File(testDir, "test0.txt").toPath());
         touch(new File(testDir, "test2.txt"));
         touch(new File(testDir, "test4.txt"));
         fileWatcher.checkAndNotify();
@@ -187,8 +189,8 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
         changes.notifications().clear();
 
-        new File(testDir, "test3.txt").delete();
-        new File(testDir, "test4.txt").delete();
+        Files.delete(new File(testDir, "test3.txt").toPath());
+        Files.delete(new File(testDir, "test4.txt").toPath());
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(
                 equalTo("onFileDeleted: test-dir/test3.txt"),
@@ -197,7 +199,9 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
 
         changes.notifications().clear();
-        deleteRecursively(testDir);
+        if (testDir.exists()) {
+            IOUtils.rm(testDir.toPath());
+        }
         fileWatcher.checkAndNotify();
 
         assertThat(changes.notifications(), contains(
@@ -261,7 +265,10 @@ public class FileWatcherTest extends ElasticsearchTestCase {
         assertThat(changes.notifications(), hasSize(0));
 
         // Delete a directory, check notifications for
-        deleteRecursively(new File(testDir, "first-level"));
+        Path path = new File(testDir, "first-level").toPath();
+        if (Files.exists(path)) {
+            IOUtils.rm(path);
+        }
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(
                 equalTo("onFileDeleted: test-dir/first-level/file1.txt"),
@@ -294,7 +301,9 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
         changes.notifications().clear();
 
-        deleteRecursively(subDir);
+        if (subDir.exists()) {
+            IOUtils.rm(subDir.toPath());
+        }
         touch(subDir);
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(
@@ -306,7 +315,7 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
         changes.notifications().clear();
 
-        subDir.delete();
+        Files.delete(subDir.toPath());
         subDir.mkdir();
 
         fileWatcher.checkAndNotify();
@@ -330,8 +339,8 @@ public class FileWatcherTest extends ElasticsearchTestCase {
         fileWatcher.init();
         changes.notifications().clear();
 
-        new File(testDir, "test0.txt").delete();
-        new File(testDir, "test1.txt").delete();
+        Files.delete(new File(testDir, "test0.txt").toPath());
+        Files.delete(new File(testDir, "test1.txt").toPath());
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(
                 equalTo("onFileDeleted: test-dir/test0.txt"),

@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.warmer.put;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -46,7 +47,9 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Put warmer action.
+ * Internal Actions executed on the master associating a warmer with a name in the cluster state metadata.
+ *
+ * Note: this is an internal API and should not be used / called by any client code.
  */
 public class TransportPutWarmerAction extends TransportMasterNodeOperationAction<PutWarmerRequest, PutWarmerResponse> {
 
@@ -83,7 +86,8 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
     @Override
     protected void masterOperation(final PutWarmerRequest request, final ClusterState state, final ActionListener<PutWarmerResponse> listener) throws ElasticsearchException {
         // first execute the search request, see that its ok...
-        searchAction.execute(request.searchRequest(), new ActionListener<SearchResponse>() {
+        SearchRequest searchRequest = new SearchRequest(request.searchRequest(), request);
+        searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
             @Override
             public void onResponse(SearchResponse searchResponse) {
                 if (searchResponse.getFailedShards() > 0) {

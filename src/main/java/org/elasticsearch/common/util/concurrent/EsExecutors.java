@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import com.google.common.base.Joiner;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.concurrent.*;
@@ -72,6 +73,10 @@ public class EsExecutors {
         return new EsThreadPoolExecutor(size, size, 0, TimeUnit.MILLISECONDS, queue, threadFactory, new EsAbortPolicy());
     }
 
+    public static String threadName(Settings settings, String ... names) {
+        return threadName(settings, "[" +  Joiner.on(".").skipNulls().join(names) + "]");
+    }
+
     public static String threadName(Settings settings, String namePrefix) {
         String name = settings.get("name");
         if (name == null) {
@@ -84,6 +89,10 @@ public class EsExecutors {
 
     public static ThreadFactory daemonThreadFactory(Settings settings, String namePrefix) {
         return daemonThreadFactory(threadName(settings, namePrefix));
+    }
+
+    public static ThreadFactory daemonThreadFactory(Settings settings, String ... names) {
+        return daemonThreadFactory(threadName(settings, names));
     }
 
     public static ThreadFactory daemonThreadFactory(String namePrefix) {

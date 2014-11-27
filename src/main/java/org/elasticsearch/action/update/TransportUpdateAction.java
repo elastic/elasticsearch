@@ -176,7 +176,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         final UpdateHelper.Result result = updateHelper.prepare(request.request(), indexShard);
         switch (result.operation()) {
             case UPSERT:
-                IndexRequest upsertRequest = result.action();
+                IndexRequest upsertRequest = new IndexRequest((IndexRequest)result.action(), request.request());
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference upsertSourceBytes = upsertRequest.source();
                 indexAction.execute(upsertRequest, new ActionListener<IndexResponse>() {
@@ -211,7 +211,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 });
                 break;
             case INDEX:
-                IndexRequest indexRequest = result.action();
+                IndexRequest indexRequest = new IndexRequest((IndexRequest)result.action(), request.request());
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference indexSourceBytes = indexRequest.source();
                 indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
@@ -241,7 +241,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 });
                 break;
             case DELETE:
-                DeleteRequest deleteRequest = result.action();
+                DeleteRequest deleteRequest = new DeleteRequest((DeleteRequest)result.action(), request.request());
                 deleteAction.execute(deleteRequest, new ActionListener<DeleteResponse>() {
                     @Override
                     public void onResponse(DeleteResponse response) {
@@ -270,7 +270,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 break;
             case NONE:
                 UpdateResponse update = result.action();
-                listener.onResponse(update);
                 IndexService indexServiceOrNull = indicesService.indexService(request.concreteIndex());
                 if (indexServiceOrNull !=  null) {
                     IndexShard shard = indexService.shard(request.request().shardId());
@@ -278,6 +277,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         shard.indexingService().noopUpdate(request.request().type());
                     }
                 }
+                listener.onResponse(update);
                 break;
             default:
                 throw new ElasticsearchIllegalStateException("Illegal operation " + result.operation());

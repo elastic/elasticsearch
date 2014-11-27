@@ -33,7 +33,13 @@ public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBu
 
     private SpanQueryBuilder exclude;
 
-    private float boost = -1;
+    private Integer dist;
+
+    private Integer pre;
+
+    private Integer post;
+
+    private Float boost;
 
     private String queryName;
 
@@ -47,6 +53,21 @@ public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBu
         return this;
     }
 
+    public SpanNotQueryBuilder dist(int dist) {
+        this.dist = dist;
+        return this;
+    }
+
+    public SpanNotQueryBuilder pre(int pre) {
+        this.pre = (pre >=0) ? pre : 0;
+        return this;
+    }
+
+    public SpanNotQueryBuilder post(int post) {
+        this.post = (post >= 0) ? post : 0;
+        return this;
+    }
+
     public SpanNotQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;
@@ -54,6 +75,8 @@ public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBu
 
     /**
      * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     * @param queryName The query name
+     * @return this
      */
     public SpanNotQueryBuilder queryName(String queryName) {
         this.queryName = queryName;
@@ -68,12 +91,26 @@ public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBu
         if (exclude == null) {
             throw new ElasticsearchIllegalArgumentException("Must specify exclude when using spanNot query");
         }
+
+        if (dist != null && (pre != null || post != null)) {
+             throw new ElasticsearchIllegalArgumentException("spanNot can either use [dist] or [pre] & [post] (or none)");
+        }
+
         builder.startObject(SpanNotQueryParser.NAME);
         builder.field("include");
         include.toXContent(builder, params);
         builder.field("exclude");
         exclude.toXContent(builder, params);
-        if (boost != -1) {
+        if (dist != null) {
+            builder.field("dist", dist);
+        }
+        if (pre != null) {
+            builder.field("pre", pre);
+        }
+        if (post != null) {
+            builder.field("post", post);
+        }
+        if (boost != null) {
             builder.field("boost", boost);
         }
         if (queryName != null) {

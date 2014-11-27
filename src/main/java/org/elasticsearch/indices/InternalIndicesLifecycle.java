@@ -132,6 +132,26 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
         }
     }
 
+    public void beforeIndexDeleted(IndexService indexService) {
+        for (Listener listener : listeners) {
+            try {
+                listener.beforeIndexDeleted(indexService);
+            } catch (Throwable t) {
+                logger.warn("[{}] failed to invoke before index deleted callback", t, indexService.index().name());
+            }
+        }
+    }
+
+    public void afterIndexDeleted(Index index) {
+        for (Listener listener : listeners) {
+            try {
+                listener.afterIndexDeleted(index);
+            } catch (Throwable t) {
+                logger.warn("[{}] failed to invoke after index deleted callback", t, index.name());
+            }
+        }
+    }
+
     public void afterIndexClosed(Index index) {
         for (Listener listener : listeners) {
             try {
@@ -152,10 +172,10 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
         }
     }
 
-    public void afterIndexShardClosed(ShardId shardId) {
+    public void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard) {
         for (Listener listener : listeners) {
             try {
-                listener.afterIndexShardClosed(shardId);
+                listener.afterIndexShardClosed(shardId, indexShard);
             } catch (Throwable t) {
                 logger.warn("{} failed to invoke after shard closed callback", t, shardId);
             }

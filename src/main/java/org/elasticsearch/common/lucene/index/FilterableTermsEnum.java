@@ -20,7 +20,12 @@
 package org.elasticsearch.common.lucene.index;
 
 import com.google.common.collect.Lists;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DocsAndPositionsEnum;
+import org.apache.lucene.index.DocsEnum;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
@@ -29,11 +34,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
-import org.elasticsearch.common.lucene.search.Queries;
 
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -71,12 +73,13 @@ public class FilterableTermsEnum extends TermsEnum {
         }
         this.docsEnumFlag = docsEnumFlag;
         if (filter == null) {
-            numDocs = reader.numDocs();
+            // Important - need to use the doc count that includes deleted docs
+            // or we have this issue: https://github.com/elasticsearch/elasticsearch/issues/7951
+            numDocs = reader.maxDoc();
         }
-        ApplyAcceptedDocsFilter acceptedDocsFilter = filter == null ? null : new ApplyAcceptedDocsFilter(filter);
-        List<AtomicReaderContext> leaves = reader.leaves();
+        List<LeafReaderContext> leaves = reader.leaves();
         List<Holder> enums = Lists.newArrayListWithExpectedSize(leaves.size());
-        for (AtomicReaderContext context : leaves) {
+        for (LeafReaderContext context : leaves) {
             Terms terms = context.reader().terms(field);
             if (terms == null) {
                 continue;
@@ -86,24 +89,20 @@ public class FilterableTermsEnum extends TermsEnum {
                 continue;
             }
             Bits bits = null;
-            if (acceptedDocsFilter != null) {
-                if (acceptedDocsFilter.filter() == Queries.MATCH_ALL_FILTER) {
-                    bits = context.reader().getLiveDocs();
-                } else {
-                    // we want to force apply deleted docs
-                    DocIdSet docIdSet = acceptedDocsFilter.getDocIdSet(context, context.reader().getLiveDocs());
-                    if (DocIdSets.isEmpty(docIdSet)) {
-                        // fully filtered, none matching, no need to iterate on this
-                        continue;
-                    }
-                    bits = DocIdSets.toSafeBits(context.reader(), docIdSet);
-                    // Count how many docs are in our filtered set
-                    // TODO make this lazy-loaded only for those that need it?
-                    DocIdSetIterator iterator = docIdSet.iterator();
-                    if (iterator != null) {
-                        while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                            numDocs++;
-                        }
+            if (filter != null) {
+                // we want to force apply deleted docs
+                DocIdSet docIdSet = filter.getDocIdSet(context, context.reader().getLiveDocs());
+                if (DocIdSets.isEmpty(docIdSet)) {
+                    // fully filtered, none matching, no need to iterate on this
+                    continue;
+                }
+                bits = DocIdSets.toSafeBits(context.reader(), docIdSet);
+                // Count how many docs are in our filtered set
+                // TODO make this lazy-loaded only for those that need it?
+                DocIdSetIterator iterator = docIdSet.iterator();
+                if (iterator != null) {
+                    while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        numDocs++;
                     }
                 }
             }
@@ -206,11 +205,6 @@ public class FilterableTermsEnum extends TermsEnum {
 
     @Override
     public BytesRef next() throws IOException {
-        throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
-    }
-
-    @Override
-    public Comparator<BytesRef> getComparator() {
         throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
     }
 }

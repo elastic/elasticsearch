@@ -27,7 +27,9 @@ import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.TestSearchContext;
 import org.joda.time.DateTime;
 import org.junit.Before;
 import org.junit.Test;
@@ -36,9 +38,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -74,10 +74,13 @@ public class IndexQueryParserFilterDateRangeTimezoneTests extends ElasticsearchS
 
         query = copyToStringFromClasspath("/org/elasticsearch/index/query/date_range_filter_timezone_numeric_field.json");
         try {
+            SearchContext.setCurrent(new TestSearchContext());
             queryParser.parse(query).query();
             fail("A Range Filter on a numeric field with a TimeZone should raise a QueryParsingException");
         } catch (QueryParsingException e) {
             // We expect it
+        } finally {
+            SearchContext.removeCurrent();
         }
     }
 
@@ -87,7 +90,13 @@ public class IndexQueryParserFilterDateRangeTimezoneTests extends ElasticsearchS
 
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/date_range_query_timezone.json");
-        Query parsedQuery = queryParser.parse(query).query();
+        Query parsedQuery;
+        try {
+            SearchContext.setCurrent(new TestSearchContext());
+            parsedQuery = queryParser.parse(query).query();
+        } finally {
+            SearchContext.removeCurrent();
+        }
         assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
 
         // Min value was 2012-01-01 (UTC) so we need to remove one hour
@@ -102,10 +111,13 @@ public class IndexQueryParserFilterDateRangeTimezoneTests extends ElasticsearchS
 
         query = copyToStringFromClasspath("/org/elasticsearch/index/query/date_range_query_timezone_numeric_field.json");
         try {
+            SearchContext.setCurrent(new TestSearchContext());
             queryParser.parse(query).query();
             fail("A Range Query on a numeric field with a TimeZone should raise a QueryParsingException");
         } catch (QueryParsingException e) {
             // We expect it
+        } finally {
+            SearchContext.removeCurrent();
         }
     }
 }

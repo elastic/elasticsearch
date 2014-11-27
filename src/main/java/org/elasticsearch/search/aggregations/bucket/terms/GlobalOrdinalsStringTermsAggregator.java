@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
@@ -28,10 +28,14 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.AbstractRandomAccessOrds;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalMapping;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -46,6 +50,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 
 /**
  * An aggregator of string values that relies on global ordinals in order to build buckets.
@@ -68,9 +73,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     protected Collector collector;
 
     public GlobalOrdinalsStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount,
-                                               long maxOrd, InternalOrder order, BucketCountThresholds bucketCountThresholds,
-                                               IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError) {
-        super(name, factories, maxOrd, aggregationContext, parent, order, bucketCountThresholds, collectionMode, showTermDocCountError);
+                                               long maxOrd, Terms.Order order, BucketCountThresholds bucketCountThresholds,
+                                               IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError, Map<String, Object> metaData) {
+        super(name, factories, maxOrd, aggregationContext, parent, order, bucketCountThresholds, collectionMode, showTermDocCountError, metaData);
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
     }
@@ -111,7 +116,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         globalOrds = valuesSource.globalOrdinalsValues();
         if (acceptedGlobalOrdinals != null) {
             globalOrds = new FilteredOrdinals(globalOrds, acceptedGlobalOrdinals);
@@ -150,6 +155,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         } else {
             size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.getShardSize());
         }
+        long otherDocCount = 0;
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
         OrdBucket spare = new OrdBucket(-1, 0, null, showTermDocCountError, 0);
         for (long globalTermOrd = 0; globalTermOrd < globalOrds.getValueCount(); ++globalTermOrd) {
@@ -161,6 +167,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             if (bucketCountThresholds.getMinDocCount() > 0 && bucketDocCount == 0) {
                 continue;
             }
+            otherDocCount += bucketDocCount;
             spare.globalOrd = globalTermOrd;
             spare.bucketOrd = bucketOrd;
             spare.docCount = bucketDocCount;
@@ -182,6 +189,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             copy(globalOrds.lookupOrd(bucket.globalOrd), scratch);
             list[i] = new StringTerms.Bucket(scratch, bucket.docCount, null, showTermDocCountError, 0);
             list[i].bucketOrd = bucket.bucketOrd;
+            otherDocCount -= list[i].docCount;
         }
         //replay any deferred collections
         runDeferredCollections(survivingBucketOrds);
@@ -193,7 +201,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
           bucket.docCountError = 0;
         }
 
-        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError, 0);
+        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError, 0, otherDocCount, getMetaData());
     }
     
     /** This is used internally only, just for compare using global ordinal instead of term bytes in the PQ */
@@ -201,7 +209,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         long globalOrd;
 
         OrdBucket(long globalOrd, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError) {
-            super(docCount, aggregations, showDocCountError, docCountError);
+            super(docCount, aggregations, showDocCountError, docCountError, null);
             this.globalOrd = globalOrd;
         }
 
@@ -234,6 +242,21 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         public Number getKeyAsNumber() {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            throw new UnsupportedOperationException();
+        }
     }
 
     private static interface Collector {
@@ -249,10 +272,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         private final LongHash bucketOrds;
 
         public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount,
-                        long maxOrd, InternalOrder order, BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude, AggregationContext aggregationContext,
-                        Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError) {
+                        long maxOrd, Terms.Order order, BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude, AggregationContext aggregationContext,
+                        Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError, Map<String, Object> metaData) {
             // Set maxOrd to estimatedBucketCount! To be conservative with memory.
-            super(name, factories, valuesSource, estimatedBucketCount, estimatedBucketCount, order, bucketCountThresholds, includeExclude, aggregationContext, parent, collectionMode, showTermDocCountError);
+            super(name, factories, valuesSource, estimatedBucketCount, estimatedBucketCount, order, bucketCountThresholds, includeExclude, aggregationContext, parent, collectionMode, showTermDocCountError, metaData);
             bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.bigArrays());
         }
 
@@ -318,8 +341,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         private RandomAccessOrds segmentOrds;
 
         public LowCardinality(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount,
-                              long maxOrd, InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError) {
-            super(name, factories, valuesSource, estimatedBucketCount, maxOrd, order, bucketCountThresholds, null, aggregationContext, parent, collectionMode, showTermDocCountError);
+                              long maxOrd, Terms.Order order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError, Map<String, Object> metaData) {
+            super(name, factories, valuesSource, estimatedBucketCount, maxOrd, order, bucketCountThresholds, null, aggregationContext, parent, collectionMode, showTermDocCountError, metaData);
             assert factories == null || factories.count() == 0;
             this.segmentDocCounts = bigArrays.newIntArray(maxOrd + 1, true);
         }
@@ -350,7 +373,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext reader) {
+        public void setNextReader(LeafReaderContext reader) {
             if (segmentOrds != null) {
                 mapSegmentCountsToGlobalCounts();
             }

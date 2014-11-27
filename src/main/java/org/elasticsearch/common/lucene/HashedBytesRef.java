@@ -79,8 +79,7 @@ public class HashedBytesRef {
     }
 
     public static HashedBytesRef deepCopyOf(HashedBytesRef other) {
-        BytesRef copy = new BytesRef();
-        copy.copyBytes(other.bytes);
+        BytesRef copy = BytesRef.deepCopyOf(other.bytes);
         return new HashedBytesRef(copy, other.hash);
     }
 }

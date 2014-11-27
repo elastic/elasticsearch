@@ -19,15 +19,25 @@
 
 package org.elasticsearch.index.search.child;
 
-import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BitsFilteredDocIdSet;
+import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.XFilteredDocIdSetIterator;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
@@ -49,12 +59,12 @@ public class ChildrenConstantScoreQuery extends Query {
     private final String childType;
     private final Filter parentFilter;
     private final int shortCircuitParentDocSet;
-    private final Filter nonNestedDocsFilter;
+    private final BitDocIdSetFilter nonNestedDocsFilter;
 
     private Query rewrittenChildQuery;
     private IndexReader rewriteIndexReader;
 
-    public ChildrenConstantScoreQuery(IndexParentChildFieldData parentChildIndexFieldData, Query childQuery, String parentType, String childType, Filter parentFilter, int shortCircuitParentDocSet, Filter nonNestedDocsFilter) {
+    public ChildrenConstantScoreQuery(IndexParentChildFieldData parentChildIndexFieldData, Query childQuery, String parentType, String childType, Filter parentFilter, int shortCircuitParentDocSet, BitDocIdSetFilter nonNestedDocsFilter) {
         this.parentChildIndexFieldData = parentChildIndexFieldData;
         this.parentFilter = parentFilter;
         this.parentType = parentType;
@@ -97,7 +107,7 @@ public class ChildrenConstantScoreQuery extends Query {
         assert rewriteIndexReader == searcher.getIndexReader()  : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
 
         final long valueCount;
-        List<AtomicReaderContext> leaves = searcher.getIndexReader().leaves();
+        List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
         if (globalIfd == null || leaves.isEmpty()) {
             return Queries.newMatchNoDocsQuery().createWeight(searcher);
         } else {
@@ -181,7 +191,7 @@ public class ChildrenConstantScoreQuery extends Query {
         private float queryWeight;
 
         public ParentWeight(Filter parentFilter, IndexParentChildFieldData globalIfd, Filter shortCircuitFilter, ParentOrdCollector collector, long remaining) {
-            this.parentFilter = new ApplyAcceptedDocsFilter(parentFilter);
+            this.parentFilter = parentFilter;
             this.globalIfd = globalIfd;
             this.shortCircuitFilter = shortCircuitFilter;
             this.collector = collector;
@@ -189,7 +199,7 @@ public class ChildrenConstantScoreQuery extends Query {
         }
 
         @Override
-        public Explanation explain(AtomicReaderContext context, int doc) throws IOException {
+        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
             return new Explanation(getBoost(), "not implemented yet...");
         }
 
@@ -211,7 +221,7 @@ public class ChildrenConstantScoreQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
             if (remaining == 0) {
                 return null;
             }
@@ -274,7 +284,7 @@ public class ChildrenConstantScoreQuery extends Query {
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext context) throws IOException {
+        protected void doSetNextReader(LeafReaderContext context) throws IOException {
             values = indexFieldData.load(context).getOrdinalsValues(parentType);
         }
 
@@ -284,7 +294,7 @@ public class ChildrenConstantScoreQuery extends Query {
 
     }
 
-    private final static class ParentOrdIterator extends FilteredDocIdSetIterator {
+    private final static class ParentOrdIterator extends XFilteredDocIdSetIterator {
 
         private final LongBitSet parentOrds;
         private final SortedDocValues ordinals;
@@ -300,12 +310,7 @@ public class ChildrenConstantScoreQuery extends Query {
         @Override
         protected boolean match(int doc) {
             if (parentWeight.remaining == 0) {
-                try {
-                    advance(DocIdSetIterator.NO_MORE_DOCS);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-                return false;
+                throw new CollectionTerminatedException();
             }
 
             long parentOrd = ordinals.getOrd(doc);

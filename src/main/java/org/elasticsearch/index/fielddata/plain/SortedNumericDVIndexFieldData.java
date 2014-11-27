@@ -21,6 +21,7 @@ package org.elasticsearch.index.fielddata.plain;
 
 import com.google.common.base.Preconditions;
 import org.apache.lucene.index.*;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.index.Index;
@@ -33,9 +34,10 @@ import org.elasticsearch.index.mapper.FieldMapper.Names;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
+import java.util.Collections;
 
 /**
- * FieldData backed by {@link AtomicReader#getSortedNumericDocValues(String)}
+ * FieldData backed by {@link LeafReader#getSortedNumericDocValues(String)}
  * @see FieldInfo.DocValuesType#SORTED_NUMERIC
  */
 public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData implements IndexNumericFieldData {
@@ -66,13 +68,13 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
     }
     
     @Override
-    public AtomicNumericFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
         return load(context);
     }
 
     @Override
-    public AtomicNumericFieldData load(AtomicReaderContext context) {
-        final AtomicReader reader = context.reader();
+    public AtomicNumericFieldData load(LeafReaderContext context) {
+        final LeafReader reader = context.reader();
         final String field = fieldNames.indexName();
         
         switch (numericType) {
@@ -99,11 +101,11 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
      * a Bits matching documents that have a real value (as opposed to missing).
      */
     static final class SortedNumericLongFieldData extends AtomicLongFieldData {
-        final AtomicReader reader;
+        final LeafReader reader;
         final String field;
 
-        SortedNumericLongFieldData(AtomicReader reader, String field) {
-            super(-1L);
+        SortedNumericLongFieldData(LeafReader reader, String field) {
+            super(0L);
             this.reader = reader;
             this.field = field;
         }
@@ -115,6 +117,11 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
             } catch (IOException e) {
                 throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
             }
+        }
+        
+        @Override
+        public Iterable<? extends Accountable> getChildResources() {
+            return Collections.emptyList();
         }
     }
     
@@ -136,11 +143,11 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
      * a Bits matching documents that have a real value (as opposed to missing).
      */
     static final class SortedNumericFloatFieldData extends AtomicDoubleFieldData {
-        final AtomicReader reader;
+        final LeafReader reader;
         final String field;
         
-        SortedNumericFloatFieldData(AtomicReader reader, String field) {
-            super(-1L);
+        SortedNumericFloatFieldData(LeafReader reader, String field) {
+            super(0L);
             this.reader = reader;
             this.field = field;
         }
@@ -159,6 +166,11 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
             } catch (IOException e) {
                 throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
             }
+        }
+        
+        @Override
+        public Iterable<? extends Accountable> getChildResources() {
+            return Collections.emptyList();
         }
     }
     
@@ -222,11 +234,11 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
      * a Bits matching documents that have a real value (as opposed to missing).
      */
     static final class SortedNumericDoubleFieldData extends AtomicDoubleFieldData {
-        final AtomicReader reader;
+        final LeafReader reader;
         final String field;
         
-        SortedNumericDoubleFieldData(AtomicReader reader, String field) {
-            super(-1L);
+        SortedNumericDoubleFieldData(LeafReader reader, String field) {
+            super(0L);
             this.reader = reader;
             this.field = field;
         }
@@ -239,6 +251,11 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
             } catch (IOException e) {
                 throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
             }
+        }
+        
+        @Override
+        public Iterable<? extends Accountable> getChildResources() {
+            return Collections.emptyList();
         }
     }
 }

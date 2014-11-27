@@ -38,9 +38,9 @@ public class GermanAnalyzerProvider extends AbstractIndexAnalyzerProvider<German
     @Inject
     public GermanAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        analyzer = new GermanAnalyzer(version,
-                Analysis.parseStopWords(env, settings, GermanAnalyzer.getDefaultStopSet(), version),
-                Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET, version));
+        analyzer = new GermanAnalyzer(Analysis.parseStopWords(env, settings, GermanAnalyzer.getDefaultStopSet()),
+                                      Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+        analyzer.setVersion(version);
     }
 
     @Override

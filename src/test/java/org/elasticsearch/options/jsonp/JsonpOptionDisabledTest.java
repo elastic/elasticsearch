@@ -23,6 +23,7 @@ import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -44,11 +45,14 @@ public class JsonpOptionDisabledTest extends ElasticsearchIntegrationTest {
         // false is the default!
         if (randomBoolean()) {
             logger.info("using default jsonp settings (should be false)");
-            return super.nodeSettings(nodeOrdinal);
+            return ImmutableSettings.settingsBuilder()
+                    .put(super.nodeSettings(nodeOrdinal))
+                    .put(InternalNode.HTTP_ENABLED, true).build();
         }
         return ImmutableSettings.settingsBuilder()
-                .put(RestController.HTTP_JSON_ENABLE, false)
                 .put(super.nodeSettings(nodeOrdinal))
+                .put(InternalNode.HTTP_ENABLED, true)
+                .put(RestController.HTTP_JSON_ENABLE, false)
                 .build();
     }
 

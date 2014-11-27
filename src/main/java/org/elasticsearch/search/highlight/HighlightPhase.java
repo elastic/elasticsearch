@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.highlight;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -37,8 +37,8 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static com.google.common.collect.Maps.newHashMap;
 
@@ -78,12 +78,12 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
     public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticsearchException {
         Map<String, HighlightField> highlightFields = newHashMap();
         for (SearchContextHighlight.Field field : context.highlight().fields()) {
-            Set<String> fieldNamesToHighlight;
+            List<String> fieldNamesToHighlight;
             if (Regex.isSimpleMatchPattern(field.field())) {
                 DocumentMapper documentMapper = context.mapperService().documentMapper(hitContext.hit().type());
                 fieldNamesToHighlight = documentMapper.mappers().simpleMatchToFullName(field.field());
             } else {
-                fieldNamesToHighlight = ImmutableSet.of(field.field());
+                fieldNamesToHighlight = ImmutableList.of(field.field());
             }
 
             if (context.highlight().forceSource(field)) {
@@ -104,7 +104,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                     boolean useFastVectorHighlighter = fieldMapper.fieldType().storeTermVectors() && fieldMapper.fieldType().storeTermVectorOffsets() && fieldMapper.fieldType().storeTermVectorPositions();
                     if (useFastVectorHighlighter) {
                         highlighterType = "fvh";
-                    } else if (fieldMapper.fieldType().indexOptions() == FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
+                    } else if (fieldMapper.fieldType().indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
                         highlighterType = "postings";
                     } else {
                         highlighterType = "plain";

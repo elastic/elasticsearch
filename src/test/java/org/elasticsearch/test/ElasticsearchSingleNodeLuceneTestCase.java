@@ -34,7 +34,16 @@ public abstract class ElasticsearchSingleNodeLuceneTestCase extends Elasticsearc
 
     @After
     public void cleanup() {
-        ElasticsearchSingleNodeTest.cleanup();
+        ElasticsearchSingleNodeTest.cleanup(resetNodeAfterTest());
+    }
+
+    /**
+     * This method returns <code>true</code> if the node that is used in the background should be reset
+     * after each test. This is useful if the test changes the cluster state metadata etc. The default is
+     * <code>false</code>.
+     */
+    protected boolean resetNodeAfterTest() {
+        return false;
     }
 
     /**

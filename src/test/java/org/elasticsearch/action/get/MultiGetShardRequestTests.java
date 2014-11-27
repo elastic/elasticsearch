@@ -82,7 +82,7 @@ public class MultiGetShardRequestTests extends ElasticsearchTestCase {
         assertThat(multiGetShardRequest2.preference(), equalTo(multiGetShardRequest.preference()));
         assertThat(multiGetShardRequest2.realtime(), equalTo(multiGetShardRequest.realtime()));
         assertThat(multiGetShardRequest2.refresh(), equalTo(multiGetShardRequest.refresh()));
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             assertThat(multiGetShardRequest2.ignoreErrorsOnGeneratedFields(), equalTo(multiGetShardRequest.ignoreErrorsOnGeneratedFields()));
         } else {
             assertThat(multiGetShardRequest2.ignoreErrorsOnGeneratedFields(), equalTo(false));
@@ -91,7 +91,7 @@ public class MultiGetShardRequestTests extends ElasticsearchTestCase {
         for (int i = 0; i < multiGetShardRequest2.items.size(); i++) {
             MultiGetRequest.Item item = multiGetShardRequest.items.get(i);
             MultiGetRequest.Item item2 = multiGetShardRequest2.items.get(i);
-            if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
                 assertThat(item2.index(), equalTo(item.index()));
             } else {
                 //before 1.4 we have only one index, the concrete one
@@ -104,7 +104,7 @@ public class MultiGetShardRequestTests extends ElasticsearchTestCase {
             assertThat(item2.versionType(), equalTo(item.versionType()));
             assertThat(item2.fetchSourceContext(), equalTo(item.fetchSourceContext()));
         }
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             //we don't serialize the original index before 1.4, it'll get the concrete one
             assertThat(multiGetShardRequest2.indices(), equalTo(multiGetShardRequest.indices()));
             assertThat(multiGetShardRequest2.indicesOptions(), equalTo(multiGetShardRequest.indicesOptions()));

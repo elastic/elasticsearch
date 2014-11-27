@@ -19,11 +19,13 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.hamcrest.Matchers.equalTo;
@@ -82,6 +84,31 @@ public class SumTests extends AbstractNumericTests {
         assertThat(sum, notNullValue());
         assertThat(sum.getName(), equalTo("sum"));
         assertThat(sum.getValue(), equalTo((double) 1+2+3+4+5+6+7+8+9+10));
+    }
+
+    @Test
+    public void testSingleValuedField_getProperty() throws Exception {
+
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(global("global").subAggregation(sum("sum").field("value"))).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Global global = searchResponse.getAggregations().get("global");
+        assertThat(global, notNullValue());
+        assertThat(global.getName(), equalTo("global"));
+        assertThat(global.getDocCount(), equalTo(10l));
+        assertThat(global.getAggregations(), notNullValue());
+        assertThat(global.getAggregations().asMap().size(), equalTo(1));
+
+        Sum sum = global.getAggregations().get("sum");
+        assertThat(sum, notNullValue());
+        assertThat(sum.getName(), equalTo("sum"));
+        double expectedSumValue = (double) 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10;
+        assertThat(sum.getValue(), equalTo(expectedSumValue));
+        assertThat((Sum) global.getProperty("sum"), equalTo(sum));
+        assertThat((double) global.getProperty("sum.value"), equalTo(expectedSumValue));
+        assertThat((double) sum.getProperty("value"), equalTo(expectedSumValue));
     }
 
     @Override

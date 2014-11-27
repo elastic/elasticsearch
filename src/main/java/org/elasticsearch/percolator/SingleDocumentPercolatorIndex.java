@@ -21,6 +21,7 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.memory.MemoryIndex;
@@ -49,7 +50,7 @@ class SingleDocumentPercolatorIndex implements PercolatorIndex {
     public void prepare(PercolateContext context, ParsedDocument parsedDocument) {
         MemoryIndex memoryIndex = cache.get();
         for (IndexableField field : parsedDocument.rootDoc().getFields()) {
-            if (!field.fieldType().indexed() && field.name().equals(UidFieldMapper.NAME)) {
+            if (field.fieldType().indexOptions() == IndexOptions.NONE && field.name().equals(UidFieldMapper.NAME)) {
                 continue;
             }
             try {

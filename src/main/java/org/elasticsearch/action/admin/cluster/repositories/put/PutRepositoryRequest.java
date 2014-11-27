@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.repositories.put;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -51,6 +52,8 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
     private String name;
 
     private String type;
+
+    private boolean verify = true;
 
     private Settings settings = EMPTY_SETTINGS;
 
@@ -178,6 +181,20 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         return this.settings;
     }
 
+    /**
+     * Sets whether or not the repository should be verified after creation
+     */
+    public PutRepositoryRequest verify(boolean verify) {
+        this.verify = verify;
+        return this;
+    }
+
+    /**
+     * Returns true if repository should be verified after creation
+     */
+    public boolean verify() {
+        return this.verify;
+    }
 
     /**
      * Parses repository definition.
@@ -268,6 +285,12 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         type = in.readString();
         settings = readSettingsFromStream(in);
         readTimeout(in);
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            verify = in.readBoolean();
+        } else {
+            // we received this request from an older client that doesn't expect us to validate the request
+            verify = false;
+        }
     }
 
     @Override
@@ -277,5 +300,8 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         out.writeString(type);
         writeSettingsToStream(settings, out);
         writeTimeout(out);
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeBoolean(verify);
+        }
     }
 }

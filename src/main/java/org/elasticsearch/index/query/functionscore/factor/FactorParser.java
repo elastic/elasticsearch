@@ -33,6 +33,7 @@ import java.io.IOException;
 /**
  *
  */
+@Deprecated
 public class FactorParser implements ScoreFunctionParser {
 
     public static String[] NAMES = { "boost_factor", "boostFactor" };

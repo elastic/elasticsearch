@@ -1,8 +1,6 @@
 [[index-modules-shard-query-cache]]
 == Shard query cache
 
-coming[1.4.0]
-
 When a search request is run against an index or against many indices, each
 involved shard executes the search locally and returns its local results to
 the _coordinating node_, which combines these shard-level results into a
@@ -17,7 +15,7 @@ results from older indices will be served directly from the cache.
 [IMPORTANT]
 ==================================
 
-For now, the query cache will only  only cache the results of search requests
+For now, the query cache will only cache the results of search requests
 where <<count,`?search_type=count`>>, so it will not cache `hits`,
 but it will cache `hits.total`,  <<search-aggregations,aggregations>>, and
 <<search-suggesters,suggestions>>.
@@ -82,7 +80,7 @@ caching on a *per-query* basis.  If set, it overrides the index-level setting:
 
 [source,json]
 -----------------------------
-curl localhost:9200/my_index/_search?search_type=count&query_cache=true -d'
+curl 'localhost:9200/my_index/_search?search_type=count&query_cache=true' -d'
 {
   "aggs": {
     "popular_colors": {
@@ -134,12 +132,12 @@ by index, with the <<indices-stats,`indices-stats`>> API:
 
 [source,json]
 ------------------------
-curl -XPOST 'localhost:9200/_stats/query_cache?pretty&human'
+curl 'localhost:9200/_stats/query_cache?pretty&human'
 ------------------------
 
 or by node with the <<cluster-nodes-stats,`nodes-stats`>> API:
 
 [source,json]
 ------------------------
-curl -XPOST 'localhost:9200/_nodes/stats/indices/query_cache?pretty&human'
+curl 'localhost:9200/_nodes/stats/indices/query_cache?pretty&human'
 ------------------------

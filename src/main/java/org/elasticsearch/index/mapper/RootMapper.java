@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.index.mapper.object.RootObjectMapper;
+
 import java.io.IOException;
 
 
@@ -27,12 +29,24 @@ import java.io.IOException;
  */
 public interface RootMapper extends Mapper {
 
+    /**
+     * Called before {@link #parse(ParseContext)} on the {@link RootObjectMapper}.
+     */
     void preParse(ParseContext context) throws IOException;
 
+    /**
+     * Called after {@link #parse(ParseContext)} on the {@link RootObjectMapper}.
+     */
     void postParse(ParseContext context) throws IOException;
 
     /**
-     * Should the mapper be included in the root {@link org.elasticsearch.index.mapper.object.ObjectMapper}.
+     * Should the mapper be included in the root
+     * {@link org.elasticsearch.index.mapper.object.ObjectMapper}.
+     *
+     * If this method returns true, then {@link #parse(ParseContext)} will be
+     * called if the context has a property that matches the name of this
+     * {@link RootMapper}. Otherwise {@link #parse(ParseContext)} will not
+     * be called.
      */
     boolean includeInObject();
 

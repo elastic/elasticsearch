@@ -67,7 +67,7 @@ mode (`v`). The header name will match the supplied value (e.g.,
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-% curl 192.168.56.10:9200/_cat/nodes?v\&h=id,ip,port,v,m
+% curl 192.168.56.10:9200/_cat/nodes?v&h=id,ip,port,v,m
 id   ip            port version m
 pLSN 192.168.56.30 9300 {version}   m
 k0zy 192.168.56.10 9300 {version}   m
@@ -90,10 +90,18 @@ k0zy 192.168.56.10 9300 {version} m
 |`build` |`b` |No |Elasticsearch Build hash |5c03844
 |`jdk` |`j` |No |Running Java version |1.8.0
 |`disk.avail` |`d`, `disk`, `diskAvail` |No |Available disk space |1.8gb
-|`heap.percent` |`hp`, `heapPercent` |No |Used heap percentage |7
+|`heap.current` |`hc`, `heapCurrent` |No |Used heap |311.2mb
+|`heap.percent` |`hp`, `heapPercent` |Yes |Used heap percentage |7
 |`heap.max` |`hm`, `heapMax` |No |Maximum configured heap |1015.6mb
-|`ram.percent` |`rp`, `ramPercent` |No |Used total memory percentage |47
+|`ram.current` |`rc`, `ramCurrent` |No |Used total memory |513.4mb
+|`ram.percent` |`rp`, `ramPercent` |Yes |Used total memory percentage |47
 |`ram.max` |`rm`, `ramMax` |No |Total memory |2.9gb
+|`file_desc.current` |`fdc`, `fileDescriptorCurrent` |No |Used file
+descriptors |123
+|`file_desc.percent` |`fdp`, `fileDescriptorPercent` |Yes |Used file
+descriptors percentage |1
+|`file_desc.max` |`fdm`, `fileDescriptorMax` |No |Maximum number of file
+descriptors |1024
 |`load` |`l` |No |Most recent load average |0.22
 |`uptime` |`u` |No |Node uptime |17.3m
 |`node.role` |`r`, `role`, `dc`, `nodeRole` |Yes |Data node (d); Client
@@ -180,7 +188,9 @@ operations |9
 |`segments.memory` |`sm`, `segmentsMemory` |No |Memory used by
 segments |1.4kb
 |`segments.index_writer_memory` |`siwm`, `segmentsIndexWriterMemory` |No
-|Memory used by index writer |1.2kb
+|Memory used by index writer |18mb
+|`segments.index_writer_max_memory` |`siwmx`, `segmentsIndexWriterMaxMemory` |No
+|Maximum memory index writer may use before it must write buffered documents to a new segment |32mb
 |`segments.version_map_memory` |`svmm`, `segmentsVersionMapMemory` |No
 |Memory used by version map |1.0kb
 |=======================================================================

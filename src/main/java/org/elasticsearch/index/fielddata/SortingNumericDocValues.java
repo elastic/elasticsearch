@@ -29,7 +29,7 @@ import org.apache.lucene.util.Sorter;
  */
 public abstract class SortingNumericDocValues extends SortedNumericDocValues {
 
-    protected int count;
+    private int count;
     protected long[] values;
     private final Sorter sorter;
 
@@ -52,9 +52,11 @@ public abstract class SortingNumericDocValues extends SortedNumericDocValues {
     }
 
     /**
-     * Make sure the {@link #values} array can store at least {@link #count} entries.
+     * Set the {@link #count()} and ensure that the {@link #values} array can
+     * store at least that many entries.
      */
-    protected final void grow() {
+    protected final void resize(int newSize) {
+        count = newSize;
         values = ArrayUtil.grow(values, count);
     }
 

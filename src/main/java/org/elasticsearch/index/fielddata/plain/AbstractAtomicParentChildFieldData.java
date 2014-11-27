@@ -22,12 +22,14 @@ package org.elasticsearch.index.fielddata.plain;
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
+import java.util.Collections;
 import java.util.Set;
 
 
@@ -87,6 +89,11 @@ abstract class AbstractAtomicParentChildFieldData implements AtomicParentChildFi
             @Override
             public long ramBytesUsed() {
                 return 0;
+            }
+            
+            @Override
+            public Iterable<? extends Accountable> getChildResources() {
+                return Collections.emptyList();
             }
 
             @Override

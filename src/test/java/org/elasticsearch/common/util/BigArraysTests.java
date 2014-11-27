@@ -336,7 +336,7 @@ public class BigArraysTests extends ElasticsearchSingleNodeTest {
         for (String type : Arrays.asList("Byte", "Int", "Long", "Float", "Double", "Object")) {
             HierarchyCircuitBreakerService hcbs = new HierarchyCircuitBreakerService(
                     ImmutableSettings.builder()
-                            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, size)
+                            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, size - 1)
                             .build(),
                     new NodeSettingsService(ImmutableSettings.EMPTY));
             BigArrays bigArrays = new BigArrays(ImmutableSettings.EMPTY, null, hcbs).withCircuitBreaking();

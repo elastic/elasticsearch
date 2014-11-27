@@ -78,7 +78,7 @@ once or more times. For string `"aaabbb"`:
     a+b+        # match
     aa+bb+      # match
     a+.+        # match
-    aa+bbb+     # no match
+    aa+bbb+     # match
 
 --
 
@@ -189,7 +189,7 @@ negates the character class. The allowed forms are:
     [^-abc]  # any character except '-' or 'a' or 'b' or 'c'
     [^abc\-] # any character except '-' or 'a' or 'b' or 'c'
 
-Note that the dash `"-"` indicates a range of characeters, unless it is
+Note that the dash `"-"` indicates a range of characters, unless it is
 the first character or if it is escaped with a backslash.
 
 For string `"abcd"`:

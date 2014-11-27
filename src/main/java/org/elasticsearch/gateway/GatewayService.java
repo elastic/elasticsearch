@@ -35,7 +35,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -134,12 +133,6 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         if (lifecycle.stoppedOrClosed()) {
             return;
         }
-        if (event.state().blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK)) {
-            // we need to clear those flags, since we might need to recover again in case we disconnect
-            // from the cluster and then reconnect
-            recovered.set(false);
-            scheduledRecovery.set(false);
-        }
         if (event.localNodeMaster() && event.state().blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
             checkStateMeetsSettingsAndMaybeRecover(event.state(), true);
         }
@@ -147,7 +140,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
 
     protected void checkStateMeetsSettingsAndMaybeRecover(ClusterState state, boolean asyncRecovery) {
         DiscoveryNodes nodes = state.nodes();
-        if (state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK)) {
+        if (state.blocks().hasGlobalBlock(discoveryService.getNoMasterBlock())) {
             logger.debug("not recovering from gateway, no master elected yet");
         } else if (recoverAfterNodes != -1 && (nodes.masterAndDataNodes().size()) < recoverAfterNodes) {
             logger.debug("not recovering from gateway, nodes_size (data+master) [" + nodes.masterAndDataNodes().size() + "] < recover_after_nodes [" + recoverAfterNodes + "]");

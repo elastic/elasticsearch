@@ -30,25 +30,54 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.UpdateInPlaceMap;
+import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldMapperListener;
+import org.elasticsearch.index.mapper.InternalMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilders;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ObjectMapperListener;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.StrictDynamicMappingException;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.TreeMap;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
-import static org.elasticsearch.index.mapper.MapperBuilders.*;
+import static org.elasticsearch.index.mapper.MapperBuilders.binaryField;
+import static org.elasticsearch.index.mapper.MapperBuilders.booleanField;
+import static org.elasticsearch.index.mapper.MapperBuilders.dateField;
+import static org.elasticsearch.index.mapper.MapperBuilders.doubleField;
+import static org.elasticsearch.index.mapper.MapperBuilders.floatField;
+import static org.elasticsearch.index.mapper.MapperBuilders.integerField;
+import static org.elasticsearch.index.mapper.MapperBuilders.longField;
+import static org.elasticsearch.index.mapper.MapperBuilders.object;
+import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
 
 /**
@@ -175,7 +204,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         }
 
         protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers, @Nullable @IndexSettings Settings settings) {
-            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, pathType, mappers, settings);
+            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, pathType, mappers);
         }
     }
 
@@ -183,13 +212,15 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             ObjectMapper.Builder builder = createBuilder(name);
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            parseNested(name, node, builder);
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
-                parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder);
-                parseObjectProperties(name, fieldName,  fieldNode,  builder);
+                if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder) || parseObjectProperties(name, fieldName,  fieldNode,  builder)) {
+                    iterator.remove();
+                }
             }
-            parseNested(name, node, builder);
             return builder;
         }
 
@@ -221,10 +252,12 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             return false;
         }
 
-        protected static void parseObjectProperties(String name, String fieldName, Object fieldNode, ObjectMapper.Builder builder) {
-           if (fieldName.equals("path")) {
+        protected static boolean parseObjectProperties(String name, String fieldName, Object fieldNode, ObjectMapper.Builder builder) {
+            if (fieldName.equals("path")) {
                 builder.pathType(parsePathType(name, fieldNode.toString()));
+                return true;
             }
+           return false;
         }
 
         protected static void parseNested(String name, Map<String, Object> node, ObjectMapper.Builder builder) {
@@ -245,10 +278,12 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             fieldNode = node.get("include_in_parent");
             if (fieldNode != null) {
                 nestedIncludeInParent = nodeBooleanValue(fieldNode);
+                node.remove("include_in_parent");
             }
             fieldNode = node.get("include_in_root");
             if (fieldNode != null) {
                 nestedIncludeInRoot = nodeBooleanValue(fieldNode);
+                node.remove("include_in_root");
             }
             if (nested) {
                 builder.nested = Nested.newNested(nestedIncludeInParent, nestedIncludeInRoot);
@@ -257,34 +292,55 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         }
 
         protected static void parseProperties(ObjectMapper.Builder objBuilder, Map<String, Object> propsNode, ParserContext parserContext) {
-            for (Map.Entry<String, Object> entry : propsNode.entrySet()) {
+            Iterator<Map.Entry<String, Object>> iterator = propsNode.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String propName = entry.getKey();
-                Map<String, Object> propNode = (Map<String, Object>) entry.getValue();
+                // Should accept empty arrays, as a work around for when the
+                // user can't provide an empty Map. (PHP for example)
+                boolean isEmptyList = entry.getValue() instanceof List && ((List<?>) entry.getValue()).isEmpty();
 
-                String type;
-                Object typeNode = propNode.get("type");
-                if (typeNode != null) {
-                    type = typeNode.toString();
-                } else {
-                    // lets see if we can derive this...
-                    if (propNode.get("properties") != null) {
-                        type = ObjectMapper.CONTENT_TYPE;
-                    } else if (propNode.size() == 1 && propNode.get("enabled") != null) {
-                        // if there is a single property with the enabled flag on it, make it an object
-                        // (usually, setting enabled to false to not index any type, including core values, which
-                        // non enabled object type supports).
-                        type = ObjectMapper.CONTENT_TYPE;
+                if (entry.getValue() instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> propNode = (Map<String, Object>) entry.getValue();
+                    String type;
+                    Object typeNode = propNode.get("type");
+                    if (typeNode != null) {
+                        type = typeNode.toString();
                     } else {
-                        throw new MapperParsingException("No type specified for property [" + propName + "]");
+                        // lets see if we can derive this...
+                        if (propNode.get("properties") != null) {
+                            type = ObjectMapper.CONTENT_TYPE;
+                        } else if (propNode.size() == 1 && propNode.get("enabled") != null) {
+                            // if there is a single property with the enabled
+                            // flag on it, make it an object
+                            // (usually, setting enabled to false to not index
+                            // any type, including core values, which
+                            type = ObjectMapper.CONTENT_TYPE;
+                        } else {
+                            throw new MapperParsingException("No type specified for property [" + propName + "]");
+                        }
                     }
-                }
 
-                Mapper.TypeParser typeParser = parserContext.typeParser(type);
-                if (typeParser == null) {
-                    throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + propName + "]");
+                    Mapper.TypeParser typeParser = parserContext.typeParser(type);
+                    if (typeParser == null) {
+                        throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + propName + "]");
+                    }
+                    objBuilder.add(typeParser.parse(propName, propNode, parserContext));
+                    propNode.remove("type");
+                    DocumentMapperParser.checkNoRemainingFields(propName, propNode, parserContext.indexVersionCreated());
+                    iterator.remove();
+                } else if (isEmptyList) {
+                    iterator.remove();
+                } else {
+                    throw new MapperParsingException("Expected map for property [fields] on field [" + propName + "] but got a "
+                            + propName.getClass());
                 }
-                objBuilder.add(typeParser.parse(propName, propNode, parserContext));
             }
+
+            DocumentMapperParser.checkNoRemainingFields(propsNode, parserContext.indexVersionCreated(),
+                    "DocType mapping definition has unsupported parameters: ");
+
         }
 
         protected Builder createBuilder(String name) {
@@ -311,22 +367,21 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
     private Boolean includeInAll;
 
-    private final UpdateInPlaceMap<String, Mapper> mappers;
+    private volatile CopyOnWriteHashMap<String, Mapper> mappers;
 
     private final Object mutex = new Object();
 
-    ObjectMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers, @Nullable @IndexSettings Settings settings) {
+    ObjectMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers) {
         this.name = name;
         this.fullPath = fullPath;
         this.enabled = enabled;
         this.nested = nested;
         this.dynamic = dynamic;
         this.pathType = pathType;
-        this.mappers = UpdateInPlaceMap.of(MapperService.getFieldMappersCollectionSwitch(settings));
-        if (mappers != null) {
-            UpdateInPlaceMap<String, Mapper>.Mutator mappersMutator = this.mappers.mutator();
-            mappersMutator.putAll(mappers);
-            mappersMutator.close();
+        if (mappers == null) {
+            this.mappers = new CopyOnWriteHashMap<>();
+        } else {
+            this.mappers = CopyOnWriteHashMap.copyOf(mappers);
         }
         this.nestedTypePathAsString = "__" + fullPath;
         this.nestedTypePathAsBytes = new BytesRef(nestedTypePathAsString);
@@ -389,9 +444,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             ((AllFieldMapper.IncludeInAll) mapper).includeInAllIfNotSet(includeInAll);
         }
         synchronized (mutex) {
-            UpdateInPlaceMap<String, Mapper>.Mutator mappingMutator = this.mappers.mutator();
-            mappingMutator.put(mapper.name(), mapper);
-            mappingMutator.close();
+            mappers = mappers.copyAndPut(mapper.name(), mapper);
         }
         return this;
     }
@@ -413,10 +466,6 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
     public String fullPath() {
         return this.fullPath;
-    }
-
-    public BytesRef nestedTypePathAsBytes() {
-        return nestedTypePathAsBytes;
     }
 
     public String nestedTypePathAsString() {
@@ -739,11 +788,6 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                         }
                     }
 
-                    if (!resolved && context.parser().textLength() == 0) {
-                        // empty string with no mapping, treat it like null value
-                        return;
-                    }
-
                     if (!resolved && context.root().dateDetection()) {
                         String text = context.parser().text();
                         // a safe check since "1" gets parsed as well
@@ -791,21 +835,6 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                             }
                         }
                     }
-                    // DON'T do automatic ip detection logic, since it messes up with docs that have hosts and ips
-                    // check if its an ip
-//                if (!resolved && text.indexOf('.') != -1) {
-//                    try {
-//                        IpFieldMapper.ipToLong(text);
-//                        XContentMapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "ip");
-//                        if (builder == null) {
-//                            builder = ipField(currentFieldName);
-//                        }
-//                        mapper = builder.build(builderContext);
-//                        resolved = true;
-//                    } catch (Exception e) {
-//                        // failure to parse, not ip...
-//                    }
-//                }
                     if (!resolved) {
                         Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
                         if (builder == null) {
@@ -1052,4 +1081,5 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
 
     }
+
 }

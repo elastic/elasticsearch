@@ -70,7 +70,7 @@ public abstract class AbstractRangeBuilder<B extends AbstractRangeBuilder<B>> ex
     @Override
     protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
         if (ranges.isEmpty()) {
-            throw new SearchSourceBuilderException("at least one range must be defined for range aggregation [" + name + "]");
+            throw new SearchSourceBuilderException("at least one range must be defined for range aggregation [" + getName() + "]");
         }
         builder.startArray("ranges");
         for (Range range : ranges) {

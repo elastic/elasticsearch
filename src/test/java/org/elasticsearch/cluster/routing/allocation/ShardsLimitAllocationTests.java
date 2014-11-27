@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -30,7 +31,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
@@ -52,7 +52,7 @@ public class ShardsLimitAllocationTests extends ElasticsearchAllocationTestCase 
         logger.info("Building initial routing table");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(ImmutableSettings.settingsBuilder()
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 4)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                         .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE, 2)))
@@ -102,7 +102,7 @@ public class ShardsLimitAllocationTests extends ElasticsearchAllocationTestCase 
         logger.info("Building initial routing table");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(ImmutableSettings.settingsBuilder()
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 ))
@@ -127,7 +127,7 @@ public class ShardsLimitAllocationTests extends ElasticsearchAllocationTestCase 
 
         logger.info("add another index with 5 shards");
         metaData = MetaData.builder(metaData)
-                .put(IndexMetaData.builder("test1").settings(ImmutableSettings.settingsBuilder()
+                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 ))
@@ -158,7 +158,7 @@ public class ShardsLimitAllocationTests extends ElasticsearchAllocationTestCase 
 
         logger.info("update " + ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE + " for test, see that things move");
         metaData = MetaData.builder(metaData)
-                .put(IndexMetaData.builder("test").settings(ImmutableSettings.settingsBuilder()
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE, 3)

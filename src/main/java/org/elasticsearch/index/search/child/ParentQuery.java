@@ -26,7 +26,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
@@ -199,7 +198,7 @@ public class ParentQuery extends Query {
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext context) throws IOException {
+        protected void doSetNextReader(LeafReaderContext context) throws IOException {
             values = globalIfd.load(context).getOrdinalsValues(parentType);
         }
 
@@ -224,14 +223,14 @@ public class ParentQuery extends Query {
 
         private ChildWeight(Weight parentWeight, Filter childrenFilter, ParentOrdAndScoreCollector collector, IndexParentChildFieldData globalIfd) {
             this.parentWeight = parentWeight;
-            this.childrenFilter = new ApplyAcceptedDocsFilter(childrenFilter);
+            this.childrenFilter = childrenFilter;
             this.parentIdxs = collector.parentIdxs;
             this.scores = collector.scores;
             this.globalIfd = globalIfd;
         }
 
         @Override
-        public Explanation explain(AtomicReaderContext context, int doc) throws IOException {
+        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
             return new Explanation(getBoost(), "not implemented yet...");
         }
 
@@ -252,7 +251,7 @@ public class ParentQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
             DocIdSet childrenDocSet = childrenFilter.getDocIdSet(context, acceptDocs);
             if (DocIdSets.isEmpty(childrenDocSet)) {
                 return null;

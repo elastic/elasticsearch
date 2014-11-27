@@ -23,7 +23,10 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -50,7 +53,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsT
 /**
  * A request to create an index template.
  */
-public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndexTemplateRequest> {
+public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndexTemplateRequest> implements IndicesRequest {
 
     private String name;
 
@@ -238,6 +241,15 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
         }
     }
 
+    /**
+     * A specialized simplified mapping source method, takes the form of simple properties definition:
+     * ("field1", "type=string,store=true").
+     */
+    public PutIndexTemplateRequest mapping(String type, Object... source) {
+        mapping(type, PutMappingRequest.buildFromSimplifiedDef(type, source));
+        return this;
+    }
+
     Map<String, String> mappings() {
         return this.mappings;
     }
@@ -402,6 +414,16 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
     public PutIndexTemplateRequest alias(Alias alias) {
         aliases.add(alias);
         return this;
+    }
+
+    @Override
+    public String[] indices() {
+        return new String[]{template};
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictExpand();
     }
 
     @Override

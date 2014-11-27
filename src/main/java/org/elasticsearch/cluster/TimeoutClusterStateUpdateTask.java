@@ -25,11 +25,11 @@ import org.elasticsearch.common.unit.TimeValue;
  * An extension interface to {@link org.elasticsearch.cluster.ClusterStateUpdateTask} that allows to associate
  * a timeout.
  */
-public interface TimeoutClusterStateUpdateTask extends ProcessedClusterStateUpdateTask {
+abstract public class TimeoutClusterStateUpdateTask extends ProcessedClusterStateUpdateTask {
 
     /**
      * If the cluster state update task wasn't processed by the provided timeout, call
      * {@link #onFailure(String, Throwable)}
      */
-    TimeValue timeout();
+    abstract public TimeValue timeout();
 }

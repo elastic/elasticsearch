@@ -21,6 +21,7 @@ package org.elasticsearch.plugins;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import javax.net.ssl.HttpsURLConnection;
@@ -53,6 +55,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 import static org.elasticsearch.common.Strings.hasLength;
+import static org.elasticsearch.common.io.FileSystemUtils.moveFilesWithoutOverwriting;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 
 /**
@@ -221,12 +224,20 @@ public class PluginManager {
                     // ignore
                 }
             }
-            pluginFile.delete();
+            try {
+                Files.delete(pluginFile.toPath());
+            } catch (Exception ex) {
+                log("Failed to delete plugin file" + pluginFile + " " + ex);
+            }
         }
 
         if (FileSystemUtils.hasExtensions(extractLocation, ".java")) {
             debug("Plugin installation assumed to be site plugin, but contains source code, aborting installation...");
-            FileSystemUtils.deleteRecursively(extractLocation);
+            try {
+                IOUtils.rm(extractLocation.toPath());
+            } catch(Exception ex) {
+                debug("Failed to remove site plugin from path " + extractLocation + " - " + ex.getMessage());
+            }
             throw new IllegalArgumentException("Plugin installation assumed to be site plugin, but contains source code, aborting installation.");
         }
 
@@ -236,7 +247,9 @@ public class PluginManager {
         if (binFile.exists() && binFile.isDirectory()) {
             File toLocation = pluginHandle.binDir(environment);
             debug("Found bin, moving to " + toLocation.getAbsolutePath());
-            FileSystemUtils.deleteRecursively(toLocation);
+            if (toLocation.exists()) {
+                IOUtils.rm(toLocation.toPath());
+            }
             if (!binFile.renameTo(toLocation)) {
                 throw new IOException("Could not move ["+ binFile.getAbsolutePath() + "] to [" + toLocation.getAbsolutePath() + "]");
             }
@@ -256,13 +269,10 @@ public class PluginManager {
 
         File configFile = new File(extractLocation, "config");
         if (configFile.exists() && configFile.isDirectory()) {
-            File toLocation = pluginHandle.configDir(environment);
-            debug("Found config, moving to " + toLocation.getAbsolutePath());
-            FileSystemUtils.deleteRecursively(toLocation);
-            if (!configFile.renameTo(toLocation)) {
-                throw new IOException("Could not move ["+ configFile.getAbsolutePath() + "] to [" + configFile.getAbsolutePath() + "]");
-            }
-            debug("Installed " + name + " into " + toLocation.getAbsolutePath());
+            File configDestLocation = pluginHandle.configDir(environment);
+            debug("Found config, moving to " + configDestLocation.getAbsolutePath());
+            moveFilesWithoutOverwriting(configFile, configDestLocation, ".new");
+            debug("Installed " + name + " into " + configDestLocation.getAbsolutePath());
             potentialSitePlugin = false;
         }
 
@@ -296,39 +306,37 @@ public class PluginManager {
         File pluginToDelete = pluginHandle.extractedDir(environment);
         if (pluginToDelete.exists()) {
             debug("Removing: " + pluginToDelete.getPath());
-            if (!FileSystemUtils.deleteRecursively(pluginToDelete, true)) {
+            try {
+                IOUtils.rm(pluginToDelete.toPath());
+            } catch (IOException ex){
                 throw new IOException("Unable to remove " + pluginHandle.name + ". Check file permissions on " +
-                        pluginToDelete.toString());
+                        pluginToDelete.toString(), ex);
             }
             removed = true;
         }
         pluginToDelete = pluginHandle.distroFile(environment);
         if (pluginToDelete.exists()) {
             debug("Removing: " + pluginToDelete.getPath());
-            if (!pluginToDelete.delete()) {
+            try {
+                Files.delete(pluginToDelete.toPath());
+            } catch (Exception ex) {
                 throw new IOException("Unable to remove " + pluginHandle.name + ". Check file permissions on " +
-                        pluginToDelete.toString());
+                        pluginToDelete.toString(), ex);
             }
             removed = true;
         }
         File binLocation = pluginHandle.binDir(environment);
         if (binLocation.exists()) {
             debug("Removing: " + binLocation.getPath());
-            if (!FileSystemUtils.deleteRecursively(binLocation)) {
+            try {
+                IOUtils.rm(binLocation.toPath());
+            } catch (IOException ex){
                 throw new IOException("Unable to remove " + pluginHandle.name + ". Check file permissions on " +
-                        binLocation.toString());
+                        binLocation.toString(), ex);
             }
             removed = true;
         }
-        File configLocation = pluginHandle.configDir(environment);
-        if (configLocation.exists()) {
-            debug("Removing: " + configLocation.getPath());
-            if (!FileSystemUtils.deleteRecursively(configLocation)) {
-                throw new IOException("Unable to remove " + pluginHandle.name + ". Check file permissions on " +
-                        configLocation.toString());
-            }
-            removed = true;
-        }
+
         if (removed) {
             log("Removed " + name);
         } else {
@@ -654,7 +662,7 @@ public class PluginManager {
         }
 
         File configDir(Environment env) {
-            return new File(new File(env.homeFile(), "config"), name);
+            return new File(env.configFile(), name);
         }
 
         static PluginHandle parse(String name) {

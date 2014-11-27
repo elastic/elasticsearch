@@ -18,15 +18,25 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DocsEnum;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LongBitSet;
+import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.util.BytesRefHash;
@@ -47,7 +57,7 @@ import java.util.List;
  */
 final class ParentIdsFilter extends Filter {
 
-    static Filter createShortCircuitFilter(Filter nonNestedDocsFilter, SearchContext searchContext,
+    static Filter createShortCircuitFilter(BitDocIdSetFilter nonNestedDocsFilter, SearchContext searchContext,
                                            String parentType, SortedDocValues globalValues,
                                            LongBitSet parentOrds, long numFoundParents) {
         if (numFoundParents == 1) {
@@ -80,7 +90,7 @@ final class ParentIdsFilter extends Filter {
         }
     }
 
-    static Filter createShortCircuitFilter(Filter nonNestedDocsFilter, SearchContext searchContext,
+    static Filter createShortCircuitFilter(BitDocIdSetFilter nonNestedDocsFilter, SearchContext searchContext,
                                            String parentType, SortedDocValues globalValues,
                                            LongHash parentIdxs, long numFoundParents) {
         if (numFoundParents == 1) {
@@ -114,48 +124,56 @@ final class ParentIdsFilter extends Filter {
     }
 
     private final BytesRef parentTypeBr;
-    private final Filter nonNestedDocsFilter;
+    private final BitDocIdSetFilter nonNestedDocsFilter;
     private final BytesRefHash parentIds;
 
-    private ParentIdsFilter(String parentType, Filter nonNestedDocsFilter, BytesRefHash parentIds) {
+    private ParentIdsFilter(String parentType, BitDocIdSetFilter nonNestedDocsFilter, BytesRefHash parentIds) {
         this.nonNestedDocsFilter = nonNestedDocsFilter;
         this.parentTypeBr = new BytesRef(parentType);
         this.parentIds = parentIds;
     }
 
     @Override
-    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+    public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
         Terms terms = context.reader().terms(UidFieldMapper.NAME);
         if (terms == null) {
             return null;
         }
 
         TermsEnum termsEnum = terms.iterator(null);
-        BytesRef uidSpare = new BytesRef();
+        BytesRefBuilder uidSpare = new BytesRefBuilder();
         BytesRef idSpare = new BytesRef();
 
         if (acceptDocs == null) {
             acceptDocs = context.reader().getLiveDocs();
         }
 
-        FixedBitSet nonNestedDocs = null;
+        BitSet nonNestedDocs = null;
         if (nonNestedDocsFilter != null) {
-            nonNestedDocs = (FixedBitSet) nonNestedDocsFilter.getDocIdSet(context, acceptDocs);
+            nonNestedDocs = nonNestedDocsFilter.getDocIdSet(context).bits();
         }
 
         DocsEnum docsEnum = null;
-        FixedBitSet result = null;
-        long size = parentIds.size();
+        BitSet result = null;
+        int size = (int) parentIds.size();
         for (int i = 0; i < size; i++) {
             parentIds.get(i, idSpare);
-            Uid.createUidAsBytes(parentTypeBr, idSpare, uidSpare);
-            if (termsEnum.seekExact(uidSpare)) {
+            BytesRef uid = Uid.createUidAsBytes(parentTypeBr, idSpare, uidSpare);
+            if (termsEnum.seekExact(uid)) {
                 int docId;
                 docsEnum = termsEnum.docs(acceptDocs, docsEnum, DocsEnum.FLAG_NONE);
                 if (result == null) {
                     docId = docsEnum.nextDoc();
                     if (docId != DocIdSetIterator.NO_MORE_DOCS) {
-                        result = new FixedBitSet(context.reader().maxDoc());
+                        // very rough heuristic that tries to get an idea of the number of documents
+                        // in the set based on the number of parent ids that we didn't find in this segment
+                        final int expectedCardinality = size / (i + 1);
+                        // similar heuristic to BitDocIdSet.Builder
+                        if (expectedCardinality >= (context.reader().maxDoc() >>> 10)) {
+                            result = new FixedBitSet(context.reader().maxDoc());
+                        } else {
+                            result = new SparseFixedBitSet(context.reader().maxDoc());
+                        }
                     } else {
                         continue;
                     }
@@ -165,13 +183,13 @@ final class ParentIdsFilter extends Filter {
                         continue;
                     }
                 }
-                if (nonNestedDocs != null && !nonNestedDocs.get(docId)) {
+                if (nonNestedDocs != null) {
                     docId = nonNestedDocs.nextSetBit(docId);
                 }
                 result.set(docId);
                 assert docsEnum.advance(docId + 1) == DocIdSetIterator.NO_MORE_DOCS : "DocId " + docId + " should have been the last one but docId " + docsEnum.docID() + " exists.";
             }
         }
-        return result;
+        return result == null ? null : new BitDocIdSet(result);
     }
 }

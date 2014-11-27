@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
@@ -131,10 +132,8 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
     @Override
     protected void doStop() throws ElasticsearchException {
-        if (scheduler != null) {
-            scheduler.cancel(false);
-            scheduler = null;
-        }
+        FutureUtils.cancel(scheduler);
+        scheduler = null;
     }
 
     @Override

@@ -18,9 +18,10 @@
  */
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.MultiDocValues.OrdinalMap;
 import org.apache.lucene.index.RandomAccessOrds;
-import org.apache.lucene.index.XOrdinalMap;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
@@ -35,7 +36,7 @@ final class InternalGlobalOrdinalsIndexFieldData extends GlobalOrdinalsIndexFiel
 
     private final Atomic[] atomicReaders;
 
-    InternalGlobalOrdinalsIndexFieldData(Index index, Settings settings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, AtomicOrdinalsFieldData[] segmentAfd, XOrdinalMap ordinalMap, long memorySizeInBytes) {
+    InternalGlobalOrdinalsIndexFieldData(Index index, Settings settings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, AtomicOrdinalsFieldData[] segmentAfd, OrdinalMap ordinalMap, long memorySizeInBytes) {
         super(index, settings, fieldNames, fieldDataType, memorySizeInBytes);
         this.atomicReaders = new Atomic[segmentAfd.length];
         for (int i = 0; i < segmentAfd.length; i++) {
@@ -44,17 +45,17 @@ final class InternalGlobalOrdinalsIndexFieldData extends GlobalOrdinalsIndexFiel
     }
 
     @Override
-    public AtomicOrdinalsFieldData load(AtomicReaderContext context) {
+    public AtomicOrdinalsFieldData load(LeafReaderContext context) {
         return atomicReaders[context.ord];
     }
 
     private final class Atomic extends AbstractAtomicOrdinalsFieldData {
 
         private final AtomicOrdinalsFieldData afd;
-        private final XOrdinalMap ordinalMap;
+        private final OrdinalMap ordinalMap;
         private final int segmentIndex;
 
-        private Atomic(AtomicOrdinalsFieldData afd, XOrdinalMap ordinalMap, int segmentIndex) {
+        private Atomic(AtomicOrdinalsFieldData afd, OrdinalMap ordinalMap, int segmentIndex) {
             this.afd = afd;
             this.ordinalMap = ordinalMap;
             this.segmentIndex = segmentIndex;
@@ -77,6 +78,11 @@ final class InternalGlobalOrdinalsIndexFieldData extends GlobalOrdinalsIndexFiel
         @Override
         public long ramBytesUsed() {
             return afd.ramBytesUsed();
+        }
+
+        @Override
+        public Iterable<? extends Accountable> getChildResources() {
+            return afd.getChildResources();
         }
 
         @Override

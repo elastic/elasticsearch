@@ -37,6 +37,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.http.*;
+import org.elasticsearch.http.netty.pipelining.HttpPipeliningHandler;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.transport.BindTransportException;
 import org.jboss.netty.bootstrap.ServerBootstrap;
@@ -46,7 +47,6 @@ import org.jboss.netty.channel.socket.oio.OioServerSocketChannelFactory;
 import org.jboss.netty.handler.codec.http.HttpChunkAggregator;
 import org.jboss.netty.handler.codec.http.HttpContentCompressor;
 import org.jboss.netty.handler.codec.http.HttpRequestDecoder;
-import org.jboss.netty.handler.codec.http.HttpResponseEncoder;
 import org.jboss.netty.handler.timeout.ReadTimeoutException;
 
 import java.io.IOException;
@@ -73,6 +73,13 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     public static final String SETTING_CORS_ALLOW_METHODS = "http.cors.allow-methods";
     public static final String SETTING_CORS_ALLOW_HEADERS = "http.cors.allow-headers";
     public static final String SETTING_CORS_ALLOW_CREDENTIALS = "http.cors.allow-credentials";
+    public static final String SETTING_PIPELINING = "http.pipelining";
+    public static final String SETTING_PIPELINING_MAX_EVENTS = "http.pipelining.max_events";
+    public static final String SETTING_HTTP_COMPRESSION = "http.compression";
+    public static final String SETTING_HTTP_COMPRESSION_LEVEL = "http.compression_level";
+
+    public static final boolean DEFAULT_SETTING_PIPELINING = true;
+    public static final int DEFAULT_SETTING_PIPELINING_MAX_EVENTS = 10000;
 
     private final NetworkService networkService;
     final BigArrays bigArrays;
@@ -85,6 +92,10 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     private final int workerCount;
 
     private final boolean blockingServer;
+
+    final boolean pipelining;
+
+    private final int pipeliningMaxEvents;
 
     final boolean compression;
 
@@ -165,8 +176,10 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
             receiveBufferSizePredictorFactory = new AdaptiveReceiveBufferSizePredictorFactory((int) receivePredictorMin.bytes(), (int) receivePredictorMin.bytes(), (int) receivePredictorMax.bytes());
         }
 
-        this.compression = settings.getAsBoolean("http.compression", false);
-        this.compressionLevel = settings.getAsInt("http.compression_level", 6);
+        this.compression = settings.getAsBoolean(SETTING_HTTP_COMPRESSION, false);
+        this.compressionLevel = settings.getAsInt(SETTING_HTTP_COMPRESSION_LEVEL, 6);
+        this.pipelining = settings.getAsBoolean(SETTING_PIPELINING, DEFAULT_SETTING_PIPELINING);
+        this.pipeliningMaxEvents = settings.getAsInt(SETTING_PIPELINING_MAX_EVENTS, DEFAULT_SETTING_PIPELINING_MAX_EVENTS);
 
         // validate max content length
         if (maxContentLength.bytes() > Integer.MAX_VALUE) {
@@ -175,8 +188,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         }
         this.maxContentLength = maxContentLength;
 
-        logger.debug("using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}], receive_predictor[{}->{}]",
-                maxChunkSize, maxHeaderSize, maxInitialLineLength, this.maxContentLength, receivePredictorMin, receivePredictorMax);
+        logger.debug("using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}], receive_predictor[{}->{}], pipelining[{}], pipelining_max_events[{}]",
+                maxChunkSize, maxHeaderSize, maxInitialLineLength, this.maxContentLength, receivePredictorMin, receivePredictorMax, pipelining, pipeliningMaxEvents);
     }
 
     public Settings settings() {
@@ -367,9 +380,12 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
                 httpChunkAggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             }
             pipeline.addLast("aggregator", httpChunkAggregator);
-            pipeline.addLast("encoder", new HttpResponseEncoder());
+            pipeline.addLast("encoder", new ESHttpResponseEncoder());
             if (transport.compression) {
                 pipeline.addLast("encoder_compress", new HttpContentCompressor(transport.compressionLevel));
+            }
+            if (transport.pipelining) {
+                pipeline.addLast("pipelining", new HttpPipeliningHandler(transport.pipeliningMaxEvents));
             }
             pipeline.addLast("handler", requestHandler);
             return pipeline;

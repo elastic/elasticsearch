@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.common.lucene;
 
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.FilterAtomicReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
@@ -31,7 +31,7 @@ public class SegmentReaderUtils {
      * If no SegmentReader can be extracted an {@link org.elasticsearch.ElasticsearchIllegalStateException} is thrown.
      */
     @Nullable
-    public static SegmentReader segmentReader(AtomicReader reader) {
+    public static SegmentReader segmentReader(LeafReader reader) {
         return internalSegmentReader(reader, true);
     }
 
@@ -40,24 +40,24 @@ public class SegmentReaderUtils {
      * is returned
      */
     @Nullable
-    public static SegmentReader segmentReaderOrNull(AtomicReader reader) {
+    public static SegmentReader segmentReaderOrNull(LeafReader reader) {
         return internalSegmentReader(reader, false);
     }
 
-    public static boolean registerCoreListener(AtomicReader reader, SegmentReader.CoreClosedListener listener) {
+    public static boolean registerCoreListener(LeafReader reader, SegmentReader.CoreClosedListener listener) {
         reader.addCoreClosedListener(listener);
         return true;
     }
 
-    private static SegmentReader internalSegmentReader(AtomicReader reader, boolean fail) {
+    private static SegmentReader internalSegmentReader(LeafReader reader, boolean fail) {
         if (reader == null) {
             return null;
         }
         if (reader instanceof SegmentReader) {
             return (SegmentReader) reader;
-        } else if (reader instanceof FilterAtomicReader) {
-            final FilterAtomicReader fReader = (FilterAtomicReader) reader;
-            return segmentReader(FilterAtomicReader.unwrap(fReader));
+        } else if (reader instanceof FilterLeafReader) {
+            final FilterLeafReader fReader = (FilterLeafReader) reader;
+            return segmentReader(FilterLeafReader.unwrap(fReader));
         }
         if (fail) {
             // hard fail - we can't get a SegmentReader

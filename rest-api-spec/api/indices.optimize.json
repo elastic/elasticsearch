@@ -44,10 +44,6 @@
         "wait_for_merge": {
           "type" : "boolean",
           "description" : "Specify whether the request should block until the merge process is finished (default: true)"
-        },
-        "force": {
-          "type": "boolean",
-          "description": "Force a merge operation to run, even if there is a single segment in the index (default: false)"
         }
       }
     },

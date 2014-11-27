@@ -19,6 +19,7 @@
 
 package org.elasticsearch.stresstest.fullrestart;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.count.CountResponse;
@@ -200,7 +201,11 @@ public class FullRestartStressTest {
                 File[] nodeDatas = ((InternalNode) node).injector().getInstance(NodeEnvironment.class).nodeDataLocations();
                 node.close();
                 if (clearNodeWork && !settings.get("gateway.type").equals("local")) {
-                    FileSystemUtils.deleteRecursively(nodeDatas);
+                    try {
+                        IOUtils.rm(FileSystemUtils.toPaths(nodeDatas));
+                    } catch (Exception ex) {
+                        logger.debug("failed to remove node data locations", ex);
+                    }
                 }
             }
 

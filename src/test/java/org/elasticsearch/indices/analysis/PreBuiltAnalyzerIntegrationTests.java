@@ -23,7 +23,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -47,8 +46,8 @@ public class PreBuiltAnalyzerIntegrationTests extends ElasticsearchIntegrationTe
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder()
-                .put("plugin.types", DummyAnalysisPlugin.class.getName())
                 .put(super.nodeSettings(nodeOrdinal))
+                .put("plugin.types", DummyAnalysisPlugin.class.getName())
             .build();
     }
 
@@ -82,7 +81,7 @@ public class PreBuiltAnalyzerIntegrationTests extends ElasticsearchIntegrationTe
                 .endObject()
                 .endObject();
 
-            Settings versionSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion).build();
+            Settings versionSettings = settings(randomVersion).build();
             client().admin().indices().prepareCreate(indexName).addMapping("type", mapping).setSettings(versionSettings).get();
         }
 
@@ -138,8 +137,7 @@ public class PreBuiltAnalyzerIntegrationTests extends ElasticsearchIntegrationTe
             .endObject()
             .endObject();
 
-        Settings versionSettings = ImmutableSettings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion())
+        Settings versionSettings = settings(randomVersion())
                 .put("index.analysis.analyzer.my_dummy.type", "custom")
                 .put("index.analysis.analyzer.my_dummy.filter", "my_dummy_token_filter")
                 .put("index.analysis.analyzer.my_dummy.char_filter", "my_dummy_char_filter")

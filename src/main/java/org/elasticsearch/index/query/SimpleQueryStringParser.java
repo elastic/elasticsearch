@@ -160,7 +160,7 @@ public class SimpleQueryStringParser implements QueryParser {
                                 "[" + NAME + "] default operator [" + op + "] is not allowed");
                     }
                 } else if ("flags".equals(currentFieldName)) {
-                    if (parser.hasTextCharacters()) {
+                    if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) {
                         // Possible options are:
                         // ALL, NONE, AND, OR, PREFIX, PHRASE, PRECEDENCE, ESCAPE, WHITESPACE, FUZZY, NEAR, SLOP
                         flags = SimpleQueryStringFlag.resolveFlags(parser.text());
@@ -178,6 +178,8 @@ public class SimpleQueryStringParser implements QueryParser {
                     sqsSettings.lowercaseExpandedTerms(parser.booleanValue());
                 } else if ("lenient".equals(currentFieldName)) {
                     sqsSettings.lenient(parser.booleanValue());
+                } else if ("analyze_wildcard".equals(currentFieldName)) {
+                    sqsSettings.analyzeWildcard(parser.booleanValue());
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {

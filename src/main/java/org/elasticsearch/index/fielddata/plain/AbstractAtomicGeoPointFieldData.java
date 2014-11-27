@@ -18,8 +18,10 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import org.elasticsearch.index.fielddata.*;
+import java.util.Collections;
 
+import org.apache.lucene.util.Accountable;
+import org.elasticsearch.index.fielddata.*;
 
 /**
  */
@@ -40,6 +42,11 @@ abstract class AbstractAtomicGeoPointFieldData implements AtomicGeoPointFieldDat
             @Override
             public long ramBytesUsed() {
                 return 0;
+            }
+            
+            @Override
+            public Iterable<? extends Accountable> getChildResources() {
+                return Collections.emptyList();
             }
 
             @Override

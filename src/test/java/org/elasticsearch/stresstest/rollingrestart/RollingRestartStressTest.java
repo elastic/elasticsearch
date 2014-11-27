@@ -19,6 +19,7 @@
 
 package org.elasticsearch.stresstest.rollingrestart;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -170,7 +171,12 @@ public class RollingRestartStressTest {
             File[] nodeData = ((InternalNode) nodes[nodeIndex]).injector().getInstance(NodeEnvironment.class).nodeDataLocations();
             nodes[nodeIndex].close();
             if (clearNodeData) {
-                FileSystemUtils.deleteRecursively(nodeData);
+                try {
+                    IOUtils.rm(FileSystemUtils.toPaths(nodeData));
+                } catch (Exception ex) {
+                     logger.debug("Failed to delete node data directories", ex);
+
+                }
             }
 
             try {
@@ -330,7 +336,6 @@ public class RollingRestartStressTest {
 
         Settings settings = settingsBuilder()
                 .put("index.shard.check_on_startup", true)
-                .put("gateway.type", "none")
                 .put("path.data", "data/data1,data/data2")
                 .build();
 

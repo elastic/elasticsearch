@@ -32,6 +32,9 @@ import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import java.io.IOException;
 
 /**
+ * Holds a warmer-name to a list of {@link IndexWarmersMetaData} mapping for each warmer specified
+ * in the {@link GetWarmersRequest}. This information is fetched from the current master since the metadata
+ * is contained inside the cluster-state
  */
 public class GetWarmersResponse extends ActionResponse {
 
@@ -66,7 +69,7 @@ public class GetWarmersResponse extends ActionResponse {
                 String[] types = in.readStringArray();
                 BytesReference source = in.readBytesReference();
                 Boolean queryCache = null;
-                if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+                if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
                     queryCache = in.readOptionalBoolean();
                 }
                 warmerEntryBuilder.add(new IndexWarmersMetaData.Entry(
@@ -92,7 +95,7 @@ public class GetWarmersResponse extends ActionResponse {
                 out.writeString(warmerEntry.name());
                 out.writeStringArray(warmerEntry.types());
                 out.writeBytesReference(warmerEntry.source());
-                if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+                if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
                     out.writeOptionalBoolean(warmerEntry.queryCache());
                 }
             }

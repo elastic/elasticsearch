@@ -25,10 +25,13 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import java.io.IOException;
 
 /**
- *
+ * Builder for the {@link Global} aggregation.
  */
 public class GlobalBuilder extends AggregationBuilder<GlobalBuilder> {
 
+    /**
+     * Sole constructor.
+     */
     public GlobalBuilder(String name) {
         super(name, InternalGlobal.TYPE.name());
     }

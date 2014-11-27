@@ -37,11 +37,17 @@ public class TranslogSizeMatcher extends TypeSafeMatcher<Translog.Snapshot> {
     @Override
     public boolean matchesSafely(Translog.Snapshot snapshot) {
         int count = 0;
-        while (snapshot.hasNext()) {
-            snapshot.next();
-            count++;
+        long startingPosition = snapshot.position();
+        try {
+            while (snapshot.next() != null) {
+                count++;
+            }
+            return size == count;
+        } finally {
+            // Since counting the translog size consumes the stream, reset it
+            // back to the origin position after reading
+            snapshot.seekTo(startingPosition);
         }
-        return size == count;
     }
 
     @Override

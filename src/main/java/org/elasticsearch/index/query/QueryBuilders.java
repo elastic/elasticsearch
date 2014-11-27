@@ -395,7 +395,7 @@ public abstract class QueryBuilders {
      * @param queryBuilder  The query to apply the filter to
      * @param filterBuilder The filter to apply on the query
      */
-    public static FilteredQueryBuilder filteredQuery(QueryBuilder queryBuilder, @Nullable FilterBuilder filterBuilder) {
+    public static FilteredQueryBuilder filteredQuery(@Nullable QueryBuilder queryBuilder, @Nullable FilterBuilder filterBuilder) {
         return new FilteredQueryBuilder(queryBuilder, filterBuilder);
     }
 
@@ -514,15 +514,6 @@ public abstract class QueryBuilders {
      */
     public static FuzzyLikeThisFieldQueryBuilder fuzzyLikeThisFieldQuery(String name) {
         return new FuzzyLikeThisFieldQueryBuilder(name);
-    }
-
-    /**
-     * A more like this query that runs against a specific field.
-     *
-     * @param name The field name
-     */
-    public static MoreLikeThisFieldQueryBuilder moreLikeThisFieldQuery(String name) {
-        return new MoreLikeThisFieldQueryBuilder(name);
     }
 
     /**

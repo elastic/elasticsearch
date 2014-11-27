@@ -21,8 +21,6 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Ignore;
@@ -42,29 +40,19 @@ import static org.hamcrest.Matchers.is;
 @ClusterScope(scope = SUITE)
 public abstract class ShardSizeTests extends ElasticsearchIntegrationTest {
 
-    /**
-     * to properly test the effect/functionality of shard_size, we need to force having 2 shards and also
-     * control the routing such that certain documents will end on each shard. Using "djb" routing hash + ignoring the
-     * doc type when hashing will ensure that docs with routing value "1" will end up in a different shard than docs with
-     * routing value "2".
-     */
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
-                .put("cluster.routing.operation.hash.type", "djb")
-                .put("cluster.routing.operation.use_type", "false")
-                .build();
-    }
-
     @Override
     protected int numberOfShards() {
-        return 2;
+        // we need at least 2
+        return randomIntBetween(2, DEFAULT_MAX_NUM_SHARDS);
     }
 
     protected void createIdx(String keyFieldMapping) {
         assertAcked(prepareCreate("idx")
                 .addMapping("type", "key", keyFieldMapping));
     }
+
+    protected static String routing1; // routing key to shard 1
+    protected static String routing2; // routing key to shard 2
 
     protected void indexData() throws Exception {
 
@@ -86,29 +74,32 @@ public abstract class ShardSizeTests extends ElasticsearchIntegrationTest {
 
         List<IndexRequestBuilder> docs = new ArrayList<>();
 
-        docs.addAll(indexDoc("1", "1", 5));
-        docs.addAll(indexDoc("1", "2", 4));
-        docs.addAll(indexDoc("1", "3", 3));
-        docs.addAll(indexDoc("1", "4", 2));
-        docs.addAll(indexDoc("1", "5", 1));
+        routing1 = routingKeyForShard("idx", "type", 0);
+        routing2 = routingKeyForShard("idx", "type", 1);
+
+        docs.addAll(indexDoc(routing1, "1", 5));
+        docs.addAll(indexDoc(routing1, "2", 4));
+        docs.addAll(indexDoc(routing1, "3", 3));
+        docs.addAll(indexDoc(routing1, "4", 2));
+        docs.addAll(indexDoc(routing1, "5", 1));
 
         // total docs in shard "1" = 15
 
-        docs.addAll(indexDoc("2", "1", 3));
-        docs.addAll(indexDoc("2", "2", 1));
-        docs.addAll(indexDoc("2", "3", 5));
-        docs.addAll(indexDoc("2", "4", 2));
-        docs.addAll(indexDoc("2", "5", 1));
+        docs.addAll(indexDoc(routing2, "1", 3));
+        docs.addAll(indexDoc(routing2, "2", 1));
+        docs.addAll(indexDoc(routing2, "3", 5));
+        docs.addAll(indexDoc(routing2, "4", 2));
+        docs.addAll(indexDoc(routing2, "5", 1));
 
         // total docs in shard "2"  = 12
 
         indexRandom(true, docs);
 
-        SearchResponse resp = client().prepareSearch("idx").setTypes("type").setRouting("1").setQuery(matchAllQuery()).execute().actionGet();
+        SearchResponse resp = client().prepareSearch("idx").setTypes("type").setRouting(routing1).setQuery(matchAllQuery()).execute().actionGet();
         assertSearchResponse(resp);
         long totalOnOne = resp.getHits().getTotalHits();
         assertThat(totalOnOne, is(15l));
-        resp = client().prepareSearch("idx").setTypes("type").setRouting("2").setQuery(matchAllQuery()).execute().actionGet();
+        resp = client().prepareSearch("idx").setTypes("type").setRouting(routing2).setQuery(matchAllQuery()).execute().actionGet();
         assertSearchResponse(resp);
         long totalOnTwo = resp.getHits().getTotalHits();
         assertThat(totalOnTwo, is(12l));

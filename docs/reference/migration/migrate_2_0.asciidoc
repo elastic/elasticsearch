@@ -1,0 +1,90 @@
+[[breaking-changes-2.0]]
+== Breaking changes in 2.0
+
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 2.0.
+
+=== Indices API
+
+The <<alias-retrieving, get alias api>> will, by default produce an error response 
+if a requested index does not exist. This change brings the defaults for this API in 
+line with the other Indices APIs. The <<multi-index>> options can be used on a request 
+to change this behavior
+
+`GetIndexRequest.features()` now returns an array of Feature Enums instrad of an array of String values.
+The following deprecated methods have been removed:
+* `GetIndexRequest.addFeatures(String[])` - Please use `GetIndexRequest.addFeatures(Feature[])` instead
+* `GetIndexRequest.features(String[])` - Please use `GetIndexRequest.features(Feature[])` instead
+* `GetIndexRequestBuilder.addFeatures(String[])` - Please use `GetIndexRequestBuilder.addFeatures(Feature[])` instead
+* `GetIndexRequestBuilder.setFeatures(String[])` - Please use `GetIndexRequestBuilder.setFeatures(Feature[])` instead
+
+=== Partial fields
+
+Partial fields were deprecated since 1.0.0beta1 in favor of <<search-request-source-filtering,source filtering>>.
+
+=== More Like This Field
+
+The More Like This Field query has been removed in favor of the <<query-dsl-mlt-query, More Like This Query>>
+restrained set to a specific `field`.
+
+=== Routing
+
+The default hash function that is used for routing has been changed from djb2 to
+murmur3. This change should be transparent unless you relied on very specific
+properties of djb2. This will help ensure a better balance of the document counts
+between shards.
+
+In addition, the following node settings related to routing have been deprecated:
+
+[horizontal]
+
+`cluster.routing.operation.hash.type`::
+
+  This was an undocumented setting that allowed to configure which hash function
+  to use for routing. `murmur3` is now enforced on new indices.
+
+`cluster.routing.operation.use_type`::
+
+  This was an undocumented setting that allowed to take the `_type` of the
+  document into account when computing its shard (default: `false`). `false` is
+  now enforced on new indices.
+
+=== Store
+
+The `memory` / `ram` store (`index.store.type`) option was removed in Elasticsearch 2.0.
+
+=== Term Vectors API
+
+Usage of `/_termvector` is deprecated, and replaced in favor of `/_termvectors`.
+
+=== Script fields
+
+Script fields in 1.x were only returned as a single value. So even if the return
+value of a script used to be list, it would be returned as an array containing
+a single value that is a list too, such as:
+
+[source,json]
+---------------
+"fields": {
+  "my_field": [
+    [
+      "v1",
+      "v2"
+    ]
+  ]
+}
+---------------
+
+In elasticsearch 2.x, scripts that return a list of values are considered as
+multivalued fields. So the same example would return the following response,
+with values in a single array.
+
+[source,json]
+---------------
+"fields": {
+  "my_field": [
+    "v1",
+    "v2"
+  ]
+}
+---------------

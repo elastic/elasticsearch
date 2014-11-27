@@ -22,6 +22,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -45,6 +46,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
@@ -337,12 +339,16 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
 
         client().admin().indices().preparePutTemplate("template_with_aliases")
                 .setTemplate("te*")
+                .addMapping("type1", "{\"type1\" : {\"properties\" : {\"value\" : {\"type\" : \"string\"}}}}")
                 .addAlias(new Alias("simple_alias"))
                 .addAlias(new Alias("templated_alias-{index}"))
                 .addAlias(new Alias("filtered_alias").filter("{\"type\":{\"value\":\"type2\"}}"))
                 .addAlias(new Alias("complex_filtered_alias")
                         .filter(FilterBuilders.termsFilter("_type",  "typeX", "typeY", "typeZ").execution("bool").cache(true)))
                 .get();
+
+        assertAcked(prepareCreate("test_index").addMapping("type1").addMapping("type2").addMapping("typeX").addMapping("typeY").addMapping("typeZ"));
+        ensureGreen();
 
         client().prepareIndex("test_index", "type1", "1").setSource("field", "A value").get();
         client().prepareIndex("test_index", "type2", "2").setSource("field", "B value").get();
@@ -398,7 +404,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
                         "}").get();
 
 
-        createIndex("test_index");
+        assertAcked(prepareCreate("test_index").addMapping("type1").addMapping("type2"));
         ensureGreen();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
@@ -434,7 +440,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
                         "        \"alias3\" : { \"routing\" : \"1\" }" +
                         "    }\n").get();
 
-        createIndex("test_index");
+        assertAcked(prepareCreate("test_index").addMapping("type1").addMapping("type2"));
         ensureGreen();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
@@ -460,8 +466,8 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
     public void testDuplicateAlias() throws Exception {
         client().admin().indices().preparePutTemplate("template_1")
                 .setTemplate("te*")
-                .addAlias(new Alias("my_alias").filter(FilterBuilders.termFilter("field", "value1")))
-                .addAlias(new Alias("my_alias").filter(FilterBuilders.termFilter("field", "value2")))
+                .addAlias(new Alias("my_alias").filter(termFilter("field", "value1")))
+                .addAlias(new Alias("my_alias").filter(termFilter("field", "value2")))
                 .get();
 
         GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates("template_1").get();
@@ -591,6 +597,45 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
                 assertThat(aliasMetaData.indexRouting(), nullValue());
                 assertThat(aliasMetaData.searchRouting(), equalTo("test-routing"));
             }
+        }
+    }
+
+    @Test
+    public void testStrictAliasParsingInIndicesCreatedViaTemplates() throws Exception {
+        // Indexing into a should succeed, because the field mapping for field 'field' is defined in the test mapping.
+        client().admin().indices().preparePutTemplate("template1")
+                .setTemplate("a")
+                .setOrder(0)
+                .addMapping("test", "field", "type=string")
+                .addAlias(new Alias("alias1").filter(termFilter("field", "value"))).get();
+        // Indexing into b should succeed, because the field mapping for field 'field' is defined in the _default_ mapping and the test type exists.
+        client().admin().indices().preparePutTemplate("template2")
+                .setTemplate("b")
+                .setOrder(0)
+                .addMapping("_default_", "field", "type=string")
+                .addMapping("test")
+                .addAlias(new Alias("alias2").filter(termFilter("field", "value"))).get();
+        // Indexing into c should succeed, because the field mapping for field 'field' is defined in the _default_ mapping.
+        client().admin().indices().preparePutTemplate("template3")
+                .setTemplate("c")
+                .setOrder(0)
+                .addMapping("_default_", "field", "type=string")
+                .addAlias(new Alias("alias3").filter(termFilter("field", "value"))).get();
+        // Indexing into d index should fail, since there is field with name 'field' in the mapping
+        client().admin().indices().preparePutTemplate("template4")
+                .setTemplate("d")
+                .setOrder(0)
+                .addAlias(new Alias("alias4").filter(termFilter("field", "value"))).get();
+
+        client().prepareIndex("a", "test", "test").setSource("{}").get();
+        client().prepareIndex("b", "test", "test").setSource("{}").get();
+        client().prepareIndex("c", "test", "test").setSource("{}").get();
+        try {
+            client().prepareIndex("d", "test", "test").setSource("{}").get();
+            fail();
+        } catch (Exception e) {
+            assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(e.getMessage(), containsString("failed to parse filter for alias [alias4]"));
         }
     }
 }

@@ -21,8 +21,10 @@ package org.elasticsearch.index.store.support;
 
 import org.apache.lucene.store.StoreRateLimiting;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.service.IndexService;
@@ -32,7 +34,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.store.IndicesStore;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  *
@@ -67,7 +72,9 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
             }
         }
     }
+    private final NodeEnvironment nodeEnv;
 
+    private final File[] locations;
 
     protected final IndexService indexService;
 
@@ -81,7 +88,7 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
 
     private final ApplySettings applySettings = new ApplySettings();
 
-    protected AbstractIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, IndicesStore indicesStore) {
+    protected AbstractIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, IndicesStore indicesStore, NodeEnvironment nodeEnv) {
         super(index, indexSettings);
         this.indexService = indexService;
         this.indicesStore = indicesStore;
@@ -99,6 +106,12 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
         logger.debug("using index.store.throttle.type [{}], with index.store.throttle.max_bytes_per_sec [{}]", rateLimitingType, rateLimitingThrottle);
 
         indexService.settingsService().addListener(applySettings);
+        this.nodeEnv = nodeEnv;
+        if (nodeEnv.hasNodeFile()) {
+            this.locations = nodeEnv.indexLocations(index);
+        } else {
+            this.locations = null;
+        }
     }
 
     @Override
@@ -107,22 +120,48 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
     }
 
     @Override
+    public StoreRateLimiting rateLimiting() {
+        return nodeRateLimiting ? indicesStore.rateLimiting() : this.rateLimiting;
+    }
+
+
+    @Override
     public boolean canDeleteUnallocated(ShardId shardId) {
+        if (locations == null) {
+            return false;
+        }
+        if (indexService.hasShard(shardId.id())) {
+            return false;
+        }
+        for (Path location : nodeEnv.shardPaths(shardId)) {
+            if (Files.exists(location)) {
+                return true;
+            }
+        }
         return false;
     }
 
     @Override
     public void deleteUnallocated(ShardId shardId) throws IOException {
-        // do nothing here...
+        if (locations == null) {
+            return;
+        }
+        if (indexService.hasShard(shardId.id())) {
+            throw new ElasticsearchIllegalStateException(shardId + " allocated, can't be deleted");
+        }
+        try {
+            nodeEnv.deleteShardDirectorySafe(shardId);
+        } catch (Exception ex) {
+            logger.debug("failed to delete shard locations", ex);
+        }
     }
 
-    @Override
-    public IndicesStore indicesStore() {
-        return indicesStore;
-    }
-
-    @Override
-    public StoreRateLimiting rateLimiting() {
-        return nodeRateLimiting ? indicesStore.rateLimiting() : this.rateLimiting;
+    public Path[] shardIndexLocations(ShardId shardId) {
+        Path[] shardLocations = nodeEnv.shardPaths(shardId);
+        Path[] shardIndexLocations = new Path[shardLocations.length];
+        for (int i = 0; i < shardLocations.length; i++) {
+            shardIndexLocations[i] = shardLocations[i].resolve("index");
+        }
+        return shardIndexLocations;
     }
 }

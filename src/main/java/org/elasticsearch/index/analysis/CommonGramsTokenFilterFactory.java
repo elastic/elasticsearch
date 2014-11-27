@@ -48,7 +48,7 @@ public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
         super(index, indexSettings, name, settings);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
         this.queryMode = settings.getAsBoolean("query_mode", false);
-        this.words = Analysis.parseCommonWords(env, settings, null, version, ignoreCase);
+        this.words = Analysis.parseCommonWords(env, settings, null, ignoreCase);
 
         if (this.words == null) {
             throw new ElasticsearchIllegalArgumentException("mising or empty [common_words] or [common_words_path] configuration for common_grams token filter");
@@ -57,7 +57,7 @@ public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        CommonGramsFilter filter = new CommonGramsFilter(version, tokenStream, words);
+        CommonGramsFilter filter = new CommonGramsFilter(tokenStream, words);
         if (queryMode) {
             return new CommonGramsQueryFilter(filter);
         } else {

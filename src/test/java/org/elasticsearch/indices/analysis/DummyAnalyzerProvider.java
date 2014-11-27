@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.analysis;
 
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 
@@ -36,6 +35,6 @@ public class DummyAnalyzerProvider implements AnalyzerProvider<DummyAnalyzer> {
 
     @Override
     public DummyAnalyzer get() {
-        return new DummyAnalyzer(Lucene.ANALYZER_VERSION);
+        return new DummyAnalyzer();
     }
 }

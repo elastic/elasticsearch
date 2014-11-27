@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.highlight;
 
+import org.apache.lucene.search.highlight.SimpleFragmenter;
+import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -30,7 +32,8 @@ import java.util.Map;
 import static com.google.common.collect.Lists.newArrayList;
 
 /**
- * A builder for search highlighting.
+ * A builder for search highlighting. Settings can control how large fields
+ * are summarized to show only selected snippets ("fragments") containing search terms.
  *
  * @see org.elasticsearch.search.builder.SearchSourceBuilder#highlight()
  */
@@ -161,16 +164,27 @@ public class HighlightBuilder implements ToXContent {
         return this;
     }
 
+    /**
+     * Set this to true when using the highlighterType <tt>fast-vector-highlighter</tt>
+     * and you want to provide highlighting on filter clauses in your
+     * query. Default is <tt>false</tt>.
+     */
     public HighlightBuilder highlightFilter(boolean highlightFilter) {
         this.highlightFilter = highlightFilter;
         return this;
     }
 
+    /**
+     * Sets the size of a fragment in characters (defaults to 100)
+     */
     public HighlightBuilder fragmentSize(Integer fragmentSize) {
         this.fragmentSize = fragmentSize;
         return this;
     }
 
+    /**
+     * Sets the maximum number of fragments returned
+     */
     public HighlightBuilder numOfFragments(Integer numOfFragments) {
         this.numOfFragments = numOfFragments;
         return this;
@@ -213,16 +227,30 @@ public class HighlightBuilder implements ToXContent {
         return this;
     }
 
+    /**
+     * Set to true to cause a field to be highlighted only if a query matches that field. 
+     * Default is false meaning that terms are highlighted on all requested fields regardless 
+     * if the query matches specifically on them. 
+     */
     public HighlightBuilder requireFieldMatch(boolean requireFieldMatch) {
         this.requireFieldMatch = requireFieldMatch;
         return this;
     }
 
+    /**
+     * When using the highlighterType <tt>fast-vector-highlighter</tt> this setting 
+     * controls how far to look for boundary characters, and defaults to 20.
+     */
     public HighlightBuilder boundaryMaxScan(Integer boundaryMaxScan) {
         this.boundaryMaxScan = boundaryMaxScan;
         return this;
     }
 
+    /**
+     * When using the highlighterType <tt>fast-vector-highlighter</tt> this setting 
+     * defines what constitutes a boundary for highlighting. It’s a single string with 
+     * each boundary character defined in it. It defaults to .,!? \t\n
+     */
     public HighlightBuilder boundaryChars(char[] boundaryChars) {
         this.boundaryChars = boundaryChars;
         return this;
@@ -231,6 +259,8 @@ public class HighlightBuilder implements ToXContent {
     /**
      * Set type of highlighter to use. Supported types
      * are <tt>highlighter</tt>, <tt>fast-vector-highlighter</tt> and <tt>postings-highlighter</tt>.
+     * The default option selected is dependent on the mappings defined for your index. 
+     * Details of the different highlighter types are covered in the reference guide.
      */
     public HighlightBuilder highlighterType(String highlighterType) {
         this.highlighterType = highlighterType;
@@ -239,7 +269,9 @@ public class HighlightBuilder implements ToXContent {
 
     /**
      * Sets what fragmenter to use to break up text that is eligible for highlighting.
-     * This option is only applicable when using plain / normal highlighter.
+     * This option is only applicable when using the plain highlighterType <tt>highlighter</tt>.
+     * Permitted values are "simple" or "span" relating to {@link SimpleFragmenter} and
+     * {@link SimpleSpanFragmenter} implementations respectively with the default being "span"
      */
     public HighlightBuilder fragmenter(String fragmenter) {
         this.fragmenter = fragmenter;

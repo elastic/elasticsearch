@@ -19,7 +19,7 @@
 
 package org.elasticsearch.indices.memory.breaker;
 
-import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -38,7 +38,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.engine.MockInternalEngine;
-import org.elasticsearch.test.engine.ThrowingAtomicReaderWrapper;
+import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -196,7 +196,7 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
     // TODO: Generalize this class and add it as a utility
     public static class RandomExceptionDirectoryReaderWrapper extends MockInternalEngine.DirectoryReaderWrapper {
         private final Settings settings;
-        static class ThrowingSubReaderWrapper extends SubReaderWrapper implements ThrowingAtomicReaderWrapper.Thrower {
+        static class ThrowingSubReaderWrapper extends SubReaderWrapper implements ThrowingLeafReaderWrapper.Thrower {
             private final Random random;
             private final double topLevelRatio;
             private final double lowLevelRatio;
@@ -209,12 +209,12 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
             }
 
             @Override
-            public AtomicReader wrap(AtomicReader reader) {
-                return new ThrowingAtomicReaderWrapper(reader, this);
+            public LeafReader wrap(LeafReader reader) {
+                return new ThrowingLeafReaderWrapper(reader, this);
             }
 
             @Override
-            public void maybeThrow(ThrowingAtomicReaderWrapper.Flags flag) throws IOException {
+            public void maybeThrow(ThrowingLeafReaderWrapper.Flags flag) throws IOException {
                 switch (flag) {
                     case Fields:
                         break;

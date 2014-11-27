@@ -20,64 +20,158 @@
 package org.elasticsearch.search.aggregations.metrics.scripted;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregationBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Builder for the {@link ScriptedMetric} aggregation.
+ */
 public class ScriptedMetricBuilder extends MetricsAggregationBuilder {
 
     private Map<String, Object> params = null;
     private Map<String, Object> reduceParams = null;
-    private ScriptType scriptType = null;
     private String initScript = null;
     private String mapScript = null;
     private String combineScript = null;
     private String reduceScript = null;
+    private String initScriptFile = null;
+    private String mapScriptFile = null;
+    private String combineScriptFile = null;
+    private String reduceScriptFile = null;
+    private String initScriptId = null;
+    private String mapScriptId = null;
+    private String combineScriptId = null;
+    private String reduceScriptId = null;
     private String lang = null;
 
+    /**
+     * Sole constructor.
+     */
     public ScriptedMetricBuilder(String name) {
         super(name, InternalScriptedMetric.TYPE.name());
     }
 
+    /**
+     * Set parameters that will be available in the <tt>init</tt>, <tt>map</tt>
+     * and <tt>combine</tt> phases.
+     */
     public ScriptedMetricBuilder params(Map<String, Object> params) {
         this.params = params;
         return this;
     }
 
+    /**
+     * Set parameters that will be available in the <tt>reduce</tt> phase.
+     */
     public ScriptedMetricBuilder reduceParams(Map<String, Object> reduceParams) {
         this.reduceParams = reduceParams;
         return this;
     }
 
+    /**
+     * Set the <tt>init</tt> script.
+     */
     public ScriptedMetricBuilder initScript(String initScript) {
         this.initScript = initScript;
         return this;
     }
 
+    /**
+     * Set the <tt>map</tt> script.
+     */
     public ScriptedMetricBuilder mapScript(String mapScript) {
         this.mapScript = mapScript;
         return this;
     }
 
+    /**
+     * Set the <tt>combine</tt> script.
+     */
     public ScriptedMetricBuilder combineScript(String combineScript) {
         this.combineScript = combineScript;
         return this;
     }
 
+    /**
+     * Set the <tt>reduce</tt> script.
+     */
     public ScriptedMetricBuilder reduceScript(String reduceScript) {
         this.reduceScript = reduceScript;
         return this;
     }
 
-    public ScriptedMetricBuilder lang(String lang) {
-        this.lang = lang;
+    /**
+     * Set the <tt>init</tt> script file.
+     */
+    public ScriptedMetricBuilder initScriptFile(String initScriptFile) {
+        this.initScriptFile = initScriptFile;
         return this;
     }
 
-    public ScriptedMetricBuilder scriptType(ScriptType scriptType) {
-        this.scriptType = scriptType;
+    /**
+     * Set the <tt>map</tt> script file.
+     */
+    public ScriptedMetricBuilder mapScriptFile(String mapScriptFile) {
+        this.mapScriptFile = mapScriptFile;
+        return this;
+    }
+
+    /**
+     * Set the <tt>combine</tt> script file.
+     */
+    public ScriptedMetricBuilder combineScriptFile(String combineScriptFile) {
+        this.combineScriptFile = combineScriptFile;
+        return this;
+    }
+
+    /**
+     * Set the <tt>reduce</tt> script file.
+     */
+    public ScriptedMetricBuilder reduceScriptFile(String reduceScriptFile) {
+        this.reduceScriptFile = reduceScriptFile;
+        return this;
+    }
+
+    /**
+     * Set the indexed <tt>init</tt> script id.
+     */
+    public ScriptedMetricBuilder initScriptId(String initScriptId) {
+        this.initScriptId = initScriptId;
+        return this;
+    }
+
+    /**
+     * Set the indexed <tt>map</tt> script id.
+     */
+    public ScriptedMetricBuilder mapScriptId(String mapScriptId) {
+        this.mapScriptId = mapScriptId;
+        return this;
+    }
+
+    /**
+     * Set the indexed <tt>combine</tt> script id.
+     */
+    public ScriptedMetricBuilder combineScriptId(String combineScriptId) {
+        this.combineScriptId = combineScriptId;
+        return this;
+    }
+
+    /**
+     * Set the indexed <tt>reduce</tt> script id.
+     */
+    public ScriptedMetricBuilder reduceScriptId(String reduceScriptId) {
+        this.reduceScriptId = reduceScriptId;
+        return this;
+    }
+
+    /**
+     * Set the script language.
+     */
+    public ScriptedMetricBuilder lang(String lang) {
+        this.lang = lang;
         return this;
     }
 
@@ -94,27 +188,55 @@ public class ScriptedMetricBuilder extends MetricsAggregationBuilder {
         }
         
         if (initScript != null) {
-            builder.field(ScriptedMetricParser.INIT_SCRIPT_FIELD.getPreferredName(), initScript);
+            builder.field(ScriptedMetricParser.INIT_SCRIPT, initScript);
         }
         
         if (mapScript != null) {
-            builder.field(ScriptedMetricParser.MAP_SCRIPT_FIELD.getPreferredName(), mapScript);
+            builder.field(ScriptedMetricParser.MAP_SCRIPT, mapScript);
         }
         
         if (combineScript != null) {
-            builder.field(ScriptedMetricParser.COMBINE_SCRIPT_FIELD.getPreferredName(), combineScript);
+            builder.field(ScriptedMetricParser.COMBINE_SCRIPT, combineScript);
         }
         
         if (reduceScript != null) {
-            builder.field(ScriptedMetricParser.REDUCE_SCRIPT_FIELD.getPreferredName(), reduceScript);
+            builder.field(ScriptedMetricParser.REDUCE_SCRIPT, reduceScript);
+        }
+        
+        if (initScriptFile != null) {
+            builder.field(ScriptedMetricParser.INIT_SCRIPT + ScriptParameterParser.FILE_SUFFIX, initScriptFile);
+        }
+        
+        if (mapScriptFile != null) {
+            builder.field(ScriptedMetricParser.MAP_SCRIPT + ScriptParameterParser.FILE_SUFFIX, mapScriptFile);
+        }
+        
+        if (combineScriptFile != null) {
+            builder.field(ScriptedMetricParser.COMBINE_SCRIPT + ScriptParameterParser.FILE_SUFFIX, combineScriptFile);
+        }
+        
+        if (reduceScriptFile != null) {
+            builder.field(ScriptedMetricParser.REDUCE_SCRIPT + ScriptParameterParser.FILE_SUFFIX, reduceScriptFile);
+        }
+        
+        if (initScriptId != null) {
+            builder.field(ScriptedMetricParser.INIT_SCRIPT + ScriptParameterParser.INDEXED_SUFFIX, initScriptId);
+        }
+        
+        if (mapScriptId != null) {
+            builder.field(ScriptedMetricParser.MAP_SCRIPT + ScriptParameterParser.INDEXED_SUFFIX, mapScriptId);
+        }
+        
+        if (combineScriptId != null) {
+            builder.field(ScriptedMetricParser.COMBINE_SCRIPT + ScriptParameterParser.INDEXED_SUFFIX, combineScriptId);
+        }
+        
+        if (reduceScriptId != null) {
+            builder.field(ScriptedMetricParser.REDUCE_SCRIPT + ScriptParameterParser.INDEXED_SUFFIX, reduceScriptId);
         }
         
         if (lang != null) {
             builder.field(ScriptedMetricParser.LANG_FIELD.getPreferredName(), lang);
-        }
-        
-        if (scriptType != null) {
-            builder.field(ScriptedMetricParser.SCRIPT_TYPE_FIELD.getPreferredName(), scriptType.name());
         }
     }
 

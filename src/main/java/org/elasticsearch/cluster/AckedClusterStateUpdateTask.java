@@ -28,7 +28,7 @@ import org.elasticsearch.common.unit.TimeValue;
  * An extension interface to {@link ClusterStateUpdateTask} that allows to be notified when
  * all the nodes have acknowledged a cluster state update request
  */
-public abstract class AckedClusterStateUpdateTask<Response> implements TimeoutClusterStateUpdateTask {
+public abstract class AckedClusterStateUpdateTask<Response> extends TimeoutClusterStateUpdateTask {
 
     private final ActionListener<Response> listener;
     private final AckedRequest request;
@@ -40,6 +40,7 @@ public abstract class AckedClusterStateUpdateTask<Response> implements TimeoutCl
 
     /**
      * Called to determine which nodes the acknowledgement is expected from
+     *
      * @param discoveryNode a node
      * @return true if the node is expected to send ack back, false otherwise
      */
@@ -50,6 +51,7 @@ public abstract class AckedClusterStateUpdateTask<Response> implements TimeoutCl
     /**
      * Called once all the nodes have acknowledged the cluster state update request. Must be
      * very lightweight execution, since it gets executed on the cluster service thread.
+     *
      * @param t optional error that might have been thrown
      */
     public void onAllNodesAcked(@Nullable Throwable t) {

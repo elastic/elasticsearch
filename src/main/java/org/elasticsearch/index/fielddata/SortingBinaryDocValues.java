@@ -29,11 +29,11 @@ import java.util.Arrays;
 public abstract class SortingBinaryDocValues extends SortedBinaryDocValues {
 
     protected int count;
-    protected BytesRef[] values;
+    protected BytesRefBuilder[] values;
     private final Sorter sorter;
 
     protected SortingBinaryDocValues() {
-        values = new BytesRef[] { new BytesRef() };
+        values = new BytesRefBuilder[] { new BytesRefBuilder() };
         sorter = new InPlaceMergeSorter() {
 
             @Override
@@ -43,7 +43,7 @@ public abstract class SortingBinaryDocValues extends SortedBinaryDocValues {
 
             @Override
             protected int compare(int i, int j) {
-                return values[i].compareTo(values[j]);
+                return values[i].get().compareTo(values[j].get());
             }
         };
     }
@@ -57,7 +57,7 @@ public abstract class SortingBinaryDocValues extends SortedBinaryDocValues {
             final int newLen = ArrayUtil.oversize(count, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
             values = Arrays.copyOf(values, newLen);
             for (int i = oldLen; i < newLen; ++i) {
-                values[i] = new BytesRef();
+                values[i] = new BytesRefBuilder();
             }
         }
     }
@@ -77,6 +77,6 @@ public abstract class SortingBinaryDocValues extends SortedBinaryDocValues {
 
     @Override
     public final BytesRef valueAt(int index) {
-        return values[index];
+        return values[index].get();
     }
 }

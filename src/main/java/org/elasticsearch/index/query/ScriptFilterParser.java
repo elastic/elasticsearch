@@ -19,23 +19,25 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import java.io.IOException;
+import java.util.Map;
+
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BitsFilteredDocIdSet;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocValuesDocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
+import org.elasticsearch.script.ScriptParameterParser;
+import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
-
-import java.io.IOException;
-import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
 
@@ -58,6 +60,7 @@ public class ScriptFilterParser implements FilterParser {
     @Override
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
+        ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
 
         XContentParser.Token token;
 
@@ -82,28 +85,24 @@ public class ScriptFilterParser implements FilterParser {
                     throw new QueryParsingException(parseContext.index(), "[script] filter does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if ("script".equals(currentFieldName)) {
-                    script = parser.text();
-                    scriptType = ScriptService.ScriptType.INLINE;
-                } else if ("script_id".equals(currentFieldName)) {
-                    script = parser.text();
-                    scriptType = ScriptService.ScriptType.INDEXED;
-                } else if ("file".equals(currentFieldName)) {
-                    script = parser.text();
-                    scriptType = ScriptService.ScriptType.FILE;
-                } else if ("lang".equals(currentFieldName)) {
-                    scriptLang = parser.text();
-                } else if ("_name".equals(currentFieldName)) {
+                if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
                     cache = parser.booleanValue();
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
-                } else {
+                } else if (!scriptParameterParser.token(currentFieldName, token, parser)){
                     throw new QueryParsingException(parseContext.index(), "[script] filter does not support [" + currentFieldName + "]");
                 }
             }
         }
+
+        ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
+        if (scriptValue != null) {
+            script = scriptValue.script();
+            scriptType = scriptValue.scriptType();
+        }
+        scriptLang = scriptParameterParser.lang();
 
         if (script == null) {
             throw new QueryParsingException(parseContext.index(), "script must be provided with a [script] filter");
@@ -169,13 +168,13 @@ public class ScriptFilterParser implements FilterParser {
         }
 
         @Override
-        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
             searchScript.setNextReader(context);
             // LUCENE 4 UPGRADE: we can simply wrap this here since it is not cacheable and if we are not top level we will get a null passed anyway 
             return BitsFilteredDocIdSet.wrap(new ScriptDocSet(context.reader().maxDoc(), acceptDocs, searchScript), acceptDocs);
         }
 
-        static class ScriptDocSet extends MatchDocIdSet {
+        static class ScriptDocSet extends DocValuesDocIdSet {
 
             private final SearchScript searchScript;
 
@@ -198,6 +197,11 @@ public class ScriptFilterParser implements FilterParser {
                     return ((Number) val).longValue() != 0;
                 }
                 throw new ElasticsearchIllegalArgumentException("Can't handle type [" + val + "] in script filter");
+            }
+
+            @Override
+            public long ramBytesUsed() {
+                return 0;
             }
         }
     }

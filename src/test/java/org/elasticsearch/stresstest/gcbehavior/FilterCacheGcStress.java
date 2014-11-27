@@ -35,9 +35,7 @@ public class FilterCacheGcStress {
 
     public static void main(String[] args) {
 
-        Settings settings = ImmutableSettings.settingsBuilder()
-                .put("gateway.type", "none")
-                .build();
+        Settings settings = ImmutableSettings.EMPTY;
 
         Node node = NodeBuilder.nodeBuilder().settings(settings).node();
         final Client client = node.client();

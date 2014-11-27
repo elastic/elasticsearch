@@ -93,7 +93,7 @@ public class CachedDfSource extends IndexSearcher {
     }
 
     @Override
-    protected void search(List<AtomicReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+    protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         throw new UnsupportedOperationException();
     }
 
@@ -103,7 +103,7 @@ public class CachedDfSource extends IndexSearcher {
     }
 
     @Override
-    protected TopDocs search(List<AtomicReaderContext> leaves, Weight weight, ScoreDoc after, int nDocs) throws IOException {
+    protected TopDocs search(List<LeafReaderContext> leaves, Weight weight, ScoreDoc after, int nDocs) throws IOException {
         throw new UnsupportedOperationException();
     }
 
@@ -118,7 +118,7 @@ public class CachedDfSource extends IndexSearcher {
     }
 
     @Override
-    protected TopFieldDocs search(List<AtomicReaderContext> leaves, Weight weight, FieldDoc after, int nDocs, Sort sort, boolean fillFields, boolean doDocScores, boolean doMaxScore) throws IOException {
+    protected TopFieldDocs search(List<LeafReaderContext> leaves, Weight weight, FieldDoc after, int nDocs, Sort sort, boolean fillFields, boolean doDocScores, boolean doMaxScore) throws IOException {
         throw new UnsupportedOperationException();
     }
 

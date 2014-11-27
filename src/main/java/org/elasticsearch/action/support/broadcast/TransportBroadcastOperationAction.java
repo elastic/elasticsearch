@@ -211,6 +211,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
         @SuppressWarnings({"unchecked"})
         protected void onOperation(ShardRouting shard, int shardIndex, ShardResponse response) {
+            logger.trace("received response for {}", shard);
             shardsResponses.set(shardIndex, response);
             if (expectedOps == counterOps.incrementAndGet()) {
                 finishHim();
@@ -222,7 +223,6 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             // we set the shard failure always, even if its the first in the replication group, and the next one
             // will work (it will just override it...)
             setFailure(shardIt, shardIndex, t);
-
             ShardRouting nextShard = shardIt.nextOrNull();
             if (nextShard != null) {
                 if (t != null) {
@@ -237,7 +237,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                 if (logger.isDebugEnabled()) {
                     if (t != null) {
                         if (!TransportActions.isShardNotAvailableException(t)) {
-                            logger.debug("{}: failed to executed [{}]", t, shard != null ? shard.shortSummary() : shardIt.shardId(), request);
+                            logger.debug("{}: failed to execute [{}]", t, shard != null ? shard.shortSummary() : shardIt.shardId(), request);
                         }
                     }
                 }

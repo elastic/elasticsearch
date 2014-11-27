@@ -24,7 +24,8 @@ import com.google.common.base.Charsets;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.SimpleAnalyzerWrapper;
+import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.queries.TermFilter;
@@ -86,16 +87,6 @@ public class MapperService extends AbstractIndexComponent  {
             "_size", "_timestamp", "_ttl"
     );
 
-    public static final String FIELD_MAPPERS_COLLECTION_SWITCH = "index.mapper.field_mappers_collection_switch";
-    public static final int DEFAULT_FIELD_MAPPERS_COLLECTION_SWITCH = 100;
-
-    public static int getFieldMappersCollectionSwitch(@Nullable Settings settings) {
-        if (settings == null) {
-            return DEFAULT_FIELD_MAPPERS_COLLECTION_SWITCH;
-        }
-        return settings.getAsInt(MapperService.FIELD_MAPPERS_COLLECTION_SWITCH, MapperService.DEFAULT_FIELD_MAPPERS_COLLECTION_SWITCH);
-    }
-
     private final AnalysisService analysisService;
     private final IndexFieldDataService fieldDataService;
 
@@ -113,7 +104,7 @@ public class MapperService extends AbstractIndexComponent  {
     private final Object typeMutex = new Object();
     private final Object mappersMutex = new Object();
 
-    private final FieldMappersLookup fieldMappers;
+    private volatile FieldMappersLookup fieldMappers;
     private volatile ImmutableOpenMap<String, ObjectMappers> fullPathObjectMappers = ImmutableOpenMap.of();
     private boolean hasNested = false; // updated dynamically to true when a nested object is added
 
@@ -136,7 +127,7 @@ public class MapperService extends AbstractIndexComponent  {
         super(index, indexSettings);
         this.analysisService = analysisService;
         this.fieldDataService = fieldDataService;
-        this.fieldMappers = new FieldMappersLookup(indexSettings);
+        this.fieldMappers = new FieldMappersLookup();
         this.documentParser = new DocumentMapperParser(index, indexSettings, analysisService, postingsFormatService, docValuesFormatService, similarityLookupService, scriptService);
         this.searchAnalyzer = new SmartIndexNameSearchAnalyzer(analysisService.defaultSearchAnalyzer());
         this.searchQuoteAnalyzer = new SmartIndexNameSearchQuoteAnalyzer(analysisService.defaultSearchQuoteAnalyzer());
@@ -145,7 +136,7 @@ public class MapperService extends AbstractIndexComponent  {
         String defaultMappingLocation = componentSettings.get("default_mapping_location");
         final URL defaultMappingUrl;
         if (index.getName().equals(ScriptService.SCRIPT_INDEX)){
-            defaultMappingUrl = getMappingUrl(indexSettings, environment, defaultMappingLocation,"script-index-defaults.json","org/elasticsearch/index/mapper/script-index-defaults.json");
+            defaultMappingUrl = getMappingUrl(indexSettings, environment, defaultMappingLocation,"script-mapping.json","org/elasticsearch/index/mapper/script-mapping.json");
         } else {
             defaultMappingUrl = getMappingUrl(indexSettings, environment, defaultMappingLocation,"default-mapping.json","org/elasticsearch/index/mapper/default-mapping.json");
         }
@@ -392,9 +383,9 @@ public class MapperService extends AbstractIndexComponent  {
         }
     }
 
-    private void addFieldMappers(List<FieldMapper> fieldMappers) {
+    private void addFieldMappers(List<FieldMapper<?>> fieldMappers) {
         synchronized (mappersMutex) {
-            this.fieldMappers.addNewMappers(fieldMappers);
+            this.fieldMappers = this.fieldMappers.copyAndAddAll(fieldMappers);
         }
     }
 
@@ -415,7 +406,7 @@ public class MapperService extends AbstractIndexComponent  {
 
     private void removeObjectAndFieldMappers(DocumentMapper docMapper) {
         synchronized (mappersMutex) {
-            fieldMappers.removeMappers(docMapper.mappers());
+            fieldMappers = fieldMappers.copyAndRemoveAll(docMapper.mappers());
 
             ImmutableOpenMap.Builder<String, ObjectMappers> fullPathObjectMappers = ImmutableOpenMap.builder(this.fullPathObjectMappers);
             for (ObjectMapper mapper : docMapper.objectMappers().values()) {
@@ -432,13 +423,6 @@ public class MapperService extends AbstractIndexComponent  {
 
             this.fullPathObjectMappers = fullPathObjectMappers.build();
         }
-    }
-
-    /**
-     * Just parses and returns the mapper without adding it, while still applying default mapping.
-     */
-    public DocumentMapper parse(String mappingType, CompressedString mappingSource) throws MapperParsingException {
-        return parse(mappingType, mappingSource, true);
     }
 
     public DocumentMapper parse(String mappingType, CompressedString mappingSource, boolean applyDefault) throws MapperParsingException {
@@ -520,10 +504,12 @@ public class MapperService extends AbstractIndexComponent  {
         // since they have different types (starting with __)
         if (types.length == 1) {
             DocumentMapper docMapper = documentMapper(types[0]);
-            if (docMapper == null) {
-                return new TermFilter(new Term(types[0]));
+            Filter filter = docMapper != null ? docMapper.typeFilter() : new TermFilter(new Term(types[0]));
+            if (hasNested) {
+                return new AndFilter(ImmutableList.of(filter, NonNestedDocsFilter.INSTANCE));
+            } else {
+                return filter;
             }
-            return docMapper.typeFilter();
         }
         // see if we can use terms filter
         boolean useTermsFilter = true;
@@ -533,12 +519,13 @@ public class MapperService extends AbstractIndexComponent  {
                 useTermsFilter = false;
                 break;
             }
-            if (!docMapper.typeMapper().fieldType().indexed()) {
+            if (docMapper.typeMapper().fieldType().indexOptions() == IndexOptions.NONE) {
                 useTermsFilter = false;
                 break;
             }
         }
 
+        // We only use terms filter is there is a type filter, this means we don't need to check for hasNested here
         if (useTermsFilter) {
             BytesRef[] typesBytes = new BytesRef[types.length];
             for (int i = 0; i < typesBytes.length; i++) {
@@ -563,6 +550,9 @@ public class MapperService extends AbstractIndexComponent  {
             }
             if (filterPercolateType) {
                 bool.add(excludePercolatorType, BooleanClause.Occur.MUST);
+            }
+            if (hasNested) {
+                bool.add(NonNestedDocsFilter.INSTANCE, BooleanClause.Occur.MUST);
             }
 
             return bool;
@@ -613,7 +603,7 @@ public class MapperService extends AbstractIndexComponent  {
      * Returns all the fields that match the given pattern, with an optional narrowing
      * based on a list of types.
      */
-    public Set<String> simpleMatchToIndexNames(String pattern, @Nullable String[] types) {
+    public List<String> simpleMatchToIndexNames(String pattern, @Nullable String[] types) {
         if (types == null || types.length == 0) {
             return simpleMatchToIndexNames(pattern);
         }
@@ -621,9 +611,9 @@ public class MapperService extends AbstractIndexComponent  {
             return simpleMatchToIndexNames(pattern);
         }
         if (!Regex.isSimpleMatchPattern(pattern)) {
-            return ImmutableSet.of(pattern);
+            return ImmutableList.of(pattern);
         }
-        Set<String> fields = Sets.newHashSet();
+        List<String> fields = Lists.newArrayList();
         for (String type : types) {
             DocumentMapper possibleDocMapper = mappers.get(type);
             if (possibleDocMapper != null) {
@@ -639,16 +629,16 @@ public class MapperService extends AbstractIndexComponent  {
      * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
      * then the fields will be returned with a type prefix.
      */
-    public Set<String> simpleMatchToIndexNames(String pattern) {
+    public List<String> simpleMatchToIndexNames(String pattern) {
         if (!Regex.isSimpleMatchPattern(pattern)) {
-            return ImmutableSet.of(pattern);
+            return ImmutableList.of(pattern);
         }
         int dotIndex = pattern.indexOf('.');
         if (dotIndex != -1) {
             String possibleType = pattern.substring(0, dotIndex);
             DocumentMapper possibleDocMapper = mappers.get(possibleType);
             if (possibleDocMapper != null) {
-                Set<String> typedFields = Sets.newHashSet();
+                List<String> typedFields = Lists.newArrayList();
                 for (String indexName : possibleDocMapper.mappers().simpleMatchToIndexNames(pattern)) {
                     typedFields.add(possibleType + "." + indexName);
                 }
@@ -828,7 +818,7 @@ public class MapperService extends AbstractIndexComponent  {
     }
 
     /**
-     * Returns smart field mappers based on a smart name. A smart name is one that can optioannly be prefixed
+     * Returns smart field mappers based on a smart name. A smart name is one that can optionally be prefixed
      * with a type (and then a '.'). If it is, then the {@link MapperService.SmartNameFieldMappers}
      * will have the doc mapper set.
      * <p/>
@@ -1065,11 +1055,12 @@ public class MapperService extends AbstractIndexComponent  {
         }
     }
 
-    final class SmartIndexNameSearchAnalyzer extends SimpleAnalyzerWrapper {
+    final class SmartIndexNameSearchAnalyzer extends DelegatingAnalyzerWrapper {
 
         private final Analyzer defaultAnalyzer;
 
         SmartIndexNameSearchAnalyzer(Analyzer defaultAnalyzer) {
+            super(Analyzer.PER_FIELD_REUSE_STRATEGY);
             this.defaultAnalyzer = defaultAnalyzer;
         }
 
@@ -1096,11 +1087,12 @@ public class MapperService extends AbstractIndexComponent  {
         }
     }
 
-    final class SmartIndexNameSearchQuoteAnalyzer extends SimpleAnalyzerWrapper {
+    final class SmartIndexNameSearchQuoteAnalyzer extends DelegatingAnalyzerWrapper {
 
         private final Analyzer defaultAnalyzer;
 
         SmartIndexNameSearchQuoteAnalyzer(Analyzer defaultAnalyzer) {
+            super(Analyzer.PER_FIELD_REUSE_STRATEGY);
             this.defaultAnalyzer = defaultAnalyzer;
         }
 
@@ -1129,12 +1121,12 @@ public class MapperService extends AbstractIndexComponent  {
 
     class InternalFieldMapperListener extends FieldMapperListener {
         @Override
-        public void fieldMapper(FieldMapper fieldMapper) {
-            addFieldMappers(Arrays.asList(fieldMapper));
+        public void fieldMapper(FieldMapper<?> fieldMapper) {
+            addFieldMappers(Collections.<FieldMapper<?>>singletonList(fieldMapper));
         }
 
         @Override
-        public void fieldMappers(List<FieldMapper> fieldMappers) {
+        public void fieldMappers(List<FieldMapper<?>> fieldMappers) {
             addFieldMappers(fieldMappers);
         }
     }

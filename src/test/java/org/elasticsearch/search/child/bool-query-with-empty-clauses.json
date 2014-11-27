@@ -1,0 +1,19 @@
+{
+"query": {
+  "filtered": {
+    "filter": {
+      "has_parent": {
+        "type": "foo",
+        "query": {
+          "bool": {
+            "must": [],
+            "must_not": [],
+            "should": []
+          }
+        }
+      },
+      "query": []
+    }
+  }
+}
+}

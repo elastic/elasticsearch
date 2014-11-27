@@ -32,20 +32,20 @@ public class UnicastBackwardsCompatibilityTest extends ElasticsearchBackwardsCom
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
                 .put("transport.tcp.port", 9380 + nodeOrdinal)
                 .put("discovery.zen.ping.multicast.enabled", false)
                 .put("discovery.zen.ping.unicast.hosts", "localhost:9380,localhost:9381,localhost:9390,localhost:9391")
-                .put(super.nodeSettings(nodeOrdinal))
                 .build();
     }
 
     @Override
     protected Settings externalNodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder()
+                .put(super.externalNodeSettings(nodeOrdinal))
                 .put("transport.tcp.port", 9390 + nodeOrdinal)
                 .put("discovery.zen.ping.multicast.enabled", false)
                 .put("discovery.zen.ping.unicast.hosts", "localhost:9380,localhost:9381,localhost:9390,localhost:9391")
-                .put(super.externalNodeSettings(nodeOrdinal))
                 .build();
     }
 

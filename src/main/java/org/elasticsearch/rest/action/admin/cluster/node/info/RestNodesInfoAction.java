@@ -45,9 +45,8 @@ public class RestNodesInfoAction extends BaseRestHandler {
     private final static Set<String> ALLOWED_METRICS = Sets.newHashSet("http", "jvm", "network", "os", "plugins", "process", "settings", "thread_pool", "transport");
 
     @Inject
-    public RestNodesInfoAction(Settings settings, Client client, RestController controller,
-                               SettingsFilter settingsFilter) {
-        super(settings, client);
+    public RestNodesInfoAction(Settings settings, RestController controller, Client client, SettingsFilter settingsFilter) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_nodes", this);
         // this endpoint is used for metrics, not for nodeIds, like /_nodes/fs
         controller.registerHandler(GET, "/_nodes/{nodeId}", this);

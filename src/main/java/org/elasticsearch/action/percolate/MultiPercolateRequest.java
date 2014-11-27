@@ -45,6 +45,7 @@ import java.util.Map;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
+ * A multi percolate request that encapsulates multiple {@link PercolateRequest} instances in a single api call.
  */
 public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> implements CompositeIndicesRequest {
 
@@ -53,10 +54,16 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
     private List<PercolateRequest> requests = Lists.newArrayList();
 
+    /**
+     * Embeds a percolate request to this multi percolate request
+     */
     public MultiPercolateRequest add(PercolateRequestBuilder requestBuilder) {
         return add(requestBuilder.request());
     }
 
+    /**
+     * Embeds a percolate request to this multi percolate request
+     */
     public MultiPercolateRequest add(PercolateRequest request) {
         if (request.indices() == null && indices != null) {
             request.indices(indices);
@@ -71,10 +78,16 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         return this;
     }
 
+    /**
+     * Embeds a percolate request which request body is defined as raw bytes to this multi percolate request
+     */
     public MultiPercolateRequest add(byte[] data, int from, int length, boolean contentUnsafe) throws Exception {
         return add(new BytesArray(data, from, length), contentUnsafe, true);
     }
 
+    /**
+     * Embeds a percolate request which request body is defined as raw bytes to this multi percolate request
+     */
     public MultiPercolateRequest add(BytesReference data, boolean contentUnsafe, boolean allowExplicitIndex) throws Exception {
         XContent xContent = XContentFactory.xContent(data);
         int from = 0;
@@ -313,32 +326,62 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         return -1;
     }
 
+    /**
+     * @return The list of already set percolate requests.
+     */
     public List<PercolateRequest> requests() {
         return this.requests;
     }
 
+    /**
+     * @return Returns the {@link IndicesOptions} that is used as default for all percolate requests.
+     */
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
 
+    /**
+     * Sets the {@link IndicesOptions} for all percolate request that don't have this set.
+     *
+     * Warning: This should be set before adding any percolate requests. Setting this after adding percolate requests
+     * will have no effect on any percolate requests already added.
+     */
     public MultiPercolateRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
     }
 
+    /**
+     * @return The default indices for all percolate request.
+     */
     public String[] indices() {
         return indices;
     }
 
+    /**
+     * Sets the default indices for any percolate request that doesn't have indices defined.
+     *
+     * Warning: This should be set before adding any percolate requests. Setting this after adding percolate requests
+     * will have no effect on any percolate requests already added.
+     */
     public MultiPercolateRequest indices(String... indices) {
         this.indices = indices;
         return this;
     }
 
+    /**
+     * @return Sets the default type for all percolate requests
+     */
     public String documentType() {
         return documentType;
     }
 
+    /**
+     * Sets the default document type for any percolate request that doesn't have a document type set.
+     *
+     * Warning: This should be set before adding any percolate requests. Setting this after adding percolate requests
+     * will have no effect on any percolate requests already added.
+     */
     public MultiPercolateRequest documentType(String type) {
         this.documentType = type;
         return this;

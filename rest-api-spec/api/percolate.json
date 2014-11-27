@@ -53,6 +53,14 @@
           "type" : "string",
           "description" : "The type to percolate document into. Defaults to type."
         },
+        "percolate_routing": {
+          "type" : "string",
+          "description" : "The routing value to use when percolating the existing document."
+        },
+        "percolate_preference": {
+          "type" : "string",
+          "description" : "Which shard to prefer when executing the percolate request."
+        },
         "percolate_format": {
           "type" : "enum",
           "options" : ["ids"],

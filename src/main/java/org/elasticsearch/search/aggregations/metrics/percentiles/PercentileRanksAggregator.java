@@ -24,14 +24,16 @@ import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigest
 import org.elasticsearch.search.aggregations.support.*;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 
+import java.util.Map;
+
 /**
  *
  */
 public class PercentileRanksAggregator extends AbstractPercentilesAggregator {
 
     public PercentileRanksAggregator(String name, long estimatedBucketsCount, Numeric valuesSource, AggregationContext context,
-            Aggregator parent, double[] percents, double compression, boolean keyed) {
-        super(name, estimatedBucketsCount, valuesSource, context, parent, percents, compression, keyed);
+            Aggregator parent, double[] percents, double compression, boolean keyed, Map<String, Object> metaData) {
+        super(name, estimatedBucketsCount, valuesSource, context, parent, percents, compression, keyed, metaData);
     }
 
     @Override
@@ -40,13 +42,13 @@ public class PercentileRanksAggregator extends AbstractPercentilesAggregator {
         if (state == null) {
             return buildEmptyAggregation();
         } else {
-            return new InternalPercentileRanks(name, keys, state, keyed);
+            return new InternalPercentileRanks(name, keys, state, keyed, getMetaData());
         }
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalPercentileRanks(name, keys, new TDigestState(compression), keyed);
+        return new InternalPercentileRanks(name, keys, new TDigestState(compression), keyed, getMetaData());
     }
 
     @Override
@@ -59,7 +61,7 @@ public class PercentileRanksAggregator extends AbstractPercentilesAggregator {
         }
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
+    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, Map<String, Object>> {
 
         private final double[] values;
         private final double compression;
@@ -74,13 +76,13 @@ public class PercentileRanksAggregator extends AbstractPercentilesAggregator {
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-            return new PercentileRanksAggregator(name, 0, null, aggregationContext, parent, values, compression, keyed);
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+            return new PercentileRanksAggregator(name, 0, null, aggregationContext, parent, values, compression, keyed, metaData);
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
-            return new PercentileRanksAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent, values, compression, keyed);
+        protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+            return new PercentileRanksAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent, values, compression, keyed, metaData);
         }
     }
 }

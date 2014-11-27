@@ -24,7 +24,7 @@ import org.elasticsearch.index.shard.ShardId;
 /**
  * Allows to iterate over a set of shard instances (routing) within a shard id group.
  */
-public interface ShardIterator extends ShardsIterator {
+public interface ShardIterator extends ShardsIterator, Comparable<ShardIterator>  {
 
     /**
      * The shard id this group relates to.

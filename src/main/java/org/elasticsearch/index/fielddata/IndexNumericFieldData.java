@@ -22,6 +22,7 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 
@@ -37,7 +38,7 @@ public interface IndexNumericFieldData extends IndexFieldData<AtomicNumericField
             }
 
             @Override
-            public void toIndexForm(Number number, BytesRef bytes) {
+            public void toIndexForm(Number number, BytesRefBuilder bytes) {
                 INT.toIndexForm(number, bytes);
             }
 
@@ -53,7 +54,7 @@ public interface IndexNumericFieldData extends IndexFieldData<AtomicNumericField
             }
 
             @Override
-            public void toIndexForm(Number number, BytesRef bytes) {
+            public void toIndexForm(Number number, BytesRefBuilder bytes) {
                 INT.toIndexForm(number, bytes);
             }
 
@@ -69,7 +70,7 @@ public interface IndexNumericFieldData extends IndexFieldData<AtomicNumericField
             }
 
             @Override
-            public void toIndexForm(Number number, BytesRef bytes) {
+            public void toIndexForm(Number number, BytesRefBuilder bytes) {
                 NumericUtils.intToPrefixCodedBytes(number.intValue(), 0, bytes);
             }
 
@@ -85,7 +86,7 @@ public interface IndexNumericFieldData extends IndexFieldData<AtomicNumericField
             }
 
             @Override
-            public void toIndexForm(Number number, BytesRef bytes) {
+            public void toIndexForm(Number number, BytesRefBuilder bytes) {
                 NumericUtils.longToPrefixCodedBytes(number.longValue(), 0, bytes);
             }
 
@@ -101,7 +102,7 @@ public interface IndexNumericFieldData extends IndexFieldData<AtomicNumericField
             }
 
             @Override
-            public void toIndexForm(Number number, BytesRef bytes) {
+            public void toIndexForm(Number number, BytesRefBuilder bytes) {
                 NumericUtils.intToPrefixCodedBytes(NumericUtils.floatToSortableInt(number.floatValue()), 0, bytes);
             }
 
@@ -117,7 +118,7 @@ public interface IndexNumericFieldData extends IndexFieldData<AtomicNumericField
             }
 
             @Override
-            public void toIndexForm(Number number, BytesRef bytes) {
+            public void toIndexForm(Number number, BytesRefBuilder bytes) {
                 NumericUtils.longToPrefixCodedBytes(NumericUtils.doubleToSortableLong(number.doubleValue()), 0, bytes);
             }
 
@@ -160,7 +161,7 @@ public interface IndexNumericFieldData extends IndexFieldData<AtomicNumericField
             return requiredBits;
         }
 
-        public abstract void toIndexForm(Number number, BytesRef bytes);
+        public abstract void toIndexForm(Number number, BytesRefBuilder bytes);
 
         public long toLong(BytesRef indexForm) {
             return (long) toDouble(indexForm);

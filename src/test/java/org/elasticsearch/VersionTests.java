@@ -37,6 +37,16 @@ import static org.hamcrest.Matchers.sameInstance;
 public class VersionTests extends ElasticsearchTestCase {
 
     @Test
+    public void testMavenVersion() {
+        // maven sets this property to ensure that the latest version
+        // we use here is the version that is actually set to the project.version
+        // in maven
+        String property = System.getProperty("tests.version", null);
+        assumeNotNull(property);
+        assertEquals(property, Version.CURRENT.toString());
+    }
+
+    @Test
     public void testVersions() throws Exception {
         assertThat(V_0_20_0.before(V_0_90_0), is(true));
         assertThat(V_0_20_0.before(V_0_20_0), is(false));
@@ -58,7 +68,7 @@ public class VersionTests extends ElasticsearchTestCase {
     @Test
     public void testVersionConstantPresent() {
         assertThat(Version.CURRENT, sameInstance(Version.fromId(Version.CURRENT.id)));
-        assertThat(Version.CURRENT.luceneVersion.ordinal(), equalTo(org.apache.lucene.util.Version.LUCENE_CURRENT.ordinal() - 1));
+        assertThat(Version.CURRENT.luceneVersion, equalTo(org.apache.lucene.util.Version.LATEST));
         final int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion();
@@ -82,7 +92,12 @@ public class VersionTests extends ElasticsearchTestCase {
         final int iters = scaledRandomIntBetween(100, 1000);
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion();
-            assertThat(Version.fromString(version.number()), sameInstance(version));
+            if (version.snapshot()) { // number doesn't include SNAPSHOT but the parser checks for that
+                assertEquals(Version.fromString(version.number()), version);
+            } else {
+                assertThat(Version.fromString(version.number()), sameInstance(version));
+            }
+            assertFalse(Version.fromString(version.number()).snapshot());
         }
     }
 
@@ -101,9 +116,12 @@ public class VersionTests extends ElasticsearchTestCase {
         Version.fromString("WRONG.VERSION");
     }
 
+    @Test(expected = ElasticsearchIllegalStateException.class)
+    public void testVersionNoPresentInSettings() {
+        Version.indexCreated(ImmutableSettings.builder().build());
+    }
+
     public void testVersion() {
-        // test scenario
-        assertEquals(Version.CURRENT, Version.indexCreated(ImmutableSettings.builder().build()));
         // an actual index has a IndexMetaData.SETTING_UUID
         final Version version = randomFrom(Version.V_0_18_0, Version.V_0_90_13, Version.V_1_3_0);
         assertEquals(version, Version.indexCreated(ImmutableSettings.builder().put(IndexMetaData.SETTING_UUID, "foo").put(IndexMetaData.SETTING_VERSION_CREATED, version).build()));
@@ -119,19 +137,27 @@ public class VersionTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void parseLenient() {
-        int numIters = randomIntBetween(10, 100);
-        for (int i = 0; i < numIters; i++) {
-            Version version = randomVersion(getRandom());
-            org.apache.lucene.util.Version luceneVersion = version.luceneVersion;
-            String string = luceneVersion.name().toUpperCase(Locale.ROOT)
-                    .replaceFirst("^LUCENE_(\\d+)_(\\d+)$", "$1.$2");
-            if (randomBoolean()) {
-                string = string + "." + randomIntBetween(0, 100);
-                if (randomBoolean()) {
-                    string = string + "." + randomIntBetween(0, 100);
-                }
+    public void testParseVersion() {
+        final int iters = scaledRandomIntBetween(100, 1000);
+        for (int i = 0; i < iters; i++) {
+            Version version = randomVersion();
+            String stringVersion = version.toString();
+            if (version.snapshot() == false && randomBoolean()) {
+                version = new Version(version.id, true, version.luceneVersion);
             }
+            Version parsedVersion = Version.fromString(version.toString());
+            assertEquals(version, parsedVersion);
+            assertEquals(version.snapshot(), parsedVersion.snapshot());
+        }
+    }
+
+    @Test
+    public void parseLenient() {
+        // note this is just a silly sanity check, we test it in lucene
+        for (Version version : allVersions()) {
+            org.apache.lucene.util.Version luceneVersion = version.luceneVersion;
+            String string = luceneVersion.toString().toUpperCase(Locale.ROOT)
+                    .replaceFirst("^LUCENE_(\\d+)_(\\d+)$", "$1.$2");
             assertThat(luceneVersion, Matchers.equalTo(Lucene.parseVersionLenient(string, null)));
         }
     }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -43,6 +44,7 @@ import static org.elasticsearch.rest.RestStatus.*;
 public class RestController extends AbstractLifecycleComponent<RestController> {
 
     public static final String HTTP_JSON_ENABLE = "http.jsonp.enable";
+    private ImmutableSet<String> relevantHeaders = ImmutableSet.of();
 
     private final PathTrie<RestHandler> getHandlers = new PathTrie<>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> postHandlers = new PathTrie<>(RestUtils.REST_DECODER);
@@ -74,6 +76,25 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         for (RestFilter filter : filters) {
             filter.close();
         }
+    }
+
+    /**
+     * Controls which REST headers get copied over from a {@link org.elasticsearch.rest.RestRequest} to
+     * its corresponding {@link org.elasticsearch.transport.TransportRequest}(s).
+     *
+     * By default no headers get copied but it is possible to extend this behaviour via plugins by calling this method.
+     */
+    public synchronized void registerRelevantHeaders(String... headers) {
+        relevantHeaders = new ImmutableSet.Builder<String>().addAll(relevantHeaders).add(headers).build();
+    }
+
+    /**
+     * Returns the REST headers that get copied over from a {@link org.elasticsearch.rest.RestRequest} to
+     * its corresponding {@link org.elasticsearch.transport.TransportRequest}(s).
+     * By default no headers get copied but it is possible to extend this behaviour via plugins by calling {@link #registerRelevantHeaders(String...)}.
+     */
+    public ImmutableSet<String> relevantHeaders() {
+        return relevantHeaders;
     }
 
     /**

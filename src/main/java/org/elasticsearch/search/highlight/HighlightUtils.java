@@ -57,7 +57,7 @@ public final class HighlightUtils {
             SearchLookup lookup = searchContext.lookup();
             lookup.setNextReader(hitContext.readerContext());
             lookup.setNextDocId(hitContext.docId());
-            textsToHighlight = lookup.source().extractRawValues(mapper.names().sourcePath());
+            textsToHighlight = lookup.source().extractRawValues(hitContext.getSourcePath(mapper.names().sourcePath()));
         }
         assert textsToHighlight != null;
         return textsToHighlight;

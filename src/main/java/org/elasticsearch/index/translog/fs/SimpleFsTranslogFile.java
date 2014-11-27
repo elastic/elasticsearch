@@ -19,14 +19,19 @@
 
 package org.elasticsearch.index.translog.fs;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.TranslogStream;
+import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -35,9 +40,11 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
 
     private final long id;
     private final ShardId shardId;
-    private final RafReference raf;
+    private final ChannelReference channelReference;
     private final AtomicBoolean closed = new AtomicBoolean();
     private final ReadWriteLock rwl = new ReentrantReadWriteLock();
+    private final TranslogStream translogStream;
+    private final int headerSize;
 
     private volatile int operationCounter = 0;
 
@@ -46,11 +53,15 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
 
     private volatile long lastSyncPosition = 0;
 
-    public SimpleFsTranslogFile(ShardId shardId, long id, RafReference raf) throws IOException {
+    public SimpleFsTranslogFile(ShardId shardId, long id, ChannelReference channelReference) throws IOException {
         this.shardId = shardId;
         this.id = id;
-        this.raf = raf;
-        raf.raf().setLength(0);
+        this.channelReference = channelReference;
+        this.translogStream = TranslogStreams.translogStreamFor(this.channelReference.file());
+        this.headerSize = this.translogStream.writeHeader(channelReference.channel());
+        this.lastPosition += headerSize;
+        this.lastWrittenPosition += headerSize;
+        this.lastSyncPosition += headerSize;
     }
 
     public long id() {
@@ -69,7 +80,7 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
         rwl.writeLock().lock();
         try {
             long position = lastPosition;
-            data.writeTo(raf.channel());
+            data.writeTo(channelReference.channel());
             lastPosition = lastPosition + data.length();
             lastWrittenPosition = lastWrittenPosition + data.length();
             operationCounter = operationCounter + 1;
@@ -82,26 +93,19 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
     public byte[] read(Translog.Location location) throws IOException {
         rwl.readLock().lock();
         try {
-            return Channels.readFromFileChannel(raf.channel(), location.translogLocation, location.size);
+            return Channels.readFromFileChannel(channelReference.channel(), location.translogLocation, location.size);
         } finally {
             rwl.readLock().unlock();
         }
     }
 
-    public void close(boolean delete) {
-        if (!closed.compareAndSet(false, true)) {
-            return;
-        }
-        try {
-            if (!delete) {
-                try {
-                    sync();
-                } catch (Exception e) {
-                    throw new TranslogException(shardId, "failed to sync on close", e);
-                }
+    public void close() throws IOException {
+        if (closed.compareAndSet(false, true)) {
+            try {
+                sync();
+            } finally {
+                channelReference.decRef();
             }
-        } finally {
-            raf.decreaseRefCount(delete);
         }
     }
 
@@ -109,12 +113,13 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
      * Returns a snapshot on this file, <tt>null</tt> if it failed to snapshot.
      */
     public FsChannelSnapshot snapshot() throws TranslogException {
-        if (raf.increaseRefCount()) {
+        if (channelReference.tryIncRef()) {
             boolean success = false;
             try {
                 rwl.writeLock().lock();
                 try {
-                    FsChannelSnapshot snapshot = new FsChannelSnapshot(this.id, raf, lastWrittenPosition, operationCounter);
+                    FsChannelSnapshot snapshot = new FsChannelSnapshot(this.id, channelReference, lastWrittenPosition, operationCounter);
+                    snapshot.seekTo(this.headerSize);
                     success = true;
                     return snapshot;
                 } finally {
@@ -124,7 +129,7 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
                 throw new TranslogException(shardId, "failed to create snapshot", e);
             } finally {
                 if (!success) {
-                    raf.decreaseRefCount(false);
+                    channelReference.decRef();
                 }
             }
         }
@@ -136,6 +141,16 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
         return lastWrittenPosition != lastSyncPosition;
     }
 
+    @Override
+    public TranslogStream getStream() {
+        return this.translogStream;
+    }
+
+    @Override
+    public Path getPath() {
+        return channelReference.file();
+    }
+
     public void sync() throws IOException {
         // check if we really need to sync here...
         if (!syncNeeded()) {
@@ -144,7 +159,7 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
         rwl.writeLock().lock();
         try {
             lastSyncPosition = lastWrittenPosition;
-            raf.channel().force(false);
+            channelReference.channel().force(false);
         } finally {
             rwl.writeLock().unlock();
         }

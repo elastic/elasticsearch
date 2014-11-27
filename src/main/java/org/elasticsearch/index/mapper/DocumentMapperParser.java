@@ -28,6 +28,8 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.geo.ShapesAvailability;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -37,15 +39,44 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
-import org.elasticsearch.index.mapper.core.*;
+import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
+import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.core.ByteFieldMapper;
+import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
+import org.elasticsearch.index.mapper.core.FloatFieldMapper;
+import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
+import org.elasticsearch.index.mapper.core.LongFieldMapper;
+import org.elasticsearch.index.mapper.core.Murmur3FieldMapper;
+import org.elasticsearch.index.mapper.core.ShortFieldMapper;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TokenCountFieldMapper;
+import org.elasticsearch.index.mapper.core.TypeParsers;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
-import org.elasticsearch.index.mapper.internal.*;
+import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.index.mapper.internal.AnalyzerMapper;
+import org.elasticsearch.index.mapper.internal.BoostFieldMapper;
+import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.internal.IdFieldMapper;
+import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.internal.SizeFieldMapper;
+import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
+import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
+import org.elasticsearch.script.ScriptParameterParser;
+import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 
@@ -61,6 +92,7 @@ import static org.elasticsearch.index.mapper.MapperBuilders.doc;
 public class DocumentMapperParser extends AbstractIndexComponent {
 
     final AnalysisService analysisService;
+    private static final ESLogger logger = Loggers.getLogger(DocumentMapperParser.class);
     private final PostingsFormatService postingsFormatService;
     private final DocValuesFormatService docValuesFormatService;
     private final SimilarityLookupService similarityLookupService;
@@ -246,13 +278,13 @@ public class DocumentMapperParser extends AbstractIndexComponent {
             } else if ("transform".equals(fieldName)) {
                 iterator.remove();
                 if (fieldNode instanceof Map) {
-                    parseTransform(docBuilder, (Map<String, Object>) fieldNode);
+                    parseTransform(docBuilder, (Map<String, Object>) fieldNode, parserContext.indexVersionCreated());
                 } else if (fieldNode instanceof List) {
                     for (Object transformItem: (List)fieldNode) {
                         if (!(transformItem instanceof Map)) {
                             throw new MapperParsingException("Elements of transform list must be objects but one was:  " + fieldNode);
                         }
-                        parseTransform(docBuilder, (Map<String, Object>) transformItem);
+                        parseTransform(docBuilder, (Map<String, Object>) transformItem, parserContext.indexVersionCreated());
                     }
                 } else {
                     throw new MapperParsingException("Transform must be an object or an array but was:  " + fieldNode);
@@ -261,7 +293,10 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 Mapper.TypeParser typeParser = rootTypeParsers.get(fieldName);
                 if (typeParser != null) {
                     iterator.remove();
-                    docBuilder.put(typeParser.parse(fieldName, (Map<String, Object>) fieldNode, parserContext));
+                    Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
+                    docBuilder.put(typeParser.parse(fieldName, fieldNodeMap, parserContext));
+                    fieldNodeMap.remove("type");
+                    checkNoRemainingFields(fieldName, fieldNodeMap, parserContext.indexVersionCreated());
                 }
             }
         }
@@ -272,9 +307,8 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         }
         docBuilder.meta(attributes);
 
-        if (!mapping.isEmpty()) {
-            throw new MapperParsingException("Root type mapping not empty after parsing! Remaining fields:  " + getRemainingFields(mapping));
-        }
+        checkNoRemainingFields(mapping, parserContext.indexVersionCreated(), "Root mapping definition has unsupported parameters: ");
+
         if (!docBuilder.hasIndexAnalyzer()) {
             docBuilder.indexAnalyzer(analysisService.defaultIndexAnalyzer());
         }
@@ -291,34 +325,47 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         return documentMapper;
     }
 
-    private String getRemainingFields(Map<String, ?> map) {
+    public static void checkNoRemainingFields(String fieldName, Map<String, Object> fieldNodeMap, Version indexVersionCreated) {
+        checkNoRemainingFields(fieldNodeMap, indexVersionCreated, "Mapping definition for [" + fieldName + "] has unsupported parameters: ");
+    }
+
+    public static void checkNoRemainingFields(Map<String, Object> fieldNodeMap, Version indexVersionCreated, String message) {
+        if (!fieldNodeMap.isEmpty()) {
+            if (indexVersionCreated.onOrAfter(Version.V_2_0_0)) {
+                throw new MapperParsingException(message + getRemainingFields(fieldNodeMap));
+            } else {
+                logger.debug(message + "{}", getRemainingFields(fieldNodeMap));
+            }
+        }
+    }
+
+    private static String getRemainingFields(Map<String, ?> map) {
         StringBuilder remainingFields = new StringBuilder();
         for (String key : map.keySet()) {
-            remainingFields.append(" [").append(key).append(" : ").append(map.get(key).toString()).append("]");
+            remainingFields.append(" [").append(key).append(" : ").append(map.get(key)).append("]");
         }
         return remainingFields.toString();
     }
 
     @SuppressWarnings("unchecked")
-    private void parseTransform(DocumentMapper.Builder docBuilder, Map<String, Object> transformConfig) {
-        String script = (String) transformConfig.remove("script_file");
-        ScriptType scriptType = ScriptType.FILE;
-        if (script == null) {
-            script = (String) transformConfig.remove("script_id");
-            scriptType = ScriptType.INDEXED;
+    private void parseTransform(DocumentMapper.Builder docBuilder, Map<String, Object> transformConfig, Version indexVersionCreated) {
+        ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
+        scriptParameterParser.parseConfig(transformConfig, true);
+        
+        String script = null;
+        ScriptType scriptType = null;
+        ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
+        if (scriptValue != null) {
+            script = scriptValue.script();
+            scriptType = scriptValue.scriptType();
         }
-        if (script == null) {
-            script = (String) transformConfig.remove("script");
-            scriptType = ScriptType.INLINE;
-        }
+        
         if (script != null) {
-            String scriptLang = (String) transformConfig.remove("lang");
+            String scriptLang = scriptParameterParser.lang();
             Map<String, Object> params = (Map<String, Object>)transformConfig.remove("params");
             docBuilder.transform(scriptService, script, scriptType, scriptLang, params);
         }
-        if (!transformConfig.isEmpty()) {
-            throw new MapperParsingException("Unrecognized parameter in transform config:  " + getRemainingFields(transformConfig));
-        }
+        checkNoRemainingFields(transformConfig, indexVersionCreated, "Transform config has unsupported parameters: ");
     }
 
     private Tuple<String, Map<String, Object>> extractMapping(String type, String source) throws MapperParsingException {

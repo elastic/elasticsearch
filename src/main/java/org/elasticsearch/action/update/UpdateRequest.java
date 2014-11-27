@@ -22,6 +22,7 @@ package org.elasticsearch.action.update;
 import com.google.common.collect.Maps;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
@@ -38,6 +39,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.script.ScriptParameterParser;
+import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
@@ -47,7 +50,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  */
-public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> {
+public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> implements DocumentRequest<UpdateRequest> {
 
     private String type;
     private String id;
@@ -577,6 +580,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     }
 
     public UpdateRequest source(BytesReference source) throws Exception {
+        ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
         XContentType xContentType = XContentFactory.xContentType(source);
         try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(source)) {
             XContentParser.Token token = parser.nextToken();
@@ -587,16 +591,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if ("script".equals(currentFieldName)) {
-                    script = parser.textOrNull();
-                    scriptType = ScriptService.ScriptType.INLINE;
-                } else if ("script_id".equals(currentFieldName)) {
-                    script = parser.textOrNull();
-                    scriptType = ScriptService.ScriptType.INDEXED;
                 } else if ("params".equals(currentFieldName)) {
                     scriptParams = parser.map();
-                } else if ("lang".equals(currentFieldName)) {
-                    scriptLang = parser.text();
                 } else if ("scripted_upsert".equals(currentFieldName)) {
                     scriptedUpsert = parser.booleanValue();
                 } else if ("upsert".equals(currentFieldName)) {
@@ -611,8 +607,16 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                     docAsUpsert(parser.booleanValue());
                 } else if ("detect_noop".equals(currentFieldName)) {
                     detectNoop(parser.booleanValue());
+                } else {
+                    scriptParameterParser.token(currentFieldName, token, parser);
                 }
             }
+            ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
+            if (scriptValue != null) {
+                script = scriptValue.script();
+                scriptType = scriptValue.scriptType();
+            }
+            scriptLang = scriptParameterParser.lang();
         }
         return this;
     }
@@ -672,7 +676,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         docAsUpsert = in.readBoolean();
         version = Versions.readVersion(in);
         versionType = VersionType.fromValue(in.readByte());
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             detectNoop = in.readBoolean();
             scriptedUpsert = in.readBoolean();
         }
@@ -725,7 +729,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         out.writeBoolean(docAsUpsert);
         Versions.writeVersion(version, out);
         out.writeByte(versionType.getValue());
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeBoolean(detectNoop);
             out.writeBoolean(scriptedUpsert);
         }

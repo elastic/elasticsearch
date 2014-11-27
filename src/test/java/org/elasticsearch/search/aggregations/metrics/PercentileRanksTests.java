@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import com.google.common.collect.Lists;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Order;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
@@ -32,9 +33,14 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.percentileRanks;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  *
@@ -149,6 +155,33 @@ public class PercentileRanksTests extends AbstractNumericTests {
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValue, maxValue);
+    }
+
+    @Test
+    public void testSingleValuedField_getProperty() throws Exception {
+        final double[] pcts = randomPercents(minValue, maxValue);
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(
+                        global("global").subAggregation(
+                                randomCompression(percentileRanks("percentile_ranks")).field("value").percentiles(pcts))).execute()
+                .actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Global global = searchResponse.getAggregations().get("global");
+        assertThat(global, notNullValue());
+        assertThat(global.getName(), equalTo("global"));
+        assertThat(global.getDocCount(), equalTo(10l));
+        assertThat(global.getAggregations(), notNullValue());
+        assertThat(global.getAggregations().asMap().size(), equalTo(1));
+
+        PercentileRanks percentiles = global.getAggregations().get("percentile_ranks");
+        assertThat(percentiles, notNullValue());
+        assertThat(percentiles.getName(), equalTo("percentile_ranks"));
+        assertThat((PercentileRanks) global.getProperty("percentile_ranks"), sameInstance(percentiles));
+
     }
 
     @Test
@@ -365,7 +398,7 @@ public class PercentileRanksTests extends AbstractNumericTests {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(randomCompression(percentileRanks("percentile_ranks"))
-                        .script("List values = doc['values'].values; double[] res = new double[values.length]; for (int i = 0; i < res.length; i++) { res[i] = values.get(i) - dec; }; return res;").param("dec", 1)
+                        .script("List values = doc['values'].values; double[] res = new double[values.size()]; for (int i = 0; i < res.length; i++) { res[i] = values.get(i) - dec; }; return res;").param("dec", 1)
                         .percentiles(pcts))
                 .execute().actionGet();
 

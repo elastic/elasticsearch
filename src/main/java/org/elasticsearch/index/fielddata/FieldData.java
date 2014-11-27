@@ -20,9 +20,11 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.*;
-import org.apache.lucene.util.*;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.lucene.Lucene;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,22 +35,11 @@ import java.util.List;
 public enum FieldData {
     ;
 
-    static {
-        assert Lucene.VERSION == Version.LUCENE_4_9 : "Remove emptySortedNumeric in 4.10 and use the method with the same name from Lucene's DocValues class. See LUCENE-5834.";
-    }
-
     /**
      * Return a {@link SortedBinaryDocValues} that doesn't contain any value.
      */
     public static SortedBinaryDocValues emptySortedBinary(int maxDoc) {
         return singleton(DocValues.emptyBinary(), new Bits.MatchNoBits(maxDoc));
-    }
-
-    /**
-     * Return a {@link SortedNumericDocValues} that doesn't contain any value.
-     */
-    public static SortedNumericDocValues emptySortedNumeric(int maxDoc) {
-        return DocValues.singleton(DocValues.emptyNumeric(), new Bits.MatchNoBits(maxDoc));
     }
 
     /**

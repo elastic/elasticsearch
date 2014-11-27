@@ -20,11 +20,10 @@
 package org.elasticsearch.index.search.morelikethis;
 
 import org.apache.lucene.index.Fields;
-import org.elasticsearch.action.get.MultiGetRequest;
-import org.elasticsearch.action.termvector.MultiTermVectorsItemResponse;
-import org.elasticsearch.action.termvector.MultiTermVectorsRequest;
-import org.elasticsearch.action.termvector.MultiTermVectorsResponse;
-import org.elasticsearch.action.termvector.TermVectorResponse;
+import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
+import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
+import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
+import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -47,18 +46,14 @@ public class MoreLikeThisFetchService extends AbstractComponent {
         this.client = client;
     }
 
-    public Fields[] fetch(List<MultiGetRequest.Item> items) throws IOException {
-        MultiTermVectorsRequest request = new MultiTermVectorsRequest();
-        for (MultiGetRequest.Item item : items) {
-            request.add(item);
-        }
+    public Fields[] fetch(MultiTermVectorsRequest request) throws IOException {
         List<Fields> likeFields = new ArrayList<>();
         MultiTermVectorsResponse responses = client.multiTermVectors(request).actionGet();
         for (MultiTermVectorsItemResponse response : responses) {
             if (response.isFailed()) {
                 continue;
             }
-            TermVectorResponse getResponse = response.getResponse();
+            TermVectorsResponse getResponse = response.getResponse();
             if (!getResponse.isExists()) {
                 continue;
             }

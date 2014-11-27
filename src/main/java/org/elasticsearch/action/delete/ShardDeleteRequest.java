@@ -108,8 +108,8 @@ public class ShardDeleteRequest extends ShardReplicationOperationRequest<ShardDe
         id = in.readString();
         refresh = in.readBoolean();
         version = Versions.readVersion(in);
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
-            originalIndex = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            originalIndex = in.readOptionalString();
         }
     }
 
@@ -121,8 +121,8 @@ public class ShardDeleteRequest extends ShardReplicationOperationRequest<ShardDe
         out.writeString(id);
         out.writeBoolean(refresh);
         Versions.writeVersion(version, out);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
-            out.writeString(originalIndex);
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            out.writeOptionalString(originalIndex);
         }
     }
 }

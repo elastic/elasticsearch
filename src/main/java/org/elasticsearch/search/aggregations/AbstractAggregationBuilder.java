@@ -21,16 +21,25 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.xcontent.ToXContent;
 
 /**
- *
+ * Base structure for aggregation builders.
  */
 public abstract class AbstractAggregationBuilder implements ToXContent {
 
-    protected final String name;
+    private final String name;
     protected final String type;
 
+    /**
+     * Sole constructor, typically used by sub-classes.
+     */
     protected AbstractAggregationBuilder(String name, String type) {
         this.name = name;
         this.type = type;
     }
 
+    /**
+     * Return the name of the aggregation that is being built.
+     */
+    public String getName() {
+        return name;
+    }
 }

@@ -19,6 +19,7 @@
 package org.elasticsearch.search.fetch.script;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.search.SearchHitField;
@@ -29,7 +30,10 @@ import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -86,10 +90,17 @@ public class ScriptFieldsFetchSubPhase implements FetchSubPhase {
 
             SearchHitField hitField = hitContext.hit().fields().get(scriptField.name());
             if (hitField == null) {
-                hitField = new InternalSearchHitField(scriptField.name(), new ArrayList<>(2));
+                final List<Object> values;
+                if (value == null) {
+                    values = Collections.emptyList();
+                } else if (value instanceof Collection) {
+                    values = new ArrayList<>((Collection<?>) value);
+                } else {
+                    values = Collections.singletonList(value);
+                }
+                hitField = new InternalSearchHitField(scriptField.name(), values);
                 hitContext.hit().fields().put(scriptField.name(), hitField);
             }
-            hitField.values().add(value);
         }
     }
 }

@@ -121,7 +121,7 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         locations = new IntArrayList(size);
         items = new ArrayList<>(size);
 
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             for (int i = 0; i < size; i++) {
                 locations.add(in.readVInt());
                 items.add(MultiGetRequest.Item.readItem(in));
@@ -175,7 +175,7 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         } else if (realtime == 1) {
             this.realtime = true;
         }
-        if(in.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if(in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             ignoreErrorsOnGeneratedFields = in.readBoolean();
         }
     }
@@ -185,7 +185,7 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         super.writeTo(out);
         out.writeVInt(locations.size());
 
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             for (int i = 0; i < locations.size(); i++) {
                 out.writeVInt(locations.get(i));
                 items.get(i).writeTo(out);
@@ -224,7 +224,7 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         } else {
             out.writeByte((byte) 1);
         }
-        if(out.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if(out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeBoolean(ignoreErrorsOnGeneratedFields);
         }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.TermRangeFilter;
@@ -32,7 +33,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 
 import java.io.IOException;
-import java.util.Set;
+import java.util.List;
 
 import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
 
@@ -91,7 +92,7 @@ public class ExistsFilterParser implements FilterParser {
             fieldPattern = fieldPattern + ".*";
         }
 
-        Set<String> fields = parseContext.simpleMatchToIndexNames(fieldPattern);
+        List<String> fields = parseContext.simpleMatchToIndexNames(fieldPattern);
         if (fields.isEmpty()) {
             // no fields exists, so we should not match anything
             return Queries.MATCH_NO_FILTER;
@@ -105,7 +106,7 @@ public class ExistsFilterParser implements FilterParser {
                 nonNullFieldMappers = smartNameFieldMappers;
             }
             Filter filter = null;
-            if (fieldNamesMapper!= null && fieldNamesMapper.mapper().fieldType().indexed()) {
+            if (fieldNamesMapper!= null && fieldNamesMapper.mapper().fieldType().indexOptions() != IndexOptions.NONE) {
                 final String f;
                 if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
                     f = smartNameFieldMappers.mapper().names().indexName();

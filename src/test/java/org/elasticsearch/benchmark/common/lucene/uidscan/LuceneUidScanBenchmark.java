@@ -40,8 +40,8 @@ public class LuceneUidScanBenchmark {
 
     public static void main(String[] args) throws Exception {
 
-        FSDirectory dir = FSDirectory.open(new File("work/test"));
-        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        FSDirectory dir = FSDirectory.open(new File("work/test").toPath());
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         final int NUMBER_OF_THREADS = 2;
         final long INDEX_COUNT = SizeValue.parseSizeValue("1m").singles();

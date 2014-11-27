@@ -25,16 +25,24 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import java.io.IOException;
 
 /**
- *
+ * Builder for the {@link ReverseNested} aggregation.
  */
 public class ReverseNestedBuilder extends AggregationBuilder<ReverseNestedBuilder> {
 
     private String path;
 
+    /**
+     * Sole constructor.
+     */
     public ReverseNestedBuilder(String name) {
         super(name, InternalReverseNested.TYPE.name());
     }
 
+    /**
+     * Set the path to use for this nested aggregation. The path must match
+     * the path to a nested object in the mappings. If it is not specified
+     * then this aggregation will go back to the root document.
+     */
     public ReverseNestedBuilder path(String path) {
         this.path = path;
         return this;

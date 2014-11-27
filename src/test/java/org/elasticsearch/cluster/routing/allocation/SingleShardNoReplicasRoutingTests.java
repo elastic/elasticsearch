@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -58,7 +59,7 @@ public class SingleShardNoReplicasRoutingTests extends ElasticsearchAllocationTe
         logger.info("Building initial routing table");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(0))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -160,7 +161,7 @@ public class SingleShardNoReplicasRoutingTests extends ElasticsearchAllocationTe
         logger.info("Building initial routing table");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(0))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -216,7 +217,7 @@ public class SingleShardNoReplicasRoutingTests extends ElasticsearchAllocationTe
 
         MetaData.Builder metaDataBuilder = MetaData.builder();
         for (int i = 0; i < numberOfIndices; i++) {
-            metaDataBuilder.put(IndexMetaData.builder("test" + i).numberOfShards(1).numberOfReplicas(0));
+            metaDataBuilder.put(IndexMetaData.builder("test" + i).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0));
         }
         MetaData metaData = metaDataBuilder.build();
 
@@ -329,7 +330,7 @@ public class SingleShardNoReplicasRoutingTests extends ElasticsearchAllocationTe
 
         MetaData.Builder metaDataBuilder = MetaData.builder();
         for (int i = 0; i < numberOfIndices; i++) {
-            metaDataBuilder.put(IndexMetaData.builder("test" + i).numberOfShards(1).numberOfReplicas(0));
+            metaDataBuilder.put(IndexMetaData.builder("test" + i).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0));
         }
         MetaData metaData = metaDataBuilder.build();
 

@@ -123,7 +123,7 @@ public class AlertActionManager extends AbstractComponent {
             loadQueue();
         } catch (Exception e) {
             logger.error("Unable to load unfinished jobs into the job queue", e);
-            actionsToBeProcessed.clear();
+            return false;
         }
         templateHelper.checkAndUploadIndexTemplate(state, "alerthistory");
         doStart();
@@ -158,7 +158,6 @@ public class AlertActionManager extends AbstractComponent {
     public void loadQueue() {
         assert actionsToBeProcessed.isEmpty() : "Queue should be empty, but contains " + actionsToBeProcessed.size() + " elements.";
         client.admin().indices().refresh(new RefreshRequest(ALERT_HISTORY_INDEX_PREFIX + "*")).actionGet();
-
         SearchResponse response = client.prepareSearch(ALERT_HISTORY_INDEX_PREFIX + "*")
                 .setQuery(QueryBuilders.termQuery(STATE, AlertActionState.SEARCH_NEEDED.toString()))
                 .setSearchType(SearchType.SCAN)
@@ -167,6 +166,10 @@ public class AlertActionManager extends AbstractComponent {
                 .setTypes(ALERT_HISTORY_TYPE)
                 .get();
         try {
+            if (response.getTotalShards() != response.getSuccessfulShards()) {
+                throw new ElasticsearchException("Partial response while loading alert actions");
+            }
+
             if (response.getHits().getTotalHits() > 0) {
                 response = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollTimeout).get();
                 while (response.getHits().hits().length != 0) {

@@ -157,6 +157,7 @@ public class AlertsStore extends AbstractComponent {
                     loadAlerts();
                 } catch (Exception e) {
                     logger.warn("Failed to load alerts", e);
+                    return false;
                 }
                 templateHelper.checkAndUploadIndexTemplate(state, "alerts");
                 started.set(true);
@@ -192,8 +193,8 @@ public class AlertsStore extends AbstractComponent {
     }
 
     private void loadAlerts() {
+        assert alertMap.isEmpty() : "No alerts should reside, but there are " + alertMap.size() + " alerts.";
         client.admin().indices().refresh(new RefreshRequest(ALERT_INDEX)).actionGet();
-
         SearchResponse response = client.prepareSearch(ALERT_INDEX)
                 .setTypes(ALERT_TYPE)
                 .setSearchType(SearchType.SCAN)
@@ -202,6 +203,10 @@ public class AlertsStore extends AbstractComponent {
                 .setVersion(true)
                 .get();
         try {
+            if (response.getTotalShards() != response.getSuccessfulShards()) {
+                throw new ElasticsearchException("Partial response while loading alerts");
+            }
+
             if (response.getHits().getTotalHits() > 0) {
                 response = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollTimeout).get();
                 while (response.getHits().hits().length != 0) {

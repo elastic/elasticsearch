@@ -45,61 +45,30 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class MultiMetricTests extends ElasticsearchIntegrationTest {
 
+    public static String REDUCER_NAME = "metric_name";
     @Test
     public void testVeryBasicDelta() throws IOException, ExecutionException, InterruptedException {
         indexData();
-        InternalMetric metric = getAndSanityCheckMetric(deltaReducer("delta_docs"), "delta_docs");
+        InternalMetric metric = getAndSanityCheckMetric(deltaReducer(REDUCER_NAME));
         assertThat(metric.value("delta"), equalTo(18d));
-        metric = getAndSanityCheckMetric(deltaReducer("delta_docs").computeGradient(true), "delta_docs");
+        metric = getAndSanityCheckMetric(deltaReducer(REDUCER_NAME).computeGradient(true));
         assertThat(metric.value("delta"), equalTo(2d));
     }
 
     @Test
     public void testVeryBasicStats() throws IOException, ExecutionException, InterruptedException {
         indexData();
-        InternalMetric metric = getAndSanityCheckMetric(statsReducer("stats_docs"), "stats_docs");
+        InternalMetric metric = getAndSanityCheckMetric(statsReducer(REDUCER_NAME));
         assertThat(metric.value("length"), equalTo(10d));
     }
 
-    private InternalMetric getAndSanityCheckMetric(MetricsBuilder builder, String reducerName) throws IOException {
+    private InternalMetric getAndSanityCheckMetric(MetricsBuilder builder) throws IOException {
         SearchResponse searchResponse = client().prepareSearch("index")
                 .addAggregation(histogram("histo").field("hist_field").interval(1))
                 .addReducer(builder.bucketsPath("histo").field("_count")).get();
         assertSearchResponse(searchResponse);
         Aggregations reductions = searchResponse.getReductions();
-        Aggregation sumReduc = reductions.getAsMap().get(reducerName);
-        assertNotNull(sumReduc);
-        assertThat(sumReduc, instanceOf(InternalMetric.class));
-        return (InternalMetric) sumReduc;
-    }
-
-    private InternalMetric getAndSanityCheckMetric(String metricType, String reducerName) throws IOException {
-        XContentBuilder jsonRequest = jsonBuilder().startObject()
-                .startObject("aggs")
-                .startObject("histo")
-                .startObject("histogram")
-                .field("field", "hist_field")
-                .field("interval", 1)
-                .endObject()
-                .endObject()
-                .endObject()
-                .startArray("reducers")
-                .startObject()
-                .startObject(reducerName)
-                .startObject(metricType)
-                .field("buckets", "histo")
-                .field("field", "_count")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endArray()
-                .endObject();
-        logger.info("request {}", jsonRequest.string());
-
-        SearchResponse searchResponse = client().prepareSearch("index").setSource(jsonRequest).get();
-        assertSearchResponse(searchResponse);
-        Aggregations reductions = searchResponse.getReductions();
-        Aggregation sumReduc = reductions.getAsMap().get(reducerName);
+        Aggregation sumReduc = reductions.getAsMap().get(REDUCER_NAME);
         assertNotNull(sumReduc);
         assertThat(sumReduc, instanceOf(InternalMetric.class));
         return (InternalMetric) sumReduc;

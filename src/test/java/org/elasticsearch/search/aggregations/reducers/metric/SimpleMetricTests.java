@@ -50,37 +50,39 @@ import static org.hamcrest.core.Is.is;
 
 public class SimpleMetricTests extends ElasticsearchIntegrationTest {
 
+    public static String REDUCER_NAME = "metric_name";
+
     @Test
     public void testVeryBasicSum() throws IOException, ExecutionException, InterruptedException {
         indexData();
-        testMetric(sumReducer("sum_docs"), "sum", 200d, "sum_docs");
+        testMetric(sumReducer(REDUCER_NAME), "sum", 200d);
     }
 
     @Test
     public void testVeryBasicAvg() throws IOException, ExecutionException, InterruptedException {
         indexData();
-        testMetric(avgReducer("avg_docs"), "avg", 20d, "avg_docs");
+        testMetric(avgReducer(REDUCER_NAME), "avg", 20d);
     }
 
     @Test
     public void testVeryBasicMin() throws IOException, ExecutionException, InterruptedException {
         indexData();
-        testMetric(minReducer("min_docs"), "min", 20d, "min_docs");
+        testMetric(minReducer(REDUCER_NAME), "min", 20d);
     }
 
     @Test
     public void testVeryBasicMax() throws IOException, ExecutionException, InterruptedException {
         indexData();
-        testMetric(maxReducer("max_docs"), "max", 20d, "max_docs");
+        testMetric(maxReducer(REDUCER_NAME), "max", 20d);
     }
 
-    private void testMetric(MetricsBuilder builder, String metricType, double expectedValue, String reducerName) throws IOException {
+    private void testMetric(MetricsBuilder builder, String metricType, double expectedValue) throws IOException {
         SearchResponse searchResponse = client().prepareSearch("index")
                 .addAggregation(histogram("histo").field("hist_field").interval(10))
                 .addReducer(builder.bucketsPath("histo").field("_count")).get();
         assertSearchResponse(searchResponse);
         Aggregations reductions = searchResponse.getReductions();
-        Aggregation sumReduc = reductions.getAsMap().get(reducerName);
+        Aggregation sumReduc = reductions.getAsMap().get(REDUCER_NAME);
         assertNotNull(sumReduc);
         assertThat(sumReduc, instanceOf(InternalMetric.class));
         assertThat(((InternalMetric) sumReduc).value(), equalTo(expectedValue));
@@ -96,7 +98,7 @@ public class SimpleMetricTests extends ElasticsearchIntegrationTest {
                 .endObject()
                 .startArray("reducers")
                 .startObject()
-                .startObject(reducerName)
+                .startObject(REDUCER_NAME)
                 .startObject(metricType)
                 .field("buckets", "histo")
                 .field("field", "_count")
@@ -109,8 +111,9 @@ public class SimpleMetricTests extends ElasticsearchIntegrationTest {
 
         searchResponse = client().prepareSearch("index").setSource(jsonRequest).get();
         assertSearchResponse(searchResponse);
+
         reductions = searchResponse.getReductions();
-        sumReduc = reductions.getAsMap().get(reducerName);
+        sumReduc = reductions.getAsMap().get(REDUCER_NAME);
         assertNotNull(sumReduc);
         assertThat(sumReduc, instanceOf(InternalMetric.class));
         assertThat(((InternalMetric) sumReduc).value(), equalTo(expectedValue));

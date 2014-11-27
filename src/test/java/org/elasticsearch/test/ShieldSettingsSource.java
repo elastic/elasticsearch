@@ -151,6 +151,11 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
 
     private static File createFolder(File parent, String name) {
         File createdFolder = new File(parent, name);
+        if (createdFolder.exists()) {
+            if (!createdFolder.delete()) {
+                throw new RuntimeException("Could not delete existing temporary folder: " + createdFolder.getAbsolutePath());
+            }
+        }
         if (!createdFolder.mkdir()) {
             throw new RuntimeException("Could not create temporary folder: " + createdFolder.getAbsolutePath());
         }

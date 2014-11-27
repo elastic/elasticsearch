@@ -20,6 +20,8 @@ see [wiki] (https://github.com/elasticsearch/elasticsearch-license/wiki) for doc
 
 ## Plugin
 
+See `plugin/`
+
 see [Getting Started] (https://github.com/elasticsearch/elasticsearch-license/blob/master/docs/getting-started.asciidoc) to install license plugin.
 
 see [Licensing REST APIs] (https://github.com/elasticsearch/elasticsearch-license/blob/master/docs/license.asciidoc)

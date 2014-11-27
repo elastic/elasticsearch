@@ -724,7 +724,6 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                                         .setScript("ctx._source.field += 1", ScriptService.ScriptType.INLINE)
                                         .setRetryOnConflict(retryOnConflict)
                                         .setUpsert(jsonBuilder().startObject().field("field", 1).endObject())
-                                        .setListenerThreaded(false)
                                         .request();
                                 client().update(ur, new UpdateListener(j));
                             } catch (NoNodeAvailableException nne) {
@@ -742,9 +741,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
 
                             try {
                                 deleteRequestsOutstanding.acquire();
-                                DeleteRequest dr = client().prepareDelete("test", "type1", Integer.toString(j))
-                                        .setListenerThreaded(false)
-                                        .setOperationThreaded(false).request();
+                                DeleteRequest dr = client().prepareDelete("test", "type1", Integer.toString(j)).request();
                                 client().delete(dr, new DeleteListener(j));
                             } catch (NoNodeAvailableException nne) {
                                 deleteRequestsOutstanding.release();

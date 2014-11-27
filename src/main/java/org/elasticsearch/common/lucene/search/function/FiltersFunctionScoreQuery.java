@@ -260,6 +260,7 @@ public class FiltersFunctionScoreQuery extends Query {
             this.docSets = docSets;
         }
 
+        @Override
         public float innerScore() throws IOException {
             int docId = scorer.docID();
             double factor = 1.0f;

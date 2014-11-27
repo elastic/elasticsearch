@@ -473,7 +473,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         int scoreOffset = randomIntBetween(-2 * numDocs, 2 * numDocs);
         int minScore = randomIntBetween(-2 * numDocs, 2 * numDocs);
         for (int i = 0; i < numDocs; i++) {
-            docs.add(client().prepareIndex().setIndex(INDEX).setType(TYPE).setId(Integer.toString(i)).setSource(jsonBuilder().startObject().field("num", i + scoreOffset).endObject()));
+            docs.add(client().prepareIndex(INDEX, TYPE, Integer.toString(i)).setSource("num", i + scoreOffset));
         }
         indexRandom(true, docs);
         String script = "return (doc['num'].value)";

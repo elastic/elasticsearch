@@ -154,6 +154,7 @@ public class FunctionScoreQuery extends Query {
             this.function = function;
         }
 
+        @Override
         public float innerScore() throws IOException {
             float score = scorer.score();
             return scoreCombiner.combine(subQueryBoost, score,

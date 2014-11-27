@@ -17,9 +17,25 @@
  * under the License.
  */
 
+
 package org.elasticsearch.search.reducers.metric;
 
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.search.reducers.metric.multi.delta.DeltaResult;
+import org.elasticsearch.search.reducers.metric.multi.stats.StatsResult;
+import org.elasticsearch.search.reducers.metric.single.SingleMetricResult;
 
-public interface MetricResultFactory {
-    public MetricResult newInstance();
+public class MetricResultFactory {
+    public static MetricResult getInstance(String type) {
+        if (type.equals("single_metric")) {
+            return new SingleMetricResult();
+        }
+        if (type.equals("delta_metric")) {
+            return new DeltaResult();
+        }
+        if (type.equals("stats_metric")) {
+            return new StatsResult();
+        }
+        throw new ElasticsearchParseException("No metric result found of type " + type);
+    }
 }

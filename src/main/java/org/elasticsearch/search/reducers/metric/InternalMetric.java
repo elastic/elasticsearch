@@ -25,13 +25,8 @@ import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
-import org.elasticsearch.search.reducers.metric.multi.delta.DeltaResultFactory;
-import org.elasticsearch.search.reducers.metric.multi.stats.StatsResultFactory;
-import org.elasticsearch.search.reducers.metric.single.SingleMetricResultFactory;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 public class InternalMetric extends InternalNumericMetricsAggregation.MultiValue {
 
@@ -46,13 +41,7 @@ public class InternalMetric extends InternalNumericMetricsAggregation.MultiValue
         }
     };
     private MetricResult metricResult;
-    private static final Map<String, MetricResultFactory> metricResultFactories = new HashMap<>();
 
-    static {
-        metricResultFactories.put("single_metric", new SingleMetricResultFactory());
-        metricResultFactories.put("delta_metric", new DeltaResultFactory());
-        metricResultFactories.put("stats_metric", new StatsResultFactory());
-    }
 
     public static void registerStreams() {
         AggregationStreams.registerStream(STREAM, TYPE.stream());
@@ -91,7 +80,7 @@ public class InternalMetric extends InternalNumericMetricsAggregation.MultiValue
         name = in.readString();
         valueFormatter = ValueFormatterStreams.readOptional(in);
         String metricType = in.readString();
-        metricResult = metricResultFactories.get(metricType).newInstance().readFrom(in);
+        metricResult = MetricResultFactory.getInstance(metricType).readFrom(in);
     }
 
     @Override

@@ -360,7 +360,7 @@ It is possible to only return terms that match more than a configured number of 
     "aggs" : {
         "tags" : {
             "terms" : {
-                "field" : "tag",
+                "field" : "tags",
                 "min_doc_count": 10
             }
         }

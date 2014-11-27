@@ -1086,8 +1086,8 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .setSettings(settingsBuilder()
                         .put(indexSettings())
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(2, DEFAULT_MAX_NUM_SHARDS)))
-                .addMapping("parent")
-                .addMapping("child", "_parent", "type=parent"));
+                .addMapping("parent", "p_field", "type=string")
+                .addMapping("child", "_parent", "type=parent", "c_field", "type=string"));
         ensureGreen();
 
         // index simple data

@@ -28,9 +28,8 @@ on the fraction of all query terms that a document contains. See Lucene
 `BooleanQuery` for more details.
 
 The `bool` query takes a _more-matches-is-better_ approach, so the score from
-each `match` clause will be added together to provide the final `_score` for
-each document. Documents that match both clauses will score higher than
-documents which match just one clause.
+each matching `must` or `should` clause will be added together to provide the 
+final `_score` for each document.
 
 [source,js]
 --------------------------------------------------

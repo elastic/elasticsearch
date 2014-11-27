@@ -29,6 +29,7 @@ import org.elasticsearch.common.joda.time.format.DateTimeFormat;
 import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -62,8 +63,6 @@ public class AlertActionManager extends AbstractComponent {
     public static final DateTimeFormatter alertHistoryIndexTimeFormat = DateTimeFormat.forPattern("YYYY-MM-dd");
     public static final String ALERT_HISTORY_TYPE = "alerthistory";
 
-    private static AlertActionEntry END_ENTRY = new AlertActionEntry();
-
     private final Client client;
     private AlertManager alertManager;
     private final ThreadPool threadPool;
@@ -78,6 +77,7 @@ public class AlertActionManager extends AbstractComponent {
     private final AtomicLong largestQueueSize = new AtomicLong(0);
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final BlockingQueue<AlertActionEntry> actionsToBeProcessed = new LinkedBlockingQueue<>();
+    private volatile Thread queueReaderThread;
 
     @Inject
     public AlertActionManager(Settings settings, Client client, AlertActionRegistry actionRegistry,
@@ -134,8 +134,18 @@ public class AlertActionManager extends AbstractComponent {
 
     public void stop() {
         if (started.compareAndSet(true, false)) {
-            actionsToBeProcessed.add(END_ENTRY);
-            logger.info("Stopped job queue");
+            logger.info("Stopping job queue...");
+            try {
+                if (queueReaderThread.isAlive()) {
+                    queueReaderThread.interrupt();
+                    queueReaderThread.join();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            actionsToBeProcessed.clear();
+            logger.info("Job queue has been stopped");
         }
     }
 
@@ -148,13 +158,6 @@ public class AlertActionManager extends AbstractComponent {
      */
     public static String getAlertHistoryIndexNameForTime(DateTime time) {
         return ALERT_HISTORY_INDEX_PREFIX + alertHistoryIndexTimeFormat.print(time);
-    }
-
-    private void doStart() {
-        logger.info("Starting job queue");
-        if (started.compareAndSet(false, true)) {
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(new QueueReaderThread());
-        }
     }
 
     public void loadQueue() {
@@ -316,6 +319,18 @@ public class AlertActionManager extends AbstractComponent {
         }
     }
 
+    private void doStart() {
+        logger.info("Starting job queue");
+        if (started.compareAndSet(false, true)) {
+            startQueueReaderThread();
+        }
+    }
+
+    private void startQueueReaderThread() {
+        queueReaderThread = new Thread(new QueueReaderThread(), EsExecutors.threadName(settings, "queue_reader"));
+        queueReaderThread.start();
+    }
+
     private class AlertHistoryRunnable implements Runnable {
 
         private final AlertActionEntry entry;
@@ -368,23 +383,16 @@ public class AlertActionManager extends AbstractComponent {
                 logger.debug("Starting thread to read from the job queue");
                 while (started()) {
                     AlertActionEntry entry = actionsToBeProcessed.take();
-                    if (!started() || entry == END_ENTRY) {
-                        actionsToBeProcessed.clear();
-                        logger.info("Stopping thread to read from the job queue");
-                        return;
+                    if (entry != null) {
+                        threadPool.executor(AlertsPlugin.ALERT_THREAD_POOL_NAME).execute(new AlertHistoryRunnable(entry));
                     }
-                    threadPool.executor(AlertsPlugin.ALERT_THREAD_POOL_NAME).execute(new AlertHistoryRunnable(entry));
                 }
             } catch (Exception e) {
-                if (e instanceof InterruptedException) {
-                    Thread.currentThread().interrupt();
+                if (started()) {
+                    logger.error("Error during reader thread, restarting queue reader thread...", e);
+                    startQueueReaderThread();
                 } else {
-                    if (started()) {
-                        logger.error("Error during reader thread, restarting queue reader thread...", e);
-                        threadPool.executor(ThreadPool.Names.GENERIC).execute(new QueueReaderThread());
-                    } else {
-                        logger.error("Error during reader thread", e);
-                    }
+                    logger.error("Error during reader thread", e);
                 }
             }
         }

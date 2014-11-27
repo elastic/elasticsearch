@@ -81,6 +81,7 @@ public class BootStrapTest extends AbstractAlertingTests {
 
         createIndex(actionHistoryIndex);
         ensureGreen(actionHistoryIndex);
+        logger.info("Created index {}", actionHistoryIndex);
 
         IndexResponse indexResponse = client().prepareIndex(actionHistoryIndex, AlertActionManager.ALERT_HISTORY_TYPE, entry.getId())
                 .setConsistencyLevel(WriteConsistencyLevel.ALL)
@@ -99,17 +100,19 @@ public class BootStrapTest extends AbstractAlertingTests {
     }
 
     @Test
+    @TestLogging("alerts.actions:DEBUG")
     public void testBootStrapManyHistoryIndices() throws Exception {
-        int numberOfAlertHistoryEntriesPerIndex = randomIntBetween(5,10);
-        int numberOfAlertHistoryIndices = randomIntBetween(2,8);
         DateTime now = new DateTime();
+        long numberOfAlertHistoryIndices = randomIntBetween(2,8);
+        long numberOfAlertHistoryEntriesPerIndex = randomIntBetween(5,10);
         SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
 
-        for (int i=0; i<numberOfAlertHistoryIndices; ++i) {
+        for (int i = 0; i < numberOfAlertHistoryIndices; i++) {
             DateTime historyIndexDate = now.minus((new TimeValue(i, TimeUnit.DAYS)).getMillis());
             String actionHistoryIndex = AlertActionManager.getAlertHistoryIndexNameForTime(historyIndexDate);
             createIndex(actionHistoryIndex);
             ensureGreen(actionHistoryIndex);
+            logger.info("Created index {}", actionHistoryIndex);
 
             for (int j=0; j<numberOfAlertHistoryEntriesPerIndex; ++j){
                 Alert alert = new Alert("action-test-"+ i + " " + j,
@@ -138,8 +141,8 @@ public class BootStrapTest extends AbstractAlertingTests {
 
         assertTrue(response.isAlertActionManagerStarted());
         assertThat(response.getAlertManagerStarted(), equalTo(State.STARTED));
-        assertThat(response.getAlertActionManagerLargestQueueSize(),
-                equalTo((long)(numberOfAlertHistoryEntriesPerIndex*numberOfAlertHistoryIndices)));
+        long expectedMaximumQueueSize = numberOfAlertHistoryEntriesPerIndex * numberOfAlertHistoryIndices ;
+        assertThat(response.getAlertActionManagerLargestQueueSize(), equalTo(expectedMaximumQueueSize));
 
     }
 

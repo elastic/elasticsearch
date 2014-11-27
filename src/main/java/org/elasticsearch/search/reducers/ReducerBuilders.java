@@ -23,6 +23,7 @@ package org.elasticsearch.search.reducers;
 import org.elasticsearch.search.reducers.bucket.slidingwindow.SlidingWindowBuilder;
 import org.elasticsearch.search.reducers.bucket.union.UnionBuilder;
 import org.elasticsearch.search.reducers.metric.MetricsBuilder;
+import org.elasticsearch.search.reducers.metric.multi.delta.DeltaBuilder;
 
 public class ReducerBuilders {
 
@@ -50,8 +51,8 @@ public class ReducerBuilders {
         return new MetricsBuilder(name, "max");
     }
 
-    public static MetricsBuilder deltaReducer(String name) {
-        return new MetricsBuilder(name, "delta");
+    public static DeltaBuilder deltaReducer(String name) {
+        return new DeltaBuilder(name);
     }
 
     public static MetricsBuilder statsReducer(String name) {

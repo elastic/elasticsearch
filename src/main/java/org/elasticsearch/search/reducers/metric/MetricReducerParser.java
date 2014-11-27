@@ -20,19 +20,12 @@
 package org.elasticsearch.search.reducers.metric;
 
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.reducers.Reducer;
 import org.elasticsearch.search.reducers.ReducerFactory;
-import org.elasticsearch.search.reducers.metric.multi.delta.Delta;
-import org.elasticsearch.search.reducers.metric.multi.stats.Stats;
-import org.elasticsearch.search.reducers.metric.single.avg.Avg;
-import org.elasticsearch.search.reducers.metric.single.max.Max;
-import org.elasticsearch.search.reducers.metric.single.min.Min;
-import org.elasticsearch.search.reducers.metric.single.sum.Sum;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -62,11 +55,11 @@ public abstract class MetricReducerParser implements Reducer.Parser {
                     buckets = parser.text();
                 } else if (FIELD_NAME_FIELD.match(currentFieldName)) {
                     fieldName = parser.text();
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
-                            + currentFieldName + "].");
+                } else if (!parseParameter(currentFieldName, parser, parameters)) {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName
+                            + "].");
                 }
-            } else {
+            } else if (!parseParameter(currentFieldName, parser, parameters)) {
                 throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName
                         + "].");
             }
@@ -81,6 +74,10 @@ public abstract class MetricReducerParser implements Reducer.Parser {
         }
 
         return new MetricReducer.Factory(reducerName, buckets, fieldName, OperationFactory.get(opName, parameters));
+    }
+
+    protected boolean parseParameter(String currentFieldName, XContentParser parser, Map<String, Object> parameters) throws IOException {
+        return false;
     }
 }
 

@@ -49,7 +49,9 @@ public class MultiMetricTests extends ElasticsearchIntegrationTest {
     public void testVeryBasicDelta() throws IOException, ExecutionException, InterruptedException {
         indexData();
         InternalMetric metric = getAndSanityCheckMetric(deltaReducer("delta_docs"), "delta_docs");
-        assertThat(metric.value("delta"), equalTo(0d));
+        assertThat(metric.value("delta"), equalTo(18d));
+        metric = getAndSanityCheckMetric(deltaReducer("delta_docs").computeGradient(true), "delta_docs");
+        assertThat(metric.value("delta"), equalTo(2d));
     }
 
     @Test
@@ -61,7 +63,7 @@ public class MultiMetricTests extends ElasticsearchIntegrationTest {
 
     private InternalMetric getAndSanityCheckMetric(MetricsBuilder builder, String reducerName) throws IOException {
         SearchResponse searchResponse = client().prepareSearch("index")
-                .addAggregation(histogram("histo").field("hist_field").interval(10))
+                .addAggregation(histogram("histo").field("hist_field").interval(1))
                 .addReducer(builder.bucketsPath("histo").field("_count")).get();
         assertSearchResponse(searchResponse);
         Aggregations reductions = searchResponse.getReductions();
@@ -77,7 +79,7 @@ public class MultiMetricTests extends ElasticsearchIntegrationTest {
                 .startObject("histo")
                 .startObject("histogram")
                 .field("field", "hist_field")
-                .field("interval", 10)
+                .field("interval", 1)
                 .endObject()
                 .endObject()
                 .endObject()
@@ -105,17 +107,19 @@ public class MultiMetricTests extends ElasticsearchIntegrationTest {
 
     private void indexData() throws IOException, ExecutionException, InterruptedException {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
-        for (int i = 0; i < 100; i++) {
-            indexRequests.add(client().prepareIndex("index", "type").setSource(jsonBuilder()
-                    .startObject()
-                    .field("hist_field", i)
-                    .field("label_field", "label" + Integer.toString(1))
-                    .endObject()));
-            indexRequests.add(client().prepareIndex("index", "type").setSource(jsonBuilder()
-                    .startObject()
-                    .field("hist_field", i)
-                    .field("label_field", "label" + Integer.toString(2))
-                    .endObject()));
+        for (int i = 0; i < 10; i++) {
+            for (int j = 0; j < i + 1; j++) {
+                indexRequests.add(client().prepareIndex("index", "type").setSource(jsonBuilder()
+                        .startObject()
+                        .field("hist_field", i)
+                        .field("label_field", "label" + Integer.toString(1))
+                        .endObject()));
+                indexRequests.add(client().prepareIndex("index", "type").setSource(jsonBuilder()
+                        .startObject()
+                        .field("hist_field", i)
+                        .field("label_field", "label" + Integer.toString(2))
+                        .endObject()));
+            }
         }
         indexRandom(true, true, indexRequests);
     }

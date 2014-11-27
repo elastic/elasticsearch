@@ -30,17 +30,18 @@ public class Delta extends MetricOp {
 
     public Delta(Map<String, Object> parameters) {
         super("delta", parameters);
-        this.gradient = ((Boolean)parameters.get("gradient"));
+        if (parameters.get("gradient") != null) {
+            this.gradient = ((Boolean) parameters.get("gradient"));
+        }
     }
 
     public DeltaResult op(Object[] bucketProperties) throws ReductionExecutionException {
-        double firstBucketValue = ((Number)bucketProperties[0]).doubleValue();
-        double lastBucketValue = ((Number)bucketProperties[bucketProperties.length - 1]).doubleValue();
+        double firstBucketValue = ((Number) bucketProperties[0]).doubleValue();
+        double lastBucketValue = ((Number) bucketProperties[bucketProperties.length - 1]).doubleValue();
         double deltaValue = lastBucketValue - firstBucketValue;
         if (this.gradient) {
             deltaValue = deltaValue / (bucketProperties.length - 1);
         }
         return new DeltaResult(deltaValue);
     }
-
 }

@@ -19,11 +19,24 @@
 
 package org.elasticsearch.search.reducers.metric.multi.delta;
 
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.reducers.metric.MetricReducerParser;
+
+import java.io.IOException;
+import java.util.Map;
 
 public class DeltaParser extends MetricReducerParser {
     @Override
     public String type() {
         return "delta";
+    }
+
+    @Override
+    protected boolean parseParameter(String currentFieldName, XContentParser parser, Map<String, Object> parameters) throws IOException {
+        if (currentFieldName.equals("gradient")) {
+            parameters.put("gradient", parser.booleanValue());
+            return true;
+        }
+        return false;
     }
 }

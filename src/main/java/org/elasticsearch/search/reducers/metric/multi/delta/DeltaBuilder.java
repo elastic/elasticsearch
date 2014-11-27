@@ -18,43 +18,37 @@
  */
 
 
-package org.elasticsearch.search.reducers.metric;
+package org.elasticsearch.search.reducers.metric.multi.delta;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.reducers.ReductionBuilder;
+import org.elasticsearch.search.reducers.metric.MetricReducerParser;
+import org.elasticsearch.search.reducers.metric.MetricsBuilder;
 
 import java.io.IOException;
 
-public class MetricsBuilder extends ReductionBuilder<MetricsBuilder> {
+public class DeltaBuilder extends MetricsBuilder {
 
-    protected String path;
-    protected String field;
+    private boolean gradient = false;
 
-    public MetricsBuilder(String name, String opName) {
-        super(name, opName);
+    public DeltaBuilder(String name) {
+        super(name, "delta");
     }
 
-    public MetricsBuilder bucketsPath(String path) {
-        this.path = path;
-        return this;
-    }
-
-    public MetricsBuilder field(String path) {
-        this.field = path;
+    public DeltaBuilder computeGradient(boolean gradient) {
+        this.gradient = gradient;
         return this;
     }
 
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-
         if (path != null) {
             builder.field(MetricReducerParser.BUCKETS_FIELD.getPreferredName(), path);
         }
-
         if (field != null) {
             builder.field(MetricReducerParser.FIELD_NAME_FIELD.getPreferredName(), field);
         }
+        builder.field("gradient", gradient);
         builder.endObject();
         return builder;
     }

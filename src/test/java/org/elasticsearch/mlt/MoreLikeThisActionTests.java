@@ -20,7 +20,6 @@
 package org.elasticsearch.mlt;
 
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -569,17 +568,10 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "alex k working on it")
     public void testMoreLikeThisArtificialDocs() throws Exception {
         int numFields = randomIntBetween(5, 10);
 
-        logger.info("Creating an index with multiple fields ...");
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1").startObject("properties");
-        for (int i = 0; i < numFields; i++) {
-            mapping.startObject("field"+i).field("type", "string").endObject();
-        }
-        mapping.endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", mapping).get());
+        createIndex("test");
         ensureGreen();
 
         logger.info("Indexing a single document ...");
@@ -588,17 +580,15 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
             doc.field("field"+i, generateRandomStringArray(5, 10));
         }
         doc.endObject();
-        List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("test", "type1", "1").setSource(doc));
-        indexRandom(true, builders);
+        indexRandom(true, client().prepareIndex("test", "type1", "0").setSource(doc));
 
         logger.info("Checking the document matches ...");
         MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery()
-                .docs((Item) new Item().doc(doc).index("test").type("type1"))
+                .like((Item) new Item().doc(doc).index("test").type("type1"))
                 .minTermFreq(0)
                 .minDocFreq(0)
                 .maxQueryTerms(100)
-                .percentTermsToMatch(1); // strict all terms must match!
+                .minimumShouldMatch("100%"); // strict all terms must match!
         SearchResponse response = client().prepareSearch("test").setTypes("type1")
                 .setQuery(mltQuery).get();
         assertSearchResponse(response);

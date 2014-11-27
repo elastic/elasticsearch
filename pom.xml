@@ -527,7 +527,6 @@
                                 <tests.weekly>${tests.weekly}</tests.weekly>
                                 <tests.slow>${tests.slow}</tests.slow>
                                 <tests.awaitsfix>${tests.awaitsfix}</tests.awaitsfix>
-                                <tests.slow>${tests.slow}</tests.slow>
                                 <tests.timeoutSuite>${tests.timeoutSuite}</tests.timeoutSuite>
                                 <tests.showSuccess>${tests.showSuccess}</tests.showSuccess>
                                 <tests.integration>${tests.integration}</tests.integration>

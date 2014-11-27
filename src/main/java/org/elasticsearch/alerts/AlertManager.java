@@ -212,6 +212,20 @@ public class AlertManager extends AbstractComponent {
 
     private void internalStop() {
         if (state.compareAndSet(State.STARTED, State.STOPPING)) {
+            while (true) {
+                // It can happen we have still ongoing operations and we wait those operations to finish to avoid
+                // that AlertManager or any of its components end up in a illegal state after the state as been set to stopped.
+                //
+                // For example: An alert action entry may be added while we stopping alerting if we don't wait for
+                // ongoing operations to complete. Resulting in once the alert manager starts again that more than
+                // expected alert action entries are processed.
+                //
+                // Note: new operations will fail now because the state has been set to: stopping
+                if (!alertLock.hasLockedKeys()) {
+                    break;
+                }
+            }
+
             logger.info("Stopping alert manager...");
             actionManager.stop();
             scheduler.stop();

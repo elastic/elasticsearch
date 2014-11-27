@@ -27,6 +27,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
@@ -37,7 +38,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.Analysis;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
 
@@ -46,6 +46,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+
+import static org.elasticsearch.index.mapper.Uid.createUidAsBytes;
 
 /**
  *
@@ -257,9 +259,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
             boolQuery.add(mltQuery, BooleanClause.Occur.SHOULD);
             // exclude the items from the search
             if (!include) {
-                TermsFilter filter = new TermsFilter(UidFieldMapper.NAME, Uid.createUids(items.getRequests()));
-                ConstantScoreQuery query = new ConstantScoreQuery(filter);
-                boolQuery.add(query, BooleanClause.Occur.MUST_NOT);
+                handleExclude(boolQuery, items);
             }
             return boolQuery;
         }
@@ -304,5 +304,21 @@ public class MoreLikeThisQueryParser implements QueryParser {
             }
         }
         return moreLikeFields;
+    }
+
+    private void handleExclude(BooleanQuery boolQuery, MultiTermVectorsRequest likeItems) {
+        // artificial docs get assigned a random id and should be disregarded
+        List<BytesRef> uids = new ArrayList<>();
+        for (TermVectorsRequest item : likeItems) {
+            if (item.doc() != null) {
+                continue;
+            }
+            uids.add(createUidAsBytes(item.type(), item.id()));
+        }
+        if (!uids.isEmpty()) {
+            TermsFilter filter = new TermsFilter(UidFieldMapper.NAME, uids.toArray(new BytesRef[0]));
+            ConstantScoreQuery query = new ConstantScoreQuery(filter);
+            boolQuery.add(query, BooleanClause.Occur.MUST_NOT);
+        }
     }
 }

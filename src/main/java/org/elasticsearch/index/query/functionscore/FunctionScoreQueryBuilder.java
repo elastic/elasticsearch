@@ -51,16 +51,35 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
     private ArrayList<FilterBuilder> filters = new ArrayList<>();
     private ArrayList<ScoreFunctionBuilder> scoreFunctions = new ArrayList<>();
 
+    /**
+     * Creates a function_score query that executes on documents that match query a query.
+     * Query and filter will be wrapped into a filtered_query.
+     *
+     * @param queryBuilder the query that defines which documents the function_score query will be executed on.
+     */
     public FunctionScoreQueryBuilder(QueryBuilder queryBuilder) {
         this.queryBuilder = queryBuilder;
         this.filterBuilder = null;
     }
 
+    /**
+     * Creates a function_score query that executes on documents that match query a query.
+     * Query and filter will be wrapped into a filtered_query.
+     *
+     * @param filterBuilder the filter that defines which documents the function_score query will be executed on.
+     */
     public FunctionScoreQueryBuilder(FilterBuilder filterBuilder) {
         this.filterBuilder = filterBuilder;
         this.queryBuilder = null;
     }
 
+    /**
+     * Creates a function_score query that executes on documents that match query and filter.
+     * Query and filter will be wrapped into a filtered_query.
+     *
+     * @param queryBuilder a query that will; be wrapped in a filtered query.
+     * @param filterBuilder the filter for the filtered query.
+     */
     public FunctionScoreQueryBuilder(QueryBuilder queryBuilder, FilterBuilder filterBuilder) {
         this.filterBuilder = filterBuilder;
         this.queryBuilder = queryBuilder;
@@ -71,6 +90,11 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
         this.queryBuilder = null;
     }
 
+    /**
+     * Creates a function_score query that will execute the function scoreFunctionBuilder on all documents.
+     *
+     * @param scoreFunctionBuilder score function that is executed
+     */
     public FunctionScoreQueryBuilder(ScoreFunctionBuilder scoreFunctionBuilder) {
         if (scoreFunctionBuilder == null) {
             throw new ElasticsearchIllegalArgumentException("function_score: function must not be null");
@@ -81,6 +105,12 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
         this.scoreFunctions.add(scoreFunctionBuilder);
     }
 
+    /**
+     * Adds a score function that will will execute the function scoreFunctionBuilder on all documents matching the filter.
+     *
+     * @param filter the filter that defines which documents the function_score query will be executed on.
+     * @param scoreFunctionBuilder score function that is executed
+     */
     public FunctionScoreQueryBuilder add(FilterBuilder filter, ScoreFunctionBuilder scoreFunctionBuilder) {
         if (scoreFunctionBuilder == null) {
             throw new ElasticsearchIllegalArgumentException("function_score: function must not be null");
@@ -90,6 +120,11 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
         return this;
     }
 
+    /**
+     * Adds a score function that will will execute the function scoreFunctionBuilder on all documents.
+     *
+     * @param scoreFunctionBuilder score function that is executed
+     */
     public FunctionScoreQueryBuilder add(ScoreFunctionBuilder scoreFunctionBuilder) {
         if (scoreFunctionBuilder == null) {
             throw new ElasticsearchIllegalArgumentException("function_score: function must not be null");
@@ -99,21 +134,35 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
         return this;
     }
 
+    /**
+     * Score mode defines how results of individual score functions will be aggregated.
+     * Can be first, avg, max, sum, min, multiply
+     */
     public FunctionScoreQueryBuilder scoreMode(String scoreMode) {
         this.scoreMode = scoreMode;
         return this;
     }
 
+    /**
+     * Score mode defines how the combined result of score functions will influence the final score together with the sub query score.
+     * Can be replace, avg, max, sum, min, multiply
+     */
     public FunctionScoreQueryBuilder boostMode(String boostMode) {
         this.boostMode = boostMode;
         return this;
     }
 
+    /**
+     * Score mode defines how the combined result of score functions will influence the final score together with the sub query score.
+     */
     public FunctionScoreQueryBuilder boostMode(CombineFunction combineFunction) {
         this.boostMode = combineFunction.getName();
         return this;
     }
 
+    /**
+     * Tha maximum boost that will be applied by function score.
+     */
     public FunctionScoreQueryBuilder maxBoost(float maxBoost) {
         this.maxBoost = maxBoost;
         return this;

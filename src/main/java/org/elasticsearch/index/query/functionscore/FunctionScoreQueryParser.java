@@ -148,11 +148,9 @@ public class FunctionScoreQueryParser implements QueryParser {
         }
         if (query == null && filter == null) {
             query = Queries.newMatchAllQuery();
-        }
-        if (query == null && filter != null) {
+        } else if (query == null && filter != null) {
             query = new ConstantScoreQuery(filter);
-        }
-        if (query != null && filter != null) {
+        } else if (query != null && filter != null) {
             query = new FilteredQuery(query, filter);
         }
         // if all filter elements returned null, just use the query

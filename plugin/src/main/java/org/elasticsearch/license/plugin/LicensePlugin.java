@@ -33,6 +33,7 @@ import java.util.Collection;
 
 public class LicensePlugin extends AbstractPlugin {
 
+    public static final String NAME = "license";
     private final boolean isEnabled;
 
     static {
@@ -51,7 +52,7 @@ public class LicensePlugin extends AbstractPlugin {
 
     @Override
     public String name() {
-        return "license";
+        return NAME;
     }
 
     @Override

@@ -156,7 +156,7 @@ public final class ScriptValueConverter {
             // convert array to a native JavaScript Array
             value = Context.getCurrentContext().newArray(scope, array);
         } else if (value instanceof Map) {
-            value = new NativeMap(scope, (Map) value);
+            value = NativeMap.wrap(scope, (Map) value);
         }
 
         // simple numbers, strings and booleans are wrapped automatically by Rhino

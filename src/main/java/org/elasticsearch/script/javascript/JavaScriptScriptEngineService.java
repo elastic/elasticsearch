@@ -292,10 +292,10 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
 
         public Scriptable wrapAsJavaObject(Context cx, Scriptable scope, Object javaObject, Class staticType) {
             if (javaObject instanceof Map) {
-                return new NativeMap(scope, (Map) javaObject);
+                return NativeMap.wrap(scope, (Map) javaObject);
             }
             if (javaObject instanceof List) {
-                return new NativeList(scope, (List) javaObject);
+                return NativeList.wrap(scope, (List) javaObject, staticType);
             }
             return super.wrapAsJavaObject(cx, scope, javaObject, staticType);
         }

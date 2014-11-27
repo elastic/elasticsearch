@@ -55,7 +55,7 @@ public class NativeMap implements Scriptable, Wrapper {
      * @param scope
      * @param map
      */
-    public NativeMap(Scriptable scope, Map<Object, Object> map) {
+    private NativeMap(Scriptable scope, Map<Object, Object> map) {
         this.parentScope = scope;
         this.map = map;
     }

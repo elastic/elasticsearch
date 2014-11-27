@@ -43,6 +43,7 @@ import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -284,5 +285,17 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().getAt(0).score(), equalTo(1.0f));
         assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getKeyAsNumber().floatValue(), is(1f));
         assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getDocCount(), is(1l));
+    }
+
+    @Test
+    public void testUseListLengthInScripts() throws Exception {
+        createIndex("index");
+        index("index", "testtype", "1", jsonBuilder().startObject().field("f", 42).endObject());
+        ensureSearchable("index");
+        refresh();
+        SearchResponse response = client().prepareSearch().addScriptField("foobar", "js", "doc['f'].values.length", null).get();
+        assertSearchResponse(response);
+        assertHitCount(response, 1);
+        assertThat((Integer) response.getHits().getAt(0).getFields().get("foobar").value(), equalTo(1));
     }
 }

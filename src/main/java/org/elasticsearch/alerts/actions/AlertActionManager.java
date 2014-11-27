@@ -132,7 +132,6 @@ public class AlertActionManager extends AbstractComponent {
 
     public void stop() {
         if (started.compareAndSet(true, false)) {
-            actionsToBeProcessed.clear();
             actionsToBeProcessed.add(END_ENTRY);
             logger.info("Stopped job queue");
         }
@@ -357,6 +356,7 @@ public class AlertActionManager extends AbstractComponent {
                 while (started()) {
                     AlertActionEntry entry = actionsToBeProcessed.take();
                     if (!started() || entry == END_ENTRY) {
+                        actionsToBeProcessed.clear();
                         logger.info("Stopping thread to read from the job queue");
                         return;
                     }

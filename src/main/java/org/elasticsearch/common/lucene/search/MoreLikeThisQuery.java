@@ -187,7 +187,7 @@ public class MoreLikeThisQuery extends Query {
             for (String text : unlikeText) {
                 // only use the first field to be consistent
                 String fieldName = moreLikeFields[0];
-                try (TokenStream ts = analyzer.tokenStream(fieldName, new FastStringReader(text))) {
+                try (TokenStream ts = analyzer.tokenStream(fieldName, text)) {
                     CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
                     ts.reset();
                     while (ts.incrementToken()) {

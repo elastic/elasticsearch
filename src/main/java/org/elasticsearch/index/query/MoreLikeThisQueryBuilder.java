@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.get.MultiGetRequest;
-import org.elasticsearch.action.mlt.MoreLikeThisRequestBuilder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -132,7 +131,7 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
 
     private final String[] fields;
     private List<Item> docs = new ArrayList<>();
-    private List<Item> unlike_docs = new ArrayList<>();
+    private List<Item> unlikeDocs = new ArrayList<>();
     private Boolean include = null;
     private String minimumShouldMatch = null;
     private int minTermFreq = -1;
@@ -164,11 +163,21 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         this.fields = fields;
     }
 
+    /**
+     * Sets the documents to use in order to find documents that are "like" this.
+     *
+     * @param docs the documents to use when generating the 'More Like This' query.
+     */
     public MoreLikeThisQueryBuilder like(Item... docs) {
         this.docs = Arrays.asList(docs);
         return this;
     }
 
+    /**
+     * Sets the text to use in order to find documents that are "like" this.
+     *
+     * @param likeText the text to use when generating the 'More Like This' query.
+     */
     public MoreLikeThisQueryBuilder like(String... likeText) {
         this.docs = new ArrayList<>();
         for (String text : likeText) {
@@ -177,24 +186,36 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         return this;
     }
 
+    /**
+     * Sets the documents from which the terms should not be selected from.
+     */
     public MoreLikeThisQueryBuilder unlike(Item... docs) {
-        this.unlike_docs = Arrays.asList(docs);
+        this.unlikeDocs = Arrays.asList(docs);
         return this;
     }
 
+    /**
+     * Sets the text from which the terms should not be selected from.
+     */
     public MoreLikeThisQueryBuilder unlike(String... likeText) {
-        this.unlike_docs = new ArrayList<>();
+        this.unlikeDocs = new ArrayList<>();
         for (String text : likeText) {
-            this.unlike_docs.add(new Item(text));
+            this.unlikeDocs.add(new Item(text));
         }
         return this;
     }
 
+    /**
+     * Adds a document to use in order to find documents that are "like" this.
+     */
     public MoreLikeThisQueryBuilder addItem(Item item) {
         this.docs.add(item);
         return this;
     }
 
+    /**
+     * Adds some text to use in order to find documents that are "like" this.
+     */
     public MoreLikeThisQueryBuilder addLikeText(String likeText) {
         this.docs.add(new Item(likeText));
         return this;
@@ -365,8 +386,8 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         } else {
             builder.field(likeFieldName, docs);
         }
-        if (!unlike_docs.isEmpty()) {
-            builder.field(MoreLikeThisQueryParser.Fields.LIKE.getPreferredName(), unlike_docs);
+        if (!unlikeDocs.isEmpty()) {
+            builder.field(MoreLikeThisQueryParser.Fields.LIKE.getPreferredName(), unlikeDocs);
         }
         if (minimumShouldMatch != null) {
             builder.field(MoreLikeThisQueryParser.Fields.MINIMUM_SHOULD_MATCH.getPreferredName(), minimumShouldMatch);

@@ -207,7 +207,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
         }
 
         if (likeTexts.isEmpty() && likeItems.isEmpty()) {
-            throw new QueryParsingException(parseContext.index(), "more_like_this requires at least 'like_text' or 'ids/docs' to be specified");
+            throw new QueryParsingException(parseContext.index(), "more_like_this requires 'like' to be specified");
         }
         if (moreLikeFields != null && moreLikeFields.isEmpty()) {
             throw new QueryParsingException(parseContext.index(), "more_like_this requires 'fields' to be non-empty");

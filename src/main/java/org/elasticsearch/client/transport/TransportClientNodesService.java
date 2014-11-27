@@ -348,7 +348,7 @@ public class TransportClientNodesService extends AbstractComponent {
                 }
                 try {
                     NodesInfoResponse nodeInfo = transportService.submitRequest(listedNode, NodesInfoAction.NAME,
-                            headers.applyTo(Requests.nodesInfoRequest("_local")),
+                            headers.applyTo(Requests.nodesInfoRequest("_local").clear()),
                             TransportRequestOptions.options().withType(TransportRequestOptions.Type.STATE).withTimeout(pingTimeout),
                             new FutureTransportResponseHandler<NodesInfoResponse>() {
                                 @Override

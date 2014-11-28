@@ -40,6 +40,7 @@ import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -71,7 +72,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
                         HierarchyCircuitBreakerService.DEFAULT_REQUEST_BREAKER_LIMIT)
                 .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING, 1.0)
                 .build();
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings).execute().actionGet();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings));
     }
 
     @Before
@@ -125,14 +126,14 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
         searchRequest.get();
 
         // clear field data cache (thus setting the loaded field data back to 0)
-        client.admin().indices().prepareClearCache("cb-test").setFieldDataCache(true).execute().actionGet();
+        clearFieldData();
 
         // Update circuit breaker settings
         Settings settings = settingsBuilder()
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, randomRidiculouslySmallLimit())
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING, 1.05)
                 .build();
-        client.admin().cluster().prepareUpdateSettings().setTransientSettings(settings).execute().actionGet();
+        assertAcked(client.admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
 
         // execute a search that loads field data (sorting on the "test" field)
         // again, this time it should trip the breaker
@@ -174,14 +175,14 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
         client.prepareSearch("ramtest").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC).get();
 
         // clear field data cache (thus setting the loaded field data back to 0)
-        client.admin().indices().prepareClearCache("ramtest").setFieldDataCache(true).execute().actionGet();
+        clearFieldData();
 
         // Update circuit breaker settings
         Settings settings = settingsBuilder()
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, randomRidiculouslySmallLimit())
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING, 1.05)
                 .build();
-        client.admin().cluster().prepareUpdateSettings().setTransientSettings(settings).execute().actionGet();
+        assertAcked(client.admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
 
         // execute a search that loads field data (sorting on the "test" field)
         // again, this time it should trip the breaker
@@ -227,7 +228,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, "10b")
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING, 1.0)
                 .build();
-        client.admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings).execute().actionGet();
+        assertAcked(client.admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings));
 
         // Perform a search to load field data for the "test" field
         try {
@@ -275,7 +276,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
         Settings resetSettings = settingsBuilder()
                 .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, "10b")
                 .build();
-        client.admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings).execute().actionGet();
+        assertAcked(client.admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings));
 
         // index some different terms so we have some field data for loading
         int docCount = scaledRandomIntBetween(300, 1000);
@@ -294,5 +295,22 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
             assertThat("Exception: " + ExceptionsHelper.unwrapCause(e) + " should contain a CircuitBreakingException",
                     ExceptionsHelper.unwrapCause(e).getMessage().contains(errMsg), equalTo(true));
         }
+    }
+
+    /** Issues a cache clear and waits 30 seconds for the field data breaker to be cleared */
+    public void clearFieldData() throws Exception {
+        client().admin().indices().prepareClearCache().setFieldDataCache(true).execute().actionGet();
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                NodesStatsResponse resp = client().admin().cluster().prepareNodesStats()
+                        .clear().setBreaker(true).get(new TimeValue(15, TimeUnit.SECONDS));
+                for (NodeStats nStats : resp.getNodes()) {
+                    assertThat("fielddata breaker never reset back to 0",
+                            nStats.getBreaker().getStats(CircuitBreaker.Name.FIELDDATA).getEstimated(),
+                            equalTo(0L));
+                }
+            }
+        }, 30, TimeUnit.SECONDS);
     }
 }

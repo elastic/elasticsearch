@@ -51,11 +51,9 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.store.support.AbstractIndexStore;
-import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -353,7 +351,6 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
     }
 
     @Test
-    @TestLogging("snapshots:TRACE")
     public void restoreIndexWithMissingShards() throws Exception {
         logger.info("--> start 2 nodes");
         internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
@@ -491,7 +488,6 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
     }
 
     @Test
-    @TestLogging("indices.recovery:TRACE,index.gateway:TRACE,gateway:TRACE")
     public void restoreIndexWithShardsMissingInLocalGateway() throws Exception {
         logger.info("--> start 2 nodes");
         internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
@@ -548,7 +544,6 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
     }
 
     @Test
-    @TestLogging("snapshots:TRACE,repositories:TRACE")
     @Ignore
     public void chaosSnapshotTest() throws Exception {
         final List<String> indices = new CopyOnWriteArrayList<>();

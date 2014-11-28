@@ -54,7 +54,6 @@ public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow
-    @TestLogging("indices.cluster:TRACE,cluster.service:TRACE,action.count:TRACE,indices.recovery:TRACE")
     public void testFullRollingRestart() throws Exception {
         internalCluster().startNode();
         createIndex("test");

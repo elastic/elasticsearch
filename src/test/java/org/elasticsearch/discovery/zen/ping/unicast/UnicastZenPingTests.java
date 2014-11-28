@@ -48,7 +48,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class UnicastZenPingTests extends ElasticsearchTestCase {
 
     @Test
-    @TestLogging("discovery:TRACE")
     public void testSimplePings() throws InterruptedException {
         Settings settings = ImmutableSettings.EMPTY;
         int startPort = 11000 + randomIntBetween(0, 1000);

@@ -254,7 +254,6 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
     }
 
     @Test
-    @TestLogging("cluster.routing.allocation.decider:TRACE")
     public void diskThresholdWithAbsoluteSizesTest() {
         Settings diskSettings = settingsBuilder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true)

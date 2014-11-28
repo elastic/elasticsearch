@@ -22,10 +22,8 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -49,7 +47,6 @@ public class FunctionScoreBackwardCompatibilityTests extends ElasticsearchBackwa
      * Simple upgrade test for function score
      */
     @Test
-    @TestLogging("action.search:TRACE")
     public void testSimpleFunctionScoreParsingWorks() throws IOException, ExecutionException, InterruptedException {
 
         assertAcked(prepareCreate("test").addMapping(

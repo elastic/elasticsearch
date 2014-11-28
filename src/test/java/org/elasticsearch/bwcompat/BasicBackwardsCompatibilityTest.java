@@ -152,7 +152,6 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
     }
 
     @Test
-    @TestLogging("action.search.type:TRACE,action.support.replication:TRACE,cluster.service:TRACE,indices.recovery:TRACE,index.shard.service:TRACE")
     public void testRecoverFromPreviousVersion() throws ExecutionException, InterruptedException {
         if (backwardsCluster().numNewDataNodes() == 0) {
             backwardsCluster().startNewNode();

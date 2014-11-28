@@ -445,7 +445,6 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow
-    @TestLogging("indices.recovery:TRACE")
     public void testCancellationCleansTempFiles() throws Exception {
         final String indexName = "test";
 

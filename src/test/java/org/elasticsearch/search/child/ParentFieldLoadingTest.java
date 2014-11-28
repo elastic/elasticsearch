@@ -59,7 +59,6 @@ public class ParentFieldLoadingTest extends ElasticsearchIntegrationTest {
             .build();
 
     @Test
-    @TestLogging("index.warmer:TRACE")
     public void testEagerParentFieldLoading() throws Exception {
         logger.info("testing lazy loading...");
         assertAcked(prepareCreate("test")
@@ -126,7 +125,6 @@ public class ParentFieldLoadingTest extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("index.warmer:TRACE")
     public void testChangingEagerParentFieldLoadingAtRuntime() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)

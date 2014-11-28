@@ -1544,7 +1544,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("action.admin.indices.mapping.delete:TRACE")
     public void testDeletePercolatorType() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test1"));
         assertAcked(client().admin().indices().prepareCreate("test2"));

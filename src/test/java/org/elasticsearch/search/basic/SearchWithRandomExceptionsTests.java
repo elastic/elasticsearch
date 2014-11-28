@@ -196,7 +196,6 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
     }
 
     @Test
-    @TestLogging("action.admin.indices.refresh:TRACE,action.search.type:TRACE,cluster.service:TRACE")
     public void testRandomExceptions() throws IOException, InterruptedException, ExecutionException {
         String mapping = XContentFactory.jsonBuilder().
                 startObject().

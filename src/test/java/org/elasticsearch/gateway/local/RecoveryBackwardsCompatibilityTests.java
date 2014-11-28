@@ -62,7 +62,6 @@ public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsC
 
     @Test
     @LuceneTestCase.Slow
-    @TestLogging("discovery.zen:TRACE")
     public void testReusePeerRecovery() throws Exception {
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put(indexSettings()).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)));
         logger.info("--> indexing docs");

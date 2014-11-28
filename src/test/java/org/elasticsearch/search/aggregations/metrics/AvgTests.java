@@ -251,7 +251,6 @@ public class AvgTests extends AbstractNumericTests {
     }
 
     @Test
-    @TestLogging("search:TRACE")
     public void testScript_MultiValued_WithParams() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())

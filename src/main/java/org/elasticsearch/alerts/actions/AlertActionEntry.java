@@ -12,6 +12,7 @@ import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
@@ -23,28 +24,29 @@ import java.util.Map;
 public class AlertActionEntry implements ToXContent {
 
     private String id;
-    private long version;
     private String alertName;
-
     private DateTime fireTime;
+
     private DateTime scheduledTime;
     private AlertTrigger trigger;
     private List<AlertAction> actions;
     private AlertActionState state;
     private SearchRequest searchRequest;
-
     /*Optional*/
     private Map<String, Object> searchResponse;
+
     private boolean triggered;
     private String errorMsg;
     private Map<String,Object> metadata;
+
+    private transient long version;
+    private transient XContentType contentType;
 
     AlertActionEntry() {
     }
 
     public AlertActionEntry(Alert alert, DateTime scheduledTime, DateTime fireTime, AlertActionState state) throws IOException {
         this.id = alert.alertName() + "#" + scheduledTime.toDateTimeISO();
-        this.version = 1;
         this.alertName = alert.alertName();
         this.fireTime = fireTime;
         this.scheduledTime = scheduledTime;
@@ -52,6 +54,10 @@ public class AlertActionEntry implements ToXContent {
         this.actions = alert.actions();
         this.state = state;
         this.searchRequest = alert.getSearchRequest();
+        this.metadata = alert.getMetadata();
+
+        this.version = 1;
+        this.contentType = alert.getContentType();
     }
 
     /**
@@ -173,6 +179,17 @@ public class AlertActionEntry implements ToXContent {
     }
 
     /**
+     * @return xcontext type of the _source of this action entry.
+     */
+    public XContentType getContentType() {
+        return contentType;
+    }
+
+    void setContentType(XContentType contentType) {
+        this.contentType = contentType;
+    }
+
+    /**
      * @return The error if an error occured otherwise null
      */
     public String getErrorMsg(){
@@ -193,8 +210,6 @@ public class AlertActionEntry implements ToXContent {
     public void setMetadata(Map<String, Object> metadata) {
         this.metadata = metadata;
     }
-
-
 
     @Override
     public XContentBuilder toXContent(XContentBuilder historyEntry, Params params) throws IOException {

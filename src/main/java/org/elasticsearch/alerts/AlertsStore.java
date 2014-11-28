@@ -31,6 +31,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
@@ -39,8 +40,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  */
@@ -110,8 +109,7 @@ public class AlertsStore extends AbstractComponent {
      */
     public void updateAlert(Alert alert) throws IOException {
         ensureStarted();
-        // TODO: the content type should be based on the provided content type when the alert was initially added.
-        BytesReference source = jsonBuilder().value(alert).bytes();
+        BytesReference source = XContentFactory.contentBuilder(alert.getContentType()).value(alert).bytes();
         IndexResponse response = client.index(createIndexRequest(alert.alertName(), source)).actionGet();
         alert.version(response.getVersion());
         // Don't need to update the alertMap, since we are working on an instance from it.
@@ -241,6 +239,8 @@ public class AlertsStore extends AbstractComponent {
         Alert alert = new Alert();
         alert.alertName(alertName);
         try (XContentParser parser = XContentHelper.createParser(source)) {
+            alert.setContentType(parser.contentType());
+
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken();
             assert token == XContentParser.Token.START_OBJECT;

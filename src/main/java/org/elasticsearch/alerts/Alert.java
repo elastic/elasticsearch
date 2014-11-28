@@ -12,6 +12,7 @@ import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -26,11 +27,13 @@ public class Alert implements ToXContent {
     private List<AlertAction> actions;
     private String schedule;
     private DateTime lastExecuteTime;
-    private long version;
     private TimeValue throttlePeriod = new TimeValue(0);
     private DateTime timeLastActionExecuted = null;
     private AlertAckState ackState = AlertAckState.NOT_ACKABLE;
     private Map<String,Object> metadata = null;
+
+    private transient long version;
+    private transient XContentType contentType;
 
     public Alert() {
         actions = new ArrayList<>();
@@ -108,6 +111,17 @@ public class Alert implements ToXContent {
 
     public void version(long version) {
         this.version = version;
+    }
+
+    void setContentType(XContentType contentType) {
+        this.contentType = contentType;
+    }
+
+    /**
+     * @return xcontext type of the _source of this action entry.
+     */
+    public XContentType getContentType() {
+        return contentType;
     }
 
     /**

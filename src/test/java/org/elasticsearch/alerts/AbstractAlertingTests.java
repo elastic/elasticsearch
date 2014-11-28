@@ -34,7 +34,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.*;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.hamcrest.Matchers.*;
@@ -94,7 +94,17 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
     }
 
     protected BytesReference createAlertSource(String cron, SearchRequest request, String scriptTrigger, Map<String,Object> metadata) throws IOException {
-        XContentBuilder builder = jsonBuilder().startObject();
+        XContentBuilder builder;
+        if (randomBoolean()) {
+            builder = jsonBuilder();
+        } else if (randomBoolean()) {
+            builder = yamlBuilder();
+        } else if (randomBoolean()) {
+            builder = cborBuilder();
+        } else {
+            builder = smileBuilder();
+        }
+        builder.startObject();
         builder.field("schedule", cron);
         builder.field("request");
         AlertUtils.writeSearchRequest(request, builder, ToXContent.EMPTY_PARAMS);

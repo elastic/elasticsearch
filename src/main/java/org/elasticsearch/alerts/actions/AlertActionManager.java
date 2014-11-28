@@ -206,6 +206,8 @@ public class AlertActionManager extends AbstractComponent {
         entry.setVersion(version);
 
         try (XContentParser parser = XContentHelper.createParser(source)) {
+            entry.setContentType(parser.contentType());
+
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken();
             assert token == XContentParser.Token.START_OBJECT;
@@ -269,11 +271,8 @@ public class AlertActionManager extends AbstractComponent {
         logger.debug("Adding alert action for alert [{}]", alert.alertName());
         String alertHistoryIndex = getAlertHistoryIndexNameForTime(scheduledFireTime);
         AlertActionEntry entry = new AlertActionEntry(alert, scheduledFireTime, fireTime, AlertActionState.SEARCH_NEEDED);
-        if (alert.getMetadata() != null) {
-            entry.setMetadata(alert.getMetadata());
-        }
         IndexResponse response = client.prepareIndex(alertHistoryIndex, ALERT_HISTORY_TYPE, entry.getId())
-                .setSource(XContentFactory.jsonBuilder().value(entry))
+                .setSource(XContentFactory.contentBuilder(alert.getContentType()).value(entry))
                 .setOpType(IndexRequest.OpType.CREATE)
                 .get();
         entry.setVersion(response.getVersion());
@@ -298,7 +297,7 @@ public class AlertActionManager extends AbstractComponent {
         ensureStarted();
         logger.debug("Updating alert action [{}]", entry.getId());
         IndexResponse response = client.prepareIndex(getAlertHistoryIndexNameForTime(entry.getScheduledTime()), ALERT_HISTORY_TYPE, entry.getId())
-                .setSource(XContentFactory.jsonBuilder().value(entry))
+                .setSource(XContentFactory.contentBuilder(entry.getContentType()).value(entry))
                 .get();
         logger.debug("Updated alert action [{}]", entry.getId());
         entry.setVersion(response.getVersion());

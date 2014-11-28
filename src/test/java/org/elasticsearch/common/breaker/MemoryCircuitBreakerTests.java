@@ -78,8 +78,8 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
         }
 
         assertThat("no other exceptions were thrown", lastException.get(), equalTo(null));
-        assertThat("breaker was tripped exactly once", tripped.get(), equalTo(true));
-        assertThat("breaker was tripped exactly once", breaker.getTrippedCount(), equalTo(1L));
+        assertThat("breaker was tripped", tripped.get(), equalTo(true));
+        assertThat("breaker was tripped at least once", breaker.getTrippedCount(), greaterThanOrEqualTo(1L));
     }
 
     @Test
@@ -136,8 +136,8 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
         }
 
         assertThat("no other exceptions were thrown", lastException.get(), equalTo(null));
-        assertThat("breaker was tripped exactly once", tripped.get(), equalTo(true));
-        assertThat("breaker was tripped exactly once", breaker.getTrippedCount(), equalTo(1L));
+        assertThat("breaker was tripped", tripped.get(), equalTo(true));
+        assertThat("breaker was tripped at least once", breaker.getTrippedCount(), greaterThanOrEqualTo(1L));
     }
 
     @Test
@@ -204,12 +204,12 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
         }
 
         logger.info("--> child breaker: used: {}, limit: {}", breaker.getUsed(), breaker.getLimit());
-        logger.info("--> parent tripped: {}, total trip count: {} (expecting 2 for each)", parentTripped.get(), tripped.get());
+        logger.info("--> parent tripped: {}, total trip count: {} (expecting 1-2 for each)", parentTripped.get(), tripped.get());
         assertThat("no other exceptions were thrown", lastException.get(), equalTo(null));
         assertThat("breaker should be reset back to the parent limit after parent breaker trips",
                 breaker.getUsed(), equalTo((long)parentLimit));
-        assertThat("parent breaker was tripped at least twice", parentTripped.get(), greaterThanOrEqualTo(2));
-        assertThat("total breaker was tripped at least twice", tripped.get(), greaterThanOrEqualTo(2));
+        assertThat("parent breaker was tripped at least once", parentTripped.get(), greaterThanOrEqualTo(1));
+        assertThat("total breaker was tripped at least once", tripped.get(), greaterThanOrEqualTo(1));
         assertThat("breaker total is expected value: " + parentLimit, breaker.getUsed(), equalTo((long)
                 parentLimit));
     }

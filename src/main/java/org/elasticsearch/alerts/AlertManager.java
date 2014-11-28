@@ -212,6 +212,7 @@ public class AlertManager extends AbstractComponent {
 
     private void internalStop() {
         if (state.compareAndSet(State.STARTED, State.STOPPING)) {
+            logger.info("Stopping alert manager...");
             while (true) {
                 // It can happen we have still ongoing operations and we wait those operations to finish to avoid
                 // that AlertManager or any of its components end up in a illegal state after the state as been set to stopped.
@@ -226,7 +227,6 @@ public class AlertManager extends AbstractComponent {
                 }
             }
 
-            logger.info("Stopping alert manager...");
             actionManager.stop();
             scheduler.stop();
             alertsStore.stop();

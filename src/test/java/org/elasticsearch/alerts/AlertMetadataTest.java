@@ -39,7 +39,8 @@ public class AlertMetadataTest extends AbstractAlertingTests {
         alertClient().preparePutAlert("1")
                 .setAlertSource(createAlertSource("0/5 * * * * ? *", triggerRequest, "hits.total == 1", metadata))
                 .get();
-        assertAlertTriggered("1", 0, false);
+        // Wait for a no action entry to be added. (the trigger search request will not match, because there are no docs in my-index)
+        assertNoAlertTrigger("1", 1);
 
         refresh();
         SearchResponse searchResponse = client().prepareSearch(ALERT_HISTORY_INDEX_PREFIX + "*")

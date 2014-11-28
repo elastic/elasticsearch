@@ -40,6 +40,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.*;
@@ -154,6 +155,7 @@ public class HdfsSnapshotRestoreTest extends ElasticsearchIntegrationTest {
     }
 
     @Test(expected = RepositoryVerificationException.class)
+	@Ignore
     public void testWrongPath() {
         Client client = client();
         logger.info("-->  creating hdfs repository with path [{}]", path);

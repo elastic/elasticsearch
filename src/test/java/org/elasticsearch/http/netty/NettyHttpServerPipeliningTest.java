@@ -89,7 +89,6 @@ public class NettyHttpServerPipeliningTest extends ElasticsearchTestCase {
     }
 
     @Test
-    @TestLogging("_root:DEBUG")
     public void testThatHttpPipeliningWorksWhenEnabled() throws Exception {
         Settings settings = settingsBuilder().put("http.pipelining", true).build();
         httpServerTransport = new CustomNettyHttpServerTransport(settings);
@@ -105,7 +104,6 @@ public class NettyHttpServerPipeliningTest extends ElasticsearchTestCase {
     }
 
     @Test
-    @TestLogging("_root:TRACE")
     public void testThatHttpPipeliningCanBeDisabled() throws Exception {
         Settings settings = settingsBuilder().put("http.pipelining", false).build();
         httpServerTransport = new CustomNettyHttpServerTransport(settings);

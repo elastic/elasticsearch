@@ -27,7 +27,6 @@ import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
-import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
@@ -52,7 +51,6 @@ import org.elasticsearch.index.store.support.AbstractIndexStore;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.File;
@@ -605,7 +603,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
 
     @Test
-    @TestLogging("snapshots:TRACE")
     public void deletionOfFailingToRecoverIndexShouldStopRestore() throws Exception {
         File repositoryLocation = newTempDir(LifecycleScope.TEST);
         Client client = client();
@@ -822,7 +819,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
     }
 
     @Test
-    @TestLogging("snapshots:TRACE")
     public void snapshotClosedIndexTest() throws Exception {
         Client client = client();
 
@@ -990,7 +986,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
     }
 
     @Test
-    @TestLogging("cluster.routing.allocation.decider:TRACE")
     public void moveShardWhileSnapshottingTest() throws Exception {
         Client client = client();
         File repositoryLocation = newTempDir(LifecycleScope.TEST);
@@ -1053,7 +1048,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
     }
 
     @Test
-    @TestLogging("cluster.routing.allocation.decider:TRACE")
     public void deleteRepositoryWhileSnapshottingTest() throws Exception {
         Client client = client();
         File repositoryLocation = newTempDir(LifecycleScope.TEST);
@@ -1255,7 +1249,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
 
     @Test
-    @TestLogging("cluster.routing.allocation.decider:TRACE")
     public void snapshotStatusTest() throws Exception {
         Client client = client();
         File repositoryLocation = newTempDir(LifecycleScope.TEST);

@@ -54,7 +54,6 @@ import static org.hamcrest.Matchers.*;
  */
 @ClusterScope(numDataNodes = 0, scope = Scope.TEST)
 @Slow
-@TestLogging("index.shard.service:TRACE,index.gateway.local:TRACE")
 public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTest {
 
     private ImmutableSettings.Builder settingsBuilder() {

@@ -54,7 +54,6 @@ import static org.hamcrest.Matchers.nullValue;
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 @Slow
-@TestLogging("action.search:TRACE,index.shard.service:TRACE")
 public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(LocalGatewayIndexStateTests.class);

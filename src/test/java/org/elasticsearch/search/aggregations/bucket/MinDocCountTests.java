@@ -48,7 +48,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 
 
 @ElasticsearchIntegrationTest.SuiteScopeTest
-@TestLogging("action.admin.indices.refresh:TRACE,action.search.type:TRACE,cluster.service:TRACE")
 public class MinDocCountTests extends AbstractTermsTests {
 
     private static final QueryBuilder QUERY = QueryBuilders.termQuery("match", true);

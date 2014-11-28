@@ -61,7 +61,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.*;
 import org.junit.Test;
@@ -88,7 +87,6 @@ import static org.hamcrest.Matchers.*;
 /**
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-@TestLogging("indices.recovery:TRACE,index.shard.service:TRACE")
 public class RelocationTests extends ElasticsearchIntegrationTest {
     private final TimeValue ACCEPTABLE_RELOCATION_TIME = new TimeValue(5, TimeUnit.MINUTES);
 
@@ -445,7 +443,6 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow
-    @TestLogging("indices.recovery:TRACE")
     public void testCancellationCleansTempFiles() throws Exception {
         final String indexName = "test";
 

@@ -183,7 +183,6 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void testLoadingPercolateQueriesDuringCloseAndOpen() throws Exception {
         internalCluster().startNode();
         internalCluster().startNode();

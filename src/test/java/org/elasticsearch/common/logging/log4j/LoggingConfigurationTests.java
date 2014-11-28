@@ -144,7 +144,7 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
         assertThat(logSettings.get("yml"), Matchers.nullValue());
     }
 
-    private static String loggingConfiguration(String suffix) {
+    protected static String loggingConfiguration(String suffix) {
         return "logging." + randomAsciiOfLength(randomIntBetween(0, 10)) + "." + suffix;
     }
 

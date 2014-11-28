@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -196,7 +197,11 @@ public class AlertsStore extends AbstractComponent {
 
     private void loadAlerts() {
         assert alertMap.isEmpty() : "No alerts should reside, but there are " + alertMap.size() + " alerts.";
-        client.admin().indices().refresh(new RefreshRequest(ALERT_INDEX)).actionGet();
+        RefreshResponse refreshResponse = client.admin().indices().refresh(new RefreshRequest(ALERT_INDEX)).actionGet();
+        if (refreshResponse.getSuccessfulShards() != refreshResponse.getSuccessfulShards()) {
+            throw new ElasticsearchException("Not all shards have been refreshed");
+        }
+
         SearchResponse response = client.prepareSearch(ALERT_INDEX)
                 .setTypes(ALERT_TYPE)
                 .setSearchType(SearchType.SCAN)

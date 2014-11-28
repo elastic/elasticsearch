@@ -17,6 +17,7 @@ import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.support.Validation;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -101,7 +102,7 @@ public class FileUserPasswdStore {
             return ImmutableMap.of();
         }
 
-        List<String> lines = null;
+        List<String> lines;
         try {
             lines = Files.readAllLines(path, Charsets.UTF_8);
         } catch (IOException ioe) {
@@ -124,6 +125,13 @@ public class FileUserPasswdStore {
                 continue;
             }
             String username = line.substring(0, i).trim();
+            Validation.Error validationError = Validation.ESUsers.validateUsername(username);
+            if (validationError != null) {
+                if (logger != null) {
+                    logger.error("Invalid username [{}], skipping... ({})", username, validationError);
+                }
+                continue;
+            }
             String hash = line.substring(i + 1).trim();
             users.put(username, hash.toCharArray());
         }

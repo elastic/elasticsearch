@@ -25,6 +25,7 @@ import org.elasticsearch.shield.authz.AuthorizationException;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.authz.Permission;
 import org.elasticsearch.shield.authz.store.FileRolesStore;
+import org.elasticsearch.shield.support.Validation;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.nio.file.Files;
@@ -92,13 +93,25 @@ public class ESUsersTool extends CliTool {
             }
 
             String username = cli.getArgs()[0];
+            Validation.Error validationError = Validation.ESUsers.validateUsername(username);
+            if (validationError != null) {
+                return exitCmd(ExitStatus.DATA_ERROR, terminal, "Invalid username [" + username + "]... " + validationError);
+            }
 
             char[] password;
             String passwordStr = cli.getOptionValue("password");
             if (passwordStr != null) {
                 password = passwordStr.toCharArray();
+                validationError = Validation.ESUsers.validatePassword(password);
+                if (validationError != null) {
+                    return exitCmd(ExitStatus.DATA_ERROR, terminal, "Invalid password..." + validationError);
+                }
             } else {
                 password = terminal.readSecret("Enter new password: ");
+                validationError = Validation.ESUsers.validatePassword(password);
+                if (validationError != null) {
+                    return exitCmd(ExitStatus.DATA_ERROR, terminal, "Invalid password..." + validationError);
+                }
                 char[] retyped = terminal.readSecret("Retype new password: ");
                 if (!Arrays.equals(password, retyped)) {
                     return exitCmd(ExitStatus.USAGE, terminal, "Password mismatch");
@@ -107,6 +120,12 @@ public class ESUsersTool extends CliTool {
 
             String rolesCsv = cli.getOptionValue("roles");
             String[] roles = (rolesCsv != null) ? rolesCsv.split(",") : Strings.EMPTY_ARRAY;
+            for (String role : roles) {
+                validationError = Validation.Roles.validateRoleName(role);
+                if (validationError != null) {
+                    return exitCmd(ExitStatus.DATA_ERROR, terminal, "Invalid role [" + role + "]... " + validationError);
+                }
+            }
             return new Useradd(terminal, username, new SecuredString(password), roles);
         }
 

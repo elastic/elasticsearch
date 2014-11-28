@@ -46,6 +46,33 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     @Test
+    public void testUseradd_Parse_InvalidUsername() throws Exception {
+        ESUsersTool tool = new ESUsersTool();
+        CliTool.Command command = tool.parse("useradd", args("$34dkl -p changeme -r r1,r2,r3"));
+        assertThat(command, instanceOf(CliTool.Command.Exit.class));
+        CliTool.Command.Exit exit = (CliTool.Command.Exit) command;
+        assertThat(exit.status(), is(CliTool.ExitStatus.DATA_ERROR));
+    }
+
+    @Test
+    public void testUseradd_Parse_InvalidRoleName() throws Exception {
+        ESUsersTool tool = new ESUsersTool();
+        CliTool.Command command = tool.parse("useradd", args("username -p changeme -r $343,r2,r3"));
+        assertThat(command, instanceOf(CliTool.Command.Exit.class));
+        CliTool.Command.Exit exit = (CliTool.Command.Exit) command;
+        assertThat(exit.status(), is(CliTool.ExitStatus.DATA_ERROR));
+    }
+
+    @Test
+    public void testUseradd_Parse_InvalidPassword() throws Exception {
+        ESUsersTool tool = new ESUsersTool();
+        CliTool.Command command = tool.parse("useradd", args("username -p 123 -r r1,r2,r3"));
+        assertThat(command, instanceOf(CliTool.Command.Exit.class));
+        CliTool.Command.Exit exit = (CliTool.Command.Exit) command;
+        assertThat(exit.status(), is(CliTool.ExitStatus.DATA_ERROR));
+    }
+
+    @Test
     public void testUseradd_Parse_NoUsername() throws Exception {
         ESUsersTool tool = new ESUsersTool();
         CliTool.Command command = tool.parse("useradd", args("-p test123"));

@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.support.RefreshListener;
+import org.elasticsearch.shield.support.Validation;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -117,9 +118,10 @@ public class FileUserRolesStore {
                 continue;
             }
             String role = line.substring(0, i).trim();
-            if (Strings.isEmpty(role)) {
+            Validation.Error validationError = Validation.Roles.validateRoleName(role);
+            if (validationError != null) {
                 if (logger != null) {
-                    logger.error("Invalid username entry in users_roles file [" + path.toAbsolutePath() + "], line [" + lineNr + "]. Skipping...");
+                    logger.error("Invalid role entry in users_roles file [" + path.toAbsolutePath() + "], line [" + lineNr + "]. Skipping... (" + validationError + ")");
                 }
                 continue;
             }

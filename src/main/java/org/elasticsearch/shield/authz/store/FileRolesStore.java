@@ -18,10 +18,12 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.ShieldException;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.authz.Permission;
 import org.elasticsearch.shield.authz.Privilege;
-import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.support.Validation;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -99,6 +101,10 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
                     String roleName = currentFieldName;
+                    Validation.Error validationError = Validation.Roles.validateRoleName(roleName);
+                    if (validationError != null) {
+                        throw new ShieldException("Invalid role name [" + roleName + "]... " + validationError);
+                    }
                     Permission.Global.Role.Builder permission = Permission.Global.Role.builder(roleName);
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
@@ -122,7 +128,7 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
                                     name = new Privilege.Name(names);
                                 }
                             } else {
-                                throw new ElasticsearchException("Invalid roles file format [" + path.toAbsolutePath() +
+                                throw new ShieldException("Invalid roles file format [" + path.toAbsolutePath() +
                                         "]. [cluster] field value can either be a string or a list of strings, but [" + token + "] was found instead in role [" + roleName + "]");
                             }
                             if (name != null) {
@@ -148,7 +154,7 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
                                                 if (token == XContentParser.Token.VALUE_STRING) {
                                                     names.add(parser.text());
                                                 } else {
-                                                    throw new ElasticsearchException("Invalid roles file format [" + path.toAbsolutePath() +
+                                                    throw new ShieldException("Invalid roles file format [" + path.toAbsolutePath() +
                                                             "]. Could not parse [" + token + "] as index privilege in role[" + roleName + "]. Privilege names must be strings");
                                                 }
                                             }
@@ -156,7 +162,7 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
                                                 name = new Privilege.Name(names);
                                             }
                                         } else {
-                                            throw new ElasticsearchException("Invalid roles file format [" + path.toAbsolutePath() +
+                                            throw new ShieldException("Invalid roles file format [" + path.toAbsolutePath() +
                                                     "]. Could not parse [" + token + "] as index privileges list in role [" + roleName + "]. Privilege lists must either " +
                                                     "be a comma delimited string or an array of strings");
                                         }
@@ -166,12 +172,12 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
                                     }
                                 }
                             } else {
-                                throw new ElasticsearchException("Invalid roles file format [" + path.toAbsolutePath() +
+                                throw new ShieldException("Invalid roles file format [" + path.toAbsolutePath() +
                                         "]. [indices] field value must be an array of indices-privileges mappings defined as a string" +
                                         " in the form <comma-separated list of index name patterns>::<comma-separated list of privileges> , but [" + token + "] was found instead in role [" + roleName + "]");
                             }
                         } else {
-                            throw new ElasticsearchException("Invalid roles file format [" + path.toAbsolutePath() +
+                            throw new ShieldException("Invalid roles file format [" + path.toAbsolutePath() +
                                     "]. each role may have [cluster] field (holding a list of cluster permissions) and/or " +
                                     "[indices] field (holding a list of indices permissions. But [" + token + "] was found instead in role [" + roleName + "]");
                         }
@@ -210,7 +216,7 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
                 }
             }
         } catch (IOException ioe) {
-            throw new ElasticsearchException("Could not write roles file [" + path.toAbsolutePath() + "], please check file permissions", ioe);
+            throw new ShieldException("Could not write roles file [" + path.toAbsolutePath() + "], please check file permissions", ioe);
         }
     }
 

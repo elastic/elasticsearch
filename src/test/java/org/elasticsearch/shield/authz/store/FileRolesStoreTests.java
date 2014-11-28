@@ -10,6 +10,7 @@ import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.authz.Permission;
 import org.elasticsearch.shield.authz.Privilege;
@@ -117,6 +118,15 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
         assertThat(roles, hasKey("logstash"));
         assertThat(roles, hasKey("marvel_user"));
         assertThat(roles, hasKey("marvel_agent"));
+    }
+
+    @Test(expected = ShieldException.class)
+    public void testInvalidRoleName() throws Exception {
+        String roles = "\"$dlk39\":\n" +
+                "  cluster: all";
+        Path file = newTempFile().toPath();
+        Files.write(file, roles.getBytes(UTF8));
+        FileRolesStore.parseFile(file, null, mock(AuthorizationService.class));
     }
 
     @Test

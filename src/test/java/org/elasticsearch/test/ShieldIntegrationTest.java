@@ -87,7 +87,7 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
     @BeforeClass
     public static void initDefaultSettings() {
         if (SHIELD_DEFAULT_SETTINGS == null) {
-            SHIELD_DEFAULT_SETTINGS = new ShieldSettingsSource(maxNumberOfNodes(), globalTempDir(), Scope.GLOBAL);
+            SHIELD_DEFAULT_SETTINGS = new ShieldSettingsSource(maxNumberOfNodes(), randomBoolean(), globalTempDir(), Scope.GLOBAL);
         }
     }
 
@@ -105,11 +105,11 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
                     break;
                 case SUITE:
                     if (customShieldSettingsSource == null) {
-                        customShieldSettingsSource = new CustomShieldSettingsSource(newTempDir(LifecycleScope.SUITE), currentClusterScope);
+                        customShieldSettingsSource = new CustomShieldSettingsSource(sslTransportEnabled(), newTempDir(LifecycleScope.SUITE), currentClusterScope);
                     }
                     break;
                 case TEST:
-                    customShieldSettingsSource = new CustomShieldSettingsSource(newTempDir(LifecycleScope.TEST), currentClusterScope);
+                    customShieldSettingsSource = new CustomShieldSettingsSource(sslTransportEnabled(), newTempDir(LifecycleScope.TEST), currentClusterScope);
                     break;
             }
         }
@@ -195,9 +195,17 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
         return SHIELD_DEFAULT_SETTINGS.transportClientPassword();
     }
 
+    /**
+     * Allows to control whether ssl is enabled or not on the transport layer when the {@link org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope} is set to
+     * {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#SUITE} or {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#TEST}
+     */
+    protected boolean sslTransportEnabled() {
+        return randomBoolean();
+    }
+
     private class CustomShieldSettingsSource extends ShieldSettingsSource {
-        private CustomShieldSettingsSource(File configDir, Scope scope) {
-            super(maxNumberOfNodes(), configDir, scope);
+        private CustomShieldSettingsSource(boolean sslTransportEnabled, File configDir, Scope scope) {
+            super(maxNumberOfNodes(), sslTransportEnabled, configDir, scope);
         }
 
         @Override

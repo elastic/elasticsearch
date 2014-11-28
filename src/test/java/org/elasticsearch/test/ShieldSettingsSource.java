@@ -65,6 +65,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     private final File parentFolder;
     private final String subfolderPrefix;
     private final byte[] systemKey;
+    private final boolean sslTransportEnabled;
 
     /**
      * Creates a new {@link org.elasticsearch.test.SettingsSource} for the shield configuration.
@@ -73,7 +74,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
      * @param parentFolder the parent folder that will contain all of the configuration files that need to be created
      * @param scope the scope of the test that is requiring an instance of ShieldSettingsSource
      */
-    public ShieldSettingsSource(int numOfNodes, File parentFolder, ElasticsearchIntegrationTest.Scope scope) {
+    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, File parentFolder, ElasticsearchIntegrationTest.Scope scope) {
         super(numOfNodes, ImmutableSettings.builder()
                 .put("node.mode", "network")
                 .put("plugin.types", ShieldPlugin.class.getName())
@@ -83,6 +84,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
         this.systemKey = generateKey();
         this.parentFolder = parentFolder;
         this.subfolderPrefix = scope.name();
+        this.sslTransportEnabled = sslTransportEnabled;
     }
 
     @Override
@@ -186,15 +188,26 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
         }
     }
 
-    private static Settings getNodeSSLSettings() {
-        return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode");
+    private Settings getNodeSSLSettings() {
+        return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode", sslTransportEnabled);
     }
 
-    private static Settings getClientSSLSettings() {
-        return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient");
+    private Settings getClientSSLSettings() {
+        return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient", sslTransportEnabled);
     }
 
+    /**
+     * Returns the configuration settings given the location of a certificate and its password
+     *
+     * @param resourcePathToStore the location of the keystore or truststore
+     * @param password the password
+     * @return the configuration settings
+     */
     public static Settings getSSLSettingsForStore(String resourcePathToStore, String password) {
+        return getSSLSettingsForStore(resourcePathToStore, password, true);
+    }
+
+    private static Settings getSSLSettingsForStore(String resourcePathToStore, String password, boolean sslTransportEnabled) {
         File store;
         try {
             store = new File(ShieldSettingsSource.class.getResource(resourcePathToStore).toURI());
@@ -207,12 +220,15 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
         }
 
         ImmutableSettings.Builder builder = settingsBuilder()
-                .put("shield.ssl.keystore.path", store.getPath())
-                .put("shield.ssl.keystore.password", password)
-                .put("shield.transport.ssl", true)
+                .put("shield.transport.ssl", sslTransportEnabled)
                 .put("shield.http.ssl", false);
 
-        if (RandomizedTest.randomBoolean()) {
+        if (sslTransportEnabled) {
+            builder.put("shield.ssl.keystore.path", store.getPath())
+                    .put("shield.ssl.keystore.password", password);
+        }
+
+        if (sslTransportEnabled && RandomizedTest.randomBoolean()) {
             builder.put("shield.ssl.truststore.path", store.getPath())
                     .put("shield.ssl.truststore.password", password);
         }

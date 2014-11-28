@@ -42,11 +42,15 @@ public class SslIntegrationTests extends ShieldIntegrationTest {
                 .put("shield.http.ssl", true).build();
     }
 
+    @Override
+    protected boolean sslTransportEnabled() {
+        return true;
+    }
+
     // no SSL exception as this is the exception is returned when connecting
     @Test(expected = NoNodeAvailableException.class)
     public void testThatUnconfiguredCiphersAreRejected() {
         try(TransportClient transportClient = new TransportClient(settingsBuilder()
-
                 .put(transportClientSettings())
                 .put("name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())

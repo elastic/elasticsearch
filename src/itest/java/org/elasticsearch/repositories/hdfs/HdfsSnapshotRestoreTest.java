@@ -153,7 +153,7 @@ public class HdfsSnapshotRestoreTest extends ElasticsearchIntegrationTest {
         cluster().wipeIndices(indices);
     }
 
-	@Test(expected = RepositoryVerificationException.class)
+    @Test(expected = RepositoryVerificationException.class)
     public void testWrongPath() {
         Client client = client();
         logger.info("-->  creating hdfs repository with path [{}]", path);
@@ -162,7 +162,7 @@ public class HdfsSnapshotRestoreTest extends ElasticsearchIntegrationTest {
                 .setType("hdfs")
                 .setSettings(ImmutableSettings.settingsBuilder()
                 .put("uri", "file://./")
-                .put("path", path + "a b c 11:22")
+                .put("path", path + "a@b$c#11:22")
                 .put("chunk_size", randomIntBetween(100, 1000))
                 .put("compress", randomBoolean())
                 ).get();

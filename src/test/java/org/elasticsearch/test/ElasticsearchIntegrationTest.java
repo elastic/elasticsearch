@@ -80,7 +80,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
-import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -113,7 +112,6 @@ import org.joda.time.DateTimeZone;
 import org.junit.*;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -459,7 +457,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
 
         if (random.nextBoolean()) {
-             builder.put(FsTranslog.INDEX_TRANSLOG_FS_TYPE, RandomPicks.randomFrom(random, FsTranslogFile.Type.values()).name());
+            builder.put(FsTranslog.INDEX_TRANSLOG_FS_TYPE, RandomPicks.randomFrom(random, FsTranslogFile.Type.values()).name());
         }
 
         if (random.nextBoolean()) {
@@ -590,7 +588,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return testCluster;
     }
 
-   private static void clearClusters() throws IOException {
+    private static void clearClusters() throws IOException {
         if (!clusters.isEmpty()) {
             IOUtils.close(clusters.values());
             clusters.clear();
@@ -608,9 +606,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     if (currentClusterScope != Scope.TEST) {
                         MetaData metaData = client().admin().cluster().prepareState().execute().actionGet().getState().getMetaData();
                         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(), metaData
-                            .persistentSettings().getAsMap().size(), equalTo(0));
+                                .persistentSettings().getAsMap().size(), equalTo(0));
                         assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(), metaData
-                            .transientSettings().getAsMap().size(), equalTo(0));
+                                .transientSettings().getAsMap().size(), equalTo(0));
                     }
                     ensureClusterSizeConsistency();
                     cluster().wipe(); // wipe after to make sure we fail in the test that didn't ack the delete
@@ -931,7 +929,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * It is useful to ensure that all action on the cluster have finished and all shards that were currently relocating
      * are now allocated and started.
      */
-    public ClusterHealthStatus  ensureGreen(String... indices) {
+    public ClusterHealthStatus ensureGreen(String... indices) {
         return ensureGreen(TimeValue.timeValueSeconds(30), indices);
     }
 
@@ -1088,7 +1086,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     public void logSegmentsState(String... indices) throws Exception {
         IndicesSegmentResponse segsRsp = client().admin().indices().prepareSegments(indices).get();
         logger.debug("segments {} state: \n{}", indices.length == 0 ? "[_all]" : indices,
-                     segsRsp.toXContent(JsonXContent.contentBuilder().prettyPrint(), ToXContent.EMPTY_PARAMS).string());
+                segsRsp.toXContent(JsonXContent.contentBuilder().prettyPrint(), ToXContent.EMPTY_PARAMS).string());
     }
 
     void ensureClusterSizeConsistency() {
@@ -1159,11 +1157,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     /**
      * Syntactic sugar for:
-     *
+     * <p/>
      * <pre>
      *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
      * </pre>
-     *
+     * <p/>
      * where source is a String.
      */
     protected final IndexResponse index(String index, String type, String id, String source) {
@@ -1286,7 +1284,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * @param forceRefresh   if <tt>true</tt> all involved indices are refreshed once the documents are indexed.
      * @param dummyDocuments if <tt>true</tt> some empty dummy documents may be randomly inserted into the document list and deleted once
      *                       all documents are indexed. This is useful to produce deleted documents on the server side.
-     * @param maybeFlush if <tt>true</tt> this method may randomly execute full flushes after index operations.
+     * @param maybeFlush     if <tt>true</tt> this method may randomly execute full flushes after index operations.
      * @param builders       the documents to index.
      */
     public void indexRandom(boolean forceRefresh, boolean dummyDocuments, boolean maybeFlush, List<IndexRequestBuilder> builders) throws InterruptedException, ExecutionException {
@@ -1357,7 +1355,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         if (!bogusIds.isEmpty()) {
             // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!
             for (Tuple<String, String> doc : bogusIds) {
-                assertTrue("failed to delete a dummy doc", client().prepareDelete(doc.v1(), RANDOM_BOGUS_TYPE, doc.v2()).get().isFound());
+                assertTrue("failed to delete a dummy doc [" + doc.v1() + "][" + doc.v2() + "]",
+                        client().prepareDelete(doc.v1(), RANDOM_BOGUS_TYPE, doc.v2()).get().isFound());
             }
         }
         if (forceRefresh) {
@@ -1849,9 +1848,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         assertFalse(src.exists());
         assertTrue(dest.exists());
         ImmutableSettings.Builder builder = ImmutableSettings.builder()
-            .put(settings)
-            .put("gateway.type", "local") // this is important we need to recover from gateway
-            .put("path.data", dataDir.getPath());
+                .put(settings)
+                .put("gateway.type", "local") // this is important we need to recover from gateway
+                .put("path.data", dataDir.getPath());
 
         File configDir = new File(indexDir, "config");
         if (configDir.exists()) {

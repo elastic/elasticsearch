@@ -57,6 +57,7 @@ public class InternalEngineIntegrationTest extends ElasticsearchIntegrationTest 
 
     private void assertTotalCompoundSegments(int i, int t, String index) {
         IndicesSegmentResponse indicesSegmentResponse = client().admin().indices().prepareSegments(index).get();
+        assertNotNull("indices segments response should contain indices", indicesSegmentResponse.getIndices());
         IndexSegments indexSegments = indicesSegmentResponse.getIndices().get(index);
         assertNotNull(indexSegments);
         assertNotNull(indexSegments.getShards());

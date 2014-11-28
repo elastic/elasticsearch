@@ -9,6 +9,7 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.support.Headers;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.os.OsUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -151,8 +152,9 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
 
     private static File createFolder(File parent, String name) {
         File createdFolder = new File(parent, name);
+        //the directory might exist e.g. if the global cluster gets restarted, then we recreate the directory as well
         if (createdFolder.exists()) {
-            if (!createdFolder.delete()) {
+            if (!FileSystemUtils.deleteRecursively(createdFolder)) {
                 throw new RuntimeException("Could not delete existing temporary folder: " + createdFolder.getAbsolutePath());
             }
         }

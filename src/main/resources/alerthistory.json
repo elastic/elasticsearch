@@ -30,12 +30,22 @@
         "error_msg": {
           "type": "string"
         },
-        "request" : {
+        "trigger_request" : {
           "type" : "object",
           "enabled" : false,
           "dynamic" : true
         },
-        "response" : {
+        "trigger_response" : {
+          "type" : "object",
+          "enabled" : false,
+          "dynamic" : true
+        },        
+        "payload_request" : {
+          "type" : "object",
+          "enabled" : false,
+          "dynamic" : true
+        },
+        "payload_response" : {
           "type" : "object",
           "enabled" : false,
           "dynamic" : true

@@ -54,8 +54,10 @@ public class AlertActionManager extends AbstractComponent {
     public static final String SCHEDULED_FIRE_TIME_FIELD = "scheduled_fire_time";
     public static final String ERROR_MESSAGE = "error_msg";
     public static final String TRIGGER_FIELD = "trigger";
-    public static final String REQUEST = "request";
-    public static final String RESPONSE = "response";
+    public static final String TRIGGER_REQUEST = "trigger_request";
+    public static final String TRIGGER_RESPONSE = "trigger_response";
+    public static final String PAYLOAD_REQUEST = "payload_request";
+    public static final String PAYLOAD_RESPONSE = "payload_response";
     public static final String ACTIONS_FIELD = "actions";
     public static final String STATE = "state";
     public static final String METADATA = "meta";
@@ -222,11 +224,17 @@ public class AlertActionManager extends AbstractComponent {
                         case TRIGGER_FIELD:
                             entry.setTrigger(triggerManager.instantiateAlertTrigger(parser));
                             break;
-                        case REQUEST:
+                        case TRIGGER_REQUEST:
                             entry.setTriggerRequest(AlertUtils.readSearchRequest(parser));
                             break;
-                        case RESPONSE:
+                        case TRIGGER_RESPONSE:
                             entry.setTriggerResponse(parser.map());
+                            break;
+                        case PAYLOAD_REQUEST:
+                            entry.setPayloadRequest(AlertUtils.readSearchRequest(parser));
+                            break;
+                        case PAYLOAD_RESPONSE:
+                            entry.setPayloadResponse(parser.map());
                             break;
                         case METADATA:
                             entry.setMetadata(parser.map());
@@ -365,6 +373,8 @@ public class AlertActionManager extends AbstractComponent {
                     } else if (entry.getState() != AlertActionState.THROTTLED) {
                         entry.setState(AlertActionState.ACTION_PERFORMED);
                     }
+                    entry.setPayloadRequest(trigger.getPayloadRequest());
+                    entry.setPayloadResponse(trigger.getPayloadResponse());
                 } else {
                     entry.setState(AlertActionState.NO_ACTION_NEEDED);
                 }

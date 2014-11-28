@@ -73,13 +73,13 @@ public class AlertActionsTest extends AbstractAlertingTests {
         builder.field(AlertActionManager.SCHEDULED_FIRE_TIME_FIELD, AlertUtils.dateTimeFormatter.printer().print(scheduledFireTime));
         builder.field(AlertActionManager.TRIGGER_FIELD, triggerMap);
         SearchRequest searchRequest = new SearchRequest("test123");
-        builder.field(AlertActionManager.REQUEST);
+        builder.field(AlertActionManager.TRIGGER_REQUEST);
         AlertUtils.writeSearchRequest(searchRequest, builder, ToXContent.EMPTY_PARAMS);
         SearchResponse searchResponse = new SearchResponse(
                 new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[0], 10, 0), null, null, null, false, false),
                 null, 1, 1, 0, new ShardSearchFailure[0]
         );
-        builder.startObject(AlertActionManager.RESPONSE);
+        builder.startObject(AlertActionManager.TRIGGER_RESPONSE);
         builder.value(searchResponse);
         builder.endObject();
         builder.field(AlertActionManager.ACTIONS_FIELD, actionMap);

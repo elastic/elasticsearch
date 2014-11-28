@@ -36,6 +36,8 @@ public class AlertActionEntry implements ToXContent {
 
     /*Optional*/
     private Map<String, Object> triggerResponse;
+    private SearchRequest payloadRequest;
+    private Map<String, Object> payloadResponse;
     private boolean triggered;
     private String errorMsg;
     private Map<String,Object> metadata;
@@ -210,6 +212,30 @@ public class AlertActionEntry implements ToXContent {
         this.metadata = metadata;
     }
 
+    /**
+     * @return the payload search response
+     */
+    public Map<String, Object> getPayloadResponse() {
+        return payloadResponse;
+    }
+
+    public void setPayloadResponse(Map<String, Object> payloadResponse) {
+        this.payloadResponse = payloadResponse;
+    }
+
+    /**
+     * @return the payload search request
+     */
+    public SearchRequest getPayloadRequest() {
+        return payloadRequest;
+    }
+
+    public void setPayloadRequest(SearchRequest payloadRequest) {
+        this.payloadRequest = payloadRequest;
+    }
+
+
+
     @Override
     public XContentBuilder toXContent(XContentBuilder historyEntry, Params params) throws IOException {
         historyEntry.startObject();
@@ -221,10 +247,18 @@ public class AlertActionEntry implements ToXContent {
         historyEntry.startObject();
         historyEntry.field(trigger.getTriggerName(), trigger, params);
         historyEntry.endObject();
-        historyEntry.field("request");
+        historyEntry.field("trigger_request");
         AlertUtils.writeSearchRequest(triggerRequest, historyEntry, params);
         if (triggerResponse != null) {
-            historyEntry.field("response", triggerResponse);
+            historyEntry.field("trigger_response", triggerResponse);
+        }
+
+        if (payloadRequest != null) {
+            historyEntry.field("payload_request");
+            AlertUtils.writeSearchRequest(payloadRequest, historyEntry, params);
+        }
+        if (payloadResponse != null) {
+            historyEntry.field("payload_response", triggerResponse);
         }
 
         historyEntry.startObject("actions");

@@ -120,7 +120,7 @@ public class NestedFacetExecutor extends FacetExecutor {
                     continue;
                 }
                 // Im ES if parent is deleted, then also the children are deleted. Therefore acceptedDocs can also null here.
-                Bits childDocs = DocIdSets.toSafeBits(context.reader(), childFilter.getDocIdSet(context, null));
+                Bits childDocs = DocIdSets.fastInOrderedAccessBits(context.reader(), childFilter.getDocIdSet(context, null));
                 FixedBitSet parentDocs = (FixedBitSet) docIdSet;
 
                 DocIdSetIterator iter = entry.docSet.iterator();
@@ -189,7 +189,7 @@ public class NestedFacetExecutor extends FacetExecutor {
             // Can use null as acceptedDocs here, since only live doc ids are being pushed to collect method.
             DocIdSet docIdSet = parentFilter.getDocIdSet(context, null);
             // Im ES if parent is deleted, then also the children are deleted. Therefore acceptedDocs can also null here.
-            childDocs = DocIdSets.toSafeBits(context.reader(), childFilter.getDocIdSet(context, null));
+            childDocs = DocIdSets.fastInOrderedAccessBits(context.reader(), childFilter.getDocIdSet(context, null));
             if (DocIdSets.isEmpty(docIdSet)) {
                 parentDocs = null;
             } else {

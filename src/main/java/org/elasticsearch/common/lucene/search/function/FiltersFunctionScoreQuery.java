@@ -161,7 +161,7 @@ public class FiltersFunctionScoreQuery extends Query {
             for (int i = 0; i < filterFunctions.length; i++) {
                 FilterFunction filterFunction = filterFunctions[i];
                 filterFunction.function.setNextReader(context);
-                docSets[i] = DocIdSets.toSafeBits(context.reader(), filterFunction.filter.getDocIdSet(context, acceptDocs));
+                docSets[i] = DocIdSets.fastInOrderedAccessBits(context.reader(), filterFunction.filter.getDocIdSet(context, acceptDocs));
             }
             return new CustomBoostFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, docSets, combineFunction);
         }
@@ -176,7 +176,7 @@ public class FiltersFunctionScoreQuery extends Query {
             // First: Gather explanations for all filters
             List<ComplexExplanation> filterExplanations = new ArrayList<>();
             for (FilterFunction filterFunction : filterFunctions) {
-                Bits docSet = DocIdSets.toSafeBits(context.reader(),
+                Bits docSet = DocIdSets.fastInOrderedAccessBits(context.reader(),
                         filterFunction.filter.getDocIdSet(context, context.reader().getLiveDocs()));
                 if (docSet.get(doc)) {
                     filterFunction.function.setNextReader(context);

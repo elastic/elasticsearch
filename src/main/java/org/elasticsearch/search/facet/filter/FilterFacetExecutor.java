@@ -94,7 +94,7 @@ public class FilterFacetExecutor extends FacetExecutor {
 
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
-            bits = DocIdSets.toSafeBits(context.reader(), filter.getDocIdSet(context, context.reader().getLiveDocs()));
+            bits = DocIdSets.fastInOrderedAccessBits(context.reader(), filter.getDocIdSet(context, context.reader().getLiveDocs()));
         }
 
         @Override

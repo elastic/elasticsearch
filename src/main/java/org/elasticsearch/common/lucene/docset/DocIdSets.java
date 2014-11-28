@@ -52,7 +52,7 @@ public class DocIdSets {
      * For example, it does not ends up iterating one doc at a time check for its "value".
      */
     public static boolean isFastIterator(DocIdSet set) {
-        return set instanceof FixedBitSet;
+        return set instanceof FixedBitSet || set instanceof RoaringDocIdSet;
     }
 
     /**
@@ -87,13 +87,26 @@ public class DocIdSets {
     }
 
     /**
+     * Gets a bit which can only be accessed in order. Unsafe, but faster if you don't want to instantiate actual bitsets.
+     */
+    public static Bits fastInOrderedAccessBits(final AtomicReader reader, final DocIdSet set) throws IOException {
+        Bits bits = bitsFromSet(reader,set);
+        if (bits != null) {
+            return bits;
+        }
+        final DocIdSetIterator nullableIterator = set.iterator();
+        if(nullableIterator == null){
+            return new Bits.MatchNoBits(reader.maxDoc());
+        }
+        return new FastOrderedBitSet(reader, nullableIterator, set);
+
+    }
+
+    /**
      * Gets a set to bits.
      */
     public static Bits toSafeBits(AtomicReader reader, @Nullable DocIdSet set) throws IOException {
-        if (set == null) {
-            return new Bits.MatchNoBits(reader.maxDoc());
-        }
-        Bits bits = set.bits();
+        Bits bits = bitsFromSet(reader,set);
         if (bits != null) {
             return bits;
         }
@@ -102,6 +115,16 @@ public class DocIdSets {
             return new Bits.MatchNoBits(reader.maxDoc());
         }
         return toFixedBitSet(iterator, reader.maxDoc());
+    }
+
+    private static Bits bitsFromSet(AtomicReader reader, DocIdSet set) throws IOException {
+        if (set == null) {
+            return new Bits.MatchNoBits(reader.maxDoc());
+        }
+        else{
+            return set.bits();
+        }
+
     }
 
     /**
@@ -114,5 +137,63 @@ public class DocIdSets {
             set.set(doc);
         }
         return set;
+    }
+
+    private static class FastOrderedBitSet implements Bits {
+
+        private final DocIdSet set;
+        private int lastRead;
+        private int length;
+        DocIdSetIterator iter;
+
+        public FastOrderedBitSet(AtomicReader reader, DocIdSetIterator iter, DocIdSet set) {
+            this.set = set;
+            lastRead = -1;
+            length = reader.maxDoc();
+            this.iter = iter;
+        }
+
+        @Override
+        public boolean get(int index) {
+            if(index < lastRead){
+                resetIterator();
+            }
+            lastRead = index;
+
+            if(index == iter.docID()){
+                return true;
+            }
+            else if(iter.docID() == DocIdSetIterator.NO_MORE_DOCS){
+                return false;
+            }
+            else if(iter.docID() < index){
+                return index == tryAdvance(index);
+            }
+            else{
+                return false;
+            }
+        }
+
+        private int tryAdvance(int index) {
+            try{
+                return iter.advance(index);
+            }
+            catch (IOException e){
+                throw new RuntimeException(e);
+            }
+        }
+
+        private void resetIterator() {
+            try {
+                iter = set.iterator();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Override
+        public int length() {
+            return length;
+        }
     }
 }

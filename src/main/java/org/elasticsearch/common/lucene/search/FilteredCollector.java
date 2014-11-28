@@ -65,7 +65,7 @@ public class FilteredCollector extends XCollector {
     @Override
     public void setNextReader(AtomicReaderContext context) throws IOException {
         collector.setNextReader(context);
-        docSet = DocIdSets.toSafeBits(context.reader(), filter.getDocIdSet(context, null));
+        docSet = DocIdSets.fastInOrderedAccessBits(context.reader(), filter.getDocIdSet(context, null));
     }
 
     @Override

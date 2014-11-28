@@ -415,14 +415,18 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
     @Test
     public void testExistsFilter() throws IOException, ExecutionException, InterruptedException {
         assumeTrue("this test fails often with 1.0.3 skipping for now....", compatibilityVersion().onOrAfter(Version.V_1_1_0));
+        int indexId = 0;
+        String indexName;
+
         for (; ; ) {
-            createIndex("test");
+            indexName = "test_"+indexId++;
+            createIndex(indexName);
             ensureYellow();
             indexRandom(true,
-                    client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x1", "x_1").field("field1", "value1_1").field("field2", "value2_1").endObject()),
-                    client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x2", "x_2").field("field1", "value1_2").endObject()),
-                    client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y1", "y_1").field("field2", "value2_3").endObject()),
-                    client().prepareIndex("test", "type1", "4").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y2", "y_2").field("field3", "value3_4").endObject()));
+                    client().prepareIndex(indexName, "type1", "1").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x1", "x_1").field("field1", "value1_1").field("field2", "value2_1").endObject()),
+                    client().prepareIndex(indexName, "type1", "2").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x2", "x_2").field("field1", "value1_2").endObject()),
+                    client().prepareIndex(indexName, "type1", "3").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y1", "y_1").field("field2", "value2_3").endObject()),
+                    client().prepareIndex(indexName, "type1", "4").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y2", "y_2").field("field3", "value3_4").endObject()));
 
             CountResponse countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("field1"))).get();
             assertHitCount(countResponse, 2l);
@@ -470,11 +474,11 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
                 break;
             }
             ensureYellow();
-            assertVersionCreated(compatibilityVersion(), "test"); // we had an old node in the cluster so we have to be on the compat version
-            assertAcked(client().admin().indices().prepareDelete("test"));
+            assertVersionCreated(compatibilityVersion(), indexName); // we had an old node in the cluster so we have to be on the compat version
+            assertAcked(client().admin().indices().prepareDelete(indexName));
         }
 
-        assertVersionCreated(Version.CURRENT, "test"); // after upgrade we have current version
+        assertVersionCreated(Version.CURRENT, indexName); // after upgrade we have current version
     }
 
 

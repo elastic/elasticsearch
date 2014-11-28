@@ -395,19 +395,6 @@ public class AckTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testOpenIndexNoAcknowledgement() {
-        createIndex("test");
-        ensureGreen();
-
-        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test").execute().actionGet();
-        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
-
-        OpenIndexResponse openIndexResponse = client().admin().indices().prepareOpen("test").setTimeout("0s").get();
-        assertThat(openIndexResponse.isAcknowledged(), equalTo(false));
-        ensureGreen("test"); // make sure that recovery from disk has completed, so that check index doesn't fail.
-    }
-
-    @Test
     public void testPutMappingAcknowledgement() {
         createIndex("test");
         ensureGreen();

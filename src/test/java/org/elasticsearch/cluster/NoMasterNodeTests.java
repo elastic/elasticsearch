@@ -55,7 +55,6 @@ import static org.hamcrest.Matchers.*;
 public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
 
     @Test
-    @TestLogging("action:TRACE,cluster.service:TRACE")
     public void testNoMasterActions() throws Exception {
         // note, sometimes, we want to check with the fact that an index gets created, sometimes not...
         boolean autoCreateIndex = randomBoolean();

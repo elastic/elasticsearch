@@ -58,7 +58,6 @@ import static org.hamcrest.Matchers.sameInstance;
  *
  */
 @ElasticsearchIntegrationTest.SuiteScopeTest
-@TestLogging("indices.recovery:TRACE,action.search.type:TRACE")
 public class GeoBoundsTests extends ElasticsearchIntegrationTest {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "geo_value";

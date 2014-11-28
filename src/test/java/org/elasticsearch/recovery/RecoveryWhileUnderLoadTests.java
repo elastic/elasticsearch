@@ -51,7 +51,6 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
     private final ESLogger logger = Loggers.getLogger(RecoveryWhileUnderLoadTests.class);
 
     @Test
-    @TestLogging("action.search.type:TRACE,action.admin.indices.refresh:TRACE")
     @Slow
     public void recoverWhileUnderLoadAllocateBackupsTest() throws Exception {
         logger.info("--> creating test index ...");
@@ -107,7 +106,6 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("action.search.type:TRACE,action.admin.indices.refresh:TRACE")
     @Slow
     public void recoverWhileUnderLoadAllocateBackupsRelocatePrimariesTest() throws Exception {
         logger.info("--> creating test index ...");

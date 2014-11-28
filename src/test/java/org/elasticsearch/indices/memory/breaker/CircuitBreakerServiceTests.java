@@ -104,7 +104,6 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("indices.breaker:TRACE,index.fielddata:TRACE,common.breaker:TRACE")
     public void testMemoryBreaker() throws Exception {
         if (noopBreakerUsed()) {
             logger.info("--> noop breakers used, skipping test");

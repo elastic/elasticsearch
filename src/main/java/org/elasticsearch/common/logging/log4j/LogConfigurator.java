@@ -124,14 +124,16 @@ public class LogConfigurator {
     public static void resolveConfig(Environment env, final ImmutableSettings.Builder settingsBuilder) {
 
         try {
+            Path startingPath;
 
-            Path startingPath = env.configFile().toPath();
+            final String esLoggingDir = System.getProperty("es.logging");
+            if (Strings.hasText(esLoggingDir)) {
 
-            final String property = System.getProperty("es.logging");
-            if (Strings.hasText(property)) {
-
-                final URL url = env.resolveConfig(property);
+                final URL url = env.resolveConfig(esLoggingDir);
                 startingPath = new File(url.toURI()).toPath();
+            } else {
+
+                startingPath = env.configFile().toPath();
             }
 
             Files.walkFileTree(startingPath, EnumSet.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {

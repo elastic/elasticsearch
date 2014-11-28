@@ -140,7 +140,7 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
         return new File(url.toURI());
     }
 
-    private static String loggingConfiguration(String suffix) {
+    protected static String loggingConfiguration(String suffix) {
         return "logging." + randomAsciiOfLength(randomIntBetween(0, 10)) + "." + suffix;
     }
 

@@ -32,25 +32,24 @@ import static org.junit.Assert.assertTrue;
  *
  * This test class avoids the "java.lang.AssertionError: System properties invariant violated."
  * which is enforced by Junit Rules defined in AbstractRandomizedTest class.
- *
- * @author siva
  */
 @RunWith(value = com.carrotsearch.randomizedtesting.RandomizedRunner.class)
 public class CustomLogfileTest {
 
+    private RandomizedTest randomizedTest = new RandomizedTest();
+
     @After
-    public void removeFiles() {
-        RandomizedTest.globalTempDir();
+    public void clearProperty() {
+        System.clearProperty("es.logging");
     }
 
     @Test
-    public void testCustomLoggingLocation() throws IOException {
+    public void testIncorrectLogFileNameIsNotLoaded() throws IOException {
 
-        File customLoggingDir = new File(RandomizedTest.globalTempDir(), UUID.randomUUID().toString());
-        assertTrue(customLoggingDir.mkdir());
+        File customLoggingDir = randomizedTest.newTempDir();
 
         File customLogConfig = new File(customLoggingDir, "custom_log_config.yml");
-        Files.write("es.logger.level: TRACE", customLogConfig, StandardCharsets.UTF_8);
+        Files.write("foo: TRACE", customLogConfig, StandardCharsets.UTF_8);
 
         // the file directory
         System.setProperty("es.logging", customLogConfig.getAbsolutePath());
@@ -61,17 +60,16 @@ public class CustomLogfileTest {
 
         Settings logSettings = builder.build();
 
-        assertThat(logSettings.get("es.logger.level"), isEmptyOrNullString());
+        assertThat(logSettings.get("foo"), isEmptyOrNullString());
     }
 
     @Test(expected = FailedToResolveConfigException.class)
-    public void customLoggingFileInClassPath() throws IOException {
+    public void testIncorrectLogFileNameIsNotLoadedFromClasspath_1() throws IOException {
 
-        File customLoggingDir = new File(RandomizedTest.globalTempDir(), UUID.randomUUID().toString());
-        assertTrue(customLoggingDir.mkdir());
+        File customLoggingDir = randomizedTest.newTempDir();
 
         File loggingFile = new File(customLoggingDir, "custom_log.yml");
-        Files.write("es.logger.level: TRACE", loggingFile, StandardCharsets.UTF_8);
+        Files.write("foo: bar", loggingFile, StandardCharsets.UTF_8);
 
         String strClassPath = System.getProperty("java.class.path");
         System.setProperty("java.class.path", strClassPath + ":" + customLoggingDir);
@@ -84,32 +82,13 @@ public class CustomLogfileTest {
         LogConfigurator.resolveConfig(environment, builder);
     }
 
-    @Test(expected = FailedToResolveConfigException.class)
-    public void customLogPathWithCustomLoggingName() throws IOException {
-
-        File customLoggingDir = new File(RandomizedTest.globalTempDir(), UUID.randomUUID().toString());
-        assertTrue(customLoggingDir.mkdir());
-
-        File loggingFile = new File(customLoggingDir, "custom_log_in_class_path.yml");
-        Files.write("es.logger.level: TRACE", loggingFile, StandardCharsets.UTF_8);
-
-        String strClassPath = System.getProperty("java.class.path");
-        System.setProperty("java.class.path", strClassPath + ":" + customLoggingDir.getAbsolutePath());
-        System.setProperty("es.logging", "custom_log_in_class_path.yml");
-
-        Environment environment = new Environment(ImmutableSettings.builder().build());
-        ImmutableSettings.Builder builder = ImmutableSettings.builder();
-        LogConfigurator.resolveConfig(environment, builder);
-    }
-
     @Test
-    public void customLogPath() throws IOException {
+    public void testCorrectLogfileIsLoaded() throws IOException {
 
-        File customLoggingDir = new File(RandomizedTest.globalTempDir(), UUID.randomUUID().toString());
-        assertTrue(customLoggingDir.mkdir());
+        File customLoggingDir = randomizedTest.newTempDir();
 
         File loggingFile = new File(customLoggingDir, "logging.yml");
-        Files.write("es.logger.level: TRACE", loggingFile, StandardCharsets.UTF_8);
+        Files.write("foo: boo", loggingFile, StandardCharsets.UTF_8);
 
         System.setProperty("es.logging", customLoggingDir.getAbsolutePath());
 
@@ -118,6 +97,32 @@ public class CustomLogfileTest {
         LogConfigurator.resolveConfig(environment, builder);
         Settings logSettings = builder.build();
 
-        assertThat(logSettings.get("es.logger.level"), is("TRACE"));
+        assertThat(logSettings.get("foo"), is("boo"));
+    }
+
+    /**
+     *
+     * @throws Exception
+     * @see LoggingConfigurationTests#testResolveYamlLoggingConfig() - similar but this test case
+     *  uses the system property es.logging
+     */
+    @Test
+    public void testResolveYamlLoggingConfig() throws Exception {
+        File tmpDir = randomizedTest.newTempDir();
+        File loggingConf1 = new File(tmpDir, LoggingConfigurationTests.loggingConfiguration("yml"));
+        File loggingConf2 = new File(tmpDir, LoggingConfigurationTests.loggingConfiguration("yaml"));
+        Files.write("yml: bar", loggingConf1, StandardCharsets.UTF_8);
+        Files.write("yaml: bar", loggingConf2, StandardCharsets.UTF_8);
+
+        System.setProperty("es.logging", tmpDir.getAbsolutePath());
+
+        Environment environment = new Environment(ImmutableSettings.builder().build());
+
+        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        LogConfigurator.resolveConfig(environment, builder);
+
+        Settings logSettings = builder.build();
+        assertThat(logSettings.get("yml"), is("bar"));
+        assertThat(logSettings.get("yaml"), is("bar"));
     }
 }

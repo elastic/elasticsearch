@@ -26,7 +26,7 @@ import java.util.Map;
 
 public class Delta extends MetricOp {
 
-    boolean gradient = false; //NOCOMMIT must parse this parameter
+    boolean gradient = false; 
 
     public Delta(Map<String, Object> parameters) {
         super("delta", parameters);

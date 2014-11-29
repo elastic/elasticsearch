@@ -73,6 +73,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testClearCacheFilterKeys() {
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2)).execute().actionGet();
+        ensureGreen();
         client().prepareIndex("test", "type", "1").setSource("field", "value").execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
@@ -98,6 +99,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testFieldDataStats() {
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2)).execute().actionGet();
+        ensureGreen();
         client().prepareIndex("test", "type", "1").setSource("field", "value1", "field2", "value1").execute().actionGet();
         client().prepareIndex("test", "type", "2").setSource("field", "value2", "field2", "value2").execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
@@ -144,6 +146,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareCreate("test")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
                 .execute().actionGet();
+        ensureGreen();
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         client().prepareIndex("test", "type", "1").setSource("field", "value1").execute().actionGet();
         client().prepareIndex("test", "type", "2").setSource("field", "value2").execute().actionGet();

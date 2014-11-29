@@ -27,7 +27,7 @@ public abstract class MetricOp {
     protected String name;
     protected Map<String, Object> parameters = new HashMap<>();
 
-    public abstract MetricResult op(Object[] objects);
+    public abstract MetricResult evaluate(Object[] objects);
 
     public MetricOp(String name, Map<String, Object> parameters) {
         this.name = name;

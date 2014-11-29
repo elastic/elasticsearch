@@ -32,7 +32,7 @@ public class Max extends MetricOp {
         super("max");
     }
 
-    public SingleMetricResult op(Object[] bucketProperties) throws ReductionExecutionException {
+    public SingleMetricResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {
 
         double max = Double.NEGATIVE_INFINITY;
         for (Object bucketValue : bucketProperties) {

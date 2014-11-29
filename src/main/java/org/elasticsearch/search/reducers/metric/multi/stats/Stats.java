@@ -30,7 +30,7 @@ public class Stats extends MetricOp {
         super("stats", parameters);
     }
 
-    public StatsResult op(Object[] bucketProperties) throws ReductionExecutionException {
+    public StatsResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {
         double sum = 0;
         double min = Double.MAX_VALUE;
         double max = Double.MIN_VALUE;

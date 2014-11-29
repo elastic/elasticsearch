@@ -60,7 +60,7 @@ public class MetricReducer extends Reducer {
 
     public InternalAggregation doReduce(Aggregations aggregationsTree, Aggregation aggregation) throws ReductionExecutionException {
         Object[] bucketProperties = getProperties(aggregation);
-        return new InternalMetric(name(), op.op(bucketProperties));
+        return new InternalMetric(name(), op.evaluate(bucketProperties));
 
     }
 

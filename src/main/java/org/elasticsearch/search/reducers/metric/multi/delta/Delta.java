@@ -35,7 +35,7 @@ public class Delta extends MetricOp {
         }
     }
 
-    public DeltaResult op(Object[] bucketProperties) throws ReductionExecutionException {
+    public DeltaResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {
         double firstBucketValue = ((Number) bucketProperties[0]).doubleValue();
         double lastBucketValue = ((Number) bucketProperties[bucketProperties.length - 1]).doubleValue();
         double deltaValue = lastBucketValue - firstBucketValue;

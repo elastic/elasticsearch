@@ -32,7 +32,7 @@ public class Sum extends MetricOp {
         super("sum");
     }
 
-    public SingleMetricResult op(Object[] bucketProperties) throws ReductionExecutionException {
+    public SingleMetricResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {
 
         double sum = 0;
         for (Object bucketValue : bucketProperties) {

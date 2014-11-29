@@ -30,7 +30,7 @@ public class Min extends MetricOp {
     public Min(Map<String, Object> parameters) {
         super("min");
     }
-    public SingleMetricResult op(Object[] bucketProperties) throws ReductionExecutionException {
+    public SingleMetricResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {
 
         double min = Double.POSITIVE_INFINITY;
         for (Object bucketValue : bucketProperties) {

@@ -49,6 +49,7 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -1355,8 +1356,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         if (!bogusIds.isEmpty()) {
             // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!
             for (Tuple<String, String> doc : bogusIds) {
-                assertTrue("failed to delete a dummy doc [" + doc.v1() + "][" + doc.v2() + "]",
-                        client().prepareDelete(doc.v1(), RANDOM_BOGUS_TYPE, doc.v2()).get().isFound());
+                // see https://github.com/elasticsearch/elasticsearch/issues/8706
+                final DeleteResponse deleteResponse = client().prepareDelete(doc.v1(), RANDOM_BOGUS_TYPE, doc.v2()).get();
+                if (deleteResponse.isFound() == false) {
+                    logger.warn("failed to delete a dummy doc [][]", doc.v1(), doc.v2());
+                }
             }
         }
         if (forceRefresh) {

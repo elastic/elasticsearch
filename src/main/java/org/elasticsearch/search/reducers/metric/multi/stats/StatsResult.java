@@ -44,12 +44,11 @@ public class StatsResult implements MetricResult {
         this.max = max;
         this.min = min;
     }
-    public StatsResult readFrom(StreamInput in) throws IOException {
+    public void readFrom(StreamInput in) throws IOException {
         length = in.readInt();
         sum = in.readDouble();
         min = in.readDouble();
         max = in.readDouble();
-        return this;
     }
 
     public void writeTo(StreamOutput out) throws IOException {

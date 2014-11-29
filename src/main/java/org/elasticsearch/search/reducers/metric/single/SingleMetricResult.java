@@ -38,9 +38,8 @@ public class SingleMetricResult implements MetricResult {
     public SingleMetricResult(double value) {
         this.value = value;
     }
-    public SingleMetricResult readFrom(StreamInput in) throws IOException {
+    public void readFrom(StreamInput in) throws IOException {
         value = in.readDouble();
-        return this;
     }
 
     public void writeTo(StreamOutput out) throws IOException {

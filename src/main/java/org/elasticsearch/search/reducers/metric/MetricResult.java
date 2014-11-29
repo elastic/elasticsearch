@@ -20,17 +20,13 @@
 package org.elasticsearch.search.reducers.metric;
 
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public interface MetricResult {
-    public MetricResult readFrom(StreamInput in) throws IOException;
-
-    public void writeTo(StreamOutput out) throws IOException;
+public interface MetricResult extends Streamable {
 
     String getType();
 

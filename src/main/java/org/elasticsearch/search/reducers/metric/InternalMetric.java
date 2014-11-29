@@ -80,7 +80,8 @@ public class InternalMetric extends InternalNumericMetricsAggregation.MultiValue
         name = in.readString();
         valueFormatter = ValueFormatterStreams.readOptional(in);
         String metricType = in.readString();
-        metricResult = MetricResultFactory.getInstance(metricType).readFrom(in);
+        metricResult = MetricResultFactory.getInstance(metricType);
+        metricResult.readFrom(in);
     }
 
     @Override

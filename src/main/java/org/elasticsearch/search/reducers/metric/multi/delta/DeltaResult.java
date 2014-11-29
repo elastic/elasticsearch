@@ -38,9 +38,8 @@ public class DeltaResult implements MetricResult {
     public DeltaResult(double value) {
         this.value = value;
     }
-    public DeltaResult readFrom(StreamInput in) throws IOException {
+    public void readFrom(StreamInput in) throws IOException {
         value = in.readDouble();
-        return this;
     }
 
     public void writeTo(StreamOutput out) throws IOException {

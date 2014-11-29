@@ -20,6 +20,8 @@
 package org.elasticsearch.search.reducers.metric;
 
 
+import org.elasticsearch.common.io.stream.Streamable;
+
 import java.util.HashMap;
 import java.util.Map;
 

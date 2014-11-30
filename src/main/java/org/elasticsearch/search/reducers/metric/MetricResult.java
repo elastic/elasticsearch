@@ -25,14 +25,13 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 
 public interface MetricResult extends Streamable {
 
     String getType();
 
-    double getValue(String name);
-
     XContentBuilder doXContentBody(XContentBuilder builder, ToXContent.Params params) throws IOException;
 
-    double getValue();
+    public Object getProperty(List<String> path);
 }

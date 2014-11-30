@@ -17,54 +17,41 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.multi.delta;
+package org.elasticsearch.search.reducers.metric.numeric.multi;
 
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.reducers.metric.MetricResult;
+import org.elasticsearch.search.reducers.metric.numeric.NumericMetricResult;
 
 import java.io.IOException;
+import java.util.List;
 
-public class DeltaResult implements MetricResult {
+public abstract class MultiMetricResult extends NumericMetricResult {
 
-    private double value;
 
-    public DeltaResult() {
+    public MultiMetricResult() {
     }
-    public DeltaResult(double value) {
-        this.value = value;
-    }
+
     public void readFrom(StreamInput in) throws IOException {
-        value = in.readDouble();
+        super.readFrom(in);
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeDouble(value);
-    }
-
-    public String getType() {
-        return "delta_metric";
-    }
-
-    public double getValue(String name) {
-        if (name.equals("delta")) {
-            return value;
-        }
-        throw new IllegalArgumentException("delta reducer only computes delta. " + name + " is not supported");
-
-    }
-
-    public XContentBuilder doXContentBody(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.field(InternalAggregation.CommonFields.VALUE, value);
-        return builder;
+        super.writeTo(out);
     }
 
     @Override
-    public double getValue() {
-        throw new IllegalArgumentException("don't know which value you want.");
+    public Object getProperty(List<String> path) {
+        if (path.isEmpty()) {
+            return this;
+        } else if (path.size() == 1) {
+            return getValue(path.get(0));
+        } else {
+            throw new ElasticsearchIllegalArgumentException("path not supported for [" + getType() + "]: " + path);
+        }
     }
 }

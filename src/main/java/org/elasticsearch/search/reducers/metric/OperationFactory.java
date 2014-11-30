@@ -21,12 +21,12 @@
 package org.elasticsearch.search.reducers.metric;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.search.reducers.metric.multi.delta.Delta;
-import org.elasticsearch.search.reducers.metric.multi.stats.Stats;
-import org.elasticsearch.search.reducers.metric.single.avg.Avg;
-import org.elasticsearch.search.reducers.metric.single.max.Max;
-import org.elasticsearch.search.reducers.metric.single.min.Min;
-import org.elasticsearch.search.reducers.metric.single.sum.Sum;
+import org.elasticsearch.search.reducers.metric.numeric.single.delta.Delta;
+import org.elasticsearch.search.reducers.metric.numeric.multi.stats.Stats;
+import org.elasticsearch.search.reducers.metric.numeric.single.avg.Avg;
+import org.elasticsearch.search.reducers.metric.numeric.single.max.Max;
+import org.elasticsearch.search.reducers.metric.numeric.single.min.Min;
+import org.elasticsearch.search.reducers.metric.numeric.single.sum.Sum;
 
 public class OperationFactory {
     public static MetricOp get(String opName) {

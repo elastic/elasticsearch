@@ -17,13 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.multi.delta;
+package org.elasticsearch.search.reducers.metric.numeric.single.delta;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.metric.MetricOp;
+import org.elasticsearch.search.reducers.metric.MetricsBuilder;
+import org.elasticsearch.search.reducers.metric.numeric.single.SingleMetricResult;
 
 import java.io.IOException;
 
@@ -35,14 +38,14 @@ public class Delta extends MetricOp {
         super("delta");
     }
 
-    public DeltaResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {
+    public SingleMetricResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {
         double firstBucketValue = ((Number) bucketProperties[0]).doubleValue();
         double lastBucketValue = ((Number) bucketProperties[bucketProperties.length - 1]).doubleValue();
         double deltaValue = lastBucketValue - firstBucketValue;
         if (this.gradient) {
             deltaValue = deltaValue / (bucketProperties.length - 1);
         }
-        return new DeltaResult(deltaValue);
+        return new SingleMetricResult(deltaValue);
     }
 
     public void readFrom(StreamInput in) throws IOException {
@@ -59,5 +62,25 @@ public class Delta extends MetricOp {
             return true;
         }
         return false;
+    }
+
+    public static class DeltaBuilder extends MetricsBuilder {
+
+        private boolean gradient = false;
+
+        public DeltaBuilder(String name) {
+            super(name, "delta");
+        }
+
+        public DeltaBuilder computeGradient(boolean gradient) {
+            this.gradient = gradient;
+            return this;
+        }
+
+        @Override
+        protected XContentBuilder buildCustomParameters(XContentBuilder builder) throws IOException {
+            builder.field("gradient", gradient);
+            return builder;
+        }
     }
 }

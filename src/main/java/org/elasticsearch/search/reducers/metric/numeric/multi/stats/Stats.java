@@ -17,35 +17,43 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.single.avg;
+package org.elasticsearch.search.reducers.metric.numeric.multi.stats;
 
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.metric.MetricOp;
 import org.elasticsearch.search.reducers.metric.MetricsBuilder;
-import org.elasticsearch.search.reducers.metric.single.SingleMetricResult;
 
-public class Avg extends MetricOp {
+public class Stats extends MetricOp {
 
-    public static String TYPE = "avg";
+    public static String TYPE = "stats";
 
-    public Avg() {
-        super(TYPE);
+    public Stats() {
+        super("stats");
     }
 
-    public SingleMetricResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {
-
+    public StatsResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {
         double sum = 0;
+        double min = Double.MAX_VALUE;
+        double max = Double.MIN_VALUE;
         for (Object bucketValue : bucketProperties) {
-            sum += ((Number) bucketValue).doubleValue();
+            double bucketDoubleValue = ((Number) bucketValue).doubleValue();
+            sum += bucketDoubleValue;
+            if (bucketDoubleValue < min) {
+                min = bucketDoubleValue;
+            }
+            if (bucketDoubleValue > max) {
+                max = bucketDoubleValue;
+            }
         }
 
-        return new SingleMetricResult(sum / bucketProperties.length);
+        return new StatsResult(bucketProperties.length, sum, min, max);
     }
 
-    public static class AvgBuilder extends MetricsBuilder {
+    public static class StatsBuilder extends MetricsBuilder {
 
-        public AvgBuilder(String name) {
+        public StatsBuilder(String name) {
             super(name, TYPE);
         }
     }
+
 }

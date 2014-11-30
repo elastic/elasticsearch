@@ -22,11 +22,11 @@ package org.elasticsearch.search.aggregations.reducers.metric;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.reducers.metric.InternalMetric;
 import org.elasticsearch.search.reducers.metric.MetricsBuilder;
+import org.elasticsearch.search.reducers.metric.numeric.NumericMetricResult;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -46,20 +46,21 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 public class MultiMetricTests extends ElasticsearchIntegrationTest {
 
     public static String REDUCER_NAME = "metric_name";
+
     @Test
     public void testVeryBasicDelta() throws IOException, ExecutionException, InterruptedException {
         indexData();
         InternalMetric metric = getAndSanityCheckMetric(deltaReducer(REDUCER_NAME));
-        assertThat(metric.value("delta"), equalTo(18d));
+        assertThat(((NumericMetricResult) (((InternalMetric) metric).getMetricResult())).getValue("delta"), equalTo(18d));
         metric = getAndSanityCheckMetric(deltaReducer(REDUCER_NAME).computeGradient(true));
-        assertThat(metric.value("delta"), equalTo(2d));
+        assertThat(((NumericMetricResult) (((InternalMetric) metric).getMetricResult())).getValue("delta"), equalTo(2d));
     }
 
     @Test
     public void testVeryBasicStats() throws IOException, ExecutionException, InterruptedException {
         indexData();
         InternalMetric metric = getAndSanityCheckMetric(statsReducer(REDUCER_NAME));
-        assertThat(metric.value("length"), equalTo(10d));
+        assertThat(((NumericMetricResult) (((InternalMetric) metric).getMetricResult())).getValue("length"), equalTo(10d));
     }
 
     private InternalMetric getAndSanityCheckMetric(MetricsBuilder builder) throws IOException {

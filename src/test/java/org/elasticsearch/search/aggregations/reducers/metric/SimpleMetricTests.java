@@ -31,6 +31,7 @@ import org.elasticsearch.search.reducers.bucket.BucketReducerAggregation;
 import org.elasticsearch.search.reducers.bucket.union.InternalUnion;
 import org.elasticsearch.search.reducers.metric.InternalMetric;
 import org.elasticsearch.search.reducers.metric.MetricsBuilder;
+import org.elasticsearch.search.reducers.metric.numeric.NumericMetricResult;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -85,7 +86,7 @@ public class SimpleMetricTests extends ElasticsearchIntegrationTest {
         Aggregation sumReduc = reductions.getAsMap().get(REDUCER_NAME);
         assertNotNull(sumReduc);
         assertThat(sumReduc, instanceOf(InternalMetric.class));
-        assertThat(((InternalMetric) sumReduc).value(), equalTo(expectedValue));
+        assertThat(((NumericMetricResult) (((InternalMetric) sumReduc).getMetricResult())).getValue(), equalTo(expectedValue));
 
         XContentBuilder jsonRequest = jsonBuilder().startObject()
                 .startObject("aggs")
@@ -116,7 +117,7 @@ public class SimpleMetricTests extends ElasticsearchIntegrationTest {
         sumReduc = reductions.getAsMap().get(REDUCER_NAME);
         assertNotNull(sumReduc);
         assertThat(sumReduc, instanceOf(InternalMetric.class));
-        assertThat(((InternalMetric) sumReduc).value(), equalTo(expectedValue));
+        assertThat(((NumericMetricResult) (((InternalMetric) sumReduc).getMetricResult())).getValue(), equalTo(expectedValue));
     }
 
     @Test

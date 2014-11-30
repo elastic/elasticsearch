@@ -17,34 +17,33 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.single.sum;
+package org.elasticsearch.search.reducers.metric.numeric.single.min;
 
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.metric.MetricOp;
 import org.elasticsearch.search.reducers.metric.MetricsBuilder;
-import org.elasticsearch.search.reducers.metric.single.SingleMetricResult;
+import org.elasticsearch.search.reducers.metric.numeric.single.SingleMetricResult;
 
-public class Sum extends MetricOp {
+public class Min extends MetricOp {
 
-    private static String TYPE = "sum";
+    public static String TYPE = "min";
 
-    public Sum() {
+    public Min() {
         super(TYPE);
     }
 
     public SingleMetricResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {
 
-        double sum = 0;
+        double min = Double.POSITIVE_INFINITY;
         for (Object bucketValue : bucketProperties) {
-            sum += ((Number) bucketValue).doubleValue();
+            min = Math.min(((Number) bucketValue).doubleValue(), min);
         }
-
-        return new SingleMetricResult(sum);
+        return new SingleMetricResult(min);
     }
 
-    public static class SumBuilder extends MetricsBuilder {
+    public static class MinBuilder extends MetricsBuilder {
 
-        public SumBuilder(String name) {
+        public MinBuilder(String name) {
             super(name, TYPE);
         }
     }

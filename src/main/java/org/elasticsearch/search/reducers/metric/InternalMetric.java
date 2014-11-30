@@ -23,12 +23,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
+import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 
 import java.io.IOException;
+import java.util.List;
 
-public class InternalMetric extends InternalNumericMetricsAggregation.MultiValue {
+public class InternalMetric extends InternalMetricsAggregation {
 
     public final static Type TYPE = new Type("reducer_metric");
 
@@ -40,8 +40,12 @@ public class InternalMetric extends InternalNumericMetricsAggregation.MultiValue
             return result;
         }
     };
-    private MetricResult metricResult;
 
+    public MetricResult getMetricResult() {
+        return metricResult;
+    }
+
+    private MetricResult metricResult;
 
     public static void registerStreams() {
         AggregationStreams.registerStream(STREAM, TYPE.stream());
@@ -49,15 +53,6 @@ public class InternalMetric extends InternalNumericMetricsAggregation.MultiValue
 
     InternalMetric() {
     } // for serialization
-
-    @Override
-    public double value(String name) {
-        return metricResult.getValue(name);
-    }
-
-    public double value() {
-        return metricResult.getValue();
-    }
 
     public InternalMetric(String name, MetricResult metricResult) {
         super();
@@ -76,19 +71,22 @@ public class InternalMetric extends InternalNumericMetricsAggregation.MultiValue
     }
 
     @Override
+    public Object getProperty(List<String> path) {
+        return metricResult.getProperty(path);
+    }
+
+    @Override
     public void doReadFrom(StreamInput in) throws IOException {
-        name = in.readString();
-        valueFormatter = ValueFormatterStreams.readOptional(in);
         String metricType = in.readString();
         metricResult = MetricResultFactory.getInstance(metricType);
+        name = in.readString();
         metricResult.readFrom(in);
     }
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        ValueFormatterStreams.writeOptional(valueFormatter, out);
         out.writeString(metricResult.getType());
+        out.writeString(name);
         metricResult.writeTo(out);
     }
 
@@ -96,5 +94,4 @@ public class InternalMetric extends InternalNumericMetricsAggregation.MultiValue
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         return metricResult.doXContentBody(builder, params);
     }
-
 }

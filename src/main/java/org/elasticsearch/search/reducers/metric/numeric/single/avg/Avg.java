@@ -17,33 +17,34 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.single.max;
+package org.elasticsearch.search.reducers.metric.numeric.single.avg;
 
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.metric.MetricOp;
 import org.elasticsearch.search.reducers.metric.MetricsBuilder;
-import org.elasticsearch.search.reducers.metric.single.SingleMetricResult;
+import org.elasticsearch.search.reducers.metric.numeric.single.SingleMetricResult;
 
-public class Max extends MetricOp {
+public class Avg extends MetricOp {
 
-    public static String TYPE = "max";
+    public static String TYPE = "avg";
 
-    public Max() {
+    public Avg() {
         super(TYPE);
     }
 
     public SingleMetricResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {
 
-        double max = Double.NEGATIVE_INFINITY;
+        double sum = 0;
         for (Object bucketValue : bucketProperties) {
-            max = Math.max(((Number) bucketValue).doubleValue(), max);
+            sum += ((Number) bucketValue).doubleValue();
         }
-        return new SingleMetricResult(max);
+
+        return new SingleMetricResult(sum / bucketProperties.length);
     }
 
-    public static class MaxBuilder extends MetricsBuilder {
+    public static class AvgBuilder extends MetricsBuilder {
 
-        public MaxBuilder(String name) {
+        public AvgBuilder(String name) {
             super(name, TYPE);
         }
     }

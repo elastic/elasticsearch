@@ -23,12 +23,12 @@ package org.elasticsearch.search.reducers;
 import org.elasticsearch.search.reducers.bucket.slidingwindow.SlidingWindowBuilder;
 import org.elasticsearch.search.reducers.bucket.union.UnionBuilder;
 import org.elasticsearch.search.reducers.metric.MetricsBuilder;
-import org.elasticsearch.search.reducers.metric.multi.delta.DeltaBuilder;
-import org.elasticsearch.search.reducers.metric.multi.stats.Stats;
-import org.elasticsearch.search.reducers.metric.single.avg.Avg;
-import org.elasticsearch.search.reducers.metric.single.max.Max;
-import org.elasticsearch.search.reducers.metric.single.min.Min;
-import org.elasticsearch.search.reducers.metric.single.sum.Sum;
+import org.elasticsearch.search.reducers.metric.numeric.single.delta.Delta;
+import org.elasticsearch.search.reducers.metric.numeric.multi.stats.Stats;
+import org.elasticsearch.search.reducers.metric.numeric.single.avg.Avg;
+import org.elasticsearch.search.reducers.metric.numeric.single.max.Max;
+import org.elasticsearch.search.reducers.metric.numeric.single.min.Min;
+import org.elasticsearch.search.reducers.metric.numeric.single.sum.Sum;
 
 public class ReducerBuilders {
 
@@ -56,8 +56,8 @@ public class ReducerBuilders {
         return new Max.MaxBuilder(name);
     }
 
-    public static DeltaBuilder deltaReducer(String name) {
-        return new DeltaBuilder(name);
+    public static Delta.DeltaBuilder deltaReducer(String name) {
+        return new Delta.DeltaBuilder(name);
     }
 
     public static Stats.StatsBuilder statsReducer(String name) {

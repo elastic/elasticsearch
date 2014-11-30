@@ -17,31 +17,34 @@
  * under the License.
  */
 
+package org.elasticsearch.search.reducers.metric.numeric.single.max;
 
-package org.elasticsearch.search.reducers.metric.multi.delta;
-
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.reducers.ReductionExecutionException;
+import org.elasticsearch.search.reducers.metric.MetricOp;
 import org.elasticsearch.search.reducers.metric.MetricsBuilder;
+import org.elasticsearch.search.reducers.metric.numeric.single.SingleMetricResult;
 
-import java.io.IOException;
+public class Max extends MetricOp {
 
-public class DeltaBuilder extends MetricsBuilder {
+    public static String TYPE = "max";
 
-    private boolean gradient = false;
-
-    public DeltaBuilder(String name) {
-        super(name, "delta");
+    public Max() {
+        super(TYPE);
     }
 
-    public DeltaBuilder computeGradient(boolean gradient) {
-        this.gradient = gradient;
-        return this;
+    public SingleMetricResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {
+
+        double max = Double.NEGATIVE_INFINITY;
+        for (Object bucketValue : bucketProperties) {
+            max = Math.max(((Number) bucketValue).doubleValue(), max);
+        }
+        return new SingleMetricResult(max);
     }
 
-    @Override
-    protected XContentBuilder buildCustomParameters(XContentBuilder builder) throws IOException {
-        builder.field("gradient", gradient);
-        return builder;
+    public static class MaxBuilder extends MetricsBuilder {
+
+        public MaxBuilder(String name) {
+            super(name, TYPE);
+        }
     }
 }
-

@@ -17,77 +17,67 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.multi.stats;
+package org.elasticsearch.search.reducers.metric.numeric.single;
 
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.reducers.metric.MetricResult;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.reducers.metric.numeric.NumericMetricResult;
 
 import java.io.IOException;
+import java.util.List;
 
-public class StatsResult implements MetricResult {
+public class SingleMetricResult extends NumericMetricResult {
 
-    private int length;
-    private double sum;
-    private double min;
-    private double max;
+    private double value;
 
-    public StatsResult() {
-
+    public SingleMetricResult() {
     }
-    public StatsResult(int length, double sum, double min, double max) {
-        this.length = length;
-        this.sum = sum;
-        this.max = max;
-        this.min = min;
+
+    public SingleMetricResult(double value) {
+        this.value = value;
     }
+
     public void readFrom(StreamInput in) throws IOException {
-        length = in.readInt();
-        sum = in.readDouble();
-        min = in.readDouble();
-        max = in.readDouble();
+        super.readFrom(in);
+        value = in.readDouble();
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(length);
-        out.writeDouble(sum);
-        out.writeDouble(min);
-        out.writeDouble(max);
+        super.writeTo(out);
+        out.writeDouble(value);
     }
 
     public String getType() {
-        return "stats_metric";
+        return "single_metric";
     }
 
     public double getValue(String name) {
-        if (name.equals("length")) {
-            return length;
-        }
-        if (name.equals("sum")) {
-            return sum;
-        }
-        if (name.equals("min")) {
-            return min;
-        }
-        if (name.equals("max")) {
-            return max;
-        }
-        throw new IllegalArgumentException("stats reducer only computes length, sum, min and max. " + name + " is not supported");
+        return value;
     }
 
     public XContentBuilder doXContentBody(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.field("length", length);
-        builder.field("sum", sum);
-        builder.field("min", min);
-        builder.field("max", max);
+        builder.field(InternalAggregation.CommonFields.VALUE, value);
         return builder;
     }
 
     @Override
+    public Object getProperty(List<String> path) {
+        if (path.isEmpty()) {
+            return this;
+        } else if (path.size() == 1 && "value".equals(path.get(0))) {
+            return getValue();
+        } else {
+            throw new ElasticsearchIllegalArgumentException("path not supported for [" + getType() + "]: " + path);
+        }
+    }
+
     public double getValue() {
-        throw new IllegalArgumentException("don't know which value you want.");
+
+        return value;
     }
 }

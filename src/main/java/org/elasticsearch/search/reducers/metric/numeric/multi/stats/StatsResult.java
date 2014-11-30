@@ -17,51 +17,82 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.single;
+package org.elasticsearch.search.reducers.metric.numeric.multi.stats;
 
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.reducers.metric.MetricResult;
+import org.elasticsearch.search.reducers.metric.numeric.multi.MultiMetricResult;
 
 import java.io.IOException;
 
-public class SingleMetricResult implements MetricResult {
+public class StatsResult extends MultiMetricResult {
 
-    private double value;
+    private int length;
+    private double sum;
+    private double min;
+    private double max;
 
-    public SingleMetricResult() {
+    public StatsResult() {
+
     }
-    public SingleMetricResult(double value) {
-        this.value = value;
+
+    public StatsResult(int length, double sum, double min, double max) {
+        this.length = length;
+        this.sum = sum;
+        this.max = max;
+        this.min = min;
     }
+
     public void readFrom(StreamInput in) throws IOException {
-        value = in.readDouble();
+        super.readFrom(in);
+        length = in.readInt();
+        sum = in.readDouble();
+        min = in.readDouble();
+        max = in.readDouble();
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeDouble(value);
+        super.writeTo(out);
+        out.writeInt(length);
+        out.writeDouble(sum);
+        out.writeDouble(min);
+        out.writeDouble(max);
     }
 
     public String getType() {
-        return "single_metric";
+        return "stats_metric";
     }
 
     public double getValue(String name) {
-        return value;
+        if (name.equals("length")) {
+            return length;
+        }
+        if (name.equals("sum")) {
+            return sum;
+        }
+        if (name.equals("min")) {
+            return min;
+        }
+        if (name.equals("max")) {
+            return max;
+        }
+        throw new IllegalArgumentException("stats reducer only computes length, sum, min and max. " + name + " is not supported");
     }
 
     public XContentBuilder doXContentBody(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.field(InternalAggregation.CommonFields.VALUE, value);
+        builder.field("length", length);
+        builder.field("sum", sum);
+        builder.field("min", min);
+        builder.field("max", max);
         return builder;
     }
 
+
     @Override
     public double getValue() {
-
-        return value;
+        throw new IllegalArgumentException("don't know which value you want.");
     }
 }

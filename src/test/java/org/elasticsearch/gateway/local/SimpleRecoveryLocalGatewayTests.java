@@ -358,10 +358,13 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
                 client().admin().indices().prepareFlush().execute().actionGet();
             }
         }
-        client().admin().indices().prepareFlush().execute().actionGet();
-
+        if (randomBoolean()) {
+            client().admin().indices().prepareFlush().execute().actionGet();
+        }
         logger.info("Running Cluster Health");
         ensureGreen();
+        client().admin().indices().prepareOptimize("test").setWaitForMerge(true).setMaxNumSegments(100).get(); // just wait for merges
+        client().admin().indices().prepareFlush().setForce(true).execute().actionGet();
 
         logger.info("--> shutting down the nodes");
         // prevent any rebalance actions during the peer recovery

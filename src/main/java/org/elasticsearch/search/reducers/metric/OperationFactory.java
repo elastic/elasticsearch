@@ -21,6 +21,7 @@
 package org.elasticsearch.search.reducers.metric;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.search.reducers.metric.format.Array;
 import org.elasticsearch.search.reducers.metric.numeric.single.delta.Delta;
 import org.elasticsearch.search.reducers.metric.numeric.multi.stats.Stats;
 import org.elasticsearch.search.reducers.metric.numeric.single.avg.Avg;
@@ -48,6 +49,9 @@ public class OperationFactory {
             }
             case "stats": {
                 return new Stats();
+            }
+            case "array": {
+                return new Array();
             }
             default: {
                 throw new ElasticsearchParseException("No metric reducer called " + opName);

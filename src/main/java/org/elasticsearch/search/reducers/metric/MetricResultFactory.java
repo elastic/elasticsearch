@@ -21,6 +21,7 @@
 package org.elasticsearch.search.reducers.metric;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.search.reducers.metric.format.ArrayResult;
 import org.elasticsearch.search.reducers.metric.numeric.multi.stats.StatsResult;
 import org.elasticsearch.search.reducers.metric.numeric.single.SingleMetricResult;
 
@@ -31,6 +32,9 @@ public class MetricResultFactory {
         }
         if (type.equals("stats_metric")) {
             return new StatsResult();
+        }
+        if (type.equals("array")) {
+            return new ArrayResult();
         }
         throw new ElasticsearchParseException("No metric result found of type " + type);
     }

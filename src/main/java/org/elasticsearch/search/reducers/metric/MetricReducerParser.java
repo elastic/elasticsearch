@@ -35,7 +35,7 @@ public class MetricReducerParser implements Reducer.Parser {
 
     public static final ParseField BUCKETS_FIELD = new ParseField("buckets");
     public static final ParseField FIELD_NAME_FIELD = new ParseField("field");
-    public static final String[] TYPES = {"sum", "avg", "min", "max", "delta", "stats"};
+    public static final String[] TYPES = {"sum", "avg", "min", "max", "delta", "stats", "array"};
 
     @Override
     public String[] types() {

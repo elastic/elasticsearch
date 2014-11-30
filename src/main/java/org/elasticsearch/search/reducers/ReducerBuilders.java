@@ -23,6 +23,7 @@ package org.elasticsearch.search.reducers;
 import org.elasticsearch.search.reducers.bucket.slidingwindow.SlidingWindowBuilder;
 import org.elasticsearch.search.reducers.bucket.union.UnionBuilder;
 import org.elasticsearch.search.reducers.metric.MetricsBuilder;
+import org.elasticsearch.search.reducers.metric.format.Array;
 import org.elasticsearch.search.reducers.metric.numeric.single.delta.Delta;
 import org.elasticsearch.search.reducers.metric.numeric.multi.stats.Stats;
 import org.elasticsearch.search.reducers.metric.numeric.single.avg.Avg;
@@ -62,5 +63,9 @@ public class ReducerBuilders {
 
     public static Stats.StatsBuilder statsReducer(String name) {
         return new Stats.StatsBuilder(name);
+    }
+
+    public static Array.ArrayBuilder arrayReducer(String name) {
+        return new Array.ArrayBuilder(name);
     }
 }

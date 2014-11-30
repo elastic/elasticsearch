@@ -70,6 +70,7 @@ import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.*;
@@ -592,22 +593,4 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                 "index.routing.allocation.enable", "all"
         )).get();
     }
-
-    public static class NoMergePolicyProvider  extends AbstractMergePolicyProvider<MergePolicy> {
-
-        @Inject
-        public NoMergePolicyProvider(Store store) {
-            super(store);
-        }
-
-        @Override
-        public MergePolicy getMergePolicy() {
-            return NoMergePolicy.INSTANCE;
-        }
-
-        @Override
-        public void close() throws ElasticsearchException {
-        }
-    }
-
 }

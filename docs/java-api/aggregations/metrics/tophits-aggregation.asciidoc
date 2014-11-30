@@ -2,7 +2,7 @@
 ==== Top Hits Aggregation
 
 Here is how you can use
-{ref}/search-aggregations-metrics-tophits-aggregation.html[Top Hits Aggregation]
+{ref}/search-aggregations-metrics-top-hits-aggregation.html[Top Hits Aggregation]
 with Java API.
 
 

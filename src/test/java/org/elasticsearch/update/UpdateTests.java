@@ -46,6 +46,7 @@ import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -520,23 +521,6 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
         }
     }
 
-
-    public static class NoMergePolicyProvider  extends AbstractMergePolicyProvider<MergePolicy> {
-
-        @Inject
-        public NoMergePolicyProvider(Store store) {
-            super(store);
-        }
-
-        @Override
-        public MergePolicy getMergePolicy() {
-            return NoMergePolicy.INSTANCE;
-        }
-
-        @Override
-        public void close() throws ElasticsearchException {
-        }
-    }
 
     @Test
     @Slow

@@ -21,13 +21,15 @@ package org.elasticsearch.search.reducers.metric.single.sum;
 
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.metric.MetricOp;
+import org.elasticsearch.search.reducers.metric.MetricsBuilder;
 import org.elasticsearch.search.reducers.metric.single.SingleMetricResult;
 
 public class Sum extends MetricOp {
 
+    private static String TYPE = "sum";
 
     public Sum() {
-        super("sum");
+        super(TYPE);
     }
 
     public SingleMetricResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {
@@ -40,4 +42,10 @@ public class Sum extends MetricOp {
         return new SingleMetricResult(sum);
     }
 
+    public static class SumBuilder extends MetricsBuilder {
+
+        public SumBuilder(String name) {
+            super(name, TYPE);
+        }
+    }
 }

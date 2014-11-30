@@ -21,13 +21,15 @@ package org.elasticsearch.search.reducers.metric.single.avg;
 
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.metric.MetricOp;
+import org.elasticsearch.search.reducers.metric.MetricsBuilder;
 import org.elasticsearch.search.reducers.metric.single.SingleMetricResult;
 
 public class Avg extends MetricOp {
 
+    public static String TYPE = "avg";
 
     public Avg() {
-        super("avg");
+        super(TYPE);
     }
 
     public SingleMetricResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {
@@ -37,7 +39,13 @@ public class Avg extends MetricOp {
             sum += ((Number) bucketValue).doubleValue();
         }
 
-        return new SingleMetricResult(sum/bucketProperties.length);
+        return new SingleMetricResult(sum / bucketProperties.length);
     }
 
+    public static class AvgBuilder extends MetricsBuilder {
+
+        public AvgBuilder(String name) {
+            super(name, TYPE);
+        }
+    }
 }

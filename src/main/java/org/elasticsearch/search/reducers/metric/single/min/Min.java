@@ -21,13 +21,17 @@ package org.elasticsearch.search.reducers.metric.single.min;
 
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.metric.MetricOp;
+import org.elasticsearch.search.reducers.metric.MetricsBuilder;
 import org.elasticsearch.search.reducers.metric.single.SingleMetricResult;
 
 public class Min extends MetricOp {
 
+    public static String TYPE = "min";
+
     public Min() {
-        super("min");
+        super(TYPE);
     }
+
     public SingleMetricResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {
 
         double min = Double.POSITIVE_INFINITY;
@@ -37,4 +41,10 @@ public class Min extends MetricOp {
         return new SingleMetricResult(min);
     }
 
+    public static class MinBuilder extends MetricsBuilder {
+
+        public MinBuilder(String name) {
+            super(name, TYPE);
+        }
+    }
 }

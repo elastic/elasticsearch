@@ -21,13 +21,15 @@ package org.elasticsearch.search.reducers.metric.single.max;
 
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.metric.MetricOp;
+import org.elasticsearch.search.reducers.metric.MetricsBuilder;
 import org.elasticsearch.search.reducers.metric.single.SingleMetricResult;
 
 public class Max extends MetricOp {
 
+    public static String TYPE = "max";
 
     public Max() {
-        super("max");
+        super(TYPE);
     }
 
     public SingleMetricResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {
@@ -39,4 +41,10 @@ public class Max extends MetricOp {
         return new SingleMetricResult(max);
     }
 
+    public static class MaxBuilder extends MetricsBuilder {
+
+        public MaxBuilder(String name) {
+            super(name, TYPE);
+        }
+    }
 }

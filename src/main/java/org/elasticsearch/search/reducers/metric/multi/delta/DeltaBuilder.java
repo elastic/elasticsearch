@@ -21,7 +21,6 @@
 package org.elasticsearch.search.reducers.metric.multi.delta;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.reducers.metric.MetricReducerParser;
 import org.elasticsearch.search.reducers.metric.MetricsBuilder;
 
 import java.io.IOException;
@@ -40,16 +39,8 @@ public class DeltaBuilder extends MetricsBuilder {
     }
 
     @Override
-    protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (path != null) {
-            builder.field(MetricReducerParser.BUCKETS_FIELD.getPreferredName(), path);
-        }
-        if (field != null) {
-            builder.field(MetricReducerParser.FIELD_NAME_FIELD.getPreferredName(), field);
-        }
+    protected XContentBuilder buildCustomParameters(XContentBuilder builder) throws IOException {
         builder.field("gradient", gradient);
-        builder.endObject();
         return builder;
     }
 }

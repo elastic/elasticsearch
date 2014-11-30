@@ -55,8 +55,13 @@ public class MetricsBuilder extends ReductionBuilder<MetricsBuilder> {
         if (field != null) {
             builder.field(MetricReducerParser.FIELD_NAME_FIELD.getPreferredName(), field);
         }
+        buildCustomParameters(builder);
         builder.endObject();
         return builder;
+    }
+
+    protected XContentBuilder buildCustomParameters(XContentBuilder builder) throws IOException {
+        return  builder;
     }
 }
 

@@ -19,20 +19,20 @@
 
 package org.elasticsearch.search.reducers.metric.multi.delta;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.metric.MetricOp;
 
-import java.util.Map;
+import java.io.IOException;
 
 public class Delta extends MetricOp {
 
     boolean gradient = false; 
 
-    public Delta(Map<String, Object> parameters) {
-        super("delta", parameters);
-        if (parameters.get("gradient") != null) {
-            this.gradient = ((Boolean) parameters.get("gradient"));
-        }
+    public Delta() {
+        super("delta");
     }
 
     public DeltaResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {
@@ -43,5 +43,21 @@ public class Delta extends MetricOp {
             deltaValue = deltaValue / (bucketProperties.length - 1);
         }
         return new DeltaResult(deltaValue);
+    }
+
+    public void readFrom(StreamInput in) throws IOException {
+        this.gradient = in.readBoolean();
+    }
+
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(type);
+        out.writeBoolean(gradient);
+    }
+    protected boolean parseParameter(String currentFieldName, XContentParser parser) throws IOException {
+        if (currentFieldName.equals("gradient")) {
+            gradient= parser.booleanValue();
+            return true;
+        }
+        return false;
     }
 }

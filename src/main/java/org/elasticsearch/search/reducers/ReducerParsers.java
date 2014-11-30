@@ -49,7 +49,9 @@ public class ReducerParsers {
     public ReducerParsers(Set<Reducer.Parser> parsers) {
         MapBuilder<String, Reducer.Parser> builder = MapBuilder.newMapBuilder();
         for (Reducer.Parser parser : parsers) {
-            builder.put(parser.type(), parser);
+            for (String type : parser.types()) {
+                builder.put(type, parser);
+            }
         }
         this.parsers = builder.immutableMap();
     }

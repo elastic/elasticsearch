@@ -34,10 +34,11 @@ public class RangeParser implements Reducer.Parser{
 
     protected static final ParseField FIELD_NAME_FIELD = new ParseField("field");
     protected static final ParseField BUCKETS_FIELD = new ParseField("buckets");
+    public static final String[] TYPES = {InternalRange.TYPE.name()};
 
     @Override
-    public String type() {
-        return InternalRange.TYPE.name();
+    public String[] types() {
+        return TYPES;
     }
 
     @Override
@@ -106,7 +107,7 @@ public class RangeParser implements Reducer.Parser{
         }
 
         if (buckets == null) {
-            throw new SearchParseException(context, "Missing [" + BUCKETS_FIELD.getPreferredName() + "] in " + type() + " reducer [" + reducerName + "]");
+            throw new SearchParseException(context, "Missing [" + BUCKETS_FIELD.getPreferredName() + "] in " + TYPES[0] + " reducer [" + reducerName + "]");
         }
 
         if (ranges == null) {

@@ -32,10 +32,11 @@ public class SlidingWindowParser implements Reducer.Parser{
 
     protected static final ParseField WINDOW_SIZE_FIELD = new ParseField("window");
     protected static final ParseField BUCKETS_FIELD = new ParseField("buckets");
+    public static final String[] TYPES = {InternalSlidingWindow.TYPE.name()};
 
     @Override
-    public String type() {
-        return InternalSlidingWindow.TYPE.name();
+    public String[] types() {
+        return TYPES;
     }
 
     @Override
@@ -67,7 +68,7 @@ public class SlidingWindowParser implements Reducer.Parser{
         }
 
         if (buckets == null) {
-            throw new SearchParseException(context, "Missing [" + BUCKETS_FIELD.getPreferredName() + "] in " + type() + " reducer [" + reducerName + "]");
+            throw new SearchParseException(context, "Missing [" + BUCKETS_FIELD.getPreferredName() + "] in " + TYPES[0] + " reducer [" + reducerName + "]");
         }
 
         return new SlidingWindowReducer.Factory(reducerName, buckets, windowSize);

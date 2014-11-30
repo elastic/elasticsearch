@@ -97,9 +97,9 @@ public abstract class Reducer {
     public static interface Parser {
 
         /**
-         * @return The reducer type this parser is associated with.
+         * @return The reducer types this parser is associated with.
          */
-        String type();
+        public String[] types();
 
         /**
          * Returns the reducer factory with which this parser is associated, may return {@code null} indicating the

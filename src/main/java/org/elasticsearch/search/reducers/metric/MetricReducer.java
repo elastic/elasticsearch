@@ -98,7 +98,8 @@ public class MetricReducer extends Reducer {
             bucketsPath = in.readString();
             fieldName = in.readString();
 
-            operation = OperationFactory.get(in.readString(), in.readMap());
+            operation = OperationFactory.get(in.readString());
+            operation.readFrom(in);
         }
 
         @Override
@@ -106,8 +107,7 @@ public class MetricReducer extends Reducer {
             out.writeString(name);
             out.writeString(bucketsPath);
             out.writeString(fieldName);
-            out.writeString(operation.name());
-            out.writeMap(operation.parameters());
+            operation.writeTo(out);
         }
 
         @Override

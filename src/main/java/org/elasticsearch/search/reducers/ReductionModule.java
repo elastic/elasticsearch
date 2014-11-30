@@ -26,12 +26,7 @@ import org.elasticsearch.search.reducers.bucket.range.RangeParser;
 import org.elasticsearch.search.reducers.bucket.slidingwindow.SlidingWindowParser;
 import org.elasticsearch.search.reducers.bucket.union.UnionParser;
 import org.elasticsearch.search.reducers.bucket.unpacking.UnpackingParser;
-import org.elasticsearch.search.reducers.metric.single.avg.AvgParser;
-import org.elasticsearch.search.reducers.metric.multi.delta.DeltaParser;
-import org.elasticsearch.search.reducers.metric.single.max.MaxParser;
-import org.elasticsearch.search.reducers.metric.single.min.MinParser;
-import org.elasticsearch.search.reducers.metric.multi.stats.StatsParser;
-import org.elasticsearch.search.reducers.metric.single.sum.SumParser;
+import org.elasticsearch.search.reducers.metric.MetricReducerParser;
 
 import java.util.List;
 
@@ -43,13 +38,8 @@ public class ReductionModule extends AbstractModule {
         parsers.add(SlidingWindowParser.class);
         parsers.add(UnionParser.class);
         parsers.add(UnpackingParser.class);
-        parsers.add(DeltaParser.class);
         parsers.add(RangeParser.class);
-        parsers.add(SumParser.class);
-        parsers.add(AvgParser.class);
-        parsers.add(MinParser.class);
-        parsers.add(MaxParser.class);
-        parsers.add(StatsParser.class);
+        parsers.add(MetricReducerParser.class);
     }
 
     /**

@@ -31,24 +31,24 @@ import org.elasticsearch.search.reducers.metric.single.sum.Sum;
 import java.util.Map;
 
 public class OperationFactory {
-    public static MetricOp get(String opName, Map<String, Object> parameters) {
+    public static MetricOp get(String opName) {
         if (opName.equals("sum")) {
-            return new Sum(parameters);
+            return new Sum();
         }
         if (opName.equals("avg")) {
-            return new Avg(parameters);
+            return new Avg();
         }
         if (opName.equals("min")) {
-            return new Min(parameters);
+            return new Min();
         }
         if (opName.equals("max")) {
-            return new Max(parameters);
+            return new Max();
         }
         if (opName.equals("delta")) {
-            return new Delta(parameters);
+            return new Delta();
         }
         if (opName.equals("stats")) {
-            return new Stats(parameters);
+            return new Stats();
         }
         throw new ElasticsearchParseException("No metric reducer called " + opName);
     }

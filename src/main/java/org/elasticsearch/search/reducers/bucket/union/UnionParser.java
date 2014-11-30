@@ -33,10 +33,11 @@ import java.util.List;
 public class UnionParser implements Reducer.Parser{
 
     protected static final ParseField BUCKETS_FIELD = new ParseField("buckets");
+    public static String[] TYPES = {InternalUnion.TYPE.name()};
 
     @Override
-    public String type() {
-        return InternalUnion.TYPE.name();
+    public String[] types() {
+        return TYPES;
     }
 
     @Override
@@ -70,7 +71,7 @@ public class UnionParser implements Reducer.Parser{
         }
 
         if (bucketsPaths == null) {
-            throw new SearchParseException(context, "Missing [" + BUCKETS_FIELD.getPreferredName() + "] in " + type() + " reducer [" + reducerName + "]");
+            throw new SearchParseException(context, "Missing [" + BUCKETS_FIELD.getPreferredName() + "] in " + TYPES[0] + " reducer [" + reducerName + "]");
         }
 
         return new UnionReducer.Factory(reducerName, bucketsPaths);

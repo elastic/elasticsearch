@@ -22,12 +22,10 @@ package org.elasticsearch.search.reducers.metric.multi.stats;
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.metric.MetricOp;
 
-import java.util.Map;
-
 public class Stats extends MetricOp {
 
-    public Stats(Map<String, Object> parameters) {
-        super("stats", parameters);
+    public Stats() {
+        super("stats");
     }
 
     public StatsResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {

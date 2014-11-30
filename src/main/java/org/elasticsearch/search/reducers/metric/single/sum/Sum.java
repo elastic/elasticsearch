@@ -23,12 +23,10 @@ import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.metric.MetricOp;
 import org.elasticsearch.search.reducers.metric.single.SingleMetricResult;
 
-import java.util.Map;
-
 public class Sum extends MetricOp {
 
 
-    public Sum(Map<String, Object> parameters) {
+    public Sum() {
         super("sum");
     }
 

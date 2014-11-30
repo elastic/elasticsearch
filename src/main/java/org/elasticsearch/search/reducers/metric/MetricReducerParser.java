@@ -31,10 +31,16 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public abstract class MetricReducerParser implements Reducer.Parser {
+public class MetricReducerParser implements Reducer.Parser {
 
     public static final ParseField BUCKETS_FIELD = new ParseField("buckets");
     public static final ParseField FIELD_NAME_FIELD = new ParseField("field");
+    public static final String[] TYPES = {"sum", "avg", "min", "max", "delta", "stats"};
+
+    @Override
+    public String[] types() {
+        return TYPES;
+    }
 
     @Override
     public ReducerFactory parse(String reducerName, XContentParser parser, SearchContext context) throws IOException {
@@ -45,7 +51,7 @@ public abstract class MetricReducerParser implements Reducer.Parser {
         XContentParser.Token token;
         String currentFieldName = null;
 
-        Map<String, Object> parameters = new HashMap<>();
+        MetricOp operation = OperationFactory.get(opName);
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -55,29 +61,25 @@ public abstract class MetricReducerParser implements Reducer.Parser {
                     buckets = parser.text();
                 } else if (FIELD_NAME_FIELD.match(currentFieldName)) {
                     fieldName = parser.text();
-                } else if (!parseParameter(currentFieldName, parser, parameters)) {
+                } else if (!operation.parseParameter(currentFieldName, parser)) {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName
                             + "].");
                 }
-            } else if (!parseParameter(currentFieldName, parser, parameters)) {
+            } else if (!operation.parseParameter(currentFieldName, parser)) {
                 throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName
                         + "].");
             }
         }
 
         if (buckets == null) {
-            throw new SearchParseException(context, "Missing [" + BUCKETS_FIELD.getPreferredName() + "] in " + type() + " reducer [" + reducerName + "]");
+            throw new SearchParseException(context, "Missing [" + BUCKETS_FIELD.getPreferredName() + "] in " + opName + " reducer [" + reducerName + "]");
         }
 
         if (fieldName == null) {
-            throw new SearchParseException(context, "Missing [" + FIELD_NAME_FIELD.getPreferredName() + "] in " + type() + " reducer [" + reducerName + "]");
+            throw new SearchParseException(context, "Missing [" + FIELD_NAME_FIELD.getPreferredName() + "] in " + opName + " reducer [" + reducerName + "]");
         }
 
-        return new MetricReducer.Factory(reducerName, buckets, fieldName, OperationFactory.get(opName, parameters));
-    }
-
-    protected boolean parseParameter(String currentFieldName, XContentParser parser, Map<String, Object> parameters) throws IOException {
-        return false;
+        return new MetricReducer.Factory(reducerName, buckets, fieldName, operation);
     }
 }
 

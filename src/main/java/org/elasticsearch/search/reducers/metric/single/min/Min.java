@@ -23,11 +23,9 @@ import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.metric.MetricOp;
 import org.elasticsearch.search.reducers.metric.single.SingleMetricResult;
 
-import java.util.Map;
-
 public class Min extends MetricOp {
 
-    public Min(Map<String, Object> parameters) {
+    public Min() {
         super("min");
     }
     public SingleMetricResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {

@@ -34,10 +34,11 @@ public class UnpackingParser implements Reducer.Parser{
 
     protected static final ParseField BUCKETS_FIELD = new ParseField("buckets");
     protected static final ParseField UNPACK_PATH_FIELD = new ParseField("unpack_path");
+    public static final String[] TYPES = {InternalUnpacking.TYPE.name()};
 
     @Override
-    public String type() {
-        return InternalUnpacking.TYPE.name();
+    public String[] types() {
+        return TYPES;
     }
 
     @Override
@@ -79,11 +80,11 @@ public class UnpackingParser implements Reducer.Parser{
         }
 
         if (bucketsPaths == null) {
-            throw new SearchParseException(context, "Missing [" + BUCKETS_FIELD.getPreferredName() + "] in " + type() + " reducer [" + reducerName + "]");
+            throw new SearchParseException(context, "Missing [" + BUCKETS_FIELD.getPreferredName() + "] in " + TYPES[0] + " reducer [" + reducerName + "]");
         }
 
         if (unpackPath == null) {
-            throw new SearchParseException(context, "Missing [" + UNPACK_PATH_FIELD.getPreferredName() + "] in " + type() + " reducer ["
+            throw new SearchParseException(context, "Missing [" + UNPACK_PATH_FIELD.getPreferredName() + "] in " + TYPES[0] + " reducer ["
                     + reducerName + "]");
         }
 

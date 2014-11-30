@@ -23,12 +23,10 @@ import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.metric.MetricOp;
 import org.elasticsearch.search.reducers.metric.single.SingleMetricResult;
 
-import java.util.Map;
-
 public class Max extends MetricOp {
 
 
-    public Max(Map<String, Object> parameters) {
+    public Max() {
         super("max");
     }
 

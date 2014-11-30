@@ -73,39 +73,41 @@ public class UpdateHelper extends AbstractComponent {
      */
     @SuppressWarnings("unchecked")
     public Result prepare(UpdateRequest request, IndexShard indexShard) {
-        long getDateNS = System.nanoTime();
         final GetResult getResult = indexShard.getService().get(request.type(), request.id(),
                 new String[]{RoutingFieldMapper.NAME, ParentFieldMapper.NAME, TTLFieldMapper.NAME, TimestampFieldMapper.NAME},
                 true, request.version(), request.versionType(), FetchSourceContext.FETCH_SOURCE, false);
+        return prepare(request, getResult);
+    }
 
+    /**
+     * Prepares an update request by converting it into an index or delete request or an update response (no action).
+     */
+    @SuppressWarnings("unchecked")
+    protected Result prepare(UpdateRequest request, final GetResult getResult) {
+        long getDateNS = System.nanoTime();
         if (!getResult.isExists()) {
             if (request.upsertRequest() == null && !request.docAsUpsert()) {
-                throw new DocumentMissingException(new ShardId(indexShard.indexService().index().name(), request.shardId()), request.type(), request.id());
+                throw new DocumentMissingException(new ShardId(request.index(), request.shardId()), request.type(), request.id());
             }
-            Long ttl = null;
             IndexRequest indexRequest = request.docAsUpsert() ? request.doc() : request.upsertRequest();
-            if (request.scriptedUpsert() && (request.script() != null)) {
+            Long ttl = indexRequest.ttl();
+            if (request.scriptedUpsert() && request.script() != null) {
                 // Run the script to perform the create logic
-                IndexRequest upsert = request.upsertRequest();               
+                IndexRequest upsert = request.upsertRequest();
                 Map<String, Object> upsertDoc = upsert.sourceAsMap();
                 Map<String, Object> ctx = new HashMap<>(2);
                 // Tell the script that this is a create and not an update
                 ctx.put("op", "create");
                 ctx.put("_source", upsertDoc);
-                try {
-                    ExecutableScript script = scriptService.executable(request.script, ScriptContext.Standard.UPDATE);
-                    script.setNextVar("ctx", ctx);
-                    script.run();
-                    // we need to unwrap the ctx...
-                    ctx = (Map<String, Object>) script.unwrap(ctx);
-                } catch (Exception e) {
-                    throw new IllegalArgumentException("failed to execute script", e);
-                }                
+                ctx = executeScript(request, ctx);
                 //Allow the script to set TTL using ctx._ttl
-                ttl = getTTLFromScriptContext(ctx);
+                if (ttl < 0) {
+                    ttl = getTTLFromScriptContext(ctx);
+                }
+
                 //Allow the script to abort the create by setting "op" to "none"
                 String scriptOpChoice = (String) ctx.get("op");
-                
+
                 // Only valid options for an upsert script are "create"
                 // (the default) or "none", meaning abort upsert
                 if (!"create".equals(scriptOpChoice)) {
@@ -123,8 +125,8 @@ public class UpdateHelper extends AbstractComponent {
 
             indexRequest.index(request.index()).type(request.type()).id(request.id())
                     // it has to be a "create!"
-                    .create(true)                    
-                    .ttl(ttl)
+                    .create(true)
+                    .ttl(ttl == null || ttl < 0 ? null : ttl)
                     .refresh(request.refresh())
                     .routing(request.routing())
                     .parent(request.parent())
@@ -146,7 +148,7 @@ public class UpdateHelper extends AbstractComponent {
 
         if (getResult.internalSourceRef() == null) {
             // no source, we can't do nothing, through a failure...
-            throw new DocumentSourceMissingException(new ShardId(indexShard.indexService().index().name(), request.shardId()), request.type(), request.id());
+            throw new DocumentSourceMissingException(new ShardId(request.index(), request.shardId()), request.type(), request.id());
         }
 
         Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
@@ -192,15 +194,7 @@ public class UpdateHelper extends AbstractComponent {
             ctx.put("_ttl", originalTtl);
             ctx.put("_source", sourceAndContent.v2());
 
-            try {
-                ExecutableScript script = scriptService.executable(request.script, ScriptContext.Standard.UPDATE);
-                script.setNextVar("ctx", ctx);
-                script.run();
-                // we need to unwrap the ctx...
-                ctx = (Map<String, Object>) script.unwrap(ctx);
-            } catch (Exception e) {
-                throw new IllegalArgumentException("failed to execute script", e);
-            }
+            ctx = executeScript(request, ctx);
 
             operation = (String) ctx.get("op");
 
@@ -213,7 +207,7 @@ public class UpdateHelper extends AbstractComponent {
             }
 
             ttl = getTTLFromScriptContext(ctx);
-            
+
             updatedSourceAsMap = (Map<String, Object>) ctx.get("_source");
         }
 
@@ -243,13 +237,28 @@ public class UpdateHelper extends AbstractComponent {
             return new Result(deleteRequest, Operation.DELETE, updatedSourceAsMap, updateSourceContentType);
         } else if ("none".equals(operation)) {
             UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(), false);
-            update.setGetResult(extractGetResult(request, indexShard.indexService().index().name(), getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));
+            update.setGetResult(extractGetResult(request, request.index(), getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));
             return new Result(update, Operation.NONE, updatedSourceAsMap, updateSourceContentType);
         } else {
             logger.warn("Used update operation [{}] for script [{}], doing nothing...", operation, request.script.getScript());
             UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(), false);
             return new Result(update, Operation.NONE, updatedSourceAsMap, updateSourceContentType);
         }
+    }
+
+    private Map<String, Object> executeScript(UpdateRequest request, Map<String, Object> ctx) {
+        try {
+            if (scriptService != null) {
+                ExecutableScript script = scriptService.executable(request.script, ScriptContext.Standard.UPDATE);
+                script.setNextVar("ctx", ctx);
+                script.run();
+                // we need to unwrap the ctx...
+                ctx = (Map<String, Object>) script.unwrap(ctx);
+            }
+        } catch (Exception e) {
+            throw new IllegalArgumentException("failed to execute script", e);
+        }
+        return ctx;
     }
 
     private Long getTTLFromScriptContext(Map<String, Object> ctx) {

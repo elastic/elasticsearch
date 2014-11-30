@@ -28,28 +28,30 @@ import org.elasticsearch.search.reducers.metric.single.max.Max;
 import org.elasticsearch.search.reducers.metric.single.min.Min;
 import org.elasticsearch.search.reducers.metric.single.sum.Sum;
 
-import java.util.Map;
-
 public class OperationFactory {
     public static MetricOp get(String opName) {
-        if (opName.equals("sum")) {
-            return new Sum();
+        switch (opName) {
+            case "sum": {
+                return new Sum();
+            }
+            case "avg": {
+                return new Avg();
+            }
+            case "min": {
+                return new Min();
+            }
+            case "max": {
+                return new Max();
+            }
+            case "delta": {
+                return new Delta();
+            }
+            case "stats": {
+                return new Stats();
+            }
+            default: {
+                throw new ElasticsearchParseException("No metric reducer called " + opName);
+            }
         }
-        if (opName.equals("avg")) {
-            return new Avg();
-        }
-        if (opName.equals("min")) {
-            return new Min();
-        }
-        if (opName.equals("max")) {
-            return new Max();
-        }
-        if (opName.equals("delta")) {
-            return new Delta();
-        }
-        if (opName.equals("stats")) {
-            return new Stats();
-        }
-        throw new ElasticsearchParseException("No metric reducer called " + opName);
     }
 }

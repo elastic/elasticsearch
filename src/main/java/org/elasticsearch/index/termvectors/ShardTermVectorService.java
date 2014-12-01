@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.action.termvector.dfs.DfsOnlyRequest;
@@ -52,6 +53,7 @@ import org.elasticsearch.search.dfs.AggregatedDfs;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
 
@@ -94,8 +96,12 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
                 result = getTermVector(request, searcher);
             }
             return result;
-        } catch (Throwable ex) {
-            throw new ElasticsearchException("failed to load term vectors from cache", ex);
+        } catch (Throwable e) {
+            // execution exception can happen while loading the cache, strip it
+            if (e instanceof ExecutionException) {
+                e = e.getCause();
+            }
+            throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             searcher.close();
         }

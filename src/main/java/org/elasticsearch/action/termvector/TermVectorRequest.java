@@ -458,7 +458,9 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
             out.writeString(index);
         }
         out.writeString(type);
-        out.writeString(id);
+        if (!asKey || (asKey && this.doc() == null)) {
+            out.writeString(id);
+        }
 
         if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeBoolean(doc != null);

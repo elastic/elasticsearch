@@ -144,7 +144,9 @@ public class IndicesTermVectorsCache extends AbstractComponent implements Remova
 
     private IndicesQueryCache.Key buildKey(TermVectorRequest request, IndexShard indexShard, IndexReader reader) throws Exception {
         long version = ((DirectoryReader) reader).getVersion();
-        return new IndicesQueryCache.Key(indexShard, version, request.cacheKey());
+        IndicesQueryCache.Key key = new IndicesQueryCache.Key(indexShard, version, request.cacheKey());
+        key.keyType = "_termvectors";
+        return key;
     }
 
 }

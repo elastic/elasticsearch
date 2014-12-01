@@ -279,11 +279,13 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
         public final IndexShard shard; // use as identity equality
         public final long readerVersion; // use the reader version to now keep a reference to a "short" lived reader until its reaped
         public final BytesReference value;
+        public String keyType;
 
         public Key(IndexShard shard, long readerVersion, BytesReference value) {
             this.shard = shard;
             this.readerVersion = readerVersion;
             this.value = value;
+            this.keyType = "_search";
         }
 
         @Override
@@ -304,6 +306,7 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
             if (readerVersion != key.readerVersion) return false;
             if (!shard.equals(key.shard)) return false;
             if (!value.equals(key.value)) return false;
+            if (!keyType.equals(key.keyType)) return false;
             return true;
         }
 
@@ -312,6 +315,7 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
             int result = shard.hashCode();
             result = 31 * result + (int) (readerVersion ^ (readerVersion >>> 32));
             result = 31 * result + value.hashCode();
+            result = 31 * result + keyType.hashCode();
             return result;
         }
     }

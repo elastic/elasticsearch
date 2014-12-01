@@ -111,9 +111,7 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
         out.writeVLong(docVersion);
         final boolean docExists = isExists();
         out.writeBoolean(docExists);
-        if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
-            out.writeVLong(tookInMillis);
-        }
+        out.writeVLong(tookInMillis);
         out.writeBoolean(hasTermVectors());
         if (hasTermVectors()) {
             out.writeBytesReference(headerRef);
@@ -133,9 +131,7 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
         id = in.readString();
         docVersion = in.readVLong();
         exists = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
-            tookInMillis = in.readVLong();
-        }
+        tookInMillis = in.readVLong();
         if (in.readBoolean()) {
             headerRef = in.readBytesReference();
             termVectors = in.readBytesReference();

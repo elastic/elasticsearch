@@ -442,10 +442,8 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
             }
             this.realtime = in.readBoolean();
         }
-        if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
-            startTime = in.readVLong();
-            cache = in.readOptionalBoolean();
-        }
+        startTime = in.readVLong();
+        cache = in.readOptionalBoolean();
     }
 
     @Override
@@ -490,7 +488,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
             }
             out.writeBoolean(realtime());
         }
-        if (!asKey && out.getVersion().onOrAfter(Version.V_2_0_0)) {
+        if (!asKey) {
             out.writeVLong(startTime);
             out.writeOptionalBoolean(cache);
         }

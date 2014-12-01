@@ -114,4 +114,25 @@ public class UsernamePasswordTokenTests extends ElasticsearchTestCase {
         when(request.header(UsernamePasswordToken.BASIC_AUTH_HEADER)).thenReturn("Basic");
         UsernamePasswordToken.extractToken(request, null);
     }
+
+    @Test
+    public void testEqualsWithDifferentPasswords() {
+        UsernamePasswordToken token1 = new UsernamePasswordToken("username", new SecuredString("password".toCharArray()));
+        UsernamePasswordToken token2 = new UsernamePasswordToken("username", new SecuredString("new password".toCharArray()));
+        assertThat(token1, not(equalTo(token2)));
+    }
+
+    @Test
+    public void testEqualsWithDifferentUsernames() {
+        UsernamePasswordToken token1 = new UsernamePasswordToken("username", new SecuredString("password".toCharArray()));
+        UsernamePasswordToken token2 = new UsernamePasswordToken("username1", new SecuredString("password".toCharArray()));
+        assertThat(token1, not(equalTo(token2)));
+    }
+
+    @Test
+    public void testEquals() {
+        UsernamePasswordToken token1 = new UsernamePasswordToken("username", new SecuredString("password".toCharArray()));
+        UsernamePasswordToken token2 = new UsernamePasswordToken("username", new SecuredString("password".toCharArray()));
+        assertThat(token1, equalTo(token2));
+    }
 }

@@ -1,6 +1,10 @@
 
 [ -f /etc/sysconfig/elasticsearch ] && . /etc/sysconfig/elasticsearch
 
+# Generate ES plugin directory and hand over ownership to ES user
+mkdir -p /usr/share/elasticsearch/plugins
+chown elasticsearch:elasticsearch /usr/share/elasticsearch/plugins
+
 startElasticsearch() {
 	if [ -x /bin/systemctl ] ; then
 		/bin/systemctl start elasticsearch.service

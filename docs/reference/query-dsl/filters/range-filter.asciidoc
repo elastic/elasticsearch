@@ -45,7 +45,7 @@ The `execution` option controls how the range filter internally executes. The `e
 
 In general for small ranges the `index` execution is faster and for longer ranges the `fielddata` execution is faster.
 
-The `fielddata` execution as the same suggests uses field data and therefor requires more memory, so make you have
+The `fielddata` execution as the same suggests uses field data and therefore requires more memory, so make sure you have
 sufficient memory on your nodes in order to use this execution mode. It usually makes sense to use it on fields  you're
 already faceting or sorting by.
 

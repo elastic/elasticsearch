@@ -54,12 +54,12 @@ public class AlertSerializationTest extends ElasticsearchIntegrationTest {
                 internalCluster().getInstance(AlertsStore.class, internalCluster().getMasterName());
 
         Alert parsedAlert = alertsStore.parseAlert("test-serialization", jsonBuilder.bytes());
-        assertEquals(parsedAlert.version(), alert.version());
-        assertEquals(parsedAlert.actions(), alert.actions());
-        assertEquals(parsedAlert.lastExecuteTime().getMillis(), alert.lastExecuteTime().getMillis());
-        assertEquals(parsedAlert.schedule(), alert.schedule());
+        assertEquals(parsedAlert.getVersion(), alert.getVersion());
+        assertEquals(parsedAlert.getActions(), alert.getActions());
+        assertEquals(parsedAlert.getLastExecuteTime().getMillis(), alert.getLastExecuteTime().getMillis());
+        assertEquals(parsedAlert.getSchedule(), alert.getSchedule());
         assertEquals(parsedAlert.getSearchRequest().source(), alert.getSearchRequest().source());
-        assertEquals(parsedAlert.trigger(), alert.trigger());
+        assertEquals(parsedAlert.getTrigger(), alert.getTrigger());
         assertEquals(parsedAlert.getThrottlePeriod(), alert.getThrottlePeriod());
         if (parsedAlert.getTimeLastActionExecuted() == null) {
             assertNull(alert.getTimeLastActionExecuted());

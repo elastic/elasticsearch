@@ -99,7 +99,7 @@ public class AlertsStore extends AbstractComponent {
         Alert alert = parseAlert(alertName, alertSource);
         IndexRequest indexRequest = createIndexRequest(alertName, alertSource);
         IndexResponse response = client.index(indexRequest).actionGet();
-        alert.version(response.getVersion());
+        alert.setVersion(response.getVersion());
         Alert previous = alertMap.put(alertName, alert);
         return new AlertStoreModification(previous, alert, response);
     }
@@ -110,14 +110,14 @@ public class AlertsStore extends AbstractComponent {
     public void updateAlert(Alert alert) throws IOException {
         ensureStarted();
         BytesReference source = XContentFactory.contentBuilder(alert.getContentType()).value(alert).bytes();
-        IndexResponse response = client.index(createIndexRequest(alert.alertName(), source)).actionGet();
-        alert.version(response.getVersion());
+        IndexResponse response = client.index(createIndexRequest(alert.getAlertName(), source)).actionGet();
+        alert.setVersion(response.getVersion());
         // Don't need to update the alertMap, since we are working on an instance from it.
         assert verifySameInstance(alert);
     }
 
     private boolean verifySameInstance(Alert alert) {
-        Alert found = alertMap.get(alert.alertName());
+        Alert found = alertMap.get(alert.getAlertName());
         assert found == alert : "expected " + alert + " but got " + found;
         return true;
     }
@@ -133,7 +133,7 @@ public class AlertsStore extends AbstractComponent {
         }
 
         DeleteRequest deleteRequest = new DeleteRequest(ALERT_INDEX, ALERT_TYPE, name);
-        deleteRequest.version(alert.version());
+        deleteRequest.version(alert.getVersion());
         DeleteResponse deleteResponse = client.delete(deleteRequest).actionGet();
         assert deleteResponse.isFound();
         return deleteResponse;
@@ -231,13 +231,13 @@ public class AlertsStore extends AbstractComponent {
 
     private Alert parseAlert(String alertId, SearchHit sh) {
         Alert alert = parseAlert(alertId, sh.getSourceRef());
-        alert.version(sh.version());
+        alert.setVersion(sh.version());
         return alert;
     }
 
     protected Alert parseAlert(String alertName, BytesReference source) {
         Alert alert = new Alert();
-        alert.alertName(alertName);
+        alert.setAlertName(alertName);
         try (XContentParser parser = XContentHelper.createParser(source)) {
             alert.setContentType(parser.contentType());
 
@@ -249,10 +249,10 @@ public class AlertsStore extends AbstractComponent {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (TRIGGER_FIELD.match(currentFieldName)) {
-                        alert.trigger(triggerManager.instantiateAlertTrigger(parser));
+                        alert.setTrigger(triggerManager.instantiateAlertTrigger(parser));
                     } else if (ACTION_FIELD.match(currentFieldName)) {
                         List<AlertAction> actions = alertActionRegistry.instantiateAlertActions(parser);
-                        alert.actions(actions);
+                        alert.setActions(actions);
                     } else if (REQUEST_FIELD.match(currentFieldName)) {
                         alert.setSearchRequest(AlertUtils.readSearchRequest(parser));
                     } else if (META_FIELD.match(currentFieldName)) {
@@ -262,7 +262,7 @@ public class AlertsStore extends AbstractComponent {
                     }
                 } else if (token.isValue()) {
                     if (SCHEDULE_FIELD.match(currentFieldName)) {
-                        alert.schedule(parser.textOrNull());
+                        alert.setSchedule(parser.textOrNull());
                     } else if (LAST_ACTION_FIRE.match(currentFieldName)) {
                         alert.lastExecuteTime(DateTime.parse(parser.textOrNull()));
                     } else if (LAST_ACTION_EXECUTED_FIELD.match(currentFieldName)) {
@@ -282,15 +282,15 @@ public class AlertsStore extends AbstractComponent {
             throw new ElasticsearchException("Error during parsing alert", e);
         }
 
-        if (alert.lastExecuteTime() == null) {
+        if (alert.getLastExecuteTime() == null) {
             alert.lastExecuteTime(new DateTime(0));
         }
 
-        if (alert.schedule() == null) {
+        if (alert.getSchedule() == null) {
             throw new ElasticsearchIllegalArgumentException("Schedule is a required field");
         }
 
-        if (alert.trigger() == null) {
+        if (alert.getTrigger() == null) {
             throw new ElasticsearchIllegalArgumentException("Trigger is a required field");
         }
 

@@ -268,7 +268,7 @@ public class AlertActionManager extends AbstractComponent {
 
     public void addAlertAction(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
         ensureStarted();
-        logger.debug("Adding alert action for alert [{}]", alert.alertName());
+        logger.debug("Adding alert action for alert [{}]", alert.getAlertName());
         String alertHistoryIndex = getAlertHistoryIndexNameForTime(scheduledFireTime);
         AlertActionEntry entry = new AlertActionEntry(alert, scheduledFireTime, fireTime, AlertActionState.SEARCH_NEEDED);
         IndexResponse response = client.prepareIndex(alertHistoryIndex, ALERT_HISTORY_TYPE, entry.getId())
@@ -276,7 +276,7 @@ public class AlertActionManager extends AbstractComponent {
                 .setOpType(IndexRequest.OpType.CREATE)
                 .get();
         entry.setVersion(response.getVersion());
-        logger.debug("Added alert action for alert [{}]", alert.alertName());
+        logger.debug("Added alert action for alert [{}]", alert.getAlertName());
 
         long currentSize = actionsToBeProcessed.size() + 1;
         actionsToBeProcessed.add(entry);
@@ -354,9 +354,15 @@ public class AlertActionManager extends AbstractComponent {
                 }
                 updateHistoryEntry(entry, AlertActionState.SEARCH_UNDERWAY);
                 logger.debug("Running an alert action entry for [{}]", entry.getAlertName());
-                TriggerResult trigger = alertManager.executeAlert(entry);
-                if (trigger.isTriggered()) {
-                    if (entry.getState() != AlertActionState.THROTTLED) {
+                TriggerResult result = alertManager.executeAlert(entry);
+                entry.setSearchResponse(result.getResponse());
+                if (result.isTriggered()) {
+                    entry.setTriggered(true);
+                    if (result.isThrottled()) {
+                        if (alert.getAckState() != AlertAckState.NOT_TRIGGERED) {
+                            entry.setState(AlertActionState.THROTTLED);
+                        }
+                    } else if (entry.getState() != AlertActionState.THROTTLED) {
                         entry.setState(AlertActionState.ACTION_PERFORMED);
                     }
                 } else {

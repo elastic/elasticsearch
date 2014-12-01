@@ -46,12 +46,12 @@ public class AlertActionEntry implements ToXContent {
     }
 
     public AlertActionEntry(Alert alert, DateTime scheduledTime, DateTime fireTime, AlertActionState state) throws IOException {
-        this.id = alert.alertName() + "#" + scheduledTime.toDateTimeISO();
-        this.alertName = alert.alertName();
+        this.id = alert.getAlertName() + "#" + scheduledTime.toDateTimeISO();
+        this.alertName = alert.getAlertName();
         this.fireTime = fireTime;
         this.scheduledTime = scheduledTime;
-        this.trigger = alert.trigger();
-        this.actions = alert.actions();
+        this.trigger = alert.getTrigger();
+        this.actions = alert.getActions();
         this.state = state;
         this.searchRequest = alert.getSearchRequest();
         this.metadata = alert.getMetadata();
@@ -67,7 +67,7 @@ public class AlertActionEntry implements ToXContent {
         return id;
     }
 
-    public void setId(String id) {
+    void setId(String id) {
         this.id = id;
     }
 
@@ -78,7 +78,7 @@ public class AlertActionEntry implements ToXContent {
         return scheduledTime;
     }
 
-    public void setScheduledTime(DateTime scheduledTime) {
+    void setScheduledTime(DateTime scheduledTime) {
         this.scheduledTime = scheduledTime;
     }
 
@@ -89,7 +89,7 @@ public class AlertActionEntry implements ToXContent {
         return alertName;
     }
 
-    public void setAlertName(String alertName) {
+    void setAlertName(String alertName) {
         this.alertName = alertName;
     }
 
@@ -100,7 +100,7 @@ public class AlertActionEntry implements ToXContent {
         return triggered;
     }
 
-    public void setTriggered(boolean triggered) {
+    void setTriggered(boolean triggered) {
         this.triggered = triggered;
     }
 
@@ -111,7 +111,7 @@ public class AlertActionEntry implements ToXContent {
         return fireTime;
     }
 
-    public void setFireTime(DateTime fireTime) {
+    void setFireTime(DateTime fireTime) {
         this.fireTime = fireTime;
     }
 
@@ -122,7 +122,7 @@ public class AlertActionEntry implements ToXContent {
         return trigger;
     }
 
-    public void setTrigger(AlertTrigger trigger) {
+    void setTrigger(AlertTrigger trigger) {
         this.trigger = trigger;
     }
 
@@ -133,7 +133,7 @@ public class AlertActionEntry implements ToXContent {
         return searchRequest;
     }
 
-    public void setSearchRequest(SearchRequest searchRequest) {
+    void setSearchRequest(SearchRequest searchRequest) {
         this.searchRequest = searchRequest;
     }
 
@@ -144,7 +144,7 @@ public class AlertActionEntry implements ToXContent {
         return searchResponse;
     }
 
-    public void setSearchResponse(Map<String, Object> searchResponse) {
+    void setSearchResponse(Map<String, Object> searchResponse) {
         this.searchResponse = searchResponse;
     }
 
@@ -155,7 +155,7 @@ public class AlertActionEntry implements ToXContent {
         return actions;
     }
 
-    public void setActions(List<AlertAction> actions) {
+    void setActions(List<AlertAction> actions) {
         this.actions = actions;
     }
 
@@ -166,7 +166,7 @@ public class AlertActionEntry implements ToXContent {
         return state;
     }
 
-    public void setState(AlertActionState state) {
+    void setState(AlertActionState state) {
         this.state = state;
     }
 
@@ -174,7 +174,7 @@ public class AlertActionEntry implements ToXContent {
         return version;
     }
 
-    public void setVersion(long version) {
+    void setVersion(long version) {
         this.version = version;
     }
 
@@ -190,13 +190,13 @@ public class AlertActionEntry implements ToXContent {
     }
 
     /**
-     * @return The error if an error occured otherwise null
+     * @return The error if an error occurred otherwise null
      */
     public String getErrorMsg(){
         return this.errorMsg;
     }
 
-    public void setErrorMsg(String errorMsg) {
+    void setErrorMsg(String errorMsg) {
         this.errorMsg = errorMsg;
     }
 
@@ -207,7 +207,7 @@ public class AlertActionEntry implements ToXContent {
         return metadata;
     }
 
-    public void setMetadata(Map<String, Object> metadata) {
+    void setMetadata(Map<String, Object> metadata) {
         this.metadata = metadata;
     }
 

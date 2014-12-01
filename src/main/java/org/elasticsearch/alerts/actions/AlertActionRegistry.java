@@ -60,7 +60,7 @@ public class AlertActionRegistry extends AbstractComponent {
     }
 
     public void doAction(Alert alert, TriggerResult actionEntry){
-        for (AlertAction action : alert.actions()) {
+        for (AlertAction action : alert.getActions()) {
             AlertActionFactory factory = actionImplemented.get(action.getActionName());
             if (factory != null) {
                 factory.doAction(action, alert, actionEntry);

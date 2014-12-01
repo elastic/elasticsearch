@@ -59,7 +59,7 @@ public class AlertScheduler extends AbstractComponent {
             scheduler.setJobFactory(new SimpleJobFactory());
             Map<JobDetail, Set<? extends Trigger>> jobs = new HashMap<>();
             for (Map.Entry<String, Alert> entry : alerts.entrySet()) {
-                jobs.put(createJobDetail(entry.getKey()), createTrigger(entry.getValue().schedule()));
+                jobs.put(createJobDetail(entry.getKey()), createTrigger(entry.getValue().getSchedule()));
             }
             scheduler.scheduleJobs(jobs, false);
             scheduler.start();

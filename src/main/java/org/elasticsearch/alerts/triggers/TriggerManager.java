@@ -20,7 +20,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
@@ -101,12 +103,12 @@ public class TriggerManager extends AbstractComponent {
     public TriggerResult isTriggered(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
         SearchRequest request = prepareTriggerSearch(alert, scheduledFireTime, fireTime);
         if (logger.isTraceEnabled()) {
-            logger.trace("For alert [{}] running query for [{}]", alert.alertName(), XContentHelper.convertToJson(request.source(), false, true));
+            logger.trace("For alert [{}] running query for [{}]", alert.getAlertName(), XContentHelper.convertToJson(request.source(), false, true));
         }
 
         SearchResponse response = client.search(request).actionGet(); // actionGet deals properly with InterruptedException
         if (logger.isDebugEnabled()) {
-            logger.debug("Ran alert [{}] and got hits : [{}]", alert.alertName(), response.getHits().getTotalHits());
+            logger.debug("Ran alert [{}] and got hits : [{}]", alert.getAlertName(), response.getHits().getTotalHits());
             for (SearchHit hit : response.getHits()) {
                 logger.debug("Hit: {}", XContentHelper.toString(hit));
             }
@@ -114,12 +116,11 @@ public class TriggerManager extends AbstractComponent {
         }
         XContentBuilder builder = jsonBuilder().startObject().value(response).endObject();
         Map<String, Object> responseMap = XContentHelper.convertToMap(builder.bytes(), false).v2();
-        return isTriggered(alert.trigger(), request, responseMap);
+        return isTriggered(alert.getTrigger(), request, responseMap);
     }
 
     protected TriggerResult isTriggered(AlertTrigger trigger, SearchRequest request, Map<String, Object> response) {
         TriggerFactory factory = triggersImplemented.get(trigger.getTriggerName());
-
         if (factory == null) {
             throw new ElasticsearchIllegalArgumentException("No trigger exists with the name [" + trigger.getTriggerName() + "]");
         }

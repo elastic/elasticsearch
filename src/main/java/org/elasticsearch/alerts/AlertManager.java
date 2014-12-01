@@ -13,7 +13,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.alerts.actions.AlertActionEntry;
 import org.elasticsearch.alerts.actions.AlertActionManager;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
-import org.elasticsearch.alerts.actions.AlertActionState;
 import org.elasticsearch.alerts.scheduler.AlertScheduler;
 import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.alerts.triggers.TriggerResult;
@@ -98,9 +97,9 @@ public class AlertManager extends AbstractComponent {
         try {
             AlertsStore.AlertStoreModification result = alertsStore.putAlert(alertName, alertSource);
             if (result.getPrevious() == null) {
-                scheduler.schedule(alertName, result.getCurrent().schedule());
-            } else if (!result.getPrevious().schedule().equals(result.getCurrent().schedule())) {
-                scheduler.schedule(alertName, result.getCurrent().schedule());
+                scheduler.schedule(alertName, result.getCurrent().getSchedule());
+            } else if (!result.getPrevious().getSchedule().equals(result.getCurrent().getSchedule())) {
+                scheduler.schedule(alertName, result.getCurrent().getSchedule());
             }
             return result.getIndexResponse();
         } finally {
@@ -141,19 +140,15 @@ public class AlertManager extends AbstractComponent {
                 throw new ElasticsearchException("Alert is not available");
             }
             TriggerResult triggerResult = triggerManager.isTriggered(alert, entry.getScheduledTime(), entry.getFireTime());
-            entry.setSearchResponse(triggerResult.getResponse());
             if (triggerResult.isTriggered()) {
-                entry.setTriggered(true);
-                if (!isActionThrottled(alert)) {
+                triggerResult.setThrottled(isActionThrottled(alert));
+                if (!triggerResult.isThrottled()) {
                     actionRegistry.doAction(alert, triggerResult);
                     alert.setTimeLastActionExecuted(entry.getScheduledTime());
                     if (alert.getAckState() == AlertAckState.NOT_TRIGGERED) {
                         alert.setAckState(AlertAckState.NEEDS_ACK);
                     }
-                } else {
-                    entry.setState(AlertActionState.THROTTLED);
                 }
-
             } else if (alert.getAckState() == AlertAckState.ACKED) {
                 alert.setAckState(AlertAckState.NOT_TRIGGERED);
             }
@@ -174,7 +169,7 @@ public class AlertManager extends AbstractComponent {
         try {
             Alert alert = alertsStore.getAlert(alertName);
             if (alert == null) {
-                throw new ElasticsearchException("Alert is does not exist [" + alertName + "]");
+                throw new ElasticsearchException("Alert does not exist [" + alertName + "]");
             }
             if (alert.getAckState() == AlertAckState.NEEDS_ACK) {
                 alert.setAckState(AlertAckState.ACKED);

@@ -143,7 +143,7 @@ public class AlertActionsTest extends AbstractAlertingTests {
 
             @Override
             public boolean doAction(AlertAction action, Alert alert, TriggerResult actionEntry) {
-                logger.info("Alert {} invoked: {}", alert.alertName(), actionEntry);
+                logger.info("Alert {} invoked: {}", alert.getAlertName(), actionEntry);
                 alertActionInvoked.set(true);
                 return true;
             }
@@ -175,12 +175,12 @@ public class AlertActionsTest extends AbstractAlertingTests {
         assertNotNull(alertsResponse.indexResponse());
         assertTrue(alertsResponse.indexResponse().isCreated());
 
-        GetAlertRequest getAlertRequest = new GetAlertRequest(alert.alertName());
+        GetAlertRequest getAlertRequest = new GetAlertRequest(alert.getAlertName());
         GetAlertResponse getAlertResponse = alertsClient.getAlert(getAlertRequest).actionGet();
         assertTrue(getAlertResponse.getResponse().isExists());
         assertEquals(getAlertResponse.getResponse().getSourceAsMap().get("schedule").toString(), "0/5 * * * * ? *");
 
-        DeleteAlertRequest deleteAlertRequest = new DeleteAlertRequest(alert.alertName());
+        DeleteAlertRequest deleteAlertRequest = new DeleteAlertRequest(alert.getAlertName());
         DeleteAlertResponse deleteAlertResponse = alertsClient.deleteAlert(deleteAlertRequest).actionGet();
         assertNotNull(deleteAlertResponse.deleteResponse());
         assertTrue(deleteAlertResponse.deleteResponse().isFound());

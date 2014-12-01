@@ -94,22 +94,22 @@ public class Alert implements ToXContent {
     /**
      * @return The last time this alert ran.
      */
-    public DateTime lastExecuteTime() {
+    public DateTime getLastExecuteTime() {
         return lastExecuteTime;
     }
 
-    public void lastExecuteTime(DateTime lastActionFire) {
+    void lastExecuteTime(DateTime lastActionFire) {
         this.lastExecuteTime = lastActionFire;
     }
 
     /**
      * @return The current version of the alert. (es document version)
      */
-    public long version() {
+    public long getVersion() {
         return version;
     }
 
-    public void version(long version) {
+    void setVersion(long version) {
         this.version = version;
     }
 
@@ -127,11 +127,11 @@ public class Alert implements ToXContent {
     /**
      * @return The unique name of this alert.
      */
-    public String alertName() {
+    public String getAlertName() {
         return alertName;
     }
 
-    public void alertName(String alertName) {
+    void setAlertName(String alertName) {
         this.alertName = alertName;
     }
 
@@ -142,40 +142,40 @@ public class Alert implements ToXContent {
         return searchRequest;
     }
 
-    public void setSearchRequest(SearchRequest searchRequest) {
+    void setSearchRequest(SearchRequest searchRequest) {
         this.searchRequest = searchRequest;
     }
 
     /**
      * @return The trigger that is going to evaluate if the alert is going to execute the alert actions.
      */
-    public AlertTrigger trigger() {
+    public AlertTrigger getTrigger() {
         return trigger;
     }
 
-    public void trigger(AlertTrigger trigger) {
+    void setTrigger(AlertTrigger trigger) {
         this.trigger = trigger;
     }
 
     /**
      * @return the actions to be executed if the alert matches the trigger
      */
-    public List<AlertAction> actions() {
+    public List<AlertAction> getActions() {
         return actions;
     }
 
-    public void actions(List<AlertAction> action) {
+    void setActions(List<AlertAction> action) {
         this.actions = action;
     }
 
     /**
      * @return The cron schedule expression that expresses when to run the alert.
      */
-    public String schedule() {
+    public String getSchedule() {
         return schedule;
     }
 
-    public void schedule(String schedule) {
+    void setSchedule(String schedule) {
         this.schedule = schedule;
     }
 
@@ -186,7 +186,7 @@ public class Alert implements ToXContent {
         return timeLastActionExecuted;
     }
 
-    public void setTimeLastActionExecuted(DateTime timeLastActionExecuted) {
+    void setTimeLastActionExecuted(DateTime timeLastActionExecuted) {
         this.timeLastActionExecuted = timeLastActionExecuted;
     }
 
@@ -197,7 +197,7 @@ public class Alert implements ToXContent {
         return throttlePeriod;
     }
 
-    public void setThrottlePeriod(TimeValue throttlePeriod) {
+    void setThrottlePeriod(TimeValue throttlePeriod) {
         this.throttlePeriod = throttlePeriod;
     }
 
@@ -208,7 +208,7 @@ public class Alert implements ToXContent {
         return ackState;
     }
 
-    public void setAckState(AlertAckState ackState) {
+    void setAckState(AlertAckState ackState) {
         this.ackState = ackState;
     }
 
@@ -219,7 +219,7 @@ public class Alert implements ToXContent {
         return metadata;
     }
 
-    public void setMetadata(Map<String, Object> metadata) {
+    void setMetadata(Map<String, Object> metadata) {
         this.metadata = metadata;
     }
 
@@ -230,7 +230,7 @@ public class Alert implements ToXContent {
         if (o == null || getClass() != o.getClass()) return false;
 
         Alert alert = (Alert) o;
-        return alert.alertName().equals(alertName);
+        return alert.getAlertName().equals(alertName);
     }
 
     @Override

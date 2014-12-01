@@ -89,7 +89,7 @@ public class EmailAlertActionFactory implements AlertActionFactory {
             message.setFrom(new InternetAddress(from));
             message.setRecipients(Message.RecipientType.TO,
                     emailAlertAction.getEmailAddresses().toArray(new Address[1]));
-            message.setSubject("Elasticsearch Alert " + alert.alertName() + " triggered");
+            message.setSubject("Elasticsearch Alert " + alert.getAlertName() + " triggered");
             StringBuilder output = new StringBuilder();
             output.append("The following query triggered because ").append(result.getTrigger().toString()).append("\n");
             Object totalHits = XContentMapValues.extractValue("hits.total", result.getResponse());

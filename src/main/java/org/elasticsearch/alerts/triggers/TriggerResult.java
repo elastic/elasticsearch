@@ -14,6 +14,7 @@ import java.util.Map;
 public class TriggerResult {
 
     private final boolean triggered;
+    private boolean throttled;
     private final SearchRequest request;
     private final Map<String, Object> response;
     private final AlertTrigger trigger;
@@ -27,6 +28,14 @@ public class TriggerResult {
 
     public boolean isTriggered() {
         return triggered;
+    }
+
+    public boolean isThrottled() {
+        return throttled;
+    }
+
+    public void setThrottled(boolean throttled) {
+        this.throttled = throttled;
     }
 
     public SearchRequest getRequest() {

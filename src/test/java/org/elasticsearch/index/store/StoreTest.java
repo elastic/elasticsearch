@@ -271,7 +271,11 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             if (file.equals("write.lock") || file.equals(IndexFileNames.SEGMENTS_GEN)) {
                 continue;
             }
-            StoreFileMetaData storeFileMetaData = new StoreFileMetaData(file, store.directory().fileLength(file), file + "checksum", null);
+            BytesRef hash = new BytesRef();
+            if (file.startsWith("segments")) {
+                hash = Store.MetadataSnapshot.hashFile(store.directory(), file);
+            }
+            StoreFileMetaData storeFileMetaData = new StoreFileMetaData(file, store.directory().fileLength(file), file + "checksum", null, hash);
             legacyMeta.put(file, storeFileMetaData);
             checksums.add(storeFileMetaData);
         }
@@ -875,6 +879,110 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             assertThat(newCommitDiff.identical.size(), equalTo(newCommitMetaData.size() - 4)); // segments_N, cfs, cfe, si for the new segment
             assertThat(newCommitDiff.different.size(), equalTo(0));
             assertThat(newCommitDiff.missing.size(), equalTo(4)); // an entire segment must be missing (single doc segment got dropped)  plus the commit is different
+        }
+
+        store.deleteContent();
+        IOUtils.close(store);
+    }
+
+    @Test
+    public void testCleanupFromSnapshot() throws IOException {
+        final ShardId shardId = new ShardId(new Index("index"), 1);
+        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
+        Store store = new Store(shardId, ImmutableSettings.EMPTY, null, directoryService, randomDistributor(directoryService), new DummyShardLock(shardId));
+        // this time random codec....
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(random(), TEST_VERSION_CURRENT, new MockAnalyzer(random())).setCodec(actualDefaultCodec());
+        // we keep all commits and that allows us clean based on multiple snapshots
+        indexWriterConfig.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
+        IndexWriter writer = new IndexWriter(store.directory(), indexWriterConfig);
+        int docs = 1 + random().nextInt(100);
+        int numCommits = 0;
+        for (int i = 0; i < docs; i++) {
+            if (i > 0 && randomIntBetween(0, 10 ) == 0) {
+                writer.commit();
+                numCommits++;
+            }
+            Document doc = new Document();
+            doc.add(new TextField("id", "" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+            doc.add(new TextField("body", TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+            doc.add(new SortedDocValuesField("dv", new BytesRef(TestUtil.randomRealisticUnicodeString(random()))));
+            writer.addDocument(doc);
+
+        }
+        if (numCommits < 1) {
+            writer.commit();
+            Document doc = new Document();
+            doc.add(new TextField("id", "" + docs++, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+            doc.add(new TextField("body", TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+            doc.add(new SortedDocValuesField("dv", new BytesRef(TestUtil.randomRealisticUnicodeString(random()))));
+            writer.addDocument(doc);
+        }
+
+        Store.MetadataSnapshot firstMeta = store.getMetadata();
+
+        if (random().nextBoolean()) {
+            for (int i = 0; i < docs; i++) {
+                if (random().nextBoolean()) {
+                    Document doc = new Document();
+                    doc.add(new TextField("id", "" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+                    doc.add(new TextField("body", TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+                    writer.updateDocument(new Term("id", "" + i), doc);
+                }
+            }
+        }
+        writer.commit();
+        writer.close();
+
+        Store.MetadataSnapshot secondMeta = store.getMetadata();
+
+        Store.LegacyChecksums checksums = new Store.LegacyChecksums();
+        Map<String, StoreFileMetaData> legacyMeta = new HashMap<>();
+        for (String file : store.directory().listAll()) {
+            if (file.equals("write.lock") || file.equals(IndexFileNames.SEGMENTS_GEN)) {
+                continue;
+            }
+            BytesRef hash = new BytesRef();
+            if (file.startsWith("segments")) {
+                hash = Store.MetadataSnapshot.hashFile(store.directory(), file);
+            }
+            StoreFileMetaData storeFileMetaData = new StoreFileMetaData(file, store.directory().fileLength(file), file + "checksum", null, hash);
+            legacyMeta.put(file, storeFileMetaData);
+            checksums.add(storeFileMetaData);
+        }
+        checksums.write(store); // write one checksum file here - we expect it to survive all the cleanups
+
+        if (randomBoolean()) {
+            store.cleanupAndVerify("test", firstMeta);
+            String[] strings = store.directory().listAll();
+            int numChecksums = 0;
+            int numNotFound = 0;
+            for (String file : strings) {
+                assertTrue(firstMeta.contains(file) || Store.isChecksum(file));
+                if (Store.isChecksum(file)) {
+                    numChecksums++;
+                } else  if (secondMeta.contains(file) == false) {
+                    numNotFound++;
+                }
+
+            }
+            assertTrue("at least one file must not be in here since we have two commits?", numNotFound > 0);
+            assertEquals("we wrote one checksum but it's gone now? - checksums are supposed to be kept", numChecksums, 1);
+        } else {
+            store.cleanupAndVerify("test", secondMeta);
+            String[] strings = store.directory().listAll();
+            int numChecksums = 0;
+            int numNotFound = 0;
+            for (String file : strings) {
+                assertTrue(secondMeta.contains(file) || Store.isChecksum(file));
+                if (Store.isChecksum(file)) {
+                    numChecksums++;
+                } else  if (firstMeta.contains(file) == false) {
+                    numNotFound++;
+                }
+
+            }
+            assertTrue("at least one file must not be in here since we have two commits?", numNotFound > 0);
+            assertEquals("we wrote one checksum but it's gone now? - checksums are supposed to be kept", numChecksums, 1);
         }
 
         store.deleteContent();

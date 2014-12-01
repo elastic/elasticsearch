@@ -380,17 +380,11 @@ public class RecoveryTarget extends AbstractComponent {
                 final Store store = recoveryStatus.store();
                 // now write checksums
                 recoveryStatus.legacyChecksums().write(store);
-
-                for (String existingFile : store.directory().listAll()) {
-                    // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete checksum)
-                    if (!request.snapshotFiles().contains(existingFile) && !Store.isChecksum(existingFile)) {
-                        try {
-                            store.logDeleteFile("recovery CleanFilesRequestHandler", existingFile);
-                            store.directory().deleteFile(existingFile);
-                        } catch (Exception e) {
-                            // ignore, we don't really care, will get deleted later on
-                        }
-                    }
+                Store.MetadataSnapshot sourceMetaData = request.sourceMetaSnapshot();
+                try {
+                    store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
+                } catch (Exception ex) {
+                    throw new RecoveryFailedException(recoveryStatus.state(), "failed to clean after recovery", ex);
                 }
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
             }

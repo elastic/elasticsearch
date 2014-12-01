@@ -100,6 +100,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
         }
     };
 
+
     public ShardRecoveryHandler(final InternalIndexShard shard, final StartRecoveryRequest request, final RecoverySettings recoverySettings,
                                 final TransportService transportService, final TimeValue internalActionTimeout,
                                 final TimeValue internalActionLongTimeout, final ClusterService clusterService,
@@ -336,7 +337,6 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
             cancelableThreads.run(new Interruptable() {
                 @Override
                 public void run() throws InterruptedException {
-                    final Set<String> snapshotFiles = Sets.newHashSet(snapshot.getFiles());
                     // Send the CLEAN_FILES request, which takes all of the files that
                     // were transferred and renames them from their temporary file
                     // names to the actual file names. It also writes checksums for
@@ -346,7 +346,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
                     // related to this recovery (out of date segments, for example)
                     // are deleted
                     transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.CLEAN_FILES,
-                            new RecoveryCleanFilesRequest(request.recoveryId(), shard.shardId(), snapshotFiles),
+                            new RecoveryCleanFilesRequest(request.recoveryId(), shard.shardId(), recoverySourceMetadata),
                             TransportRequestOptions.options().withTimeout(internalActionTimeout),
                             EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                 }

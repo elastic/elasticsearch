@@ -184,6 +184,11 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-math3</artifactId>
+            <version>3.3</version>
+        </dependency>
         <!-- needed for templating -->
         <dependency>
             <groupId>com.github.spullara.mustache.java</groupId>
@@ -723,6 +728,7 @@
                             <include>com.tdunning:t-digest</include>
                             <include>org.apache.commons:commons-lang3</include>
                             <include>commons-cli:commons-cli</include>
+                            <include>org.apache.commons:commons-math3</include>
                         </includes>
                     </artifactSet>
                     <relocations>

@@ -22,6 +22,7 @@ package org.elasticsearch.search.reducers.metric;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.search.reducers.metric.format.Array;
+import org.elasticsearch.search.reducers.metric.linefit.LineFit;
 import org.elasticsearch.search.reducers.metric.numeric.single.delta.Delta;
 import org.elasticsearch.search.reducers.metric.numeric.multi.stats.Stats;
 import org.elasticsearch.search.reducers.metric.numeric.single.avg.Avg;
@@ -52,6 +53,9 @@ public class OperationFactory {
             }
             case "array": {
                 return new Array();
+            }
+            case "linefit": {
+                return new LineFit();
             }
             default: {
                 throw new ElasticsearchParseException("No metric reducer called " + opName);

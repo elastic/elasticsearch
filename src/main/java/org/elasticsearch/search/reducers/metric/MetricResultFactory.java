@@ -22,6 +22,7 @@ package org.elasticsearch.search.reducers.metric;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.search.reducers.metric.format.ArrayResult;
+import org.elasticsearch.search.reducers.metric.linefit.LineFitResult;
 import org.elasticsearch.search.reducers.metric.numeric.multi.stats.StatsResult;
 import org.elasticsearch.search.reducers.metric.numeric.single.SingleMetricResult;
 
@@ -35,6 +36,9 @@ public class MetricResultFactory {
         }
         if (type.equals("array")) {
             return new ArrayResult();
+        }
+        if (type.equals("linefit")) {
+            return new LineFitResult();
         }
         throw new ElasticsearchParseException("No metric result found of type " + type);
     }

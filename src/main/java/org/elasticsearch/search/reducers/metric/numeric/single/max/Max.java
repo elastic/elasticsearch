@@ -34,11 +34,16 @@ public class Max extends MetricOp {
 
     public SingleMetricResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {
 
+        double max = max(bucketProperties);
+        return new SingleMetricResult(max);
+    }
+
+    public static double max(Object[] bucketProperties) {
         double max = Double.NEGATIVE_INFINITY;
         for (Object bucketValue : bucketProperties) {
             max = Math.max(((Number) bucketValue).doubleValue(), max);
         }
-        return new SingleMetricResult(max);
+        return max;
     }
 
     public static class MaxBuilder extends MetricsBuilder {

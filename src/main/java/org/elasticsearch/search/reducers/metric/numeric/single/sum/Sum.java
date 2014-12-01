@@ -34,12 +34,16 @@ public class Sum extends MetricOp {
 
     public SingleMetricResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {
 
+        double sum = sum(bucketProperties);
+        return new SingleMetricResult(sum);
+    }
+
+    public static double sum(Object[] bucketProperties) {
         double sum = 0;
         for (Object bucketValue : bucketProperties) {
             sum += ((Number) bucketValue).doubleValue();
         }
-
-        return new SingleMetricResult(sum);
+        return sum;
     }
 
     public static class SumBuilder extends MetricsBuilder {

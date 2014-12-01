@@ -22,6 +22,9 @@ package org.elasticsearch.search.reducers.metric.numeric.multi.stats;
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.metric.MetricOp;
 import org.elasticsearch.search.reducers.metric.MetricsBuilder;
+import org.elasticsearch.search.reducers.metric.numeric.single.max.Max;
+import org.elasticsearch.search.reducers.metric.numeric.single.min.Min;
+import org.elasticsearch.search.reducers.metric.numeric.single.sum.Sum;
 
 public class Stats extends MetricOp {
 
@@ -32,20 +35,9 @@ public class Stats extends MetricOp {
     }
 
     public StatsResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {
-        double sum = 0;
-        double min = Double.MAX_VALUE;
-        double max = Double.MIN_VALUE;
-        for (Object bucketValue : bucketProperties) {
-            double bucketDoubleValue = ((Number) bucketValue).doubleValue();
-            sum += bucketDoubleValue;
-            if (bucketDoubleValue < min) {
-                min = bucketDoubleValue;
-            }
-            if (bucketDoubleValue > max) {
-                max = bucketDoubleValue;
-            }
-        }
-
+        double sum = Sum.sum(bucketProperties);
+        double min = Min.min(bucketProperties);
+        double max = Max.max(bucketProperties);
         return new StatsResult(bucketProperties.length, sum, min, max);
     }
 
@@ -55,5 +47,4 @@ public class Stats extends MetricOp {
             super(name, TYPE);
         }
     }
-
 }

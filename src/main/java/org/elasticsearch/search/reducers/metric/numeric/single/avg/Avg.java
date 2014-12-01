@@ -34,12 +34,16 @@ public class Avg extends MetricOp {
 
     public SingleMetricResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {
 
+        double avg = avg(bucketProperties);
+        return new SingleMetricResult(avg);
+    }
+
+    public static double avg(Object[] bucketProperties) {
         double sum = 0;
         for (Object bucketValue : bucketProperties) {
             sum += ((Number) bucketValue).doubleValue();
         }
-
-        return new SingleMetricResult(sum / bucketProperties.length);
+        return sum / bucketProperties.length;
     }
 
     public static class AvgBuilder extends MetricsBuilder {

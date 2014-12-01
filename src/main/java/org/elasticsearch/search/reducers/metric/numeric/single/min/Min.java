@@ -34,11 +34,16 @@ public class Min extends MetricOp {
 
     public SingleMetricResult evaluate(Object[] bucketProperties) throws ReductionExecutionException {
 
+        double min = min(bucketProperties);
+        return new SingleMetricResult(min);
+    }
+
+    public static double min(Object[] bucketProperties) {
         double min = Double.POSITIVE_INFINITY;
         for (Object bucketValue : bucketProperties) {
             min = Math.min(((Number) bucketValue).doubleValue(), min);
         }
-        return new SingleMetricResult(min);
+        return min;
     }
 
     public static class MinBuilder extends MetricsBuilder {

@@ -25,8 +25,8 @@ public class ConfigurationManager extends AbstractComponent {
 
     private final Client client;
 
-    public final String CONFIG_TYPE = "config";
-    public final String CONFIG_INDEX = AlertsStore.ALERT_INDEX;
+    public static final String CONFIG_TYPE = "config";
+    public static final String CONFIG_INDEX = AlertsStore.ALERT_INDEX;
     private final String GLOBAL_CONFIG_NAME = "global";
     private final Settings settings;
     private volatile boolean readyToRead = false;

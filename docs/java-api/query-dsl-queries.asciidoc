@@ -275,7 +275,7 @@ See {ref}/query-dsl-query-string-query.html[QueryString Query]
 
 [source,java]
 --------------------------------------------------
-QueryBuilder qb = queryString("+kimchy -elasticsearch");    <1>
+QueryBuilder qb = queryStringQuery("+kimchy -elasticsearch");    <1>
 --------------------------------------------------
 <1> text
 

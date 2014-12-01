@@ -114,14 +114,14 @@ public class SimpleSearchTests extends ElasticsearchIntegrationTest {
         SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
         assertHitCount(searchResponse, 1l);
 
-        searchResponse = client().prepareSearch().setQuery(QueryBuilders.queryString("_id:XXX1")).execute().actionGet();
+        searchResponse = client().prepareSearch().setQuery(QueryBuilders.queryStringQuery("_id:XXX1")).execute().actionGet();
         assertHitCount(searchResponse, 1l);
 
         // id is not index, but we can automatically support prefix as well
         searchResponse = client().prepareSearch().setQuery(QueryBuilders.prefixQuery("_id", "XXX")).execute().actionGet();
         assertHitCount(searchResponse, 1l);
 
-        searchResponse = client().prepareSearch().setQuery(QueryBuilders.queryString("_id:XXX*").lowercaseExpandedTerms(false)).execute().actionGet();
+        searchResponse = client().prepareSearch().setQuery(QueryBuilders.queryStringQuery("_id:XXX*").lowercaseExpandedTerms(false)).execute().actionGet();
         assertHitCount(searchResponse, 1l);
     }
 
@@ -167,7 +167,7 @@ public class SimpleSearchTests extends ElasticsearchIntegrationTest {
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 2l);
 
-        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryString("field:[2010-01-03||+2d TO 2010-01-04||+2d]")).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("field:[2010-01-03||+2d TO 2010-01-04||+2d]")).execute().actionGet();
         assertHitCount(searchResponse, 2l);
     }
     

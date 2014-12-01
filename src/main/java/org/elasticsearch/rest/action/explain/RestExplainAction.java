@@ -70,7 +70,7 @@ public class RestExplainAction extends BaseRestHandler {
         } else if (sourceString != null) {
             explainRequest.source(new BytesArray(request.param("source")), false);
         } else if (queryString != null) {
-            QueryStringQueryBuilder queryStringBuilder = QueryBuilders.queryString(queryString);
+            QueryStringQueryBuilder queryStringBuilder = QueryBuilders.queryStringQuery(queryString);
             queryStringBuilder.defaultField(request.param("df"));
             queryStringBuilder.analyzer(request.param("analyzer"));
             queryStringBuilder.analyzeWildcard(request.paramAsBoolean("analyze_wildcard", false));

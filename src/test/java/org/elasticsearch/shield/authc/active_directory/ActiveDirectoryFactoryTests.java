@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc.active_directory;
 
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.ldap.LdapConnection;
@@ -15,7 +14,7 @@ import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.ldap.AbstractLdapConnection;
 import org.elasticsearch.shield.authc.support.ldap.LdapSslSocketFactory;
 import org.elasticsearch.shield.authc.support.ldap.LdapTest;
-import org.elasticsearch.shield.ssl.SSLService;
+import org.elasticsearch.shield.ssl.SSLServiceProvider;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.hamcrest.Matchers;
@@ -39,10 +38,10 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
     @BeforeClass
     public static void setTrustStore() throws URISyntaxException {
         File filename = new File(LdapConnectionTests.class.getResource("../support/ldap/ldaptrust.jks").toURI()).getAbsoluteFile();
-        LdapSslSocketFactory.init(Providers.of(new SSLService(ImmutableSettings.builder()
+        LdapSslSocketFactory.init(new SSLServiceProvider(ImmutableSettings.builder()
                 .put("shield.ssl.keystore.path", filename)
                 .put("shield.ssl.keystore.password", "changeit")
-                .build())));
+                .build()));
     }
 
     @AfterClass

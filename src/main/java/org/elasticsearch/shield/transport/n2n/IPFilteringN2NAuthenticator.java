@@ -10,6 +10,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.jackson.dataformat.yaml.snakeyaml.error.YAMLException;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.net.InetAddresses;
 import org.elasticsearch.common.netty.handler.ipfilter.IpFilterRule;
 import org.elasticsearch.common.netty.handler.ipfilter.IpSubnetFilterRule;
@@ -20,25 +21,40 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.security.Principal;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.regex.Pattern;
+import java.util.*;
 
 public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2NAuthenticator {
 
-    private static final Pattern COMMA_DELIM = Pattern.compile("\\s*,\\s*");
     private static final ProfileIpFilterRule[] NO_RULES = new ProfileIpFilterRule[0];
     private volatile ProfileIpFilterRule[] rules = NO_RULES;
 
     @Inject
     public IPFilteringN2NAuthenticator(Settings settings) {
         super(settings);
-        parseSettings();
+        rules = parseSettings(settings, logger);
     }
 
-    private void parseSettings() {
+    @Override
+    public boolean authenticate(@Nullable Principal peerPrincipal, String profile, InetAddress peerAddress, int peerPort) {
+        if (rules == NO_RULES) {
+            return true;
+        }
+        for (ProfileIpFilterRule rule : rules) {
+            if (rule.contains(profile, peerAddress)) {
+                boolean isAllowed = rule.isAllowRule();
+                logger.trace("Authentication rule matched for host [{}]: {}", peerAddress, isAllowed);
+                return isAllowed;
+            }
+        }
+
+        logger.trace("Allowing host {}", peerAddress);
+        return true;
+    }
+
+    private static ProfileIpFilterRule[] parseSettings(Settings settings, ESLogger logger) {
+        if (!settings.getAsBoolean("shield.transport.filter.enabled", true)) {
+            return NO_RULES;
+        }
         String[] allowed = settings.getAsArray("shield.transport.filter.allow");
         String[] denied = settings.getAsArray("shield.transport.filter.deny");
         List<ProfileIpFilterRule> rules = new ArrayList<>();
@@ -50,9 +66,9 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
             Map<String, Settings> groupedSettings = settings.getGroups("transport.profiles.");
             for (Map.Entry<String, Settings> entry : groupedSettings.entrySet()) {
                 String profile = entry.getKey();
-                Settings settings = entry.getValue().getByPrefix("shield.filter.");
-                rules.addAll(parseValue(settings.getAsArray("allow"), profile, true));
-                rules.addAll(parseValue(settings.getAsArray("deny"), profile, false));
+                Settings profileSettings = entry.getValue().getByPrefix("shield.filter.");
+                rules.addAll(parseValue(profileSettings.getAsArray("allow"), profile, true));
+                rules.addAll(parseValue(profileSettings.getAsArray("deny"), profile, false));
             }
 
         } catch (IOException | YAMLException e) {
@@ -60,10 +76,10 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
         }
 
         logger.debug("Loaded {} ip filtering rules", rules.size());
-        this.rules = rules.toArray(new ProfileIpFilterRule[rules.size()]);
+        return rules.toArray(new ProfileIpFilterRule[rules.size()]);
     }
 
-    private Collection<? extends ProfileIpFilterRule> parseValue(String[] values, String profile, boolean isAllowRule) throws UnknownHostException {
+    private static Collection<? extends ProfileIpFilterRule> parseValue(String[] values, String profile, boolean isAllowRule) throws UnknownHostException {
         List<ProfileIpFilterRule> rules = new ArrayList<>();
         for (String value : values) {
             rules.add(new ProfileIpFilterRule(profile, getRule(isAllowRule, value)));
@@ -83,17 +99,4 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
         return new PatternRule(isAllowRule, prefix + value);
     }
 
-    @Override
-    public boolean authenticate(@Nullable Principal peerPrincipal, String profile, InetAddress peerAddress, int peerPort) {
-        for (ProfileIpFilterRule rule : rules) {
-            if (rule.contains(profile, peerAddress)) {
-                boolean isAllowed = rule.isAllowRule();
-                logger.trace("Authentication rule matched for host [{}]: {}", peerAddress, isAllowed);
-                return isAllowed;
-            }
-        }
-
-        logger.trace("Allowing host {}", peerAddress);
-        return true;
-    }
 }

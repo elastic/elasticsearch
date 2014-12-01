@@ -8,6 +8,7 @@ package org.elasticsearch.shield.ssl;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldSettingsException;
 
@@ -30,8 +31,7 @@ public class SSLService extends AbstractComponent {
     private final SSLContext sslContext;
     private final String[] ciphers;
 
-    @Inject
-    public SSLService(Settings settings) {
+    SSLService(Settings settings) {
         super(settings);
 
         String keyStorePath = componentSettings.get("keystore.path", System.getProperty("javax.net.ssl.keyStore"));

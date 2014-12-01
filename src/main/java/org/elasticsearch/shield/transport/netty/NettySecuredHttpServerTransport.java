@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.shield.ssl.SSLService;
+import org.elasticsearch.shield.ssl.SSLServiceProvider;
 import org.elasticsearch.shield.transport.n2n.IPFilteringN2NAuthenticator;
 
 import javax.net.ssl.SSLEngine;
@@ -25,19 +26,15 @@ import javax.net.ssl.SSLEngine;
  */
 public class NettySecuredHttpServerTransport extends NettyHttpServerTransport {
 
-    private final boolean ssl;
-    private final boolean ipFilterEnabled;
-    private final @Nullable IPFilteringN2NAuthenticator authenticator;
+    private final IPFilteringN2NAuthenticator authenticator;
     private final @Nullable SSLService sslService;
 
     @Inject
     public NettySecuredHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
-                                           @Nullable IPFilteringN2NAuthenticator authenticator, Provider<SSLService> sslServiceProvider) {
+                                           IPFilteringN2NAuthenticator authenticator, SSLServiceProvider sslServiceProvider) {
         super(settings, networkService, bigArrays);
         this.authenticator = authenticator;
-        this.ssl = settings.getAsBoolean("shield.http.ssl", false);
-        this.ipFilterEnabled = settings.getAsBoolean("shield.transport.filter.enabled", true);
-        this.sslService = ssl ? sslServiceProvider.get() : null;
+        this.sslService = settings.getAsBoolean("shield.http.ssl", false) ? sslServiceProvider.get() : null;
     }
 
     @Override
@@ -54,16 +51,14 @@ public class NettySecuredHttpServerTransport extends NettyHttpServerTransport {
         @Override
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = super.getPipeline();
-            if (ssl) {
+            if (sslService != null) {
                 SSLEngine engine = sslService.createSSLEngine();
                 engine.setUseClientMode(false);
                 engine.setNeedClientAuth(false);
 
                 pipeline.addFirst("ssl", new SslHandler(engine));
             }
-            if (ipFilterEnabled) {
-                pipeline.addFirst("ipfilter", new N2NNettyUpstreamHandler(authenticator, "default"));
-            }
+            pipeline.addFirst("ipfilter", new N2NNettyUpstreamHandler(authenticator, "default"));
             return pipeline;
         }
     }

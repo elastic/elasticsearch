@@ -13,6 +13,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.ssl.SSLService;
+import org.elasticsearch.shield.ssl.SSLServiceProvider;
 
 import javax.net.SocketFactory;
 import java.io.IOException;
@@ -49,7 +50,7 @@ public class LdapSslSocketFactory extends SocketFactory {
      * This should only be invoked once to establish a static instance that will be used for each constructor.
      */
     @Inject
-    public static void init(Provider<SSLService> sslServiceProvider) {
+    public static void init(SSLServiceProvider sslServiceProvider) {
         LdapSslSocketFactory.sslServiceProvider = sslServiceProvider;
     }
 

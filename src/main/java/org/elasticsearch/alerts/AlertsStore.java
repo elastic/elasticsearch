@@ -64,23 +64,22 @@ public class AlertsStore extends AbstractComponent {
     private final TemplateHelper templateHelper;
     private final ConcurrentMap<String, Alert> alertMap;
     private final AlertActionRegistry alertActionRegistry;
+    private final ConfigurationManager configurationManager;
     private final AtomicBoolean started = new AtomicBoolean(false);
 
-    private final int scrollSize;
-    private final TimeValue scrollTimeout;
+    private int scrollSize;
+    private TimeValue scrollTimeout;
 
     @Inject
     public AlertsStore(Settings settings, Client client, AlertActionRegistry alertActionRegistry,
-                       TriggerManager triggerManager, TemplateHelper templateHelper) {
+                       TriggerManager triggerManager, TemplateHelper templateHelper, ConfigurationManager configurationManager) {
         super(settings);
         this.client = client;
         this.alertActionRegistry = alertActionRegistry;
         this.templateHelper = templateHelper;
         this.alertMap = ConcurrentCollections.newConcurrentMap();
-        // Not using component settings, to let AlertsStore and AlertActionManager share the same settings
-        this.scrollSize = settings.getAsInt("alerts.scroll.size", 100);
-        this.scrollTimeout = settings.getAsTime("alerts.scroll.timeout", TimeValue.timeValueSeconds(30));
         this.triggerManager = triggerManager;
+        this.configurationManager = configurationManager;
     }
 
     /**
@@ -123,6 +122,13 @@ public class AlertsStore extends AbstractComponent {
         return true;
     }
 
+    private void loadSettings() {
+        // Not using component settings, to let AlertsStore and AlertActionManager share the same settings
+        Settings indexedSettings = configurationManager.getGlobalConfig();
+        this.scrollTimeout = configurationManager.getOverriddenTimeValue("alerts.scroll.timeout", indexedSettings, TimeValue.timeValueSeconds(30));
+        this.scrollSize = configurationManager.getOverriddenIntValue("alerts.scroll.size", indexedSettings, 100);
+    }
+
     /**
      * Deletes the alert with the specified name if exists
      */
@@ -147,6 +153,12 @@ public class AlertsStore extends AbstractComponent {
     public boolean start(ClusterState state) {
         if (started.get()) {
             return true;
+        }
+
+        if (configurationManager.isReady(state)) {
+            loadSettings();
+        } else {
+            return false;
         }
 
         IndexMetaData alertIndexMetaData = state.getMetaData().index(ALERT_INDEX);

@@ -7,6 +7,7 @@ package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.ConfigurationManager;
 import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -24,11 +25,11 @@ public class AlertActionRegistry extends AbstractComponent {
     private volatile ImmutableOpenMap<String, AlertActionFactory> actionImplemented;
 
     @Inject
-    public AlertActionRegistry(Settings settings, Client client) {
+    public AlertActionRegistry(Settings settings, Client client, ConfigurationManager configurationManager) {
         super(settings);
         actionImplemented = ImmutableOpenMap.<String, AlertActionFactory>builder()
-                .fPut("email", new EmailAlertActionFactory())
-                .fPut("index", new IndexAlertActionFactory(client))
+                .fPut("email", new EmailAlertActionFactory(configurationManager))
+                .fPut("index", new IndexAlertActionFactory(client, configurationManager))
                 .build();
     }
 

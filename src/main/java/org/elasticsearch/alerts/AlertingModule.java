@@ -34,6 +34,7 @@ public class AlertingModule extends AbstractModule {
         bind(TriggerManager.class).asEagerSingleton();
         bind(AlertScheduler.class).asEagerSingleton();
         bind(AlertActionRegistry.class).asEagerSingleton();
+        bind(ConfigurationManager.class).asEagerSingleton();
 
         // Transport and client layer
         bind(TransportPutAlertAction.class).asEagerSingleton();

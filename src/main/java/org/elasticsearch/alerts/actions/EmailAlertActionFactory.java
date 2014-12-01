@@ -9,7 +9,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.ConfigurationManager;
 import org.elasticsearch.alerts.triggers.TriggerResult;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
@@ -24,11 +26,19 @@ import java.util.Properties;
 
 public class EmailAlertActionFactory implements AlertActionFactory {
 
-    // TODO: Move to factory and make configurable
-    private final int port = 587;
-    private final String server = "smtp.gmail.com";
-    private final String from = "esalertingtest@gmail.com";
-    private final String  passwd = "elasticsearchforthewin";
+    private static final String GLOBAL_EMAIL_CONFIG = "email";
+
+    private static final String PORT_SETTING = "server.port";
+    private static final String SERVER_SETTING = "server.name";
+    private static final String FROM_SETTING = "from.address";
+    private static final String PASSWD_SETTING = "from.passwd";
+
+    private final ConfigurationManager configurationManager;
+
+    public EmailAlertActionFactory(ConfigurationManager configurationManager) {
+        this.configurationManager = configurationManager;
+    }
+
 
 
     @Override
@@ -72,21 +82,28 @@ public class EmailAlertActionFactory implements AlertActionFactory {
             throw new ElasticsearchIllegalStateException("Bad action [" + action.getClass() + "] passed to EmailAlertActionFactory expected [" + EmailAlertAction.class + "]");
         }
         EmailAlertAction emailAlertAction = (EmailAlertAction)action;
+        final Settings emailSettings = configurationManager.getConfigForComponent(GLOBAL_EMAIL_CONFIG);
 
         Properties props = new Properties();
         props.put("mail.smtp.auth", "true");
         props.put("mail.smtp.starttls.enable", "true");
-        props.put("mail.smtp.host", server);
-        props.put("mail.smtp.port", port);
-        Session session = Session.getInstance(props,
-                new javax.mail.Authenticator() {
-                    protected PasswordAuthentication getPasswordAuthentication() {
-                        return new PasswordAuthentication(from, passwd);
-                    }
-                });
+        props.put("mail.smtp.host", emailSettings.get(SERVER_SETTING, "smtp.gmail.com"));
+        props.put("mail.smtp.port", emailSettings.getAsInt(PORT_SETTING, 587));
+        Session session;
+        if (emailSettings.get(PASSWD_SETTING) != null) {
+            session = Session.getInstance(props,
+                    new javax.mail.Authenticator() {
+                        protected PasswordAuthentication getPasswordAuthentication() {
+                            return new PasswordAuthentication(emailSettings.get(FROM_SETTING), emailSettings.get(PASSWD_SETTING));
+                        }
+                    });
+        } else {
+            session = Session.getDefaultInstance(props);
+        }
+
         Message message = new MimeMessage(session);
         try {
-            message.setFrom(new InternetAddress(from));
+            message.setFrom(new InternetAddress(emailSettings.get(FROM_SETTING)));
             message.setRecipients(Message.RecipientType.TO,
                     emailAlertAction.getEmailAddresses().toArray(new Address[1]));
             message.setSubject("Elasticsearch Alert " + alert.getAlertName() + " triggered");

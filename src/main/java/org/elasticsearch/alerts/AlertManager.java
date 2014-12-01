@@ -56,6 +56,7 @@ public class AlertManager extends AbstractComponent {
     private final ClusterService clusterService;
     private final ScriptService scriptService;
     private final Client client;
+    private final ConfigurationManager configurationManager;
     private final KeyedLock<String> alertLock = new KeyedLock<>();
     private final AtomicReference<State> state = new AtomicReference<>(State.STOPPED);
 
@@ -64,7 +65,8 @@ public class AlertManager extends AbstractComponent {
     @Inject
     public AlertManager(Settings settings, ClusterService clusterService, AlertScheduler scheduler, AlertsStore alertsStore,
                         IndicesService indicesService, TriggerManager triggerManager, AlertActionManager actionManager,
-                        AlertActionRegistry actionRegistry, ThreadPool threadPool, ScriptService scriptService, Client client) {
+                        AlertActionRegistry actionRegistry, ThreadPool threadPool, ScriptService scriptService, Client client,
+                        ConfigurationManager configurationManager) {
         super(settings);
         this.scheduler = scheduler;
         this.threadPool = threadPool;
@@ -75,10 +77,12 @@ public class AlertManager extends AbstractComponent {
         this.actionManager.setAlertManager(this);
         this.actionRegistry = actionRegistry;
         this.clusterService = clusterService;
+
         this.scriptService = scriptService;
         this.client = client;
+        this.configurationManager = configurationManager;
+
         clusterService.add(new AlertsClusterStateListener());
-        manuallyStopped = !settings.getAsBoolean("alerts.start_immediately", true);
         // Close if the indices service is being stopped, so we don't run into search failures (locally) that will
         // happen because we're shutting down and an alert is scheduled.
         indicesService.addLifecycleListener(new LifecycleListener() {
@@ -142,6 +146,11 @@ public class AlertManager extends AbstractComponent {
         } finally {
             alertLock.release(alertName);
         }
+    }
+
+    private void loadSettings() {
+        Settings indexedSettings = configurationManager.getGlobalConfig();
+        manuallyStopped = !configurationManager.getOverriddenBooleanValue("alerts.start_immediately", indexedSettings, true);
     }
 
     public TriggerResult executeAlert(AlertActionEntry entry) throws IOException {
@@ -255,6 +264,14 @@ public class AlertManager extends AbstractComponent {
     private void internalStart(ClusterState initialState) {
         if (state.compareAndSet(State.STOPPED, State.STARTING)) {
             ClusterState clusterState = initialState;
+
+            while(true) {
+                if (configurationManager.isReady(initialState)) {
+                    loadSettings();
+                    break;
+                }
+                clusterState = newClusterState(clusterState);
+            }
             // Try to load alert store before the action manager, b/c action depends on alert store
             while (true) {
                 if (alertsStore.start(clusterState)) {

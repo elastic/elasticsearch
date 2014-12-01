@@ -99,6 +99,7 @@ public class StoreFileMetaData implements Streamable {
      */
     public boolean isSame(StoreFileMetaData other) {
         if (checksum == null || other.checksum == null) {
+            // we can't tell if either or is null so we return false in this case! this is why we don't use equals for this!
             return false;
         }
         return length == other.length && checksum.equals(other.checksum) && hash.equals(other.hash);

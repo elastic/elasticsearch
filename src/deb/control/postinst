@@ -29,9 +29,10 @@ case "$1" in
 		"$ES_USER"
 	fi
 
-	# Set user permissions on /var/log/elasticsearch and /var/lib/elasticsearch
-	mkdir -p /var/log/elasticsearch /var/lib/elasticsearch
-	chown -R $ES_USER:$ES_GROUP /var/log/elasticsearch /var/lib/elasticsearch
+	# Set user permissions on /var/log/elasticsearch, /var/lib/elasticsearch,
+	#   and /usr/share/elasticsearch/plugins
+	mkdir -p /var/log/elasticsearch /var/lib/elasticsearch /usr/share/elasticsearch/plugins
+	chown -R $ES_USER:$ES_GROUP /var/log/elasticsearch /var/lib/elasticsearch /usr/share/elasticsearch/plugins
 	chmod 755 /var/log/elasticsearch /var/lib/elasticsearch
 	
 	# configuration files should not be modifiable by elasticsearch user, as this can be a security issue

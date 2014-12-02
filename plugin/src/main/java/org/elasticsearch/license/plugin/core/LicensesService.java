@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.Iterables;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
@@ -527,6 +528,11 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
      */
     @Override
     public void register(String feature, TrialLicenseOptions trialLicenseOptions, Listener listener) {
+        for (final ListenerHolder listenerHolder : Iterables.concat(registeredListeners, pendingListeners)) {
+            if (listenerHolder.feature.equals(feature)) {
+                throw new IllegalStateException("feature: [" + feature + "] has been already registered");
+            }
+        }
         final ListenerHolder listenerHolder = new ListenerHolder(feature, trialLicenseOptions, listener);
         // don't trust the clusterState for blocks just yet!
         final Lifecycle.State clusterServiceState = clusterService.lifecycleState();

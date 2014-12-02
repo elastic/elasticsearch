@@ -69,7 +69,7 @@ public class NettySecuredTransport extends NettyTransport {
                     serverEngine = sslService.createSSLEngine();
                 }
                 serverEngine.setUseClientMode(false);
-                serverEngine.setNeedClientAuth(true);
+                serverEngine.setNeedClientAuth(profileSettings.getAsBoolean("shield.ssl.client.auth", settings.getAsBoolean("shield.transport.ssl.client.auth", true)));
 
                 pipeline.addFirst("ssl", new SslHandler(serverEngine));
                 pipeline.replace("dispatcher", "dispatcher", new SecuredMessageChannelHandler(nettyTransport, logger));

@@ -74,22 +74,12 @@ public class SSLService extends AbstractComponent {
         return sslContext.getSocketFactory();
     }
 
-    /**
-     * This engine is configured with a trust manager and a keystore that should have only one private key.
-     * Four possible usages for elasticsearch exist:
-     * Node-to-Node outbound:
-     * - sslEngine.setUseClientMode(true)
-     * Node-to-Node inbound:
-     * - sslEngine.setUseClientMode(false)
-     * - sslEngine.setNeedClientAuth(true)
-     * Client-to-Node:
-     * - sslEngine.setUseClientMode(true)
-     * Http Client-to-Node (inbound):
-     * - sslEngine.setUserClientMode(false)
-     * - sslEngine.setNeedClientAuth(false)
-     */
     public SSLEngine createSSLEngine() {
         return createSSLEngine(this.sslContext);
+    }
+
+    public SSLContext getSslContext() {
+        return sslContext;
     }
 
     public SSLEngine createSSLEngineWithTruststore(Settings settings) {

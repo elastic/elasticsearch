@@ -54,7 +54,7 @@ public class NettySecuredHttpServerTransport extends NettyHttpServerTransport {
             if (sslService != null) {
                 SSLEngine engine = sslService.createSSLEngine();
                 engine.setUseClientMode(false);
-                engine.setNeedClientAuth(false);
+                engine.setNeedClientAuth(settings.getAsBoolean("shield.http.ssl.client.auth", false));
 
                 pipeline.addFirst("ssl", new SslHandler(engine));
             }

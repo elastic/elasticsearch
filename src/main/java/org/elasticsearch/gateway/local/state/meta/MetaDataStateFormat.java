@@ -98,7 +98,8 @@ public abstract class MetaDataStateFormat<T> {
         final Path tmpStatePath = stateLocation.resolve(fileName + ".tmp");
         final Path finalStatePath = stateLocation.resolve(fileName);
         try {
-            try (OutputStreamIndexOutput out = new OutputStreamIndexOutput(Files.newOutputStream(tmpStatePath), BUFFER_SIZE)) {
+            final String resourceDesc = "MetaDataStateFormat.write(path=\"" + tmpStatePath + "\")";
+            try (OutputStreamIndexOutput out = new OutputStreamIndexOutput(resourceDesc, Files.newOutputStream(tmpStatePath), BUFFER_SIZE)) {
                 CodecUtil.writeHeader(out, STATE_FILE_CODEC, STATE_FILE_VERSION);
                 out.writeInt(format.index());
                 out.writeLong(version);

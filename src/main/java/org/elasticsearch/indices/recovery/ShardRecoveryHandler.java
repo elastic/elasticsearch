@@ -40,16 +40,18 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.common.util.CancellableThreads.Interruptable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
@@ -59,9 +61,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -88,14 +88,19 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
     private final MappingUpdatedAction mappingUpdatedAction;
 
     private final RecoveryResponse response;
-    private final CancelableThreads cancelableThreads = new CancelableThreads() {
+    private final CancellableThreads cancellableThreads = new CancellableThreads() {
         @Override
-        protected void fail(String reason) {
+        protected void onCancel(String reason, @Nullable Throwable suppressedException) {
+            RuntimeException e;
             if (shard.state() == IndexShardState.CLOSED) { // check if the shard got closed on us
-                throw new IndexShardClosedException(shard.shardId(), "shard is closed and recovery was canceled reason [" + reason + "]");
+                e = new IndexShardClosedException(shard.shardId(), "shard is closed and recovery was canceled reason [" + reason + "]");
             } else {
-                throw new ElasticsearchException("recovery was canceled reason [" + reason + "]");
+                e = new ExecutionCancelledException("recovery was canceled reason [" + reason + "]");
             }
+            if (suppressedException != null) {
+                e.addSuppressed(suppressedException);
+            }
+            throw e;
         }
     };
 
@@ -141,7 +146,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
      */
     @Override
     public void phase1(final SnapshotIndexCommit snapshot) throws ElasticsearchException {
-        cancelableThreads.failIfCanceled();
+        cancellableThreads.checkForCancel();
         // Total size of segment files that are recovered
         long totalSize = 0;
         // Total size of segment files that were able to be re-used
@@ -191,7 +196,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
             logger.trace("[{}][{}] recovery [phase1] to {}: recovering_files [{}] with total_size [{}], reusing_files [{}] with total_size [{}]",
                     indexName, shardId, request.targetNode(), response.phase1FileNames.size(),
                     new ByteSizeValue(totalSize), response.phase1ExistingFileNames.size(), new ByteSizeValue(existingTotalSize));
-            cancelableThreads.run(new Interruptable() {
+            cancellableThreads.execute(new Interruptable() {
                 @Override
                 public void run() throws InterruptedException {
                     RecoveryFilesInfoRequest recoveryInfoFilesRequest = new RecoveryFilesInfoRequest(request.recoveryId(), request.shardId(),
@@ -245,7 +250,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
 
                     @Override
                     protected void doRun() {
-                        cancelableThreads.failIfCanceled();
+                        cancellableThreads.checkForCancel();
                         store.incRef();
                         final StoreFileMetaData md = recoverySourceMetadata.get(name);
                         try (final IndexInput indexInput = store.directory().openInput(name, IOContext.READONCE)) {
@@ -279,7 +284,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
                                 final BytesArray content = new BytesArray(buf, 0, toRead);
                                 readCount += toRead;
                                 final boolean lastChunk = readCount == len;
-                                cancelableThreads.run(new Interruptable() {
+                                cancellableThreads.execute(new Interruptable() {
                                     @Override
                                     public void run() throws InterruptedException {
                                         // Actually send the file chunk to the target node, waiting for it to complete
@@ -319,7 +324,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
                 fileIndex++;
             }
 
-            cancelableThreads.run(new Interruptable() {
+            cancellableThreads.execute(new Interruptable() {
                 @Override
                 public void run() throws InterruptedException {
                     // Wait for all files that need to be transferred to finish transferring
@@ -333,7 +338,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
                 ExceptionsHelper.rethrowAndSuppress(exceptions);
             }
 
-            cancelableThreads.run(new Interruptable() {
+            cancellableThreads.execute(new Interruptable() {
                 @Override
                 public void run() throws InterruptedException {
                     // Send the CLEAN_FILES request, which takes all of the files that
@@ -377,10 +382,10 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }
-        cancelableThreads.failIfCanceled();
+        cancellableThreads.checkForCancel();
         logger.trace("{} recovery [phase2] to {}: start", request.shardId(), request.targetNode());
         StopWatch stopWatch = new StopWatch().start();
-        cancelableThreads.run(new Interruptable() {
+        cancellableThreads.execute(new Interruptable() {
             @Override
             public void run() throws InterruptedException {
                 // Send a request preparing the new shard's translog to receive
@@ -428,14 +433,14 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }
-        cancelableThreads.failIfCanceled();
+        cancellableThreads.checkForCancel();
         logger.trace("[{}][{}] recovery [phase3] to {}: sending transaction log operations", indexName, shardId, request.targetNode());
         StopWatch stopWatch = new StopWatch().start();
 
         // Send the translog operations to the target node
         int totalOperations = sendSnapshot(snapshot);
 
-        cancelableThreads.run(new Interruptable() {
+        cancellableThreads.execute(new Interruptable() {
             @Override
             public void run() throws InterruptedException {
                 // Send the FINALIZE request to the target node. The finalize request
@@ -512,7 +517,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
                 latch.countDown();
             }
         });
-        cancelableThreads.run(new Interruptable() {
+        cancellableThreads.execute(new Interruptable() {
             @Override
             public void run() throws InterruptedException {
                 latch.await();
@@ -537,7 +542,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
         for (DocumentMapper documentMapper : documentMappersToUpdate) {
             mappingUpdatedAction.updateMappingOnMaster(indexService.index().getName(), documentMapper, indexService.indexUUID(), listener);
         }
-        cancelableThreads.run(new Interruptable() {
+        cancellableThreads.execute(new Interruptable() {
             @Override
             public void run() throws InterruptedException {
                 try {
@@ -577,7 +582,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
             if (shard.state() == IndexShardState.CLOSED) {
                 throw new IndexShardClosedException(request.shardId());
             }
-            cancelableThreads.failIfCanceled();
+            cancellableThreads.checkForCancel();
             operations.add(operation);
             ops += 1;
             size += operation.estimateSize();
@@ -596,7 +601,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
 //                    recoverySettings.rateLimiter().pause(size);
 //                }
 
-                cancelableThreads.run(new Interruptable() {
+                cancellableThreads.execute(new Interruptable() {
                     @Override
                     public void run() throws InterruptedException {
                         final RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(request.recoveryId(), request.shardId(), operations);
@@ -613,7 +618,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
         }
         // send the leftover
         if (!operations.isEmpty()) {
-            cancelableThreads.run(new Interruptable() {
+            cancellableThreads.execute(new Interruptable() {
                 @Override
                 public void run() throws InterruptedException {
                     RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(request.recoveryId(), request.shardId(), operations);
@@ -630,62 +635,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
      * Cancels the recovery and interrupts all eligible threads.
      */
     public void cancel(String reason) {
-        cancelableThreads.cancel(reason);
-    }
-
-    private static abstract class CancelableThreads {
-        private final Set<Thread> threads = new HashSet<>();
-        private boolean canceled = false;
-        private String reason;
-
-        public synchronized boolean isCanceled() {
-            return canceled;
-        }
-
-
-        public synchronized void failIfCanceled() {
-            if (isCanceled()) {
-                fail(reason);
-            }
-        }
-
-        protected abstract  void fail(String reason);
-
-        private synchronized void add() {
-            failIfCanceled();
-            threads.add(Thread.currentThread());
-        }
-
-        public void run(Interruptable interruptable) {
-            add();
-            try {
-                interruptable.run();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } finally {
-                remove();
-            }
-        }
-
-        private synchronized void remove() {
-            threads.remove(Thread.currentThread());
-            failIfCanceled();
-        }
-
-        public synchronized void cancel(String reason) {
-            canceled = true;
-            this.reason = reason;
-            for (Thread thread : threads) {
-                thread.interrupt();
-            }
-            threads.clear();
-        }
-
-
-    }
-
-    interface Interruptable {
-        public void run() throws InterruptedException;
+        cancellableThreads.cancel(reason);
     }
 
     @Override

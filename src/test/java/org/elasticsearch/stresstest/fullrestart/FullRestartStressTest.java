@@ -26,7 +26,6 @@ import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -39,7 +38,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalNode;
 
-import java.io.File;
+import java.nio.file.Path;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
@@ -198,11 +197,11 @@ public class FullRestartStressTest {
 
             client.close();
             for (Node node : nodes) {
-                File[] nodeDatas = ((InternalNode) node).injector().getInstance(NodeEnvironment.class).nodeDataLocations();
+                Path[] nodeDatas = ((InternalNode) node).injector().getInstance(NodeEnvironment.class).nodeDataPaths();
                 node.close();
                 if (clearNodeWork && !settings.get("gateway.type").equals("local")) {
                     try {
-                        IOUtils.rm(FileSystemUtils.toPaths(nodeDatas));
+                        IOUtils.rm(nodeDatas);
                     } catch (Exception ex) {
                         logger.debug("failed to remove node data locations", ex);
                     }

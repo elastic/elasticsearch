@@ -22,6 +22,7 @@ package org.elasticsearch.index.store.support;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.NodeEnvironment;
@@ -34,9 +35,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.store.IndicesStore;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
@@ -74,7 +73,7 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
     }
     private final NodeEnvironment nodeEnv;
 
-    private final File[] locations;
+    private final Path[] locations;
 
     protected final IndexService indexService;
 
@@ -108,7 +107,7 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
         indexService.settingsService().addListener(applySettings);
         this.nodeEnv = nodeEnv;
         if (nodeEnv.hasNodeFile()) {
-            this.locations = nodeEnv.indexLocations(index);
+            this.locations = nodeEnv.indexPaths(index);
         } else {
             this.locations = null;
         }
@@ -133,12 +132,7 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
         if (indexService.hasShard(shardId.id())) {
             return false;
         }
-        for (Path location : nodeEnv.shardPaths(shardId)) {
-            if (Files.exists(location)) {
-                return true;
-            }
-        }
-        return false;
+        return FileSystemUtils.exists(nodeEnv.shardPaths(shardId));
     }
 
     @Override

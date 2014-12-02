@@ -69,7 +69,11 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -134,7 +138,7 @@ public class MapperService extends AbstractIndexComponent  {
 
         this.dynamic = componentSettings.getAsBoolean("dynamic", true);
         String defaultMappingLocation = componentSettings.get("default_mapping_location");
-        final URL defaultMappingUrl;
+        final Path defaultMappingUrl;
         if (index.getName().equals(ScriptService.SCRIPT_INDEX)){
             defaultMappingUrl = getMappingUrl(indexSettings, environment, defaultMappingLocation,"script-mapping.json","org/elasticsearch/index/mapper/script-mapping.json");
         } else {
@@ -160,29 +164,25 @@ public class MapperService extends AbstractIndexComponent  {
             }
         } else {
             try {
-                defaultMappingSource = Streams.copyToString(new InputStreamReader(defaultMappingUrl.openStream(), Charsets.UTF_8));
+                defaultMappingSource = Streams.copyToString(new InputStreamReader(Files.newInputStream(defaultMappingUrl), Charsets.UTF_8));
             } catch (IOException e) {
                 throw new MapperException("Failed to load default mapping source from [" + defaultMappingLocation + "]", e);
             }
         }
 
         String percolatorMappingLocation = componentSettings.get("default_percolator_mapping_location");
-        URL percolatorMappingUrl = null;
+        Path percolatorMappingUrl = null;
         if (percolatorMappingLocation != null) {
             try {
                 percolatorMappingUrl = environment.resolveConfig(percolatorMappingLocation);
             } catch (FailedToResolveConfigException e) {
                 // not there, default to the built in one
-                try {
-                    percolatorMappingUrl = new File(percolatorMappingLocation).toURI().toURL();
-                } catch (MalformedURLException e1) {
-                    throw new FailedToResolveConfigException("Failed to resolve default percolator mapping location [" + percolatorMappingLocation + "]");
-                }
+                percolatorMappingUrl = Paths.get(percolatorMappingLocation);
             }
         }
         if (percolatorMappingUrl != null) {
             try {
-                defaultPercolatorMappingSource = Streams.copyToString(new InputStreamReader(percolatorMappingUrl.openStream(), Charsets.UTF_8));
+                defaultPercolatorMappingSource = Streams.copyToString(new InputStreamReader(Files.newInputStream(percolatorMappingUrl), Charsets.UTF_8));
             } catch (IOException e) {
                 throw new MapperException("Failed to load default percolator mapping source from [" + percolatorMappingUrl + "]", e);
             }
@@ -208,16 +208,20 @@ public class MapperService extends AbstractIndexComponent  {
         }
     }
 
-    private URL getMappingUrl(Settings indexSettings, Environment environment, String mappingLocation, String configString, String resourceLocation) {
-        URL mappingUrl;
+    private Path getMappingUrl(Settings indexSettings, Environment environment, String mappingLocation, String configString, String resourceLocation) {
+        Path mappingUrl;
         if (mappingLocation == null) {
             try {
                 mappingUrl = environment.resolveConfig(configString);
             } catch (FailedToResolveConfigException e) {
-                // not there, default to the built in one
-                mappingUrl = indexSettings.getClassLoader().getResource(resourceLocation);
-                if (mappingUrl == null) {
-                    mappingUrl = MapperService.class.getClassLoader().getResource(resourceLocation);
+                try {
+                    // not there, default to the built in one
+                    mappingUrl = Paths.get(indexSettings.getClassLoader().getResource(resourceLocation).toURI());
+                    if (mappingUrl == null) {
+                        mappingUrl = Paths.get(MapperService.class.getClassLoader().getResource(resourceLocation).toURI());
+                    }
+                }  catch (URISyntaxException e1) {
+                    throw new FailedToResolveConfigException("Failed to resolve dynamic mapping location [" + mappingLocation + "]");
                 }
             }
         } else {
@@ -225,11 +229,8 @@ public class MapperService extends AbstractIndexComponent  {
                 mappingUrl = environment.resolveConfig(mappingLocation);
             } catch (FailedToResolveConfigException e) {
                 // not there, default to the built in one
-                try {
-                    mappingUrl = new File(mappingLocation).toURI().toURL();
-                } catch (MalformedURLException e1) {
-                    throw new FailedToResolveConfigException("Failed to resolve dynamic mapping location [" + mappingLocation + "]");
-                }
+                mappingUrl = Paths.get(mappingLocation);
+
             }
         }
         return mappingUrl;

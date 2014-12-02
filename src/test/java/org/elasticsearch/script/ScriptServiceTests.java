@@ -32,6 +32,7 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -45,8 +46,8 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testScriptsWithoutExtensions() throws IOException {
-        File homeFolder = newTempDir();
-        File genericConfigFolder = newTempDir();
+        Path homeFolder = newTempDir().toPath();
+        Path genericConfigFolder = newTempDir().toPath();
 
         Settings settings = settingsBuilder()
                 .put("path.conf", genericConfigFolder)
@@ -58,15 +59,15 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
 
         logger.info("--> setup script service");
         ScriptService scriptService = new ScriptService(settings, environment, ImmutableSet.of(new TestEngineService()), resourceWatcherService);
-        File scriptsFile = new File(genericConfigFolder, "scripts");
-        assertThat(scriptsFile.mkdir(), equalTo(true));
+        Path scriptsFile = genericConfigFolder.resolve("scripts");
+        Files.createDirectories(scriptsFile);
         resourceWatcherService.notifyNow();
 
         logger.info("--> setup two test files one with extension and another without");
-        File testFileNoExt = new File(scriptsFile, "test_no_ext");
-        File testFileWithExt = new File(scriptsFile, "test_script.tst");
-        Streams.copy("test_file_no_ext".getBytes("UTF-8"), testFileNoExt);
-        Streams.copy("test_file".getBytes("UTF-8"), testFileWithExt);
+        Path testFileNoExt = scriptsFile.resolve("test_no_ext");
+        Path testFileWithExt = scriptsFile.resolve("test_script.tst");
+        Streams.copy("test_file_no_ext".getBytes("UTF-8"), Files.newOutputStream(testFileNoExt));
+        Streams.copy("test_file".getBytes("UTF-8"), Files.newOutputStream(testFileWithExt));
         resourceWatcherService.notifyNow();
 
         logger.info("--> verify that file with extension was correctly processed");
@@ -74,8 +75,8 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         assertThat(compiledScript.compiled(), equalTo((Object) "compiled_test_file"));
 
         logger.info("--> delete both files");
-        Files.delete(testFileNoExt.toPath());
-        Files.delete(testFileWithExt.toPath());
+        Files.delete(testFileNoExt);
+        Files.delete(testFileWithExt);
         resourceWatcherService.notifyNow();
 
         logger.info("--> verify that file with extension was correctly removed");

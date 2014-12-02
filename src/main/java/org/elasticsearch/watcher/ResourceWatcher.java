@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.watcher;
 
+import java.io.IOException;
+
 /**
  * Abstract resource watcher interface.
  * <p/>
@@ -28,10 +30,10 @@ public interface ResourceWatcher {
     /**
      * Called once when the resource watcher is added to {@link ResourceWatcherService}
      */
-    void init();
+    void init() throws IOException;
 
     /**
      * Called periodically by {@link ResourceWatcherService} so resource watcher can check the resource
      */
-    void checkAndNotify();
+    void checkAndNotify() throws IOException;
 }

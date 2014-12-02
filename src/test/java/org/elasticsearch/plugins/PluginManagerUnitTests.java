@@ -49,8 +49,8 @@ public class PluginManagerUnitTests extends ElasticsearchTestCase {
         Environment environment = new Environment(settings);
 
         PluginManager.PluginHandle pluginHandle = new PluginManager.PluginHandle(pluginName, "version", "user", "repo");
-        String configDirPath = Files.simplifyPath(pluginHandle.configDir(environment).getCanonicalPath());
-        String expectedDirPath = Files.simplifyPath(new File(genericConfigFolder, pluginName).getCanonicalPath());
+        String configDirPath = Files.simplifyPath(pluginHandle.configDir(environment).normalize().toString());
+        String expectedDirPath = Files.simplifyPath(new File(genericConfigFolder, pluginName).toPath().normalize().toString());
 
         assertThat(configDirPath, is(expectedDirPath));
     }

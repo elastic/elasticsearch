@@ -27,6 +27,8 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 
+import java.io.IOException;
+
 /**
  * Snapshot repository interface.
  * <p/>
@@ -62,7 +64,7 @@ public interface Repository extends LifecycleComponent<Repository> {
      * @param indices    list of indices
      * @return information about snapshot
      */
-    MetaData readSnapshotMetaData(SnapshotId snapshotId, ImmutableList<String> indices);
+    MetaData readSnapshotMetaData(SnapshotId snapshotId, ImmutableList<String> indices) throws IOException;
 
     /**
      * Returns the list of snapshots currently stored in the repository

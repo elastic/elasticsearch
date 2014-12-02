@@ -60,33 +60,33 @@ public class InternalSettingsPreparer {
                 // if its default, then load it, but also load form env
                 if (Strings.hasText(System.getProperty("es.default.config"))) {
                     loadFromEnv = true;
-                    settingsBuilder.loadFromUrl(environment.resolveConfig(System.getProperty("es.default.config")));
+                    settingsBuilder.loadFromPath(environment.resolveConfig(System.getProperty("es.default.config")));
                 }
                 // if explicit, just load it and don't load from env
                 if (Strings.hasText(System.getProperty("es.config"))) {
                     loadFromEnv = false;
-                    settingsBuilder.loadFromUrl(environment.resolveConfig(System.getProperty("es.config")));
+                    settingsBuilder.loadFromPath(environment.resolveConfig(System.getProperty("es.config")));
                 }
                 if (Strings.hasText(System.getProperty("elasticsearch.config"))) {
                     loadFromEnv = false;
-                    settingsBuilder.loadFromUrl(environment.resolveConfig(System.getProperty("elasticsearch.config")));
+                    settingsBuilder.loadFromPath(environment.resolveConfig(System.getProperty("elasticsearch.config")));
                 }
             }
             if (loadFromEnv) {
                 try {
-                    settingsBuilder.loadFromUrl(environment.resolveConfig("elasticsearch.yml"));
+                    settingsBuilder.loadFromPath(environment.resolveConfig("elasticsearch.yml"));
                 } catch (FailedToResolveConfigException e) {
                     // ignore
                 } catch (NoClassDefFoundError e) {
                     // ignore, no yaml
                 }
                 try {
-                    settingsBuilder.loadFromUrl(environment.resolveConfig("elasticsearch.json"));
+                    settingsBuilder.loadFromPath(environment.resolveConfig("elasticsearch.json"));
                 } catch (FailedToResolveConfigException e) {
                     // ignore
                 }
                 try {
-                    settingsBuilder.loadFromUrl(environment.resolveConfig("elasticsearch.properties"));
+                    settingsBuilder.loadFromPath(environment.resolveConfig("elasticsearch.properties"));
                 } catch (FailedToResolveConfigException e) {
                     // ignore
                 }
@@ -136,7 +136,7 @@ public class InternalSettingsPreparer {
         // put back the env settings
         settingsBuilder = settingsBuilder().put(v1);
         // we put back the path.logs so we can use it in the logging configuration file
-        settingsBuilder.put("path.logs", cleanPath(environment.logsFile().getAbsolutePath()));
+        settingsBuilder.put("path.logs", cleanPath(environment.logsFile().toAbsolutePath().toString()));
 
         v1 = settingsBuilder.build();
 

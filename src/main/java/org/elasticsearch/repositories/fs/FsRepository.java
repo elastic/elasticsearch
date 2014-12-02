@@ -33,6 +33,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 /**
  * Shared file system implementation of the BlobStoreRepository
@@ -68,13 +70,13 @@ public class FsRepository extends BlobStoreRepository {
     @Inject
     public FsRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository) throws IOException {
         super(name.getName(), repositorySettings, indexShardRepository);
-        File locationFile;
+        Path locationFile;
         String location = repositorySettings.settings().get("location", componentSettings.get("location"));
         if (location == null) {
             logger.warn("using local fs location for gateway, should be changed to be a shared location across nodes");
             throw new RepositoryException(name.name(), "missing location");
         } else {
-            locationFile = new File(location);
+            locationFile = Paths.get(location);
         }
         blobStore = new FsBlobStore(componentSettings, locationFile);
         this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", componentSettings.getAsBytesSize("chunk_size", null));

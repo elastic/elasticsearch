@@ -199,7 +199,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
     @Override
     public void reset() throws Exception {
         try {
-            IOUtils.rm(FileSystemUtils.toPaths(nodeEnv.nodeDataLocations()));
+            IOUtils.rm(nodeEnv.nodeDataPaths());
         } catch (Exception ex) {
             logger.debug("failed to delete shard locations", ex);
         }

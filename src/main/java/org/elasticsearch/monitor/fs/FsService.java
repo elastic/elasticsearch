@@ -24,6 +24,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 
+import java.io.IOException;
+
 /**
  */
 public class FsService extends AbstractComponent {
@@ -35,7 +37,7 @@ public class FsService extends AbstractComponent {
     private FsStats cachedStats;
 
     @Inject
-    public FsService(Settings settings, FsProbe probe) {
+    public FsService(Settings settings, FsProbe probe) throws IOException {
         super(settings);
         this.probe = probe;
         this.cachedStats = probe.stats();
@@ -46,8 +48,13 @@ public class FsService extends AbstractComponent {
     }
 
     public synchronized FsStats stats() {
-        if ((System.currentTimeMillis() - cachedStats.getTimestamp()) > refreshInterval.millis()) {
-            cachedStats = probe.stats();
+        try {
+            if ((System.currentTimeMillis() - cachedStats.getTimestamp()) > refreshInterval.millis()) {
+                cachedStats = probe.stats();
+            }
+            return cachedStats;
+        } catch (IOException ex) {
+            logger.warn("can't fetch fs stats", ex);
         }
         return cachedStats;
     }

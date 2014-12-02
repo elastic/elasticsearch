@@ -1218,7 +1218,7 @@
                                 <exclude>org/elasticsearch/common/logging/log4j/ConsoleAppender*</exclude>
                                 <exclude>org/elasticsearch/common/http/client/HttpDownloadHelper*</exclude>
                                 <exclude>org/elasticsearch/common/cli/Terminal*</exclude>
-                                <exclude>org/elasticsearch/plugins/PluginManager.class</exclude>
+                                <exclude>org/elasticsearch/plugins/PluginManager$SysOut.class</exclude>
                                 <exclude>org/elasticsearch/common/http/client/HttpDownloadHelper.class</exclude>
                                 <exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>
                                 <exclude>org/elasticsearch/Version.class</exclude>

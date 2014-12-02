@@ -54,8 +54,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -479,57 +481,55 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
     private void pre019Upgrade() throws Exception {
         long index = -1;
-        File metaDataFile = null;
+        Path metaDataFile = null;
         MetaData metaData = null;
         long version = -1;
-        for (File dataLocation : nodeEnv.nodeDataLocations()) {
-            File stateLocation = new File(dataLocation, "_state");
-            if (!stateLocation.exists()) {
+        for (Path dataLocation : nodeEnv.nodeDataPaths()) {
+            final Path stateLocation = dataLocation.resolve(MetaDataStateFormat.STATE_DIR_NAME);
+            if (!Files.exists(stateLocation)) {
                 continue;
             }
-            File[] stateFiles = stateLocation.listFiles();
-            if (stateFiles == null) {
-                continue;
-            }
-            for (File stateFile : stateFiles) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("[upgrade]: processing [" + stateFile.getName() + "]");
-                }
-                String name = stateFile.getName();
-                if (!name.startsWith("metadata-")) {
-                    continue;
-                }
-                long fileIndex = Long.parseLong(name.substring(name.indexOf('-') + 1));
-                if (fileIndex >= index) {
-                    // try and read the meta data
-                    try {
-                        byte[] data = Streams.copyToByteArray(new FileInputStream(stateFile));
-                        if (data.length == 0) {
-                            continue;
-                        }
-                        try (XContentParser parser = XContentHelper.createParser(data, 0, data.length)) {
-                            String currentFieldName = null;
-                            XContentParser.Token token = parser.nextToken();
-                            if (token != null) {
-                                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                                    if (token == XContentParser.Token.FIELD_NAME) {
-                                        currentFieldName = parser.currentName();
-                                    } else if (token == XContentParser.Token.START_OBJECT) {
-                                        if ("meta-data".equals(currentFieldName)) {
-                                            metaData = MetaData.Builder.fromXContent(parser);
-                                        }
-                                    } else if (token.isValue()) {
-                                        if ("version".equals(currentFieldName)) {
-                                            version = parser.longValue();
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(stateLocation)) {
+                for (Path stateFile : stream) {
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("[upgrade]: processing [" + stateFile.getFileName() + "]");
+                    }
+                    String name = stateFile.getFileName().toString();
+                    if (!name.startsWith("metadata-")) {
+                        continue;
+                    }
+                    long fileIndex = Long.parseLong(name.substring(name.indexOf('-') + 1));
+                    if (fileIndex >= index) {
+                        // try and read the meta data
+                        try {
+                            byte[] data = Files.readAllBytes(stateFile);
+                            if (data.length == 0) {
+                                continue;
+                            }
+                            try (XContentParser parser = XContentHelper.createParser(data, 0, data.length)) {
+                                String currentFieldName = null;
+                                XContentParser.Token token = parser.nextToken();
+                                if (token != null) {
+                                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                        if (token == XContentParser.Token.FIELD_NAME) {
+                                            currentFieldName = parser.currentName();
+                                        } else if (token == XContentParser.Token.START_OBJECT) {
+                                            if ("meta-data".equals(currentFieldName)) {
+                                                metaData = MetaData.Builder.fromXContent(parser);
+                                            }
+                                        } else if (token.isValue()) {
+                                            if ("version".equals(currentFieldName)) {
+                                                version = parser.longValue();
+                                            }
                                         }
                                     }
                                 }
                             }
+                            index = fileIndex;
+                            metaDataFile = stateFile;
+                        } catch (IOException e) {
+                            logger.warn("failed to read pre 0.19 state from [" + name + "], ignoring...", e);
                         }
-                        index = fileIndex;
-                        metaDataFile = stateFile;
-                    } catch (IOException e) {
-                        logger.warn("failed to read pre 0.19 state from [" + name + "], ignoring...", e);
                     }
                 }
             }
@@ -538,7 +538,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             return;
         }
 
-        logger.info("found old metadata state, loading metadata from [{}] and converting to new metadata location and structure...", metaDataFile.getAbsolutePath());
+        logger.info("found old metadata state, loading metadata from [{}] and converting to new metadata location and structure...", metaDataFile.toAbsolutePath());
 
         writeGlobalState("upgrade", MetaData.builder(metaData).version(version).build());
         for (IndexMetaData indexMetaData : metaData) {
@@ -549,35 +549,31 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
         }
 
         // rename shards state to backup state
-        File backupFile = new File(metaDataFile.getParentFile(), "backup-" + metaDataFile.getName());
-        if (!metaDataFile.renameTo(backupFile)) {
-            throw new IOException("failed to rename old state to backup state [" + metaDataFile.getAbsolutePath() + "]");
-        }
+        Path backupFile = metaDataFile.resolveSibling("backup-" + metaDataFile.getFileName());
+        Files.move(metaDataFile, backupFile, StandardCopyOption.ATOMIC_MOVE);
 
         // delete all other shards state files
-        for (File dataLocation : nodeEnv.nodeDataLocations()) {
-            File stateLocation = new File(dataLocation, "_state");
-            if (!stateLocation.exists()) {
+        for (Path dataLocation : nodeEnv.nodeDataPaths()) {
+            Path stateLocation = dataLocation.resolve(MetaDataStateFormat.STATE_DIR_NAME);
+            if (!Files.exists(stateLocation)) {
                 continue;
             }
-            File[] stateFiles = stateLocation.listFiles();
-            if (stateFiles == null) {
-                continue;
-            }
-            for (File stateFile : stateFiles) {
-                String name = stateFile.getName();
-                if (!name.startsWith("metadata-")) {
-                    continue;
-                }
-                try {
-                    Files.delete(stateFile.toPath());
-                } catch (Exception ex) {
-                    logger.debug("failed to delete file " + stateFile, ex);
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(stateLocation)) {
+                for (Path stateFile : stream) {
+                    String name = stateFile.getFileName().toString();
+                    if (!name.startsWith("metadata-")) {
+                        continue;
+                    }
+                    try {
+                        Files.delete(stateFile);
+                    } catch (Exception ex) {
+                        logger.debug("failed to delete file " + stateFile, ex);
+                    }
                 }
             }
         }
 
-        logger.info("conversion to new metadata location and format done, backup create at [{}]", backupFile.getAbsolutePath());
+        logger.info("conversion to new metadata location and format done, backup create at [{}]", backupFile.toAbsolutePath());
     }
 
     /**

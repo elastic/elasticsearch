@@ -41,6 +41,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -930,6 +932,18 @@ public class ImmutableSettings implements Settings {
                 return loadFromStream(url.toExternalForm(), url.openStream());
             } catch (IOException e) {
                 throw new SettingsException("Failed to open stream for url [" + url.toExternalForm() + "]", e);
+            }
+        }
+
+        /**
+         * Loads settings from a url that represents them using the
+         * {@link SettingsLoaderFactory#loaderFromSource(String)}.
+         */
+        public Builder loadFromPath(Path path) throws SettingsException {
+            try {
+                return loadFromStream(path.getFileName().toString(), Files.newInputStream(path));
+            } catch (IOException e) {
+                throw new SettingsException("Failed to open stream for url [" + path + "]", e);
             }
         }
 

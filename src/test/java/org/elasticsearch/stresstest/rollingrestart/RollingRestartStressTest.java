@@ -40,7 +40,7 @@ import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.SearchHit;
 
-import java.io.File;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
@@ -168,11 +168,11 @@ public class RollingRestartStressTest {
         // start doing the rolling restart
         int nodeIndex = 0;
         while (true) {
-            File[] nodeData = ((InternalNode) nodes[nodeIndex]).injector().getInstance(NodeEnvironment.class).nodeDataLocations();
+            Path[] nodeData = ((InternalNode) nodes[nodeIndex]).injector().getInstance(NodeEnvironment.class).nodeDataPaths();
             nodes[nodeIndex].close();
             if (clearNodeData) {
                 try {
-                    IOUtils.rm(FileSystemUtils.toPaths(nodeData));
+                    IOUtils.rm(nodeData);
                 } catch (Exception ex) {
                      logger.debug("Failed to delete node data directories", ex);
 

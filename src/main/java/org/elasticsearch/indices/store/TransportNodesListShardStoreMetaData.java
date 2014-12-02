@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -50,6 +51,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -164,18 +166,12 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         if (!storeType.contains("fs")) {
             return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
         }
-        File[] shardLocations = nodeEnv.shardLocations(shardId);
-        File[] shardIndexLocations = new File[shardLocations.length];
+        Path[] shardLocations = nodeEnv.shardPaths(shardId);
+        Path[] shardIndexLocations = new Path[shardLocations.length];
         for (int i = 0; i < shardLocations.length; i++) {
-            shardIndexLocations[i] = new File(shardLocations[i], "index");
+            shardIndexLocations[i] = shardLocations[i].resolve("index");
         }
-        boolean exists = false;
-        for (File shardIndexLocation : shardIndexLocations) {
-            if (shardIndexLocation.exists()) {
-                exists = true;
-                break;
-            }
-        }
+        final boolean exists = FileSystemUtils.exists(shardIndexLocations);
         if (!exists) {
             return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
         }

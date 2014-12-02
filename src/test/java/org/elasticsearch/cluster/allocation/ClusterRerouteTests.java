@@ -43,7 +43,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
 
-import java.io.File;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 
@@ -191,13 +191,13 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).execute().actionGet();
 
         logger.info("--> closing all nodes");
-        File[] shardLocation = internalCluster().getInstance(NodeEnvironment.class, node_1).shardLocations(new ShardId("test", 0));
+        Path[] shardLocation = internalCluster().getInstance(NodeEnvironment.class, node_1).shardPaths(new ShardId("test", 0));
         assertThat(FileSystemUtils.exists(shardLocation), equalTo(true)); // make sure the data is there!
         internalCluster().closeNonSharedNodes(false); // don't wipe data directories the index needs to be there!
 
         logger.info("--> deleting the shard data [{}] ", Arrays.toString(shardLocation));
         assertThat(FileSystemUtils.exists(shardLocation), equalTo(true)); // verify again after cluster was shut down
-        IOUtils.rm(FileSystemUtils.toPaths(shardLocation));
+        IOUtils.rm(shardLocation);
 
         logger.info("--> starting nodes back, will not allocate the shard since it has no data, but the index will be there");
         node_1 = internalCluster().startNode(commonSettings);

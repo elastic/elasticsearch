@@ -36,6 +36,8 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.xml.sax.InputSource;
 
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * Uses the {@link org.apache.lucene.analysis.compound.HyphenationCompoundWordTokenFilter} to decompound tokens based on hyphenation rules.
@@ -56,10 +58,10 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
             throw new ElasticsearchIllegalArgumentException("hyphenation_patterns_path is a required setting.");
         }
 
-        URL hyphenationPatternsFile = env.resolveConfig(hyphenationPatternsPath);
+        Path hyphenationPatternsFile = env.resolveConfig(hyphenationPatternsPath);
 
         try {
-            hyphenationTree = HyphenationCompoundWordTokenFilter.getHyphenationTree(new InputSource(hyphenationPatternsFile.toExternalForm()));
+            hyphenationTree = HyphenationCompoundWordTokenFilter.getHyphenationTree(new InputSource(Files.newInputStream(hyphenationPatternsFile)));
         } catch (Exception e) {
             throw new ElasticsearchIllegalArgumentException("Exception while reading hyphenation_patterns_path: " + e.getMessage());
         }

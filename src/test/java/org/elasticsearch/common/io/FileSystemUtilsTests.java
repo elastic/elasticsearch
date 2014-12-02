@@ -27,6 +27,9 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Properties;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
@@ -39,16 +42,16 @@ import static org.hamcrest.CoreMatchers.is;
  */
 public class FileSystemUtilsTests extends ElasticsearchTestCase {
 
-    File src;
-    File dst;
+    Path src;
+    Path dst;
 
     @Before
     public void copySourceFilesToTarget() throws IOException {
-        File globalTempDir = globalTempDir();
-        src = new File(globalTempDir, "iocopyappend-src");
-        dst = new File(globalTempDir, "iocopyappend-dst");
-        FileSystemUtils.mkdirs(src);
-        FileSystemUtils.mkdirs(dst);
+        Path globalTempDir = globalTempDir().toPath();
+        src = globalTempDir.resolve("iocopyappend-src");
+        dst = globalTempDir.resolve("iocopyappend-dst");
+        Files.createDirectories(src);
+        Files.createDirectories(dst);
 
         // We first copy sources test files from src/test/resources
         // Because after when the test runs, src files are moved to their destination
@@ -57,17 +60,17 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
             props.load(is);
         }
 
-        FileSystemUtils.copyDirectoryRecursively(new File(props.getProperty("copyappend.root.dir")), src);
+        FileSystemUtils.copyDirectoryRecursively(Paths.get(props.getProperty("copyappend.root.dir")), src);
     }
 
     @Test
     public void testMoveOverExistingFileAndAppend() throws IOException {
 
-        FileSystemUtils.moveFilesWithoutOverwriting(new File(src, "v1"), dst, ".new");
+        FileSystemUtils.moveFilesWithoutOverwriting(src.resolve("v1"), dst, ".new");
         assertFileContent(dst, "file1.txt", "version1");
         assertFileContent(dst, "dir/file2.txt", "version1");
 
-        FileSystemUtils.moveFilesWithoutOverwriting(new File(src, "v2"), dst, ".new");
+        FileSystemUtils.moveFilesWithoutOverwriting(src.resolve("v2"), dst, ".new");
         assertFileContent(dst, "file1.txt", "version1");
         assertFileContent(dst, "dir/file2.txt", "version1");
         assertFileContent(dst, "file1.txt.new", "version2");
@@ -75,7 +78,7 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
         assertFileContent(dst, "file3.txt", "version1");
         assertFileContent(dst, "dir/subdir/file4.txt", "version1");
 
-        FileSystemUtils.moveFilesWithoutOverwriting(new File(src, "v3"), dst, ".new");
+        FileSystemUtils.moveFilesWithoutOverwriting(src.resolve("v3"), dst, ".new");
         assertFileContent(dst, "file1.txt", "version1");
         assertFileContent(dst, "dir/file2.txt", "version1");
         assertFileContent(dst, "file1.txt.new", "version3");
@@ -89,13 +92,13 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
 
     @Test
     public void testMoveOverExistingFileAndIgnore() throws IOException {
-        File dest = globalTempDir();
+        Path dest = globalTempDir().toPath();
 
-        FileSystemUtils.moveFilesWithoutOverwriting(new File(src, "v1"), dest, null);
+        FileSystemUtils.moveFilesWithoutOverwriting(src.resolve("v1"), dest, null);
         assertFileContent(dest, "file1.txt", "version1");
         assertFileContent(dest, "dir/file2.txt", "version1");
 
-        FileSystemUtils.moveFilesWithoutOverwriting(new File(src, "v2"), dest, null);
+        FileSystemUtils.moveFilesWithoutOverwriting(src.resolve("v2"), dest, null);
         assertFileContent(dest, "file1.txt", "version1");
         assertFileContent(dest, "dir/file2.txt", "version1");
         assertFileContent(dest, "file1.txt.new", null);
@@ -103,7 +106,7 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
         assertFileContent(dest, "file3.txt", "version1");
         assertFileContent(dest, "dir/subdir/file4.txt", "version1");
 
-        FileSystemUtils.moveFilesWithoutOverwriting(new File(src, "v3"), dest, null);
+        FileSystemUtils.moveFilesWithoutOverwriting(src.resolve("v3"), dest, null);
         assertFileContent(dest, "file1.txt", "version1");
         assertFileContent(dest, "dir/file2.txt", "version1");
         assertFileContent(dest, "file1.txt.new", null);
@@ -122,16 +125,28 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
      * @param filename relative path from root dir to file
      * @param expected expected content (if null, we don't expect any file)
      */
-    public static void assertFileContent(File dir, String filename, String expected) throws IOException {
-        Assert.assertThat(dir.exists(), is(true));
-        File file = dir.toPath().resolve(filename).toFile();
+    public static void assertFileContent(Path dir, String filename, String expected) throws IOException {
+        Assert.assertThat(Files.exists(dir), is(true));
+        Path file = dir.resolve(filename);
         if (expected == null) {
-            Assert.assertThat("file [" + file + "] should not exist.", file.exists(), is(false));
+            Assert.assertThat("file [" + file + "] should not exist.", Files.exists(file), is(false));
         } else {
             assertFileExists(file);
-            String fileContent = com.google.common.io.Files.toString(file, UTF8);
+            String fileContent = new String(Files.readAllBytes(file), UTF8);
             // trim the string content to prevent different handling on windows vs. unix and CR chars...
             Assert.assertThat(fileContent.trim(), equalTo(expected.trim()));
         }
+    }
+
+    @Test
+    public void testAppend() {
+        assertEquals(FileSystemUtils.append(Paths.get("/foo/bar"), Paths.get("/hello/world/this_is/awesome"), 0),
+                Paths.get("/foo/bar/hello/world/this_is/awesome"));
+
+        assertEquals(FileSystemUtils.append(Paths.get("/foo/bar"), Paths.get("/hello/world/this_is/awesome"), 2),
+                Paths.get("/foo/bar/this_is/awesome"));
+
+        assertEquals(FileSystemUtils.append(Paths.get("/foo/bar"), Paths.get("/hello/world/this_is/awesome"), 1),
+                Paths.get("/foo/bar/world/this_is/awesome"));
     }
 }

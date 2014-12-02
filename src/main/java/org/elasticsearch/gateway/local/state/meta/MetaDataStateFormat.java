@@ -264,17 +264,15 @@ public abstract class MetaDataStateFormat<T> {
                 final long version = pathAndVersion.version;
                 final XContentParser parser;
                 if (pathAndVersion.legacy) { // read the legacy format -- plain XContent
-                    try (InputStream stream = Files.newInputStream(stateFile)) {
-                        final byte[] data = Streams.copyToByteArray(stream);
-                        if (data.length == 0) {
-                            logger.debug("{}: no data for [{}], ignoring...", stateType, stateFile.toAbsolutePath());
-                            continue;
-                        }
-                        parser = XContentHelper.createParser(data, 0, data.length);
-                        state = format.fromXContent(parser);
-                        if (state == null) {
-                            logger.debug("{}: no data for [{}], ignoring...", stateType, stateFile.toAbsolutePath());
-                        }
+                    final byte[] data = Files.readAllBytes(stateFile);
+                    if (data.length == 0) {
+                        logger.debug("{}: no data for [{}], ignoring...", stateType, stateFile.toAbsolutePath());
+                        continue;
+                    }
+                    parser = XContentHelper.createParser(data, 0, data.length);
+                    state = format.fromXContent(parser);
+                    if (state == null) {
+                        logger.debug("{}: no data for [{}], ignoring...", stateType, stateFile.toAbsolutePath());
                     }
                 } else {
                     state = format.read(stateFile, version);

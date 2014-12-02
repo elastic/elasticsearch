@@ -54,6 +54,7 @@ import org.elasticsearch.indices.recovery.RecoveryFailedException;
 
 import java.io.*;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -380,11 +381,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Reads a MetadataSnapshot from the given index locations or returns an empty snapshot if it can't be read.
      * @throws IOException if the index we try to read is corrupted
      */
-    public static MetadataSnapshot readMetadataSnapshot(File[] indexLocations, ESLogger logger) throws IOException {
+    public static MetadataSnapshot readMetadataSnapshot(Path[] indexLocations, ESLogger logger) throws IOException {
         final Directory[] dirs = new Directory[indexLocations.length];
         try {
             for (int i=0; i< indexLocations.length; i++) {
-                dirs[i] = new SimpleFSDirectory(indexLocations[i].toPath());
+                dirs[i] = new SimpleFSDirectory(indexLocations[i]);
             }
             DistributorDirectory dir = new DistributorDirectory(dirs);
             failIfCorrupted(dir, new ShardId("", 1));

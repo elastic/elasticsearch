@@ -7,6 +7,7 @@ package org.elasticsearch.shield.transport;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.transport.TransportRequest;
@@ -23,7 +24,7 @@ public interface ServerTransportFilter {
     /**
      * The server trasnport filter that should be used in transport clients
      */
-    public static class Client implements ServerTransportFilter {
+    public static class TransportClient implements ServerTransportFilter {
 
         @Override
         public void inbound(String action, TransportRequest request) {
@@ -58,4 +59,27 @@ public interface ServerTransportFilter {
             authzService.authorize(user, action, request);
         }
     }
+
+    /**
+     * A server transport filter rejects internal calls, which should be used on connections
+     * where only clients connect to
+     */
+    public static class RejectInternalActionsFilter extends ServerTransportFilter.Node {
+
+        @Inject
+        public RejectInternalActionsFilter(AuthenticationService authcService, AuthorizationService authzService) {
+            super(authcService, authzService);
+        }
+
+        @Override
+        public void inbound(String action, TransportRequest request) {
+            // TODO is ']' sufficient to mark as shard action?
+            boolean isInternalOrShardAction = action.startsWith("internal:") || action.endsWith("]");
+            if (isInternalOrShardAction) {
+                throw new AuthenticationException("Not allowed to execute internal/shard actions");
+            }
+            super.inbound(action, request);
+        }
+    }
+
 }

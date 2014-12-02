@@ -71,12 +71,12 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
     }
 
     @Test
-    public void  testThatStandardTransportClientCanConnectToDefaultProfile() throws Exception {
+    public void testThatStandardTransportClientCanConnectToDefaultProfile() throws Exception {
         assertGreenClusterState(internalCluster().transportClient());
     }
 
     @Test(expected = NoNodeAvailableException.class)
-    public void  testThatStandardTransportClientCannotConnectToClientProfile() throws Exception {
+    public void testThatStandardTransportClientCannotConnectToClientProfile() throws Exception {
         try(TransportClient transportClient = createTransportClient(ImmutableSettings.EMPTY)) {
             transportClient.addTransportAddress(new InetSocketTransportAddress("localhost", randomClientPort));
             transportClient.admin().cluster().prepareHealth().get();
@@ -84,7 +84,7 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
     }
 
     @Test
-    public void  testThatProfileTransportClientCanConnectToClientProfile() throws Exception {
+    public void testThatProfileTransportClientCanConnectToClientProfile() throws Exception {
         Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile");
         try (TransportClient transportClient = createTransportClient(settings)) {
             transportClient.addTransportAddress(new InetSocketTransportAddress("localhost", randomClientPort));
@@ -93,7 +93,7 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
     }
 
     @Test(expected = NoNodeAvailableException.class)
-    public void  testThatProfileTransportClientCannotConnectToDefaultProfile() throws Exception {
+    public void testThatProfileTransportClientCannotConnectToDefaultProfile() throws Exception {
         Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile");
         try (TransportClient transportClient = createTransportClient(settings)) {
             TransportAddress transportAddress = internalCluster().getInstance(Transport.class).boundAddress().boundAddress();

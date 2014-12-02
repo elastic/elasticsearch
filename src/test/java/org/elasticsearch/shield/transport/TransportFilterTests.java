@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -67,9 +68,11 @@ public class TransportFilterTests extends ElasticsearchIntegrationTest {
         targetService.sendRequest(sourceNode, "_action", new Request("trgt_to_src"), new ResponseHandler(new Response("src_to_trgt"), latch));
         await(latch);
 
-        ServerTransportFilter sourceServerFilter = internalCluster().getInstance(ServerTransportFilter.class, source);
+        ServerTransportFilters sourceFilters = internalCluster().getInstance(ServerTransportFilters.class, source);
+        ServerTransportFilter sourceServerFilter = sourceFilters.getTransportFilterForProfile("default");
         ClientTransportFilter sourceClientFilter = internalCluster().getInstance(ClientTransportFilter.class, source);
-        ServerTransportFilter targetServerFilter = internalCluster().getInstance(ServerTransportFilter.class, target);
+        ServerTransportFilters targetFilters = internalCluster().getInstance(ServerTransportFilters.class, target);
+        ServerTransportFilter targetServerFilter = targetFilters.getTransportFilterForProfile("default");
         ClientTransportFilter targetClientFilter = internalCluster().getInstance(ClientTransportFilter.class, target);
         InOrder inOrder = inOrder(sourceServerFilter, sourceClientFilter, targetServerFilter, targetClientFilter);
         inOrder.verify(sourceClientFilter).outbound("_action", new Request("src_to_trgt"));
@@ -99,8 +102,14 @@ public class TransportFilterTests extends ElasticsearchIntegrationTest {
     public static class TestTransportFilterModule extends AbstractModule {
         @Override
         protected void configure() {
-            bind(ServerTransportFilter.class).toInstance(mock(ServerTransportFilter.class));
             bind(ClientTransportFilter.class).toInstance(mock(ClientTransportFilter.class));
+
+            // bind all to our dummy impls
+            MapBinder<String, ServerTransportFilter> mapBinder = MapBinder.newMapBinder(binder(), String.class, ServerTransportFilter.class);
+            mapBinder.addBinding(ServerTransportFilters.SERVER_TRANSPORT_FILTER_TRANSPORT_CLIENT).toInstance(mock(ServerTransportFilter.class));
+            mapBinder.addBinding(ServerTransportFilters.SERVER_TRANSPORT_FILTER_AUTHENTICATE_ONLY).toInstance(mock(ServerTransportFilter.class));
+            mapBinder.addBinding(ServerTransportFilters.SERVER_TRANSPORT_FILTER_AUTHENTICATE_REJECT_INTERNAL_ACTIONS).toInstance(mock(ServerTransportFilter.class));
+            bind(ServerTransportFilters.class).asEagerSingleton();
         }
     }
 

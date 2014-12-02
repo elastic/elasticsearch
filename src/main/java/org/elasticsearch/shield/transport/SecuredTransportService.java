@@ -8,6 +8,8 @@ package org.elasticsearch.shield.transport;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.transport.netty.NettySecuredTransport;
+import org.elasticsearch.shield.transport.netty.SecuredMessageChannelHandler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -16,19 +18,25 @@ import org.elasticsearch.transport.*;
  */
 public class SecuredTransportService extends TransportService {
 
-    private final ServerTransportFilter serverFilter;
     private final ClientTransportFilter clientFilter;
+    private final ServerTransportFilters serverTransportFilters;
 
     @Inject
-    public SecuredTransportService(Settings settings, Transport transport, ThreadPool threadPool, ServerTransportFilter serverFilter, ClientTransportFilter clientFilter) {
+    public SecuredTransportService(Settings settings, Transport transport, ThreadPool threadPool, ClientTransportFilter clientFilter, ServerTransportFilters serverTransportFilters) {
         super(settings, transport, threadPool);
-        this.serverFilter = serverFilter;
         this.clientFilter = clientFilter;
+        this.serverTransportFilters = serverTransportFilters;
     }
 
     @Override
     public void registerHandler(String action, TransportRequestHandler handler) {
-        super.registerHandler(action, new SecuredRequestHandler(action, handler, serverFilter));
+        // Only try to access the profile, if we use netty and SSL
+        // otherwise use the regular secured request handler (this still allows for LocalTransport)
+        if (transport instanceof NettySecuredTransport) {
+            super.registerHandler(action, new ProfileSecuredRequestHandler(action, handler, serverTransportFilters));
+        } else {
+            super.registerHandler(action, new SecuredRequestHandler(action, handler, serverTransportFilters));
+        }
     }
 
     @Override
@@ -41,32 +49,17 @@ public class SecuredTransportService extends TransportService {
         }
     }
 
-    static class SecuredRequestHandler implements TransportRequestHandler {
+    static abstract class AbstractSecuredRequestHandler implements TransportRequestHandler {
 
-        private final String action;
-        private final TransportRequestHandler handler;
-        private final ServerTransportFilter filter;
+        protected TransportRequestHandler handler;
 
-        SecuredRequestHandler(String action, TransportRequestHandler handler, ServerTransportFilter filter) {
-            this.action = action;
+        public AbstractSecuredRequestHandler(TransportRequestHandler handler) {
             this.handler = handler;
-            this.filter = filter;
         }
 
         @Override
         public TransportRequest newInstance() {
             return handler.newInstance();
-        }
-
-        @Override @SuppressWarnings("unchecked")
-        public void messageReceived(TransportRequest request, TransportChannel channel) throws Exception {
-            try {
-                filter.inbound(action, request);
-            } catch (Throwable t) {
-                channel.sendResponse(t);
-                return;
-            }
-            handler.messageReceived(request, channel);
         }
 
         @Override
@@ -77,6 +70,55 @@ public class SecuredTransportService extends TransportService {
         @Override
         public boolean isForceExecution() {
             return handler.isForceExecution();
+        }
+    }
+
+    static class SecuredRequestHandler extends AbstractSecuredRequestHandler {
+
+        protected final String action;
+        protected final ServerTransportFilter transportFilter;
+
+        SecuredRequestHandler(String action, TransportRequestHandler handler, ServerTransportFilters serverTransportFilters) {
+            super(handler);
+            this.action = action;
+            this.transportFilter = serverTransportFilters.getTransportFilterForProfile("default");
+        }
+
+        @Override @SuppressWarnings("unchecked")
+        public void messageReceived(TransportRequest request, TransportChannel channel) throws Exception {
+            try {
+                transportFilter.inbound(action, request);
+            } catch (Throwable t) {
+                channel.sendResponse(t);
+                return;
+            }
+            handler.messageReceived(request, channel);
+        }
+    }
+
+    static class ProfileSecuredRequestHandler extends AbstractSecuredRequestHandler {
+
+        protected final String action;
+        protected final ServerTransportFilters serverTransportFilters;
+
+        ProfileSecuredRequestHandler(String action, TransportRequestHandler handler, ServerTransportFilters serverTransportFilters) {
+            super(handler);
+            this.action = action;
+            this.serverTransportFilters = serverTransportFilters;
+        }
+
+        @Override @SuppressWarnings("unchecked")
+        public void messageReceived(TransportRequest request, TransportChannel channel) throws Exception {
+            try {
+                SecuredMessageChannelHandler.VisibleNettyTransportChannel nettyTransportChannel = (SecuredMessageChannelHandler.VisibleNettyTransportChannel) channel;
+                String profile = nettyTransportChannel.getProfile();
+                ServerTransportFilter filter = serverTransportFilters.getTransportFilterForProfile(profile);
+                filter.inbound(action, request);
+            } catch (Throwable t) {
+                channel.sendResponse(t);
+                return;
+            }
+            handler.messageReceived(request, channel);
         }
     }
 }

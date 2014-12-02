@@ -17,6 +17,7 @@ import org.elasticsearch.transport.local.LocalTransport;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ClusterDiscoveryConfiguration extends SettingsSource {
 
@@ -25,14 +26,11 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
         assert Version.CURRENT.onOrBefore(Version.V_1_4_0) : "Remove this class as the required fixes should have been released with core";
     }
 
-    public static Settings DEFAULT_SETTINGS = ImmutableSettings.settingsBuilder()
-            .put("gateway.type", "local")
-            .put("discovery.type", "zen")
-            .build();
+    static Settings DEFAULT_NODE_SETTINGS = ImmutableSettings.settingsBuilder().put("discovery.type", "zen").build();
 
     final int numOfNodes;
-
-    final Settings baseSettings;
+    final Settings nodeSettings;
+    final Settings transportClientSettings;
 
     public ClusterDiscoveryConfiguration(int numOfNodes) {
         this(numOfNodes, ImmutableSettings.EMPTY);
@@ -40,20 +38,23 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
 
     public ClusterDiscoveryConfiguration(int numOfNodes, Settings extraSettings) {
         this.numOfNodes = numOfNodes;
-        this.baseSettings = ImmutableSettings.builder().put(DEFAULT_SETTINGS).put(extraSettings).build();
+        this.nodeSettings = ImmutableSettings.builder().put(DEFAULT_NODE_SETTINGS).put(extraSettings).build();
+        this.transportClientSettings = ImmutableSettings.builder().put(extraSettings).build();
     }
 
     @Override
     public Settings node(int nodeOrdinal) {
-        return baseSettings;
+        return nodeSettings;
     }
 
     @Override
     public Settings transportClient() {
-        return baseSettings;
+        return transportClientSettings;
     }
 
     public static class UnicastZen extends ClusterDiscoveryConfiguration {
+
+        private static final AtomicInteger portCounter = new AtomicInteger();
 
         private final int[] unicastHostOrdinals;
         private final int basePort;
@@ -100,7 +101,7 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
         private static int calcBasePort(ElasticsearchIntegrationTest.Scope scope) {
             // note that this has properly co-exist with the port logic at InternalTestCluster's constructor
             return 30000 +
-                    1000 * (ElasticsearchIntegrationTest.CHILD_JVM_ID % 60) + // up to 30 jvms
+                    1000 * (ElasticsearchIntegrationTest.CHILD_JVM_ID) + // up to 30 jvms
                     //up to 100 nodes per cluster
                     100 * scopeId(scope);
         }
@@ -113,8 +114,9 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
                     return 0;
                 default:
                     //ports can be reused as suite or test clusters are never run concurrently
-                    //prevent conflicts between jvms by never going above 9
-                    return RandomizedTest.randomIntBetween(1, 9);
+                    //we don't reuse the same port immediately though but leave some time to make sure ports are freed
+                    //reserve 0 to global cluster, prevent conflicts between jvms by never going above 9
+                    return 1 + portCounter.incrementAndGet() % 9;
             }
         }
 
@@ -124,7 +126,7 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
                     .put("discovery.zen.ping.multicast.enabled", false);
 
             String[] unicastHosts = new String[unicastHostOrdinals.length];
-            String mode = baseSettings.get("node.mode", InternalTestCluster.NODE_MODE);
+            String mode = nodeSettings.get("node.mode", InternalTestCluster.NODE_MODE);
             if (mode.equals("local")) {
                 builder.put(LocalTransport.TRANSPORT_LOCAL_ADDRESS, "node_" + nodeOrdinal);
                 for (int i = 0; i < unicastHosts.length; i++) {

@@ -404,7 +404,8 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
             // The connect method creates a new edge for these paired edges in the linked list. 
             // For boundary conditions (e.g., intersect but not crossing) there is no sibling edge 
             // to connect. Thus the following enforces the pairwise rule 
-            if (e1.intersect != Edge.MAX_COORDINATE && e2.intersect != Edge.MAX_COORDINATE) {
+            if (e1.intersect != Edge.MAX_COORDINATE && e2.intersect != Edge.MAX_COORDINATE 
+                    && (e1.next.next.coordinate != e2.coordinate) ) {
                 connect(e1, e2);
             }
         }
@@ -431,7 +432,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
                 in.next = new Edge(in.intersect, out.next, in.intersect);
             }
             out.next = new Edge(out.intersect, e1, out.intersect);
-        } else if (in.next != out){
+        } else if (in.next != out && in.coordinate != out.intersect) {
             // first edge intersects with dateline
             Edge e2 = new Edge(out.intersect, in.next, out.intersect);
 

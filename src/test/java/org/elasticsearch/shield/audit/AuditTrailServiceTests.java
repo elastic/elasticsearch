@@ -11,7 +11,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
-import org.elasticsearch.shield.transport.n2n.ProfileIpFilterRule;
+import org.elasticsearch.shield.transport.filter.ProfileIpFilterRule;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
@@ -21,7 +21,6 @@ import java.net.InetAddress;
 import java.util.Set;
 
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockingDetails;
 import static org.mockito.Mockito.verify;
 
 /**

@@ -16,7 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.shield.ssl.SSLService;
 import org.elasticsearch.shield.ssl.SSLServiceProvider;
-import org.elasticsearch.shield.transport.n2n.IPFilteringN2NAuthenticator;
+import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty.NettyTransport;
 
@@ -28,11 +28,12 @@ import javax.net.ssl.SSLEngine;
 public class NettySecuredTransport extends NettyTransport {
 
     private final @Nullable SSLService sslService;
-    private final @Nullable IPFilteringN2NAuthenticator authenticator;
+    private final @Nullable
+    IPFilter authenticator;
 
     @Inject
     public NettySecuredTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version,
-                                 @Nullable IPFilteringN2NAuthenticator authenticator, SSLServiceProvider sslServiceProvider) {
+                                 @Nullable IPFilter authenticator, SSLServiceProvider sslServiceProvider) {
         super(settings, threadPool, networkService, bigArrays, version);
         this.authenticator = authenticator;
         boolean ssl = settings.getAsBoolean("shield.transport.ssl", false);
@@ -75,7 +76,7 @@ public class NettySecuredTransport extends NettyTransport {
                 pipeline.replace("dispatcher", "dispatcher", new SecuredMessageChannelHandler(nettyTransport, logger));
             }
             if (authenticator != null) {
-                pipeline.addFirst("ipfilter", new N2NNettyUpstreamHandler(authenticator, name));
+                pipeline.addFirst("ipfilter", new NettyIPFilterUpstreamHandler(authenticator, name));
             }
             return pipeline;
         }

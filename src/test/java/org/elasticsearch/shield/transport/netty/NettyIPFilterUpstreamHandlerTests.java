@@ -9,7 +9,7 @@ import com.google.common.net.InetAddresses;
 import org.elasticsearch.common.netty.channel.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.audit.AuditTrail;
-import org.elasticsearch.shield.transport.n2n.IPFilteringN2NAuthenticator;
+import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
 import org.junit.Test;
@@ -23,9 +23,9 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-public class N2NNettyUpstreamHandlerTests extends ElasticsearchTestCase {
+public class NettyIPFilterUpstreamHandlerTests extends ElasticsearchTestCase {
 
-    private N2NNettyUpstreamHandler nettyUpstreamHandler;
+    private NettyIPFilterUpstreamHandler nettyUpstreamHandler;
 
     @Before
     public void init() throws Exception {
@@ -34,9 +34,9 @@ public class N2NNettyUpstreamHandlerTests extends ElasticsearchTestCase {
                 .put("shield.transport.filter.deny", "10.0.0.0/8")
                 .build();
 
-        IPFilteringN2NAuthenticator ipFilteringN2NAuthenticator = new IPFilteringN2NAuthenticator(settings, AuditTrail.NOOP);
+        IPFilter ipFilter = new IPFilter(settings, AuditTrail.NOOP);
 
-        nettyUpstreamHandler = new N2NNettyUpstreamHandler(ipFilteringN2NAuthenticator, "default");
+        nettyUpstreamHandler = new NettyIPFilterUpstreamHandler(ipFilter, "default");
     }
 
     @Test

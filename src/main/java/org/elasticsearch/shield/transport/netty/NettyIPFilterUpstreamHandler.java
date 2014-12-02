@@ -9,7 +9,7 @@ import org.elasticsearch.common.netty.channel.ChannelEvent;
 import org.elasticsearch.common.netty.channel.ChannelHandler;
 import org.elasticsearch.common.netty.channel.ChannelHandlerContext;
 import org.elasticsearch.common.netty.handler.ipfilter.IpFilteringHandlerImpl;
-import org.elasticsearch.shield.transport.n2n.IPFilteringN2NAuthenticator;
+import org.elasticsearch.shield.transport.filter.IPFilter;
 
 import java.net.InetSocketAddress;
 
@@ -17,20 +17,20 @@ import java.net.InetSocketAddress;
  *
  */
 @ChannelHandler.Sharable
-public class N2NNettyUpstreamHandler extends IpFilteringHandlerImpl {
+public class NettyIPFilterUpstreamHandler extends IpFilteringHandlerImpl {
 
-    private final IPFilteringN2NAuthenticator authenticator;
+    private final IPFilter filter;
     private final String profile;
 
-    public N2NNettyUpstreamHandler(IPFilteringN2NAuthenticator authenticator, String profile) {
-        this.authenticator = authenticator;
+    public NettyIPFilterUpstreamHandler(IPFilter filter, String profile) {
+        this.filter = filter;
         this.profile = profile;
     }
 
     @Override
     protected boolean accept(ChannelHandlerContext channelHandlerContext, ChannelEvent channelEvent, InetSocketAddress inetSocketAddress) throws Exception {
         // at this stage no auth has happened, so we do not have any principal anyway
-        return authenticator.authenticate(null, profile, inetSocketAddress.getAddress(), inetSocketAddress.getPort());
+        return filter.accept(profile, inetSocketAddress.getAddress());
     }
 
 }

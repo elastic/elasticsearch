@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.transport.n2n;
+package org.elasticsearch.shield.transport.filter;
 
 import com.google.common.base.Charsets;
 import org.apache.lucene.util.LuceneTestCase;

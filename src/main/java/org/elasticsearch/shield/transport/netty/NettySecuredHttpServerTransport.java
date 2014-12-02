@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.transport.netty;
 
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.netty.channel.ChannelPipeline;
 import org.elasticsearch.common.netty.channel.ChannelPipelineFactory;
@@ -17,7 +16,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.shield.ssl.SSLService;
 import org.elasticsearch.shield.ssl.SSLServiceProvider;
-import org.elasticsearch.shield.transport.n2n.IPFilteringN2NAuthenticator;
+import org.elasticsearch.shield.transport.filter.IPFilter;
 
 import javax.net.ssl.SSLEngine;
 
@@ -26,14 +25,14 @@ import javax.net.ssl.SSLEngine;
  */
 public class NettySecuredHttpServerTransport extends NettyHttpServerTransport {
 
-    private final IPFilteringN2NAuthenticator authenticator;
+    private final IPFilter ipFilter;
     private final @Nullable SSLService sslService;
 
     @Inject
     public NettySecuredHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
-                                           IPFilteringN2NAuthenticator authenticator, SSLServiceProvider sslServiceProvider) {
+                                           IPFilter ipFilter, SSLServiceProvider sslServiceProvider) {
         super(settings, networkService, bigArrays);
-        this.authenticator = authenticator;
+        this.ipFilter = ipFilter;
         this.sslService = settings.getAsBoolean("shield.http.ssl", false) ? sslServiceProvider.get() : null;
     }
 
@@ -58,7 +57,7 @@ public class NettySecuredHttpServerTransport extends NettyHttpServerTransport {
 
                 pipeline.addFirst("ssl", new SslHandler(engine));
             }
-            pipeline.addFirst("ipfilter", new N2NNettyUpstreamHandler(authenticator, "default"));
+            pipeline.addFirst("ipfilter", new NettyIPFilterUpstreamHandler(ipFilter, "default"));
             return pipeline;
         }
     }

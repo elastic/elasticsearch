@@ -50,10 +50,6 @@ public class BasicAnalysisBackwardCompatibilityTests extends ElasticsearchBackwa
      */
     @Test
     public void testAnalyzerTokensAfterUpgrade() throws IOException, ExecutionException, InterruptedException {
-        // certain analyzers, namely PatternAnalyzer, have had issues with turkish and azuri
-        assumeFalse("Do not use turkish and azuri locales",
-                    Locale.getDefault().getLanguage().equals("tr") || Locale.getDefault().getLanguage().equals("az"));
-        
         int numFields = randomIntBetween(PreBuiltAnalyzers.values().length, PreBuiltAnalyzers.values().length * 10);
         String[] fields = new String[numFields * 2];
         int fieldId = 0;
@@ -114,6 +110,12 @@ public class BasicAnalysisBackwardCompatibilityTests extends ElasticsearchBackwa
             PreBuiltAnalyzers preBuiltAnalyzers = RandomPicks.randomFrom(getRandom(), PreBuiltAnalyzers.values());
             if (preBuiltAnalyzers == PreBuiltAnalyzers.SORANI && compatibilityVersion().before(Version.V_1_3_0)) {
                 continue; // SORANI was added in 1.3.0
+            }
+            if (preBuiltAnalyzers == PreBuiltAnalyzers.PATTERN) {
+                // certain analyzers, namely PatternAnalyzer, have had issues with turkish, azuri and lithuanian
+                assumeFalse("Do not use turkish, azuri or lithuanian locales",
+                        Locale.getDefault().getLanguage().equals("tr") || Locale.getDefault().getLanguage().equals("az")
+                || Locale.getDefault().getLanguage().equals("lt"));
             }
             return preBuiltAnalyzers.name().toLowerCase(Locale.ROOT);
         }

@@ -50,6 +50,7 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTest {
     
@@ -86,7 +87,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
             exceptionRate = 0d;
             exceptionOnOpenRate = 0d;
         }
-        boolean createIndexWithoutErrors = randomBoolean();
+        final boolean createIndexWithoutErrors = randomBoolean();
         long numInitialDocs = 0;
 
         if (createIndexWithoutErrors) {
@@ -101,7 +102,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
             numInitialDocs = between(10, 100);
             ensureGreen();
             for (int i = 0; i < numInitialDocs ; i++) {
-                client().prepareIndex("test", "initial", "" + i).setSource("test", "init").get();
+                client().prepareIndex("test", "type", "init" + i).setSource("test", "init").get();
             }
             client().admin().indices().prepareRefresh("test").execute().get();
             client().admin().indices().prepareFlush("test").execute().get();
@@ -173,7 +174,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
                 searchResponse = client().prepareSearch().setTypes("type").setQuery(QueryBuilders.matchAllQuery()).get();
                 logger.info("Match all Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), numShards.numPrimaries);
                 if (searchResponse.getSuccessfulShards() == numShards.numPrimaries && !refreshFailed) {
-                    assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(numCreated));
+                    assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(numCreated + numInitialDocs));
                 }
             } catch (SearchPhaseExecutionException ex) {
                 logger.info("SearchPhaseException: [{}]", ex.getMessage());
@@ -192,7 +193,8 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
                     .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, 0));
             client().admin().indices().prepareOpen("test").execute().get();
             ensureGreen();
-            SearchResponse searchResponse = client().prepareSearch().setTypes("initial").setQuery(QueryBuilders.matchQuery("test", "init")).get();
+            SearchResponse searchResponse = client().prepareSearch().setTypes("type").setQuery(QueryBuilders.matchQuery("test", "init")).get();
+            assertNoFailures(searchResponse);
             assertHitCount(searchResponse, numInitialDocs);
         }
     }

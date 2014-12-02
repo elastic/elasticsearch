@@ -183,7 +183,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                 return 0;
             }
         };
-        return new Store(shardId, EMPTY_SETTINGS, null, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
+        return new Store(shardId, EMPTY_SETTINGS, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
     }
 
     protected Store createStoreReplica() throws IOException {
@@ -199,7 +199,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                 return 0;
             }
         };
-        return new Store(shardId, EMPTY_SETTINGS, null, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
+        return new Store(shardId, EMPTY_SETTINGS, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
     }
 
     protected Translog createTranslog() throws IOException {

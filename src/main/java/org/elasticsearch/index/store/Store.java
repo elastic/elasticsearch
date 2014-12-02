@@ -88,7 +88,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private static final String CORRUPTED = "corrupted_";
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
-    private final CodecService codecService;
     private final DirectoryService directoryService;
     private final StoreDirectory directory;
     private final ReentrantReadWriteLock metadataLock = new ReentrantReadWriteLock();
@@ -104,9 +103,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private volatile OnCloseListener onClose;
 
     @Inject
-    public Store(ShardId shardId, @IndexSettings Settings indexSettings, CodecService codecService, DirectoryService directoryService, Distributor distributor, ShardLock shardLock) throws IOException {
+    public Store(ShardId shardId, @IndexSettings Settings indexSettings, DirectoryService directoryService, Distributor distributor, ShardLock shardLock) throws IOException {
         super(shardId, indexSettings);
-        this.codecService = codecService;
         this.directoryService = directoryService;
         this.directory = new StoreDirectory(directoryService.newFromDistributor(distributor));
         this.shardLock = shardLock;

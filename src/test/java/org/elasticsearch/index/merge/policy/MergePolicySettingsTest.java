@@ -184,7 +184,7 @@ public class MergePolicySettingsTest extends ElasticsearchTestCase {
                 return 0;
             }
         };
-        return new Store(shardId, settings, null, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
+        return new Store(shardId, settings, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
     }
 
 }

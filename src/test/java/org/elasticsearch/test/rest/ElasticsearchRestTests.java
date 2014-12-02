@@ -47,9 +47,7 @@ import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Runs the clients test suite against an elasticsearch cluster.
@@ -130,12 +128,10 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
         String[] paths = resolvePathsProperty(REST_TESTS_SUITE, DEFAULT_TESTS_PATH);
         Map<String, Set<File>> yamlSuites = FileUtils.findYamlSuites(DEFAULT_TESTS_PATH, paths);
 
-        //yaml suites are grouped by directory (effectively by api)
-        List<String> apis = Lists.newArrayList(yamlSuites.keySet());
-
         List<RestTestCandidate> testCandidates = Lists.newArrayList();
         RestTestSuiteParser restTestSuiteParser = new RestTestSuiteParser();
-        for (String api : apis) {
+        //yaml suites are grouped by directory (effectively by api)
+        for (String api : yamlSuites.keySet()) {
             List<File> yamlFiles = Lists.newArrayList(yamlSuites.get(api));
             for (File yamlFile : yamlFiles) {
                 //tests distribution disabled for now since it causes reporting problems,
@@ -148,6 +144,15 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
                 //}
             }
         }
+
+        //sort the candidates so they will always be in the same order before being shuffled, for repeatability
+        Collections.sort(testCandidates, new Comparator<RestTestCandidate>() {
+            @Override
+            public int compare(RestTestCandidate o1, RestTestCandidate o2) {
+                return o1.getTestPath().compareTo(o2.getTestPath());
+            }
+        });
+
         return testCandidates;
     }
 

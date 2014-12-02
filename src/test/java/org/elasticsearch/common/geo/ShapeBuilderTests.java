@@ -246,40 +246,40 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
 
         // a giant c shape
         PolygonBuilder builder = ShapeBuilder.newPolygon()
-            .point(-186,0)
-            .point(-176,0)
-            .point(-176,3)
-            .point(-183,3)
-            .point(-183,5)
-            .point(-176,5)
-            .point(-176,8)
-            .point(-186,8)
-            .point(-186,0);
+                .point(174,0)
+                .point(-176,0)
+                .point(-176,3)
+                .point(177,3)
+                .point(177,5)
+                .point(-176,5)
+                .point(-176,8)
+                .point(174,8)
+                .point(174,0);
 
         // 3/4 of an embedded 'c', crossing dateline once
         builder.hole()
-            .point(-185,1)
-            .point(-181,1)
-            .point(-181,2)
-            .point(-184,2)
-            .point(-184,6)
-            .point(-178,6)
-            .point(-178,7)
-            .point(-185,7)
-            .point(-185,1);
+                .point(175, 1)
+                .point(175, 7)
+                .point(-178, 7)
+                .point(-178, 6)
+                .point(176, 6)
+                .point(176, 2)
+                .point(179, 2)
+                .point(179,1)
+                .point(175, 1);
 
         // embedded hole right of the dateline
         builder.hole()
-            .point(-179,1)
-            .point(-177,1)
-            .point(-177,2)
-            .point(-179,2)
-            .point(-179,1);
+                .point(-179, 1)
+                .point(-179, 2)
+                .point(-177, 2)
+                .point(-177,1)
+                .point(-179,1);
 
         Shape shape = builder.close().build();
 
-         assertMultiPolygon(shape);
-     }
+        assertMultiPolygon(shape);
+    }
 
     @Test
     public void testComplexShapeWithHole() {
@@ -443,9 +443,9 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
                 .point(-172,0);
         builder.hole()
                 .point(-176, 10)
-                .point(-180, 5)
-                .point(-180, -5)
                 .point(-176, -10)
+                .point(-180, -5)
+                .point(-180, 5)
                 .point(-176, 10);
         shape = builder.close().build();
         assertMultiPolygon(shape);
@@ -468,7 +468,8 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testShapeWithEdgeAcrossDateline() {
+    public void testShapeWithAlternateOrientation() {
+        // ccw: should produce a single polygon spanning hemispheres
         PolygonBuilder builder = ShapeBuilder.newPolygon()
                 .point(180, 0)
                 .point(176, 4)
@@ -476,7 +477,17 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
                 .point(180, 0);
 
         Shape shape = builder.close().build();
+        assertPolygon(shape);
 
-         assertPolygon(shape);
+        // cw: geo core will convert to ccw across the dateline
+        builder = ShapeBuilder.newPolygon()
+                .point(180, 0)
+                .point(-176, 4)
+                .point(176, 4)
+                .point(180, 0);
+
+        shape = builder.close().build();
+
+        assertMultiPolygon(shape);
      }
 }

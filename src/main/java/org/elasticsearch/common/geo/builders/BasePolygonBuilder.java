@@ -125,10 +125,9 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
 
         Edge[] edges = new Edge[numEdges];
         Edge[] holeComponents = new Edge[holes.size()];
-
-        int offset = createEdges(0, false, shell, edges, 0);
+        int offset = createEdges(0, false, shell, null, edges, 0);
         for (int i = 0; i < holes.size(); i++) {
-            int length = createEdges(i+1, true, this.holes.get(i), edges, offset);
+            int length = createEdges(i+1, true, shell, this.holes.get(i), edges, offset);
             holeComponents[i] = edges[offset];
             offset += length;
         }
@@ -396,16 +395,20 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
                 holes[numHoles] = null;
             }
             // only connect edges if intersections are pairwise 
-            // per the comment above, the edge array is sorted by y-value of the intersection
+            // 1. per the comment above, the edge array is sorted by y-value of the intersection
             // with the dateline.  Two edges have the same y intercept when they cross the 
             // dateline thus they appear sequentially (pairwise) in the edge array. Two edges
             // do not have the same y intercept when we're forming a multi-poly from a poly
             // that wraps the dateline (but there are 2 ordered intercepts).  
             // The connect method creates a new edge for these paired edges in the linked list. 
             // For boundary conditions (e.g., intersect but not crossing) there is no sibling edge 
-            // to connect. Thus the following enforces the pairwise rule 
+            // to connect. Thus the first logic check enforces the pairwise rule
+            // 2. the second logic ensures the two candidate edges aren't already connected by an
+            //    existing along the dateline - this is necessary due to a logic change that
+            //    computes dateline edges as valid intersect points in support of OGC standards
             if (e1.intersect != Edge.MAX_COORDINATE && e2.intersect != Edge.MAX_COORDINATE 
-                    && (e1.next.next.coordinate != e2.coordinate) ) {
+                    && !(e1.next.next.coordinate.equals3D(e2.coordinate) && Math.abs(e1.next.coordinate.x) == DATELINE
+                    && Math.abs(e2.coordinate.x) == DATELINE) ) {
                 connect(e1, e2);
             }
         }
@@ -449,9 +452,11 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         }
     }
 
-    private static int createEdges(int component, boolean direction, BaseLineStringBuilder<?> line, Edge[] edges, int offset) {
-        Coordinate[] points = line.coordinates(false); // last point is repeated 
-        Edge.ring(component, direction, points, 0, edges, offset, points.length-1);
+    private static int createEdges(int component, boolean direction, BaseLineStringBuilder<?> shell, BaseLineStringBuilder<?> hole,
+                                   Edge[] edges, int offset) {
+        // set the points array accordingly (shell or hole)
+        Coordinate[] points = (hole != null) ? hole.coordinates(false) : shell.coordinates(false);
+        Edge.ring(component, direction, shell, points, 0, edges, offset, points.length-1);
         return points.length-1;
     }
 

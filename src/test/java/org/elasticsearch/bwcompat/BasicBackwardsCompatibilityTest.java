@@ -276,7 +276,6 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
      * Upgrades a single node to the current version
      */
     @Test
-    @TestLogging("org.elasticsearch.index.gateway.local:TRACE")
     public void testIndexUpgradeSingleNode() throws Exception {
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings())));
         ensureYellow();

@@ -22,6 +22,7 @@ package org.elasticsearch.common.lucene.search.function;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
@@ -96,7 +97,11 @@ public class ScriptScoreFunction extends ScoreFunction {
         script.setNextDocId(docId);
         scorer.docid = docId;
         scorer.score = subQueryScore;
-        return script.runAsDouble();
+        double result = script.runAsDouble();
+        if (Double.isNaN(result)) {
+            throw new ScriptException("script_score returned NaN");
+        }
+        return result;
     }
 
     @Override

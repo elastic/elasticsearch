@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -47,6 +48,7 @@ public class FunctionScoreBackwardCompatibilityTests extends ElasticsearchBackwa
      * Simple upgrade test for function score
      */
     @Test
+    @TestLogging("org.elasticsearch.index.gateway.local:TRACE")
     public void testSimpleFunctionScoreParsingWorks() throws IOException, ExecutionException, InterruptedException {
 
         assertAcked(prepareCreate("test").addMapping(

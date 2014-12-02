@@ -276,6 +276,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
      * Upgrades a single node to the current version
      */
     @Test
+    @TestLogging("org.elasticsearch.index.gateway.local:TRACE")
     public void testIndexUpgradeSingleNode() throws Exception {
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings())));
         ensureYellow();
@@ -315,6 +316,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
      * that all documents are still around after each nodes upgrade.
      */
     @Test
+    @TestLogging("org.elasticsearch.index.gateway.local:TRACE")
     public void testIndexRollingUpgrade() throws Exception {
         String[] indices = new String[randomIntBetween(1, 3)];
         for (int i = 0; i < indices.length; i++) {
@@ -412,6 +414,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
      * this test is basically copied from SimpleQueryTests...
      */
     @Test
+    @TestLogging("org.elasticsearch.index.gateway.local:TRACE")
     public void testExistsFilter() throws IOException, ExecutionException, InterruptedException {
         assumeTrue("this test fails often with 1.0.3 skipping for now....", compatibilityVersion().onOrAfter(Version.V_1_1_0));
         int indexId = 0;

@@ -57,7 +57,7 @@ public class NettySecuredHttpServerTransport extends NettyHttpServerTransport {
 
                 pipeline.addFirst("ssl", new SslHandler(engine));
             }
-            pipeline.addFirst("ipfilter", new NettyIPFilterUpstreamHandler(ipFilter, "default"));
+            pipeline.addFirst("ipfilter", new NettyIPFilterUpstreamHandler(ipFilter, IPFilter.HTTP_PROFILE_NAME));
             return pipeline;
         }
     }

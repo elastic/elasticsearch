@@ -36,7 +36,7 @@ public class NettyIPFilterUpstreamHandlerTests extends ElasticsearchTestCase {
 
         IPFilter ipFilter = new IPFilter(settings, AuditTrail.NOOP);
 
-        nettyUpstreamHandler = new NettyIPFilterUpstreamHandler(ipFilter, "default");
+        nettyUpstreamHandler = new NettyIPFilterUpstreamHandler(ipFilter, IPFilter.HTTP_PROFILE_NAME);
     }
 
     @Test

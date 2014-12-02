@@ -122,6 +122,32 @@ public class IPFilterTests extends ElasticsearchTestCase {
         assertAddressIsAllowed("10.0.0.2");
     }
 
+    @Test
+    public void testThatHttpWorks() throws Exception {
+        Settings settings = settingsBuilder()
+                .put("shield.transport.filter.allow", "127.0.0.1")
+                .put("shield.transport.filter.deny", "10.0.0.0/8")
+                .put("shield.http.filter.allow", "10.0.0.0/8")
+                .put("shield.http.filter.deny", "127.0.0.1")
+                .build();
+        ipFilter = new IPFilter(settings, auditTrail);
+
+        assertAddressIsAllowedForProfile(IPFilter.HTTP_PROFILE_NAME, "10.2.3.4");
+        assertAddressIsDeniedForProfile(IPFilter.HTTP_PROFILE_NAME, "127.0.0.1");
+    }
+
+    @Test
+    public void testThatHttpFallsbackToDefault() throws Exception {
+        Settings settings = settingsBuilder()
+                .put("shield.transport.filter.allow", "127.0.0.1")
+                .put("shield.transport.filter.deny", "10.0.0.0/8")
+                .build();
+        ipFilter = new IPFilter(settings, auditTrail);
+
+        assertAddressIsAllowedForProfile(IPFilter.HTTP_PROFILE_NAME, "127.0.0.1");
+        assertAddressIsDeniedForProfile(IPFilter.HTTP_PROFILE_NAME, "10.2.3.4");
+    }
+
     private void assertAddressIsAllowedForProfile(String profile, String ... inetAddresses) {
         for (String inetAddress : inetAddresses) {
             String message = String.format(Locale.ROOT, "Expected address %s to be allowed", inetAddress);

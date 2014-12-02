@@ -27,6 +27,14 @@ import java.util.Map;
 
 public class IPFilter extends AbstractComponent {
 
+    /**
+     * .http has been chosen for handling HTTP filters, which are not part of the profiles
+     * The profiles are only handled for the transport protocol, so we need an own kind of profile
+     * for HTTP. This name starts withs a dot, because no profile name can ever start like that due to
+     * how we handle settings
+     */
+    public static final String HTTP_PROFILE_NAME = ".http";
+
     private static final ProfileIpFilterRule[] NO_RULES = new ProfileIpFilterRule[0];
     private static final ProfileIpFilterRule ACCEPT_ALL_RULE = new ProfileIpFilterRule("default",
             new PatternRule(true, "n:*"), "DEFAULT_ACCEPT_ALL");
@@ -46,6 +54,7 @@ public class IPFilter extends AbstractComponent {
         if (rules == NO_RULES) {
             return true;
         }
+
         for (ProfileIpFilterRule rule : rules) {
             if (rule.contains(profile, peerAddress)) {
                 boolean isAllowed = rule.isAllowRule();
@@ -68,11 +77,15 @@ public class IPFilter extends AbstractComponent {
         }
         String[] allowed = settings.getAsArray("shield.transport.filter.allow");
         String[] denied = settings.getAsArray("shield.transport.filter.deny");
+        String[] httpAllowed = settings.getAsArray("shield.http.filter.allow", settings.getAsArray("transport.profiles.default.shield.filter.allow", settings.getAsArray("shield.transport.filter.allow")));
+        String[] httpDdenied = settings.getAsArray("shield.http.filter.deny", settings.getAsArray("transport.profiles.default.shield.filter.deny", settings.getAsArray("shield.transport.filter.deny")));
         List<ProfileIpFilterRule> rules = new ArrayList<>();
 
         try {
             rules.addAll(parseValue(allowed, "default", true));
             rules.addAll(parseValue(denied, "default", false));
+            rules.addAll(parseValue(httpAllowed, HTTP_PROFILE_NAME, true));
+            rules.addAll(parseValue(httpDdenied, HTTP_PROFILE_NAME, false));
 
             Map<String, Settings> groupedSettings = settings.getGroups("transport.profiles.");
             for (Map.Entry<String, Settings> entry : groupedSettings.entrySet()) {
@@ -109,5 +122,4 @@ public class IPFilter extends AbstractComponent {
         String prefix = isInetAddress ? "i:" : "n:";
         return new PatternRule(isAllowRule, prefix + value);
     }
-
 }

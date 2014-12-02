@@ -40,16 +40,18 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CancelableThreads;
+import org.elasticsearch.common.util.CancelableThreads.Interruptable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
@@ -59,9 +61,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -90,12 +90,17 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
     private final RecoveryResponse response;
     private final CancelableThreads cancelableThreads = new CancelableThreads() {
         @Override
-        protected void fail(String reason) {
+        protected void fail(String reason, @Nullable Throwable suppressedException) {
+            RuntimeException e;
             if (shard.state() == IndexShardState.CLOSED) { // check if the shard got closed on us
-                throw new IndexShardClosedException(shard.shardId(), "shard is closed and recovery was canceled reason [" + reason + "]");
+                e = new IndexShardClosedException(shard.shardId(), "shard is closed and recovery was canceled reason [" + reason + "]");
             } else {
-                throw new ElasticsearchException("recovery was canceled reason [" + reason + "]");
+                e = new ExecutionCancelledException("recovery was canceled reason [" + reason + "]");
             }
+            if (suppressedException != null) {
+                e.addSuppressed(suppressedException);
+            }
+            throw e;
         }
     };
 
@@ -631,61 +636,6 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
      */
     public void cancel(String reason) {
         cancelableThreads.cancel(reason);
-    }
-
-    private static abstract class CancelableThreads {
-        private final Set<Thread> threads = new HashSet<>();
-        private boolean canceled = false;
-        private String reason;
-
-        public synchronized boolean isCanceled() {
-            return canceled;
-        }
-
-
-        public synchronized void failIfCanceled() {
-            if (isCanceled()) {
-                fail(reason);
-            }
-        }
-
-        protected abstract  void fail(String reason);
-
-        private synchronized void add() {
-            failIfCanceled();
-            threads.add(Thread.currentThread());
-        }
-
-        public void run(Interruptable interruptable) {
-            add();
-            try {
-                interruptable.run();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } finally {
-                remove();
-            }
-        }
-
-        private synchronized void remove() {
-            threads.remove(Thread.currentThread());
-            failIfCanceled();
-        }
-
-        public synchronized void cancel(String reason) {
-            canceled = true;
-            this.reason = reason;
-            for (Thread thread : threads) {
-                thread.interrupt();
-            }
-            threads.clear();
-        }
-
-
-    }
-
-    interface Interruptable {
-        public void run() throws InterruptedException;
     }
 
     @Override

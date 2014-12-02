@@ -33,14 +33,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CancelableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
-import org.elasticsearch.index.shard.IndexShardClosedException;
-import org.elasticsearch.index.shard.IndexShardNotStartedException;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
@@ -160,43 +157,48 @@ public class RecoveryTarget extends AbstractComponent {
                     new RecoveryFailedException(recoveryStatus.state(), "failed to list local files", e), true);
             return;
         }
-        StartRecoveryRequest request = new StartRecoveryRequest(recoveryStatus.shardId(), recoveryStatus.sourceNode(), clusterService.localNode(),
+        final StartRecoveryRequest request = new StartRecoveryRequest(recoveryStatus.shardId(), recoveryStatus.sourceNode(), clusterService.localNode(),
                 false, existingFiles, recoveryStatus.state().getType(), recoveryStatus.recoveryId());
 
         try {
             logger.trace("[{}][{}] starting recovery from {}", request.shardId().index().name(), request.shardId().id(), request.sourceNode());
 
             StopWatch stopWatch = new StopWatch().start();
-            recoveryStatus.setWaitingRecoveryThread(Thread.currentThread());
-
-            RecoveryResponse recoveryResponse = transportService.submitRequest(request.sourceNode(), RecoverySource.Actions.START_RECOVERY, request, new FutureTransportResponseHandler<RecoveryResponse>() {
+            final RecoveryResponse[] recoveryResponse = new RecoveryResponse[1];
+            recoveryStatus.cancelableThreads().run(new CancelableThreads.Interruptable() {
                 @Override
-                public RecoveryResponse newInstance() {
-                    return new RecoveryResponse();
+                public void run() throws InterruptedException {
+                    recoveryResponse[0] = transportService.submitRequest(request.sourceNode(), RecoverySource.Actions.START_RECOVERY, request, new FutureTransportResponseHandler<RecoveryResponse>() {
+                        @Override
+                        public RecoveryResponse newInstance() {
+                            return new RecoveryResponse();
+                        }
+                    }).txGet();
                 }
-            }).txGet();
-            recoveryStatus.clearWaitingRecoveryThread(Thread.currentThread());
+            });
             stopWatch.stop();
             if (logger.isTraceEnabled()) {
                 StringBuilder sb = new StringBuilder();
                 sb.append('[').append(request.shardId().index().name()).append(']').append('[').append(request.shardId().id()).append("] ");
                 sb.append("recovery completed from ").append(request.sourceNode()).append(", took[").append(stopWatch.totalTime()).append("]\n");
-                sb.append("   phase1: recovered_files [").append(recoveryResponse.phase1FileNames.size()).append("]").append(" with total_size of [").append(new ByteSizeValue(recoveryResponse.phase1TotalSize)).append("]")
-                        .append(", took [").append(timeValueMillis(recoveryResponse.phase1Time)).append("], throttling_wait [").append(timeValueMillis(recoveryResponse.phase1ThrottlingWaitTime)).append(']')
+                sb.append("   phase1: recovered_files [").append(recoveryResponse[0].phase1FileNames.size()).append("]").append(" with total_size of [").append(new ByteSizeValue(recoveryResponse[0].phase1TotalSize)).append("]")
+                        .append(", took [").append(timeValueMillis(recoveryResponse[0].phase1Time)).append("], throttling_wait [").append(timeValueMillis(recoveryResponse[0].phase1ThrottlingWaitTime)).append(']')
                         .append("\n");
-                sb.append("         : reusing_files   [").append(recoveryResponse.phase1ExistingFileNames.size()).append("] with total_size of [").append(new ByteSizeValue(recoveryResponse.phase1ExistingTotalSize)).append("]\n");
-                sb.append("   phase2: start took [").append(timeValueMillis(recoveryResponse.startTime)).append("]\n");
-                sb.append("         : recovered [").append(recoveryResponse.phase2Operations).append("]").append(" transaction log operations")
-                        .append(", took [").append(timeValueMillis(recoveryResponse.phase2Time)).append("]")
+                sb.append("         : reusing_files   [").append(recoveryResponse[0].phase1ExistingFileNames.size()).append("] with total_size of [").append(new ByteSizeValue(recoveryResponse[0].phase1ExistingTotalSize)).append("]\n");
+                sb.append("   phase2: start took [").append(timeValueMillis(recoveryResponse[0].startTime)).append("]\n");
+                sb.append("         : recovered [").append(recoveryResponse[0].phase2Operations).append("]").append(" transaction log operations")
+                        .append(", took [").append(timeValueMillis(recoveryResponse[0].phase2Time)).append("]")
                         .append("\n");
-                sb.append("   phase3: recovered [").append(recoveryResponse.phase3Operations).append("]").append(" transaction log operations")
-                        .append(", took [").append(timeValueMillis(recoveryResponse.phase3Time)).append("]");
+                sb.append("   phase3: recovered [").append(recoveryResponse[0].phase3Operations).append("]").append(" transaction log operations")
+                        .append(", took [").append(timeValueMillis(recoveryResponse[0].phase3Time)).append("]");
                 logger.trace(sb.toString());
             } else if (logger.isDebugEnabled()) {
                 logger.debug("{} recovery completed from [{}], took [{}]", request.shardId(), request.sourceNode(), stopWatch.totalTime());
             }
             // do this through ongoing recoveries to remove it from the collection
             onGoingRecoveries.markRecoveryAsDone(recoveryStatus.recoveryId());
+        } catch (CancelableThreads.ExecutionCancelledException e) {
+            logger.trace("recovery canceled", e);
         } catch (Throwable e) {
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}][{}] Got exception on recovery", e, request.shardId().index().name(), request.shardId().id());
@@ -478,8 +480,6 @@ public class RecoveryTarget extends AbstractComponent {
             try {
                 doRecovery(statusRef.status());
             } finally {
-                // make sure we never interrupt the thread after we have released it back to the pool
-                statusRef.status().clearWaitingRecoveryThread(Thread.currentThread());
                 statusRef.close();
             }
         }

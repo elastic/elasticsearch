@@ -21,15 +21,15 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.CancelableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 
@@ -40,7 +40,6 @@ import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  *
@@ -64,12 +63,12 @@ public class RecoveryStatus extends AbstractRefCounted {
     private final Store store;
     private final RecoveryTarget.RecoveryListener listener;
 
-    private AtomicReference<Thread> waitingRecoveryThread = new AtomicReference<>();
-
     private final AtomicBoolean finished = new AtomicBoolean();
 
     private final ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
     private final Store.LegacyChecksums legacyChecksums = new Store.LegacyChecksums();
+
+    private final CancelableThreads cancelableThreads = new CancelableThreads();
 
     public RecoveryStatus(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryState state, RecoveryTarget.RecoveryListener listener) {
         super("recovery_status");
@@ -110,23 +109,13 @@ public class RecoveryStatus extends AbstractRefCounted {
         return state;
     }
 
+    public CancelableThreads cancelableThreads() {
+        return cancelableThreads;
+    }
+
     public Store store() {
         ensureRefCount();
         return store;
-    }
-
-    /** set a thread that should be interrupted if the recovery is canceled */
-    public void setWaitingRecoveryThread(Thread thread) {
-        ensureRefCount();
-        waitingRecoveryThread.set(thread);
-    }
-
-    /**
-     * clear the thread set by {@link #setWaitingRecoveryThread(Thread)}, making sure we
-     * do not override another thread.
-     */
-    public void clearWaitingRecoveryThread(Thread threadToClear) {
-        waitingRecoveryThread.compareAndSet(threadToClear, null);
     }
 
     public void stage(RecoveryState.Stage stage) {
@@ -147,22 +136,21 @@ public class RecoveryStatus extends AbstractRefCounted {
         store.renameFilesSafe(tempFileNames);
     }
 
-    /** cancel the recovery. calling this method will clean temporary files and release the store
+    /**
+     * cancel the recovery. calling this method will clean temporary files and release the store
      * unless this object is in use (in which case it will be cleaned once all ongoing users call
      * {@link #decRef()}
-     *
-     * if {@link #setWaitingRecoveryThread(Thread)} was used, the thread will be interrupted.
+     * <p/>
+     * if {@link #cancelableThreads()} was used, the threads will be interrupted.
      */
     public void cancel(String reason) {
         if (finished.compareAndSet(false, true)) {
-            logger.debug("recovery canceled (reason: [{}])", reason);
-            // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
-            decRef();
-
-            final Thread thread = waitingRecoveryThread.get();
-            if (thread != null) {
-                logger.debug("interrupting recovery thread on canceled recovery");
-                thread.interrupt();
+            try {
+                logger.debug("recovery canceled (reason: [{}])", reason);
+                cancelableThreads.cancel(reason);
+            } finally {
+                // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
+                decRef();
             }
         }
     }
@@ -170,9 +158,9 @@ public class RecoveryStatus extends AbstractRefCounted {
     /**
      * fail the recovery and call listener
      *
-     * @param e exception that encapsulating the failure
+     * @param e                exception that encapsulating the failure
      * @param sendShardFailure indicates whether to notify the master of the shard failure
-     **/
+     */
     public void fail(RecoveryFailedException e, boolean sendShardFailure) {
         if (finished.compareAndSet(false, true)) {
             try {
@@ -180,6 +168,7 @@ public class RecoveryStatus extends AbstractRefCounted {
             } finally {
                 // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
                 decRef();
+                cancelableThreads.cancel("failed recovery [" + e.getMessage() + "]");
             }
         }
     }
@@ -246,7 +235,12 @@ public class RecoveryStatus extends AbstractRefCounted {
             Iterator<Entry<String, IndexOutput>> iterator = openIndexOutputs.entrySet().iterator();
             while (iterator.hasNext()) {
                 Map.Entry<String, IndexOutput> entry = iterator.next();
-                IOUtils.closeWhileHandlingException(entry.getValue());
+                logger.trace("closing IndexOutput file [{}]", entry.getValue());
+                try {
+                    entry.getValue().close();
+                } catch (Throwable t) {
+                    logger.debug("error while closing recovery output [{}]", t, entry.getValue());
+                }
                 iterator.remove();
             }
             // trash temporary files

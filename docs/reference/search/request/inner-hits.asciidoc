@@ -1,7 +1,7 @@
 [[search-request-inner-hits]]
 === Inner hits
 
-The <<mapping-parent-field, parent/child>> and <<mapping-nested-type, nested>> features allow to return documents that
+The <<mapping-parent-field, parent/child>> and <<mapping-nested-type, nested>> features allow the return of documents that
 have matches in a different scope. In the parent/child case parent document are returned based on matches in child
 documents or child document are returned based on matches in parent documents. In the nested case documents are returned
 based on matches in nested inner objects.

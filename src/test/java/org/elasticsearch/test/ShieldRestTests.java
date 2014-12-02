@@ -11,11 +11,6 @@ import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.shield.authc.support.SecuredStringTests;
-import org.elasticsearch.shield.signature.InternalSignatureService;
-import org.elasticsearch.shield.ShieldPlugin;
-import org.elasticsearch.shield.transport.netty.NettySecuredTransport;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.rest.ElasticsearchRestTests;
@@ -28,6 +23,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Locale;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
@@ -71,6 +67,7 @@ public class ShieldRestTests extends ShieldIntegrationTest {
 
     @Test
     public void test() throws IOException {
+        logger.info("current default locale is [{}]", Locale.getDefault());
         delegate.test();
     }
 

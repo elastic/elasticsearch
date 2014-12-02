@@ -23,10 +23,12 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
 
     static {
         //see https://github.com/elasticsearch/elasticsearch/pull/8634
-        assert Version.CURRENT.onOrBefore(Version.V_1_4_0) : "Remove this class as the required fixes should have been released with core";
+        assert Version.CURRENT.onOrBefore(Version.V_1_4_0) : "Remove this class or bump the version, the required fixes will come with es core 1.5";
     }
 
-    static Settings DEFAULT_NODE_SETTINGS = ImmutableSettings.settingsBuilder().put("discovery.type", "zen").build();
+    static Settings DEFAULT_NODE_SETTINGS = ImmutableSettings.settingsBuilder()
+            //.put("gateway.type", "local")
+            .put("discovery.type", "zen").build();
 
     final int numOfNodes;
     final Settings nodeSettings;

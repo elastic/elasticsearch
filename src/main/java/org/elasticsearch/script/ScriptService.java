@@ -66,6 +66,9 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -92,7 +95,7 @@ public class ScriptService extends AbstractComponent {
     private final ConcurrentMap<String, CompiledScript> staticCache = ConcurrentCollections.newConcurrentMap();
 
     private final Cache<CacheKey, CompiledScript> cache;
-    private final File scriptsDirectory;
+    private final Path scriptsDirectory;
 
     private final DynamicScriptDisabling dynamicScriptingDisabled;
 
@@ -205,7 +208,7 @@ public class ScriptService extends AbstractComponent {
 
     @Inject
     public ScriptService(Settings settings, Environment env, Set<ScriptEngineService> scriptEngines,
-                         ResourceWatcherService resourceWatcherService) {
+                         ResourceWatcherService resourceWatcherService) throws IOException {
         super(settings);
 
         int cacheMaxSize = settings.getAsInt(SCRIPT_CACHE_SIZE_SETTING, 100);
@@ -234,7 +237,7 @@ public class ScriptService extends AbstractComponent {
         this.scriptEngines = builder.build();
 
         // add file watcher for static scripts
-        scriptsDirectory = new File(env.configFile(), "scripts");
+        scriptsDirectory = env.configFile().resolve("scripts");
         if (logger.isTraceEnabled()) {
             logger.trace("Using scripts directory [{}] ", scriptsDirectory);
         }
@@ -512,12 +515,12 @@ public class ScriptService extends AbstractComponent {
 
     private class ScriptChangesListener extends FileChangesListener {
 
-        private Tuple<String, String> scriptNameExt(File file) {
-            String scriptPath = scriptsDirectory.toURI().relativize(file.toURI()).getPath();
-            int extIndex = scriptPath.lastIndexOf('.');
+        private Tuple<String, String> scriptNameExt(Path file) {
+            Path scriptPath = scriptsDirectory.relativize(file);
+            int extIndex = scriptPath.toString().lastIndexOf('.');
             if (extIndex != -1) {
-                String ext = scriptPath.substring(extIndex + 1);
-                String scriptName = scriptPath.substring(0, extIndex).replace(File.separatorChar, '_');
+                String ext = scriptPath.toString().substring(extIndex + 1);
+                String scriptName = scriptPath.toString().substring(0, extIndex).replace(scriptPath.getFileSystem().getSeparator(), "_");
                 return new Tuple<>(scriptName, ext);
             } else {
                 return null;
@@ -525,7 +528,7 @@ public class ScriptService extends AbstractComponent {
         }
 
         @Override
-        public void onFileInit(File file) {
+        public void onFileInit(Path file) {
             if (logger.isTraceEnabled()) {
                 logger.trace("Loading script file : [{}]", file);
             }
@@ -537,8 +540,8 @@ public class ScriptService extends AbstractComponent {
                         if (s.equals(scriptNameExt.v2())) {
                             found = true;
                             try {
-                                logger.info("compiling script file [{}]", file.getAbsolutePath());
-                                String script = Streams.copyToString(new InputStreamReader(new FileInputStream(file), Charsets.UTF_8));
+                                logger.info("compiling script file [{}]", file.toAbsolutePath());
+                                String script = Streams.copyToString(new InputStreamReader(Files.newInputStream(file), Charsets.UTF_8));
                                 staticCache.put(scriptNameExt.v1(), new CompiledScript(engineService.types()[0], engineService.compile(script)));
                             } catch (Throwable e) {
                                 logger.warn("failed to load/compile script [{}]", e, scriptNameExt.v1());
@@ -557,21 +560,21 @@ public class ScriptService extends AbstractComponent {
         }
 
         @Override
-        public void onFileCreated(File file) {
+        public void onFileCreated(Path file) {
             onFileInit(file);
         }
 
         @Override
-        public void onFileDeleted(File file) {
+        public void onFileDeleted(Path file) {
             Tuple<String, String> scriptNameExt = scriptNameExt(file);
             if (scriptNameExt != null) {
-                logger.info("removing script file [{}]", file.getAbsolutePath());
+                logger.info("removing script file [{}]", file.toAbsolutePath());
                 staticCache.remove(scriptNameExt.v1());
             }
         }
 
         @Override
-        public void onFileChanged(File file) {
+        public void onFileChanged(Path file) {
             onFileInit(file);
         }
 

@@ -66,7 +66,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.*;
 import org.junit.Test;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -501,12 +500,12 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
         logger.info("--> verifying no temporary recoveries are left");
         for (String node : internalCluster().getNodeNames()) {
             NodeEnvironment nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, node);
-            for (final File shardLoc : nodeEnvironment.shardLocations(new ShardId(indexName, 0))) {
+            for (final Path shardLoc : nodeEnvironment.shardPaths(new ShardId(indexName, 0))) {
                 assertBusy(new Runnable() {
                     @Override
                     public void run() {
                         try {
-                            Files.walkFileTree(shardLoc.toPath(), new SimpleFileVisitor<Path>() {
+                            Files.walkFileTree(shardLoc, new SimpleFileVisitor<Path>() {
                                 @Override
                                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                                     assertThat("found a temporary recovery file: " + file, file.getFileName().toString(), not(startsWith("recovery.")));
@@ -514,7 +513,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
                                 }
                             });
                         } catch (IOException e) {
-                            throw new AssertionError("failed to walk file tree starting at [" + shardLoc.toPath() + "]", e);
+                            throw new AssertionError("failed to walk file tree starting at [" + shardLoc + "]", e);
                         }
                     }
                 });

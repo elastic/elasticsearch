@@ -45,8 +45,12 @@ import org.junit.runner.RunWith;
 
 import java.io.Closeable;
 import java.io.File;
+import java.io.IOException;
 import java.lang.annotation.*;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
@@ -180,7 +184,7 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     /**
      * Create indexes in this directory, optimally use a subdir, named after the test
      */
-    public static final File TEMP_DIR;
+    public static final Path TEMP_DIR;
 
     public static final int TESTS_PROCESSORS;
 
@@ -188,8 +192,12 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
         String s = System.getProperty("tempDir", System.getProperty("java.io.tmpdir"));
         if (s == null)
             throw new RuntimeException("To run tests, you need to define system property 'tempDir' or 'java.io.tmpdir'.");
-        TEMP_DIR = new File(s);
-        TEMP_DIR.mkdirs();
+        TEMP_DIR = Paths.get(s);
+        try {
+            Files.createDirectories(TEMP_DIR);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
 
         String processors = System.getProperty(SYSPROP_PROCESSORS, ""); // mvn sets "" as default
         if (processors == null || processors.isEmpty()) {

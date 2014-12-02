@@ -40,6 +40,7 @@ import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.file.Files;
 import java.util.Arrays;
 
 public class PagedBytesReferenceTest extends ElasticsearchTestCase {
@@ -263,7 +264,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         try (RandomAccessFile file = new RandomAccessFile(tFile, "rw")) {
             pbr.writeTo(file.getChannel());
             assertEquals(pbr.length(), file.length());
-            assertArrayEquals(pbr.toBytes(), Streams.copyToByteArray(tFile));
+            assertArrayEquals(pbr.toBytes(), Files.readAllBytes(tFile.toPath()));
         }
     }
 
@@ -290,7 +291,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         try (RandomAccessFile file = new RandomAccessFile(tFile, "rw")) {
             slice.writeTo(file.getChannel());
             assertEquals(slice.length(), file.length());
-            assertArrayEquals(slice.toBytes(), Streams.copyToByteArray(tFile));
+            assertArrayEquals(slice.toBytes(), Files.readAllBytes(tFile.toPath()));
         }
     }
 

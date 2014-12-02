@@ -41,50 +41,50 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
     private class RecordingChangeListener extends FileChangesListener {
 
-        private File rootDir;
+        private Path rootDir;
 
-        private RecordingChangeListener(File rootDir) {
+        private RecordingChangeListener(Path rootDir) {
             this.rootDir = rootDir;
         }
 
-        private String getRelativeFileName(File file) {
-            return rootDir.toURI().relativize(file.toURI()).getPath();
+        private String getRelativeFileName(Path file) {
+            return rootDir.toUri().relativize(file.toUri()).getPath();
         }
 
         private List<String> notifications = newArrayList();
 
         @Override
-        public void onFileInit(File file) {
+        public void onFileInit(Path file) {
             notifications.add("onFileInit: " + getRelativeFileName(file));
         }
 
         @Override
-        public void onDirectoryInit(File file) {
+        public void onDirectoryInit(Path file) {
             notifications.add("onDirectoryInit: " + getRelativeFileName(file));
         }
 
         @Override
-        public void onFileCreated(File file) {
+        public void onFileCreated(Path file) {
             notifications.add("onFileCreated: " + getRelativeFileName(file));
         }
 
         @Override
-        public void onFileDeleted(File file) {
+        public void onFileDeleted(Path file) {
             notifications.add("onFileDeleted: " + getRelativeFileName(file));
         }
 
         @Override
-        public void onFileChanged(File file) {
+        public void onFileChanged(Path file) {
             notifications.add("onFileChanged: " + getRelativeFileName(file));
         }
 
         @Override
-        public void onDirectoryCreated(File file) {
+        public void onDirectoryCreated(Path file) {
             notifications.add("onDirectoryCreated: " + getRelativeFileName(file));
         }
 
         @Override
-        public void onDirectoryDeleted(File file) {
+        public void onDirectoryDeleted(Path file) {
             notifications.add("onDirectoryDeleted: " + getRelativeFileName(file));
         }
 
@@ -95,10 +95,10 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
     @Test
     public void testSimpleFileOperations() throws IOException {
-        File tempDir = newTempDir(LifecycleScope.TEST);
+        Path tempDir = newTempDir(LifecycleScope.TEST).toPath();
         RecordingChangeListener changes = new RecordingChangeListener(tempDir);
-        File testFile = new File(tempDir, "test.txt");
-        touch(testFile);
+        Path testFile = tempDir.resolve("test.txt");
+        touch(testFile.toFile()); // TODO fix this to use path
         FileWatcher fileWatcher = new FileWatcher(testFile);
         fileWatcher.addListener(changes);
         fileWatcher.init();
@@ -108,7 +108,7 @@ public class FileWatcherTest extends ElasticsearchTestCase {
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), hasSize(0));
 
-        append("Test", testFile, Charset.defaultCharset());
+        append("Test", testFile.toFile(), Charset.defaultCharset());
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(equalTo("onFileChanged: test.txt")));
 
@@ -116,7 +116,7 @@ public class FileWatcherTest extends ElasticsearchTestCase {
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), hasSize(0));
 
-        Files.delete(testFile.toPath());
+        Files.delete(testFile);
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(equalTo("onFileDeleted: test.txt")));
 
@@ -124,12 +124,12 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
     @Test
     public void testSimpleDirectoryOperations() throws IOException {
-        File tempDir = newTempDir(LifecycleScope.TEST);
+        Path tempDir = newTempDir(LifecycleScope.TEST).toPath();
         RecordingChangeListener changes = new RecordingChangeListener(tempDir);
-        File testDir = new File(tempDir, "test-dir");
-        testDir.mkdir();
-        touch(new File(testDir, "test.txt"));
-        touch(new File(testDir, "test0.txt"));
+        Path testDir = tempDir.resolve("test-dir");
+        Files.createDirectories(testDir);
+        touch(testDir.resolve("test.txt").toFile());
+        touch(testDir.resolve("test0.txt").toFile());
 
         FileWatcher fileWatcher = new FileWatcher(testDir);
         fileWatcher.addListener(changes);
@@ -145,10 +145,10 @@ public class FileWatcherTest extends ElasticsearchTestCase {
         assertThat(changes.notifications(), hasSize(0));
 
         for (int i = 0; i < 4; i++) {
-            touch(new File(testDir, "test" + i + ".txt"));
+            touch(testDir.resolve("test" + i + ".txt").toFile());
         }
         // Make sure that first file is modified
-        append("Test", new File(testDir, "test0.txt"), Charset.defaultCharset());
+        append("Test", testDir.resolve("test0.txt").toFile(), Charset.defaultCharset());
 
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(
@@ -162,8 +162,8 @@ public class FileWatcherTest extends ElasticsearchTestCase {
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), hasSize(0));
 
-        Files.delete(new File(testDir, "test1.txt").toPath());
-        Files.delete(new File(testDir, "test2.txt").toPath());
+        Files.delete(testDir.resolve("test1.txt"));
+        Files.delete(testDir.resolve("test2.txt"));
 
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(
@@ -175,9 +175,9 @@ public class FileWatcherTest extends ElasticsearchTestCase {
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), hasSize(0));
 
-        Files.delete(new File(testDir, "test0.txt").toPath());
-        touch(new File(testDir, "test2.txt"));
-        touch(new File(testDir, "test4.txt"));
+        Files.delete(testDir.resolve("test0.txt"));
+        touch(testDir.resolve("test2.txt").toFile());
+        touch(testDir.resolve("test4.txt").toFile());
         fileWatcher.checkAndNotify();
 
         assertThat(changes.notifications(), contains(
@@ -189,8 +189,8 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
         changes.notifications().clear();
 
-        Files.delete(new File(testDir, "test3.txt").toPath());
-        Files.delete(new File(testDir, "test4.txt").toPath());
+        Files.delete(testDir.resolve("test3.txt"));
+        Files.delete(testDir.resolve("test4.txt"));
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(
                 equalTo("onFileDeleted: test-dir/test3.txt"),
@@ -199,8 +199,8 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
 
         changes.notifications().clear();
-        if (testDir.exists()) {
-            IOUtils.rm(testDir.toPath());
+        if (Files.exists(testDir)) {
+            IOUtils.rm(testDir);
         }
         fileWatcher.checkAndNotify();
 
@@ -214,13 +214,13 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
     @Test
     public void testNestedDirectoryOperations() throws IOException {
-        File tempDir = newTempDir(LifecycleScope.TEST);
+        Path tempDir = newTempDir(LifecycleScope.TEST).toPath();
         RecordingChangeListener changes = new RecordingChangeListener(tempDir);
-        File testDir = new File(tempDir, "test-dir");
-        testDir.mkdir();
-        touch(new File(testDir, "test.txt"));
-        new File(testDir, "sub-dir").mkdir();
-        touch(new File(testDir, "sub-dir/test0.txt"));
+        Path testDir = tempDir.resolve("test-dir");
+        Files.createDirectories(testDir);
+        touch(testDir.resolve("test.txt").toFile());
+        Files.createDirectories(testDir.resolve("sub-dir"));
+        touch(testDir.resolve("sub-dir/test0.txt").toFile());
 
         FileWatcher fileWatcher = new FileWatcher(testDir);
         fileWatcher.addListener(changes);
@@ -237,7 +237,7 @@ public class FileWatcherTest extends ElasticsearchTestCase {
         assertThat(changes.notifications(), hasSize(0));
 
         // Create new file in subdirectory
-        touch(new File(testDir, "sub-dir/test1.txt"));
+        touch(testDir.resolve("sub-dir/test1.txt").toFile());
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(
                 equalTo("onFileCreated: test-dir/sub-dir/test1.txt")
@@ -248,10 +248,10 @@ public class FileWatcherTest extends ElasticsearchTestCase {
         assertThat(changes.notifications(), hasSize(0));
 
         // Create new subdirectory in subdirectory
-        new File(testDir, "first-level").mkdir();
-        touch(new File(testDir, "first-level/file1.txt"));
-        new File(testDir, "first-level/second-level").mkdir();
-        touch(new File(testDir, "first-level/second-level/file2.txt"));
+        Files.createDirectories(testDir.resolve("first-level"));
+        touch(testDir.resolve("first-level/file1.txt").toFile());
+        Files.createDirectories(testDir.resolve("first-level/second-level"));
+        touch(testDir.resolve("first-level/second-level/file2.txt").toFile());
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(
                 equalTo("onDirectoryCreated: test-dir/first-level/"),
@@ -265,7 +265,7 @@ public class FileWatcherTest extends ElasticsearchTestCase {
         assertThat(changes.notifications(), hasSize(0));
 
         // Delete a directory, check notifications for
-        Path path = new File(testDir, "first-level").toPath();
+        Path path = testDir.resolve("first-level");
         if (Files.exists(path)) {
             IOUtils.rm(path);
         }
@@ -280,14 +280,14 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
     @Test
     public void testFileReplacingDirectory() throws IOException {
-        File tempDir = newTempDir(LifecycleScope.TEST);
+        Path tempDir = newTempDir(LifecycleScope.TEST).toPath();
         RecordingChangeListener changes = new RecordingChangeListener(tempDir);
-        File testDir = new File(tempDir, "test-dir");
-        testDir.mkdir();
-        File subDir = new File(testDir, "sub-dir");
-        subDir.mkdir();
-        touch(new File(subDir, "test0.txt"));
-        touch(new File(subDir, "test1.txt"));
+        Path testDir = tempDir.resolve("test-dir");
+        Files.createDirectories(testDir);
+        Path subDir = testDir.resolve("sub-dir");
+        Files.createDirectories(subDir);
+        touch(subDir.resolve("test0.txt").toFile());
+        touch(subDir.resolve("test1.txt").toFile());
 
         FileWatcher fileWatcher = new FileWatcher(testDir);
         fileWatcher.addListener(changes);
@@ -301,10 +301,10 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
         changes.notifications().clear();
 
-        if (subDir.exists()) {
-            IOUtils.rm(subDir.toPath());
+        if (Files.exists(subDir)) {
+            IOUtils.rm(subDir);
         }
-        touch(subDir);
+        touch(subDir.toFile());
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(
                 equalTo("onFileDeleted: test-dir/sub-dir/test0.txt"),
@@ -315,8 +315,8 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
         changes.notifications().clear();
 
-        Files.delete(subDir.toPath());
-        subDir.mkdir();
+        Files.delete(subDir);
+        Files.createDirectories(subDir);
 
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(
@@ -327,20 +327,20 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
     @Test
     public void testEmptyDirectory() throws IOException {
-        File tempDir = newTempDir(LifecycleScope.TEST);
+        Path tempDir = newTempDir(LifecycleScope.TEST).toPath();
         RecordingChangeListener changes = new RecordingChangeListener(tempDir);
-        File testDir = new File(tempDir, "test-dir");
-        testDir.mkdir();
-        touch(new File(testDir, "test0.txt"));
-        touch(new File(testDir, "test1.txt"));
+        Path testDir = tempDir.resolve("test-dir");
+        Files.createDirectories(testDir);
+        touch(testDir.resolve("test0.txt").toFile());
+        touch(testDir.resolve("test1.txt").toFile());
 
         FileWatcher fileWatcher = new FileWatcher(testDir);
         fileWatcher.addListener(changes);
         fileWatcher.init();
         changes.notifications().clear();
 
-        Files.delete(new File(testDir, "test0.txt").toPath());
-        Files.delete(new File(testDir, "test1.txt").toPath());
+        Files.delete(testDir.resolve("test0.txt"));
+        Files.delete(testDir.resolve("test1.txt"));
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(
                 equalTo("onFileDeleted: test-dir/test0.txt"),
@@ -350,9 +350,9 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
     @Test
     public void testNoDirectoryOnInit() throws IOException {
-        File tempDir = newTempDir(LifecycleScope.TEST);
+        Path tempDir = newTempDir(LifecycleScope.TEST).toPath();
         RecordingChangeListener changes = new RecordingChangeListener(tempDir);
-        File testDir = new File(tempDir, "test-dir");
+        Path testDir = tempDir.resolve("test-dir");
 
         FileWatcher fileWatcher = new FileWatcher(testDir);
         fileWatcher.addListener(changes);
@@ -360,9 +360,9 @@ public class FileWatcherTest extends ElasticsearchTestCase {
         assertThat(changes.notifications(), hasSize(0));
         changes.notifications().clear();
 
-        testDir.mkdir();
-        touch(new File(testDir, "test0.txt"));
-        touch(new File(testDir, "test1.txt"));
+        Files.createDirectories(testDir);
+        touch(testDir.resolve("test0.txt").toFile());
+        touch(testDir.resolve("test1.txt").toFile());
 
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(
@@ -374,9 +374,9 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
     @Test
     public void testNoFileOnInit() throws IOException {
-        File tempDir = newTempDir(LifecycleScope.TEST);
+        Path tempDir = newTempDir(LifecycleScope.TEST).toPath();
         RecordingChangeListener changes = new RecordingChangeListener(tempDir);
-        File testFile = new File(tempDir, "testfile.txt");
+        Path testFile = tempDir.resolve("testfile.txt");
 
         FileWatcher fileWatcher = new FileWatcher(testFile);
         fileWatcher.addListener(changes);
@@ -384,7 +384,7 @@ public class FileWatcherTest extends ElasticsearchTestCase {
         assertThat(changes.notifications(), hasSize(0));
         changes.notifications().clear();
 
-        touch(testFile);
+        touch(testFile.toFile());
 
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(

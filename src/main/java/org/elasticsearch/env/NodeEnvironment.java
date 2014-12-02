@@ -39,7 +39,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.Closeable;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
 import java.util.*;
@@ -80,7 +79,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
         int maxLocalStorageNodes = settings.getAsInt("node.max_local_storage_nodes", 50);
         for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
             for (int dirIndex = 0; dirIndex < environment.dataWithClusterFiles().length; dirIndex++) {
-                Path dir = environment.dataWithClusterFiles()[dirIndex].toPath().resolve(Paths.get("nodes", Integer.toString(possibleLockId)));
+                Path dir = environment.dataWithClusterFiles()[dirIndex].resolve(Paths.get("nodes", Integer.toString(possibleLockId)));
                 if (Files.exists(dir) == false) {
                     Files.createDirectories(dir);
                 }
@@ -349,33 +348,6 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
     }
 
     /**
-     * Returns an array of all of the nodes data locations.
-     * @deprecated use {@link #nodeDataPaths()}  instead
-     */
-    @Deprecated
-    public File[] nodeDataLocations() {
-       return toFiles(nodeDataPaths());
-    }
-
-    /**
-     * Returns all data paths for the given index.
-     * @deprecated use {@link #indexPaths(org.elasticsearch.index.Index)} instead
-     */
-    @Deprecated
-    public File[] indexLocations(Index index) {
-        return toFiles(indexPaths(index));
-    }
-
-    /**
-     * Returns all data paths for the given shards ID
-     * @deprecated use {@link #shardPaths(org.elasticsearch.index.shard.ShardId)} instead
-     */
-    @Deprecated
-    public File[] shardLocations(ShardId shardId) {
-       return toFiles(shardPaths(shardId));
-    }
-
-    /**
      * Returns all data paths for the given index.
      */
     public Path[] indexPaths(Index index) {
@@ -533,21 +505,6 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
                 Files.deleteIfExists(target);
             }
         }
-    }
-
-
-    /**
-     * Returns an array of {@link File} build from the correspondent element
-     * in the input array using {@link java.nio.file.Path#toFile()} )}
-     * @param files the files to get paths for
-     */
-    @Deprecated // this is only a transition API
-    private static File[] toFiles(Path... files) {
-        File[] paths = new File[files.length];
-        for (int i = 0; i < files.length; i++) {
-            paths[i] = files[i].toFile();
-        }
-        return paths;
     }
 
     Settings getSettings() { // for testing

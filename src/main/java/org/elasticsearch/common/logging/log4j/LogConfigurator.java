@@ -120,7 +120,7 @@ public class LogConfigurator {
     public static void resolveConfig(Environment env, final ImmutableSettings.Builder settingsBuilder) {
 
         try {
-            Files.walkFileTree(env.configFile().toPath(), EnumSet.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
+            Files.walkFileTree(env.configFile(), EnumSet.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                     String fileName = file.getFileName().toString();

@@ -48,6 +48,7 @@ import org.elasticsearch.transport.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -161,7 +162,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                     IndexService indexService = indicesService.indexService(shardId.getIndex());
                     if (indexService == null) {
                         if (nodeEnv.hasNodeFile()) {
-                            File[] shardLocations = nodeEnv.shardLocations(shardId);
+                            Path[] shardLocations = nodeEnv.shardPaths(shardId);
                             if (FileSystemUtils.exists(shardLocations)) {
                                 deleteShardIfExistElseWhere(event.state(), indexShardRoutingTable);
                             }
@@ -320,7 +321,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                     if (indexService == null) {
                         // not physical allocation of the index, delete it from the file system if applicable
                         if (nodeEnv.hasNodeFile()) {
-                            File[] shardLocations = nodeEnv.shardLocations(shardId);
+                            Path[] shardLocations = nodeEnv.shardPaths(shardId);
                             if (FileSystemUtils.exists(shardLocations)) {
                                 logger.debug("{} deleting shard that is no longer used", shardId);
                                 try {

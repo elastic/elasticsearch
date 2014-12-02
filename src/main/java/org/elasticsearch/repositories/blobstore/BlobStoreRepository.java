@@ -26,6 +26,7 @@ import com.google.common.collect.Maps;
 import com.google.common.io.ByteStreams;
 import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -159,6 +160,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      */
     @Override
     protected void doStart() throws ElasticsearchException {
+
         this.snapshotsBlobContainer = blobStore().blobContainer(basePath());
         indexShardRepository.initialize(blobStore(), basePath(), chunkSize(), snapshotRateLimiter, restoreRateLimiter, this);
     }
@@ -270,7 +272,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         MetaData metaData = null;
         try {
             metaData = readSnapshotMetaData(snapshotId, snapshot.indices(), true);
-        } catch (SnapshotException ex) {
+        } catch (IOException | SnapshotException ex) {
             logger.warn("cannot read metadata for snapshot [{}]", ex, snapshotId);
         }
         try {
@@ -388,7 +390,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * {@inheritDoc}
      */
     @Override
-    public MetaData readSnapshotMetaData(SnapshotId snapshotId, ImmutableList<String> indices) {
+    public MetaData readSnapshotMetaData(SnapshotId snapshotId, ImmutableList<String> indices) throws IOException {
         return readSnapshotMetaData(snapshotId, indices, false);
     }
 
@@ -429,7 +431,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         }
     }
 
-    private MetaData readSnapshotMetaData(SnapshotId snapshotId, ImmutableList<String> indices, boolean ignoreIndexErrors) {
+    private MetaData readSnapshotMetaData(SnapshotId snapshotId, ImmutableList<String> indices, boolean ignoreIndexErrors) throws IOException {
         MetaData metaData;
         try (InputStream blob = snapshotsBlobContainer.openInput(metaDataBlobName(snapshotId))) {
             byte[] data = ByteStreams.toByteArray(blob);

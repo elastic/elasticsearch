@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -31,6 +32,7 @@ import org.elasticsearch.rest.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.*;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -125,12 +127,12 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
     class PluginSiteFilter extends RestFilter {
 
         @Override
-        public void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) {
+        public void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws IOException {
             handlePluginSite((HttpRequest) request, (HttpChannel) channel);
         }
     }
 
-    void handlePluginSite(HttpRequest request, HttpChannel channel) {
+    void handlePluginSite(HttpRequest request, HttpChannel channel) throws IOException {
         if (disableSites) {
             channel.sendResponse(new BytesRestResponse(FORBIDDEN));
             return;
@@ -167,36 +169,36 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         if (sitePath.length() == 0) {
             sitePath = "/index.html";
         }
+        final Path siteFile = environment.pluginsFile().resolve(pluginName).resolve("_site");
 
+        final String separator = siteFile.getFileSystem().getSeparator();
         // Convert file separators.
-        sitePath = sitePath.replace('/', File.separatorChar);
-
+        sitePath = sitePath.replace("/", separator);
         // this is a plugin provided site, serve it as static files from the plugin location
-        File siteFile = new File(new File(environment.pluginsFile(), pluginName), "_site");
-        File file = new File(siteFile, sitePath);
-        if (!file.exists() || file.isHidden()) {
+        Path file = FileSystemUtils.append(siteFile, Paths.get(sitePath), 0);
+        if (!Files.exists(file) || Files.isHidden(file)) {
             channel.sendResponse(new BytesRestResponse(NOT_FOUND));
             return;
         }
-        if (!file.isFile()) {
+        if (!Files.isRegularFile(file)) {
             // If it's not a dir, we send a 403
-            if (!file.isDirectory()) {
+            if (!Files.isDirectory(file)) {
                 channel.sendResponse(new BytesRestResponse(FORBIDDEN));
                 return;
             }
             // We don't serve dir but if index.html exists in dir we should serve it
-            file = new File(file, "index.html");
-            if (!file.exists() || file.isHidden() || !file.isFile()) {
+            file = file.resolve("index.html");
+            if (!Files.exists(file) || Files.isHidden(file) || !Files.isRegularFile(file)) {
                 channel.sendResponse(new BytesRestResponse(FORBIDDEN));
                 return;
             }
         }
-        if (!file.getAbsolutePath().startsWith(siteFile.getAbsolutePath())) {
+        if (!file.toAbsolutePath().startsWith(siteFile)) {
             channel.sendResponse(new BytesRestResponse(FORBIDDEN));
             return;
         }
         try {
-            byte[] data = Streams.copyToByteArray(file);
+            byte[] data = Files.readAllBytes(file);
             channel.sendResponse(new BytesRestResponse(OK, guessMimeType(sitePath), data));
         } catch (IOException e) {
             channel.sendResponse(new BytesRestResponse(INTERNAL_SERVER_ERROR));

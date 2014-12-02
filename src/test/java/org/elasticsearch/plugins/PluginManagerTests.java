@@ -47,6 +47,8 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.TimeUnit;
 
@@ -99,33 +101,33 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
                 ImmutableSettings.settingsBuilder().build(), false);
         Environment env = initialSettings.v2();
-        File binDir = new File(env.homeFile(), "bin");
-        if (!binDir.exists() && !FileSystemUtils.mkdirs(binDir)) {
-            throw new IOException("Could not create bin directory [" + binDir.getAbsolutePath() + "]");
+        Path binDir = env.homeFile().resolve("bin");
+        if (!Files.exists(binDir)) {
+            Files.createDirectories(binDir);
         }
-        File pluginBinDir = new File(binDir, pluginName);
-        File configDir = env.configFile();
-        if (!configDir.exists() && !FileSystemUtils.mkdirs(configDir)) {
-            throw new IOException("Could not create config directory [" + configDir.getAbsolutePath() + "]");
+        Path pluginBinDir = binDir.resolve(pluginName);
+        Path configDir = env.configFile();
+        if (!Files.exists(configDir)) {
+            Files.createDirectories(configDir);
         }
-        File pluginConfigDir = new File(configDir, pluginName);
+        Path pluginConfigDir =configDir.resolve(pluginName);
         try {
 
             PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_with_bin_and_config.zip"), initialSettings);
 
             pluginManager.downloadAndExtract(pluginName);
 
-            File[] plugins = pluginManager.getListInstalledPlugins();
+            Path[] plugins = pluginManager.getListInstalledPlugins();
 
             assertThat(plugins, arrayWithSize(1));
             assertDirectoryExists(pluginBinDir);
             assertDirectoryExists(pluginConfigDir);
-            File toolFile = new File(pluginBinDir, "tool");
+            Path toolFile = pluginBinDir.resolve("tool");
             assertFileExists(toolFile);
-            assertThat(toolFile.canExecute(), is(true));
+            assertThat(Files.isExecutable(toolFile), is(true));
         } finally {
             // we need to clean up the copied dirs
-            IOUtils.rm(pluginBinDir.toPath(), pluginConfigDir.toPath());
+            IOUtils.rm(pluginBinDir, pluginConfigDir);
         }
     }
 
@@ -139,17 +141,17 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
                 ImmutableSettings.settingsBuilder().build(), false);
         Environment env = initialSettings.v2();
 
-        File configDir = env.configFile();
-        if (!configDir.exists() && !FileSystemUtils.mkdirs(configDir)) {
-            throw new IOException("Could not create config directory [" + configDir.getAbsolutePath() + "]");
+        Path configDir = env.configFile();
+        if (!Files.exists(configDir)) {
+            Files.createDirectories(configDir);
         }
-        File pluginConfigDir = new File(configDir, pluginName);
+        Path pluginConfigDir = configDir.resolve(pluginName);
 
         try {
             PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_with_config_v1.zip"), initialSettings);
             pluginManager.downloadAndExtract(pluginName);
 
-            File[] plugins = pluginManager.getListInstalledPlugins();
+            Path[] plugins = pluginManager.getListInstalledPlugins();
             assertThat(plugins, arrayWithSize(1));
 
             /*
@@ -207,7 +209,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
             assertFileContent(pluginConfigDir, "dir/subdir/testsubdir.txt.new", "version2\n");
         } finally {
             // we need to clean up the copied dirs
-            IOUtils.rm(pluginConfigDir.toPath());
+            IOUtils.rm(pluginConfigDir);
         }
     }
 
@@ -218,20 +220,20 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
                 ImmutableSettings.settingsBuilder().build(), false);
         Environment env = initialSettings.v2();
-        File binDir = new File(env.homeFile(), "bin");
-        if (!binDir.exists() && !FileSystemUtils.mkdirs(binDir)) {
-            throw new IOException("Could not create bin directory [" + binDir.getAbsolutePath() + "]");
+        Path binDir = env.homeFile().resolve("bin");
+        if (!Files.exists(binDir)) {
+            Files.createDirectories(binDir);
         }
-        File pluginBinDir = new File(binDir, pluginName);
+        Path pluginBinDir = binDir.resolve(pluginName);
         try {
             PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_with_bin_only.zip"), initialSettings);
             pluginManager.downloadAndExtract(pluginName);
-            File[] plugins = pluginManager.getListInstalledPlugins();
+            Path[] plugins = pluginManager.getListInstalledPlugins();
             assertThat(plugins.length, is(1));
             assertDirectoryExists(pluginBinDir);
         } finally {
             // we need to clean up the copied dirs
-            IOUtils.rm(pluginBinDir.toPath());
+            IOUtils.rm(pluginBinDir);
         }
     }
 
@@ -278,7 +280,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         downloadAndExtract(pluginName, getPluginUrlForResource("plugin_with_sourcefiles.zip"));
     }
 
-    private static PluginManager pluginManager(String pluginUrl) {
+    private static PluginManager pluginManager(String pluginUrl) throws IOException {
         Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
                 ImmutableSettings.settingsBuilder().build(), false);
         return pluginManager(pluginUrl, initialSettings);
@@ -288,9 +290,9 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
      * We build a plugin manager instance which wait only for 30 seconds before
      * raising an ElasticsearchTimeoutException
      */
-    private static PluginManager pluginManager(String pluginUrl, Tuple<Settings, Environment> initialSettings) {
-        if (!initialSettings.v2().pluginsFile().exists()) {
-            FileSystemUtils.mkdirs(initialSettings.v2().pluginsFile());
+    private static PluginManager pluginManager(String pluginUrl, Tuple<Settings, Environment> initialSettings) throws IOException {
+        if (!Files.exists(initialSettings.v2().pluginsFile())) {
+            Files.createDirectories(initialSettings.v2().pluginsFile());
         }
         return new PluginManager(initialSettings.v2(), pluginUrl, PluginManager.OutputMode.SILENT, TimeValue.timeValueSeconds(30));
     }
@@ -343,7 +345,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         //checking now that the plugin is available
         HttpResponse response = getHttpRequestBuilder().method("GET").path("/_plugin/" + pluginName + "/").execute();
         assertThat(response, notNullValue());
-        assertThat(response.getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(response.getReasonPhrase(), response.getStatusCode(), equalTo(RestStatus.OK.getStatus()));
     }
 
     private HttpRequestBuilder getHttpRequestBuilder() {
@@ -352,7 +354,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testListInstalledEmpty() throws IOException {
-        File[] plugins = pluginManager(null).getListInstalledPlugins();
+        Path[] plugins = pluginManager(null).getListInstalledPlugins();
         assertThat(plugins, notNullValue());
         assertThat(plugins.length, is(0));
     }
@@ -368,7 +370,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_with_classfile.zip"));
 
         pluginManager.downloadAndExtract("plugin-classfile");
-        File[] plugins = pluginManager.getListInstalledPlugins();
+        Path[] plugins = pluginManager.getListInstalledPlugins();
         assertThat(plugins, notNullValue());
         assertThat(plugins.length, is(1));
     }
@@ -378,7 +380,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_without_folders.zip"));
 
         pluginManager.downloadAndExtract("plugin-site");
-        File[] plugins = pluginManager.getListInstalledPlugins();
+        Path[] plugins = pluginManager.getListInstalledPlugins();
         assertThat(plugins, notNullValue());
         assertThat(plugins.length, is(1));
 
@@ -393,7 +395,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         PluginManager pluginManager = pluginManager(pluginCoordinates);
         try {
             pluginManager.downloadAndExtract(pluginShortName);
-            File[] plugins = pluginManager.getListInstalledPlugins();
+            Path[] plugins = pluginManager.getListInstalledPlugins();
             assertThat(plugins, notNullValue());
             assertThat(plugins.length, is(1));
 

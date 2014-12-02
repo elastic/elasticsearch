@@ -27,6 +27,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ScheduledFuture;
@@ -117,14 +118,14 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
     /**
      * Register new resource watcher that will be checked in default {@link Frequency#MEDIUM MEDIUM} frequency
      */
-    public <W extends ResourceWatcher> WatcherHandle<W> add(W watcher) {
+    public <W extends ResourceWatcher> WatcherHandle<W> add(W watcher) throws IOException {
         return add(watcher, Frequency.MEDIUM);
     }
 
     /**
      * Register new resource watcher that will be checked in the given frequency
      */
-    public <W extends ResourceWatcher> WatcherHandle<W> add(W watcher, Frequency frequency) {
+    public <W extends ResourceWatcher> WatcherHandle<W> add(W watcher, Frequency frequency) throws IOException {
         watcher.init();
         switch (frequency) {
             case LOW:
@@ -158,7 +159,7 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
         }
     }
 
-    static class ResourceMonitor implements Runnable {
+    class ResourceMonitor implements Runnable {
 
         final TimeValue interval;
         final Frequency frequency;
@@ -178,7 +179,11 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
         @Override
         public synchronized void run() {
             for(ResourceWatcher watcher : watchers) {
-                watcher.checkAndNotify();
+                try {
+                    watcher.checkAndNotify();
+                } catch (IOException e) {
+                    logger.trace("failed to check resource watcher", e);
+                }
             }
         }
     }

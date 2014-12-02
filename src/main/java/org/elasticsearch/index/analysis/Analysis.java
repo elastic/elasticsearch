@@ -73,6 +73,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 
 /**
@@ -227,10 +229,10 @@ public class Analysis {
             }
         }
 
-        URL wordListFile = env.resolveConfig(wordListPath);
+        Path wordListFile = env.resolveConfig(wordListPath);
 
         try {
-            return loadWordList(new InputStreamReader(wordListFile.openStream(), Charsets.UTF_8), "#");
+            return loadWordList(Files.newBufferedReader(wordListFile, Charsets.UTF_8), "#");
         } catch (IOException ioe) {
             String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, ioe.getMessage());
             throw new ElasticsearchIllegalArgumentException(message);
@@ -274,11 +276,11 @@ public class Analysis {
             return null;
         }
 
-        URL fileUrl = env.resolveConfig(filePath);
+        Path fileUrl = env.resolveConfig(filePath);
 
         Reader reader = null;
         try {
-            reader = new InputStreamReader(fileUrl.openStream(), Charsets.UTF_8);
+            reader = new InputStreamReader(Files.newInputStream(fileUrl), Charsets.UTF_8);
         } catch (IOException ioe) {
             String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, ioe.getMessage());
             throw new ElasticsearchIllegalArgumentException(message);

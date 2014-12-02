@@ -19,58 +19,60 @@
 
 package org.elasticsearch.common.io;
 
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Sets;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.logging.ESLogger;
 
-import java.io.File;
-import java.io.FileFilter;
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.nio.file.FileVisitResult.CONTINUE;
 import static java.nio.file.FileVisitResult.SKIP_SUBTREE;
 
 /**
- *
+ * Elasticsearch utils to work with {@link java.nio.file.Path}
  */
-public class FileSystemUtils {
+public final class FileSystemUtils {
 
-    public static boolean mkdirs(File dir) {
-        return dir.mkdirs();
-    }
+    private FileSystemUtils() {} // only static methods
 
-    public static boolean hasExtensions(File root, String... extensions) {
-        if (root != null && root.exists()) {
-            if (root.isDirectory()) {
-                File[] children = root.listFiles();
-                if (children != null) {
-                    for (File child : children) {
-                        if (child.isDirectory()) {
-                            boolean has = hasExtensions(child, extensions);
-                            if (has) {
-                                return true;
-                            }
-                        } else {
-                            for (String extension : extensions) {
-                                if (child.getName().endsWith(extension)) {
-                                    return true;
-                                }
-                            }
-                        }
+    /**
+     * Returns <code>true</code> iff a file under the given root has one of the given extensions. This method
+     * will travers directories recursively and will terminate once any of the extensions was found. This
+     * methods will not follow any links.
+     *
+     * @param root the root directory to travers. Must be a directory
+     * @param extensions the file extensions to look for
+     * @return <code>true</code> iff a file under the given root has one of the given extensions, otherwise <code>false</code>
+     * @throws IOException if an IOException occurs or if the given root path is not a directory.
+     */
+    public static boolean hasExtensions(Path root, final String... extensions) throws IOException {
+        final AtomicBoolean retVal = new AtomicBoolean(false);
+        Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                for (String extension : extensions) {
+                    if (file.getFileName().toString().endsWith(extension)) {
+                        retVal.set(true);
+                        return FileVisitResult.TERMINATE;
                     }
                 }
+                return super.visitFile(file, attrs);
             }
-        }
-        return false;
+        });
+        return retVal.get();
     }
 
     /**
-     * Returns true if at least one of the files exists.
+     * Returns <code>true</code> iff one of the files exists otherwise <code>false</code>
      */
-    public static boolean exists(File... files) {
-        for (File file : files) {
-            if (file.exists()) {
+    public static boolean exists(Path... files) {
+        for (Path file : files) {
+            if (Files.exists(file)) {
                 return true;
             }
         }
@@ -78,17 +80,16 @@ public class FileSystemUtils {
     }
 
     /**
-     * Returns an array of {@link Path} build from the correspondent element
-     * in the input array using {@link java.io.File#toPath()}
-     * @param files the files to get paths for
+     * Appends the path to the given base and strips N elements off the path if strip is > 0.
      */
-    @Deprecated // this is only a transition API
-    public static Path[] toPaths(File... files) {
-        Path[] paths = new Path[files.length];
-        for (int i = 0; i < files.length; i++) {
-            paths[i] = files[i].toPath();
+    public static Path append(Path base, Path path, int strip) {
+        for (Path subPath : path) {
+            if (strip-- > 0) {
+                continue;
+            }
+            base = base.resolve(subPath.toString());
         }
-        return paths;
+        return base;
     }
 
     /**
@@ -112,25 +113,23 @@ public class FileSystemUtils {
      * Check that a directory exists, is a directory and is readable
      * by the current user
      */
-    public static boolean isAccessibleDirectory(File directory, ESLogger logger) {
+    public static boolean isAccessibleDirectory(Path directory, ESLogger logger) {
         assert directory != null && logger != null;
 
-        if (!directory.exists()) {
-            logger.debug("[{}] directory does not exist.", directory.getAbsolutePath());
+        if (!Files.exists(directory)) {
+            logger.debug("[{}] directory does not exist.", directory.toAbsolutePath());
             return false;
         }
-        if (!directory.isDirectory()) {
-            logger.debug("[{}] should be a directory but is not.", directory.getAbsolutePath());
+        if (!Files.isDirectory(directory)) {
+            logger.debug("[{}] should be a directory but is not.", directory.toAbsolutePath());
             return false;
         }
-        if (!directory.canRead()) {
-            logger.debug("[{}] directory is not readable.", directory.getAbsolutePath());
+        if (!Files.isReadable(directory)) {
+            logger.debug("[{}] directory is not readable.", directory.toAbsolutePath());
             return false;
         }
         return true;
     }
-
-    private FileSystemUtils() {}
 
     /**
      * This utility copy a full directory content (excluded) under
@@ -144,17 +143,17 @@ public class FileSystemUtils {
      * @param suffix When not null, files are copied with a suffix appended to the original name (eg: ".new")
      *               When null, files are ignored
      */
-    public static void moveFilesWithoutOverwriting(File source, final File destination, final String suffix) throws IOException {
+    public static void moveFilesWithoutOverwriting(Path source, final Path destination, final String suffix) throws IOException {
 
         // Create destination dir
-        FileSystemUtils.mkdirs(destination);
+        Files.createDirectories(destination);
 
-        final int configPathRootLevel = source.toPath().getNameCount();
+        final int configPathRootLevel = source.getNameCount();
 
         // We walk through the file tree from
-        Files.walkFileTree(source.toPath(), new SimpleFileVisitor<Path>() {
+        Files.walkFileTree(source, new SimpleFileVisitor<Path>() {
             private Path buildPath(Path path) {
-                return destination.toPath().resolve(path);
+                return destination.resolve(path);
             }
 
             @Override
@@ -168,10 +167,8 @@ public class FileSystemUtils {
                     Path path = buildPath(subpath);
                     if (!Files.exists(path)) {
                         // We just move the structure to new dir
-                        if (!dir.toFile().renameTo(path.toFile())) {
-                            throw new IOException("Could not move [" + dir + "] to [" + path + "]");
-                        }
-
+                        // we can't do atomic move here since src / dest might be on different mounts?
+                        Files.move(dir, path);
                         // We just ignore sub files from here
                         return FileVisitResult.SKIP_SUBTREE;
                     }
@@ -209,9 +206,8 @@ public class FileSystemUtils {
      * @param source source dir
      * @param destination destination dir
      */
-    public static void copyDirectoryRecursively(File source, File destination) throws IOException {
-        Files.walkFileTree(source.toPath(),
-                new TreeCopier(source.toPath(), destination.toPath()));
+    public static void copyDirectoryRecursively(Path source, Path destination) throws IOException {
+        Files.walkFileTree(source, new TreeCopier(source, destination));
     }
 
     static class TreeCopier extends SimpleFileVisitor<Path> {
@@ -248,4 +244,30 @@ public class FileSystemUtils {
         }
     }
 
+    /**
+     * Returns an array of all files in the given directory matching.
+     */
+    public static Path[] files(Path from, DirectoryStream.Filter<Path> filter) throws IOException {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(from, filter)) {
+            return Iterators.toArray(stream.iterator(), Path.class);
+        }
+    }
+
+    /**
+     * Returns an array of all files in the given directory.
+     */
+    public static Path[] files(Path directory) throws IOException {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
+            return Iterators.toArray(stream.iterator(), Path.class);
+        }
+    }
+
+    /**
+     * Returns an array of all files in the given directory matching the glob.
+     */
+    public static Path[] files(Path directory, String glob) throws IOException {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory, glob)) {
+            return Iterators.toArray(stream.iterator(), Path.class);
+        }
+    }
 }

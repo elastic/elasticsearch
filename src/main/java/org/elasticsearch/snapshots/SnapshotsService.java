@@ -447,7 +447,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @param snapshotId snapshot id
      * @return map of shard id to snapshot status
      */
-    public ImmutableMap<ShardId, IndexShardSnapshotStatus> snapshotShards(SnapshotId snapshotId) {
+    public ImmutableMap<ShardId, IndexShardSnapshotStatus> snapshotShards(SnapshotId snapshotId) throws IOException {
         ImmutableMap.Builder<ShardId, IndexShardSnapshotStatus> shardStatusBuilder = ImmutableMap.builder();
         Repository repository = repositoriesService.repository(snapshotId.getRepository());
         IndexShardRepository indexShardRepository = repositoriesService.indexShardRepository(snapshotId.getRepository());

@@ -39,7 +39,8 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
-import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -67,8 +68,8 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         ensureGreen("test");
 
         logger.info("--> making sure that shard and its replica are allocated on node_1 and node_2");
-        assertThat(shardDirectory(node_1, "test", 0).exists(), equalTo(true));
-        assertThat(shardDirectory(node_2, "test", 0).exists(), equalTo(true));
+        assertThat(Files.exists(shardDirectory(node_1, "test", 0)), equalTo(true));
+        assertThat(Files.exists(shardDirectory(node_2, "test", 0)), equalTo(true));
 
         logger.info("--> starting node server3");
         String node_3 = internalCluster().startNode(SETTINGS);
@@ -82,7 +83,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         logger.info("--> making sure that shard is not allocated on server3");
         assertThat(waitForShardDeletion(node_3, "test", 0), equalTo(false));
 
-        File server2Shard = shardDirectory(node_2, "test", 0);
+        Path server2Shard = shardDirectory(node_2, "test", 0);
         logger.info("--> stopping node " + node_2);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_2));
 
@@ -95,12 +96,12 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
-        assertThat(server2Shard.exists(), equalTo(true));
+        assertThat(Files.exists(server2Shard), equalTo(true));
 
         logger.info("--> making sure that shard and its replica exist on server1, server2 and server3");
-        assertThat(shardDirectory(node_1, "test", 0).exists(), equalTo(true));
-        assertThat(server2Shard.exists(), equalTo(true));
-        assertThat(shardDirectory(node_3, "test", 0).exists(), equalTo(true));
+        assertThat(Files.exists(shardDirectory(node_1, "test", 0)), equalTo(true));
+        assertThat(Files.exists(server2Shard), equalTo(true));
+        assertThat(Files.exists(shardDirectory(node_3, "test", 0)), equalTo(true));
 
         logger.info("--> starting node node_4");
         final String node_4 = internalCluster().startNode(SETTINGS);
@@ -109,8 +110,8 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         ensureGreen();
 
         logger.info("--> making sure that shard and its replica are allocated on server1 and server3 but not on server2");
-        assertThat(shardDirectory(node_1, "test", 0).exists(), equalTo(true));
-        assertThat(shardDirectory(node_3, "test", 0).exists(), equalTo(true));
+        assertThat(Files.exists(shardDirectory(node_1, "test", 0)), equalTo(true));
+        assertThat(Files.exists(shardDirectory(node_3, "test", 0)), equalTo(true));
         assertThat(waitForShardDeletion(node_4, "test", 0), equalTo(false));
     }
 
@@ -163,18 +164,18 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    private File shardDirectory(String server, String index, int shard) {
+    private Path shardDirectory(String server, String index, int shard) {
         NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, server);
-        return env.shardLocations(new ShardId(index, shard))[0];
+        return env.shardPaths(new ShardId(index, shard))[0];
     }
 
     private boolean waitForShardDeletion(final String server, final  String index, final int shard) throws InterruptedException {
         awaitBusy(new Predicate<Object>() {
             public boolean apply(Object o) {
-                return !shardDirectory(server, index, shard).exists();
+                return !Files.exists(shardDirectory(server, index, shard));
             }
         });
-        return shardDirectory(server, index, shard).exists();
+        return Files.exists(shardDirectory(server, index, shard));
     }
 
 

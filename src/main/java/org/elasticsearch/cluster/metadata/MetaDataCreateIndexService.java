@@ -70,10 +70,13 @@ import org.elasticsearch.river.RiverIndexName;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.File;
-import java.io.FileInputStream;
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -303,17 +306,17 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
 
                     // now add config level mappings
-                    File mappingsDir = new File(environment.configFile(), "mappings");
-                    if (mappingsDir.exists() && mappingsDir.isDirectory()) {
+                    Path mappingsDir = environment.configFile().resolve("mappings");
+                    if (Files.isDirectory(mappingsDir)) {
                         // first index level
-                        File indexMappingsDir = new File(mappingsDir, request.index());
-                        if (indexMappingsDir.exists() && indexMappingsDir.isDirectory()) {
+                        Path indexMappingsDir = mappingsDir.resolve(request.index());
+                        if (Files.isDirectory(indexMappingsDir)) {
                             addMappings(mappings, indexMappingsDir);
                         }
 
                         // second is the _default mapping
-                        File defaultMappingsDir = new File(mappingsDir, "_default");
-                        if (defaultMappingsDir.exists() && defaultMappingsDir.isDirectory()) {
+                        Path defaultMappingsDir = mappingsDir.resolve("_default");
+                        if (Files.isDirectory(defaultMappingsDir)) {
                             addMappings(mappings, defaultMappingsDir);
                         }
                     }
@@ -485,28 +488,30 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         return XContentFactory.xContent(mappingSource).createParser(mappingSource).mapAndClose();
     }
 
-    private void addMappings(Map<String, Map<String, Object>> mappings, File mappingsDir) {
-        File[] mappingsFiles = mappingsDir.listFiles();
-        for (File mappingFile : mappingsFiles) {
-            if (mappingFile.isHidden()) {
-                continue;
-            }
-            int lastDotIndex = mappingFile.getName().lastIndexOf('.');
-            String mappingType = lastDotIndex != -1 ? mappingFile.getName().substring(0, lastDotIndex) : mappingFile.getName();
-            try {
-                String mappingSource = Streams.copyToString(new InputStreamReader(new FileInputStream(mappingFile), Charsets.UTF_8));
-                if (mappings.containsKey(mappingType)) {
-                    XContentHelper.mergeDefaults(mappings.get(mappingType), parseMapping(mappingSource));
-                } else {
-                    mappings.put(mappingType, parseMapping(mappingSource));
+    private void addMappings(Map<String, Map<String, Object>> mappings, Path mappingsDir) throws IOException {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(mappingsDir)) {
+            for (Path mappingFile : stream) {
+                final String fileName = mappingFile.getFileName().toString();
+                if (Files.isHidden(mappingFile)) {
+                    continue;
                 }
-            } catch (Exception e) {
-                logger.warn("failed to read / parse mapping [" + mappingType + "] from location [" + mappingFile + "], ignoring...", e);
+                int lastDotIndex = fileName.lastIndexOf('.');
+                String mappingType = lastDotIndex != -1 ? mappingFile.getFileName().toString().substring(0, lastDotIndex) : mappingFile.getFileName().toString();
+                try (BufferedReader reader = Files.newBufferedReader(mappingFile, Charsets.UTF_8)) {
+                    String mappingSource = Streams.copyToString(reader);
+                    if (mappings.containsKey(mappingType)) {
+                        XContentHelper.mergeDefaults(mappings.get(mappingType), parseMapping(mappingSource));
+                    } else {
+                        mappings.put(mappingType, parseMapping(mappingSource));
+                    }
+                } catch (Exception e) {
+                    logger.warn("failed to read / parse mapping [" + mappingType + "] from location [" + mappingFile + "], ignoring...", e);
+                }
             }
         }
     }
 
-    private List<IndexTemplateMetaData> findTemplates(CreateIndexClusterStateUpdateRequest request, ClusterState state, IndexTemplateFilter indexTemplateFilter) {
+    private List<IndexTemplateMetaData> findTemplates(CreateIndexClusterStateUpdateRequest request, ClusterState state, IndexTemplateFilter indexTemplateFilter) throws IOException {
         List<IndexTemplateMetaData> templates = Lists.newArrayList();
         for (ObjectCursor<IndexTemplateMetaData> cursor : state.metaData().templates().values()) {
             IndexTemplateMetaData template = cursor.value;
@@ -516,22 +521,21 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
 
         // see if we have templates defined under config
-        File templatesDir = new File(environment.configFile(), "templates");
-        if (templatesDir.exists() && templatesDir.isDirectory()) {
-            File[] templatesFiles = templatesDir.listFiles();
-            if (templatesFiles != null) {
-                for (File templatesFile : templatesFiles) {
-                    if (templatesFile.isFile()) {
+        final Path templatesDir = environment.configFile().resolve("templates");
+        if (Files.exists(templatesDir) && Files.isDirectory(templatesDir)) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(templatesDir)) {
+                for (Path templatesFile : stream) {
+                    if (Files.isRegularFile(templatesFile)) {
                         XContentParser parser = null;
                         try {
-                            byte[] templatesData = Streams.copyToByteArray(templatesFile);
+                            final byte[] templatesData = Files.readAllBytes(templatesFile);
                             parser = XContentHelper.createParser(templatesData, 0, templatesData.length);
-                            IndexTemplateMetaData template = IndexTemplateMetaData.Builder.fromXContent(parser, templatesFile.getName());
+                            IndexTemplateMetaData template = IndexTemplateMetaData.Builder.fromXContent(parser, templatesFile.getFileName().toString());
                             if (indexTemplateFilter.apply(request, template)) {
                                 templates.add(template);
                             }
                         } catch (Exception e) {
-                            logger.warn("[{}] failed to read template [{}] from config", e, request.index(), templatesFile.getAbsolutePath());
+                            logger.warn("[{}] failed to read template [{}] from config", e, request.index(), templatesFile.toAbsolutePath());
                         } finally {
                             Releasables.closeWhileHandlingException(parser);
                         }

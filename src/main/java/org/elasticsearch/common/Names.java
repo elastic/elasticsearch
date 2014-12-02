@@ -25,6 +25,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -32,35 +34,25 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public abstract class Names {
 
-    public static String randomNodeName(URL nodeNames) {
-        BufferedReader reader = null;
+    public static String randomNodeName(Path nodeNames) {
         try {
-            reader = new BufferedReader(new InputStreamReader(nodeNames.openStream(), Charsets.UTF_8));
             int numberOfNames = 0;
-            while (reader.readLine() != null) {
-                numberOfNames++;
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(Files.newInputStream(nodeNames), Charsets.UTF_8))) {
+                while (reader.readLine() != null) {
+                    numberOfNames++;
+                }
             }
-            reader.close();
-            reader = new BufferedReader(new InputStreamReader(nodeNames.openStream(), Charsets.UTF_8));
-            int number = ((ThreadLocalRandom.current().nextInt(numberOfNames)) % numberOfNames);
-            for (int i = 0; i < number; i++) {
-                reader.readLine();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(Files.newInputStream(nodeNames), Charsets.UTF_8))) {
+                int number = ((ThreadLocalRandom.current().nextInt(numberOfNames)) % numberOfNames);
+                for (int i = 0; i < number; i++) {
+                    reader.readLine();
+                }
+                return reader.readLine();
             }
-            return reader.readLine();
         } catch (IOException e) {
             return null;
-        } finally {
-            try {
-                if (reader != null) {
-                    reader.close();
-                }
-            } catch (IOException e) {
-                // ignore this exception
-            }
         }
     }
 
-    private Names() {
-
-    }
+    private Names() {}
 }

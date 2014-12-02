@@ -114,3 +114,17 @@ org.apache.lucene.search.TimeLimitingCollector#getGlobalCounter()
 
 @defaultMessage Don't interrupt threads use FutureUtils#cancel(Future<T>) instead
 java.util.concurrent.Future#cancel(boolean)
+
+@defaultMessage Use java.nio.file.Path / java.nio.file.Files instead of java.io.File API
+java.util.jar.JarFile
+java.util.zip.ZipFile
+java.io.File
+java.io.FileInputStream
+java.io.FileOutputStream
+java.io.PrintStream#<init>(java.lang.String,java.lang.String)
+java.io.PrintWriter#<init>(java.lang.String,java.lang.String)
+java.util.Formatter#<init>(java.lang.String,java.lang.String,java.util.Locale)
+java.io.RandomAccessFile
+java.nio.file.Path#toFile()
+
+

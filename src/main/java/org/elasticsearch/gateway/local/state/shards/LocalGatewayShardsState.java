@@ -37,7 +37,7 @@ import org.elasticsearch.gateway.local.state.meta.MetaDataStateFormat;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.*;
-import java.nio.file.Files;
+import java.nio.file.*;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -251,37 +251,33 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
 
     private void pre019Upgrade() throws Exception {
         long index = -1;
-        File latest = null;
-        for (File dataLocation : nodeEnv.nodeDataLocations()) {
-            File stateLocation = new File(dataLocation, "_state");
-            if (!stateLocation.exists()) {
+        Path latest = null;
+        for (Path dataLocation : nodeEnv.nodeDataPaths()) {
+            final Path stateLocation = dataLocation.resolve(MetaDataStateFormat.STATE_DIR_NAME);
+            if (!Files.exists(stateLocation)) {
                 continue;
             }
-            File[] stateFiles = stateLocation.listFiles();
-            if (stateFiles == null) {
-                continue;
-            }
-            for (File stateFile : stateFiles) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("[find_latest_state]: processing [" + stateFile.getName() + "]");
-                }
-                String name = stateFile.getName();
-                if (!name.startsWith("shards-")) {
-                    continue;
-                }
-                long fileIndex = Long.parseLong(name.substring(name.indexOf('-') + 1));
-                if (fileIndex >= index) {
-                    // try and read the meta data
-                    try {
-                        byte[] data = Streams.copyToByteArray(new FileInputStream(stateFile));
-                        if (data.length == 0) {
-                            logger.debug("[upgrade]: not data for [" + name + "], ignoring...");
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(stateLocation, "shards-*")) {
+                for (Path stateFile : stream) {
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("[find_latest_state]: processing [" + stateFile.getFileName() + "]");
+                    }
+                    String name = stateFile.getFileName().toString();
+                    assert name.startsWith("shards-");
+                    long fileIndex = Long.parseLong(name.substring(name.indexOf('-') + 1));
+                    if (fileIndex >= index) {
+                        // try and read the meta data
+                        try {
+                            byte[] data = Files.readAllBytes(stateFile);
+                            if (data.length == 0) {
+                                logger.debug("[upgrade]: not data for [" + name + "], ignoring...");
+                            }
+                            pre09ReadState(data);
+                            index = fileIndex;
+                            latest = stateFile;
+                        } catch (IOException e) {
+                            logger.warn("[upgrade]: failed to read state from [" + name + "], ignoring...", e);
                         }
-                        pre09ReadState(data);
-                        index = fileIndex;
-                        latest = stateFile;
-                    } catch (IOException e) {
-                        logger.warn("[upgrade]: failed to read state from [" + name + "], ignoring...", e);
                     }
                 }
             }
@@ -290,44 +286,36 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
             return;
         }
 
-        logger.info("found old shards state, loading started shards from [{}] and converting to new shards state locations...", latest.getAbsolutePath());
-        Map<ShardId, ShardStateInfo> shardsState = pre09ReadState(Streams.copyToByteArray(new FileInputStream(latest)));
+        logger.info("found old shards state, loading started shards from [{}] and converting to new shards state locations...", latest.toAbsolutePath());
+        Map<ShardId, ShardStateInfo> shardsState = pre09ReadState(Files.readAllBytes(latest));
 
         for (Map.Entry<ShardId, ShardStateInfo> entry : shardsState.entrySet()) {
             writeShardState("upgrade", entry.getKey(), entry.getValue(), null);
         }
 
         // rename shards state to backup state
-        File backupFile = new File(latest.getParentFile(), "backup-" + latest.getName());
-        if (!latest.renameTo(backupFile)) {
-            throw new IOException("failed to rename old state to backup state [" + latest.getAbsolutePath() + "]");
-        }
+        Path backupFile = latest.resolveSibling("backup-" + latest.getFileName());
+        Files.move(latest, backupFile, StandardCopyOption.ATOMIC_MOVE);
 
         // delete all other shards state files
-        for (File dataLocation : nodeEnv.nodeDataLocations()) {
-            File stateLocation = new File(dataLocation, "_state");
-            if (!stateLocation.exists()) {
+        for (Path dataLocation : nodeEnv.nodeDataPaths()) {
+            final Path stateLocation = dataLocation.resolve(MetaDataStateFormat.STATE_DIR_NAME);
+            if (!Files.exists(stateLocation)) {
                 continue;
             }
-            File[] stateFiles = stateLocation.listFiles();
-            if (stateFiles == null) {
-                continue;
-            }
-            for (File stateFile : stateFiles) {
-                String name = stateFile.getName();
-                if (!name.startsWith("shards-")) {
-                    continue;
-                }
-                try {
-                    Files.delete(stateFile.toPath());
-                } catch (Exception ex) {
-                    logger.debug("Failed to delete state file {}", ex, stateFile);
-                }
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(stateLocation, "shards-*")) {
+                for (Path stateFile : stream) {
+                    try {
+                        Files.delete(stateFile);
+                    } catch (Exception ex) {
+                        logger.debug("Failed to delete state file {}", ex, stateFile);
+                    }
 
+                }
             }
         }
 
-        logger.info("conversion to new shards state location and format done, backup create at [{}]", backupFile.getAbsolutePath());
+        logger.info("conversion to new shards state location and format done, backup create at [{}]", backupFile.toAbsolutePath());
     }
 
     private Map<ShardId, ShardStateInfo> pre09ReadState(byte[] data) throws IOException {

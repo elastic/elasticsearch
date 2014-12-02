@@ -42,6 +42,7 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
@@ -86,7 +87,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
     @Override
     protected void masterOperation(final SnapshotsStatusRequest request,
                                    final ClusterState state,
-                                   final ActionListener<SnapshotsStatusResponse> listener) throws ElasticsearchException {
+                                   final ActionListener<SnapshotsStatusResponse> listener) throws Exception {
         ImmutableList<SnapshotMetaData.Entry> currentSnapshots = snapshotsService.currentSnapshots(request.repository(), request.snapshots());
 
         if (currentSnapshots.isEmpty()) {
@@ -136,7 +137,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
     }
 
     private SnapshotsStatusResponse buildResponse(SnapshotsStatusRequest request, ImmutableList<SnapshotMetaData.Entry> currentSnapshots,
-                                                  TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) {
+                                                  TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) throws IOException {
         // First process snapshot that are currently processed
         ImmutableList.Builder<SnapshotStatus> builder = ImmutableList.builder();
         Set<SnapshotId> currentSnapshotIds = newHashSet();

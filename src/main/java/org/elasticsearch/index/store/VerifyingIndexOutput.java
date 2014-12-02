@@ -33,6 +33,7 @@ public abstract class VerifyingIndexOutput extends IndexOutput {
     
     /** Sole constructor */
     VerifyingIndexOutput(IndexOutput out) {
+        super("VerifyingIndexOutput(in=" + out + ")");
         this.out = out;
     }
     

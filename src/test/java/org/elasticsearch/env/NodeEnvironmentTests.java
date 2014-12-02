@@ -284,15 +284,6 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
         env.close();
     }
 
-    private String[] tmpPaths() {
-        final int numPaths = randomIntBetween(1, 3);
-        final String[] absPaths = new String[numPaths];
-        for (int i = 0; i < numPaths; i++) {
-            absPaths[i] = newTempDir().getAbsolutePath();
-        }
-        return absPaths;
-    }
-
     public NodeEnvironment newNodeEnvironment() throws IOException {
         return newNodeEnvironment(ImmutableSettings.EMPTY);
     }
@@ -304,4 +295,6 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
                 .putArray("path.data", tmpPaths()).build();
         return new NodeEnvironment(build, new Environment(build));
     }
+
+
 }

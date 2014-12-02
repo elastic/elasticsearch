@@ -40,6 +40,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.NotFilter;
@@ -138,11 +139,11 @@ public class MapperService extends AbstractIndexComponent  {
 
         this.dynamic = componentSettings.getAsBoolean("dynamic", true);
         String defaultMappingLocation = componentSettings.get("default_mapping_location");
-        final Path defaultMappingUrl;
+        final URL defaultMappingUrl;
         if (index.getName().equals(ScriptService.SCRIPT_INDEX)){
-            defaultMappingUrl = getMappingUrl(indexSettings, environment, defaultMappingLocation,"script-mapping.json","org/elasticsearch/index/mapper/script-mapping.json");
+            defaultMappingUrl = getMappingUrl(indexSettings, environment, defaultMappingLocation, "script-mapping.json", "org/elasticsearch/index/mapper/script-mapping.json");
         } else {
-            defaultMappingUrl = getMappingUrl(indexSettings, environment, defaultMappingLocation,"default-mapping.json","org/elasticsearch/index/mapper/default-mapping.json");
+            defaultMappingUrl = getMappingUrl(indexSettings, environment, defaultMappingLocation, "default-mapping.json", "org/elasticsearch/index/mapper/default-mapping.json");
         }
 
         if (defaultMappingUrl == null) {
@@ -164,25 +165,29 @@ public class MapperService extends AbstractIndexComponent  {
             }
         } else {
             try {
-                defaultMappingSource = Streams.copyToString(new InputStreamReader(Files.newInputStream(defaultMappingUrl), Charsets.UTF_8));
+                defaultMappingSource = Streams.copyToString(FileSystemUtils.newBufferedReader(defaultMappingUrl, Charsets.UTF_8));
             } catch (IOException e) {
                 throw new MapperException("Failed to load default mapping source from [" + defaultMappingLocation + "]", e);
             }
         }
 
         String percolatorMappingLocation = componentSettings.get("default_percolator_mapping_location");
-        Path percolatorMappingUrl = null;
+        URL percolatorMappingUrl = null;
         if (percolatorMappingLocation != null) {
             try {
                 percolatorMappingUrl = environment.resolveConfig(percolatorMappingLocation);
             } catch (FailedToResolveConfigException e) {
                 // not there, default to the built in one
-                percolatorMappingUrl = Paths.get(percolatorMappingLocation);
+                try {
+                percolatorMappingUrl = Paths.get(percolatorMappingLocation).toUri().toURL();
+                } catch (MalformedURLException e1) {
+                    throw new FailedToResolveConfigException("Failed to resolve default percolator mapping location [" + percolatorMappingLocation + "]");
+                }
             }
         }
         if (percolatorMappingUrl != null) {
             try {
-                defaultPercolatorMappingSource = Streams.copyToString(new InputStreamReader(Files.newInputStream(percolatorMappingUrl), Charsets.UTF_8));
+                defaultPercolatorMappingSource = Streams.copyToString(FileSystemUtils.newBufferedReader(percolatorMappingUrl, Charsets.UTF_8));
             } catch (IOException e) {
                 throw new MapperException("Failed to load default percolator mapping source from [" + percolatorMappingUrl + "]", e);
             }
@@ -208,20 +213,16 @@ public class MapperService extends AbstractIndexComponent  {
         }
     }
 
-    private Path getMappingUrl(Settings indexSettings, Environment environment, String mappingLocation, String configString, String resourceLocation) {
-        Path mappingUrl;
+    private URL getMappingUrl(Settings indexSettings, Environment environment, String mappingLocation, String configString, String resourceLocation) {
+        URL mappingUrl;
         if (mappingLocation == null) {
             try {
                 mappingUrl = environment.resolveConfig(configString);
             } catch (FailedToResolveConfigException e) {
-                try {
-                    // not there, default to the built in one
-                    mappingUrl = Paths.get(indexSettings.getClassLoader().getResource(resourceLocation).toURI());
-                    if (mappingUrl == null) {
-                        mappingUrl = Paths.get(MapperService.class.getClassLoader().getResource(resourceLocation).toURI());
-                    }
-                }  catch (URISyntaxException e1) {
-                    throw new FailedToResolveConfigException("Failed to resolve dynamic mapping location [" + mappingLocation + "]");
+                // not there, default to the built in one
+                mappingUrl = indexSettings.getClassLoader().getResource(resourceLocation);
+                if (mappingUrl == null) {
+                    mappingUrl = MapperService.class.getClassLoader().getResource(resourceLocation);
                 }
             }
         } else {
@@ -229,8 +230,11 @@ public class MapperService extends AbstractIndexComponent  {
                 mappingUrl = environment.resolveConfig(mappingLocation);
             } catch (FailedToResolveConfigException e) {
                 // not there, default to the built in one
-                mappingUrl = Paths.get(mappingLocation);
-
+                try {
+                    mappingUrl = Paths.get(mappingLocation).toUri().toURL();
+                } catch (MalformedURLException e1) {
+                    throw new FailedToResolveConfigException("Failed to resolve dynamic mapping location [" + mappingLocation + "]");
+                }
             }
         }
         return mappingUrl;

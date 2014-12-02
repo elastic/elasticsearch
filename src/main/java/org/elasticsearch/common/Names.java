@@ -20,6 +20,7 @@
 package org.elasticsearch.common;
 
 import com.google.common.base.Charsets;
+import org.elasticsearch.common.io.FileSystemUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -34,15 +35,15 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public abstract class Names {
 
-    public static String randomNodeName(Path nodeNames) {
+    public static String randomNodeName(URL nodeNames) {
         try {
             int numberOfNames = 0;
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(Files.newInputStream(nodeNames), Charsets.UTF_8))) {
+            try (BufferedReader reader = FileSystemUtils.newBufferedReader(nodeNames, Charsets.UTF_8)) {
                 while (reader.readLine() != null) {
                     numberOfNames++;
                 }
             }
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(Files.newInputStream(nodeNames), Charsets.UTF_8))) {
+            try (BufferedReader reader = FileSystemUtils.newBufferedReader(nodeNames, Charsets.UTF_8)) {
                 int number = ((ThreadLocalRandom.current().nextInt(numberOfNames)) % numberOfNames);
                 for (int i = 0; i < number; i++) {
                     reader.readLine();

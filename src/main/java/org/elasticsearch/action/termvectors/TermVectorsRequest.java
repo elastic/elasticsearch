@@ -444,9 +444,9 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
                 perFieldAnalyzer = readPerFieldAnalyzer(in.readMap());
             }
             this.realtime = in.readBoolean();
-            version = Versions.readVersionWithVLongForBW(in);
-            versionType = VersionType.fromValue(in.readByte());
         }
+        version = Versions.readVersionWithVLongForBW(in);
+        versionType = VersionType.fromValue(in.readByte());
     }
 
     @Override
@@ -486,9 +486,9 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
                 out.writeGenericValue(perFieldAnalyzer);
             }
             out.writeBoolean(realtime());
-            Versions.writeVersionWithVLongForBW(version, out);
-            out.writeByte(versionType.getValue());
         }
+        Versions.writeVersionWithVLongForBW(version, out);
+        out.writeByte(versionType.getValue());
     }
 
     public static enum Flag {

@@ -218,12 +218,12 @@ public class RecoveryTarget extends AbstractComponent {
 
             if (cause instanceof IndexShardNotStartedException || cause instanceof IndexMissingException || cause instanceof IndexShardMissingException) {
                 // if the target is not ready yet, retry
-                retryRecovery(recoveryStatus.recoveryId(), TimeValue.timeValueMillis(500));
+                retryRecovery(recoveryStatus.recoveryId(), recoverySettings.retryDelay());
                 return;
             }
 
             if (cause instanceof DelayRecoveryException) {
-                retryRecovery(recoveryStatus.recoveryId(), TimeValue.timeValueMillis(500));
+                retryRecovery(recoveryStatus.recoveryId(), recoverySettings.retryDelay());
                 return;
             }
 

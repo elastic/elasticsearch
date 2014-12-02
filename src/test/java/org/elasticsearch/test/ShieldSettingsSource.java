@@ -99,8 +99,10 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
                 .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRoles()))
                 .put(getNodeSSLSettings());
 
+        //the random call has to happen all the time for repeatability
+        String networkHost = RandomizedTest.randomBoolean() ? "127.0.0.1" : "::1";
         if (OsUtils.MAC) {
-            builder.put("network.host", RandomizedTest.randomBoolean() ? "127.0.0.1" : "::1");
+            builder.put("network.host", networkHost);
         }
 
         setUser(builder, nodeClientUsername(), nodeClientPassword());

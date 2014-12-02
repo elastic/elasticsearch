@@ -480,7 +480,7 @@ public abstract class FilteredSearchContext extends SearchContext {
 
     @Override
     public void accessed(long accessTime) {
-        accessed(accessTime);
+        in.accessed(accessTime);
     }
 
     @Override

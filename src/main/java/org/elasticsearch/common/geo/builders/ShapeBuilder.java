@@ -25,6 +25,7 @@ import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
+import org.apache.commons.lang3.tuple.Pair;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.logging.ESLogger;
@@ -405,6 +406,29 @@ public abstract class ShapeBuilder implements ToXContent {
             return top;
         }
 
+        private static final Pair range(Coordinate[] points, int offset, int length) {
+            double minX = points[0].x;
+            double maxX = points[0].x;
+            double minY = points[0].y;
+            double maxY = points[0].y;
+            // compute the bounding coordinates (@todo: cleanup brute force)
+            for (int i = 1; i < length; ++i) {
+                if (points[offset + i].x < minX) {
+                    minX = points[offset + i].x;
+                }
+                if (points[offset + i].x > maxX) {
+                    maxX = points[offset + i].x;
+                }
+                if (points[offset + i].y < minY) {
+                    minY = points[offset + i].y;
+                }
+                if (points[offset + i].y > maxY) {
+                    maxY = points[offset + i].y;
+                }
+            }
+            return Pair.of(Pair.of(minX, maxX), Pair.of(minY, maxY));
+        }
+
         /**
          * Concatenate a set of points to a polygon
          * 
@@ -461,8 +485,8 @@ public abstract class ShapeBuilder implements ToXContent {
          *            number of points
          * @return Array of edges
          */
-        protected static Edge[] ring(int component, boolean direction, Coordinate[] points, int offset, Edge[] edges, int toffset,
-                int length) {
+        protected static Edge[] ring(int component, boolean direction, BaseLineStringBuilder<?> shell, Coordinate[] points, int offset, 
+                                     Edge[] edges, int toffset, int length) {
             // calculate the direction of the points:
             // find the point a the top of the set and check its
             // neighbors orientation. So direction is equivalent
@@ -474,12 +498,26 @@ public abstract class ShapeBuilder implements ToXContent {
 
             // OGC requires shell as ccw (Right-Handedness) and holes as cw (Left-Handedness) 
             // since GeoJSON doesn't specify (and doesn't need to) GEO core will assume OGC standards
-            // thus no need to compute orientation at runtime (which fails on ambiguous polys anyway
-            final int rngIdx = (orientation) ? next : prev;
-            if ( ((orientation && component == 0) || (!orientation && component < 0)) &&
-                    points[offset+top].x - points[offset+rngIdx].x > DATELINE) {
+            // thus if orientation is computed as cw, the logic will translate points across dateline
+            // and convert to a right handed system
+
+            // compute the bounding box and calculate range
+            Pair<Pair, Pair> range = range(points, offset, length);
+            final double rng = (Double)range.getLeft().getRight() - (Double)range.getLeft().getLeft();
+            // translate the points if the following is true
+            //   1.  range is greater than a hemisphere (180 degrees) but not spanning 2 hemispheres (translation would result in
+            //         a collapsed poly)
+            //   2.  the shell of the candidate hole has been translated (to preserve the coordinate system)
+            if ((rng > DATELINE && rng != 2*DATELINE && orientation) || (shell.translated && component != 0)) {
                 transform(points);
-                orientation = !orientation;
+                // flip the translation bit if the shell is being translated
+                if (component == 0 && !shell.translated) {
+                    shell.translated = true;
+                }
+                // correct the orientation post translation (ccw for shell, cw for holes)
+                if ((component == 0 && orientation) || (component != 0 && !orientation)) {
+                    orientation = !orientation;
+                }
             }
             return concat(component, direction ^ orientation, points, offset, edges, toffset, length);
         }

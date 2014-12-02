@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -557,9 +556,7 @@ public class InternalSearchHit implements SearchHit {
         score = in.readFloat();
         id = in.readText();
         type = in.readSharedText();
-        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
-            nestedIdentity = in.readOptionalStreamable(new InternalNestedIdentity());
-        }
+        nestedIdentity = in.readOptionalStreamable(new InternalNestedIdentity());
         version = in.readLong();
         source = in.readBytesReference();
         if (source.length() == 0) {
@@ -685,15 +682,13 @@ public class InternalSearchHit implements SearchHit {
             }
         }
 
-        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
-            size = in.readVInt();
-            if (size > 0) {
-                innerHits = new HashMap<>(size);
-                for (int i = 0; i < size; i++) {
-                    String key = in.readString();
-                    InternalSearchHits value = InternalSearchHits.readSearchHits(in, InternalSearchHits.streamContext().streamShardTarget(InternalSearchHits.StreamContext.ShardTargetType.NO_STREAM));
-                    innerHits.put(key, value);
-                }
+        size = in.readVInt();
+        if (size > 0) {
+            innerHits = new HashMap<>(size);
+            for (int i = 0; i < size; i++) {
+                String key = in.readString();
+                InternalSearchHits value = InternalSearchHits.readSearchHits(in, InternalSearchHits.streamContext().streamShardTarget(InternalSearchHits.StreamContext.ShardTargetType.NO_STREAM));
+                innerHits.put(key, value);
             }
         }
     }
@@ -707,9 +702,7 @@ public class InternalSearchHit implements SearchHit {
         out.writeFloat(score);
         out.writeText(id);
         out.writeSharedText(type);
-        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
-            out.writeOptionalStreamable(nestedIdentity);
-        }
+        out.writeOptionalStreamable(nestedIdentity);
         out.writeLong(version);
         out.writeBytesReference(source);
         if (explanation == null) {
@@ -802,15 +795,13 @@ public class InternalSearchHit implements SearchHit {
             }
         }
 
-        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
-            if (innerHits == null) {
-                out.writeVInt(0);
-            } else {
-                out.writeVInt(innerHits.size());
-                for (Map.Entry<String, InternalSearchHits> entry : innerHits.entrySet()) {
-                    out.writeString(entry.getKey());
-                    entry.getValue().writeTo(out, InternalSearchHits.streamContext().streamShardTarget(InternalSearchHits.StreamContext.ShardTargetType.NO_STREAM));
-                }
+        if (innerHits == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(innerHits.size());
+            for (Map.Entry<String, InternalSearchHits> entry : innerHits.entrySet()) {
+                out.writeString(entry.getKey());
+                entry.getValue().writeTo(out, InternalSearchHits.streamContext().streamShardTarget(InternalSearchHits.StreamContext.ShardTargetType.NO_STREAM));
             }
         }
     }

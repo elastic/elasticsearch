@@ -24,7 +24,13 @@ import com.google.common.collect.Sets;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.logging.ESLogger;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.net.URL;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
@@ -129,6 +135,17 @@ public final class FileSystemUtils {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Opens the given url for reading returning a {@code BufferedReader} that may be
+     * used to read text from the URL in an efficient manner. Bytes from the
+     * file are decoded into characters using the specified charset.
+     */
+    public static BufferedReader newBufferedReader(URL url, Charset cs) throws IOException {
+        CharsetDecoder decoder = cs.newDecoder();
+        Reader reader = new InputStreamReader(url.openStream(), decoder);
+        return new BufferedReader(reader);
     }
 
     /**

@@ -50,8 +50,6 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.*;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
 
 import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.common.io.FileSystemUtils.moveFilesWithoutOverwriting;

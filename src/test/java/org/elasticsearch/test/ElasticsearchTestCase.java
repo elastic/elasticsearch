@@ -560,4 +560,16 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         return ThreadPool.terminate(service, 10, TimeUnit.SECONDS);
     }
 
+    /**
+     * Returns a random number of temporary paths.
+     */
+    public String[] tmpPaths() {
+        final int numPaths = randomIntBetween(1, 3);
+        final String[] absPaths = new String[numPaths];
+        for (int i = 0; i < numPaths; i++) {
+            absPaths[i] = newTempDir().getAbsolutePath();
+        }
+        return absPaths;
+    }
+
 }

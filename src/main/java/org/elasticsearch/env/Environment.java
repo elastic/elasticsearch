@@ -32,9 +32,8 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.*;
+import java.util.Collections;
 
 import static org.elasticsearch.common.Strings.cleanPath;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
@@ -176,16 +175,16 @@ public class Environment {
         return logsFile;
     }
 
-    public String resolveConfigAndLoadToString(String path) throws FailedToResolveConfigException, IOException {
-        return Streams.copyToString(Files.newBufferedReader(resolveConfig(path), Charsets.UTF_8));
-    }
-
-    public Path resolveConfig(String path) throws FailedToResolveConfigException {
+    public URL resolveConfig(String path) throws FailedToResolveConfigException {
         String origPath = path;
         // first, try it as a path on the file system
         Path f1 = Paths.get(path);
         if (Files.exists(f1)) {
-            return f1;
+            try {
+                return f1.toUri().toURL();
+            } catch (MalformedURLException e) {
+                throw new FailedToResolveConfigException("Failed to resolve path [" + f1 + "]", e);
+            }
         }
         if (path.startsWith("/")) {
             path = path.substring(1);
@@ -193,23 +192,23 @@ public class Environment {
         // next, try it relative to the config location
         Path f2 = configFile.resolve(path);
         if (Files.exists(f2)) {
-            return f2;
+            try {
+                return f2.toUri().toURL();
+            } catch (MalformedURLException e) {
+                throw new FailedToResolveConfigException("Failed to resolve path [" + f1 + "]", e);
+            }
         }
-        try {
-            // try and load it from the classpath directly
-            URL resource = settings.getClassLoader().getResource(path);
+        // try and load it from the classpath directly
+        URL resource = settings.getClassLoader().getResource(path);
+        if (resource != null) {
+            return resource;
+        }
+        // try and load it from the classpath with config/ prefix
+        if (!path.startsWith("config/")) {
+            resource = settings.getClassLoader().getResource("config/" + path);
             if (resource != null) {
-                return Paths.get(resource.toURI());
+                return resource;
             }
-            // try and load it from the classpath with config/ prefix
-            if (!path.startsWith("config/")) {
-                resource = settings.getClassLoader().getResource("config/" + path);
-                if (resource != null) {
-                    return Paths.get(resource.toURI());
-                }
-            }
-        } catch (URISyntaxException ex) {
-            throw new FailedToResolveConfigException("Failed to resolve config path [" + origPath + "], tried file path [" + f1 + "], path file [" + f2 + "], and classpath", ex);
         }
         throw new FailedToResolveConfigException("Failed to resolve config path [" + origPath + "], tried file path [" + f1 + "], path file [" + f2 + "], and classpath");
     }

@@ -58,10 +58,10 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
             throw new ElasticsearchIllegalArgumentException("hyphenation_patterns_path is a required setting.");
         }
 
-        Path hyphenationPatternsFile = env.resolveConfig(hyphenationPatternsPath);
+        URL hyphenationPatternsFile = env.resolveConfig(hyphenationPatternsPath);
 
         try {
-            hyphenationTree = HyphenationCompoundWordTokenFilter.getHyphenationTree(new InputSource(Files.newInputStream(hyphenationPatternsFile)));
+            hyphenationTree = HyphenationCompoundWordTokenFilter.getHyphenationTree(new InputSource(hyphenationPatternsFile.toExternalForm()));
         } catch (Exception e) {
             throw new ElasticsearchIllegalArgumentException("Exception while reading hyphenation_patterns_path: " + e.getMessage());
         }

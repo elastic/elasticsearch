@@ -14,19 +14,15 @@ import org.elasticsearch.common.cli.commons.CommandLine;
 import org.elasticsearch.common.collect.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.Realms;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.esusers.FileUserPasswdStore;
 import org.elasticsearch.shield.authc.esusers.FileUserRolesStore;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.shield.authz.AuthorizationException;
-import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.authz.Permission;
 import org.elasticsearch.shield.authz.store.FileRolesStore;
 import org.elasticsearch.shield.support.Validation;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -437,7 +433,7 @@ public class ESUsersTool extends CliTool {
     private static ImmutableMap<String, Permission.Global.Role> loadRoles(Terminal terminal, Settings settings, Environment env) {
         Path rolesFile = FileRolesStore.resolveFile(settings, env);
         try {
-            return FileRolesStore.parseFile(rolesFile, null, new DummyAuthzService());
+            return FileRolesStore.parseFile(rolesFile, null);
         } catch (Throwable t) {
             // if for some reason, parsing fails (malformatted perhaps) we just warn
             terminal.println("Warning:  Could not parse [%s] for roles verification. Please revise and fix it. Nonetheless, the user will still be associated with all specified roles", rolesFile.toAbsolutePath());
@@ -471,18 +467,6 @@ public class ESUsersTool extends CliTool {
             terminal.println("Warning: The following roles [%s] are unknown. Make sure to add them to the [%s] file. " +
                             "Nonetheless the user will still be associated with all specified roles",
                     Strings.collectionToCommaDelimitedString(unknownRoles), rolesFile.toAbsolutePath());
-        }
-    }
-
-    private static class DummyAuthzService implements AuthorizationService {
-        @Override
-        public ImmutableList<String> authorizedIndicesAndAliases(User user, String action) {
-            return ImmutableList.of();
-        }
-
-        @Override
-        public void authorize(User user, String action, TransportRequest request) throws AuthorizationException {
-
         }
     }
 }

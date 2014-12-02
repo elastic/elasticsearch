@@ -83,6 +83,10 @@ public class FsBlobContainer extends AbstractBlobContainer {
     public OutputStream createOutput(String blobName) throws IOException {
         final File file = new File(path, blobName);
         return new BufferedOutputStream(new FilterOutputStream(new FileOutputStream(file)) {
+
+            @Override // FilterOutputStream#write(byte[] b, int off, int len) is trappy writes every single byte
+            public void write(byte[] b, int off, int len) throws IOException { out.write(b, off, len);}
+
             @Override
             public void close() throws IOException {
                 super.close();

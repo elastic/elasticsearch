@@ -153,8 +153,8 @@ public class IPFilterTests extends ElasticsearchTestCase {
             String message = String.format(Locale.ROOT, "Expected address %s to be allowed", inetAddress);
             InetAddress address = InetAddresses.forString(inetAddress);
             assertThat(message, ipFilter.accept(profile, address), is(true));
-            ArgumentCaptor<ProfileIpFilterRule> ruleCaptor = ArgumentCaptor.forClass(ProfileIpFilterRule.class);
-            verify(auditTrail).connectionGranted(eq(address), ruleCaptor.capture());
+            ArgumentCaptor<ShieldIpFilterRule> ruleCaptor = ArgumentCaptor.forClass(ShieldIpFilterRule.class);
+            verify(auditTrail).connectionGranted(eq(address), eq(profile), ruleCaptor.capture());
             assertNotNull(ruleCaptor.getValue());
         }
     }
@@ -168,8 +168,8 @@ public class IPFilterTests extends ElasticsearchTestCase {
             String message = String.format(Locale.ROOT, "Expected address %s to be denied", inetAddress);
             InetAddress address = InetAddresses.forString(inetAddress);
             assertThat(message, ipFilter.accept(profile, address), is(false));
-            ArgumentCaptor<ProfileIpFilterRule> ruleCaptor = ArgumentCaptor.forClass(ProfileIpFilterRule.class);
-            verify(auditTrail).connectionDenied(eq(address), ruleCaptor.capture());
+            ArgumentCaptor<ShieldIpFilterRule> ruleCaptor = ArgumentCaptor.forClass(ShieldIpFilterRule.class);
+            verify(auditTrail).connectionDenied(eq(address), eq(profile), ruleCaptor.capture());
             assertNotNull(ruleCaptor.getValue());
         }
     }

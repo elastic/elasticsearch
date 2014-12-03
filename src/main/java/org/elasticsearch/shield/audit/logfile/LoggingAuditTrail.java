@@ -17,7 +17,7 @@ import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.authz.Privilege;
-import org.elasticsearch.shield.transport.filter.ProfileIpFilterRule;
+import org.elasticsearch.shield.transport.filter.ShieldIpFilterRule;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -189,19 +189,15 @@ public class LoggingAuditTrail implements AuditTrail {
     }
 
     @Override
-    public void connectionGranted(InetAddress inetAddress, ProfileIpFilterRule rule) {
+    public void connectionGranted(InetAddress inetAddress, String profile, ShieldIpFilterRule rule) {
         if (logger.isTraceEnabled()) {
-            logger.trace("CONNECTION_GRANTED\thost=[{}], rule=[{}]", inetAddress.getHostAddress(), rule);
+            logger.trace("CONNECTION_GRANTED\thost=[{}], profile=[{}], rule=[{}]", inetAddress.getHostAddress(), profile, rule);
         }
     }
 
     @Override
-    public void connectionDenied(InetAddress inetAddress, ProfileIpFilterRule rule) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("CONNECTION_DENIED\thost=[{}], rule=[{}]", inetAddress.getHostAddress(), rule);
-        } else {
-            logger.error("CONNECTION_DENIED\thost=[{}]", inetAddress.getHostAddress());
-        }
+    public void connectionDenied(InetAddress inetAddress, String profile, ShieldIpFilterRule rule) {
+        logger.error("CONNECTION_DENIED\thost=[{}], profile=[{}], rule=[{}]", inetAddress.getHostAddress(), profile, rule);
     }
 
     private static String indices(TransportMessage message) {

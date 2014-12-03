@@ -6,12 +6,12 @@
 package org.elasticsearch.shield.audit;
 
 import com.google.common.collect.ImmutableSet;
-import org.elasticsearch.common.netty.handler.ipfilter.PatternRule;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
-import org.elasticsearch.shield.transport.filter.ProfileIpFilterRule;
+import org.elasticsearch.shield.transport.filter.IPFilter;
+import org.elasticsearch.shield.transport.filter.ShieldIpFilterRule;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
@@ -109,20 +109,20 @@ public class AuditTrailServiceTests extends ElasticsearchTestCase {
     @Test
     public void testConnectionGranted() throws Exception {
         InetAddress inetAddress = InetAddress.getLocalHost();
-        ProfileIpFilterRule rule = new ProfileIpFilterRule("client", new PatternRule(true, "i:*"), "all");
-        service.connectionGranted(inetAddress, rule);
+        ShieldIpFilterRule rule = randomBoolean() ? ShieldIpFilterRule.ACCEPT_ALL : IPFilter.DEFAULT_PROFILE_ACCEPT_ALL;
+        service.connectionGranted(inetAddress, "client", rule);
         for (AuditTrail auditTrail : auditTrails) {
-            verify(auditTrail).connectionGranted(inetAddress, rule);
+            verify(auditTrail).connectionGranted(inetAddress, "client", rule);
         }
     }
 
     @Test
     public void testConnectionDenied() throws Exception {
         InetAddress inetAddress = InetAddress.getLocalHost();
-        ProfileIpFilterRule rule = new ProfileIpFilterRule("client", new PatternRule(false, "i:*"), "all");
-        service.connectionDenied(inetAddress, rule);
+        ShieldIpFilterRule rule = new ShieldIpFilterRule(false, "_all");
+        service.connectionDenied(inetAddress, "client", rule);
         for (AuditTrail auditTrail : auditTrails) {
-            verify(auditTrail).connectionDenied(inetAddress, rule);
+            verify(auditTrail).connectionDenied(inetAddress, "client", rule);
         }
     }
 }

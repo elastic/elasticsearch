@@ -122,9 +122,7 @@ final class ActionNames {
 
     static final ImmutableBiMap<String, String> ACTION_NAMES = createActionNamesMap();
 
-    private ActionNames() {
-
-    }
+    private ActionNames() {}
 
     static String incomingAction(String action, Version version) {
         if (version.before(Version.V_1_4_0_Beta1)) {

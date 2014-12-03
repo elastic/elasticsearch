@@ -21,9 +21,8 @@ package org.elasticsearch.client.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.GenericAction;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
+import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.AbstractClientHeadersTests;
@@ -105,9 +104,9 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTests {
 
         @Override @SuppressWarnings("unchecked")
         public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request, TransportRequestOptions options, TransportResponseHandler<T> handler) {
-            if (NodesInfoAction.NAME.equals(action)) {
+            if (TransportLivenessAction.NAME.equals(action)) {
                 assertHeaders(request);
-                ((TransportResponseHandler<NodesInfoResponse>) handler).handleResponse(new NodesInfoResponse(ClusterName.DEFAULT, new NodeInfo[0]));
+                ((TransportResponseHandler<LivenessResponse>) handler).handleResponse(new LivenessResponse(ClusterName.DEFAULT, null));
                 return;
             }
             if (ClusterStateAction.NAME.equals(action)) {

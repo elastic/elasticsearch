@@ -486,7 +486,7 @@ public abstract class ShapeBuilder implements ToXContent {
          * @return Array of edges
          */
         protected static Edge[] ring(int component, boolean direction, BaseLineStringBuilder<?> shell, Coordinate[] points, int offset, 
-                                     Edge[] edges, int toffset, int length) {
+                Edge[] edges, int toffset, int length) {
             // calculate the direction of the points:
             // find the point a the top of the set and check its
             // neighbors orientation. So direction is equivalent
@@ -505,11 +505,11 @@ public abstract class ShapeBuilder implements ToXContent {
             Pair<Pair, Pair> range = range(points, offset, length);
             final double rng = (Double)range.getLeft().getRight() - (Double)range.getLeft().getLeft();
             // translate the points if the following is true
-            //   1.  range is greater than a hemisphere (180 degrees) but not spanning 2 hemispheres (translation would result in
-            //         a collapsed poly)
+            //   1.  shell orientation is cw and range is greater than a hemisphere (180 degrees) but not spanning 2 hemispheres 
+            //       (translation would result in a collapsed poly)
             //   2.  the shell of the candidate hole has been translated (to preserve the coordinate system)
-            if ((rng > DATELINE && rng != 2*DATELINE && orientation) || (shell.translated && component != 0)) {
-                transform(points);
+            if ((rng > DATELINE && rng != 2*DATELINE && orientation && component == 0) || (shell.translated && component != 0)) {
+                translate(points);
                 // flip the translation bit if the shell is being translated
                 if (component == 0 && !shell.translated) {
                     shell.translated = true;
@@ -526,7 +526,7 @@ public abstract class ShapeBuilder implements ToXContent {
          * Transforms coordinates in the eastern hemisphere (-180:0) to a (180:360) range 
          * @param points
          */
-        protected static void transform(Coordinate[] points) {
+        protected static void translate(Coordinate[] points) {
             for (Coordinate c : points) {
                 if (c.x < 0) {
                     c.x += 2*DATELINE;

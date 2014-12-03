@@ -10,6 +10,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.alerts.transport.actions.ack.AckAlertRequest;
 import org.elasticsearch.alerts.transport.actions.ack.AckAlertRequestBuilder;
 import org.elasticsearch.alerts.transport.actions.ack.AckAlertResponse;
+import org.elasticsearch.alerts.transport.actions.config.ConfigAlertRequest;
+import org.elasticsearch.alerts.transport.actions.config.ConfigAlertRequestBuilder;
+import org.elasticsearch.alerts.transport.actions.config.ConfigAlertResponse;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequestBuilder;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
@@ -193,5 +196,22 @@ public interface AlertsClient extends ElasticsearchClient<AlertsClient> {
      * Perform an alert service request to either start, stop or restart the alerting plugin.
      */
     ActionFuture<AlertsServiceResponse> alertService(AlertsServiceRequest request);
+
+
+    /**
+     * Prepare make an alert config request.
+     */
+    ConfigAlertRequestBuilder prepareAlertConfig();
+
+    /**
+     * Perform an config alert request
+     */
+    void alertConfig(ConfigAlertRequest request, ActionListener<ConfigAlertResponse> listener);
+
+    /**
+     * Perform an config alert request
+     */
+    ActionFuture<ConfigAlertResponse> alertConfig(ConfigAlertRequest request);
+
 
 }

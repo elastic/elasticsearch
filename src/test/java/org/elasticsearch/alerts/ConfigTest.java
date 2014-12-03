@@ -21,7 +21,16 @@ import static org.hamcrest.core.IsEqual.equalTo;
  */
 public class ConfigTest extends ElasticsearchIntegrationTest {
 
-    public void testOverridingSettings() throws Exception {
+    class SettingsListener implements ConfigurableComponentListener {
+        Settings settings;
+
+        @Override
+        public void receiveConfigurationUpdate(Settings settings) {
+            this.settings = settings;
+        }
+    }
+
+    public void testListener() throws Exception {
         TimeValue tv = TimeValue.timeValueMillis(10000);
         Settings oldSettings = ImmutableSettings.builder()
                 .put("foo", tv)
@@ -33,20 +42,21 @@ public class ConfigTest extends ElasticsearchIntegrationTest {
         ClusterState clusterState = internalCluster().clusterService().state();
         boolean isReady = configurationManager.isReady(clusterState);
         assertTrue(isReady); //Should always be ready on a clean start
-        Settings newSettings = ImmutableSettings.builder()
-                .build();
-        assertThat(configurationManager.getOverriddenIntValue("bar", newSettings, 0), equalTo(1));
-        assertThat(configurationManager.getOverriddenBooleanValue("baz", newSettings, false), equalTo(true));
-        assertThat(configurationManager.getOverriddenTimeValue("foo", newSettings, TimeValue.timeValueMillis(0)).getMillis(), equalTo(tv.getMillis()));
-        TimeValue tv2 = TimeValue.timeValueMillis(0);
-        newSettings = ImmutableSettings.builder()
-                .put("foo", tv2)
-                .put("bar", 100)
-                .put("baz", false)
-                .build();
-        assertThat(configurationManager.getOverriddenIntValue("bar", newSettings, 0), equalTo(100));
-        assertThat(configurationManager.getOverriddenBooleanValue("baz", newSettings, true), equalTo(false));
-        assertThat(configurationManager.getOverriddenTimeValue("foo", newSettings, TimeValue.timeValueMillis(1)).getMillis(), equalTo(tv2.getMillis()));
+
+        SettingsListener settingsListener = new SettingsListener();
+        configurationManager.registerListener("foo", settingsListener);
+        TimeValue tv2 = TimeValue.timeValueMillis(10);
+        XContentBuilder jsonSettings = XContentFactory.jsonBuilder();
+        jsonSettings.startObject();
+        jsonSettings.field("foo", tv2)
+                .field("bar", 100)
+                .field("baz", false);
+        jsonSettings.endObject();
+        configurationManager.newConfig("foo", jsonSettings.bytes());
+
+        assertThat(settingsListener.settings.getAsTime("foo", new TimeValue(0)).getMillis(), equalTo(tv2.getMillis()));
+        assertThat(settingsListener.settings.getAsInt("bar", 0), equalTo(100));
+        assertThat(settingsListener.settings.getAsBoolean("baz", true), equalTo(false));
 
     }
 

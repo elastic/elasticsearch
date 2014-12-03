@@ -10,14 +10,18 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.indices.IndexMissingException;
 
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  */
@@ -28,14 +32,14 @@ public class ConfigurationManager extends AbstractComponent {
     public static final String CONFIG_TYPE = "config";
     public static final String CONFIG_INDEX = AlertsStore.ALERT_INDEX;
     private final String GLOBAL_CONFIG_NAME = "global";
-    private final Settings settings;
     private volatile boolean readyToRead = false;
+    private volatile ImmutableOpenMap<String, List<ConfigurableComponentListener>> componentNameToListener;
 
     @Inject
     public ConfigurationManager(Settings settings, Client client) {
         super(settings);
         this.client = client;
-        this.settings = settings;
+        componentNameToListener = ImmutableOpenMap.<String, List<ConfigurableComponentListener>>builder().build();
     }
 
     /**
@@ -68,34 +72,21 @@ public class ConfigurationManager extends AbstractComponent {
     }
 
     /**
-     * This method looks in the indexed settings provided for a setting and if it's not there it will go to the
-     * this.settings and load it from there using the default if not found
+     * Notify the listeners of a new config
+     * @param componentName
+     * @param settingsSource
      */
-    public TimeValue getOverriddenTimeValue(String settingName, Settings indexedSettings, TimeValue defaultValue) {
-        if (indexedSettings == null || indexedSettings.get(settingName) == null) {
-            return settings.getAsTime(settingName, defaultValue);
-        } else {
-            return indexedSettings.getAsTime(settingName, defaultValue);
+    public void newConfig(String componentName, BytesReference settingsSource) {
+        Map<String, Object> settingsMap = XContentHelper.convertToMap(settingsSource, true).v2();
+        ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder();
+        for (Map.Entry<String, Object> configEntry : settingsMap.entrySet() ) {
+            settingsBuilder.put(configEntry.getKey(), configEntry.getValue());
+        }
+        Settings settings = settingsBuilder.build();
+        for (ConfigurableComponentListener componentListener : componentNameToListener.get(componentName)) {
+            componentListener.receiveConfigurationUpdate(settings);
         }
     }
-
-    public int getOverriddenIntValue(String settingName, Settings indexedSettings, int defaultValue) {
-        if (indexedSettings == null || indexedSettings.get(settingName) == null) {
-            return settings.getAsInt(settingName, defaultValue);
-        } else {
-            return indexedSettings.getAsInt(settingName, defaultValue);
-        }
-    }
-
-    public boolean getOverriddenBooleanValue(String settingName, Settings indexedSettings, boolean defaultValue) {
-        if (indexedSettings == null || indexedSettings.get(settingName) == null) {
-            return settings.getAsBoolean(settingName, defaultValue);
-        } else {
-            return indexedSettings.getAsBoolean(settingName, defaultValue);
-        }
-    }
-
-
 
     /**
      * This method determines if the config manager is ready to start loading configs by checking to make sure the
@@ -132,6 +123,23 @@ public class ConfigurationManager extends AbstractComponent {
             } else {
                 return false;
             }
+        }
+    }
+
+    /**
+     * Registers an component to receive config updates
+     * @param componentName
+     * @param configListener
+     */
+    public synchronized void registerListener(String componentName, ConfigurableComponentListener configListener) {
+        if (componentNameToListener.get(componentName) == null ){
+            List<ConfigurableComponentListener> componentListeners = new CopyOnWriteArrayList<>();
+            componentListeners.add(configListener);
+            ImmutableOpenMap.Builder componentNameToListenerBuilder = ImmutableOpenMap.builder(componentNameToListener)
+                    .fPut(componentName, componentListeners);
+            componentNameToListener = componentNameToListenerBuilder.build();
+        } else if (!componentNameToListener.get(componentName).contains(configListener)) {
+            componentNameToListener.get(componentName).add(configListener);
         }
     }
 }

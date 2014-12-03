@@ -8,6 +8,7 @@ package org.elasticsearch.alerts.client;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.alerts.transport.actions.ack.*;
+import org.elasticsearch.alerts.transport.actions.config.*;
 import org.elasticsearch.alerts.transport.actions.delete.*;
 import org.elasticsearch.alerts.transport.actions.get.*;
 import org.elasticsearch.alerts.transport.actions.put.*;
@@ -28,7 +29,7 @@ public class NodeAlertsClient implements AlertsClient {
     public NodeAlertsClient(ThreadPool threadPool, Headers headers, TransportPutAlertAction transportPutAlertAction,
                             TransportGetAlertAction transportGetAlertAction, TransportDeleteAlertAction transportDeleteAlertAction,
                             TransportAlertStatsAction transportAlertStatsAction, TransportAckAlertAction transportAckAlertAction,
-                            TransportAlertsServiceAction transportAlertsServiceAction) {
+                            TransportAlertsServiceAction transportAlertsServiceAction, TransportConfigAlertAction transportConfigAlertAction) {
         this.headers = headers;
         this.threadPool = threadPool;
         internalActions = ImmutableMap.<GenericAction, TransportAction>builder()
@@ -38,6 +39,7 @@ public class NodeAlertsClient implements AlertsClient {
                 .put(AlertsStatsAction.INSTANCE, transportAlertStatsAction)
                 .put(AckAlertAction.INSTANCE, transportAckAlertAction)
                 .put(AlertServiceAction.INSTANCE, transportAlertsServiceAction)
+                .put(ConfigAlertAction.INSTANCE, transportConfigAlertAction)
                 .build();
     }
 
@@ -148,6 +150,36 @@ public class NodeAlertsClient implements AlertsClient {
     @Override
     public ActionFuture<AlertsServiceResponse> alertService(AlertsServiceRequest request) {
         return execute(AlertServiceAction.INSTANCE, request);
+    }
+
+    /**
+     * Prepare make an alert config request.
+     */
+    @Override
+    public ConfigAlertRequestBuilder prepareAlertConfig() {
+        return new ConfigAlertRequestBuilder(this);
+    }
+
+    /**
+     * Perform an config alert request
+     *
+     * @param request
+     * @param listener
+     */
+    @Override
+    public void alertConfig(ConfigAlertRequest request, ActionListener<ConfigAlertResponse> listener) {
+        execute(ConfigAlertAction.INSTANCE, request, listener);
+    }
+
+    /**
+     * Perform an config alert request
+     *
+     * @param request
+     */
+    @Override
+    public ActionFuture<ConfigAlertResponse> alertConfig(ConfigAlertRequest request) {
+        return execute(ConfigAlertAction.INSTANCE, request);
+
     }
 
     @SuppressWarnings("unchecked")

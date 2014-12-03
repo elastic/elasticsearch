@@ -95,13 +95,10 @@ public class AlertActionManager extends AbstractComponent {
         this.triggerManager = triggerManager;
         this.templateHelper = templateHelper;
         this.configurationManager = configurationManager;
-    }
-
-    private void loadSettings() {
         // Not using component settings, to let AlertsStore and AlertActionManager share the same settings
-        Settings indexedSettings = configurationManager.getGlobalConfig();
-        this.scrollTimeout = configurationManager.getOverriddenTimeValue("alerts.scroll.timeout", indexedSettings, TimeValue.timeValueSeconds(30));
-        this.scrollSize = configurationManager.getOverriddenIntValue("alerts.scroll.size", indexedSettings, 100);
+        this.scrollTimeout = settings.getAsTime("alerts.scroll.timeout", TimeValue.timeValueSeconds(30));
+        this.scrollSize = settings.getAsInt("alerts.scroll.size", 100);
+
     }
 
     public void setAlertManager(AlertManager alertManager){
@@ -112,9 +109,7 @@ public class AlertActionManager extends AbstractComponent {
         if (started.get()) {
             return true;
         }
-        if (configurationManager.isReady(state)) {
-            loadSettings();
-        } else {
+        if (!configurationManager.isReady(state)) {
             return false;
         }
 

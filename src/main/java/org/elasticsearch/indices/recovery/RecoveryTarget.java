@@ -22,7 +22,9 @@ package org.elasticsearch.indices.recovery;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -381,10 +383,24 @@ public class RecoveryTarget extends AbstractComponent {
                 // now write checksums
                 recoveryStatus.legacyChecksums().write(store);
                 Store.MetadataSnapshot sourceMetaData = request.sourceMetaSnapshot();
-                try {
-                    store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
-                } catch (Exception ex) {
-                    throw new RecoveryFailedException(recoveryStatus.state(), "failed to clean after recovery", ex);
+                if (sourceMetaData == null) {
+                    if (recoveryStatus.state().getSourceNode().getVersion().onOrAfter(Version.V_1_5_0)) {
+                        throw new ElasticsearchIllegalStateException("Source node version is on or after 1.5 but has not metadata snapshot: " + recoveryStatus.state().getSourceNode());
+                    }
+                    if (request.legacySnapshotFiles() == null) {
+                        throw new ElasticsearchIllegalStateException("Legacy snapshot files are null");
+                    }
+                    try {
+                        store.cleanup("recovery CleanFilesRequestHandler", request.legacySnapshotFiles());
+                    } catch (Exception ex) {
+                        throw new RecoveryFailedException(recoveryStatus.state(), "failed to clean after recovery", ex);
+                    }
+                } else {
+                    try {
+                        store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
+                    } catch (Exception ex) {
+                        throw new RecoveryFailedException(recoveryStatus.state(), "failed to clean after recovery", ex);
+                    }
                 }
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
             }

@@ -544,6 +544,35 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
     /**
      * This method deletes every file in this store that is not contained in the given source meta data or is a
+     * legacy checksum file.
+     *
+     * @param reason the reason for this cleanup operation logged for each deleted file
+     * @param filesToClean the file names used for cleanup. all files names in this metadata should be kept around.
+     * @throws IOException if an IOException occurs
+     */
+    public void cleanup(String reason, Set<String> filesToClean) throws IOException {
+        failIfCorrupted();
+        metadataLock.writeLock().lock();
+        try {
+            final Directory dir = directory();
+            for (String existingFile : dir.listAll()) {
+                // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete checksum)
+                if (!filesToClean.contains(existingFile) && !Store.isChecksum(existingFile)) {
+                    try {
+                        logDeleteFile(reason, existingFile);
+                        dir.deleteFile(existingFile);
+                    } catch (Exception e) {
+                        // ignore, we don't really care, will get deleted later on
+                    }
+                }
+            }
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * This method deletes every file in this store that is not contained in the given source meta data or is a
      * legacy checksum file. After the delete it pulls the latest metadata snapshot from the store and compares it
      * to the given snapshot. If the snapshots are inconsistent an illegal state exception is thrown
      *
@@ -556,18 +585,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         failIfCorrupted();
         metadataLock.writeLock().lock();
         try {
-            final Directory dir = directory();
-            for (String existingFile : dir.listAll()) {
-                // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete checksum)
-                if (!sourceMetaData.contains(existingFile) && !Store.isChecksum(existingFile)) {
-                    try {
-                        logDeleteFile(reason, existingFile);
-                        dir.deleteFile(existingFile);
-                    } catch (Exception e) {
-                        // ignore, we don't really care, will get deleted later on
-                    }
-                }
-            }
+            cleanup(reason, sourceMetaData.asMap().keySet());
             final Store.MetadataSnapshot metadataOrEmpty = getMetadata();
             final Store.RecoveryDiff recoveryDiff = metadataOrEmpty.recoveryDiff(sourceMetaData);
             if (recoveryDiff.identical.size() != recoveryDiff.size()) {

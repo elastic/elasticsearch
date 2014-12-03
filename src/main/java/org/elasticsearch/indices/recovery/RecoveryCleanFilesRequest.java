@@ -20,10 +20,12 @@
 package org.elasticsearch.indices.recovery;
 
 import com.google.common.collect.Sets;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -36,8 +38,8 @@ class RecoveryCleanFilesRequest extends TransportRequest {
 
     private long recoveryId;
     private ShardId shardId;
-
-    private Store.MetadataSnapshot  snapshotFiles;
+    private Set<String> legacySnapshotFiles; // legacy - we moved to a real snapshot in 1.5
+    private Store.MetadataSnapshot snapshotFiles;
 
     RecoveryCleanFilesRequest() {
     }
@@ -61,7 +63,16 @@ class RecoveryCleanFilesRequest extends TransportRequest {
         super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
-        snapshotFiles = Store.MetadataSnapshot.read(in);
+        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+            snapshotFiles = Store.MetadataSnapshot.read(in);
+        } else {
+            int size = in.readVInt();
+            legacySnapshotFiles = Sets.newHashSetWithExpectedSize(size);
+            for (int i = 0; i < size; i++) {
+                legacySnapshotFiles.add(in.readString());
+            }
+        }
+
     }
 
     @Override
@@ -69,10 +80,22 @@ class RecoveryCleanFilesRequest extends TransportRequest {
         super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);
-        snapshotFiles.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+            snapshotFiles.writeTo(out);
+        } else {
+            out.writeVInt(snapshotFiles.size());
+            for (StoreFileMetaData snapshotFile : snapshotFiles) {
+                out.writeString(snapshotFile.name());
+            }
+        }
+
     }
 
     public Store.MetadataSnapshot sourceMetaSnapshot() {
         return snapshotFiles;
+    }
+
+    public Set<String> legacySnapshotFiles() {
+        return legacySnapshotFiles;
     }
 }

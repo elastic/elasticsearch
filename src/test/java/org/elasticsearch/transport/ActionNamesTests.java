@@ -25,6 +25,22 @@ import org.junit.Test;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.startsWith;
 
+/**
+ * This test verifies that all of the action names follow our defined naming conventions.
+ * The identified categories are:
+ * - indices:admin: apis that allow to perform administration tasks against indices
+ * - indices:data: apis that are about data
+ * - indices:read: apis that read data
+ * - indices:write: apis that write data
+ * - cluster:admin: cluster apis that allow to perform administration tasks
+ * - cluster:monitor: cluster apis that allow to monitor the system
+ * - internal: internal actions that are used from node to node but not directly exposed to users
+ *
+ * Any transport action belongs to one of the above categories and its name starts with its category, followed by a '/'
+ * and the name of the api itself (e.g. cluster:admin/nodes/restart).
+ * When an api exposes multiple transport handlers, some of which are invoked internally during the execution of the api,
+ * we use the `[n]` suffix to identify node actions and the `[s]` suffix to identify shard actions.
+ */
 public class ActionNamesTests extends ElasticsearchIntegrationTest {
 
     @Test

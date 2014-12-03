@@ -246,35 +246,35 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
 
         // a giant c shape
         PolygonBuilder builder = ShapeBuilder.newPolygon()
-                .point(174,0)
-                .point(-176,0)
-                .point(-176,3)
-                .point(177,3)
-                .point(177,5)
-                .point(-176,5)
-                .point(-176,8)
-                .point(174,8)
-                .point(174,0);
+            .point(174,0)
+            .point(-176,0)
+            .point(-176,3)
+            .point(177,3)
+            .point(177,5)
+            .point(-176,5)
+            .point(-176,8)
+            .point(174,8)
+            .point(174,0);
 
         // 3/4 of an embedded 'c', crossing dateline once
         builder.hole()
-                .point(175, 1)
-                .point(175, 7)
-                .point(-178, 7)
-                .point(-178, 6)
-                .point(176, 6)
-                .point(176, 2)
-                .point(179, 2)
-                .point(179,1)
-                .point(175, 1);
+            .point(175, 1)
+            .point(175, 7)
+            .point(-178, 7)
+            .point(-178, 6)
+            .point(176, 6)
+            .point(176, 2)
+            .point(179, 2)
+            .point(179,1)
+            .point(175, 1);
 
         // embedded hole right of the dateline
         builder.hole()
-                .point(-179, 1)
-                .point(-179, 2)
-                .point(-177, 2)
-                .point(-177,1)
-                .point(-179,1);
+            .point(-179, 1)
+            .point(-179, 2)
+            .point(-177, 2)
+            .point(-177,1)
+            .point(-179,1);
 
         Shape shape = builder.close().build();
 

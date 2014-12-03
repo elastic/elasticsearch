@@ -47,6 +47,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.*;
@@ -243,20 +244,23 @@ public class PluginManager {
                 IOUtils.rm(toLocation);
             }
             Files.move(binFile, toLocation, StandardCopyOption.ATOMIC_MOVE);
-            final Set<PosixFilePermission> perms = new HashSet<PosixFilePermission>();
-            perms.add(PosixFilePermission.OWNER_EXECUTE);
-            perms.add(PosixFilePermission.GROUP_EXECUTE);
-            perms.add(PosixFilePermission.OTHERS_EXECUTE);
-            Files.walkFileTree(toLocation, new SimpleFileVisitor<Path>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    if (attrs.isRegularFile()) {
-
-                        Files.setPosixFilePermissions(file, perms);
+            if (Files.getFileStore(toLocation).supportsFileAttributeView(PosixFileAttributeView.class)) {
+                final Set<PosixFilePermission> perms = new HashSet<>();
+                perms.add(PosixFilePermission.OWNER_EXECUTE);
+                perms.add(PosixFilePermission.GROUP_EXECUTE);
+                perms.add(PosixFilePermission.OTHERS_EXECUTE);
+                Files.walkFileTree(toLocation, new SimpleFileVisitor<Path>() {
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                        if (attrs.isRegularFile()) {
+                            Files.setPosixFilePermissions(file, perms);
+                        }
+                        return FileVisitResult.CONTINUE;
                     }
-                    return FileVisitResult.CONTINUE;
-                }
-            });
+                });
+            } else {
+                debug("Skipping posix permissions - filestore doesn't support posix permission");
+            }
             debug("Installed " + name + " into " + toLocation.toAbsolutePath());
             potentialSitePlugin = false;
         }

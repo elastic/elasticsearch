@@ -229,8 +229,8 @@
                                 <bundledSignature>jdk-system-out</bundledSignature>
                             </bundledSignatures>
                             <signaturesFiles>
-                                <signaturesFile>${license.basedir}/core-signatures.txt</signaturesFile>
-                                <signaturesFile>${license.basedir}/all-signatures.txt</signaturesFile>
+                                <signaturesFile>${license.basedir}/dev-tools/forbidden/core-signatures.txt</signaturesFile>
+                                <signaturesFile>${license.basedir}/dev-tools/forbidden/all-signatures.txt</signaturesFile>
                             </signaturesFiles>
                             <signatures>${forbidden.signatures}</signatures>
                         </configuration>
@@ -253,8 +253,8 @@
                                 <bundledSignature>jdk-deprecated</bundledSignature>
                             </bundledSignatures>
                             <signaturesFiles>
-                                <signaturesFile>${license.basedir}/test-signatures.txt</signaturesFile>
-                                <signaturesFile>${license.basedir}/all-signatures.txt</signaturesFile>
+                                <signaturesFile>${license.basedir}/dev-tools/forbidden/test-signatures.txt</signaturesFile>
+                                <signaturesFile>${license.basedir}/dev-tools/forbidden/all-signatures.txt</signaturesFile>
                             </signaturesFiles>
                             <signatures>${forbidden.test.signatures}</signatures>
                         </configuration>
@@ -290,9 +290,9 @@
                 <artifactId>license-maven-plugin</artifactId>
                 <version>2.5</version>
                 <configuration>
-                    <header>${license.basedir}/dev-tools/elasticsearch_license_header.txt</header>
+                    <header>${license.basedir}/dev-tools/license/elasticsearch_license_header.txt</header>
                     <headerDefinitions>
-                        <headerDefinition>${license.basedir}/dev-tools/license_header_definition.xml</headerDefinition>
+                        <headerDefinition>${license.basedir}/dev-tools/license/license_header_definition.xml</headerDefinition>
                     </headerDefinitions>
                     <includes>
                         <include>**/src/main/java/org/elasticsearch/**/*.java</include>

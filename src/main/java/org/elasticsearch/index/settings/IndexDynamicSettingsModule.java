@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.gateway.local.LocalGatewayAllocator;
-import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.internal.InternalEngine;
 import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
 import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;

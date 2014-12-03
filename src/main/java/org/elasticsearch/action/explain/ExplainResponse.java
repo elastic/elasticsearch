@@ -97,11 +97,9 @@ public class ExplainResponse extends ActionResponse {
 
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            index = in.readString();
-            type = in.readString();
-            id = in.readString();
-        }
+        index = in.readString();
+        type = in.readString();
+        id = in.readString();
         exists = in.readBoolean();
         if (in.readBoolean()) {
             explanation = readExplanation(in);
@@ -113,11 +111,9 @@ public class ExplainResponse extends ActionResponse {
 
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeString(index);
-            out.writeString(type);
-            out.writeString(id);
-        }
+        out.writeString(index);
+        out.writeString(type);
+        out.writeString(id);
         out.writeBoolean(exists);
         if (explanation == null) {
             out.writeBoolean(false);

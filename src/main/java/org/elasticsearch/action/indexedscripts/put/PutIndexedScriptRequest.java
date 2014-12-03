@@ -347,7 +347,7 @@ public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptReque
         sourceUnsafe = false;
 
         opType = IndexRequest.OpType.fromId(in.readByte());
-        version = Versions.readVersion(in);
+        version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
     }
 
@@ -358,7 +358,7 @@ public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptReque
         out.writeOptionalString(id);
         out.writeBytesReference(source);
         out.writeByte(opType.id());
-        Versions.writeVersion(version, out);
+        out.writeLong(version);
         out.writeByte(versionType.getValue());
     }
 

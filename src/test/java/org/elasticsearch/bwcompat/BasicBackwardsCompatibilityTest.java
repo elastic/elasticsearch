@@ -377,31 +377,24 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     @Test
     public void testUnsupportedFeatures() throws IOException {
-        if (compatibilityVersion().before(Version.V_1_3_0)) {
-            XContentBuilder mapping = XContentBuilder.builder(JsonXContent.jsonXContent)
-                    .startObject()
-                        .startObject("type")
-                            .startObject(FieldNamesFieldMapper.NAME)
-                               // by setting randomly index to no we also test the pre-1.3 behavior
-                                .field("index", randomFrom("no", "not_analyzed"))
-                                .field("store", randomFrom("no", "yes"))
-                            .endObject()
+        XContentBuilder mapping = XContentBuilder.builder(JsonXContent.jsonXContent)
+                .startObject()
+                    .startObject("type")
+                        .startObject(FieldNamesFieldMapper.NAME)
+                           // by setting randomly index to no we also test the pre-1.3 behavior
+                            .field("index", randomFrom("no", "not_analyzed"))
+                            .field("store", randomFrom("no", "yes"))
                         .endObject()
-                    .endObject();
+                    .endObject()
+                .endObject();
 
-            try {
-                assertAcked(prepareCreate("test").
-                        setSettings(ImmutableSettings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings()))
-                        .addMapping("type", mapping));
-            } catch (MapperParsingException ex) {
-                if (getMasterVersion().onOrAfter(Version.V_1_3_0)) {
-                    assertThat(ex.getCause(), instanceOf(ElasticsearchIllegalArgumentException.class));
-                    assertThat(ex.getCause().getMessage(), equalTo("type=_field_names is not supported on indices created before version 1.3.0 is your cluster running multiple datanode versions?"));
-                } else {
-                    assertThat(ex.getCause(), instanceOf(MapperParsingException.class));
-                    assertThat(ex.getCause().getMessage(), startsWith("Root type mapping not empty after parsing!"));
-                }
-            }
+        try {
+            assertAcked(prepareCreate("test").
+                    setSettings(ImmutableSettings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings()))
+                    .addMapping("type", mapping));
+        } catch (MapperParsingException ex) {
+            assertThat(ex.getCause(), instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(ex.getCause().getMessage(), equalTo("type=_field_names is not supported on indices created before version 1.3.0 is your cluster running multiple datanode versions?"));
         }
 
     }
@@ -412,7 +405,6 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
      */
     @Test
     public void testExistsFilter() throws IOException, ExecutionException, InterruptedException {
-        assumeTrue("this test fails often with 1.0.3 skipping for now....", compatibilityVersion().onOrAfter(Version.V_1_1_0));
         int indexId = 0;
         String indexName;
 
@@ -767,11 +759,6 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
     }
 
     private void createIndexWithAlias() {
-        if (compatibilityVersion().onOrAfter(Version.V_1_1_0)) {
-            assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
-        } else {
-            assertAcked(prepareCreate("test"));
-            assertAcked(client().admin().indices().prepareAliases().addAlias("test", "alias"));
-        }
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
     }
 }

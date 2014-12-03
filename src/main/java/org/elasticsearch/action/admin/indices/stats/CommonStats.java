@@ -562,12 +562,8 @@ public class CommonStats implements Streamable, ToXContent {
             segments = SegmentsStats.readSegmentsStats(in);
         }
         translog = in.readOptionalStreamable(new TranslogStats());
-        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-            suggest = in.readOptionalStreamable(new SuggestStats());
-        }
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            queryCache = in.readOptionalStreamable(new QueryCacheStats());
-        }
+        suggest = in.readOptionalStreamable(new SuggestStats());
+        queryCache = in.readOptionalStreamable(new QueryCacheStats());
     }
 
     @Override
@@ -663,12 +659,8 @@ public class CommonStats implements Streamable, ToXContent {
             segments.writeTo(out);
         }
         out.writeOptionalStreamable(translog);
-        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            out.writeOptionalStreamable(suggest);
-        }
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeOptionalStreamable(queryCache);
-        }
+        out.writeOptionalStreamable(suggest);
+        out.writeOptionalStreamable(queryCache);
     }
 
     // note, requires a wrapping object

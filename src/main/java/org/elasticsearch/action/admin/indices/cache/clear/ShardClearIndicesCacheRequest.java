@@ -97,9 +97,7 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
         recycler = in.readBoolean();
         fields = in.readStringArray();
         filterKeys = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            queryCache = in.readBoolean();
-        }
+        queryCache = in.readBoolean();
     }
 
     @Override
@@ -111,8 +109,6 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
         out.writeBoolean(recycler);
         out.writeStringArrayNullable(fields);
         out.writeStringArrayNullable(filterKeys);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeBoolean(queryCache);
-        }
+        out.writeBoolean(queryCache);
     }
 }

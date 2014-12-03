@@ -166,7 +166,6 @@ public class ClusterHealthRequest extends MasterNodeReadOperationRequest<Cluster
         waitForRelocatingShards = in.readInt();
         waitForActiveShards = in.readInt();
         waitForNodes = in.readString();
-        readLocal(in);
         if (in.readBoolean()) {
             waitForEvents = Priority.readFrom(in);
         }
@@ -193,7 +192,6 @@ public class ClusterHealthRequest extends MasterNodeReadOperationRequest<Cluster
         out.writeInt(waitForRelocatingShards);
         out.writeInt(waitForActiveShards);
         out.writeString(waitForNodes);
-        writeLocal(out);
         if (waitForEvents == null) {
             out.writeBoolean(false);
         } else {

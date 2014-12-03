@@ -118,9 +118,7 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
         recycler = in.readBoolean();
         fields = in.readStringArray();
         filterKeys = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            queryCache = in.readBoolean();
-        }
+        queryCache = in.readBoolean();
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -131,8 +129,6 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
         out.writeBoolean(recycler);
         out.writeStringArrayNullable(fields);
         out.writeStringArrayNullable(filterKeys);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeBoolean(queryCache);
-        }
+        out.writeBoolean(queryCache);
     }
 }

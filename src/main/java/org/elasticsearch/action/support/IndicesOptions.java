@@ -108,17 +108,7 @@ public class IndicesOptions {
     }
 
     public void writeIndicesOptions(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_1_2_2)) {
-            out.write(id);
-        } else if (out.getVersion().before(Version.V_1_2_0)) {
-            // Target node doesn't know about the FORBID_CLOSED_INDICES and FORBID_ALIASES_TO_MULTIPLE_INDICES flags,
-            // so unset the bits starting from the 5th position.
-            out.write(id & 0xf);
-        } else {
-            // Target node doesn't know about the FORBID_CLOSED_INDICES flag,
-            // so unset the bits starting from the 6th position.
-            out.write(id & 0x1f);
-        }
+        out.write(id);
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {

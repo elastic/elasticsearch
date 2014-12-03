@@ -73,11 +73,7 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
         final List<DiscoveryNode> nodes = newArrayList();
         for (ObjectCursor<DiscoveryNode> cursor : masterAndDataNodes) {
             DiscoveryNode node = cursor.value;
-            Version version = node.getVersion();
-            // Verification wasn't supported before v1.4.0 - no reason to send verification request to these nodes
-            if (version != null && version.onOrAfter(Version.V_1_4_0)) {
-                nodes.add(node);
-            }
+            nodes.add(node);
         }
         final CopyOnWriteArrayList<VerificationFailure> errors = new CopyOnWriteArrayList<>();
         final AtomicInteger counter = new AtomicInteger(nodes.size());

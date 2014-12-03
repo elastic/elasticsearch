@@ -63,11 +63,7 @@ class ShardFlushRequest extends BroadcastShardOperationRequest {
         super.readFrom(in);
         full = in.readBoolean();
         force = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            waitIfOngoing = in.readBoolean();
-        } else {
-            waitIfOngoing = false;
-        }
+        waitIfOngoing = in.readBoolean();
     }
 
     @Override
@@ -75,8 +71,6 @@ class ShardFlushRequest extends BroadcastShardOperationRequest {
         super.writeTo(out);
         out.writeBoolean(full);
         out.writeBoolean(force);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeBoolean(waitIfOngoing);
-        }
+        out.writeBoolean(waitIfOngoing);
     }
 }

@@ -648,11 +648,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         routing = in.readOptionalString();
         script = in.readOptionalString();
         if(Strings.hasLength(script)) {
-            if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
-                scriptType = ScriptService.ScriptType.readFrom(in);
-            } else {
-                scriptType = null;
-            }
+            scriptType = ScriptService.ScriptType.readFrom(in);
         }
         scriptLang = in.readOptionalString();
         scriptParams = in.readMap();
@@ -674,12 +670,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             upsertRequest.readFrom(in);
         }
         docAsUpsert = in.readBoolean();
-        version = Versions.readVersion(in);
+        version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            detectNoop = in.readBoolean();
-            scriptedUpsert = in.readBoolean();
-        }
+        detectNoop = in.readBoolean();
+        scriptedUpsert = in.readBoolean();
     }
 
     @Override
@@ -691,7 +685,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         out.writeString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(script);
-        if (Strings.hasLength(script) && out.getVersion().onOrAfter(Version.V_1_3_0)) {
+        if (Strings.hasLength(script)) {
             ScriptService.ScriptType.writeTo(scriptType, out);
         }
         out.writeOptionalString(scriptLang);
@@ -727,12 +721,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             upsertRequest.writeTo(out);
         }
         out.writeBoolean(docAsUpsert);
-        Versions.writeVersion(version, out);
+        out.writeLong(version);
         out.writeByte(versionType.getValue());
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeBoolean(detectNoop);
-            out.writeBoolean(scriptedUpsert);
-        }
+        out.writeBoolean(detectNoop);
+        out.writeBoolean(scriptedUpsert);
     }
 
 }

@@ -127,11 +127,6 @@ public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterS
         metaData = in.readBoolean();
         blocks = in.readBoolean();
         indices = in.readStringArray();
-        // fake support for indices in pre 1.2.0 versions
-        if (in.getVersion().before(Version.V_1_2_0)) {
-            in.readStringArray();
-        }
-        readLocal(in);
     }
 
     @Override
@@ -142,10 +137,5 @@ public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterS
         out.writeBoolean(metaData);
         out.writeBoolean(blocks);
         out.writeStringArray(indices);
-        // fake support for indices in pre 1.2.0 versions
-        if (out.getVersion().before(Version.V_1_2_0)) {
-            out.writeStringArray(Strings.EMPTY_ARRAY);
-        }
-        writeLocal(out);
     }
 }

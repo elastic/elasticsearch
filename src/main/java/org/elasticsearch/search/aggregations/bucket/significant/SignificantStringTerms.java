@@ -196,9 +196,7 @@ public class SignificantStringTerms extends InternalSignificantTerms {
         out.writeVLong(minDocCount);
         out.writeVLong(subsetSize);
         out.writeVLong(supersetSize);
-        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
-            significanceHeuristic.writeTo(out);
-        }
+        significanceHeuristic.writeTo(out);
         out.writeVInt(buckets.size());
         for (InternalSignificantTerms.Bucket bucket : buckets) {
             bucket.writeTo(out);

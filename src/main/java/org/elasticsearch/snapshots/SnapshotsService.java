@@ -1198,7 +1198,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                     ShardRouting primary = indexRoutingTable.shard(i).primaryShard();
                     if (primary == null || !primary.assignedToNode()) {
                         builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(null, State.MISSING, "primary shard is not allocated"));
-                    } else if (clusterState.getNodes().smallestVersion().onOrAfter(Version.V_1_2_0) && (primary.relocating() || primary.initializing())) {
+                    } else if (primary.relocating() || primary.initializing()) {
                         // The WAITING state was introduced in V1.2.0 - don't use it if there are nodes with older version in the cluster
                         builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(primary.currentNodeId(), State.WAITING));
                     } else if (!primary.started()) {

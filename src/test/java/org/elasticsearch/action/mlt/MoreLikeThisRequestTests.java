@@ -147,11 +147,7 @@ public class MoreLikeThisRequestTests extends ElasticsearchTestCase {
         } else {
             assertThat(mltRequest2.fields(), equalTo(mltRequest.fields()));
         }
-        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            assertThat(mltRequest2.include(), equalTo(mltRequest.include()));
-        } else {
-            assertThat(mltRequest2.include(), is(false));
-        }
+        assertThat(mltRequest2.include(), equalTo(mltRequest.include()));
     }
 
     private static String[] randomStrings(int max) {

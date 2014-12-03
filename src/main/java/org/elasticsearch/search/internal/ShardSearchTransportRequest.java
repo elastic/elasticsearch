@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -164,11 +163,6 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
         super.readFrom(in);
         shardSearchLocalRequest = new ShardSearchLocalRequest();
         shardSearchLocalRequest.innerReadFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1) && in.getVersion().before(Version.V_1_4_0)) {
-            //original indices used to be optional in 1.4.0.Beta1 but ended up being empty only when the
-            // shard search request was used locally and never serialized
-            in.readBoolean();
-        }
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
@@ -176,11 +170,6 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         shardSearchLocalRequest.innerWriteTo(out, false);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1) && out.getVersion().before(Version.V_1_4_0)) {
-            //original indices used to be optional in 1.4.0.Beta1 although ended up being empty only when the
-            //shard search request was used locally and never serialized
-            out.writeBoolean(true);
-        }
         OriginalIndices.writeOriginalIndices(originalIndices, out);
     }
 

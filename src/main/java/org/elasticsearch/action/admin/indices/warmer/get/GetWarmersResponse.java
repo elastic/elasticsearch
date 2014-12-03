@@ -69,9 +69,7 @@ public class GetWarmersResponse extends ActionResponse {
                 String[] types = in.readStringArray();
                 BytesReference source = in.readBytesReference();
                 Boolean queryCache = null;
-                if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-                    queryCache = in.readOptionalBoolean();
-                }
+                queryCache = in.readOptionalBoolean();
                 warmerEntryBuilder.add(new IndexWarmersMetaData.Entry(
                                 name,
                                 types,
@@ -95,9 +93,7 @@ public class GetWarmersResponse extends ActionResponse {
                 out.writeString(warmerEntry.name());
                 out.writeStringArray(warmerEntry.types());
                 out.writeBytesReference(warmerEntry.source());
-                if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-                    out.writeOptionalBoolean(warmerEntry.queryCache());
-                }
+                out.writeOptionalBoolean(warmerEntry.queryCache());
             }
         }
     }

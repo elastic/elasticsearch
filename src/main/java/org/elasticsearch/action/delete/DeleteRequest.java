@@ -227,7 +227,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
         id = in.readString();
         routing = in.readOptionalString();
         refresh = in.readBoolean();
-        version = Versions.readVersion(in);
+        version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
     }
 
@@ -238,7 +238,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
         out.writeString(id);
         out.writeOptionalString(routing());
         out.writeBoolean(refresh);
-        Versions.writeVersion(version, out);
+        out.writeLong(version);
         out.writeByte(versionType.getValue());
     }
 

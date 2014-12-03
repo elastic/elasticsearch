@@ -76,21 +76,13 @@ public class ClearScrollResponse extends ActionResponse implements StatusToXCont
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         succeeded = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-            numFreed = in.readVInt();
-        } else {
-            // On older nodes we can't tell how many search contexts where freed, so we assume at least one,
-            // so that the rest api doesn't return 404 where SC were indeed freed.
-            numFreed = 1;
-        }
+        numFreed = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(succeeded);
-        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            out.writeVInt(numFreed);
-        }
+        out.writeVInt(numFreed);
     }
 }

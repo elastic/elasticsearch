@@ -82,47 +82,6 @@ public class Versions {
         return lookupState;
     }
 
-    public static void writeVersion(long version, StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_1_2_0) && version == MATCH_ANY) {
-            // we have to send out a value the node will understand
-            version = MATCH_ANY_PRE_1_2_0;
-        }
-        out.writeLong(version);
-    }
-
-    public static long readVersion(StreamInput in) throws IOException {
-        long version = in.readLong();
-        if (in.getVersion().before(Version.V_1_2_0) && version == MATCH_ANY_PRE_1_2_0) {
-            version = MATCH_ANY;
-        }
-        return version;
-    }
-
-    public static void writeVersionWithVLongForBW(long version, StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            out.writeLong(version);
-            return;
-        }
-
-        if (version == MATCH_ANY) {
-            // we have to send out a value the node will understand
-            version = MATCH_ANY_PRE_1_2_0;
-        }
-        out.writeVLong(version);
-    }
-
-    public static long readVersionWithVLongForBW(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-            return in.readLong();
-        } else {
-            long version = in.readVLong();
-            if (version == MATCH_ANY_PRE_1_2_0) {
-                return MATCH_ANY;
-            }
-            return version;
-        }
-    }
-
     private Versions() {
     }
 

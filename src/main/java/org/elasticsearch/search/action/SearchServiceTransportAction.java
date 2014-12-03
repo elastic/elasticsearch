@@ -149,14 +149,8 @@ public class SearchServiceTransportAction extends AbstractComponent {
             final boolean freed = searchService.freeContext(contextId);
             actionListener.onResponse(freed);
         } else {
-            if (node.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-                //use the separate action for scroll when possible
-                transportService.sendRequest(node, FREE_CONTEXT_SCROLL_ACTION_NAME, new ScrollFreeContextRequest(request, contextId), new FreeContextResponseHandler(actionListener));
-            } else {
-                //fallback to the previous action name if the new one is not supported by the node we are talking to.
-                //Do use the same request since it has the same binary format as the previous SearchFreeContextRequest (without the OriginalIndices addition).
-                transportService.sendRequest(node, FREE_CONTEXT_ACTION_NAME, new ScrollFreeContextRequest(request, contextId), new FreeContextResponseHandler(actionListener));
-            }
+            //use the separate action for scroll when possible
+            transportService.sendRequest(node, FREE_CONTEXT_SCROLL_ACTION_NAME, new ScrollFreeContextRequest(request, contextId), new FreeContextResponseHandler(actionListener));
         }
     }
 
@@ -432,16 +426,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
     }
 
     public void sendExecuteFetchScroll(DiscoveryNode node, final ShardFetchRequest request, final SearchServiceListener<FetchSearchResult> listener) {
-        String action;
-        if (node.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            //use the separate action for scroll when possible
-            action = FETCH_ID_SCROLL_ACTION_NAME;
-        } else {
-            //fallback to the previous action name if the new one is not supported by the node we are talking to.
-            //Do use the same request since it has the same binary format as the previous FetchSearchRequest (without the OriginalIndices addition).
-            action = FETCH_ID_ACTION_NAME;
-        }
-        sendExecuteFetch(node, action, request, listener);
+        sendExecuteFetch(node, FETCH_ID_SCROLL_ACTION_NAME, request, listener);
     }
 
     private void sendExecuteFetch(DiscoveryNode node, String action, final ShardFetchRequest request, final SearchServiceListener<FetchSearchResult> listener) {
@@ -665,19 +650,13 @@ public class SearchServiceTransportAction extends AbstractComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-                freed = in.readBoolean();
-            } else {
-                freed = true;
-            }
+            freed = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-                out.writeBoolean(freed);
-            }
+            out.writeBoolean(freed);
         }
     }
 

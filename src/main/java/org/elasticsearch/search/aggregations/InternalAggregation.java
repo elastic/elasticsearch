@@ -193,9 +193,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
 
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
-            out.writeGenericValue(metaData);
-        }
+        out.writeGenericValue(metaData);
         doWriteTo(out);
     }
 
@@ -203,9 +201,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
 
     public final void readFrom(StreamInput in) throws IOException {
         name = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
-            metaData = in.readMap();
-        }
+        metaData = in.readMap();
         doReadFrom(in);
     }
 

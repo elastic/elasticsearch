@@ -296,13 +296,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     private Loading randomLoadingValues() {
-        if (compatibilityVersion().onOrAfter(Version.V_1_2_0)) {
-            // Loading.EAGER_GLOBAL_ORDINALS was added in 1,2.0
-            return randomFrom(Loading.values());
-        } else {
-            return randomFrom(Loading.LAZY, Loading.EAGER);
-        }
-
+        return randomFrom(Loading.values());
     }
 
     /**
@@ -316,10 +310,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     setRandomSettings(getRandom(), ImmutableSettings.builder())
                             .put(SETTING_INDEX_SEED, getRandom().nextLong());
 
-            if (randomizeNumberOfShardsAndReplicas()) {
-                randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards())
-                        .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas());
-            }
+            randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards())
+                    .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas());
             XContentBuilder mappings = null;
             if (frequently() && randomDynamicTemplates()) {
                 mappings = XContentFactory.jsonBuilder().startObject().startObject("_default_");
@@ -357,6 +349,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                             .endObject();
                 }
                 if (compatibilityVersion().onOrAfter(Version.V_1_3_0)) {
+                    // some tests rely on this BWC version behavior that we wanna keep
                     mappings.startObject(FieldNamesFieldMapper.NAME)
                             .startObject("fielddata")
                             .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst", "doc_values"))
@@ -422,10 +415,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             }
             assertAcked(putTemplate.execute().actionGet());
         }
-    }
-
-    protected boolean randomizeNumberOfShardsAndReplicas() {
-        return compatibilityVersion().onOrAfter(Version.V_1_1_0);
     }
 
     private static ImmutableSettings.Builder setRandomSettings(Random random, ImmutableSettings.Builder builder) {
@@ -736,15 +725,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     public Settings indexSettings() {
         ImmutableSettings.Builder builder = ImmutableSettings.builder();
-        if (randomizeNumberOfShardsAndReplicas()) {
-            int numberOfShards = numberOfShards();
-            if (numberOfShards > 0) {
-                builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
-            }
-            int numberOfReplicas = numberOfReplicas();
-            if (numberOfReplicas >= 0) {
-                builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
-            }
+        int numberOfShards = numberOfShards();
+        if (numberOfShards > 0) {
+            builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
+        }
+        int numberOfReplicas = numberOfReplicas();
+        if (numberOfReplicas >= 0) {
+            builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
         }
         return builder.build();
     }

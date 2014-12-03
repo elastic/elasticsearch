@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.license.core;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,6 +21,8 @@ import java.io.IOException;
  * Provides serialization/deserialization & validation methods for license object
  */
 public class License implements ToXContent {
+    public final static int VERSION_START = 1;
+    public final static int VERSION_CURRENT = VERSION_START;
 
     private final String uid;
     private final String issuer;
@@ -142,7 +145,10 @@ public class License implements ToXContent {
     }
 
     static License readLicense(StreamInput in) throws IOException {
-        in.readVInt(); // Version for future extensibility
+        int version = in.readVInt(); // Version for future extensibility
+        if (version > VERSION_CURRENT) {
+            throw new ElasticsearchException("Unknown license version found, please upgrade all nodes to the latest elasticsearch-license plugin");
+        }
         Builder builder = builder();
         builder.uid(in.readString());
         builder.type(in.readString());
@@ -158,7 +164,7 @@ public class License implements ToXContent {
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(VERSION);
+        out.writeVInt(VERSION_CURRENT);
         out.writeString(uid);
         out.writeString(type);
         out.writeString(subscriptionType);
@@ -206,7 +212,6 @@ public class License implements ToXContent {
         return builder;
     }
 
-    private final static int VERSION = 1;
 
     final static class Fields {
         static final String STATUS = "status";

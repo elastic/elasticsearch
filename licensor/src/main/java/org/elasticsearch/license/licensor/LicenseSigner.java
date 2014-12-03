@@ -30,9 +30,6 @@ import java.util.Set;
  */
 public class LicenseSigner {
 
-    private final static int VERSION_START = 0;
-    private final static int VERSION = VERSION_START;
-
     private final static int MAGIC_LENGTH = 13;
 
     private final Path publicKeyPath;
@@ -78,7 +75,7 @@ public class LicenseSigner {
         byte[] bytes = new byte[4 + 4 + MAGIC_LENGTH + 4 + hash.length + 4 + signedContent.length];
 
         ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
-        byteBuffer.putInt(VERSION)
+        byteBuffer.putInt(License.VERSION_CURRENT)
                 .putInt(magic.length)
                 .put(magic)
                 .putInt(hash.length)

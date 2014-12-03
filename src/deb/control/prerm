@@ -4,7 +4,9 @@ set -e
 [ -f /etc/default/elasticsearch ] && . /etc/default/elasticsearch
 
 stopElasticsearch() {
-	if [ -x "/etc/init.d/elasticsearch" ]; then
+    if [ -x /bin/systemctl ] ; then
+        /bin/systemctl --no-reload stop elasticsearch.service > /dev/null 2>&1 || :
+	elif [ -x "/etc/init.d/elasticsearch" ]; then
 		if [ -x "`which invoke-rc.d 2>/dev/null`" ]; then
 			invoke-rc.d elasticsearch stop || true
 		else

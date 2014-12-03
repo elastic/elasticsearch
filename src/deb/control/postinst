@@ -4,7 +4,10 @@ set -e
 [ -f /etc/default/elasticsearch ] && . /etc/default/elasticsearch
 
 startElasticsearch() {
-	if [ -x "/etc/init.d/elasticsearch" ]; then
+    if [ -x /bin/systemctl ] ; then
+        /bin/systemctl daemon-reload
+        /bin/systemctl start elasticsearch.service
+	elif [ -x "/etc/init.d/elasticsearch" ]; then
 		if [ -x "`which invoke-rc.d 2>/dev/null`" ]; then
 			invoke-rc.d elasticsearch start || true
 		else
@@ -42,10 +45,19 @@ case "$1" in
 		startElasticsearch
 	# this is a fresh installation
 	elif [ -z $2 ] ; then
-        echo "### NOT starting elasticsearch by default on bootup, please execute"
-        echo " sudo update-rc.d elasticsearch defaults 95 10"
-        echo "### In order to start elasticsearch, execute"
-        echo " sudo /etc/init.d/elasticsearch start"
+        if [ -x /bin/systemctl ] ; then
+            echo "### NOT starting on installation, please execute the following statements to configure elasticsearch to start automatically using systemd"
+            echo " sudo /bin/systemctl daemon-reload"
+            echo " sudo /bin/systemctl enable elasticsearch.service"
+            echo "### You can start elasticsearch by executing"
+            echo " sudo /bin/systemctl start elasticsearch.service"
+
+        elif [ -x /usr/sbin/update-rc.d ] ; then
+            echo "### NOT starting elasticsearch by default on bootup, please execute"
+            echo " sudo update-rc.d elasticsearch defaults 95 10"
+            echo "### In order to start elasticsearch, execute"
+            echo " sudo /etc/init.d/elasticsearch start"
+        fi
 	fi
 	;;
 esac

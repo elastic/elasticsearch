@@ -62,6 +62,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < iters; i ++) {
             client().prepareIndex("test", "type", Integer.toString(i)).setSource("f", Integer.toString(i)).execute().actionGet();
         }
+        ensureYellow();
         refresh();
 
         int numShards = getNumShards("test").numPrimaries;
@@ -99,6 +100,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree ").get();
         client().prepareIndex("test", "type1", "3")
                 .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree").get();
+        ensureYellow();
         refresh();
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(MatchQueryBuilder.Operator.OR))
@@ -160,6 +162,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh("test").execute().actionGet();
         client().prepareIndex("test", "type1", "11").setSource("field1", "2st street boston massachusetts").execute().actionGet();
         client().prepareIndex("test", "type1", "12").setSource("field1", "3st street boston massachusetts").execute().actionGet();
+        ensureYellow();
         client().admin().indices().prepareRefresh("test").execute().actionGet();
         SearchResponse searchResponse = client()
                 .prepareSearch()
@@ -228,6 +231,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh("test").execute().actionGet();
         client().prepareIndex("test", "type1", "1").setSource("field1", "lexington massachusetts avenue").execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field1", "lexington avenue boston massachusetts road").execute().actionGet();
+        ensureYellow();
         client().admin().indices().prepareRefresh("test").execute().actionGet();
 
         SearchResponse searchResponse = client()
@@ -298,6 +302,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh("test").execute().actionGet();
         client().prepareIndex("test", "type1", "1").setSource("field1", "lexington massachusetts avenue").execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field1", "lexington avenue boston massachusetts road").execute().actionGet();
+        ensureYellow();
         client().admin().indices().prepareRefresh("test").execute().actionGet();
 
         SearchResponse searchResponse = client()
@@ -478,6 +483,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "3")
                 .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree").execute()
                 .actionGet();
+        ensureYellow();
         refresh();
 
         {
@@ -571,7 +577,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         float primaryWeight = 1.1f;
         float secondaryWeight = 1.6f;
 
-        for (String scoreMode: scoreModes) {
+        for (String scoreMode : scoreModes) {
             for (int i = 0; i < numDocs - 4; i++) {
                 String[] intToEnglish = new String[] { English.intToEnglish(i), English.intToEnglish(i + 1), English.intToEnglish(i + 2), English.intToEnglish(i + 3) };
 

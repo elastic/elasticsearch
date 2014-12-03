@@ -24,8 +24,10 @@ import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
@@ -33,6 +35,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
 /**
  * An ICU based collation token filter. There are two ways to configure collation:
@@ -58,10 +63,12 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
         if (rules != null) {
             FailedToResolveConfigException failureToResolve = null;
             try {
-                rules = environment.resolveConfigAndLoadToString(rules);
+                rules = Streams.copyToString(Files.newBufferedReader(Paths.get(environment.resolveConfig(rules).toURI()), Charsets.UTF_8));
             } catch (FailedToResolveConfigException e) {
                 failureToResolve = e;
             } catch (IOException e) {
+                throw new ElasticsearchIllegalArgumentException("Failed to load collation rules", e);
+            } catch (URISyntaxException e) {
                 throw new ElasticsearchIllegalArgumentException("Failed to load collation rules", e);
             }
             try {

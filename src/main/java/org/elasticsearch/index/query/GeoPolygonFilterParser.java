@@ -124,14 +124,14 @@ public class GeoPolygonFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "no points defined for geo_polygon filter");
         } else {
             if (shell.size() < 3) {
-                throw new QueryParsingException(parseContext.index(), "to few points defined for geo_polygon filter");
+                throw new QueryParsingException(parseContext.index(), "too few points defined for geo_polygon filter");
             }
             GeoPoint start = shell.get(0);
             if (!start.equals(shell.get(shell.size() - 1))) {
                 shell.add(start);
             }
             if (shell.size() < 4) {
-                throw new QueryParsingException(parseContext.index(), "to few points defined for geo_polygon filter");
+                throw new QueryParsingException(parseContext.index(), "too few points defined for geo_polygon filter");
             }
         }
 

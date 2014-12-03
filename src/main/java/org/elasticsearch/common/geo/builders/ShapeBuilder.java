@@ -508,14 +508,15 @@ public abstract class ShapeBuilder implements ToXContent {
             //   1.  shell orientation is cw and range is greater than a hemisphere (180 degrees) but not spanning 2 hemispheres 
             //       (translation would result in a collapsed poly)
             //   2.  the shell of the candidate hole has been translated (to preserve the coordinate system)
-            if ((rng > DATELINE && rng != 2*DATELINE && orientation && component == 0) || (shell.translated && component != 0)) {
+            if (((component == 0 && orientation) && (rng > DATELINE && rng != 2*DATELINE))
+                    || (shell.translated && component != 0)) {
                 translate(points);
                 // flip the translation bit if the shell is being translated
-                if (component == 0 && !shell.translated) {
+                if (component == 0) {
                     shell.translated = true;
                 }
                 // correct the orientation post translation (ccw for shell, cw for holes)
-                if ((component == 0 && orientation) || (component != 0 && !orientation)) {
+                if (component == 0 || (component != 0 && !orientation)) {
                     orientation = !orientation;
                 }
             }

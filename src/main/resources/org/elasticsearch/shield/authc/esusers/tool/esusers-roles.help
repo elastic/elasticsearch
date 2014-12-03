@@ -18,4 +18,4 @@ OPTIONS
 
     -a,--add <roles>             Adds supplied roles for the specified user
 
-    -r,--remove <roles>             Adds supplied roles for the specified user
+    -r,--remove <roles>          Adds supplied roles for the specified user

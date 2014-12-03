@@ -21,8 +21,8 @@ package org.elasticsearch.index.snapshots;
 
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.recovery.RecoveryState;
 
 /**
  * Shard-level snapshot repository
@@ -35,7 +35,7 @@ public interface IndexShardRepository {
     /**
      * Creates a snapshot of the shard based on the index commit point.
      * <p/>
-     * The index commit point can be obtained by using {@link org.elasticsearch.index.engine.internal.InternalEngine#snapshotIndex()} method.
+     * The index commit point can be obtained by using {@link org.elasticsearch.index.engine.internal.InternalEngineHolder#snapshotIndex()} method.
      * IndexShardRepository implementations shouldn't release the snapshot index commit point. It is done by the method caller.
      * <p/>
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check

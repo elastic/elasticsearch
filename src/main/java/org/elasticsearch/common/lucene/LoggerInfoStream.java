@@ -22,11 +22,11 @@ package org.elasticsearch.common.lucene;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.shard.ShardId;
 
-/** An InfoStream (for Lucene's IndexWriter) that redirects
- *  messages to "lucene.iw.ifd" and "lucene.iw" Logger.trace. */
+/**
+ * An InfoStream (for Lucene's IndexWriter) that redirects
+ * messages to "lucene.iw.ifd" and "lucene.iw" Logger.trace.
+ */
 
 public final class LoggerInfoStream extends InfoStream {
     /** Used for component-specific logging: */
@@ -37,15 +37,15 @@ public final class LoggerInfoStream extends InfoStream {
     /** Logger for IndexFileDeleter */
     private final ESLogger ifdLogger;
 
-    public LoggerInfoStream(Settings settings, ShardId shardId) {
-        logger = Loggers.getLogger("lucene.iw", settings, shardId);
-        ifdLogger = Loggers.getLogger("lucene.iw.ifd", settings, shardId);
+    public LoggerInfoStream(ESLogger parentLogger) {
+        logger = Loggers.getLogger(parentLogger, ".lucene.iw");
+        ifdLogger = Loggers.getLogger(parentLogger, ".lucene.iw.ifd");
     }
 
     public void message(String component, String message) {
         getLogger(component).trace("{} {}: {}", Thread.currentThread().getName(), component, message);
     }
-  
+
     public boolean isEnabled(String component) {
         // TP is a special "test point" component; we don't want
         // to log it:

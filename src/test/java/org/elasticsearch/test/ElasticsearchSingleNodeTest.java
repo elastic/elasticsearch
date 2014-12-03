@@ -37,6 +37,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.engine.internal.InternalEngine;
+import org.elasticsearch.index.engine.internal.InternalEngineHolder;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -195,7 +196,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
     }
 
     protected static InternalEngine engine(IndexService service) {
-       return ((InternalEngine)((InternalIndexShard)service.shard(0)).engine());
+        return ((InternalEngineHolder) ((InternalIndexShard) service.shard(0)).engine()).engineSafe();
     }
 
     /**
@@ -214,7 +215,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
      * It is useful to ensure that all action on the cluster have finished and all shards that were currently relocating
      * are now allocated and started.
      */
-    public ClusterHealthStatus  ensureGreen(String... indices) {
+    public ClusterHealthStatus ensureGreen(String... indices) {
         return ensureGreen(TimeValue.timeValueSeconds(30), indices);
     }
 

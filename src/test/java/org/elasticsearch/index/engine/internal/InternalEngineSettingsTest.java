@@ -30,16 +30,16 @@ public class InternalEngineSettingsTest extends ElasticsearchSingleNodeTest {
         final IndexService service = createIndex("foo");
         // INDEX_COMPOUND_ON_FLUSH
         assertThat(engine(service).currentIndexWriterConfig().getUseCompoundFile(), is(true));
-        client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put(InternalEngine.INDEX_COMPOUND_ON_FLUSH, false).build()).get();
+        client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put(InternalEngineHolder.INDEX_COMPOUND_ON_FLUSH, false).build()).get();
         assertThat(engine(service).currentIndexWriterConfig().getUseCompoundFile(), is(false));
-        client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put(InternalEngine.INDEX_COMPOUND_ON_FLUSH, true).build()).get();
+        client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put(InternalEngineHolder.INDEX_COMPOUND_ON_FLUSH, true).build()).get();
         assertThat(engine(service).currentIndexWriterConfig().getUseCompoundFile(), is(true));
         
         // INDEX_CHECKSUM_ON_MERGE
         assertThat(engine(service).currentIndexWriterConfig().getCheckIntegrityAtMerge(), is(true));
-        client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put(InternalEngine.INDEX_CHECKSUM_ON_MERGE, false).build()).get();
+        client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put(InternalEngineHolder.INDEX_CHECKSUM_ON_MERGE, false).build()).get();
         assertThat(engine(service).currentIndexWriterConfig().getCheckIntegrityAtMerge(), is(false));
-        client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put(InternalEngine.INDEX_CHECKSUM_ON_MERGE, true).build()).get();
+        client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put(InternalEngineHolder.INDEX_CHECKSUM_ON_MERGE, true).build()).get();
         assertThat(engine(service).currentIndexWriterConfig().getCheckIntegrityAtMerge(), is(true));
     }
 

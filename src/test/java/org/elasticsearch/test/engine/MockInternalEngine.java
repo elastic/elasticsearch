@@ -16,72 +16,56 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.test.engine;
 
-import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherManager;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.internal.InternalEngine;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
-import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.warmer.IndicesWarmer;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.lang.reflect.Constructor;
-import java.util.Map.Entry;
-import java.util.Random;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-public final class MockInternalEngine extends InternalEngine implements Engine {
+public class MockInternalEngine extends InternalEngine {
+
     public static final ConcurrentMap<AssertingSearcher, RuntimeException> INFLIGHT_ENGINE_SEARCHERS = new ConcurrentHashMap<>();
-    public static final String WRAP_READER_RATIO = "index.engine.mock.random.wrap_reader_ratio";
-    public static final String READER_WRAPPER_TYPE = "index.engine.mock.random.wrapper";
 
-    private final Random random;
-    private final boolean wrapReader;
-    private final Class<? extends FilterDirectoryReader> wrapper;
+    private MockInternalEngineHolder.MockContext mockContext;
 
-    @Inject
-    public MockInternalEngine(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool,
-                              IndexSettingsService indexSettingsService, ShardIndexingService indexingService, @Nullable IndicesWarmer warmer, Store store,
-                              SnapshotDeletionPolicy deletionPolicy, Translog translog, MergePolicyProvider mergePolicyProvider,
-                              MergeSchedulerProvider mergeScheduler, AnalysisService analysisService, SimilarityService similarityService,
-                              CodecService codecService) throws EngineException {
-        super(shardId, indexSettings, threadPool, indexSettingsService, indexingService, warmer, store,
-                deletionPolicy, translog, mergePolicyProvider, mergeScheduler, analysisService, similarityService, codecService);
-        final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.SETTING_INDEX_SEED, 0l);
-        random = new Random(seed);
-        final double ratio = indexSettings.getAsDouble(WRAP_READER_RATIO, 0.0d); // DISABLED by default - AssertingDR is crazy slow
-        wrapper = indexSettings.getAsClass(READER_WRAPPER_TYPE, AssertingDirectoryReader.class);
-        wrapReader = random.nextDouble() < ratio;
-        if (logger.isTraceEnabled()) {
-            logger.trace("Using [{}] for shard [{}] seed: [{}] wrapReader: [{}]", this.getClass().getName(), shardId, seed, wrapReader);
-        }
+    public MockInternalEngine(MockInternalEngineHolder.MockContext mockContext, ShardId shardId, ESLogger logger, CodecService codecService,
+                              ThreadPool threadPool, ShardIndexingService indexingService,
+                              @Nullable IndicesWarmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy, Translog translog,
+                              MergePolicyProvider mergePolicyProvider, MergeSchedulerProvider mergeScheduler, AnalysisService analysisService,
+                              SimilarityService similarityService, boolean enableGcDeletes, long gcDeletesInMillis, ByteSizeValue indexingBufferSize, String codecName,
+                              boolean compoundOnFlush, boolean checksumOnMerge, int indexConcurrency, boolean optimizeAutoGenerateId, boolean failEngineOnCorruption,
+                              FailedEngineListener failedEngineListener) throws EngineException {
+        super(shardId, logger, codecService, threadPool, indexingService, warmer, store, deletionPolicy, translog, mergePolicyProvider,
+                mergeScheduler, analysisService, similarityService, enableGcDeletes, gcDeletesInMillis, indexingBufferSize, codecName,
+                compoundOnFlush, checksumOnMerge, indexConcurrency, optimizeAutoGenerateId, failEngineOnCorruption, failedEngineListener);
+        this.mockContext = mockContext;
     }
-
 
     @Override
     public void close() {
@@ -90,7 +74,7 @@ public final class MockInternalEngine extends InternalEngine implements Engine {
         } finally {
             if (logger.isTraceEnabled()) {
                 // log debug if we have pending searchers
-                for (Entry<MockInternalEngine.AssertingSearcher, RuntimeException> entry : MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
+                for (Map.Entry<MockInternalEngine.AssertingSearcher, RuntimeException> entry : INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
                     logger.trace("Unreleased Searchers instance for shard [{}]", entry.getValue(), entry.getKey().shardId);
                 }
             }
@@ -102,11 +86,11 @@ public final class MockInternalEngine extends InternalEngine implements Engine {
 
         IndexReader reader = searcher.getIndexReader();
         IndexReader wrappedReader = reader;
-        if (reader instanceof DirectoryReader && wrapReader) {
+        if (reader instanceof DirectoryReader && mockContext.wrapReader) {
             wrappedReader = wrapReader((DirectoryReader) reader);
         }
         // this executes basic query checks and asserts that weights are normalized only once etc.
-        final AssertingIndexSearcher assertingIndexSearcher = new AssertingIndexSearcher(random, wrappedReader);
+        final AssertingIndexSearcher assertingIndexSearcher = new AssertingIndexSearcher(mockContext.random, wrappedReader);
         assertingIndexSearcher.setSimilarity(searcher.getSimilarity());
         // pass the original searcher to the super.newSearcher() method to make sure this is the searcher that will
         // be released later on. If we wrap an index reader here must not pass the wrapped version to the manager
@@ -116,7 +100,7 @@ public final class MockInternalEngine extends InternalEngine implements Engine {
 
     private DirectoryReader wrapReader(DirectoryReader reader) {
         try {
-            Constructor<?>[] constructors = wrapper.getConstructors();
+            Constructor<?>[] constructors = mockContext.wrapper.getConstructors();
             Constructor<?> nonRandom = null;
             for (Constructor<?> constructor : constructors) {
                 Class<?>[] parameterTypes = constructor.getParameterTypes();
@@ -125,7 +109,7 @@ public final class MockInternalEngine extends InternalEngine implements Engine {
                         nonRandom = constructor;
                     } else if (parameterTypes.length == 2 && parameterTypes[1] == Settings.class) {
 
-                       return (DirectoryReader) constructor.newInstance(reader, indexSettings);
+                        return (DirectoryReader) constructor.newInstance(reader, mockContext.indexSettings);
                     }
                 }
             }
@@ -204,23 +188,4 @@ public final class MockInternalEngine extends InternalEngine implements Engine {
         }
     }
 
-    public static abstract class DirectoryReaderWrapper extends FilterDirectoryReader {
-        protected final SubReaderWrapper subReaderWrapper;
-
-        public DirectoryReaderWrapper(DirectoryReader in, SubReaderWrapper subReaderWrapper) {
-            super(in, subReaderWrapper);
-            this.subReaderWrapper = subReaderWrapper;
-        }
-
-        @Override
-        public Object getCoreCacheKey() {
-            return in.getCoreCacheKey();
-        }
-
-        @Override
-        public Object getCombinedCoreAndDeletesKey() {
-            return in.getCombinedCoreAndDeletesKey();
-        }
-
-    }
 }

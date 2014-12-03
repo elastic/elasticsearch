@@ -79,6 +79,10 @@ public abstract class MergeSchedulerProvider extends AbstractIndexShardComponent
         failureListeners.add(listener);
     }
 
+    public void removeFailureListener(FailureListener listener) {
+        failureListeners.remove(listener);
+    }
+
     public void addListener(Listener listener) {
         listeners.add(listener);
     }

@@ -403,9 +403,10 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
             // The connect method creates a new edge for these paired edges in the linked list. 
             // For boundary conditions (e.g., intersect but not crossing) there is no sibling edge 
             // to connect. Thus the first logic check enforces the pairwise rule
-            // 2. the second logic ensures the two candidate edges aren't already connected by an
-            //    existing along the dateline - this is necessary due to a logic change that
-            //    computes dateline edges as valid intersect points in support of OGC standards
+            // 2. the second logic check ensures the two candidate edges aren't already connected by an
+            //    existing edge along the dateline - this is necessary due to a logic change in
+            //    ShapeBuilder.intersection that computes dateline edges as valid intersect points 
+            //    in support of OGC standards
             if (e1.intersect != Edge.MAX_COORDINATE && e2.intersect != Edge.MAX_COORDINATE 
                     && !(e1.next.next.coordinate.equals3D(e2.coordinate) && Math.abs(e1.next.coordinate.x) == DATELINE
                     && Math.abs(e2.coordinate.x) == DATELINE) ) {

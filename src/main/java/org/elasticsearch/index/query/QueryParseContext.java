@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
@@ -51,15 +50,12 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  *
@@ -251,10 +247,19 @@ public class QueryParseContext {
     }
 
     public ImmutableMap<String, Filter> copyNamedFilters() {
-        if (namedFilters.isEmpty()) {
-            return ImmutableMap.of();
-        }
         return ImmutableMap.copyOf(namedFilters);
+    }
+
+    public void addInnerHits(String name, InnerHitsContext.BaseInnerHits context) {
+        SearchContext sc = SearchContext.current();
+        InnerHitsContext innerHitsContext;
+        if (sc.innerHits() == null) {
+            innerHitsContext = new InnerHitsContext(new HashMap<String, InnerHitsContext.BaseInnerHits>());
+            sc.innerHits(innerHitsContext);
+        } else {
+            innerHitsContext = sc.innerHits();
+        }
+        innerHitsContext.addInnerHitDefinition(name, context);
     }
 
     @Nullable

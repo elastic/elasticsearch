@@ -20,7 +20,6 @@ package org.elasticsearch.percolator;
 
 import com.carrotsearch.hppc.FloatArrayList;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
@@ -186,7 +185,7 @@ abstract class QueryCollector extends SimpleCollector {
             // run the query
             try {
                 if (context.highlight() != null) {
-                    context.parsedQuery(new ParsedQuery(query, ImmutableMap.<String, Filter>of()));
+                    context.parsedQuery(new ParsedQuery(query));
                     context.hitContext().cache().clear();
                 }
 
@@ -308,7 +307,7 @@ abstract class QueryCollector extends SimpleCollector {
             // run the query
             try {
                 if (context.highlight() != null) {
-                    context.parsedQuery(new ParsedQuery(query, ImmutableMap.<String, Filter>of()));
+                    context.parsedQuery(new ParsedQuery(query));
                     context.hitContext().cache().clear();
                 }
                 if (isNestedDoc) {

@@ -243,7 +243,7 @@ public class PluginManager {
             if (Files.exists(toLocation)) {
                 IOUtils.rm(toLocation);
             }
-            Files.move(binFile, toLocation, StandardCopyOption.ATOMIC_MOVE);
+            Files.move(binFile, toLocation);
             if (Files.getFileStore(toLocation).supportsFileAttributeView(PosixFileAttributeView.class)) {
                 final Set<PosixFilePermission> perms = new HashSet<>();
                 perms.add(PosixFilePermission.OWNER_EXECUTE);

@@ -59,6 +59,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -70,13 +71,9 @@ import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.percolator.QueryCollector.Count;
-import org.elasticsearch.percolator.QueryCollector.Match;
-import org.elasticsearch.percolator.QueryCollector.MatchAndScore;
-import org.elasticsearch.percolator.QueryCollector.MatchAndSort;
+import org.elasticsearch.percolator.QueryCollector.*;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchShardTarget;
@@ -547,7 +544,7 @@ public class PercolatorService extends AbstractComponent {
 
             for (Map.Entry<BytesRef, Query> entry : context.percolateQueries().entrySet()) {
                 if (context.highlight() != null) {
-                    context.parsedQuery(new ParsedQuery(entry.getValue(), ImmutableMap.<String, Filter>of()));
+                    context.parsedQuery(new ParsedQuery(entry.getValue()));
                     context.hitContext().cache().clear();
                 }
                 try {
@@ -767,7 +764,7 @@ public class PercolatorService extends AbstractComponent {
                     matches.add(BytesRef.deepCopyOf(bytes));
                     if (hls != null) {
                         Query query = context.percolateQueries().get(bytes);
-                        context.parsedQuery(new ParsedQuery(query, ImmutableMap.<String, Filter>of()));
+                        context.parsedQuery(new ParsedQuery(query));
                         context.hitContext().cache().clear();
                         highlightPhase.hitExecute(context, context.hitContext());
                         hls.add(i, context.hitContext().hit().getHighlightFields());

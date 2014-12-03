@@ -51,6 +51,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -243,10 +244,19 @@ public class QueryParseContext {
     }
 
     public ImmutableMap<String, Filter> copyNamedFilters() {
-        if (namedFilters.isEmpty()) {
-            return ImmutableMap.of();
-        }
         return ImmutableMap.copyOf(namedFilters);
+    }
+
+    public void addInnerHits(String name, InnerHitsContext.BaseInnerHits context) {
+        SearchContext sc = SearchContext.current();
+        InnerHitsContext innerHitsContext;
+        if (sc.innerHits() == null) {
+            innerHitsContext = new InnerHitsContext(new HashMap<String, InnerHitsContext.BaseInnerHits>());
+            sc.innerHits(innerHitsContext);
+        } else {
+            innerHitsContext = sc.innerHits();
+        }
+        innerHitsContext.addInnerHitDefinition(name, context);
     }
 
     @Nullable

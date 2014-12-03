@@ -50,7 +50,7 @@ import java.util.Map;
  */
 public final class InnerHitsContext {
 
-    private Map<String, BaseInnerHits> innerHits;
+    private final Map<String, BaseInnerHits> innerHits;
 
     public InnerHitsContext(Map<String, BaseInnerHits> innerHits) {
         this.innerHits = innerHits;
@@ -58,6 +58,10 @@ public final class InnerHitsContext {
 
     public Map<String, BaseInnerHits> getInnerHits() {
         return innerHits;
+    }
+
+    public void addInnerHitDefinition(String name, BaseInnerHits innerHit) {
+        innerHits.put(name, innerHit);
     }
 
     public static abstract class BaseInnerHits extends FilteredSearchContext {

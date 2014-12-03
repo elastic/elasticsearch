@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.deletebyquery;
 
-import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.search.Filter;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
@@ -113,7 +111,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
                 pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter()));
         try {
             Engine.DeleteByQuery deleteByQuery = indexShard.prepareDeleteByQuery(request.source(), request.filteringAliases(), Engine.Operation.Origin.PRIMARY, request.types());
-            SearchContext.current().parsedQuery(new ParsedQuery(deleteByQuery.query(), ImmutableMap.<String, Filter>of()));
+            SearchContext.current().parsedQuery(new ParsedQuery(deleteByQuery.query()));
             indexShard.deleteByQuery(deleteByQuery);
         } finally {
             try (SearchContext searchContext = SearchContext.current()) {
@@ -135,7 +133,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
                 cacheRecycler, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter()));
         try {
             Engine.DeleteByQuery deleteByQuery = indexShard.prepareDeleteByQuery(request.source(), request.filteringAliases(), Engine.Operation.Origin.REPLICA, request.types());
-            SearchContext.current().parsedQuery(new ParsedQuery(deleteByQuery.query(), ImmutableMap.<String, Filter>of()));
+            SearchContext.current().parsedQuery(new ParsedQuery(deleteByQuery.query()));
             indexShard.deleteByQuery(deleteByQuery);
         } finally {
             try (SearchContext searchContext = SearchContext.current()) {

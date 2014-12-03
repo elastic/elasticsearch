@@ -21,10 +21,13 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
 import org.elasticsearch.index.query.support.XContentStructure;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
+import org.elasticsearch.search.internal.SubSearchContext;
 
 import java.io.IOException;
 
@@ -38,8 +41,11 @@ public class HasParentFilterParser implements FilterParser {
 
     public static final String NAME = "has_parent";
 
+    private final InnerHitsQueryParserHelper innerHitsQueryParserHelper;
+
     @Inject
-    public HasParentFilterParser() {
+    public HasParentFilterParser(InnerHitsQueryParserHelper innerHitsQueryParserHelper) {
+        this.innerHitsQueryParserHelper = innerHitsQueryParserHelper;
     }
 
     @Override
@@ -55,6 +61,7 @@ public class HasParentFilterParser implements FilterParser {
         boolean queryFound = false;
         boolean filterFound = false;
         String parentType = null;
+        Tuple<String, SubSearchContext> innerHits = null;
 
         String filterName = null;
         String currentFieldName = null;
@@ -75,6 +82,8 @@ public class HasParentFilterParser implements FilterParser {
                 } else if ("filter".equals(currentFieldName)) {
                     innerFilter = new XContentStructure.InnerFilter(parseContext, parentType == null ? null : new String[] {parentType});
                     filterFound = true;
+                } else if ("inner_hits".equals(currentFieldName)) {
+                    innerHits = innerHitsQueryParserHelper.parse(parseContext);
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_parent] filter does not support [" + currentFieldName + "]");
                 }
@@ -112,7 +121,7 @@ public class HasParentFilterParser implements FilterParser {
             return null;
         }
 
-        Query parentQuery = createParentQuery(innerQuery, parentType, false, parseContext);
+        Query parentQuery = createParentQuery(innerQuery, parentType, false, parseContext, innerHits);
         if (parentQuery == null) {
             return null;
         }

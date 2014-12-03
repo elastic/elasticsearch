@@ -88,3 +88,18 @@ with values in a single array.
   ]
 }
 ---------------
+
+=== Java API
+
+Some query builders have been removed or renamed:
+
+* `commonTerms(...)` renamed with `commonTermsQuery(...)`
+* `queryString(...)` renamed with `queryStringQuery(...)`
+* `simpleQueryString(...)` renamed with `simpleQueryStringQuery(...)`
+* `textPhrase(...)` removed
+* `textPhrasePrefix(...)` removed
+* `textPhrasePrefixQuery(...)` removed
+* `filtered(...)` removed. Use `filteredQuery(...)` instead.
+* `inQuery(...)` removed.
+
+

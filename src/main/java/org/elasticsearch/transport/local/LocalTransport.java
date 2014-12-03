@@ -183,7 +183,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         status = TransportStatus.setRequest(status);
         stream.writeByte(status); // 0 for request, 1 for response.
 
-        stream.writeString(transportServiceAdapter.action(action, version));
+        stream.writeString(action);
         request.writeTo(stream);
 
         stream.close();
@@ -249,7 +249,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         final String action = stream.readString();
         final LocalTransportChannel transportChannel = new LocalTransportChannel(this, sourceTransport, action, requestId, version);
         try {
-            final TransportRequestHandler handler = transportServiceAdapter.handler(action, version);
+            final TransportRequestHandler handler = transportServiceAdapter.handler(action);
             if (handler == null) {
                 throw new ActionNotFoundTransportException("Action [" + action + "] not found");
             }

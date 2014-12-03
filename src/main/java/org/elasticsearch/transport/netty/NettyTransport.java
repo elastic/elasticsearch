@@ -665,7 +665,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             Version version = Version.smallest(this.version, node.version());
 
             stream.setVersion(version);
-            stream.writeString(transportServiceAdapter.action(action, version));
+            stream.writeString(action);
 
             ReleasableBytesReference bytes;
             ChannelBuffer buffer;

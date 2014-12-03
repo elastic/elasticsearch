@@ -32,7 +32,7 @@ import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.queryString;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -77,10 +77,10 @@ public class MultipleAttachmentIntegrationTests extends ElasticsearchIntegration
         refresh();
 
 
-        CountResponse countResponse = client().prepareCount("test").setQuery(queryString("World").defaultField("file1")).execute().get();
+        CountResponse countResponse = client().prepareCount("test").setQuery(queryStringQuery("World").defaultField("file1")).execute().get();
         assertThat(countResponse.getCount(), equalTo(1l));
 
-        countResponse = client().prepareCount("test").setQuery(queryString("World").defaultField("hello")).execute().get();
+        countResponse = client().prepareCount("test").setQuery(queryStringQuery("World").defaultField("hello")).execute().get();
         assertThat(countResponse.getCount(), equalTo(1l));
     }
 

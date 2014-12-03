@@ -33,7 +33,7 @@ import static org.elasticsearch.client.Requests.putMappingRequest;
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.queryString;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -67,10 +67,10 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
         index("test", "person", jsonBuilder().startObject().field("file", html).endObject());
         refresh();
 
-        CountResponse countResponse = client().prepareCount("test").setQuery(queryString("test document").defaultField("file.title")).execute().get();
+        CountResponse countResponse = client().prepareCount("test").setQuery(queryStringQuery("test document").defaultField("file.title")).execute().get();
         assertThat(countResponse.getCount(), equalTo(1l));
 
-        countResponse = client().prepareCount("test").setQuery(queryString("tests the ability").defaultField("file")).execute().get();
+        countResponse = client().prepareCount("test").setQuery(queryStringQuery("tests the ability").defaultField("file")).execute().get();
         assertThat(countResponse.getCount(), equalTo(1l));
     }
 
@@ -85,10 +85,10 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
         index("test", "person", jsonBuilder().startObject().field("file").startObject().field("_content", txt).field("_indexed_chars", CONTENT_LENGTH_LIMIT).endObject());
         refresh();
 
-        CountResponse countResponse = client().prepareCount("test").setQuery(queryString("BeforeLimit").defaultField("file")).execute().get();
+        CountResponse countResponse = client().prepareCount("test").setQuery(queryStringQuery("BeforeLimit").defaultField("file")).execute().get();
         assertThat(countResponse.getCount(), equalTo(1l));
 
-        countResponse = client().prepareCount("test").setQuery(queryString("AfterLimit").defaultField("file")).execute().get();
+        countResponse = client().prepareCount("test").setQuery(queryStringQuery("AfterLimit").defaultField("file")).execute().get();
         assertThat(countResponse.getCount(), equalTo(0l));
     }
 
@@ -103,10 +103,10 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
         index("test", "person", jsonBuilder().startObject().field("file").startObject().field("_content", txt).field("_indexed_chars", CONTENT_LENGTH_LIMIT).endObject());
         refresh();
 
-        CountResponse countResponse = client().prepareCount("test").setQuery(queryString("Begin").defaultField("file")).execute().get();
+        CountResponse countResponse = client().prepareCount("test").setQuery(queryStringQuery("Begin").defaultField("file")).execute().get();
         assertThat(countResponse.getCount(), equalTo(1l));
 
-        countResponse = client().prepareCount("test").setQuery(queryString("End").defaultField("file")).execute().get();
+        countResponse = client().prepareCount("test").setQuery(queryStringQuery("End").defaultField("file")).execute().get();
         assertThat(countResponse.getCount(), equalTo(1l));
     }
 

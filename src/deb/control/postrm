@@ -5,14 +5,23 @@ case "$1" in
     remove)
         # Remove logs
         rm -rf /var/log/elasticsearch
-        
+       
+        # disable elasticsearch service on systemd systems
+        if [ -x /bin/systemctl ] ; then
+            /bin/systemctl --no-reload disable elasticsearch.service > /dev/null 2>&1 || :
+        fi
         # remove **only** empty data dir
         rmdir --ignore-fail-on-non-empty /var/lib/elasticsearch
     ;;
 
     purge)
     	# Remove service
-        update-rc.d elasticsearch remove >/dev/null || true
+        # disable elasticsearch service on systemd systems
+        if [ -x /bin/systemctl ] ; then
+            /bin/systemctl --no-reload disable elasticsearch.service > /dev/null 2>&1 || :
+        else
+            update-rc.d elasticsearch remove >/dev/null || true
+        fi
     
         # Remove logs and data
         rm -rf /var/log/elasticsearch /var/lib/elasticsearch

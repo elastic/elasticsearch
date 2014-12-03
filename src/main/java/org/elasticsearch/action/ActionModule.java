@@ -39,6 +39,8 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAc
 import org.elasticsearch.action.admin.cluster.repositories.get.TransportGetRepositoriesAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
+import org.elasticsearch.action.admin.cluster.repositories.verify.TransportVerifyRepositoryAction;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
@@ -122,7 +124,6 @@ import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersAction;
 import org.elasticsearch.action.admin.indices.warmer.get.TransportGetWarmersAction;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerAction;
 import org.elasticsearch.action.admin.indices.warmer.put.TransportPutWarmerAction;
-import org.elasticsearch.action.bench.*;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
@@ -240,6 +241,7 @@ public class ActionModule extends AbstractModule {
         registerAction(PutRepositoryAction.INSTANCE, TransportPutRepositoryAction.class);
         registerAction(GetRepositoriesAction.INSTANCE, TransportGetRepositoriesAction.class);
         registerAction(DeleteRepositoryAction.INSTANCE, TransportDeleteRepositoryAction.class);
+        registerAction(VerifyRepositoryAction.INSTANCE, TransportVerifyRepositoryAction.class);
         registerAction(GetSnapshotsAction.INSTANCE, TransportGetSnapshotsAction.class);
         registerAction(DeleteSnapshotAction.INSTANCE, TransportDeleteSnapshotAction.class);
         registerAction(CreateSnapshotAction.INSTANCE, TransportCreateSnapshotAction.class);
@@ -314,9 +316,6 @@ public class ActionModule extends AbstractModule {
         registerAction(ExplainAction.INSTANCE, TransportExplainAction.class);
         registerAction(ClearScrollAction.INSTANCE, TransportClearScrollAction.class);
         registerAction(RecoveryAction.INSTANCE, TransportRecoveryAction.class);
-        registerAction(BenchmarkAction.INSTANCE, TransportBenchmarkAction.class);
-        registerAction(AbortBenchmarkAction.INSTANCE, TransportAbortBenchmarkAction.class);
-        registerAction(BenchmarkStatusAction.INSTANCE, TransportBenchmarkStatusAction.class);
 
         //Indexed scripts
         registerAction(PutIndexedScriptAction.INSTANCE, TransportPutIndexedScriptAction.class);

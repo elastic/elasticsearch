@@ -33,7 +33,6 @@ import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
 

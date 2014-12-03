@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -94,7 +95,7 @@ public class TranslogService extends AbstractIndexShardComponent {
 
     public void close() {
         indexSettingsService.removeListener(applySettings);
-        this.future.cancel(true);
+        FutureUtils.cancel(this.future);
     }
 
 

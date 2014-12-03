@@ -64,6 +64,8 @@ sysctl -w vm.max_map_count=262144
 To set this value permanently, update the `vm.max_map_count` setting in
 `/etc/sysctl.conf`.
 
+NOTE: If you installed Elasticsearch using a package (.deb, .rpm) this setting will be changed automatically.  To verify, run `sysctl vm.max_map_count`.
+
 [float]
 [[setup-configuration-memory]]
 ==== Memory Settings
@@ -307,6 +309,21 @@ All of the index level configuration can be found within each
 === Logging
 
 Elasticsearch uses an internal logging abstraction and comes, out of the
-box, with http://logging.apache.org/log4j/[log4j]. It tries to simplify
+box, with http://logging.apache.org/log4j/1.2/[log4j]. It tries to simplify
 log4j configuration by using http://www.yaml.org/[YAML] to configure it,
-and the logging configuration file is `config/logging.yml` file.
+and the logging configuration file is `config/logging.yml`. The
+http://en.wikipedia.org/wiki/JSON[JSON] and
+http://en.wikipedia.org/wiki/.properties[properties] formats are also
+supported. Multiple configuration files can be loaded, in which case they will
+get merged, as long as they start with the `logging.` prefix and end with one
+of the supported suffixes (either `.yml`, `.yaml`, `.json` or `.properties`)
+coming[1.5.0,Previously only the `logging.` prefix was required].
+The logger section contains the java packages and their corresponding log
+level, where it is possible to omit the `org.elasticsearch` prefix. The
+appender section contains the destinations for the logs. Extensive information
+on how to customize logging and all the supported appenders can be found on
+the http://logging.apache.org/log4j/1.2/manual.html[log4j documentation].
+
+coming[1.5.0] Additional Appenders and other logging classes provided by 
+http://logging.apache.org/log4j/extras/[log4j-extras] are also available, 
+out of the box.

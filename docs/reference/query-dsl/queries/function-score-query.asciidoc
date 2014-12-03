@@ -54,7 +54,8 @@ given filter:
     ],
     "max_boost": number,
     "score_mode": "(multiply|max|...)",
-    "boost_mode": "(multiply|replace|...)"
+    "boost_mode": "(multiply|replace|...)",
+    "min_score" : number
 }
 --------------------------------------------------
 
@@ -73,13 +74,13 @@ First, each document is scored by the defined functions. The parameter
 `max`::         maximum score is used
 `min`::         minimum score is used
 
-Because scores can be on different scales (for example, between 0 and 1 for decay functions but arbitrary for `field_value_factor`) and also because sometimes a different impact of functions on the score is desirable, the score of each function can be adjusted with a user defined `weight` (added[1.4.0.Beta1]). The `weight` can be defined per function in the `functions` array (example above) and is multiplied with the score computed by the respective function.
+Because scores can be on different scales (for example, between 0 and 1 for decay functions but arbitrary for `field_value_factor`) and also because sometimes a different impact of functions on the score is desirable, the score of each function can be adjusted with a user defined `weight` (). The `weight` can be defined per function in the `functions` array (example above) and is multiplied with the score computed by the respective function.
 If weight is given without any other function declaration, `weight` acts as a function that simply returns the `weight`.
 
 The new score can be restricted to not exceed a certain limit by setting
 the `max_boost` parameter. The default for `max_boost` is FLT_MAX.
 
-Finally, the newly computed score is combined with the score of the
+The newly computed score is combined with the score of the
 query. The parameter `boost_mode` defines how:
 
 [horizontal]
@@ -90,6 +91,10 @@ query. The parameter `boost_mode` defines how:
 `max`::         max of query score and function score
 `min`::         min of query score and function score
 
+coming[1.5.0]
+
+By default, modifying the score does not change which documents match. To exclude
+documents that do not meet a certain score threshold the `min_score` parameter can be set to the desired score threshold.  
 
 ==== Score functions
 
@@ -135,8 +140,6 @@ you wish to inhibit this, set `"boost_mode": "replace"`
 
 ===== Weight
 
-added[1.4.0.Beta1]
-
 The `weight` score allows you to multiply the score by the provided
 `weight`. This can sometimes be desired since boost value set on
 specific queries gets normalized, while for this score function it does
@@ -146,13 +149,6 @@ not.
 --------------------------------------------------
 "weight" : number
 --------------------------------------------------
-
-===== Boost factor
-
-deprecated[1.4.0.Beta1]
-
-Same as `weight`. Use `weight` instead.
-
 
 ===== Random
 

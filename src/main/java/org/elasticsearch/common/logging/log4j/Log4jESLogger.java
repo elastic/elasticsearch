@@ -29,6 +29,7 @@ import org.elasticsearch.common.logging.support.AbstractESLogger;
 public class Log4jESLogger extends AbstractESLogger {
 
     private final org.apache.log4j.Logger logger;
+    private final String FQCN = AbstractESLogger.class.getName();
 
     public Log4jESLogger(String prefix, Logger logger) {
         super(prefix);
@@ -95,51 +96,51 @@ public class Log4jESLogger extends AbstractESLogger {
 
     @Override
     protected void internalTrace(String msg) {
-        logger.trace(msg);
+        logger.log(FQCN, Level.TRACE, msg, null);
     }
 
     @Override
     protected void internalTrace(String msg, Throwable cause) {
-        logger.trace(msg, cause);
+        logger.log(FQCN, Level.TRACE, msg, cause);
     }
 
     @Override
     protected void internalDebug(String msg) {
-        logger.debug(msg);
+        logger.log(FQCN, Level.DEBUG, msg, null);
     }
 
     @Override
     protected void internalDebug(String msg, Throwable cause) {
-        logger.debug(msg, cause);
+        logger.log(FQCN, Level.DEBUG, msg, cause);
     }
 
     @Override
     protected void internalInfo(String msg) {
-        logger.info(msg);
+        logger.log(FQCN, Level.INFO, msg, null);
     }
 
     @Override
     protected void internalInfo(String msg, Throwable cause) {
-        logger.info(msg, cause);
+        logger.log(FQCN, Level.INFO, msg, cause);
     }
 
     @Override
     protected void internalWarn(String msg) {
-        logger.warn(msg);
+        logger.log(FQCN, Level.WARN, msg, null);
     }
 
     @Override
     protected void internalWarn(String msg, Throwable cause) {
-        logger.warn(msg, cause);
+        logger.log(FQCN, Level.WARN, msg, cause);
     }
 
     @Override
     protected void internalError(String msg) {
-        logger.error(msg);
+        logger.log(FQCN, Level.ERROR, msg, null);
     }
 
     @Override
     protected void internalError(String msg, Throwable cause) {
-        logger.error(msg, cause);
+        logger.log(FQCN, Level.ERROR, msg, cause);
     }
 }

@@ -87,6 +87,12 @@ public interface Terms extends MultiBucketsAggregation {
     long getDocCountError();
 
     /**
+     * Return the sum of the document counts of all buckets that did not make
+     * it to the top buckets.
+     */
+    long getSumOfOtherDocCounts();
+
+    /**
      * Determines the order by which the term buckets will be sorted
      */
     static abstract class Order implements ToXContent {

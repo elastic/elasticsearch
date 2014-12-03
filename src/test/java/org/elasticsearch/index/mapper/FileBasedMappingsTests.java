@@ -85,17 +85,21 @@ public class FileBasedMappingsTests extends ElasticsearchTestCase {
                     .put("gateway.type", "none")
                     .build();
 
-            try (Node node = NodeBuilder.nodeBuilder().local(true).data(true).settings(settings).build()) {
-                node.start();
+            try (Node node = NodeBuilder.nodeBuilder().local(true).data(true).settings(settings).node()) {
 
                 assertAcked(node.client().admin().indices().prepareCreate("index").addMapping("type", "h", "type=string").get());
-                final GetMappingsResponse response = node.client().admin().indices().prepareGetMappings("index").get();
-                assertTrue(response.mappings().toString(), response.mappings().containsKey("index"));
-                MappingMetaData mappings = response.mappings().get("index").get("type");
-                assertNotNull(mappings);
-                Map<?, ?> properties = (Map<?, ?>) (mappings.getSourceAsMap().get("properties"));
-                assertNotNull(properties);
-                assertEquals(ImmutableSet.of("f", "g", "h"), properties.keySet());
+                try {
+                    final GetMappingsResponse response = node.client().admin().indices().prepareGetMappings("index").get();
+                    assertTrue(response.mappings().toString(), response.mappings().containsKey("index"));
+                    MappingMetaData mappings = response.mappings().get("index").get("type");
+                    assertNotNull(mappings);
+                    Map<?, ?> properties = (Map<?, ?>) (mappings.getSourceAsMap().get("properties"));
+                    assertNotNull(properties);
+                    assertEquals(ImmutableSet.of("f", "g", "h"), properties.keySet());
+                } finally {
+                    // remove the index...
+                    assertAcked(node.client().admin().indices().prepareDelete("index"));
+                }
             }
         } finally {
             FileSystemUtils.deleteRecursively(configDir);

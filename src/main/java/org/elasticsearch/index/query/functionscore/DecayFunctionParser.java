@@ -265,7 +265,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         }
         long origin = SearchContext.current().nowInMillis();
         if (originString != null) {
-            origin = dateFieldMapper.parseToMilliseconds(originString, parseContext);
+            origin = dateFieldMapper.parseToMilliseconds(originString);
         }
 
         if (scaleString == null) {

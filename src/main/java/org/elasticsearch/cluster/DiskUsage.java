@@ -19,20 +19,25 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+
 /**
  * Encapsulation class used to represent the amount of disk used on a node.
  */
 public class DiskUsage {
     final String nodeId;
+    final String nodeName;
     final long totalBytes;
     final long freeBytes;
 
-    public DiskUsage(String nodeId, long totalBytes, long freeBytes) {
+    public DiskUsage(String nodeId, String nodeName, long totalBytes, long freeBytes) {
         if ((totalBytes < freeBytes) || (totalBytes < 0)) {
             throw new IllegalStateException("Free bytes [" + freeBytes +
                     "] cannot be less than 0 or greater than total bytes [" + totalBytes + "]");
         }
         this.nodeId = nodeId;
+        this.nodeName = nodeName;
         this.totalBytes = totalBytes;
         this.freeBytes = freeBytes;
     }
@@ -55,6 +60,7 @@ public class DiskUsage {
     }
 
     public String toString() {
-        return "[" + nodeId + "] free: " + getFreeBytes() + "[" + getFreeDiskAsPercentage() + "]";
+        return "[" + nodeId + "][" + nodeName + "] free: " + new ByteSizeValue(getFreeBytes()) +
+                "[" + Strings.format1Decimals(getFreeDiskAsPercentage(), "%") + "]";
     }
 }

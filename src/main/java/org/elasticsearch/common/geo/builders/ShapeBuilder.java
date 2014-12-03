@@ -206,13 +206,17 @@ public abstract class ShapeBuilder implements ToXContent {
     private static CoordinateNode parseCoordinates(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
 
-        // Base case
-        if (token != XContentParser.Token.START_ARRAY) {
+        // Base cases
+        if (token != XContentParser.Token.START_ARRAY && 
+                token != XContentParser.Token.END_ARRAY && 
+                token != XContentParser.Token.VALUE_NULL) {
             double lon = parser.doubleValue();
             token = parser.nextToken();
             double lat = parser.doubleValue();
             token = parser.nextToken();
             return new CoordinateNode(new Coordinate(lon, lat));
+        } else if (token == XContentParser.Token.VALUE_NULL) {
+            throw new ElasticsearchIllegalArgumentException("coordinates cannot contain NULL values)");
         }
 
         List<CoordinateNode> nodes = new ArrayList<>();
@@ -297,7 +301,7 @@ public abstract class ShapeBuilder implements ToXContent {
             Coordinate p1 = edges[i].coordinate;
             Coordinate p2 = edges[i].next.coordinate;
             assert !Double.isNaN(p2.x) && !Double.isNaN(p1.x);  
-            edges[i].intersect = IntersectionOrder.SENTINEL;
+            edges[i].intersect = Edge.MAX_COORDINATE;
 
             double position = intersection(p1, p2, dateline);
             if (!Double.isNaN(position)) {
@@ -366,6 +370,7 @@ public abstract class ShapeBuilder implements ToXContent {
         Edge next; // next segment
         Coordinate intersect; // potential intersection with dateline
         int component = -1; // id of the component this edge belongs to
+        public static final Coordinate MAX_COORDINATE = new Coordinate(Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY);
 
         protected Edge(Coordinate coordinate, Edge next, Coordinate intersection) {
             this.coordinate = coordinate;
@@ -377,7 +382,7 @@ public abstract class ShapeBuilder implements ToXContent {
         }
 
         protected Edge(Coordinate coordinate, Edge next) {
-            this(coordinate, next, IntersectionOrder.SENTINEL);
+            this(coordinate, next, Edge.MAX_COORDINATE);
         }
 
         private static final int top(Coordinate[] points, int offset, int length) {
@@ -495,8 +500,6 @@ public abstract class ShapeBuilder implements ToXContent {
     protected static final IntersectionOrder INTERSECTION_ORDER = new IntersectionOrder();
 
     private static final class IntersectionOrder implements Comparator<Edge> {
-        private static final Coordinate SENTINEL = new Coordinate(Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY);
-        
         @Override
         public int compare(Edge o1, Edge o2) {
             return Double.compare(o1.intersect.y, o2.intersect.y);
@@ -625,6 +628,16 @@ public abstract class ShapeBuilder implements ToXContent {
         }
 
         protected static LineStringBuilder parseLineString(CoordinateNode coordinates) {
+            /**
+             * Per GeoJSON spec (http://geojson.org/geojson-spec.html#linestring)
+             * "coordinates" member must be an array of two or more positions
+             * LineStringBuilder should throw a graceful exception if < 2 coordinates/points are provided
+             */
+            if (coordinates.children.size() < 2) {
+                throw new ElasticsearchParseException("Invalid number of points in LineString (found " +
+                        coordinates.children.size() + " - must be >= 2)");
+            }
+
             LineStringBuilder line = newLineString();
             for (CoordinateNode node : coordinates.children) {
                 line.point(node.coordinate);
@@ -640,11 +653,28 @@ public abstract class ShapeBuilder implements ToXContent {
             return multiline;
         }
 
+        protected static LineStringBuilder parseLinearRing(CoordinateNode coordinates) {
+            /**
+             * Per GeoJSON spec (http://geojson.org/geojson-spec.html#linestring)
+             * A LinearRing is closed LineString with 4 or more positions. The first and last positions
+             * are equivalent (they represent equivalent points). Though a LinearRing is not explicitly
+             * represented as a GeoJSON geometry type, it is referred to in the Polygon geometry type definition.
+             */
+            if (coordinates.children.size() < 4) {
+                throw new ElasticsearchParseException("Invalid number of points in LinearRing (found " +
+                        coordinates.children.size() + " - must be >= 4)");
+            } else if (!coordinates.children.get(0).coordinate.equals(
+                        coordinates.children.get(coordinates.children.size() - 1).coordinate)) {
+                throw new ElasticsearchParseException("Invalid LinearRing found (coordinates are not closed)");
+            }
+            return parseLineString(coordinates);
+        }
+
         protected static PolygonBuilder parsePolygon(CoordinateNode coordinates) {
-            LineStringBuilder shell = parseLineString(coordinates.children.get(0));
+            LineStringBuilder shell = parseLinearRing(coordinates.children.get(0));
             PolygonBuilder polygon = new PolygonBuilder(shell.points);
             for (int i = 1; i < coordinates.children.size(); i++) {
-                polygon.hole(parseLineString(coordinates.children.get(i)));
+                polygon.hole(parseLinearRing(coordinates.children.get(i)));
             }
             return polygon;
         }

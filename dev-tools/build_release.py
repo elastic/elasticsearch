@@ -28,6 +28,7 @@ import urllib
 import fnmatch
 import socket
 import urllib.request
+import subprocess
 
 from http.client import HTTPConnection
 from http.client import HTTPSConnection
@@ -67,8 +68,6 @@ PLUGINS = [('bigdesk', 'lukas-vlcek/bigdesk'),
            ('head', 'mobz/elasticsearch-head')]
 
 LOG = env.get('ES_RELEASE_LOG', '/tmp/elasticsearch_release.log')
-if os.path.exists(LOG):
-  raise RuntimeError('please remove old release log %s first' % LOG)
 
 def log(msg):
   log_plain('\n%s' % msg)
@@ -100,14 +99,12 @@ except KeyError:
 
 
 try:
-  MVN='mvn'
   # make sure mvn3 is used if mvn3 is available
   # some systems use maven 2 as default
-  run('mvn3 --version', quiet=True)
-  MVN='mvn3'
-except RuntimeError:
-  pass
-
+  subprocess.check_output('mvn3 --version', shell=True, stderr=subprocess.STDOUT)
+  MVN = 'mvn3'
+except subprocess.CalledProcessError:
+  MVN = 'mvn'
 
 def java_exe():
   path = JAVA_HOME
@@ -115,14 +112,14 @@ def java_exe():
 
 def verify_java_version(version):
   s = os.popen('%s; java -version 2>&1' % java_exe()).read()
-  if s.find(' version "%s.' % version) == -1:
+  if ' version "%s.' % version not in s:
     raise RuntimeError('got wrong version for java %s:\n%s' % (version, s))
 
 # Verifies the java version. We guarantee that we run with Java 1.7
 # If 1.7 is not available fail the build!
 def verify_mvn_java_version(version, mvn):
   s = os.popen('%s; %s --version 2>&1' % (java_exe(), mvn)).read()
-  if s.find('Java version: %s' % version) == -1:
+  if 'Java version: %s' % version not in s:
     raise RuntimeError('got wrong java version for %s %s:\n%s' % (mvn, version, s))
 
 # Returns the hash of the current git HEAD revision
@@ -311,7 +308,7 @@ def wait_for_node_startup(host='127.0.0.1', port=9200,timeout=15):
 # Ensures we are using a true Lucene release, not a snapshot build:
 def verify_lucene_version():
   s = open('pom.xml', encoding='utf-8').read()
-  if s.find('download.elasticsearch.org/lucenesnapshots') != -1:
+  if 'download.elasticsearch.org/lucenesnapshots' in s:
     raise RuntimeError('pom.xml contains download.elasticsearch.org/lucenesnapshots repository: remove that before releasing')
 
   m = re.search(r'<lucene.version>(.*?)</lucene.version>', s)
@@ -545,9 +542,32 @@ def find_bwc_version(release_version, bwc_dir='backwards'):
     log('  bwc directory [%s] does not exists or is not a directory - skipping' % bwc_dir)
   return bwc_version
 
+def ensure_checkout_is_clean(branchName):
+  # Make sure no local mods:
+  s = subprocess.check_output('git diff --shortstat', shell=True)
+  if len(s) > 0:
+    raise RuntimeError('git diff --shortstat is non-empty: got:\n%s' % s)
+
+  # Make sure no untracked files:
+  s = subprocess.check_output('git status', shell=True).decode('utf-8', errors='replace')
+  if 'Untracked files:' in s:
+    raise RuntimeError('git status shows untracked files: got:\n%s' % s)
+
+  # Make sure we are on the right branch (NOTE: a bit weak, since we default to current branch):
+  if 'On branch %s' % branchName not in s:
+    raise RuntimeError('git status does not show branch %s: got:\n%s' % (branchName, s))
+
+  # Make sure we have all changes from origin:
+  if 'is behind' in s:
+    raise RuntimeError('git status shows not all changes pulled from origin; try running "git pull origin %s": got:\n%s' % (branchName, s))
+
+  # Make sure we no local unpushed changes (this is supposed to be a clean area):
+  if 'is ahead' in s:
+    raise RuntimeError('git status shows local commits; try running "git fetch origin", "git checkout %s", "git reset --hard origin/%s": got:\n%s' % (branchName, branchName, s))
+
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Builds and publishes a Elasticsearch Release')
-  parser.add_argument('--branch', '-b', metavar='master', default=get_current_branch(),
+  parser.add_argument('--branch', '-b', metavar='RELEASE_BRANCH', default=get_current_branch(),
                        help='The branch to release from. Defaults to the current branch.')
   parser.add_argument('--cpus', '-c', metavar='1', default=1,
                        help='The number of cpus to use for running the test. Default is [1]')
@@ -574,6 +594,10 @@ if __name__ == '__main__':
   cpus = args.cpus
   build = not args.smoke
   smoke_test_version = args.smoke
+
+  if os.path.exists(LOG):
+    raise RuntimeError('please remove old release log %s first' % LOG)
+  
   if not dry_run:
     check_s3_credentials()
     print('WARNING: dryrun is set to "false" - this will push and publish the release')
@@ -584,6 +608,7 @@ if __name__ == '__main__':
   print('  JAVA_HOME is [%s]' % JAVA_HOME)
   print('  Running with maven command: [%s] ' % (MVN))
   if build:
+    ensure_checkout_is_clean(src_branch)
     verify_lucene_version()
     release_version = find_release_version(src_branch)
     ensure_no_open_tickets(release_version)
@@ -633,10 +658,9 @@ if __name__ == '__main__':
         cherry_pick_command = ' and cherry-pick the documentation changes: \'git cherry-pick %s\' to the development branch' % (version_head_hash)
       pending_msg = """
       Release successful pending steps:
-        * create a version tag on github for version 'v%(version)s'
-        * check if there are pending issues for this version (https://github.com/elasticsearch/elasticsearch/issues?labels=v%(version)s&page=1&state=open)
+        * create a new vX.Y.Z label on github for the next release, with label color #dddddd (https://github.com/elasticsearch/elasticsearch/labels)
         * publish the maven artifacts on Sonatype: https://oss.sonatype.org/index.html
-           - here is a guide: https://docs.sonatype.org/display/Repository/Sonatype+OSS+Maven+Repository+Usage+Guide#SonatypeOSSMavenRepositoryUsageGuide-8a.ReleaseIt
+           - here is a guide: http://central.sonatype.org/pages/releasing-the-deployment.html
         * check if the release is there https://oss.sonatype.org/content/repositories/releases/org/elasticsearch/elasticsearch/%(version)s
         * announce the release on the website / blog post
         * tweet about the release

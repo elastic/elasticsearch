@@ -56,7 +56,7 @@ public class SerialMergeSchedulerProvider extends MergeSchedulerProvider {
 
     @Override
     public int getMaxMerges() {
-        return 2;
+        return 1;
     }
 
     @Override
@@ -90,7 +90,7 @@ public class SerialMergeSchedulerProvider extends MergeSchedulerProvider {
 
     }
 
-    /** NOTE: subclasses TrackingCONCURRENTMergeScheduler, but we set max_merge_count = max_thread_count = 1 above */
+    /** NOTE: subclasses TrackingCONCURRENTMergeScheduler, but we set max_merge_count = 2 and max_thread_count = 1, above */
     public static class CustomSerialMergeScheduler extends TrackingConcurrentMergeScheduler {
 
         private final ShardId shardId;

@@ -27,6 +27,7 @@ import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
 import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -42,11 +43,14 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
 
     private final SearchContext searchContext;
 
+    private final FetchSubPhase.HitContext hitContext;
+
     public SourceScoreOrderFragmentsBuilder(FieldMapper<?> mapper, SearchContext searchContext,
-                                            String[] preTags, String[] postTags, BoundaryScanner boundaryScanner) {
+                                            FetchSubPhase.HitContext hitContext, String[] preTags, String[] postTags, BoundaryScanner boundaryScanner) {
         super(preTags, postTags, boundaryScanner);
         this.mapper = mapper;
         this.searchContext = searchContext;
+        this.hitContext = hitContext;
     }
 
     @Override
@@ -56,7 +60,7 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
         lookup.setNextReader((AtomicReaderContext) reader.getContext());
         lookup.setNextDocId(docId);
 
-        List<Object> values = lookup.source().extractRawValues(mapper.names().sourcePath());
+        List<Object> values = lookup.source().extractRawValues(hitContext.getSourcePath(mapper.names().sourcePath()));
         Field[] fields = new Field[values.size()];
         for (int i = 0; i < values.size(); i++) {
             fields[i] = new Field(mapper.names().indexName(), values.get(i).toString(), TextField.TYPE_NOT_STORED);

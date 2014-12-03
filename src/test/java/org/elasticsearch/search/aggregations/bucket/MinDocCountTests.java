@@ -48,8 +48,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 
 
 @ElasticsearchIntegrationTest.SuiteScopeTest
-@TestLogging("action.admin.indices.refresh:TRACE,action.search.type:TRACE,cluster.service:TRACE")
-public class MinDocCountTests extends ElasticsearchIntegrationTest {
+public class MinDocCountTests extends AbstractTermsTests {
 
     private static final QueryBuilder QUERY = QueryBuilders.termQuery("match", true);
 
@@ -275,7 +274,7 @@ public class MinDocCountTests extends ElasticsearchIntegrationTest {
                 .setQuery(QUERY)
                 .addAggregation(script.apply(terms("terms"), field)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .executionHint(StringTermsTests.randomExecutionHint())
+                        .executionHint(randomExecutionHint())
                         .order(order)
                         .size(cardinality + randomInt(10))
                         .minDocCount(0))
@@ -292,7 +291,7 @@ public class MinDocCountTests extends ElasticsearchIntegrationTest {
                     .setQuery(QUERY)
                     .addAggregation(script.apply(terms("terms"), field)
                             .collectMode(randomFrom(SubAggCollectionMode.values()))
-                            .executionHint(StringTermsTests.randomExecutionHint())
+                            .executionHint(randomExecutionHint())
                             .order(order)
                             .size(size)
                             .include(include)

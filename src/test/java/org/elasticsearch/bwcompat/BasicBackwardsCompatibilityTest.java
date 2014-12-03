@@ -39,6 +39,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -48,6 +49,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -62,6 +64,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -94,12 +97,12 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             final long version = randomIntBetween(0, Integer.MAX_VALUE);
             client().prepareIndex("test", "type1", id).setRouting(routingKey).setVersion(version).setVersionType(VersionType.EXTERNAL).setSource("field1", English.intToEnglish(i)).get();
             GetResponse get = client().prepareGet("test", "type1", id).setRouting(routingKey).setVersion(version).get();
-            assertThat("Document with ID " +id + " should exist but doesn't", get.isExists(), is(true));
+            assertThat("Document with ID " + id + " should exist but doesn't", get.isExists(), is(true));
             assertThat(get.getVersion(), equalTo(version));
             final long nextVersion = version + randomIntBetween(0, Integer.MAX_VALUE);
             client().prepareIndex("test", "type1", id).setRouting(routingKey).setVersion(nextVersion).setVersionType(VersionType.EXTERNAL).setSource("field1", English.intToEnglish(i)).get();
             get = client().prepareGet("test", "type1", id).setRouting(routingKey).setVersion(nextVersion).get();
-            assertThat("Document with ID " +id + " should exist but doesn't", get.isExists(), is(true));
+            assertThat("Document with ID " + id + " should exist but doesn't", get.isExists(), is(true));
             assertThat(get.getVersion(), equalTo(nextVersion));
         }
     }
@@ -117,11 +120,11 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             String id = Integer.toString(i);
             assertThat(id, client().prepareIndex("test", "type1", id).setRouting(routingKey).setSource("field1", English.intToEnglish(i)).get().isCreated(), is(true));
             GetResponse get = client().prepareGet("test", "type1", id).setRouting(routingKey).setVersion(1).get();
-            assertThat("Document with ID " +id + " should exist but doesn't", get.isExists(), is(true));
+            assertThat("Document with ID " + id + " should exist but doesn't", get.isExists(), is(true));
             assertThat(get.getVersion(), equalTo(1l));
             client().prepareIndex("test", "type1", id).setRouting(routingKey).setSource("field1", English.intToEnglish(i)).execute().actionGet();
             get = client().prepareGet("test", "type1", id).setRouting(routingKey).setVersion(2).get();
-            assertThat("Document with ID " +id + " should exist but doesn't", get.isExists(), is(true));
+            assertThat("Document with ID " + id + " should exist but doesn't", get.isExists(), is(true));
             assertThat(get.getVersion(), equalTo(2l));
         }
 
@@ -150,7 +153,6 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     @Test
     public void testRecoverFromPreviousVersion() throws ExecutionException, InterruptedException {
-
         if (backwardsCluster().numNewDataNodes() == 0) {
             backwardsCluster().startNewNode();
         }
@@ -158,10 +160,13 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         ensureYellow();
         assertAllShardsOnNodes("test", backwardsCluster().backwardsNodePattern());
         int numDocs = randomIntBetween(100, 150);
+        ArrayList<String> ids = new ArrayList<>();
         logger.info(" --> indexing [{}] docs", numDocs);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", randomRealisticUnicodeOfLength(10) + String.valueOf(i)).setSource("field1", English.intToEnglish(i));
+            String id = randomRealisticUnicodeOfLength(10) + String.valueOf(i);
+            ids.add(id);
+            docs[i] = client().prepareIndex("test", "type1", id).setSource("field1", English.intToEnglish(i));
         }
         indexRandom(true, docs);
         CountResponse countResponse = client().prepareCount().get();
@@ -179,9 +184,15 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         // sometimes index while relocating
         if (randomBoolean()) {
             for (int i = 0; i < numDocs; i++) {
-                docs[i] = client().prepareIndex("test", "type1", randomRealisticUnicodeOfLength(10) + String.valueOf(numDocs + i)).setSource("field1", English.intToEnglish(numDocs + i));
+                String id = randomRealisticUnicodeOfLength(10) + String.valueOf(numDocs + i);
+                ids.add(id);
+                docs[i] = client().prepareIndex("test", "type1", id).setSource("field1", English.intToEnglish(numDocs + i));
             }
             indexRandom(true, docs);
+            if (compatibilityVersion().before(Version.V_1_3_0)) {
+                // issue another refresh through a new node to side step issue #6545
+                assertNoFailures(backwardsCluster().internalCluster().dataNodeClient().admin().indices().prepareRefresh().setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
+            }
             numDocs *= 2;
         }
 
@@ -189,8 +200,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         ensureYellow("test");// move all shards to the new node (it waits on relocation)
         final int numIters = randomIntBetween(10, 20);
         for (int i = 0; i < numIters; i++) {
-            countResponse = client().prepareCount().get();
-            assertHitCount(countResponse, numDocs);
+            assertSearchHits(client().prepareSearch().setSize(ids.size()).get(), ids.toArray(new String[ids.size()]));
         }
         assertVersionCreated(compatibilityVersion(), "test");
     }
@@ -216,7 +226,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         }
         indexRandom(true, docs);
         backwardsCluster().allowOnAllNodes("test");
-        while(ensureYellow() != ClusterHealthStatus.GREEN) {
+        while (ensureYellow() != ClusterHealthStatus.GREEN) {
             backwardsCluster().startNewNode();
         }
         assertAllShardsOnNodes("test", backwardsCluster().newNodePattern());
@@ -233,7 +243,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
 
     public void assertSimpleSort(String... numericFields) {
-        for(String field : numericFields) {
+        for (String field : numericFields) {
             SearchResponse searchResponse = client().prepareSearch().addSort(field, SortOrder.ASC).get();
             SearchHit[] hits = searchResponse.getHits().getHits();
             assertThat(hits.length, greaterThan(0));
@@ -253,7 +263,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    if (shardRouting.currentNodeId() != null &&  index.equals(shardRouting.getIndex())) {
+                    if (shardRouting.currentNodeId() != null && index.equals(shardRouting.getIndex())) {
                         String name = clusterState.nodes().get(shardRouting.currentNodeId()).name();
                         assertThat("Allocated on new node: " + name, Regex.simpleMatch(pattern, name), is(true));
                     }
@@ -266,6 +276,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
      * Upgrades a single node to the current version
      */
     @Test
+    @TestLogging("org.elasticsearch.index.gateway.local:TRACE")
     public void testIndexUpgradeSingleNode() throws Exception {
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings())));
         ensureYellow();
@@ -306,7 +317,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
      */
     @Test
     public void testIndexRollingUpgrade() throws Exception {
-        String[] indices = new String[randomIntBetween(1,3)];
+        String[] indices = new String[randomIntBetween(1, 3)];
         for (int i = 0; i < indices.length; i++) {
             indices[i] = "test" + i;
             assertAcked(prepareCreate(indices[i]).setSettings(ImmutableSettings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings())));
@@ -341,11 +352,11 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             indexRandom(true, docs);
         } while (upgraded);
         client().admin().indices().prepareUpdateSettings(indices).setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
-        CountResponse countResponse  = client().prepareCount().get();
+        CountResponse countResponse = client().prepareCount().get();
         assertHitCount(countResponse, numDocs);
         assertSimpleSort("num_double", "num_int");
 
-        String[] newIndices = new String[randomIntBetween(1,3)];
+        String[] newIndices = new String[randomIntBetween(1, 3)];
 
         for (int i = 0; i < newIndices.length; i++) {
             newIndices[i] = "new_index" + i;
@@ -357,7 +368,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     public void assertVersionCreated(Version version, String... indices) {
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(indices).get();
-        ImmutableOpenMap<String,Settings> indexToSettings = getSettingsResponse.getIndexToSettings();
+        ImmutableOpenMap<String, Settings> indexToSettings = getSettingsResponse.getIndexToSettings();
         for (String index : indices) {
             Settings settings = indexToSettings.get(index);
             assertThat(settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null), notNullValue());
@@ -382,8 +393,8 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
             try {
                 assertAcked(prepareCreate("test").
-                    setSettings(ImmutableSettings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings()))
-                    .addMapping("type", mapping));
+                        setSettings(ImmutableSettings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings()))
+                        .addMapping("type", mapping));
             } catch (MapperParsingException ex) {
                 if (getMasterVersion().onOrAfter(Version.V_1_3_0)) {
                     assertThat(ex.getCause(), instanceOf(ElasticsearchIllegalArgumentException.class));
@@ -403,15 +414,19 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
      */
     @Test
     public void testExistsFilter() throws IOException, ExecutionException, InterruptedException {
-        assumeTrue("this test fails often with 1.0.3 skipping for now....",compatibilityVersion().onOrAfter(Version.V_1_1_0));
-        for (;;)  {
-            createIndex("test");
+        assumeTrue("this test fails often with 1.0.3 skipping for now....", compatibilityVersion().onOrAfter(Version.V_1_1_0));
+        int indexId = 0;
+        String indexName;
+
+        for (; ; ) {
+            indexName = "test_"+indexId++;
+            createIndex(indexName);
             ensureYellow();
             indexRandom(true,
-                    client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x1", "x_1").field("field1", "value1_1").field("field2", "value2_1").endObject()),
-                    client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x2", "x_2").field("field1", "value1_2").endObject()),
-                    client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y1", "y_1").field("field2", "value2_3").endObject()),
-                    client().prepareIndex("test", "type1", "4").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y2", "y_2").field("field3", "value3_4").endObject()));
+                    client().prepareIndex(indexName, "type1", "1").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x1", "x_1").field("field1", "value1_1").field("field2", "value2_1").endObject()),
+                    client().prepareIndex(indexName, "type1", "2").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x2", "x_2").field("field1", "value1_2").endObject()),
+                    client().prepareIndex(indexName, "type1", "3").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y1", "y_1").field("field2", "value2_3").endObject()),
+                    client().prepareIndex(indexName, "type1", "4").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y2", "y_2").field("field3", "value3_4").endObject()));
 
             CountResponse countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("field1"))).get();
             assertHitCount(countResponse, 2l);
@@ -419,7 +434,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             countResponse = client().prepareCount().setQuery(constantScoreQuery(existsFilter("field1"))).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(queryString("_exists_:field1")).get();
+            countResponse = client().prepareCount().setQuery(queryStringQuery("_exists_:field1")).get();
             assertHitCount(countResponse, 2l);
 
             countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("field2"))).get();
@@ -445,7 +460,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             countResponse = client().prepareCount().setQuery(constantScoreQuery(missingFilter("field1"))).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(queryString("_missing_:field1")).get();
+            countResponse = client().prepareCount().setQuery(queryStringQuery("_missing_:field1")).get();
             assertHitCount(countResponse, 2l);
 
             // wildcard check
@@ -456,14 +471,14 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), missingFilter("obj1"))).get();
             assertHitCount(countResponse, 2l);
             if (!backwardsCluster().upgradeOneNode()) {
-                 break;
+                break;
             }
             ensureYellow();
-            assertVersionCreated(compatibilityVersion(), "test"); // we had an old node in the cluster so we have to be on the compat version
-            assertAcked(client().admin().indices().prepareDelete("test"));
+            assertVersionCreated(compatibilityVersion(), indexName); // we had an old node in the cluster so we have to be on the compat version
+            assertAcked(client().admin().indices().prepareDelete(indexName));
         }
 
-        assertVersionCreated(Version.CURRENT, "test"); // after upgrade we have current version
+        assertVersionCreated(Version.CURRENT, indexName); // after upgrade we have current version
     }
 
 
@@ -486,7 +501,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
         SearchResponse searchResponse = client().prepareSearch("test").get();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo((long)numDocs + 1));
+        assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs + 1));
 
         DeleteByQueryResponse deleteByQueryResponse = client().prepareDeleteByQuery("test").setQuery(QueryBuilders.termQuery("field", "value")).get();
         assertThat(deleteByQueryResponse.getIndices().size(), equalTo(1));
@@ -584,7 +599,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch(indexOrAlias()).get();
-        assertThat(searchResponse.getHits().totalHits(), equalTo((long)numDocs - 1));
+        assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs - 1));
     }
 
     @Test

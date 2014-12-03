@@ -20,9 +20,11 @@ package org.elasticsearch.search.functionscore;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -46,6 +48,7 @@ public class FunctionScoreBackwardCompatibilityTests extends ElasticsearchBackwa
      * Simple upgrade test for function score
      */
     @Test
+    @TestLogging("org.elasticsearch.index.gateway.local:TRACE")
     public void testSimpleFunctionScoreParsingWorks() throws IOException, ExecutionException, InterruptedException {
 
         assertAcked(prepareCreate("test").addMapping(
@@ -84,6 +87,8 @@ public class FunctionScoreBackwardCompatibilityTests extends ElasticsearchBackwa
         indexRandom(true, indexBuilders);
         checkFunctionScoreStillWorks(ids);
         logClusterState();
+        // prevent any kind of allocation during the upgrade we recover from gateway
+        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "none")).get();
         boolean upgraded;
         int upgradedNodesCounter = 1;
         do {
@@ -93,6 +98,7 @@ public class FunctionScoreBackwardCompatibilityTests extends ElasticsearchBackwa
             logClusterState();
             checkFunctionScoreStillWorks(ids);
         } while (upgraded);
+        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
         logger.debug("done function_score while upgrading");
     }
 

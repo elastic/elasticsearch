@@ -1,8 +1,15 @@
 #!/bin/sh
 
 # OPTIONS:
-#   -d: daemonize, start in the background
-#   -p <filename>: log the pid to a file (useful to kill it later)
+#    -d            daemonize (run in background)
+#    -p pidfile    write PID to <pidfile>
+#    -h
+#    --help        print command line options
+#    -v            print elasticsearch version, then exit
+#    -D prop       set JAVA system property
+#    -X prop       set non-standard JAVA system property
+#   --prop=val
+#   --prop val     set elasticsearch property (i.e.  -Des.<prop>=<val>)
 
 # CONTROLLING STARTUP:
 #
@@ -89,6 +96,7 @@ if [ "x$ES_INCLUDE" = "x" ]; then
                    /usr/local/share/elasticsearch/elasticsearch.in.sh \
                    /opt/elasticsearch/elasticsearch.in.sh \
                    ~/.elasticsearch.in.sh \
+                   $ES_HOME/bin/elasticsearch.in.sh \
                    "`dirname "$0"`"/elasticsearch.in.sh; do
         if [ -r "$include" ]; then
             . "$include"
@@ -155,16 +163,37 @@ launch_service()
     fi
 }
 
+# Print command line usage / help
+usage() {
+    echo "Usage: $0 [-vdh] [-p pidfile] [-D prop] [-X prop]"
+    echo "Start elasticsearch."
+    echo "    -d            daemonize (run in background)"
+    echo "    -p pidfile    write PID to <pidfile>"
+    echo "    -h"
+    echo "    --help        print command line options"
+    echo "    -v            print elasticsearch version, then exit"
+    echo "    -D prop       set JAVA system property"
+    echo "    -X prop       set non-standard JAVA system property"
+    echo "   --prop=val"
+    echo "   --prop val     set elasticsearch property (i.e. -Des.<prop>=<val>)"
+}
+
 # Parse any long getopt options and put them into properties before calling getopt below
 # Be dash compatible to make sure running under ubuntu works
 ARGV=""
 while [ $# -gt 0 ]
 do
     case $1 in
+      --help) ARGV="$ARGV -h"; shift;;
       --*=*) properties="$properties -Des.${1#--}"
            shift 1
            ;;
-      --*) properties="$properties -Des.${1#--}=$2"
+      --*) [ $# -le 1 ] && {
+                echo "Option requires an argument: '$1'."
+                shift
+                continue
+            }
+           properties="$properties -Des.${1#--}=$2"
            shift 2
            ;;
       *) ARGV="$ARGV $1" ; shift
@@ -191,7 +220,7 @@ while true; do
             shift
         ;;
         -h)
-            echo "Usage: $0 [-d] [-h] [-p pidfile]"
+            usage
             exit 0
         ;;
         -D)
@@ -208,6 +237,7 @@ while true; do
         ;;
         *)
             echo "Error parsing argument $1!" >&2
+            usage
             exit 1
         ;;
     esac

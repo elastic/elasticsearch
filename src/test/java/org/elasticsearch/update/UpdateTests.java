@@ -46,6 +46,7 @@ import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -462,6 +463,99 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testContextVariables() throws Exception {
+        createTestIndex();
+
+        // Add child type for testing the _parent context variable
+        client().admin().indices().preparePutMapping("test")
+                .setType("subtype1")
+                .setSource(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("subtype1")
+                        .startObject("_parent").field("type", "type1").endObject()
+                        .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
+                        .startObject("_ttl").field("enabled", true).field("store", "yes").endObject()
+                        .endObject()
+                        .endObject())
+                .execute().actionGet();
+        ensureGreen();
+
+        // Index some documents
+        long timestamp = System.currentTimeMillis();
+        client().prepareIndex()
+                .setIndex("test")
+                .setType("type1")
+                .setId("parentId1")
+                .setTimestamp(String.valueOf(timestamp-1))
+                .setSource("field1", 0, "content", "bar")
+                .execute().actionGet();
+
+        long ttl = 10000;
+        client().prepareIndex()
+                .setIndex("test")
+                .setType("subtype1")
+                .setId("id1")
+                .setParent("parentId1")
+                .setRouting("routing1")
+                .setTimestamp(String.valueOf(timestamp))
+                .setTTL(ttl)
+                .setSource("field1", 1, "content", "foo")
+                .execute().actionGet();
+
+        // Update the first object and note context variables values
+        Map<String, Object> scriptParams = new HashMap<>();
+        scriptParams.put("delim", "_");
+        UpdateResponse updateResponse = client().prepareUpdate("test", "subtype1", "id1")
+                .setRouting("routing1")
+                .setScript("assert ctx._index == \"test\" : \"index should be \\\"test\\\"\"\n" +
+                                "assert ctx._type == \"subtype1\" : \"type should be \\\"subtype1\\\"\"\n" +
+                                "assert ctx._id == \"id1\" : \"id should be \\\"id1\\\"\"\n" +
+                                "assert ctx._version == 1 : \"version should be 1\"\n" +
+                                "assert ctx._parent == \"parentId1\" : \"parent should be \\\"parentId1\\\"\"\n" +
+                                "assert ctx._routing == \"routing1\" : \"routing should be \\\"routing1\\\"\"\n" +
+                                "assert ctx._timestamp == " + timestamp + " : \"timestamp should be " + timestamp + "\"\n" +
+                                // ttl has a 3-second leeway, because it's always counting down
+                                "assert ctx._ttl <= " + ttl + " : \"ttl should be <= " + ttl + " but was \" + ctx._ttl\n" +
+                                "assert ctx._ttl >= " + (ttl-3000) + " : \"ttl should be <= " + (ttl-3000) + " but was \" + ctx._ttl\n" +
+                                "ctx._source.content = ctx._source.content + delim + ctx._source.content;\n" +
+                                "ctx._source.field1 += 1;\n",
+                        ScriptService.ScriptType.INLINE)
+                .setScriptParams(scriptParams)
+                .execute().actionGet();
+
+        assertEquals(2, updateResponse.getVersion());
+
+        GetResponse getResponse = client().prepareGet("test", "subtype1", "id1").setRouting("routing1").execute().actionGet();
+        assertEquals(2, getResponse.getSourceAsMap().get("field1"));
+        assertEquals("foo_foo", getResponse.getSourceAsMap().get("content"));
+
+        // Idem with the second object
+        scriptParams = new HashMap<>();
+        scriptParams.put("delim", "_");
+        updateResponse = client().prepareUpdate("test", "type1", "parentId1")
+                .setScript(
+                        "assert ctx._index == \"test\" : \"index should be \\\"test\\\"\"\n" +
+                        "assert ctx._type == \"type1\" : \"type should be \\\"type1\\\"\"\n" +
+                        "assert ctx._id == \"parentId1\" : \"id should be \\\"parentId1\\\"\"\n" +
+                        "assert ctx._version == 1 : \"version should be 1\"\n" +
+                        "assert ctx._parent == null : \"parent should be null\"\n" +
+                        "assert ctx._routing == null : \"routing should be null\"\n" +
+                        "assert ctx._timestamp == " + (timestamp - 1) + " : \"timestamp should be " + (timestamp - 1) + "\"\n" +
+                        "assert ctx._ttl == null : \"ttl should be null\"\n" +
+                        "ctx._source.content = ctx._source.content + delim + ctx._source.content;\n" +
+                        "ctx._source.field1 += 1;\n",
+                        ScriptService.ScriptType.INLINE)
+                .setScriptParams(scriptParams)
+                .execute().actionGet();
+
+        assertEquals(2, updateResponse.getVersion());
+
+        getResponse = client().prepareGet("test", "type1", "parentId1").execute().actionGet();
+        assertEquals(1, getResponse.getSourceAsMap().get("field1"));
+        assertEquals("bar_bar", getResponse.getSourceAsMap().get("content"));
+    }
+
+    @Test
     @Slow
     public void testConcurrentUpdateWithRetryOnConflict() throws Exception {
         final boolean useBulkApi = randomBoolean();
@@ -520,23 +614,6 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
         }
     }
 
-
-    public static class NoMergePolicyProvider  extends AbstractMergePolicyProvider<MergePolicy> {
-
-        @Inject
-        public NoMergePolicyProvider(Store store) {
-            super(store);
-        }
-
-        @Override
-        public MergePolicy getMergePolicy() {
-            return NoMergePolicy.INSTANCE;
-        }
-
-        @Override
-        public void close() throws ElasticsearchException {
-        }
-    }
 
     @Test
     @Slow
@@ -631,7 +708,6 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                                         .setScript("ctx._source.field += 1", ScriptService.ScriptType.INLINE)
                                         .setRetryOnConflict(retryOnConflict)
                                         .setUpsert(jsonBuilder().startObject().field("field", 1).endObject())
-                                        .setListenerThreaded(false)
                                         .request();
                                 client().update(ur, new UpdateListener(j));
                             } catch (NoNodeAvailableException nne) {
@@ -649,9 +725,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
 
                             try {
                                 deleteRequestsOutstanding.acquire();
-                                DeleteRequest dr = client().prepareDelete("test", "type1", Integer.toString(j))
-                                        .setListenerThreaded(false)
-                                        .setOperationThreaded(false).request();
+                                DeleteRequest dr = client().prepareDelete("test", "type1", Integer.toString(j)).request();
                                 client().delete(dr, new DeleteListener(j));
                             } catch (NoNodeAvailableException nne) {
                                 deleteRequestsOutstanding.release();

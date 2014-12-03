@@ -69,6 +69,7 @@ on all data and master nodes. The following settings are supported:
 `compress`:: Turns on compression of the snapshot files. Compression is applied only to metadata files (index mapping and settings). Data files are not compressed. Defaults to `true`.
 `chunk_size`:: Big files can be broken down into chunks during snapshotting if needed. The chunk size can be specified in bytes or by
  using size value notation, i.e. 1g, 10m, 5k. Defaults to `null` (unlimited chunk size).
+`verify`:: Verify repository upon creation. Defaults to `true`.
 
 [float]
 ===== Read-only URL Repository
@@ -100,6 +101,19 @@ Other repository backends are available in these official plugins:
 * https://github.com/elasticsearch/elasticsearch-cloud-azure#azure-repository[Azure Cloud Plugin] for Azure storage repositories
 
 [float]
+===== Repository Verification
+When repository is registered, it's immediately verified on all master and data nodes to make sure that it's functional
+on all nodes currently present in the cluster. The verification process can also be executed manually by running the
+following command:
+
+[source,js]
+-----------------------------------
+$ curl -XPOST 'http://localhost:9200/_snapshot/my_backup/_verify'
+-----------------------------------
+
+It returns a list of nodes where repository was successfully verified or an error message if verification process failed.
+
+[float]
 === Snapshot
 
 A repository can contain multiple snapshots of the same cluster. Snapshot are identified by unique names within the
@@ -111,9 +125,13 @@ command:
 $ curl -XPUT "localhost:9200/_snapshot/my_backup/snapshot_1?wait_for_completion=true"
 -----------------------------------
 
-The `wait_for_completion` parameter specifies whether or not the request should return immediately or wait for snapshot
-completion. By default snapshot of all open and started indices in the cluster is created. This behavior can be changed
-by specifying the list of indices in the body of the snapshot request.
+The `wait_for_completion` parameter specifies whether or not the request should return immediately after snapshot
+initialization (default) or wait for snapshot completion. During snapshot initialization, information about all
+previous snapshots is loaded into the memory, which means that in large repositories it may take several seconds (or
+even minutes) for this command to return even if the `wait_for_completion` parameter is set to `false`.
+
+By default snapshot of all open and started indices in the cluster is created. This behavior can be changed by
+specifying the list of indices in the body of the snapshot request.
 
 [source,js]
 -----------------------------------
@@ -178,6 +196,15 @@ created the snapshotting process will be aborted and all files created as part o
 cleaned. Therefore, the delete snapshot operation can be used to cancel long running snapshot operations that were
 started by mistake.
 
+A repository can be deleted using the following command:
+
+[source,shell]
+-----------------------------------
+$ curl -XDELETE "localhost:9200/_snapshot/my_backup"
+-----------------------------------
+
+When a repository is deleted, Elasticsearch only removes the reference to the location where the repository is storing
+the snapshots. The snapshots themselves are left untouched and in place.
 
 [float]
 === Restore

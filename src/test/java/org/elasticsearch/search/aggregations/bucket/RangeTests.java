@@ -69,7 +69,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(jsonBuilder()
                     .startObject()
-                    .field(SINGLE_VALUED_FIELD_NAME, i * 2)
+                    // shift sequence by 1, to ensure we have negative values, and value 3 on the edge of the tested ranges
+                    .field(SINGLE_VALUED_FIELD_NAME, i * 2 - 1)
                     .endObject()));
         }
         indexRandom(true, builders);
@@ -961,7 +962,7 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
-        Histogram.Bucket bucket = histo.getBucketByKey(1l);
+        Histogram.Bucket bucket = histo.getBucketByKey(0l);
         assertThat(bucket, Matchers.notNullValue());
 
         Range range = bucket.getAggregations().get("range");

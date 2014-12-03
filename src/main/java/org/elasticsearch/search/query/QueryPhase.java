@@ -162,7 +162,7 @@ public class QueryPhase implements SearchPhase {
             }
             searchContext.queryResult().topDocs(topDocs);
 
-            if (searchContext.profiledQuery()) {
+            if (searchContext.profileQuery()) {
                 searchContext.queryResult().profile(Profile.collapse(query));
             }
 

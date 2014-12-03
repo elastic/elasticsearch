@@ -22,12 +22,14 @@ package org.elasticsearch.action.bulk;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.DocumentRequest;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -53,11 +55,16 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -117,7 +124,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         @Override
                         public void onResponse(CreateIndexResponse result) {
                             if (counter.decrementAndGet() == 0) {
-                                executeBulk(bulkRequest, startTime, listener, responses);
+                                try {
+                                    executeBulk(bulkRequest, startTime, listener, responses);
+                                } catch (Throwable t) {
+                                    listener.onFailure(t);
+                                }
                             }
                         }
 
@@ -188,6 +199,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         executeBulk(bulkRequest, startTime, listener, new AtomicArray<BulkItemResponse>(bulkRequest.requests.size()));
     }
 
+    private final long buildTookInMillis(long startTime) {
+        // protect ourselves against time going backwards
+        return Math.max(1, System.currentTimeMillis() - startTime);
+    }
+
     private void executeBulk(final BulkRequest bulkRequest, final long startTime, final ActionListener<BulkResponse> listener, final AtomicArray<BulkItemResponse> responses ) {
         final ClusterState clusterState = clusterService.state();
         // TODO use timeout to wait here if its blocked...
@@ -200,7 +216,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             if (request instanceof DocumentRequest) {
                 DocumentRequest req = (DocumentRequest) request;
 
-                if (addFailureIfIndexIsClosed(req, bulkRequest, responses, i, concreteIndices, metaData)) {
+                if (addFailureIfIndexIsUnavailable(req, bulkRequest, responses, i, concreteIndices, metaData)) {
                     continue;
                 }
 
@@ -213,7 +229,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     }
                     try {
                         indexRequest.process(metaData, mappingMd, allowIdGeneration, concreteIndex);
-                    } catch (ElasticsearchParseException e) {
+                    } catch (ElasticsearchParseException | RoutingMissingException e) {
                         BulkItemResponse.Failure failure = new BulkItemResponse.Failure(concreteIndex, indexRequest.type(), indexRequest.id(), e);
                         BulkItemResponse bulkItemResponse = new BulkItemResponse(i, "index", failure);
                         responses.set(i, bulkItemResponse);
@@ -271,7 +287,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 String concreteIndex = concreteIndices.getConcreteIndex(updateRequest.index());
                 MappingMetaData mappingMd = clusterState.metaData().index(concreteIndex).mappingOrDefault(updateRequest.type());
                 if (mappingMd != null && mappingMd.routing().required() && updateRequest.routing() == null) {
-                    continue; // What to do?
+                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(),
+                            updateRequest.id(), "routing is required for this item", RestStatus.BAD_REQUEST);
+                    responses.set(i, new BulkItemResponse(i, updateRequest.type(), failure));
+                    continue;
                 }
                 ShardId shardId = clusterService.operationRouting().indexShards(clusterState, concreteIndex, updateRequest.type(), updateRequest.id(), updateRequest.routing()).shardId();
                 List<BulkItemRequest> list = requestsByShard.get(shardId);
@@ -284,7 +303,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         if (requestsByShard.isEmpty()) {
-            listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), System.currentTimeMillis() - startTime));
+            listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTime)));
             return;
         }
 
@@ -333,37 +352,44 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
 
                 private void finishHim() {
-                    listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), System.currentTimeMillis() - startTime));
+                    listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTime)));
                 }
             });
         }
     }
 
-    private boolean addFailureIfIndexIsClosed(DocumentRequest request, BulkRequest bulkRequest, AtomicArray<BulkItemResponse> responses, int idx,
+    private boolean addFailureIfIndexIsUnavailable(DocumentRequest request, BulkRequest bulkRequest, AtomicArray<BulkItemResponse> responses, int idx,
                                               final ConcreteIndices concreteIndices,
                                               final MetaData metaData) {
         String concreteIndex = concreteIndices.getConcreteIndex(request.index());
-        boolean isClosed = false;
+        Exception unavailableException = null;
         if (concreteIndex == null) {
             try {
                 concreteIndex = concreteIndices.resolveIfAbsent(request.index(), request.indicesOptions());
             } catch (IndexClosedException ice) {
-                isClosed = true;
+                unavailableException = ice;
+            } catch (IndexMissingException ime) {
+                // Fix for issue where bulk request references an index that
+                // cannot be auto-created see issue #8125
+                unavailableException = ime;
             }
         }
-        if (!isClosed) {
+        if (unavailableException == null) {
             IndexMetaData indexMetaData = metaData.index(concreteIndex);
-            isClosed = indexMetaData.getState() == IndexMetaData.State.CLOSE;
+            if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                unavailableException = new IndexClosedException(new Index(metaData.index(request.index()).getIndex()));
+            }
         }
-        if (isClosed) {
+        if (unavailableException != null) {
             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(request.index(), request.type(), request.id(),
-                    new IndexClosedException(new Index(metaData.index(request.index()).getIndex())));
+                    unavailableException);
             BulkItemResponse bulkItemResponse = new BulkItemResponse(idx, "index", failure);
             responses.set(idx, bulkItemResponse);
             // make sure the request gets never processed again
             bulkRequest.requests.set(idx, null);
+            return true;
         }
-        return isClosed;
+        return false;
     }
 
 

@@ -24,6 +24,8 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
+import java.util.Map;
+
 /**
  */
 public class TermVectorRequestBuilder extends ActionRequestBuilder<TermVectorRequest, TermVectorResponse, TermVectorRequestBuilder, Client> {
@@ -123,6 +125,16 @@ public class TermVectorRequestBuilder extends ActionRequestBuilder<TermVectorReq
 
     public TermVectorRequestBuilder setSelectedFields(String... fields) {
         request.selectedFields(fields);
+        return this;
+    }
+
+    public TermVectorRequestBuilder setRealtime(Boolean realtime) {
+        request.realtime(realtime);
+        return this;
+    }
+
+    public TermVectorRequestBuilder setPerFieldAnalyzer(Map<String, String> perFieldAnalyzer) {
+        request.perFieldAnalyzer(perFieldAnalyzer);
         return this;
     }
 

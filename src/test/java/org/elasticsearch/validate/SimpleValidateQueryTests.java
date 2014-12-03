@@ -41,7 +41,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.QueryBuilders.queryString;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
@@ -66,15 +66,15 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
         refresh();
 
         assertThat(client().admin().indices().prepareValidateQuery("test").setSource("foo".getBytes(Charsets.UTF_8)).execute().actionGet().isValid(), equalTo(false));
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("_id:1")).execute().actionGet().isValid(), equalTo(true));
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("_i:d:1")).execute().actionGet().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("_id:1")).execute().actionGet().isValid(), equalTo(true));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("_i:d:1")).execute().actionGet().isValid(), equalTo(false));
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("foo:1")).execute().actionGet().isValid(), equalTo(true));
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("bar:hey")).execute().actionGet().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("foo:1")).execute().actionGet().isValid(), equalTo(true));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("bar:hey")).execute().actionGet().isValid(), equalTo(false));
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("nonexistent:hello")).execute().actionGet().isValid(), equalTo(true));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("nonexistent:hello")).execute().actionGet().isValid(), equalTo(true));
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("foo:1 AND")).execute().actionGet().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("foo:1 AND")).execute().actionGet().isValid(), equalTo(false));
     }
 
     private static String filter(String uncachedFilter) {
@@ -119,12 +119,12 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
         assertThat(response.getQueryExplanation().get(0).getExplanation(), nullValue());
 
         final String typeFilter = filter("_type:type1");
-        assertExplanation(QueryBuilders.queryString("_id:1"), equalTo("filtered(ConstantScore(_uid:type1#1))->" + typeFilter));
+        assertExplanation(QueryBuilders.queryStringQuery("_id:1"), equalTo("filtered(ConstantScore(_uid:type1#1))->" + typeFilter));
 
         assertExplanation(QueryBuilders.idsQuery("type1").addIds("1").addIds("2"),
                 equalTo("filtered(ConstantScore(_uid:type1#1 _uid:type1#2))->" + typeFilter));
 
-        assertExplanation(QueryBuilders.queryString("foo"), equalTo("filtered(_all:foo)->" + typeFilter));
+        assertExplanation(QueryBuilders.queryStringQuery("foo"), equalTo("filtered(_all:foo)->" + typeFilter));
 
         assertExplanation(QueryBuilders.filteredQuery(
                 QueryBuilders.termQuery("foo", "1"),
@@ -229,7 +229,7 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
 
         for (Client client : internalCluster()) {
                 ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
-                    .setQuery(QueryBuilders.queryString("foo"))
+                    .setQuery(QueryBuilders.queryStringQuery("foo"))
                     .setExplain(true)
                     .execute().actionGet();
             assertThat(response.isValid(), equalTo(true));
@@ -253,13 +253,13 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
         refresh();
 
         ValidateQueryResponse response = client().admin().indices().prepareValidateQuery()
-                .setQuery(queryString("past:[now-2M/d TO now/d]")).setExplain(true).get();
+                .setQuery(queryStringQuery("past:[now-2M/d TO now/d]")).setExplain(true).get();
 
         assertNoFailures(response);
         assertThat(response.getQueryExplanation().size(), equalTo(1));
         assertThat(response.getQueryExplanation().get(0).getError(), nullValue());
         DateTime twoMonthsAgo = new DateTime(DateTimeZone.UTC).minusMonths(2).withTimeAtStartOfDay();
-        DateTime now = new DateTime(DateTimeZone.UTC).plusDays(1).withTimeAtStartOfDay();
+        DateTime now = new DateTime(DateTimeZone.UTC).plusDays(1).withTimeAtStartOfDay().minusMillis(1);
         assertThat(response.getQueryExplanation().get(0).getExplanation(),
                 equalTo("past:[" + twoMonthsAgo.getMillis() + " TO " + now.getMillis() + "]"));
         assertThat(response.isValid(), equalTo(true));

@@ -48,9 +48,11 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -148,6 +150,15 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
+        indicesService.indicesLifecycle().addListener(new IndicesLifecycle.Listener() {
+
+            @Override
+            public void afterIndexDeleted(Index index) {
+                // once an index is closed we can just clean up all the pending search context information
+                // to release memory and let references to the filesystem go etc.
+                freeAllContextForIndex(index);
+            }
+        });
         this.indicesWarmer = indicesWarmer;
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
@@ -190,7 +201,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     @Override
     protected void doClose() throws ElasticsearchException {
-        keepAliveReaper.cancel(false);
+        FutureUtils.cancel(keepAliveReaper);
     }
 
     public DfsSearchResult executeDfsPhase(ShardSearchRequest request) throws ElasticsearchException {
@@ -570,6 +581,16 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         return context;
     }
 
+    private void freeAllContextForIndex(Index index) {
+        assert index != null;
+        for (SearchContext ctx : activeContexts.values()) {
+            if (index.equals(ctx.indexShard().shardId().index())) {
+                freeContext(ctx.id());
+            }
+        }
+    }
+
+
     public boolean freeContext(long id) {
         final SearchContext context = activeContexts.remove(id);
         if (context != null) {
@@ -713,7 +734,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             ProfileQueryVisitor walker = new ProfileQueryVisitor();
             ProfileQuery pQuery = (ProfileQuery) walker.apply(context.query());
             context.parsedQuery(new ParsedQuery(pQuery, context.parsedQuery().namedFilters()));
-            context.profiledQuery(context.request().profile());
+            context.profileQuery(context.request().profile());
         }
     }
 
@@ -785,7 +806,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             final MapperService mapperService = indexShard.mapperService();
             final ObjectSet<String> warmUp = new ObjectOpenHashSet<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
-                for (FieldMapper<?> fieldMapper : docMapper.mappers().mappers()) {
+                for (FieldMapper<?> fieldMapper : docMapper.mappers()) {
                     final String indexName = fieldMapper.names().indexName();
                     if (fieldMapper.fieldType().indexed() && !fieldMapper.fieldType().omitNorms() && fieldMapper.normsLoading(defaultLoading) == Loading.EAGER) {
                         warmUp.add(indexName);
@@ -841,7 +862,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, FieldMapper<?>> warmUp = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
-                for (FieldMapper<?> fieldMapper : docMapper.mappers().mappers()) {
+                for (FieldMapper<?> fieldMapper : docMapper.mappers()) {
                     final FieldDataType fieldDataType = fieldMapper.fieldDataType();
                     if (fieldDataType == null) {
                         continue;
@@ -895,7 +916,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, FieldMapper<?>> warmUpGlobalOrdinals = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
-                for (FieldMapper<?> fieldMapper : docMapper.mappers().mappers()) {
+                for (FieldMapper<?> fieldMapper : docMapper.mappers()) {
                     final FieldDataType fieldDataType = fieldMapper.fieldDataType();
                     if (fieldDataType == null) {
                         continue;
@@ -968,11 +989,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         SearchContext context = null;
                         try {
                             long now = System.nanoTime();
-                            ShardSearchRequest request = new ShardSearchRequest(indexShard.shardId().index().name(), indexShard.shardId().id(), indexMetaData.numberOfShards(),
-                                    SearchType.QUERY_THEN_FETCH)
-                                    .source(entry.source())
-                                    .types(entry.types())
-                                    .queryCache(entry.queryCache());
+                            ShardSearchRequest request = new ShardSearchLocalRequest(indexShard.shardId(), indexMetaData.numberOfShards(),
+                                    SearchType.QUERY_THEN_FETCH, entry.source(), entry.types(), entry.queryCache(), false);   //NOCOMMIT
                             context = createContext(request, warmerContext.searcher());
                             // if we use sort, we need to do query to sort on it and load relevant field data
                             // if not, we might as well use COUNT (and cache if needed)

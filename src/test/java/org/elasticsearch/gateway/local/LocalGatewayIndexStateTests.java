@@ -54,7 +54,6 @@ import static org.hamcrest.Matchers.nullValue;
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 @Slow
-@TestLogging("action.search:TRACE,index.shard.service:TRACE")
 public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(LocalGatewayIndexStateTests.class);
@@ -274,11 +273,75 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testDanglingIndicesConflictWithAlias() throws Exception {
+        Settings settings = settingsBuilder().put("gateway.type", "local").build();
+        logger.info("--> starting two nodes");
+        internalCluster().startNodesAsync(2, settings).get();
+
+        logger.info("--> indexing a simple document");
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
+
+        logger.info("--> waiting for green status");
+        ensureGreen();
+
+        logger.info("--> verify 1 doc in the index");
+        for (int i = 0; i < 10; i++) {
+            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
+        }
+        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
+
+        internalCluster().stopRandomNonMasterNode();
+
+        // wait for master to processed node left (so delete won't timeout waiting for it)
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("1").get().isTimedOut());
+
+        logger.info("--> deleting index");
+        assertAcked(client().admin().indices().prepareDelete("test"));
+
+        index("test2", "type1", "2", "{}");
+
+        logger.info("--> creating index with an alias");
+        assertAcked(client().admin().indices().prepareAliases().addAlias("test2", "test"));
+
+        logger.info("--> starting node back up");
+        internalCluster().startNode(settings);
+
+        ensureGreen();
+
+        // make sure that any other events were processed
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setWaitForEvents(Priority.LANGUID).get().isTimedOut());
+
+        logger.info("--> verify we read the right thing through alias");
+        assertThat(client().prepareGet("test", "type1", "2").execute().actionGet().isExists(), equalTo(true));
+
+        logger.info("--> deleting alias");
+        assertAcked(client().admin().indices().prepareAliases().removeAlias("test2", "test"));
+
+        logger.info("--> waiting for dangling index to be imported");
+
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertTrue(client().admin().indices().prepareExists("test").execute().actionGet().isExists());
+            }
+        });
+
+        ensureGreen();
+
+        logger.info("--> verifying dangling index contains doc");
+
+        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
+
+    }
+
+    @Test
     public void testDanglingIndicesAutoImportYes() throws Exception {
         Settings settings = settingsBuilder()
                 .put("gateway.type", "local").put("gateway.local.auto_import_dangled", "yes")
+                .put("gateway.local.dangling_timeout", randomIntBetween(0, 120))
                 .build();
         logger.info("--> starting two nodes");
+
         final String node_1 = internalCluster().startNode(settings);
         internalCluster().startNode(settings);
 

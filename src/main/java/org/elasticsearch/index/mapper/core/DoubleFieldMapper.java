@@ -111,6 +111,9 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
                 String propName = entry.getKey();
                 Object propNode = entry.getValue();
                 if (propName.equals("nullValue") || propName.equals("null_value")) {
+                    if (propNode == null) {
+                        throw new MapperParsingException("Property [null_value] cannot be null.");
+                    }
                     builder.nullValue(nodeDoubleValue(propNode));
                 }
             }

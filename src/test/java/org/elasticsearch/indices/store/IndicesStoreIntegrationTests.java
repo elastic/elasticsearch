@@ -55,7 +55,6 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
     private static final Settings SETTINGS = settingsBuilder().put("gateway.type", "local").build();
 
     @Test
-    @TestLogging("indices.store:TRACE,discovery.zen:TRACE,action:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE")
     public void shardsCleanup() throws Exception {
         final String node_1 = internalCluster().startNode(SETTINGS);
         final String node_2 = internalCluster().startNode(SETTINGS);
@@ -116,7 +115,6 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("indices.store:TRACE")
     public void testShardActiveElseWhere() throws Exception {
         String node_1 = internalCluster().startNode(SETTINGS);
         String node_2 = internalCluster().startNode(SETTINGS);

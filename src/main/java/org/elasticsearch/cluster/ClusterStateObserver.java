@@ -42,7 +42,6 @@ public class ClusterStateObserver {
             return changedEvent.previousState().version() != changedEvent.state().version();
         }
     };
-
     private ClusterService clusterService;
     volatile TimeValue timeOutValue;
 
@@ -241,7 +240,7 @@ public class ClusterStateObserver {
         }
     }
 
-    public interface Listener {
+    public static interface Listener {
 
         /** called when a new state is observed */
         void onNewClusterState(ClusterState state);

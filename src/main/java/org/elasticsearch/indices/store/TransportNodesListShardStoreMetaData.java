@@ -50,10 +50,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -149,10 +146,10 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         if (indexService != null) {
             InternalIndexShard indexShard = (InternalIndexShard) indexService.shard(shardId.id());
             if (indexShard != null) {
-                Store store = indexShard.store();
+                final Store store = indexShard.store();
                 store.incRef();
                 try {
-                    return new StoreFilesMetaData(true, shardId, indexShard.store().getMetadata().asMap());
+                    return new StoreFilesMetaData(true, shardId, store.getMetadataOrEmpty().asMap());
                 } finally {
                     store.decRef();
                 }
@@ -182,8 +179,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         if (!exists) {
             return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
         }
-        final Store.MetadataSnapshot storeFileMetaDatas = Store.readMetadataSnapshot(shardIndexLocations, logger);
-        return new StoreFilesMetaData(false, shardId, storeFileMetaDatas.asMap());
+        return new StoreFilesMetaData(false, shardId, Store.readMetadataSnapshot(shardIndexLocations, logger).asMap());
     }
 
     @Override

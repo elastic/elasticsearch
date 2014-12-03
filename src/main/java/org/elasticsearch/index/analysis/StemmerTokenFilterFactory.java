@@ -76,7 +76,7 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        final Version indexVersion = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+        final Version indexVersion = Version.indexCreated(indexSettings);
 
         if ("arabic".equalsIgnoreCase(language)) {
             return new ArabicStemFilter(tokenStream);

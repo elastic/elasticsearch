@@ -27,6 +27,7 @@ import java.io.IOException;
 /**
  * A more like this query that runs against a specific field.
  */
+@Deprecated
 public class MoreLikeThisFieldQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<MoreLikeThisFieldQueryBuilder> {
 
     private final String name;

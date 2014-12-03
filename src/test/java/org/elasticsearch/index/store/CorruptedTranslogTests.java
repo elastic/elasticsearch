@@ -139,9 +139,10 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
                     long filePointer = raf.getFilePointer();
                     byte b = raf.readByte();
                     raf.seek(filePointer);
-                    raf.writeByte(~b);
+                    int corruptedValue = (b + 1) & 0xff;
+                    raf.writeByte(corruptedValue);
                     raf.getFD().sync();
-                    logger.info("--> corrupting file {} --  flipping at position {} from {} to {} file: {}", fileToCorrupt.getName(), filePointer, Integer.toHexString(b), Integer.toHexString(~b), fileToCorrupt);
+                    logger.info("--> corrupting file {} --  flipping at position {} from {} to {} file: {}", fileToCorrupt.getName(), filePointer, Integer.toHexString(b), Integer.toHexString(corruptedValue), fileToCorrupt);
                 }
             }
         }

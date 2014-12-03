@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -53,17 +54,20 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     public static final String FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING = "indices.breaker.fielddata.limit";
     public static final String FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING = "indices.breaker.fielddata.overhead";
+    public static final String FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING = "indices.breaker.fielddata.type";
     public static final String DEFAULT_FIELDDATA_BREAKER_LIMIT = "60%";
     public static final double DEFAULT_FIELDDATA_OVERHEAD_CONSTANT = 1.03;
 
     public static final String REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING = "indices.breaker.request.limit";
     public static final String REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING = "indices.breaker.request.overhead";
+    public static final String REQUEST_CIRCUIT_BREAKER_TYPE_SETTING = "indices.breaker.request.type";
     public static final String DEFAULT_REQUEST_BREAKER_LIMIT = "40%";
+
+    public static final String DEFAULT_BREAKER_TYPE = "memory";
 
     private volatile BreakerSettings parentSettings;
     private volatile BreakerSettings fielddataSettings;
     private volatile BreakerSettings requestSettings;
-
 
     // Tripped count for when redistribution was attempted but wasn't successful
     private final AtomicLong parentTripCount = new AtomicLong(0);
@@ -92,24 +96,43 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
         this.fielddataSettings = new BreakerSettings(CircuitBreaker.Name.FIELDDATA,
                 settings.getAsMemory(FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, compatibilityFielddataLimitDefault).bytes(),
-                settings.getAsDouble(FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING, compatibilityFielddataOverheadDefault));
+                settings.getAsDouble(FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING, compatibilityFielddataOverheadDefault),
+                CircuitBreaker.Type.parseValue(settings.get(FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING, DEFAULT_BREAKER_TYPE))
+        );
 
         this.requestSettings = new BreakerSettings(CircuitBreaker.Name.REQUEST,
                 settings.getAsMemory(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, DEFAULT_REQUEST_BREAKER_LIMIT).bytes(),
-                settings.getAsDouble(REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING, 1.0));
+                settings.getAsDouble(REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING, 1.0),
+                CircuitBreaker.Type.parseValue(settings.get(REQUEST_CIRCUIT_BREAKER_TYPE_SETTING, DEFAULT_BREAKER_TYPE))
+        );
 
         // Validate the configured settings
         validateSettings(new BreakerSettings[] {this.requestSettings, this.fielddataSettings});
 
         this.parentSettings = new BreakerSettings(CircuitBreaker.Name.PARENT,
-                settings.getAsMemory(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING, DEFAULT_TOTAL_CIRCUIT_BREAKER_LIMIT).bytes(), 1.0);
+                settings.getAsMemory(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING, DEFAULT_TOTAL_CIRCUIT_BREAKER_LIMIT).bytes(), 1.0, CircuitBreaker.Type.PARENT);
         if (logger.isTraceEnabled()) {
             logger.trace("parent circuit breaker with settings {}", this.parentSettings);
         }
 
         Map<CircuitBreaker.Name, CircuitBreaker> tempBreakers = new HashMap<>();
-        tempBreakers.put(CircuitBreaker.Name.FIELDDATA, new ChildMemoryCircuitBreaker(fielddataSettings, logger, this, CircuitBreaker.Name.FIELDDATA));
-        tempBreakers.put(CircuitBreaker.Name.REQUEST, new ChildMemoryCircuitBreaker(requestSettings, logger, this, CircuitBreaker.Name.REQUEST));
+
+        CircuitBreaker fielddataBreaker;
+        if (fielddataSettings.getType() == CircuitBreaker.Type.NOOP) {
+            fielddataBreaker = new NoopCircuitBreaker(CircuitBreaker.Name.FIELDDATA);
+        } else {
+            fielddataBreaker = new ChildMemoryCircuitBreaker(fielddataSettings, logger, this, CircuitBreaker.Name.FIELDDATA);
+        }
+
+        CircuitBreaker requestBreaker;
+        if (requestSettings.getType() == CircuitBreaker.Type.NOOP) {
+            requestBreaker = new NoopCircuitBreaker(CircuitBreaker.Name.REQUEST);
+        } else {
+            requestBreaker = new ChildMemoryCircuitBreaker(requestSettings, logger, this, CircuitBreaker.Name.REQUEST);
+        }
+
+        tempBreakers.put(CircuitBreaker.Name.FIELDDATA, fielddataBreaker);
+        tempBreakers.put(CircuitBreaker.Name.REQUEST, requestBreaker);
         this.breakers = ImmutableMap.copyOf(tempBreakers);
 
         nodeSettingsService.addListener(new ApplySettings());
@@ -130,7 +153,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 long newFielddataLimitBytes = newFielddataMax == null ? HierarchyCircuitBreakerService.this.fielddataSettings.getLimit() : newFielddataMax.bytes();
                 newFielddataOverhead = newFielddataOverhead == null ? HierarchyCircuitBreakerService.this.fielddataSettings.getOverhead() : newFielddataOverhead;
 
-                newFielddataSettings = new BreakerSettings(CircuitBreaker.Name.FIELDDATA, newFielddataLimitBytes, newFielddataOverhead);
+                newFielddataSettings = new BreakerSettings(CircuitBreaker.Name.FIELDDATA, newFielddataLimitBytes, newFielddataOverhead,
+                        HierarchyCircuitBreakerService.this.fielddataSettings.getType());
             }
 
             // Request settings
@@ -142,7 +166,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 long newRequestLimitBytes = newRequestMax == null ? HierarchyCircuitBreakerService.this.requestSettings.getLimit() : newRequestMax.bytes();
                 newRequestOverhead = newRequestOverhead == null ? HierarchyCircuitBreakerService.this.requestSettings.getOverhead() : newRequestOverhead;
 
-                newRequestSettings = new BreakerSettings(CircuitBreaker.Name.REQUEST, newRequestLimitBytes, newRequestOverhead);
+                newRequestSettings = new BreakerSettings(CircuitBreaker.Name.REQUEST, newRequestLimitBytes, newRequestOverhead,
+                        HierarchyCircuitBreakerService.this.requestSettings.getType());
             }
 
             // Parent settings
@@ -151,23 +176,38 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             ByteSizeValue newParentMax = settings.getAsMemory(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING, null);
             if (newParentMax != null && (newParentMax.bytes() != oldParentMax)) {
                 changed = true;
-                newParentSettings = new BreakerSettings(CircuitBreaker.Name.PARENT, newParentMax.bytes(), 1.0);
+                newParentSettings = new BreakerSettings(CircuitBreaker.Name.PARENT, newParentMax.bytes(), 1.0, CircuitBreaker.Type.PARENT);
             }
 
             if (changed) {
                 // change all the things
-                validateSettings(new BreakerSettings[] {newFielddataSettings, newRequestSettings});
+                validateSettings(new BreakerSettings[]{newFielddataSettings, newRequestSettings});
                 logger.info("Updating settings parent: {}, fielddata: {}, request: {}", newParentSettings, newFielddataSettings, newRequestSettings);
                 HierarchyCircuitBreakerService.this.parentSettings = newParentSettings;
                 HierarchyCircuitBreakerService.this.fielddataSettings = newFielddataSettings;
                 HierarchyCircuitBreakerService.this.requestSettings = newRequestSettings;
+
                 Map<CircuitBreaker.Name, CircuitBreaker> tempBreakers = new HashMap<>();
-                tempBreakers.put(CircuitBreaker.Name.FIELDDATA, new ChildMemoryCircuitBreaker(newFielddataSettings,
-                        (ChildMemoryCircuitBreaker)HierarchyCircuitBreakerService.this.breakers.get(CircuitBreaker.Name.FIELDDATA),
-                        logger, HierarchyCircuitBreakerService.this, CircuitBreaker.Name.FIELDDATA));
-                tempBreakers.put(CircuitBreaker.Name.REQUEST, new ChildMemoryCircuitBreaker(newRequestSettings,
-                        (ChildMemoryCircuitBreaker)HierarchyCircuitBreakerService.this.breakers.get(CircuitBreaker.Name.REQUEST),
-                        logger, HierarchyCircuitBreakerService.this, CircuitBreaker.Name.REQUEST));
+                CircuitBreaker fielddataBreaker;
+                if (newFielddataSettings.getType() == CircuitBreaker.Type.NOOP) {
+                    fielddataBreaker = new NoopCircuitBreaker(CircuitBreaker.Name.FIELDDATA);
+                } else {
+                    fielddataBreaker = new ChildMemoryCircuitBreaker(newFielddataSettings,
+                            (ChildMemoryCircuitBreaker) HierarchyCircuitBreakerService.this.breakers.get(CircuitBreaker.Name.FIELDDATA),
+                            logger, HierarchyCircuitBreakerService.this, CircuitBreaker.Name.FIELDDATA);
+                }
+
+                CircuitBreaker requestBreaker;
+                if (newRequestSettings.getType() == CircuitBreaker.Type.NOOP) {
+                    requestBreaker = new NoopCircuitBreaker(CircuitBreaker.Name.REQUEST);
+                } else {
+                    requestBreaker = new ChildMemoryCircuitBreaker(newRequestSettings,
+                            (ChildMemoryCircuitBreaker)HierarchyCircuitBreakerService.this.breakers.get(CircuitBreaker.Name.REQUEST),
+                            logger, HierarchyCircuitBreakerService.this, CircuitBreaker.Name.REQUEST);
+                }
+
+                tempBreakers.put(CircuitBreaker.Name.FIELDDATA, fielddataBreaker);
+                tempBreakers.put(CircuitBreaker.Name.REQUEST, requestBreaker);
                 HierarchyCircuitBreakerService.this.breakers = ImmutableMap.copyOf(tempBreakers);
             }
         }

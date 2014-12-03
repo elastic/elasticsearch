@@ -255,13 +255,56 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         classes.toXContent(responseBuilder, null);
         String result = null;
         if (type.equals("long")) {
-            result = "\"class\"{\"doc_count_error_upper_bound\":0,\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"sig_terms\":{\"doc_count\":4,\"buckets\":[{\"key\":0,\"key_as_string\":\"0\",\"doc_count\":4,\"score\":0.39999999999999997,\"bg_count\":5}]}},{\"key\":\"1\",\"doc_count\":3,\"sig_terms\":{\"doc_count\":3,\"buckets\":[{\"key\":1,\"key_as_string\":\"1\",\"doc_count\":3,\"score\":0.75,\"bg_count\":4}]}}]}";
+            result = "\"class\"{\"doc_count_error_upper_bound\":0,\"sum_other_doc_count\":0,\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"sig_terms\":{\"doc_count\":4,\"buckets\":[{\"key\":0,\"key_as_string\":\"0\",\"doc_count\":4,\"score\":0.39999999999999997,\"bg_count\":5}]}},{\"key\":\"1\",\"doc_count\":3,\"sig_terms\":{\"doc_count\":3,\"buckets\":[{\"key\":1,\"key_as_string\":\"1\",\"doc_count\":3,\"score\":0.75,\"bg_count\":4}]}}]}";
         } else {
-            result = "\"class\"{\"doc_count_error_upper_bound\":0,\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"sig_terms\":{\"doc_count\":4,\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"score\":0.39999999999999997,\"bg_count\":5}]}},{\"key\":\"1\",\"doc_count\":3,\"sig_terms\":{\"doc_count\":3,\"buckets\":[{\"key\":\"1\",\"doc_count\":3,\"score\":0.75,\"bg_count\":4}]}}]}";
+            result = "\"class\"{\"doc_count_error_upper_bound\":0,\"sum_other_doc_count\":0,\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"sig_terms\":{\"doc_count\":4,\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"score\":0.39999999999999997,\"bg_count\":5}]}},{\"key\":\"1\",\"doc_count\":3,\"sig_terms\":{\"doc_count\":3,\"buckets\":[{\"key\":\"1\",\"doc_count\":3,\"score\":0.75,\"bg_count\":4}]}}]}";
         }
         assertThat(responseBuilder.string(), equalTo(result));
 
     }
+    
+    @Test
+    public void testDeletesIssue7951() throws Exception {
+        String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
+        String mappings = "{\"doc\": {\"properties\":{\"text\": {\"type\":\"string\",\"index\":\"not_analyzed\"}}}}";
+        assertAcked(prepareCreate(INDEX_NAME).setSettings(settings).addMapping("doc", mappings));
+        String[] cat1v1 = {"constant", "one"};
+        String[] cat1v2 = {"constant", "uno"};
+        String[] cat2v1 = {"constant", "two"};
+        String[] cat2v2 = {"constant", "duo"};
+        List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
+        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "1")
+                .setSource(TEXT_FIELD, cat1v1, CLASS_FIELD, "1"));
+        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "2")
+                .setSource(TEXT_FIELD, cat1v2, CLASS_FIELD, "1"));
+        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "3")
+                .setSource(TEXT_FIELD, cat2v1, CLASS_FIELD, "2"));
+        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "4")
+                .setSource(TEXT_FIELD, cat2v2, CLASS_FIELD, "2"));
+        indexRandom(true, false, indexRequestBuilderList);
+        
+        // Now create some holes in the index with selective deletes caused by updates.
+        // This is the scenario that caused this issue https://github.com/elasticsearch/elasticsearch/issues/7951
+        // Scoring algorithms throw exceptions if term docFreqs exceed the reported size of the index 
+        // from which they are taken so need to make sure this doesn't happen.
+        String[] text = cat1v1;
+        indexRequestBuilderList.clear();
+        for (int i = 0; i < 50; i++) {
+            text = text == cat1v2 ? cat1v1 : cat1v2;
+            indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "1").setSource(TEXT_FIELD, text, CLASS_FIELD, "1"));
+        }
+        indexRandom(true, false, indexRequestBuilderList);
+        
+        SearchResponse response1 = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
+                .addAggregation(new TermsBuilder("class")
+                        .field(CLASS_FIELD)
+                        .subAggregation(
+                                new SignificantTermsBuilder("sig_terms")
+                                        .field(TEXT_FIELD)
+                                        .minDocCount(1)))
+                .execute()
+                .actionGet();
+    }    
 
     @Test
     public void testBackgroundVsSeparateSet() throws Exception {
@@ -347,7 +390,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
                 .setSource(TEXT_FIELD, gb, CLASS_FIELD, "0"));
         indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "7")
                 .setSource(TEXT_FIELD, "0", CLASS_FIELD, "0"));
-        indexRandom(true, indexRequestBuilderList);
+        indexRandom(true, false, indexRequestBuilderList);
     }
 
     @Test
@@ -413,6 +456,6 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
             indexRequestBuilders.add(client().prepareIndex("test", "doc", "" + i)
                     .setSource("class", parts[0], "text", parts[1]));
         }
-        indexRandom(true, indexRequestBuilders);
+        indexRandom(true, false, indexRequestBuilders);
     }
 }

@@ -205,7 +205,8 @@ public final class XFuzzySuggester extends XAnalyzingSuggester {
       if (unicodeAware) {
         // FLORIAN EDIT: get converted Automaton from superclass
         Automaton utf8automaton = new UTF32ToUTF8().convert(super.convertAutomaton(a));
-        utf8automaton = Operations.determinize(utf8automaton);
+        // This automaton should not blow up during determinize:
+        utf8automaton = Operations.determinize(utf8automaton, Integer.MAX_VALUE);
         return utf8automaton;
       } else {
         return super.convertAutomaton(a);
@@ -253,7 +254,9 @@ public final class XFuzzySuggester extends XAnalyzingSuggester {
           Automaton a = Operations.union(Arrays.asList(subs));
           // TODO: we could call toLevenshteinAutomata() before det? 
           // this only happens if you have multiple paths anyway (e.g. synonyms)
-          return Operations.determinize(a);
+
+          // This automaton should not blow up during determinize:
+          return Operations.determinize(a, Integer.MAX_VALUE);
         }
       }
 }

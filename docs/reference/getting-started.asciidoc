@@ -28,7 +28,7 @@ Elasticsearch is a near real time search platform. What this means is there is a
 [float]
 === Cluster
 
-A cluster is a collection of one or more nodes (servers) that together holds your entire data and provides federated indexing and search capabilities across all nodes. A cluster is identified by a unique name which by default is "elasticsearch". This name is important because a node can only be part of cluster if the node is set up to join the cluster by its name. It is good practice to explicitly set the cluster name in production, but it is fine to use the default for testing/development purposes.
+A cluster is a collection of one or more nodes (servers) that together holds your entire data and provides federated indexing and search capabilities across all nodes. A cluster is identified by a unique name which by default is "elasticsearch". This name is important because a node can only be part of a cluster if the node is set up to join the cluster by its name. It is good practice to explicitly set the cluster name in production, but it is fine to use the default for testing/development purposes.
 
 Note that it is valid and perfectly fine to have a cluster with only a single node in it. Furthermore, you may also have multiple independent clusters each with its own unique cluster name.
 
@@ -37,9 +37,9 @@ Note that it is valid and perfectly fine to have a cluster with only a single no
 
 A node is a single server that is part of your cluster, stores your data, and participates in the cluster's indexing and search capabilities. Just like a cluster, a node is identified by a name which by default is a random Marvel character name that is assigned to the node at startup. You can define any node name you want if you do not want the default.  This name is important for administration purposes where you want to identify which servers in your network correspond to which nodes in your Elasticsearch cluster.
 
-A node can be configured to join a specific cluster by the cluster name. By default, each node is set up to join a cluster named "elasticsearch" which means that if you start up a number of nodes on your network and assuming they can discover each other, they will all automatically form and join a single cluster named "elasticsearch".
+A node can be configured to join a specific cluster by the cluster name. By default, each node is set up to join a cluster named `elasticsearch` which means that if you start up a number of nodes on your network and--assuming they can discover each other--they will all automatically form and join a single cluster named `elasticsearch`.
 
-In a single cluster, you can have as many nodes as you want. Furthermore, if there are no other Elasticsearch nodes currently running on your network, starting a single node will by default make and then join itself into a single cluster named "elasticsearch".
+In a single cluster, you can have as many nodes as you want. Furthermore, if there are no other Elasticsearch nodes currently running on your network, starting a single node will by default form a new single-node cluster named `elasticsearch`.
 
 [sect2]
 [float]
@@ -195,7 +195,7 @@ We can see that our cluster named "elasticsearch" is up with a green status.
 
 Whenever we ask for the cluster health, we either get green, yellow, or red. Green means everything is good (cluster is fully functional), yellow means all data is available but some replicas are not yet allocated (cluster is fully functional), and red means some data is not available for whatever reason. Note that even if a cluster is red, it still is partially functional (i.e. it will continue to serve search requests from the available shards) but you will likely need to fix it ASAP since you have missing data.
 
-Also from the above response, we can see and total of 1 node and that we have 0 shards since we have no data in it yet. Note that since we we are using the default cluster name (elasticsearch) and since Elasticsearch uses multicast network discovery by default to find other nodes, it is possible that you could accidentally start up more than one node in your network and have them all join a single cluster. In this scenario, you may see more than 1 node in the above response.
+Also from the above response, we can see and total of 1 node and that we have 0 shards since we have no data in it yet. Note that since we are using the default cluster name (elasticsearch) and since Elasticsearch uses multicast network discovery by default to find other nodes, it is possible that you could accidentally start up more than one node in your network and have them all join a single cluster. In this scenario, you may see more than 1 node in the above response.
 
 We can also get a list of nodes in our cluster as follows:
 
@@ -972,7 +972,7 @@ And the response (partially shown):
 }
 --------------------------------------------------
 
-We can see that there are 21 accounts in AL(abama), followed by 17 accounts in TX, followed by 15 accounts in ID(daho), and so forth.
+We can see that there are 21 accounts in AL(abama), followed by 17 accounts in TX, followed by 15 accounts in ID(aho), and so forth.
 
 Note that we set `size=0` to not show search hits because we only want to see the aggregation results in the response.
 
@@ -1029,7 +1029,7 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
 }'
 --------------------------------------------------
 
-This example demonstrates how we can group by age brackets (ages 20-29, 30-29, and 40-49), then by gender, and then finally get the average account balance, per age bracket, per gender:
+This example demonstrates how we can group by age brackets (ages 20-29, 30-39, and 40-49), then by gender, and then finally get the average account balance, per age bracket, per gender:
 
 [source,sh]
 --------------------------------------------------

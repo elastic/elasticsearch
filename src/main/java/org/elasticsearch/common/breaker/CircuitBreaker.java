@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Locale;
 
 /**
  * Interface for an object that can be incremented, breaking after some
@@ -65,6 +66,28 @@ public interface CircuitBreaker {
 
         public static void writeTo(Name name, StreamOutput out) throws IOException {
             out.writeVInt(name.getSerializableValue());
+        }
+    }
+
+    public static enum Type {
+        // A regular or child MemoryCircuitBreaker
+        MEMORY,
+        // A special parent-type for the hierarchy breaker service
+        PARENT,
+        // A breaker where every action is a noop, it never breaks
+        NOOP;
+
+        public static Type parseValue(String value) {
+            switch(value.toLowerCase(Locale.ROOT)) {
+                case "noop":
+                    return Type.NOOP;
+                case "parent":
+                    return Type.PARENT;
+                case "memory":
+                    return Type.MEMORY;
+                default:
+                    throw new ElasticsearchIllegalArgumentException("No CircuitBreaker with type: " + value);
+            }
         }
     }
 

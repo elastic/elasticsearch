@@ -21,8 +21,10 @@ package org.elasticsearch.test.rest.client;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import org.apache.http.conn.HttpClientConnectionManager;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
@@ -38,6 +40,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * REST client used to test the elasticsearch REST layer
@@ -46,6 +49,7 @@ import java.util.Map;
 public class RestClient implements Closeable {
 
     private static final ESLogger logger = Loggers.getLogger(RestClient.class);
+    private static final HttpClientConnectionManager connectionPool = new PoolingHttpClientConnectionManager(15, TimeUnit.SECONDS);
 
     private final RestSpec restSpec;
     private final CloseableHttpClient httpClient;
@@ -218,7 +222,7 @@ public class RestClient implements Closeable {
     }
 
     protected CloseableHttpClient createHttpClient() {
-        return HttpClients.createDefault();
+        return HttpClients.createMinimal(connectionPool);
     }
 
     public InetSocketAddress[] httpAddresses() {

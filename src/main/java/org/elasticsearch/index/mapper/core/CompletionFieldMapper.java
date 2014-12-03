@@ -295,16 +295,24 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                     if (Fields.CONTENT_FIELD_NAME_INPUT.equals(currentFieldName)) {
                         inputs.add(parser.text());
                     }
+                    if (Fields.CONTENT_FIELD_NAME_WEIGHT.equals(currentFieldName)) {
+                        Number weightValue;
+                        try {
+                            weightValue = Long.parseLong(parser.text());
+                        } catch (NumberFormatException e) {
+                            throw new ElasticsearchIllegalArgumentException("Weight must be a string representing a numeric value, but was [" + parser.text() + "]");
+                        }
+                        weight = weightValue.longValue(); // always parse a long to make sure we don't get overflow
+                        checkWeight(weight);
+                    }
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
                     if (Fields.CONTENT_FIELD_NAME_WEIGHT.equals(currentFieldName)) {
                         NumberType numberType = parser.numberType();
                         if (NumberType.LONG != numberType && NumberType.INT != numberType) {
                             throw new ElasticsearchIllegalArgumentException("Weight must be an integer, but was [" + parser.numberValue() + "]");
                         }
-                        weight = parser.longValue(); // always parse a long to make sure we don't get the overflow value
-                        if (weight < 0 || weight > Integer.MAX_VALUE) {
-                            throw new ElasticsearchIllegalArgumentException("Weight must be in the interval [0..2147483647], but was [" + weight + "]");
-                        }
+                        weight = parser.longValue(); // always parse a long to make sure we don't get overflow
+                        checkWeight(weight);
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if (Fields.CONTENT_FIELD_NAME_INPUT.equals(currentFieldName)) {
@@ -338,6 +346,12 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
             for (String input : inputs) {
                 context.doc().add(getCompletionField(ctx, input, suggestPayload));
             }
+        }
+    }
+
+    private void checkWeight(long weight) {
+        if (weight < 0 || weight > Integer.MAX_VALUE) {
+            throw new ElasticsearchIllegalArgumentException("Weight must be in the interval [0..2147483647], but was [" + weight + "]");
         }
     }
 

@@ -3,9 +3,8 @@
 
 Returns information and statistics on terms in the fields of a particular
 document. The document could be stored in the index or artificially provided
-by the user added[1.4.0.Beta1]. Note that for documents stored in the index, this
-is a near realtime API as the term vectors are not available until the next
-refresh.
+by the user. Term vectors are <<realtime,realtime>> by default, not near
+realtime. This can be changed by setting `realtime` parameter to `false`.
 
 [source,js]
 --------------------------------------------------
@@ -22,7 +21,7 @@ curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvector?fields=text,...'
 
 or by adding the requested fields in the request body (see
 example below). Fields can also be specified with wildcards
-in similar way to the <<query-dsl-multi-match-query,multi match query>> added[1.4.0.Beta1].
+in similar way to the <<query-dsl-multi-match-query,multi match query>>.
 
 [float]
 === Return values
@@ -42,8 +41,6 @@ statistics are returned for all fields but no term statistics.
 If the requested information wasn't stored in the index, it will be
 computed on the fly if possible. Additionally, term vectors could be computed
 for documents not even existing in the index, but instead provided by the user.
-
-added[1.4.0.Beta1,The ability to computed term vectors on the fly as well as support for artificial documents is only available from 1.4.0 onwards (see below example 2 and 3 respectively)]
 
 [WARNING]
 ======
@@ -230,7 +227,7 @@ Response:
 --------------------------------------------------
 
 [float]
-=== Example 2 added[1.4.0.Beta1]
+=== Example 2
 
 Term vectors which are not explicitly stored in the index are automatically
 computed on the fly. The following request returns all information and statistics for the
@@ -249,9 +246,9 @@ curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvector?pretty=true' -d '{
 --------------------------------------------------
 
 [float]
-=== Example 3 added[1.4.0.Beta1]
+=== Example 3
 
-Additionally, term vectors can also be generated for artificial documents,
+Term vectors can also be generated for artificial documents,
 that is for documents not present in the index. The syntax is similar to the
 <<search-percolate,percolator>> API. For example, the following request would
 return the same results as in example 1. The mapping used is determined by the
@@ -273,3 +270,59 @@ curl -XGET 'http://localhost:9200/twitter/tweet/_termvector' -d '{
 }'
 --------------------------------------------------
 
+[float]
+[[docs-termvectors-per-field-analyzer]]
+=== Example 4 coming[1.5.0]
+
+Additionally, a different analyzer than the one at the field may be provided
+by using the `per_field_analyzer` parameter. This is useful in order to
+generate term vectors in any fashion, especially when using artificial
+documents. When providing an analyzer for a field that already stores term
+vectors, the term vectors will be re-generated.
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/twitter/tweet/_termvector' -d '{
+  "doc" : {
+    "fullname" : "John Doe",
+    "text" : "twitter test test test"
+  },
+  "fields": ["fullname"],
+  "per_field_analyzer" : {
+    "fullname": "keyword"
+  }
+}'
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+  "_index": "twitter",
+  "_type": "tweet",
+  "_version": 0,
+  "found": true,
+  "term_vectors": {
+    "fullname": {
+       "field_statistics": {
+          "sum_doc_freq": 1,
+          "doc_count": 1,
+          "sum_ttf": 1
+       },
+       "terms": {
+          "John Doe": {
+             "term_freq": 1,
+             "tokens": [
+                {
+                   "position": 0,
+                   "start_offset": 0,
+                   "end_offset": 8
+                }
+             ]
+          }
+       }
+    }
+  }
+}
+--------------------------------------------------

@@ -179,6 +179,68 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testThatWeightCanBeAString() throws Exception {
+        createIndexAndMapping(completionMappingBuilder);
+
+        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                        .startObject().startObject(FIELD)
+                        .startArray("input").value("testing").endArray()
+                        .field("weight", "10")
+                        .endObject().endObject()
+        ).get();
+
+        refresh();
+
+        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
+                new CompletionSuggestionBuilder("testSuggestions").field(FIELD).text("test").size(10)
+        ).execute().actionGet();
+
+        assertSuggestions(suggestResponse, "testSuggestions", "testing");
+        Suggest.Suggestion.Entry.Option option = suggestResponse.getSuggest().getSuggestion("testSuggestions").getEntries().get(0).getOptions().get(0);
+        assertThat(option, is(instanceOf(CompletionSuggestion.Entry.Option.class)));
+        CompletionSuggestion.Entry.Option prefixOption = (CompletionSuggestion.Entry.Option) option;
+
+        assertThat(prefixOption.getText().string(), equalTo("testing"));
+        assertThat((long) prefixOption.getScore(), equalTo(10l));
+    }
+
+
+    @Test
+    public void testThatWeightMustNotBeANonNumberString() throws Exception {
+        createIndexAndMapping(completionMappingBuilder);
+
+        try {
+            client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                            .startObject().startObject(FIELD)
+                            .startArray("input").value("sth").endArray()
+                            .field("weight", "thisIsNotValid")
+                            .endObject().endObject()
+            ).get();
+            fail("Indexing with a non-number representing string as weight was successful, but should not be");
+        } catch (MapperParsingException e) {
+            assertThat(ExceptionsHelper.detailedMessage(e), containsString("thisIsNotValid"));
+        }
+    }
+
+    @Test
+    public void testThatWeightAsStringMustBeInt() throws Exception {
+        createIndexAndMapping(completionMappingBuilder);
+
+        String weight = String.valueOf(Long.MAX_VALUE - 4);
+        try {
+            client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                            .startObject().startObject(FIELD)
+                            .startArray("input").value("testing").endArray()
+                            .field("weight", weight)
+                            .endObject().endObject()
+            ).get();
+            fail("Indexing with weight string representing value > Int.MAX_VALUE was successful, but should not be");
+        } catch (MapperParsingException e) {
+            assertThat(ExceptionsHelper.detailedMessage(e), containsString(weight));
+        }
+    }
+
+    @Test
     public void testThatInputCanBeAStringInsteadOfAnArray() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 

@@ -42,7 +42,7 @@ public class StandardAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stan
     @Inject
     public StandardAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        this.esVersion = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT);
+        this.esVersion = Version.indexCreated(indexSettings);
         final CharArraySet defaultStopwords;
         if (esVersion.onOrAfter(Version.V_1_0_0_Beta1)) {
             defaultStopwords = CharArraySet.EMPTY_SET;

@@ -173,16 +173,16 @@ to 30 seconds and can be changed dynamically through the
 [[no-master-block]]
 ==== No master block
 
-added[1.4.0.Beta1]
-
 For a node to be fully operational, it must have an active master. The `discovery.zen.no_master_block` settings controls
 what operations should be rejected when there is no active master.
 
 The `discovery.zen.no_master_block` setting has two valid options:
-* `all` - All operations on the node. I.e., both read & writes will be rejected. This also applies for api cluster state
-read or write operations, like the get index settings, put mapping and cluster state api.
-* `write` - Write operations will be rejected. Read operations will succeed, based on the last known cluster configuration.
-This may result in partial reads or stale data as this node may be isolated from the rest of the cluster. This is the default.
 
-The `discovery.zen.no_master_block` setting doesn't apply for nodes based apis (for example cluster stats, node info and
+[horizontal]
+`all`:: All operations on the node--i.e. both read & writes--will be rejected. This also applies for api cluster state
+read or write operations, like the get index settings, put mapping and cluster state api.
+`write`:: (default) Write operations will be rejected. Read operations will succeed, based on the last known cluster configuration.
+This may result in partial reads of stale data as this node may be isolated from the rest of the cluster. 
+
+The `discovery.zen.no_master_block` setting doesn't apply to nodes based apis (for example cluster stats, node info and
 node stats apis) which will not be blocked and try to execute on any node possible.

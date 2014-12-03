@@ -42,7 +42,7 @@ public class NumericDVIndexFieldData extends DocValuesIndexFieldData implements 
     public AtomicLongFieldData load(AtomicReaderContext context) {
         final AtomicReader reader = context.reader();
         final String field = fieldNames.indexName();
-        return new AtomicLongFieldData(-1) {
+        return new AtomicLongFieldData(0) {
             @Override
             public SortedNumericDocValues getLongValues() {
                 try {

@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
@@ -51,6 +52,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -290,7 +292,11 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             }
             indexShard.performRecoveryFinalization(true);
 
-            recoveringTranslogFile.delete();
+            try {
+                Files.deleteIfExists(recoveringTranslogFile.toPath());
+            } catch (Exception ex) {
+                logger.debug("Failed to delete recovering translog file {}", ex, recoveringTranslogFile);
+            }
 
             for (final String type : typesToUpdate) {
                 final CountDownLatch latch = new CountDownLatch(1);
@@ -331,9 +337,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
 
     @Override
     public void close() {
-        if (flushScheduler != null) {
-            flushScheduler.cancel(false);
-        }
+        FutureUtils.cancel(flushScheduler);
     }
 
     class Sync implements Runnable {

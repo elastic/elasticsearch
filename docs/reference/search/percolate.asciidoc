@@ -18,7 +18,6 @@ in the percolate api.
 
 Field referred to in a percolator query must *already* exist in the mapping
 assocated with the index used for percolation.
-added[1.4.0.Beta1,Applies to indices created in 1.4.0 or later]
 There are two ways to make sure that a field mapping exist:
 
 * Add or update a mapping via the <<indices-create-index,create index>> or
@@ -46,7 +45,7 @@ curl -XPUT 'localhost:9200/my-index' -d '{
       }
     }
   }
-}
+}'
 --------------------------------------------------
 
 Register a query in the percolator:
@@ -221,9 +220,9 @@ occurred for the filter to included the latest percolate queries.
 * `query` - Same as the `filter` option, but also the score is computed. The computed scores can then be used by the
 `track_scores` and `sort` option.
 * `size` - Defines to maximum number of matches (percolate queries) to be returned. Defaults to unlimited.
-* `track_scores` - Whether the `_score` is included for each match. The is based on the query and represents how the query matched
-to the percolate query's metadata and *not* how the document being percolated matched to the query. The `query` option
-is required for this option. Defaults to `false`.
+* `track_scores` - Whether the `_score` is included for each match. The `_score` is based on the query and represents
+how the query matched the *percolate query's metadata*, *not* how the document (that is being percolated) matched
+the query. The `query` option is required for this option. Defaults to `false`.
 * `sort` - Define a sort specification like in the search api. Currently only sorting `_score` reverse (default relevancy)
 is supported. Other sort fields will throw an exception. The `size` and `query` option are required for this setting. Like
 `track_score` the score is based on the query and represents how the query matched to the percolate query's metadata
@@ -345,8 +344,8 @@ The multi percolate api allows to bundle multiple percolate requests into a sing
 search api does to search requests. The request body format is line based. Each percolate request item takes two lines,
 the first line is the header and the second line is the body.
 
-The header can contain any parameter that normally would be set via the request path or query string parameters. T
-here are several percolate actions, because there are multiple types of percolate requests.
+The header can contain any parameter that normally would be set via the request path or query string parameters.
+There are several percolate actions, because there are multiple types of percolate requests.
 
 .Supported actions:
 * `percolate` - Action for defining a regular percolate request.
@@ -379,15 +378,15 @@ requests.txt:
 
 [source,js]
 --------------------------------------------------
-{"percolate" : {"index" : twitter", "type" : "tweet"}}
+{"percolate" : {"index" : "twitter", "type" : "tweet"}}
 {"doc" : {"message" : "some text"}}
-{"percolate" : {"index" : twitter", "type" : "tweet", "id" : "1"}}
+{"percolate" : {"index" : "twitter", "type" : "tweet", "id" : "1"}}
 {}
-{"percolate" : {"index" : users", "type" : "user", "id" : "3", "percolate_index" : "users_2012" }}
+{"percolate" : {"index" : "users", "type" : "user", "id" : "3", "percolate_index" : "users_2012" }}
 {"size" : 10}
-{"count" : {"index" : twitter", "type" : "tweet"}}
+{"count" : {"index" : "twitter", "type" : "tweet"}}
 {"doc" : {"message" : "some other text"}}
-{"count" : {"index" : twitter", "type" : "tweet", "id" : "1"}}
+{"count" : {"index" : "twitter", "type" : "tweet", "id" : "1"}}
 {}
 --------------------------------------------------
 
@@ -445,7 +444,7 @@ Response:
 }
 --------------------------------------------------
 
-Each item represents a percolate response, the order of the items maps to the order in where the percolate requests
+Each item represents a percolate response, the order of the items maps to the order in which the percolate requests
 were specified. In case a percolate request failed, the item response is substituted with an error message.
 
 [float]

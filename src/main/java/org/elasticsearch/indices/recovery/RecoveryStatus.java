@@ -21,7 +21,12 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
@@ -29,96 +34,240 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 
 import java.io.IOException;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  *
  */
-public class RecoveryStatus {
 
-    final ShardId shardId;
-    final long recoveryId;
-    final InternalIndexShard indexShard;
-    final RecoveryState recoveryState;
-    final DiscoveryNode sourceNode;
 
-    public RecoveryStatus(long recoveryId, InternalIndexShard indexShard, DiscoveryNode sourceNode) {
-        this.recoveryId = recoveryId;
+public class RecoveryStatus extends AbstractRefCounted {
+
+    private final ESLogger logger;
+
+    private final static AtomicLong idGenerator = new AtomicLong();
+
+    private final String RECOVERY_PREFIX = "recovery.";
+
+    private final ShardId shardId;
+    private final long recoveryId;
+    private final InternalIndexShard indexShard;
+    private final RecoveryState state;
+    private final DiscoveryNode sourceNode;
+    private final String tempFilePrefix;
+    private final Store store;
+    private final RecoveryTarget.RecoveryListener listener;
+
+    private AtomicReference<Thread> waitingRecoveryThread = new AtomicReference<>();
+
+    private final AtomicBoolean finished = new AtomicBoolean();
+
+    private final ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
+    private final Store.LegacyChecksums legacyChecksums = new Store.LegacyChecksums();
+
+    public RecoveryStatus(InternalIndexShard indexShard, DiscoveryNode sourceNode, RecoveryState state, RecoveryTarget.RecoveryListener listener) {
+        super("recovery_status");
+        this.recoveryId = idGenerator.incrementAndGet();
+        this.listener = listener;
+        this.logger = Loggers.getLogger(getClass(), indexShard.indexSettings(), indexShard.shardId());
         this.indexShard = indexShard;
         this.sourceNode = sourceNode;
         this.shardId = indexShard.shardId();
-        this.recoveryState = new RecoveryState(shardId);
-        recoveryState.getTimer().startTime(System.currentTimeMillis());
+        this.state = state;
+        this.state.getTimer().startTime(System.currentTimeMillis());
+        this.tempFilePrefix = RECOVERY_PREFIX + this.state.getTimer().startTime() + ".";
+        this.store = indexShard.store();
+        // make sure the store is not released until we are done.
+        store.incRef();
     }
 
-    volatile Thread recoveryThread;
-    private volatile boolean canceled;
-    volatile boolean sentCanceledToSource;
+    private final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
 
-    private volatile ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
-    public final Store.LegacyChecksums legacyChecksums = new Store.LegacyChecksums();
+    public long recoveryId() {
+        return recoveryId;
+    }
+
+    public ShardId shardId() {
+        return shardId;
+    }
+
+    public InternalIndexShard indexShard() {
+        ensureRefCount();
+        return indexShard;
+    }
 
     public DiscoveryNode sourceNode() {
         return this.sourceNode;
     }
 
-    public RecoveryState recoveryState() {
-        return recoveryState;
+    public RecoveryState state() {
+        return state;
+    }
+
+    public Store store() {
+        ensureRefCount();
+        return store;
+    }
+
+    /** set a thread that should be interrupted if the recovery is canceled */
+    public void setWaitingRecoveryThread(Thread thread) {
+        waitingRecoveryThread.set(thread);
+    }
+
+    /**
+     * clear the thread set by {@link #setWaitingRecoveryThread(Thread)}, making sure we
+     * do not override another thread.
+     */
+    public void clearWaitingRecoveryThread(Thread threadToClear) {
+        waitingRecoveryThread.compareAndSet(threadToClear, null);
     }
 
     public void stage(RecoveryState.Stage stage) {
-        recoveryState.setStage(stage);
+        state.setStage(stage);
     }
 
     public RecoveryState.Stage stage() {
-        return recoveryState.getStage();
+        return state.getStage();
     }
 
-    public boolean isCanceled() {
-        return canceled;
+    public Store.LegacyChecksums legacyChecksums() {
+        return legacyChecksums;
     }
-    
-    public synchronized void cancel() {
-        canceled = true;
+
+    /** renames all temporary files to their true name, potentially overriding existing files */
+    public void renameAllTempFiles() throws IOException {
+        ensureRefCount();
+        store.renameFilesSafe(tempFileNames);
     }
-    
+
+    /** cancel the recovery. calling this method will clean temporary files and release the store
+     * unless this object is in use (in which case it will be cleaned once all ongoing users call
+     * {@link #decRef()}
+     *
+     * if {@link #setWaitingRecoveryThread(Thread)} was used, the thread will be interrupted.
+     */
+    public void cancel(String reason) {
+        if (finished.compareAndSet(false, true)) {
+            logger.debug("recovery canceled (reason: [{}])", reason);
+            // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
+            decRef();
+
+            final Thread thread = waitingRecoveryThread.get();
+            if (thread != null) {
+                thread.interrupt();
+            }
+        }
+    }
+
+    /**
+     * fail the recovery and call listener
+     *
+     * @param e exception that encapsulating the failure
+     * @param sendShardFailure indicates whether to notify the master of the shard failure
+     **/
+    public void fail(RecoveryFailedException e, boolean sendShardFailure) {
+        if (finished.compareAndSet(false, true)) {
+            try {
+                listener.onRecoveryFailure(state, e, sendShardFailure);
+            } finally {
+                // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
+                decRef();
+            }
+        }
+    }
+
+    /** mark the current recovery as done */
+    public void markAsDone() {
+        if (finished.compareAndSet(false, true)) {
+            assert tempFileNames.isEmpty() : "not all temporary files are renamed";
+            // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
+            decRef();
+            listener.onRecoveryDone(state);
+        }
+    }
+
+    private String getTempNameForFile(String origFile) {
+        return tempFilePrefix + origFile;
+    }
+
+    /** return true if the give file is a temporary file name issued by this recovery */
+    private boolean isTempFile(String filename) {
+        return tempFileNames.containsKey(filename);
+    }
+
     public IndexOutput getOpenIndexOutput(String key) {
-        final ConcurrentMap<String, IndexOutput> outputs = openIndexOutputs;
-        if (canceled || outputs == null) {
-            return null;
-        }
-        return outputs.get(key);
+        ensureRefCount();
+        return openIndexOutputs.get(key);
     }
 
-    public synchronized Set<Entry<String, IndexOutput>> cancelAndClearOpenIndexInputs() {
-        cancel();
-        final ConcurrentMap<String, IndexOutput> outputs = openIndexOutputs;
-        openIndexOutputs = null;
-        if (outputs == null) {
-            return null;
+    /** returns the original file name for a temporary file name issued by this recovery */
+    private String originalNameForTempFile(String tempFile) {
+        if (!isTempFile(tempFile)) {
+            throw new ElasticsearchException("[" + tempFile + "] is not a temporary file made by this recovery");
         }
-        Set<Entry<String, IndexOutput>> entrySet = outputs.entrySet();
-        return entrySet;
+        return tempFile.substring(tempFilePrefix.length());
     }
-    
 
+    /** remove and {@link org.apache.lucene.store.IndexOutput} for a given file. It is the caller's responsibility to close it */
     public IndexOutput removeOpenIndexOutputs(String name) {
-        final ConcurrentMap<String, IndexOutput> outputs = openIndexOutputs;
-        if (outputs == null) {
-            return null;
-        }
-        return outputs.remove(name);
+        ensureRefCount();
+        return openIndexOutputs.remove(name);
     }
 
-    public synchronized IndexOutput openAndPutIndexOutput(String key, String fileName, StoreFileMetaData metaData, Store store) throws IOException {
-        if (isCanceled()) {
-            return null;
-        }
-        final ConcurrentMap<String, IndexOutput> outputs = openIndexOutputs;
-        IndexOutput indexOutput = store.createVerifyingOutput(fileName, IOContext.DEFAULT, metaData);
-        outputs.put(key, indexOutput);
+    /**
+     * Creates an {@link org.apache.lucene.store.IndexOutput} for the given file name. Note that the
+     * IndexOutput actually point at a temporary file.
+     * <p/>
+     * Note: You can use {@link #getOpenIndexOutput(String)} with the same filename to retrieve the same IndexOutput
+     * at a later stage
+     */
+    public IndexOutput openAndPutIndexOutput(String fileName, StoreFileMetaData metaData, Store store) throws IOException {
+        ensureRefCount();
+        String tempFileName = getTempNameForFile(fileName);
+        // add first, before it's created
+        tempFileNames.put(tempFileName, fileName);
+        IndexOutput indexOutput = store.createVerifyingOutput(tempFileName, metaData, IOContext.DEFAULT);
+        openIndexOutputs.put(fileName, indexOutput);
         return indexOutput;
     }
+
+    @Override
+    protected void closeInternal() {
+        try {
+            // clean open index outputs
+            Iterator<Entry<String, IndexOutput>> iterator = openIndexOutputs.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<String, IndexOutput> entry = iterator.next();
+                IOUtils.closeWhileHandlingException(entry.getValue());
+                iterator.remove();
+            }
+            // trash temporary files
+            for (String file : tempFileNames.keySet()) {
+                logger.trace("cleaning temporary file [{}]", file);
+                store.deleteQuiet(file);
+            }
+            legacyChecksums.clear();
+        } finally {
+            // free store. increment happens in constructor
+            store.decRef();
+        }
+    }
+
+    @Override
+    public String toString() {
+        return shardId + " [" + recoveryId + "]";
+    }
+
+    private void ensureRefCount() {
+        if (refCount() <= 0) {
+            throw new ElasticsearchException("RecoveryStatus is used but it's refcount is 0. Probably a mismatch between incRef/decRef calls");
+        }
+    }
+
 }

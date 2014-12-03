@@ -19,10 +19,13 @@
 
 package org.elasticsearch;
 
+import org.apache.lucene.index.CorruptIndexException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.List;
@@ -160,6 +163,9 @@ public final class ExceptionsHelper {
         return first;
     }
 
+    public static IOException unwrapCorruption(Throwable t) {
+        return (IOException) unwrap(t, CorruptIndexException.class);
+    }
 
     public static <T extends Throwable> T unwrap(Throwable t, Class<T> clazz) {
         if (t != null) {
@@ -183,5 +189,19 @@ public final class ExceptionsHelper {
                         && t.getMessage().contains("OutOfMemoryError")
                         )
                     );
+    }
+
+    /**
+     * Throws the specified exception. If null if specified then <code>true</code> is returned.
+     */
+    public static boolean reThrowIfNotNull(@Nullable Throwable e) {
+        if (e != null) {
+            if (e instanceof RuntimeException) {
+                throw (RuntimeException) e;
+            } else {
+                throw new RuntimeException(e);
+            }
+        }
+        return true;
     }
 }

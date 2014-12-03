@@ -28,22 +28,18 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Iterator;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import static junit.framework.Assert.assertFalse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 
@@ -54,7 +50,10 @@ import static org.junit.Assert.assertThat;
  */
 public final class ExternalTestCluster extends TestCluster {
 
-    private final ESLogger logger = Loggers.getLogger(getClass());
+    private static final ESLogger logger = Loggers.getLogger(ExternalTestCluster.class);
+
+    private static final AtomicInteger counter = new AtomicInteger();
+    public static final String EXTERNAL_CLUSTER_PREFIX = "external_";
 
     private final Client client;
 
@@ -63,11 +62,13 @@ public final class ExternalTestCluster extends TestCluster {
     private final String clusterName;
 
     private final int numDataNodes;
+    private final int numMasterAndDataNodes;
     private final int numBenchNodes;
 
     public ExternalTestCluster(TransportAddress... transportAddresses) {
-
+        super(0);
         Settings clientSettings = ImmutableSettings.settingsBuilder()
+                .put("name", InternalTestCluster.TRANSPORT_CLIENT_PREFIX + EXTERNAL_CLUSTER_PREFIX + counter.getAndIncrement())
                 .put("config.ignore_system_properties", true) // prevents any settings to be replaced by system properties.
                 .put("client.transport.ignore_cluster_name", true)
                 .put("node.mode", "network").build(); // we require network here!
@@ -79,11 +80,15 @@ public final class ExternalTestCluster extends TestCluster {
         this.clusterName = nodeInfos.getClusterName().value();
         int dataNodes = 0;
         int benchNodes = 0;
+        int masterAndDataNodes = 0;
         for (int i = 0; i < nodeInfos.getNodes().length; i++) {
             NodeInfo nodeInfo = nodeInfos.getNodes()[i];
             httpAddresses[i] = ((InetSocketTransportAddress) nodeInfo.getHttp().address().publishAddress()).address();
-            if (nodeInfo.getSettings().getAsBoolean("node.data", true)) {
+            if (DiscoveryNode.dataNode(nodeInfo.getSettings())) {
                 dataNodes++;
+                masterAndDataNodes++;
+            } else if (DiscoveryNode.masterNode(nodeInfo.getSettings())) {
+                masterAndDataNodes++;
             }
             if (nodeInfo.getSettings().getAsBoolean("node.bench", false)) {
                 benchNodes++;
@@ -91,6 +96,7 @@ public final class ExternalTestCluster extends TestCluster {
         }
         this.numDataNodes = dataNodes;
         this.numBenchNodes = benchNodes;
+        this.numMasterAndDataNodes = masterAndDataNodes;
         logger.info("Setup ExternalTestCluster [{}] made of [{}] nodes", nodeInfos.getClusterName().value(), size());
     }
 
@@ -112,6 +118,11 @@ public final class ExternalTestCluster extends TestCluster {
     @Override
     public int numDataNodes() {
         return numDataNodes;
+    }
+
+    @Override
+    public int numDataAndMasterNodes() {
+        return numMasterAndDataNodes;
     }
 
     @Override

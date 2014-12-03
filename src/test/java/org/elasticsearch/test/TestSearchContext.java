@@ -51,6 +51,7 @@ import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.partial.PartialFieldsContext;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
@@ -313,7 +314,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public IndexQueryParserService queryParserService() {
-        return null;
+        return indexService.queryParserService();
     }
 
     @Override
@@ -630,11 +631,21 @@ public class TestSearchContext extends SearchContext {
         throw new UnsupportedOperationException();
     }
 
-    public SearchContext profiledQuery(boolean profile) {
+    @Override
+    public void innerHits(InnerHitsContext innerHitsContext) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public InnerHitsContext innerHits() {
+        throw new UnsupportedOperationException();
+    }
+
+    public SearchContext profileQuery(boolean profile) {
         return null;
     }
 
-    public boolean profiledQuery() {
+    public boolean profileQuery() {
         return false;
     }
 }

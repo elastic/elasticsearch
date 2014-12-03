@@ -25,8 +25,13 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchSingleNodeLuceneTestCase;
@@ -42,10 +47,20 @@ import static org.hamcrest.Matchers.equalTo;
 @LuceneTestCase.SuppressCodecs(value = {"Lucene40", "Lucene3x"})
 public abstract class AbstractChildTests extends ElasticsearchSingleNodeLuceneTestCase {
 
+    /**
+     * The name of the field within the child type that stores a score to use in test queries.
+     * <p />
+     * Its type is {@code double}.
+     */
+    protected static String CHILD_SCORE_NAME = "childScore";
+
     static SearchContext createSearchContext(String indexName, String parentType, String childType) throws IOException {
         IndexService indexService = createIndex(indexName);
         MapperService mapperService = indexService.mapperService();
-        mapperService.merge(childType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string()), true);
+        // Parent/child parsers require that the parent and child type to be presented in mapping
+        // Sometimes we want a nested object field in the parent type that triggers nonNestedDocsFilter to be used
+        mapperService.merge(parentType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(parentType, "nested_field", random().nextBoolean() ? "type=nested" : "type=object").string()), true);
+        mapperService.merge(childType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType, CHILD_SCORE_NAME, "type=double").string()), true);
         return createSearchContext(indexService);
     }
 
@@ -89,8 +104,19 @@ public abstract class AbstractChildTests extends ElasticsearchSingleNodeLuceneTe
         }
     }
 
-    static FixedBitSetFilter wrap(Filter filter) {
+    static Filter wrap(Filter filter) {
+        return SearchContext.current().filterCache().cache(filter);
+    }
+
+    static FixedBitSetFilter wrapWithFixedBitSetFilter(Filter filter) {
         return SearchContext.current().fixedBitSetFilterCache().getFixedBitSetFilter(filter);
+    }
+
+    static Query parseQuery(QueryBuilder queryBuilder) throws IOException {
+        QueryParseContext context = new QueryParseContext(new Index("test"), SearchContext.current().queryParserService());
+        XContentParser parser = XContentHelper.createParser(queryBuilder.buildAsBytes());
+        context.reset(parser);
+        return context.parseInnerQuery();
     }
 
 }

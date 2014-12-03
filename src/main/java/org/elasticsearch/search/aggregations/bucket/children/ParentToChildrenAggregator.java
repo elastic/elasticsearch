@@ -29,9 +29,9 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.search.child.ConstantScorer;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -52,8 +52,8 @@ import java.util.List;
 public class ParentToChildrenAggregator extends SingleBucketAggregator implements ReaderContextAware {
 
     private final String parentType;
-    private final FixedBitSetFilter childFilter;
-    private final FixedBitSetFilter parentFilter;
+    private final Filter childFilter;
+    private final Filter parentFilter;
     private final ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource;
 
     // Maybe use PagedGrowableWriter? This will be less wasteful than LongArray, but then we don't have the reuse feature of BigArrays.
@@ -75,8 +75,11 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
                                       ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource, long maxOrd) {
         super(name, factories, aggregationContext, parent);
         this.parentType = parentType;
-        this.childFilter = aggregationContext.searchContext().fixedBitSetFilterCache().getFixedBitSetFilter(childFilter);
-        this.parentFilter = aggregationContext.searchContext().fixedBitSetFilterCache().getFixedBitSetFilter(parentFilter);
+        // The child filter doesn't rely on random access it just used to iterate over all docs with a specific type,
+        // so use the filter cache instead. When the filter cache is smarter with what filter impl to pick we can benefit
+        // from it here
+        this.childFilter = new ApplyAcceptedDocsFilter(aggregationContext.searchContext().filterCache().cache(childFilter));
+        this.parentFilter = aggregationContext.searchContext().filterCache().cache(parentFilter);
         this.parentOrdToBuckets = aggregationContext.bigArrays().newLongArray(maxOrd, false);
         this.parentOrdToBuckets.fill(0, maxOrd, -1);
         this.parentOrdToOtherBuckets = new LongObjectPagedHashMap<>(aggregationContext.bigArrays());
@@ -95,7 +98,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
 
     @Override
     public void collect(int docId, long bucketOrdinal) throws IOException {
-        if (parentDocs != null && parentDocs.get(docId)) {
+        if (parentDocs.get(docId)) {
             long globalOrdinal = globalOrdinals.getOrd(docId);
             if (globalOrdinal != -1) {
                 if (parentOrdToBuckets.get(globalOrdinal) == -1) {
@@ -125,11 +128,10 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
         assert globalOrdinals != null;
         try {
             DocIdSet parentDocIdSet = parentFilter.getDocIdSet(reader, null);
-            if (parentDocIdSet != null) {
-                parentDocs = parentDocIdSet.bits();
-            } else {
-                parentDocs = null;
-            }
+            // The DocIdSets.toSafeBits(...) can convert to FixedBitSet, but this
+            // will only happen if the none filter cache is used. (which only happens in tests)
+            // Otherwise the filter cache will produce a bitset based filter.
+            parentDocs = DocIdSets.toSafeBits(reader.reader(), parentDocIdSet);
             DocIdSet childDocIdSet = childFilter.getDocIdSet(reader, null);
             if (globalOrdinals != null && !DocIdSets.isEmpty(childDocIdSet)) {
                 replay.add(reader);

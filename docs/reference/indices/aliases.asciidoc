@@ -74,8 +74,6 @@ the same index. The filter can be defined using Query DSL and is applied
 to all Search, Count, Delete By Query and More Like This operations with
 this alias.
 
-added[1.4.0.Beta1,Fields referred to in alias filters must exist in the mappings of the index/indices pointed to by the alias]
-
 To create a filtered alias, first we need to ensure that the fields already
 exist in the mapping:
 
@@ -185,7 +183,7 @@ An alias can also be added with the endpoint
 where
 
 [horizontal]
-`index`::   The index the alias refers to. Can be any of `blank | * | _all | glob pattern | name1, name2, …`
+`index`::   The index the alias refers to. Can be any of `* | _all | glob pattern | name1, name2, …`
 `name`::   The name of the alias. This is a required option.
 `routing`:: An optional routing that can be associated with an alias.
 `filter`::  An optional filter that can be associated with an alias.
@@ -311,8 +309,6 @@ Possible options:
     exist. If set to `true` then those indices are ignored.
 
 The rest endpoint is: `/{index}/_alias/{alias}`.
-
-added[1.4.0.Beta1,The API will always include an `aliases` section, even if there aren't any aliases. Previous versions would not return the `aliases` section]
 
 WARNING: For future versions of Elasticsearch, the default <<multi-index>> options will error if a requested index is unavailable. This is to bring 
 this API in line with the other indices GET APIs

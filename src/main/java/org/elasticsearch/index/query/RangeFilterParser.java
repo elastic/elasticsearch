@@ -23,6 +23,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.TermRangeFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.DateMathParser;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
@@ -64,6 +65,7 @@ public class RangeFilterParser implements FilterParser {
         boolean includeLower = true;
         boolean includeUpper = true;
         DateTimeZone timeZone = null;
+        DateMathParser forcedDateParser = null;
         String execution = "index";
 
         String filterName = null;
@@ -100,6 +102,8 @@ public class RangeFilterParser implements FilterParser {
                             includeUpper = true;
                         } else if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
                             timeZone = DateMathParser.parseZone(parser.text());
+                        } else if ("format".equals(currentFieldName)) {
+                            forcedDateParser = new DateMathParser(Joda.forPattern(parser.text()), DateFieldMapper.Defaults.TIME_UNIT);
                         } else {
                             throw new QueryParsingException(parseContext.index(), "[range] filter does not support [" + currentFieldName + "]");
                         }
@@ -138,7 +142,7 @@ public class RangeFilterParser implements FilterParser {
                         if ((from instanceof Number || to instanceof Number) && timeZone != null) {
                             throw new QueryParsingException(parseContext.index(), "[range] time_zone when using ms since epoch format as it's UTC based can not be applied to [" + fieldName + "]");
                         }
-                        filter = ((DateFieldMapper) mapper).rangeFilter(from, to, includeLower, includeUpper, timeZone, parseContext, explicitlyCached);
+                        filter = ((DateFieldMapper) mapper).rangeFilter(from, to, includeLower, includeUpper, timeZone, forcedDateParser, parseContext, explicitlyCached);
                     } else  {
                         if (timeZone != null) {
                             throw new QueryParsingException(parseContext.index(), "[range] time_zone can not be applied to non date field [" + fieldName + "]");
@@ -157,7 +161,7 @@ public class RangeFilterParser implements FilterParser {
                         if ((from instanceof Number || to instanceof Number) && timeZone != null) {
                             throw new QueryParsingException(parseContext.index(), "[range] time_zone when using ms since epoch format as it's UTC based can not be applied to [" + fieldName + "]");
                         }
-                        filter = ((DateFieldMapper) mapper).rangeFilter(parseContext, from, to, includeLower, includeUpper, timeZone, parseContext, explicitlyCached);
+                        filter = ((DateFieldMapper) mapper).rangeFilter(parseContext, from, to, includeLower, includeUpper, timeZone, forcedDateParser, parseContext, explicitlyCached);
                     } else {
                         if (timeZone != null) {
                             throw new QueryParsingException(parseContext.index(), "[range] time_zone can not be applied to non date field [" + fieldName + "]");

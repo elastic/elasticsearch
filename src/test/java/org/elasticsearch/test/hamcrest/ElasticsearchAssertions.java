@@ -70,14 +70,17 @@ import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 
+import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import static com.google.common.base.Predicates.isNull;
 import static org.elasticsearch.test.ElasticsearchTestCase.*;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
@@ -143,14 +146,14 @@ public class ElasticsearchAssertions {
 
     public static void assertSearchHits(SearchResponse searchResponse, String... ids) {
         String shardStatus = formatShardStatus(searchResponse);
-        assertThat("Expected different hit count. " + shardStatus, searchResponse.getHits().hits().length, equalTo(ids.length));
 
         Set<String> idsSet = new HashSet<>(Arrays.asList(ids));
         for (SearchHit hit : searchResponse.getHits()) {
-            assertThat("Expected id: " + hit.getId() + " in the result but wasn't." + shardStatus, idsSet.remove(hit.getId()),
+            assertThat("id [" + hit.getId() + "] was found in search results but wasn't expected (type [" + hit.getType() + "], index [" + hit.index() + "])"
+                            + shardStatus, idsSet.remove(hit.getId()),
                     equalTo(true));
         }
-        assertThat("Expected ids: " + Arrays.toString(idsSet.toArray(new String[idsSet.size()])) + " in the result - result size differs."
+        assertThat("Some expected ids were not found in search results: " + Arrays.toString(idsSet.toArray(new String[idsSet.size()])) + "."
                 + shardStatus, idsSet.size(), equalTo(0));
         assertVersionSerializable(searchResponse);
     }
@@ -211,6 +214,14 @@ public class ElasticsearchAssertions {
 
     public static void assertThirdHit(SearchResponse searchResponse, Matcher<SearchHit> matcher) {
         assertSearchHit(searchResponse, 3, matcher);
+    }
+
+    public static void assertFourthHit(SearchResponse searchResponse, Matcher<SearchHit> matcher) {
+        assertSearchHit(searchResponse, 4, matcher);
+    }
+
+    public static void assertFifthHit(SearchResponse searchResponse, Matcher<SearchHit> matcher) {
+        assertSearchHit(searchResponse, 5, matcher);
     }
 
     public static void assertSearchHit(SearchResponse searchResponse, int number, Matcher<SearchHit> matcher) {
@@ -771,4 +782,32 @@ public class ElasticsearchAssertions {
             return pluginInfo.getVersion();
         }
     };
+
+    /**
+     * Check if a file exists
+     */
+    public static void assertFileExists(File file) {
+        assertThat("file/dir [" + file + "] should exist.", file.exists(), is(true));
+    }
+
+    /**
+     * Check if a file exists
+     */
+    public static void assertFileExists(Path file) {
+        assertFileExists(file.toFile());
+    }
+
+    /**
+     * Check if a directory exists
+     */
+    public static void assertDirectoryExists(File dir) {
+        assertFileExists(dir);
+    }
+
+    /**
+     * Check if a directory exists
+     */
+    public static void assertDirectoryExists(Path dir) {
+        assertFileExists(dir);
+    }
 }

@@ -205,7 +205,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         index("test", "type", "5", jsonBuilder().startObject().field("otherField", "foo").endObject());
         refresh();
 
-        Map<String, String> templateParams = Maps.newHashMap();
+        Map<String, Object> templateParams = Maps.newHashMap();
         templateParams.put("mySize", "2");
         templateParams.put("myField", "theField");
         templateParams.put("myValue", "foo");
@@ -260,11 +260,11 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
         indexRandom(true,builders);
 
-        Map<String, String> templateParams = Maps.newHashMap();
+        Map<String, Object> templateParams = Maps.newHashMap();
         templateParams.put("fieldParam", "foo");
 
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").
-                setTemplateName("testTemplate").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
+                setTemplateName("testTemplate").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
         assertHitCount(searchResponse, 4);
 
         DeleteIndexedScriptResponse deleteResponse = client().prepareDeleteIndexedScript("mustache","testTemplate").get();
@@ -306,7 +306,6 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
                 "       }" +
                 "}"));
 
-
         indexRandom(true, builders);
 
         builders.clear();
@@ -319,7 +318,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
         indexRandom(true,builders);
 
-        Map<String, String> templateParams = Maps.newHashMap();
+        Map<String, Object> templateParams = Maps.newHashMap();
         templateParams.put("fieldParam", "foo");
 
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").
@@ -368,4 +367,36 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         sr = client().prepareSearch().setQuery(query).get();
         assertHitCount(sr, 4);
     }
+
+    @Test
+    public void testIndexedTemplateWithArray() throws Exception {
+      createIndex(ScriptService.SCRIPT_INDEX);
+      ensureGreen(ScriptService.SCRIPT_INDEX);
+      List<IndexRequestBuilder> builders = new ArrayList<>();
+
+      String multiQuery = "{\"query\":{\"terms\":{\"theField\":[\"{{#fieldParam}}\",\"{{.}}\",\"{{/fieldParam}}\"]}}}";
+
+      builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "mustache", "4").setSource(jsonBuilder().startObject().field("template", multiQuery).endObject()));
+
+      indexRandom(true,builders);
+
+      builders.clear();
+
+      builders.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}"));
+      builders.add(client().prepareIndex("test", "type", "2").setSource("{\"theField\":\"foo 2\"}"));
+      builders.add(client().prepareIndex("test", "type", "3").setSource("{\"theField\":\"foo 3\"}"));
+      builders.add(client().prepareIndex("test", "type", "4").setSource("{\"theField\":\"foo 4\"}"));
+      builders.add(client().prepareIndex("test", "type", "5").setSource("{\"theField\":\"bar\"}"));
+
+      indexRandom(true,builders);
+
+      Map<String, Object> arrayTemplateParams = new HashMap<>();
+      String[] fieldParams = {"foo","bar"};
+      arrayTemplateParams.put("fieldParam", fieldParams);
+
+      SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").
+              setTemplateName("/mustache/4").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(arrayTemplateParams).get();
+      assertHitCount(searchResponse, 5);
+    }
+
 }

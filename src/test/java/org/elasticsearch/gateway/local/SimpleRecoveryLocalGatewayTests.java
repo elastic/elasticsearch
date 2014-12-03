@@ -35,8 +35,8 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockDirectoryHelper;
+import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -54,7 +54,6 @@ import static org.hamcrest.Matchers.*;
  */
 @ClusterScope(numDataNodes = 0, scope = Scope.TEST)
 @Slow
-@TestLogging("index.shard.service:TRACE,index.gateway.local:TRACE")
 public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTest {
 
     private ImmutableSettings.Builder settingsBuilder() {
@@ -348,6 +347,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
     public void testReusePeerRecovery() throws Exception {
         ImmutableSettings.Builder settings = settingsBuilder()
                 .put("action.admin.cluster.node.shutdown.delay", "10ms")
+                .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
                 .put("gateway.recover_after_nodes", 4)
                 .put(MockDirectoryHelper.CRASH_INDEX, false);
 
@@ -360,10 +360,13 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
                 client().admin().indices().prepareFlush().execute().actionGet();
             }
         }
-        client().admin().indices().prepareFlush().execute().actionGet();
-
+        if (randomBoolean()) {
+            client().admin().indices().prepareFlush().execute().actionGet();
+        }
         logger.info("Running Cluster Health");
         ensureGreen();
+        client().admin().indices().prepareOptimize("test").setWaitForMerge(true).setMaxNumSegments(100).get(); // just wait for merges
+        client().admin().indices().prepareFlush().setWaitIfOngoing(true).setForce(true).execute().actionGet();
 
         logger.info("--> shutting down the nodes");
         // prevent any rebalance actions during the peer recovery

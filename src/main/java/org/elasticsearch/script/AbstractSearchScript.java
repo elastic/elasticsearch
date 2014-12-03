@@ -44,6 +44,7 @@ import java.util.Map;
 public abstract class AbstractSearchScript extends AbstractExecutableScript implements SearchScript {
 
     private SearchLookup lookup;
+    private Scorer scorer;
 
     /**
      * Returns the doc lookup allowing to access field data (cached) values as well as the current document score
@@ -51,6 +52,13 @@ public abstract class AbstractSearchScript extends AbstractExecutableScript impl
      */
     protected final DocLookup doc() {
         return lookup.doc();
+    }
+
+    /**
+     * Returns the current score and only applicable when used as a scoring script in a custom score query!.
+     */
+    protected final float score() throws IOException {
+        return scorer.score();
     }
 
     /**
@@ -101,7 +109,7 @@ public abstract class AbstractSearchScript extends AbstractExecutableScript impl
 
     @Override
     public void setScorer(Scorer scorer) {
-        throw new UnsupportedOperationException();
+        this.scorer = scorer;
     }
 
     @Override

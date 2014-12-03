@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.get;
 
-import com.google.common.collect.ObjectArrays;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 
@@ -33,13 +33,31 @@ public class GetIndexRequestBuilder extends ClusterInfoRequestBuilder<GetIndexRe
         super(client, new GetIndexRequest().indices(indices));
     }
 
-    public GetIndexRequestBuilder setFeatures(String... features) {
+    public GetIndexRequestBuilder setFeatures(Feature... features) {
         request.features(features);
         return this;
     }
 
-    public GetIndexRequestBuilder addFeatures(String... features) {
-        request.features(ObjectArrays.concat(request.features(), features, String.class));
+    public GetIndexRequestBuilder addFeatures(Feature... features) {
+        request.addFeatures(features);
+        return this;
+    }
+
+    /**
+     * @deprecated use {@link #setFeatures(Feature[])} instead
+     */
+    @Deprecated
+    public GetIndexRequestBuilder setFeatures(String... featureNames) {
+        request.features(featureNames);
+        return this;
+    }
+
+    /**
+     * @deprecated use {@link #addFeatures(Feature[])} instead
+     */
+    @Deprecated
+    public GetIndexRequestBuilder addFeatures(String... featureNames) {
+        request.addFeatures(featureNames);
         return this;
     }
 

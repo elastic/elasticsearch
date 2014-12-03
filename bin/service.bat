@@ -1,6 +1,8 @@
 @echo off
 SETLOCAL
 
+TITLE Elasticsearch Service ${project.version}
+
 if NOT DEFINED JAVA_HOME goto err
 
 set SCRIPT_DIR=%~dp0
@@ -42,8 +44,6 @@ set SERVICE_ID=%1
 :checkServiceCmd
 
 if "%LOG_OPTS%" == "" set LOG_OPTS=--LogPath "%LOG_DIR%" --LogPrefix "%SERVICE_ID%" --StdError auto --StdOutput auto
-
-TITLE Elasticsearch Service ${project.version}
 
 if /i %SERVICE_CMD% == install goto doInstall
 if /i %SERVICE_CMD% == remove goto doRemove
@@ -127,43 +127,13 @@ if NOT "%ES_HEAP_SIZE%" == "" set ES_MAX_MEM=%ES_HEAP_SIZE%
 call:convertxm %ES_MIN_MEM% JVM_XMS
 call:convertxm %ES_MAX_MEM% JVM_XMX
 
-rem java_opts might be empty - init to avoid tripping commons daemon (if the command starts with ;)
-if not "%JAVA_OPTS%" == "" set JAVA_OPTS=%JAVA_OPTS% -XX:+UseParNewGC
+REM java_opts might be empty - init to avoid tripping commons daemon (if the command starts with ;)
 if "%JAVA_OPTS%" == "" set JAVA_OPTS=-XX:+UseParNewGC
 
-if NOT "%ES_HEAP_NEWSIZE%" == "" set JAVA_OPTS=%JAVA_OPTS% -Xmn%ES_HEAP_NEWSIZE%
-
-if NOT "%ES_DIRECT_SIZE%" == "" set JAVA_OPTS=%JAVA_OPTS% -XX:MaxDirectMemorySize=%ES_DIRECT_SIZE%
+CALL "%ES_HOME%\bin\elasticsearch.in.bat"
 
 rem thread stack size
 set JVM_SS=256
-
-REM Enable aggressive optimizations in the JVM
-REM    - Disabled by default as it might cause the JVM to crash
-REM set JAVA_OPTS=%JAVA_OPTS% -XX:+AggressiveOpts
-
-
-set JAVA_OPTS=%JAVA_OPTS% -XX:+UseConcMarkSweepGC
-
-set JAVA_OPTS=%JAVA_OPTS% -XX:CMSInitiatingOccupancyFraction=75
-set JAVA_OPTS=%JAVA_OPTS% -XX:+UseCMSInitiatingOccupancyOnly
-
-REM GC logging options -- uncomment to enable
-REM JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCDetails
-REM JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCTimeStamps
-REM JAVA_OPTS=%JAVA_OPTS% -XX:+PrintClassHistogram
-REM JAVA_OPTS=%JAVA_OPTS% -XX:+PrintTenuringDistribution
-REM JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCApplicationStoppedTime
-REM JAVA_OPTS=%JAVA_OPTS% -Xloggc:/var/log/elasticsearch/gc.log
-
-REM Causes the JVM to dump its heap on OutOfMemory.
-set JAVA_OPTS=%JAVA_OPTS% -XX:+HeapDumpOnOutOfMemoryError
-REM The path to the heap dump location, note directory must exists and have enough
-REM space for a full heap dump.
-REM JAVA_OPTS=%JAVA_OPTS% -XX:HeapDumpPath=$ES_HOME/logs/heapdump.hprof
-
-REM Disables explicit GC
-set JAVA_OPTS=%JAVA_OPTS% -XX:+DisableExplicitGC
 
 if "%DATA_DIR%" == "" set DATA_DIR=%ES_HOME%\data
 
@@ -173,7 +143,6 @@ if "%CONF_DIR%" == "" set CONF_DIR=%ES_HOME%\config
 
 if "%CONF_FILE%" == "" set CONF_FILE=%ES_HOME%\config\elasticsearch.yml
 
-set ES_CLASSPATH=%ES_CLASSPATH%;%ES_HOME%/lib/elasticsearch-%ES_VERSION%.jar;%ES_HOME%/lib/*;%ES_HOME%/lib/sigar/*
 set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.default.config="%CONF_FILE%";-Des.default.path.home="%ES_HOME%";-Des.default.path.logs="%LOG_DIR%";-Des.default.path.data="%DATA_DIR%";-Des.default.path.work="%WORK_DIR%";-Des.default.path.conf="%CONF_DIR%"
 
 set JVM_OPTS=%JAVA_OPTS: =;%
@@ -198,7 +167,6 @@ goto:eof
 :err
 echo JAVA_HOME environment variable must be set!
 pause
-
 goto:eof
 
 rem ---

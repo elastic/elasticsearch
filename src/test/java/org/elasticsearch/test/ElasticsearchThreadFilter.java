@@ -21,7 +21,6 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.ThreadFilter;
 import org.elasticsearch.common.network.MulticastChannel;
-import org.elasticsearch.test.hamcrest.RegexMatcher;
 import org.elasticsearch.tribe.TribeTests;
 
 import java.util.regex.Pattern;
@@ -40,6 +39,7 @@ public final class ElasticsearchThreadFilter implements ThreadFilter {
             Pattern.quote(ElasticsearchIntegrationTest.GLOBAL_CLUSTER_NODE_PREFIX) + "|" +
             Pattern.quote(ElasticsearchIntegrationTest.SUITE_CLUSTER_NODE_PREFIX) + "|" +
             Pattern.quote(ElasticsearchIntegrationTest.TEST_CLUSTER_NODE_PREFIX) + "|" +
+            Pattern.quote(ExternalTestCluster.EXTERNAL_CLUSTER_PREFIX) + "|" +
             Pattern.quote(TribeTests.SECOND_CLUSTER_NODE_PREFIX) + ")"
             + ")\\d+\\]");
 

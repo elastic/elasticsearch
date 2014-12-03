@@ -20,6 +20,7 @@ package org.elasticsearch.snapshots;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
@@ -125,8 +126,10 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
         client().admin().indices().prepareUpdateSettings(indices).setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
 
         logger.info("--> close indices");
-
         client().admin().indices().prepareClose("index_before_*").get();
+
+        logger.info("--> verify repository");
+        client().admin().cluster().prepareVerifyRepository("test-repo").get();
 
         logger.info("--> restore all indices from the snapshot");
         RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-1").setWaitForCompletion(true).execute().actionGet();
@@ -182,7 +185,7 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
         }
         indexRandom(true, builders);
         flushAndRefresh();
-        assertNoFailures(client().admin().indices().prepareOptimize("test").setForce(true).setFlush(true).setWaitForMerge(true).setMaxNumSegments(1).get());
+        assertNoFailures(client().admin().indices().prepareOptimize("test").setFlush(true).setWaitForMerge(true).setMaxNumSegments(1).get());
 
         CreateSnapshotResponse createSnapshotResponseFirst = client.admin().cluster().prepareCreateSnapshot("test-repo", "test").setWaitForCompletion(true).setIndices("test").get();
         assertThat(createSnapshotResponseFirst.getSnapshotInfo().successfulShards(), greaterThan(0));

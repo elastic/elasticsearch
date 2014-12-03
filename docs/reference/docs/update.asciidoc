@@ -145,8 +145,6 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
     }
 }'
 --------------------------------------------------
-added[1.4.0.Beta1]
-
 If the document does not exist you may want your update script to
 run anyway in order to initialize the document contents using 
 business logic unknown to the client. In this case pass the
@@ -236,3 +234,7 @@ It also allows to update the `ttl` of a document using `ctx._ttl` and
 timestamp using `ctx._timestamp`. Note that if the timestamp is not
 updated and not extracted from the `_source` it will be set to the
 update date.
+
+In addition to `_source`, the following variables are available through
+the `ctx` map: `_index`, `_type`, `_id`, `_version`, `_routing`,
+`_parent`, `_timestamp`, `_ttl`.

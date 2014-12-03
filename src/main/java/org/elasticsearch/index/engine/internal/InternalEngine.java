@@ -272,7 +272,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             try {
                 this.indexWriter = createWriter();
                 mergeScheduler.removeListener(this.throttle);
-                this.throttle = new IndexThrottle(mergeScheduler.getMaxMerges(), logger);
+                this.throttle = new IndexThrottle(mergeScheduler, logger, indexingService);
                 mergeScheduler.addListener(throttle);
             } catch (IOException e) {
                 maybeFailEngine(e, "start");
@@ -297,12 +297,12 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                         translogIdGenerator.set(Long.parseLong(commitUserData.get(Translog.TRANSLOG_ID_KEY)));
                     } else {
                         translogIdGenerator.set(System.currentTimeMillis());
-                        indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogIdGenerator.get())).map());
+                        indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogIdGenerator.get())));
                         indexWriter.commit();
                     }
                 } else {
                     translogIdGenerator.set(System.currentTimeMillis());
-                    indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogIdGenerator.get())).map());
+                    indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogIdGenerator.get())));
                     indexWriter.commit();
                 }
                 translog.newTranslog(translogIdGenerator.get());
@@ -838,20 +838,23 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     // disable refreshing, not dirty
                     dirty = false;
                     try {
-                        // that's ok if the index writer failed and is in inconsistent state
-                        // we will get an exception on a dirty operation, and will cause the shard
-                        // to be allocated to a different node
-                        currentIndexWriter().close(false);
+                        { // commit and close the current writer - we write the current tanslog ID just in case
+                            final long translogId = translog.currentId();
+                            indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
+                            indexWriter.commit();
+                            indexWriter.rollback();
+                        }
                         indexWriter = createWriter();
                         mergeScheduler.removeListener(this.throttle);
-                        this.throttle = new IndexThrottle(mergeScheduler.getMaxMerges(), this.logger);
+
+                        this.throttle = new IndexThrottle(mergeScheduler, this.logger, indexingService);
                         mergeScheduler.addListener(throttle);
                         // commit on a just opened writer will commit even if there are no changes done to it
                         // we rely on that for the commit data translog id key
                         if (flushNeeded || flush.force()) {
                             flushNeeded = false;
                             long translogId = translogIdGenerator.incrementAndGet();
-                            indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
+                            indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
                             indexWriter.commit();
                             translog.newTranslog(translogId);
                         }
@@ -884,7 +887,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                         try {
                             long translogId = translogIdGenerator.incrementAndGet();
                             translog.newTransientTranslog(translogId);
-                            indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
+                            indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
                             indexWriter.commit();
                             // we need to refresh in order to clear older version values
                             refresh(new Refresh("version_table_flush").force(true));
@@ -917,7 +920,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     // other flushes use flushLock
                     try {
                         long translogId = translog.currentId();
-                        indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
+                        indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
                         indexWriter.commit();
                     } catch (Throwable e) {
                         throw new FlushFailedEngineException(shardId, e);
@@ -1025,27 +1028,22 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     @Override
     public void optimize(Optimize optimize) throws EngineException {
         if (optimizeMutex.compareAndSet(false, true)) {
-            ElasticsearchMergePolicy elasticsearchMergePolicy = null;
             try (InternalLock _ = readLock.acquire()) {
                 final IndexWriter writer = currentIndexWriter();
 
-                if (writer.getConfig().getMergePolicy() instanceof ElasticsearchMergePolicy) {
-                    elasticsearchMergePolicy = (ElasticsearchMergePolicy) writer.getConfig().getMergePolicy();
-                }
-                if (optimize.force() && elasticsearchMergePolicy == null) {
-                    throw new ElasticsearchIllegalStateException("The `force` flag can only be used if the merge policy is an instance of "
-                            + ElasticsearchMergePolicy.class.getSimpleName() + ", got [" + writer.getConfig().getMergePolicy().getClass().getName() + "]");
-                }
-
                 /*
-                 * The way we implement "forced forced merges" is a bit hackish in the sense that we set an instance variable and that this
-                 * setting will thus apply to all forced merges that will be run until `force` is set back to false. However, since
-                 * InternalEngine.optimize is the only place in code where we call forceMerge and since calls are protected with
-                 * `optimizeMutex`, this has the expected behavior.
+                 * The way we implement upgrades is a bit hackish in the sense that we set an instance
+                 * variable and that this setting will thus apply to the next forced merge that will be run.
+                 * This is ok because (1) this is the only place we call forceMerge, (2) we have a single
+                 * thread for optimize, and the 'optimizeMutex' guarding this code, and (3) ConcurrentMergeScheduler
+                 * syncs calls to findForcedMerges.
                  */
-                if (optimize.force()) {
-                    elasticsearchMergePolicy.setForce(true);
+                MergePolicy mp = writer.getConfig().getMergePolicy();
+                assert mp instanceof ElasticsearchMergePolicy : "MergePolicy is " + mp.getClass().getName();
+                if (optimize.upgrade()) {
+                    ((ElasticsearchMergePolicy)mp).setUpgradeInProgress(true);
                 }
+                
                 if (optimize.onlyExpungeDeletes()) {
                     writer.forceMergeDeletes(false);
                 } else if (optimize.maxNumSegments() <= 0) {
@@ -1058,9 +1056,6 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 maybeFailEngine(t, "optimize");
                 throw new OptimizeFailedEngineException(shardId, t);
             } finally {
-                if (elasticsearchMergePolicy != null) {
-                    elasticsearchMergePolicy.setForce(false);
-                }
                 optimizeMutex.set(false);
             }
         }
@@ -1291,6 +1286,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     indexSettingsService.removeListener(applySettings);
                     this.versionMap.clear();
                     this.failedEngineListeners.clear();
+                    logger.debug("close searcherManager");
                     try {
                         IOUtils.close(searcherManager);
                     } catch (Throwable t) {
@@ -1298,11 +1294,13 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     }
                     // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
                     if (indexWriter != null) {
+                        logger.debug("rollback indexWriter");
                         try {
                             indexWriter.rollback();
                         } catch (AlreadyClosedException e) {
                             // ignore
                         }
+                        logger.debug("rollback indexWriter done");
                     }
                 } catch (Throwable e) {
                     logger.warn("failed to rollback writer on close", e);
@@ -1496,12 +1494,10 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             int indexConcurrency = settings.getAsInt(INDEX_INDEX_CONCURRENCY, InternalEngine.this.indexConcurrency);
             boolean failOnMergeFailure = settings.getAsBoolean(INDEX_FAIL_ON_MERGE_FAILURE, InternalEngine.this.failOnMergeFailure);
             String codecName = settings.get(INDEX_CODEC, InternalEngine.this.codecName);
-            final boolean codecBloomLoad = settings.getAsBoolean(CodecService.INDEX_CODEC_BLOOM_LOAD, codecService.isLoadBloomFilter());
             boolean requiresFlushing = false;
             if (indexConcurrency != InternalEngine.this.indexConcurrency ||
                     !codecName.equals(InternalEngine.this.codecName) ||
-                    failOnMergeFailure != InternalEngine.this.failOnMergeFailure ||
-                    codecBloomLoad != codecService.isLoadBloomFilter()) {
+                    failOnMergeFailure != InternalEngine.this.failOnMergeFailure) {
                 try (InternalLock _ = readLock.acquire()) {
                     if (indexConcurrency != InternalEngine.this.indexConcurrency) {
                         logger.info("updating index.index_concurrency from [{}] to [{}]", InternalEngine.this.indexConcurrency, indexConcurrency);
@@ -1518,12 +1514,6 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     if (failOnMergeFailure != InternalEngine.this.failOnMergeFailure) {
                         logger.info("updating {} from [{}] to [{}]", InternalEngine.INDEX_FAIL_ON_MERGE_FAILURE, InternalEngine.this.failOnMergeFailure, failOnMergeFailure);
                         InternalEngine.this.failOnMergeFailure = failOnMergeFailure;
-                    }
-                    if (codecBloomLoad != codecService.isLoadBloomFilter()) {
-                        logger.info("updating {} from [{}] to [{}]", CodecService.INDEX_CODEC_BLOOM_LOAD, codecService.isLoadBloomFilter(), codecBloomLoad);
-                        codecService.setLoadBloomFilter(codecBloomLoad);
-                        // we need to flush in this case, to load/unload the bloom filters
-                        requiresFlushing = true;
                     }
                 }
                 if (requiresFlushing) {
@@ -1724,20 +1714,23 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     }
 
 
-    private static final class IndexThrottle implements MergeSchedulerProvider.Listener {
+
+    static final class IndexThrottle implements MergeSchedulerProvider.Listener {
 
         private static final InternalLock NOOP_LOCK = new InternalLock(new NoOpLock());
         private final InternalLock lockReference = new InternalLock(new ReentrantLock());
         private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
         private final AtomicBoolean isThrottling = new AtomicBoolean();
-        private final int maxNumMerges;
+        private final MergeSchedulerProvider mergeScheduler;
         private final ESLogger logger;
+        private final ShardIndexingService indexingService;
 
         private volatile InternalLock lock = NOOP_LOCK;
 
-        public IndexThrottle(int maxNumMerges, ESLogger logger) {
-            this.maxNumMerges = maxNumMerges;
+        public IndexThrottle(MergeSchedulerProvider mergeScheduler, ESLogger logger, ShardIndexingService indexingService) {
+            this.mergeScheduler = mergeScheduler;
             this.logger = logger;
+            this.indexingService = indexingService;
         }
 
         public Releasable acquireThrottle() {
@@ -1746,9 +1739,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
         @Override
         public synchronized void beforeMerge(OnGoingMerge merge) {
+            int maxNumMerges = mergeScheduler.getMaxMerges();
             if (numMergesInFlight.incrementAndGet() > maxNumMerges) {
                 if (isThrottling.getAndSet(true) == false) {
                     logger.info("now throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
+                    indexingService.throttlingActivated();
                 }
                 lock = lockReference;
             }
@@ -1756,13 +1751,16 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
         @Override
         public synchronized void afterMerge(OnGoingMerge merge) {
+            int maxNumMerges = mergeScheduler.getMaxMerges();
             if (numMergesInFlight.decrementAndGet() < maxNumMerges) {
                 if (isThrottling.getAndSet(false)) {
                     logger.info("stop throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
+                    indexingService.throttlingDeactivated();
                 }
                 lock = NOOP_LOCK;
             }
         }
+
     }
 
     private static final class NoOpLock implements Lock {

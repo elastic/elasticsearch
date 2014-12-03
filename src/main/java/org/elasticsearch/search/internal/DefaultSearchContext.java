@@ -63,6 +63,7 @@ import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.partial.PartialFieldsContext;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
@@ -184,6 +185,8 @@ public class DefaultSearchContext extends SearchContext {
     private volatile long lastAccessTime = -1;
 
     private volatile boolean useSlowScroll;
+
+    private InnerHitsContext innerHitsContext;
 
     private boolean profileQuery;
 
@@ -557,12 +560,12 @@ public class DefaultSearchContext extends SearchContext {
         return this.originalQuery;
     }
 
-    public SearchContext profiledQuery(boolean profile) {
+    public SearchContext profileQuery(boolean profile) {
         this.profileQuery = profile;
         return this;
     }
 
-    public boolean profiledQuery() {
+    public boolean profileQuery() {
         return this.profileQuery;
     }
 
@@ -748,5 +751,15 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public Counter timeEstimateCounter() {
         return timeEstimateCounter;
+    }
+
+    @Override
+    public void innerHits(InnerHitsContext innerHitsContext) {
+        this.innerHitsContext = innerHitsContext;
+    }
+
+    @Override
+    public InnerHitsContext innerHits() {
+        return innerHitsContext;
     }
 }

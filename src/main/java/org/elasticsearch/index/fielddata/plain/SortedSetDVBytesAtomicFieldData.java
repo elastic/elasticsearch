@@ -56,7 +56,7 @@ public final class SortedSetDVBytesAtomicFieldData extends AbstractAtomicOrdinal
 
     @Override
     public long ramBytesUsed() {
-        return -1; // unknown
+        return 0; // unknown
     }
 
 }

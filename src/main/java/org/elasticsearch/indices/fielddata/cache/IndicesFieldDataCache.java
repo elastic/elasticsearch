@@ -24,6 +24,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
@@ -53,6 +54,8 @@ import java.util.concurrent.TimeUnit;
 public class IndicesFieldDataCache extends AbstractComponent implements RemovalListener<IndicesFieldDataCache.Key, Accountable> {
 
     public static final String FIELDDATA_CLEAN_INTERVAL_SETTING = "indices.fielddata.cache.cleanup_interval";
+    public static final String FIELDDATA_CACHE_CONCURRENCY_LEVEL = "indices.fielddata.cache.concurrency_level";
+
 
     private final IndicesFieldDataCacheListener indicesFieldDataCacheListener;
     private final Cache<Key, Accountable> cache;
@@ -73,8 +76,12 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         if (sizeInBytes > 0) {
             cacheBuilder.maximumWeight(sizeInBytes).weigher(new FieldDataWeigher());
         }
-        // defaults to 4, but this is a busy map for all indices, increase it a bit
-        cacheBuilder.concurrencyLevel(16);
+        // defaults to 4, but this is a busy map for all indices, increase it a bit by default
+        final int concurrencyLevel =  settings.getAsInt(FIELDDATA_CACHE_CONCURRENCY_LEVEL, 16);
+        if (concurrencyLevel <= 0) {
+            throw new ElasticsearchIllegalArgumentException("concurrency_level must be > 0 but was: " + concurrencyLevel);
+        }
+        cacheBuilder.concurrencyLevel(concurrencyLevel);
         if (expire != null && expire.millis() > 0) {
             cacheBuilder.expireAfterAccess(expire.millis(), TimeUnit.MILLISECONDS);
         }

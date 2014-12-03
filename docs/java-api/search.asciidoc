@@ -62,10 +62,11 @@ SearchResponse scrollResp = client.prepareSearch(test)
         .setSize(100).execute().actionGet(); //100 hits per shard will be returned for each scroll
 //Scroll until no hits are returned
 while (true) {
-    scrollResp = client.prepareSearchScroll(scrollResp.getScrollId()).setScroll(new TimeValue(600000)).execute().actionGet();
+
     for (SearchHit hit : scrollResp.getHits()) {
         //Handle the hit...
     }
+    scrollResp = client.prepareSearchScroll(scrollResp.getScrollId()).setScroll(new TimeValue(600000)).execute().actionGet();
     //Break condition: No hits are returned
     if (scrollResp.getHits().getHits().length == 0) {
         break;
@@ -118,23 +119,29 @@ for (MultiSearchResponse.Item item : sr.getResponses()) {
 --------------------------------------------------
 
 
-[[java-search-facets]]
-=== Using Facets
+[[java-search-aggs]]
+=== Using Aggregations
 
-The following code shows how to add two facets within your search:
+The following code shows how to add two aggregations within your search:
 
 [source,java]
 --------------------------------------------------
 SearchResponse sr = node.client().prepareSearch()
     .setQuery(QueryBuilders.matchAllQuery())
-    .addFacet(FacetBuilders.termsFacet("f1").field("field"))
-    .addFacet(FacetBuilders.dateHistogramFacet("f2").field("birth").interval("year"))
+    .addAggregation(
+            AggregationBuilders.terms("agg1").field("field")
+    )
+    .addAggregation(
+            AggregationBuilders.dateHistogram("agg2")
+                    .field("birth")
+                    .interval(DateHistogram.Interval.YEAR)
+    )
     .execute().actionGet();
 
 // Get your facet results
-TermsFacet f1 = (TermsFacet) sr.getFacets().facetsAsMap().get("f1");
-DateHistogramFacet f2 = (DateHistogramFacet) sr.getFacets().facetsAsMap().get("f2");
+Terms agg1 = sr.getAggregations().get("agg1");
+DateHistogram agg2 = sr.getAggregations().get("agg2");
 --------------------------------------------------
 
-See <<java-facets,Facets Java API>>
+See <<java-aggs,Aggregations Java API>>
 documentation for details.

@@ -114,13 +114,13 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
 
     private final Float nullValue;
 
-    public BoostFieldMapper() {
-        this(Defaults.NAME, Defaults.NAME);
+    public BoostFieldMapper(Settings indexSettings) {
+        this(Defaults.NAME, Defaults.NAME, indexSettings);
     }
 
-    protected BoostFieldMapper(String name, String indexName) {
+    protected BoostFieldMapper(String name, String indexName, Settings indexSettings) {
         this(name, indexName, Defaults.PRECISION_STEP_32_BIT, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null,
-                Defaults.NULL_VALUE, null, null, null, ImmutableSettings.EMPTY);
+                Defaults.NULL_VALUE, null, null, null, indexSettings);
     }
 
     protected BoostFieldMapper(String name, String indexName, int precisionStep, float boost, FieldType fieldType, Boolean docValues, Float nullValue,

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.functionscore;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -33,6 +34,8 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.searchRequest;
@@ -46,6 +49,7 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.is;
 
 public class FunctionScoreTests extends ElasticsearchIntegrationTest {
 
@@ -204,6 +208,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
                                         .add(scriptFunction("_index['" + TEXT_FIELD + "']['value'].tf()").setWeight(2))
                         ))).actionGet();
 
+        assertSearchResponse(response);
         assertThat(response.getHits().getAt(0).getScore(), is(1.0f));
         assertThat(responseWithWeights.getHits().getAt(0).getScore(), is(8.0f));
     }
@@ -432,6 +437,76 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().getAt(0).score(), equalTo(1.0f));
         assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getKeyAsNumber().floatValue(), is(1f));
         assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getDocCount(), is(1l));
+    }
+
+    public void testMinScoreFunctionScoreBasic() throws IOException {
+        index(INDEX, TYPE, jsonBuilder().startObject().field("num", 2).endObject());
+        refresh();
+        float score = randomFloat();
+        float minScore = randomFloat();
+        SearchResponse searchResponse = client().search(
+                searchRequest().source(searchSource().query(functionScoreQuery().add(scriptFunction(Float.toString(score))).setMinScore(minScore)))
+        ).actionGet();
+        if (score < minScore) {
+            assertThat(searchResponse.getHits().getTotalHits(), is(0l));
+        } else {
+            assertThat(searchResponse.getHits().getTotalHits(), is(1l));
+        }
+
+        searchResponse = client().search(
+                searchRequest().source(searchSource().query(functionScoreQuery()
+                        .add(scriptFunction(Float.toString(score)))
+                        .add(scriptFunction(Float.toString(score)))
+                        .scoreMode("avg").setMinScore(minScore)))
+        ).actionGet();
+        if (score < minScore) {
+            assertThat(searchResponse.getHits().getTotalHits(), is(0l));
+        } else {
+            assertThat(searchResponse.getHits().getTotalHits(), is(1l));
+        }
+    }
+
+    @Test
+    public void testMinScoreFunctionScoreManyDocsAndRandomMinScore() throws IOException, ExecutionException, InterruptedException {
+        List<IndexRequestBuilder> docs = new ArrayList<>();
+        int numDocs = randomIntBetween(1, 100);
+        int scoreOffset = randomIntBetween(-2 * numDocs, 2 * numDocs);
+        int minScore = randomIntBetween(-2 * numDocs, 2 * numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            docs.add(client().prepareIndex(INDEX, TYPE, Integer.toString(i)).setSource("num", i + scoreOffset));
+        }
+        indexRandom(true, docs);
+        String script = "return (doc['num'].value)";
+        int numMatchingDocs = numDocs + scoreOffset - minScore;
+        if (numMatchingDocs < 0) {
+            numMatchingDocs = 0;
+        }
+        if (numMatchingDocs > numDocs) {
+            numMatchingDocs = numDocs;
+        }
+
+        SearchResponse searchResponse = client().search(
+                searchRequest().source(searchSource().query(functionScoreQuery()
+                        .add(scriptFunction(script))
+                        .setMinScore(minScore)).size(numDocs))).actionGet();
+        assertMinScoreSearchResponses(numDocs, searchResponse, numMatchingDocs);
+
+        searchResponse = client().search(
+                searchRequest().source(searchSource().query(functionScoreQuery()
+                        .add(scriptFunction(script))
+                        .add(scriptFunction(script))
+                        .scoreMode("avg").setMinScore(minScore)).size(numDocs))).actionGet();
+        assertMinScoreSearchResponses(numDocs, searchResponse, numMatchingDocs);
+    }
+
+    protected void assertMinScoreSearchResponses(int numDocs, SearchResponse searchResponse, int numMatchingDocs) {
+        assertSearchResponse(searchResponse);
+        assertThat((int) searchResponse.getHits().totalHits(), is(numMatchingDocs));
+        int pos = 0;
+        for (int hitId = numDocs - 1; (numDocs - hitId) < searchResponse.getHits().totalHits(); hitId--) {
+            assertThat(searchResponse.getHits().getAt(pos).getId(), equalTo(Integer.toString(hitId)));
+            pos++;
+        }
     }
 }
 

@@ -51,7 +51,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
  *
  */
 @ElasticsearchIntegrationTest.SuiteScopeTest
-public class LongTermsTests extends ElasticsearchIntegrationTest {
+public class LongTermsTests extends AbstractTermsTests {
 
     private static final int NUM_DOCS = 5; // TODO randomize the size?
     private static final String SINGLE_VALUED_FIELD_NAME = "l_value";
@@ -647,7 +647,7 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values"))
+                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "']"))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -682,7 +682,7 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
             SearchResponse response = client().prepareSearch("idx").setTypes("type")
                     .addAggregation(terms("terms")
                             .collectMode(randomFrom(SubAggCollectionMode.values()))
-                            .script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values")
+                            .script("doc['" + MULTI_VALUED_FIELD_NAME + "']")
                             .subAggregation(sum("sum")))
                     .execute().actionGet();
 
@@ -698,7 +698,7 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values")
+                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "']")
                         .valueType(Terms.ValueType.LONG)
                         .subAggregation(sum("sum")))
                 .execute().actionGet();
@@ -1238,4 +1238,8 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    @Test
+    public void otherDocCount() {
+        testOtherDocCount(SINGLE_VALUED_FIELD_NAME, MULTI_VALUED_FIELD_NAME);
+    }
 }

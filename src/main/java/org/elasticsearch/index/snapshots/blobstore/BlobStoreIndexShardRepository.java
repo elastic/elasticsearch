@@ -22,14 +22,22 @@ package org.elasticsearch.index.snapshots.blobstore;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import com.google.common.io.ByteStreams;
 import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.store.*;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.SnapshotId;
-import org.elasticsearch.common.blobstore.*;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
@@ -47,6 +55,7 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoryName;
+import org.elasticsearch.repositories.RepositoryVerificationException;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -56,6 +65,7 @@ import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static com.google.common.collect.Lists.newArrayList;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.testBlobPrefix;
 
 /**
  * Blob store based implementation of IndexShardRepository
@@ -73,6 +83,8 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
 
     private final IndicesService indicesService;
 
+    private final ClusterService clusterService;
+
     private RateLimiter snapshotRateLimiter;
 
     private RateLimiter restoreRateLimiter;
@@ -84,10 +96,11 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
     private static final String SNAPSHOT_PREFIX = "snapshot-";
 
     @Inject
-    BlobStoreIndexShardRepository(Settings settings, RepositoryName repositoryName, IndicesService indicesService) {
+    public BlobStoreIndexShardRepository(Settings settings, RepositoryName repositoryName, IndicesService indicesService, ClusterService clusterService) {
         super(settings);
         this.repositoryName = repositoryName.name();
         this.indicesService = indicesService;
+        this.clusterService = clusterService;
     }
 
     /**
@@ -168,6 +181,21 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         status.processedFiles(snapshot.numberOfFiles(), snapshot.totalSize());
         status.time(snapshot.time());
         return status;
+    }
+
+    @Override
+    public void verify(String seed) {
+        BlobContainer testBlobContainer = blobStore.blobContainer(basePath);;
+        DiscoveryNode localNode = clusterService.localNode();
+        if (testBlobContainer.blobExists(testBlobPrefix(seed) + "-master")) {
+            try (OutputStream outputStream = testBlobContainer.createOutput(testBlobPrefix(seed) + "-" + localNode.getId())) {
+                outputStream.write(Strings.toUTF8Bytes(seed));
+            } catch (IOException exp) {
+                throw new RepositoryVerificationException(repositoryName, "store location [" + blobStore + "] is not accessible on the node [" + localNode + "]", exp);
+            }
+        } else {
+            throw new RepositoryVerificationException(repositoryName, "store location [" + blobStore + "] is not shared between node [" + localNode + "] and the master node");
+        }
     }
 
     /**
@@ -676,7 +704,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         /**
          * Performs restore operation
          */
-        public void restore() {
+        public void restore() throws IOException {
             store.incRef();
             try {
                 logger.debug("[{}] [{}] restoring to [{}] ...", snapshotId, repositoryName, shardId);
@@ -687,15 +715,12 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 long totalSize = 0;
                 int numberOfReusedFiles = 0;
                 long reusedTotalSize = 0;
-                Store.MetadataSnapshot recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
+                final Store.MetadataSnapshot recoveryTargetMetadata;
                 try {
-                    recoveryTargetMetadata = store.getMetadata();
+                    recoveryTargetMetadata = store.getMetadataOrEmpty();
                 } catch (CorruptIndexException e) {
                     logger.warn("{} Can't read metadata from store", e, shardId);
                     throw new IndexShardRestoreFailedException(shardId, "Can't restore corrupted shard", e);
-                } catch (Throwable e) {
-                    // if the index is broken we might not be able to read it
-                    logger.warn("{} Can't read metadata from store", e, shardId);
                 }
 
                 final List<FileInfo> filesToRecover = Lists.newArrayList();
@@ -777,8 +802,9 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 /// now, go over and clean files that are in the store, but were not in the snapshot
                 try {
                     for (String storeFile : store.directory().listAll()) {
-                        if (!snapshot.containPhysicalIndexFile(storeFile)) {
+                        if (!Store.isChecksum(storeFile) && !snapshot.containPhysicalIndexFile(storeFile)) {
                             try {
+                                store.logDeleteFile("restore", storeFile);
                                 store.directory().deleteFile(storeFile);
                             } catch (IOException e) {
                                 // ignore
@@ -804,7 +830,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             boolean success = false;
             RecoveryState.File file = recoveryState.getIndex().file(fileInfo.name());
             try (InputStream stream = new PartSliceStream(blobContainer, fileInfo)) {
-                try (final IndexOutput indexOutput = store.createVerifyingOutput(fileInfo.physicalName(), IOContext.DEFAULT, fileInfo.metadata())) {
+                try (final IndexOutput indexOutput = store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
                     final byte[] buffer = new byte[BUFFER_SIZE];
                     int length;
                     while((length=stream.read(buffer))>0){

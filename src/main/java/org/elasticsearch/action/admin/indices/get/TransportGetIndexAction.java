@@ -20,9 +20,11 @@
 package org.elasticsearch.action.admin.indices.get;
 
 import com.google.common.collect.ImmutableList;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -78,35 +80,32 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, ImmutableList<AliasMetaData>> aliasesResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
-        String[] features = request.features();
+        Feature[] features = request.featuresAsEnums();
         boolean doneAliases = false;
         boolean doneMappings = false;
         boolean doneSettings = false;
         boolean doneWarmers = false;
-        for (String feature : features) {
+        for (Feature feature : features) {
             switch (feature) {
-                case "_warmer":
-                case "_warmers":
+            case WARMERS:
                     if (!doneWarmers) {
                         warmersResult = state.metaData().findWarmers(concreteIndices, request.types(), Strings.EMPTY_ARRAY);
                         doneWarmers = true;
                     }
                     break;
-                case "_mapping":
-                case "_mappings":
+            case MAPPINGS:
                     if (!doneMappings) {
                         mappingsResult = state.metaData().findMappings(concreteIndices, request.types());
                         doneMappings = true;
                     }
                     break;
-                case "_alias":
-                case "_aliases":
+            case ALIASES:
                     if (!doneAliases) {
                         aliasesResult = state.metaData().findAliases(Strings.EMPTY_ARRAY, concreteIndices);
                         doneAliases = true;
                     }
                     break;
-                case "_settings":
+            case SETTINGS:
                     if (!doneSettings) {
                         ImmutableOpenMap.Builder<String, Settings> settingsMapBuilder = ImmutableOpenMap.builder();
                         for (String index : concreteIndices) {

@@ -62,4 +62,4 @@ The full command to generate the api spec is:
 
 ## License
 
-This software is licensed under the Apache 2 license.
+This software is licensed under the Apache License, version 2 ("ALv2").

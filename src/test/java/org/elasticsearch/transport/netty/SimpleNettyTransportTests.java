@@ -49,7 +49,6 @@ public class SimpleNettyTransportTests extends AbstractSimpleTransportTests {
             serviceA.connectToNode(new DiscoveryNode("C", new InetSocketTransportAddress("localhost", 9876), Version.CURRENT));
             fail();
         } catch (ConnectTransportException e) {
-//            e.printStackTrace();
             // all is well
         }
     }

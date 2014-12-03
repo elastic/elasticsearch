@@ -366,7 +366,7 @@ Having multiple groups is fine, but when combined with `operator` or
 `minimum_should_match`, it can suffer from the <<operator-min,same problem>>
 as `most_fields` or `best_fields`.
 
-You can easily rewrite this query yourself as two separate `cross_type`
+You can easily rewrite this query yourself as two separate `cross_fields`
 queries combined with a `bool` query, and apply the `minimum_should_match`
 parameter to just one of them:
 

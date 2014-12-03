@@ -82,7 +82,12 @@ public class VersionTests extends ElasticsearchTestCase {
         final int iters = scaledRandomIntBetween(100, 1000);
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion();
-            assertThat(Version.fromString(version.number()), sameInstance(version));
+            if (version.snapshot()) { // number doesn't include SNAPSHOT but the parser checks for that
+                assertEquals(Version.fromString(version.number()), version);
+            } else {
+                assertThat(Version.fromString(version.number()), sameInstance(version));
+            }
+            assertFalse(Version.fromString(version.number()).snapshot());
         }
     }
 
@@ -101,9 +106,12 @@ public class VersionTests extends ElasticsearchTestCase {
         Version.fromString("WRONG.VERSION");
     }
 
+    @Test(expected = ElasticsearchIllegalStateException.class)
+    public void testVersionNoPresentInSettings() {
+        Version.indexCreated(ImmutableSettings.builder().build());
+    }
+
     public void testVersion() {
-        // test scenario
-        assertEquals(Version.CURRENT, Version.indexCreated(ImmutableSettings.builder().build()));
         // an actual index has a IndexMetaData.SETTING_UUID
         final Version version = randomFrom(Version.V_0_18_0, Version.V_0_90_13, Version.V_1_3_0);
         assertEquals(version, Version.indexCreated(ImmutableSettings.builder().put(IndexMetaData.SETTING_UUID, "foo").put(IndexMetaData.SETTING_VERSION_CREATED, version).build()));
@@ -116,6 +124,21 @@ public class VersionTests extends ElasticsearchTestCase {
         assertThat(Version.V_1_2_0.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0));
         assertThat(Version.V_1_2_3.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0));
         assertThat(Version.V_1_0_0_RC2.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0_RC2));
+    }
+
+    @Test
+    public void testParseVersion() {
+        final int iters = scaledRandomIntBetween(100, 1000);
+        for (int i = 0; i < iters; i++) {
+            Version version = randomVersion();
+            String stringVersion = version.toString();
+            if (version.snapshot() == false && randomBoolean()) {
+                version = new Version(version.id, true, version.luceneVersion);
+            }
+            Version parsedVersion = Version.fromString(version.toString());
+            assertEquals(version, parsedVersion);
+            assertEquals(version.snapshot(), parsedVersion.snapshot());
+        }
     }
 
     @Test

@@ -56,6 +56,8 @@ public class Lucene {
     public static final Version VERSION = Version.LATEST;
     public static final Version ANALYZER_VERSION = VERSION;
     public static final Version QUERYPARSER_VERSION = VERSION;
+    
+    public static final String LATEST_POSTINGS_FORMAT = "Lucene41";
 
     public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", AnalyzerScope.GLOBAL, new StandardAnalyzer(ANALYZER_VERSION));
     public static final NamedAnalyzer KEYWORD_ANALYZER = new NamedAnalyzer("_keyword", AnalyzerScope.GLOBAL, new KeywordAnalyzer());

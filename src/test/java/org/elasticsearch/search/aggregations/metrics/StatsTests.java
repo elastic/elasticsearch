@@ -272,7 +272,6 @@ public class StatsTests extends AbstractNumericTests {
     }
 
     @Test
-    @TestLogging("search:TRACE")
     public void testScript_ExplicitSingleValued_WithParams() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())

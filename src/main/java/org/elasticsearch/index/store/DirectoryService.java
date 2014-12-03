@@ -20,18 +20,33 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.AbstractIndexShardComponent;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.distributor.Distributor;
 
 import java.io.IOException;
 
 /**
  */
-public interface DirectoryService {
+public abstract class DirectoryService extends AbstractIndexShardComponent {
 
-    Directory[] build() throws IOException;
+    protected DirectoryService(ShardId shardId, @IndexSettings Settings indexSettings) {
+        super(shardId, indexSettings);
+    }
 
-    long throttleTimeInNanos();
+    public abstract void renameFile(Directory dir, String from, String to) throws IOException;
 
-    void renameFile(Directory dir, String from, String to) throws IOException;
+    public abstract Directory[] build() throws IOException;
 
-    void fullDelete(Directory dir) throws IOException;
+    public abstract long throttleTimeInNanos();
+
+    /**
+     * Creates a new Directory from the given distributor.
+     * The default implementation returns a new {@link org.elasticsearch.index.store.DistributorDirectory}
+     */
+    public Directory newFromDistributor(Distributor distributor) throws IOException {
+        return new DistributorDirectory(distributor);
+    }
 }

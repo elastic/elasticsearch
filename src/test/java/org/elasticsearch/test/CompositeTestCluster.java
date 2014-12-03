@@ -55,6 +55,7 @@ public class CompositeTestCluster extends TestCluster {
     private static final String NODE_PREFIX = "external_";
 
     public CompositeTestCluster(InternalTestCluster cluster, int numExternalNodes, ExternalNode externalNode) throws IOException {
+        super(cluster.seed());
         this.cluster = cluster;
         this.externalNodes = new ArrayList<>();
         this.baseExternalNode = externalNode;
@@ -228,6 +229,11 @@ public class CompositeTestCluster extends TestCluster {
     @Override
     public int numDataNodes() {
         return runningNodes().size() + cluster.numDataNodes();
+    }
+
+    @Override
+    public int numDataAndMasterNodes() {
+        return runningNodes().size() + cluster.numDataAndMasterNodes();
     }
 
     @Override

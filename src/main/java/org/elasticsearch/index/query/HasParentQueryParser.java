@@ -27,7 +27,6 @@ import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -124,14 +123,7 @@ public class HasParentQueryParser implements QueryParser {
             return null;
         }
 
-        DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
-        if (parentDocMapper == null) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] query configured 'parent_type' [" + parentType + "] is not a valid type");
-        }
-
         innerQuery.setBoost(boost);
-        // wrap the query with type query
-        innerQuery = new XFilteredQuery(innerQuery, parseContext.cacheFilter(parentDocMapper.typeFilter(), null));
         Query query = createParentQuery(innerQuery, parentType, score, parseContext);
         if (query == null) {
             return null;
@@ -145,8 +137,13 @@ public class HasParentQueryParser implements QueryParser {
     }
 
     static Query createParentQuery(Query innerQuery, String parentType, boolean score, QueryParseContext parseContext) {
+        DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
+        if (parentDocMapper == null) {
+            throw new QueryParsingException(parseContext.index(), "[has_parent] query configured 'parent_type' [" + parentType + "] is not a valid type");
+        }
+
         Set<String> parentTypes = new HashSet<>(5);
-        parentTypes.add(parentType);
+        parentTypes.add(parentDocMapper.type());
         ParentChildIndexFieldData parentChildIndexFieldData = null;
         for (DocumentMapper documentMapper : parseContext.mapperService().docMappers(false)) {
             ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
@@ -184,11 +181,13 @@ public class HasParentQueryParser implements QueryParser {
             return null;
         }
 
-        FixedBitSetFilter childrenFilter = parseContext.fixedBitSetFilter(new NotFilter(parentFilter));
+        // wrap the query with type query
+        innerQuery = new XFilteredQuery(innerQuery, parseContext.cacheFilter(parentDocMapper.typeFilter(), null));
+        Filter childrenFilter = parseContext.cacheFilter(new NotFilter(parentFilter), null);
         if (score) {
-            return new ParentQuery(parentChildIndexFieldData, innerQuery, parentType, childrenFilter);
+            return new ParentQuery(parentChildIndexFieldData, innerQuery, parentDocMapper.type(), childrenFilter);
         } else {
-            return new ParentConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, childrenFilter);
+            return new ParentConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentDocMapper.type(), childrenFilter);
         }
     }
 

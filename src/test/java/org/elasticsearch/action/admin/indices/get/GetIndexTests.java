@@ -20,8 +20,10 @@
 package org.elasticsearch.action.admin.indices.get;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -36,7 +38,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ElasticsearchIntegrationTest.SuiteScopeTest
 public class GetIndexTests extends ElasticsearchIntegrationTest {
@@ -68,7 +72,7 @@ public class GetIndexTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleMapping() {
-        GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices("idx").setFeatures("_mapping").get();
+        GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"), "_mapping");
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -81,7 +85,7 @@ public class GetIndexTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleMappings() {
-        GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices("idx").setFeatures("_mappings").get();
+        GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"), "_mappings");
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -94,7 +98,7 @@ public class GetIndexTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleAlias() {
-        GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices("idx").setFeatures("_alias").get();
+        GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"), "_alias");
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -107,7 +111,7 @@ public class GetIndexTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleAliases() {
-        GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices("idx").setFeatures("_aliases").get();
+        GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"), "_aliases");
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -120,7 +124,7 @@ public class GetIndexTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleSettings() {
-        GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices("idx").setFeatures("_settings").get();
+        GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"), "_settings");
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -133,7 +137,7 @@ public class GetIndexTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleWarmer() {
-        GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices("idx").setFeatures("_warmer").get();
+        GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"), "_warmer");
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -146,7 +150,7 @@ public class GetIndexTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleWarmers() {
-        GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices("idx").setFeatures("_warmers").get();
+        GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"), "_warmers");
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -162,9 +166,9 @@ public class GetIndexTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareGetIndex().addIndices("missing_idx").get();
     }
 
-    @Test(expected=ElasticsearchIllegalStateException.class)
+    @Test(expected = ElasticsearchIllegalArgumentException.class)
     public void testSimpleUnknownFeature() {
-        client().admin().indices().prepareGetIndex().addIndices("idx").setFeatures("_foo").get();
+        runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"), "_foo");
     }
 
     @Test
@@ -174,8 +178,8 @@ public class GetIndexTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numFeatures; i++) {
             features.add(randomFrom(allFeatures));
         }
-        GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices("idx")
-                .setFeatures(features.toArray(new String[features.size()])).get();
+        GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"),
+                features.toArray(new String[features.size()]));
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -222,8 +226,8 @@ public class GetIndexTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numFeatures; i++) {
             features.add(randomFrom(allFeatures));
         }
-        GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices("empty_idx")
-                .setFeatures(features.toArray(new String[features.size()])).get();
+        GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("empty_idx"),
+                features.toArray(new String[features.size()]));
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -240,6 +244,141 @@ public class GetIndexTests extends ElasticsearchIntegrationTest {
             assertEmptySettings(response);
         }
         assertEmptyWarmers(response);
+    }
+
+    @Test
+    public void testSimpleMappingEnum() {
+        GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"),
+                Feature.MAPPINGS);
+        String[] indices = response.indices();
+        assertThat(indices, notNullValue());
+        assertThat(indices.length, equalTo(1));
+        assertThat(indices[0], equalTo("idx"));
+        assertMappings(response, "idx");
+        assertEmptyAliases(response);
+        assertEmptySettings(response);
+        assertEmptyWarmers(response);
+    }
+
+    @Test
+    public void testSimpleAliasEnum() {
+        GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"),
+                Feature.ALIASES);
+        String[] indices = response.indices();
+        assertThat(indices, notNullValue());
+        assertThat(indices.length, equalTo(1));
+        assertThat(indices[0], equalTo("idx"));
+        assertAliases(response, "idx");
+        assertEmptyMappings(response);
+        assertEmptySettings(response);
+        assertEmptyWarmers(response);
+    }
+
+    @Test
+    public void testSimpleSettingsEnum() {
+        GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"),
+                Feature.SETTINGS);
+        String[] indices = response.indices();
+        assertThat(indices, notNullValue());
+        assertThat(indices.length, equalTo(1));
+        assertThat(indices[0], equalTo("idx"));
+        assertSettings(response, "idx");
+        assertEmptyAliases(response);
+        assertEmptyMappings(response);
+        assertEmptyWarmers(response);
+    }
+
+    @Test
+    public void testSimpleWarmerEnum() {
+        GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"),
+                Feature.WARMERS);
+        String[] indices = response.indices();
+        assertThat(indices, notNullValue());
+        assertThat(indices.length, equalTo(1));
+        assertThat(indices[0], equalTo("idx"));
+        assertWarmers(response, "idx");
+        assertEmptyAliases(response);
+        assertEmptyMappings(response);
+        assertEmptySettings(response);
+    }
+
+    @Test
+    public void testSimpleMixedFeaturesEnum() {
+        int numFeatures = randomIntBetween(1, Feature.values().length);
+        List<Feature> features = new ArrayList<Feature>(numFeatures);
+        for (int i = 0; i < numFeatures; i++) {
+            features.add(randomFrom(Feature.values()));
+        }
+        GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"),
+                features.toArray(new Feature[features.size()]));
+        String[] indices = response.indices();
+        assertThat(indices, notNullValue());
+        assertThat(indices.length, equalTo(1));
+        assertThat(indices[0], equalTo("idx"));
+        if (features.contains(Feature.ALIASES)) {
+            assertAliases(response, "idx");
+        } else {
+            assertEmptyAliases(response);
+        }
+        if (features.contains(Feature.MAPPINGS)) {
+            assertMappings(response, "idx");
+        } else {
+            assertEmptyMappings(response);
+        }
+        if (features.contains(Feature.SETTINGS)) {
+            assertSettings(response, "idx");
+        } else {
+            assertEmptySettings(response);
+        }
+        if (features.contains(Feature.WARMERS)) {
+            assertWarmers(response, "idx");
+        } else {
+            assertEmptyWarmers(response);
+        }
+    }
+
+    @Test
+    public void testEmptyMixedFeaturesEnum() {
+        int numFeatures = randomIntBetween(1, Feature.values().length);
+        List<Feature> features = new ArrayList<Feature>(numFeatures);
+        for (int i = 0; i < numFeatures; i++) {
+            features.add(randomFrom(Feature.values()));
+        }
+        GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("empty_idx"),
+                features.toArray(new Feature[features.size()]));
+        String[] indices = response.indices();
+        assertThat(indices, notNullValue());
+        assertThat(indices.length, equalTo(1));
+        assertThat(indices[0], equalTo("empty_idx"));
+        assertEmptyAliases(response);
+        if (features.contains(Feature.MAPPINGS)) {
+            assertEmptyOrOnlyDefaultMappings(response, "empty_idx");
+        } else {
+            assertEmptyMappings(response);
+        }
+        if (features.contains(Feature.SETTINGS)) {
+            assertNonEmptySettings(response, "empty_idx");
+        } else {
+            assertEmptySettings(response);
+        }
+        assertEmptyWarmers(response);
+    }
+
+    @Deprecated
+    private GetIndexResponse runWithRandomFeatureMethod(GetIndexRequestBuilder requestBuilder, String... features) {
+        if (randomBoolean()) {
+            return requestBuilder.addFeatures(features).get();
+        } else {
+            return requestBuilder.setFeatures(features).get();
+        }
+    }
+
+    private GetIndexResponse runWithRandomFeatureMethod(GetIndexRequestBuilder requestBuilder, Feature... features) {
+        if (randomBoolean()) {
+            return requestBuilder.addFeatures(features).get();
+        } else {
+            return requestBuilder.setFeatures(features).get();
+        }
     }
 
     @Test(expected=IndexMissingException.class)

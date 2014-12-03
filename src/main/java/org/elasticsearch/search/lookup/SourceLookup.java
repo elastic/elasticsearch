@@ -122,6 +122,10 @@ public class SourceLookup implements Map {
         this.sourceAsBytes = source;
     }
 
+    public void setNextSourceContentType(XContentType sourceContentType) {
+        this.sourceContentType = sourceContentType;
+    }
+
     public void setNextSource(Map<String, Object> source) {
         this.source = source;
     }

@@ -68,7 +68,7 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
         new AsyncAction(request, scrollId, listener).start();
     }
 
-    private class AsyncAction {
+    private class AsyncAction extends AbstractAsyncAction {
 
         private final SearchScrollRequest request;
 
@@ -83,7 +83,6 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
 
         private final AtomicInteger successfulOps;
         private final AtomicInteger counter;
-        private final long startTime = System.currentTimeMillis();
 
         private AsyncAction(SearchScrollRequest request, ParsedScrollId scrollId, ActionListener<SearchResponse> listener) {
             this.request = request;
@@ -227,7 +226,7 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
                 scrollId = TransportSearchHelper.buildScrollId(this.scrollId.getType(), queryFetchResults, this.scrollId.getAttributes()); // continue moving the total_hits
             }
             listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.getContext().length, successfulOps.get(),
-                    System.currentTimeMillis() - startTime, buildShardFailures()));
+                    buildTookInMillis(), buildShardFailures()));
         }
     }
 }

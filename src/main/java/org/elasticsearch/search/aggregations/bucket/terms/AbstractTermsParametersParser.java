@@ -82,6 +82,8 @@ public abstract class AbstractTermsParametersParser {
                     executionHint = parser.text();
                 } else if(Aggregator.COLLECT_MODE.match(currentFieldName)){
                     collectMode = SubAggCollectionMode.parse(parser.text());
+                } else if (REQUIRED_SIZE_FIELD_NAME.match(currentFieldName)) {
+                    bucketCountThresholds.setRequiredSize(parser.intValue());
                 } else {
                     parseSpecial(aggregationName, parser, context, token, currentFieldName);
                 }

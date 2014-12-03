@@ -71,7 +71,7 @@ curl -XGET localhost:9200/_search -d '
 }
 '
 --------------------------------------------------
-<1> No `query` has been specfied, so this request applies just the filter,
+<1> No `query` has been specified, so this request applies just the filter,
    returning all documents created since yesterday.
 
 ==== Multiple filters
@@ -111,7 +111,7 @@ parameter:
 {
     "filtered" : {
         "query" :   { ... },
-        "filter" :  { ... ],
+        "filter" :  { ... },
         "strategy": "leap_frog"
     }
 }

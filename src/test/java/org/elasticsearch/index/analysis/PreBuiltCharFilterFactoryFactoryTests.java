@@ -37,14 +37,12 @@ public class PreBuiltCharFilterFactoryFactoryTests extends ElasticsearchTestCase
     public void testThatDifferentVersionsCanBeLoaded() {
         PreBuiltCharFilterFactoryFactory factory = new PreBuiltCharFilterFactoryFactory(PreBuiltCharFilters.HTML_STRIP.getCharFilterFactory(Version.CURRENT));
 
-        CharFilterFactory emptySettingsTokenizerFactory = factory.create("html_strip", ImmutableSettings.EMPTY);
         CharFilterFactory former090TokenizerFactory = factory.create("html_strip", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_0).build());
         CharFilterFactory former090TokenizerFactoryCopy = factory.create("html_strip", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_0).build());
         CharFilterFactory currentTokenizerFactory = factory.create("html_strip", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
 
-        assertThat(emptySettingsTokenizerFactory, is(currentTokenizerFactory));
-        assertThat(emptySettingsTokenizerFactory, is(former090TokenizerFactory));
-        assertThat(emptySettingsTokenizerFactory, is(former090TokenizerFactoryCopy));
+        assertThat(currentTokenizerFactory, is(former090TokenizerFactory));
+        assertThat(currentTokenizerFactory, is(former090TokenizerFactoryCopy));
     }
 
 }

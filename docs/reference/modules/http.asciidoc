@@ -25,6 +25,12 @@ The following are the settings that can be configured for HTTP:
 |Setting |Description
 |`http.port` |A bind port range. Defaults to `9200-9300`.
 
+|`http.bind_host` |The host address to bind the HTTP service to. Defaults to `http.host` (if set) or `network.bind_host`.
+
+|`http.publish_host` |The host address to publish for HTTP clients to connect to. Defaults to `http.host` (if set) or `network.publish_host`.
+
+|`http.host` |Used to set the `http.bind_host` and the `http.publish_host` Defaults to `http.host` or `network.host`.
+
 |`http.max_content_length` |The max content of an HTTP request. Defaults
 to `100mb`
 
@@ -61,6 +67,9 @@ be cached for. Defaults to `1728000` (20 days)
 header should be returned. Note: This header is only returned, when the setting is
 set to `true`. Defaults to `false`
 
+|`http.pipelining` |Enable or disable HTTP pipelining, defaults to `true`.
+
+|`http.pipelining.max_events` |The maximum number of events to be queued up in memory before a HTTP connection is closed, defaults to `10000`.
 
 |=======================================================================
 

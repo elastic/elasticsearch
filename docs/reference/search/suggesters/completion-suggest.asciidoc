@@ -119,8 +119,9 @@ The following parameters are supported:
     might not yield any results, if `input` and `output` differ strongly).
 
 `weight`::
-    A positive integer, which defines a weight and allows you to
-    rank your suggestions. This field is optional.
+    A positive integer or a string containing a positive integer,
+    which defines a weight and allows you to rank your suggestions.
+    This field is optional.
 
 NOTE: Even though you will lose most of the features of the
 completion suggest, you can choose to use the following shorthand form.
@@ -179,6 +180,11 @@ appropriately. If you configured a weight for a suggestion, this weight
 is used as `score`. Also the `text` field uses the `output` of your
 indexed suggestion, if configured, otherwise the matched part of the
 `input` field.
+
+The basic completion suggester query supports the following two parameters:
+
+`field`:: The name of the field on which to run the query (required).
+`size`::  The number of suggestions to return (defaults to `5`).
 
 NOTE: The completion suggester considers all documents in the index.
 See <<suggester-context>> for an explanation of how to query a subset of

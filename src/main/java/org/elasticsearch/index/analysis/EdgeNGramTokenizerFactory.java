@@ -60,7 +60,7 @@ public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
         this.side = Lucene43EdgeNGramTokenizer.Side.getSide(settings.get("side", Lucene43EdgeNGramTokenizer.DEFAULT_SIDE.getLabel()));
         this.matcher = parseTokenChars(settings.getAsArray("token_chars"));
-        this.esVersion = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT);
+        this.esVersion = org.elasticsearch.Version.indexCreated(indexSettings);
     }
 
     @Override

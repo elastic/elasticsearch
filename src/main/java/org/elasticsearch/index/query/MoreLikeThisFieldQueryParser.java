@@ -38,6 +38,7 @@ import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQu
 /**
  *
  */
+@Deprecated
 public class MoreLikeThisFieldQueryParser implements QueryParser {
 
     public static final String NAME = "mlt_field";

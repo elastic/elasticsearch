@@ -42,12 +42,12 @@ public class OriginalIndices implements IndicesRequest {
     }
 
     public OriginalIndices(IndicesRequest indicesRequest) {
-        this.indices = indicesRequest.indices();
-        this.indicesOptions = indicesRequest.indicesOptions();
+        this(indicesRequest.indices(), indicesRequest.indicesOptions());
     }
 
     public OriginalIndices(String[] indices, IndicesOptions indicesOptions) {
         this.indices = indices;
+        assert indicesOptions != null;
         this.indicesOptions = indicesOptions;
     }
 

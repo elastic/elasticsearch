@@ -36,6 +36,7 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -130,7 +131,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
 
         @Override
         public SourceFieldMapper build(BuilderContext context) {
-            return new SourceFieldMapper(name, enabled, format, compress, compressThreshold, includes, excludes);
+            return new SourceFieldMapper(name, enabled, format, compress, compressThreshold, includes, excludes, context.indexSettings());
         }
     }
 
@@ -189,14 +190,14 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
 
     private XContentType formatContentType;
 
-    public SourceFieldMapper() {
-        this(Defaults.NAME, Defaults.ENABLED, Defaults.FORMAT, null, -1, null, null);
+    public SourceFieldMapper(Settings indexSettings) {
+        this(Defaults.NAME, Defaults.ENABLED, Defaults.FORMAT, null, -1, null, null, indexSettings);
     }
 
     protected SourceFieldMapper(String name, boolean enabled, String format, Boolean compress, long compressThreshold,
-                                String[] includes, String[] excludes) {
+                                String[] includes, String[] excludes, Settings indexSettings) {
         super(new Names(name, name, name, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null,
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, null, null, null, null, null); // Only stored.
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, null, null, null, null, indexSettings); // Only stored.
         this.enabled = enabled;
         this.compress = compress;
         this.compressThreshold = compressThreshold;

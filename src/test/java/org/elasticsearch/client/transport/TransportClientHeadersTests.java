@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.transport;
 
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;

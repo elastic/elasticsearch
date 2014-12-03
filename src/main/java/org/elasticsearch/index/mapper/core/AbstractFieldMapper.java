@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -535,8 +536,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     }
 
     @Override
-    public Query regexpQuery(Object value, int flags, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
-        RegexpQuery query = new RegexpQuery(names().createIndexNameTerm(indexedValueForSearch(value)), flags);
+    public Query regexpQuery(Object value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+        RegexpQuery query = new RegexpQuery(names().createIndexNameTerm(indexedValueForSearch(value)), flags, maxDeterminizedStates);
         if (method != null) {
             query.setRewriteMethod(method);
         }
@@ -544,8 +545,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     }
 
     @Override
-    public Filter regexpFilter(Object value, int flags, @Nullable QueryParseContext parseContext) {
-        return new RegexpFilter(names().createIndexNameTerm(indexedValueForSearch(value)), flags);
+    public Filter regexpFilter(Object value, int flags, int maxDeterminizedStates, @Nullable QueryParseContext parseContext) {
+        return new RegexpFilter(names().createIndexNameTerm(indexedValueForSearch(value)), flags, maxDeterminizedStates);
     }
 
     @Override
@@ -594,15 +595,18 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         if (this.fieldType().storeTermVectorPayloads() != fieldMergeWith.fieldType().storeTermVectorPayloads()) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different store_term_vector_payloads values");
         }
-        if (this.indexAnalyzer == null) {
-            if (fieldMergeWith.indexAnalyzer != null) {
+        
+        // null and "default"-named index analyzers both mean the default is used
+        if (this.indexAnalyzer == null || "default".equals(this.indexAnalyzer.name())) {
+            if (fieldMergeWith.indexAnalyzer != null && !"default".equals(fieldMergeWith.indexAnalyzer.name())) {
                 mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_analyzer");
             }
-        } else if (fieldMergeWith.indexAnalyzer == null) {
+        } else if (fieldMergeWith.indexAnalyzer == null || "default".equals(fieldMergeWith.indexAnalyzer.name())) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_analyzer");
         } else if (!this.indexAnalyzer.name().equals(fieldMergeWith.indexAnalyzer.name())) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_analyzer");
         }
+        
         if (!this.names().equals(fieldMergeWith.names())) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_name");
         }
@@ -936,7 +940,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
             AbstractFieldMapper mergeWithMultiField = (AbstractFieldMapper) mergeWith;
 
-            List<FieldMapper> newFieldMappers = null;
+            List<FieldMapper<?>> newFieldMappers = null;
             ImmutableOpenMap.Builder<String, Mapper> newMappersBuilder = null;
 
             for (ObjectCursor<Mapper> cursor : mergeWithMultiField.multiFields.mappers.values()) {

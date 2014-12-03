@@ -113,7 +113,7 @@ public class RootObjectMapper extends ObjectMapper {
             return new RootObjectMapper(name, enabled, dynamic, pathType, mappers,
                     dates,
                     dynamicTemplates.toArray(new DynamicTemplate[dynamicTemplates.size()]),
-                    dateDetection, numericDetection, settings);
+                    dateDetection, numericDetection);
         }
     }
 
@@ -198,9 +198,8 @@ public class RootObjectMapper extends ObjectMapper {
     private volatile DynamicTemplate dynamicTemplates[];
 
     RootObjectMapper(String name, boolean enabled, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers,
-                     FormatDateTimeFormatter[] dynamicDateTimeFormatters, DynamicTemplate dynamicTemplates[], boolean dateDetection, boolean numericDetection,
-                     @Nullable @IndexSettings Settings settings) {
-        super(name, name, enabled, Nested.NO, dynamic, pathType, mappers, settings);
+                     FormatDateTimeFormatter[] dynamicDateTimeFormatters, DynamicTemplate dynamicTemplates[], boolean dateDetection, boolean numericDetection) {
+        super(name, name, enabled, Nested.NO, dynamic, pathType, mappers);
         this.dynamicTemplates = dynamicTemplates;
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
         this.dateDetection = dateDetection;

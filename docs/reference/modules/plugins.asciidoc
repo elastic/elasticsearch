@@ -199,6 +199,7 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/synhershko/elasticsearch-analysis-hebrew[Hebrew Analysis Plugin] (by Itamar Syn-Hershko)
 * https://github.com/medcl/elasticsearch-analysis-pinyin[Pinyin Analysis Plugin] (by Medcl)
 * https://github.com/medcl/elasticsearch-analysis-string2int[String2Integer Analysis Plugin] (by Medcl)
+* https://github.com/duydo/elasticsearch-analysis-vietnamese[Vietnamese Analysis Plugin] (by Duy Do)
 
 [float]
 [[discovery-plugins]]
@@ -234,11 +235,13 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/jprante/elasticsearch-river-jdbc[JDBC River Plugin] (by Jörg Prante)
 * https://github.com/qotho/elasticsearch-river-jms[JMS River Plugin] (by Steve Sarandos)
 * https://github.com/endgameinc/elasticsearch-river-kafka[Kafka River Plugin] (by Endgame Inc.)
+* https://github.com/mariamhakobyan/elasticsearch-river-kafka[Kafka River Plugin 2] (by Mariam Hakobyan)
 * https://github.com/tlrx/elasticsearch-river-ldap[LDAP River Plugin] (by Tanguy Leroux)
 * https://github.com/richardwilly98/elasticsearch-river-mongodb/[MongoDB River Plugin] (by Richard Louapre)
 * https://github.com/sksamuel/elasticsearch-river-neo4j[Neo4j River Plugin] (by Steve Samuel)
 * https://github.com/jprante/elasticsearch-river-oai/[Open Archives Initiative (OAI) River Plugin] (by Jörg Prante)
 * https://github.com/sksamuel/elasticsearch-river-redis[Redis River Plugin] (by Steve Samuel)
+* https://github.com/rethinkdb/elasticsearch-river-rethinkdb[RethinkDB River Plugin] (by RethinkDB)
 * http://dadoonet.github.com/rssriver/[RSS River Plugin] (by David Pilato)
 * https://github.com/adamlofts/elasticsearch-river-sofa[Sofa River Plugin] (by adamlofts)
 * https://github.com/javanna/elasticsearch-river-solr/[Solr River Plugin] (by Luca Cavanna)
@@ -248,6 +251,8 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/salyh/elasticsearch-river-imap[IMAP/POP3 Email River Plugin] (by Hendrik Saly)
 * https://github.com/codelibs/elasticsearch-river-web[Web River Plugin] (by CodeLibs Project)
 * https://github.com/eea/eea.elasticsearch.river.rdf[EEA ElasticSearch RDF River Plugin] (by the European Environment Agency)
+* https://github.com/lbroudoux/es-amazon-s3-river[Amazon S3 River Plugin] (by Laurent Broudoux)
+* https://github.com/lbroudoux/es-google-drive-river[Google Drive River Plugin] (by Laurent Broudoux)
 
 [float]
 [[transport]]
@@ -300,6 +305,7 @@ You can disable that check using `plugins.check_lucene: false`.
 .Supported by the community
 
 * https://github.com/kzwang/elasticsearch-repository-gridfs[GridFS] Repository (by Kevin Wang)
+* https://github.com/wikimedia/search-repository-swift[Openstack Swift]
 
 [float]
 [[misc]]

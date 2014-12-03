@@ -70,7 +70,7 @@ public class DoubleTermsAggregator extends LongTermsAggregator {
         for (int i = 0; i < buckets.length; ++i) {
             buckets[i] = convertToDouble(buckets[i]);
         }
-        return new DoubleTerms(terms.getName(), terms.order, terms.formatter, terms.requiredSize, terms.shardSize, terms.minDocCount, Arrays.asList(buckets), terms.showTermDocCountError, terms.docCountError);
+        return new DoubleTerms(terms.getName(), terms.order, terms.formatter, terms.requiredSize, terms.shardSize, terms.minDocCount, Arrays.asList(buckets), terms.showTermDocCountError, terms.docCountError, terms.otherDocCount);
     }
 
 }

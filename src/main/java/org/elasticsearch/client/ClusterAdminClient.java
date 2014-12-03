@@ -47,6 +47,9 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequestBuilder;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
@@ -358,6 +361,21 @@ public interface ClusterAdminClient extends ElasticsearchClient<ClusterAdminClie
      * Gets repositories.
      */
     GetRepositoriesRequestBuilder prepareGetRepositories(String... name);
+
+    /**
+     * Verifies a repository.
+     */
+    ActionFuture<VerifyRepositoryResponse> verifyRepository(VerifyRepositoryRequest request);
+
+    /**
+     * Verifies a repository.
+     */
+    void verifyRepository(VerifyRepositoryRequest request, ActionListener<VerifyRepositoryResponse> listener);
+
+    /**
+     * Verifies a repository.
+     */
+    VerifyRepositoryRequestBuilder prepareVerifyRepository(String name);
 
     /**
      * Creates a new snapshot.

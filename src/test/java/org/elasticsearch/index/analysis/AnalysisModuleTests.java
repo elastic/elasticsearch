@@ -24,7 +24,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ar.ArabicNormalizationFilter;
-import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.fa.PersianNormalizationFilter;
 import org.apache.lucene.analysis.miscellaneous.KeywordRepeatFilter;
@@ -47,11 +46,9 @@ import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.MatcherAssert;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.*;
-import java.lang.reflect.Field;
 import java.util.Set;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -76,15 +73,20 @@ public class AnalysisModuleTests extends ElasticsearchTestCase {
         return injector.getInstance(AnalysisService.class);
     }
 
+    private static Settings loadFromClasspath(String path) {
+        return settingsBuilder().loadFromClasspath(path).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+
+    }
+
     @Test
     public void testSimpleConfigurationJson() {
-        Settings settings = settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/test1.json").build();
+        Settings settings = loadFromClasspath("org/elasticsearch/index/analysis/test1.json");
         testSimpleConfiguration(settings);
     }
 
     @Test
     public void testSimpleConfigurationYaml() {
-        Settings settings = settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/test1.yml").build();
+        Settings settings = loadFromClasspath("org/elasticsearch/index/analysis/test1.yml");
         testSimpleConfiguration(settings);
     }
     
@@ -115,7 +117,7 @@ public class AnalysisModuleTests extends ElasticsearchTestCase {
     }
 
     private void assertTokenFilter(String name, Class clazz) {
-        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(ImmutableSettings.settingsBuilder().build());
+        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         TokenFilterFactory tokenFilter = analysisService.tokenFilter(name);
         Tokenizer tokenizer = new WhitespaceTokenizer(Version.CURRENT.luceneVersion, new StringReader("foo bar"));
         TokenStream stream = tokenFilter.create(tokenizer);

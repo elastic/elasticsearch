@@ -323,6 +323,12 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                 @Override
                 public void onFailure(String source, Throwable t) {
                     logger.warn("[{}] failed to create snapshot", t, snapshot.snapshotId());
+                    removeSnapshotFromClusterState(snapshot.snapshotId(), null, t);
+                    try {
+                        repositoriesService.repository(snapshot.snapshotId().getRepository()).finalizeSnapshot(snapshot.snapshotId(), ExceptionsHelper.detailedMessage(t), 0, ImmutableList.<SnapshotShardFailure>of());
+                    } catch (Throwable t2) {
+                        logger.warn("[{}] failed to close snapshot in repository", snapshot.snapshotId());
+                    }
                     userCreateSnapshotListener.onFailure(t);
                 }
 
@@ -345,28 +351,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
             });
         } catch (Throwable t) {
             logger.warn("failed to create snapshot [{}]", t, snapshot.snapshotId());
-            clusterService.submitStateUpdateTask("fail_snapshot [" + snapshot.snapshotId() + "]", new ClusterStateUpdateTask() {
-
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    MetaData metaData = currentState.metaData();
-                    MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                    SnapshotMetaData snapshots = metaData.custom(SnapshotMetaData.TYPE);
-                    ImmutableList.Builder<SnapshotMetaData.Entry> entries = ImmutableList.builder();
-                    for (SnapshotMetaData.Entry entry : snapshots.entries()) {
-                        if (!entry.snapshotId().equals(snapshot.snapshotId())) {
-                            entries.add(entry);
-                        }
-                    }
-                    mdBuilder.putCustom(SnapshotMetaData.TYPE, new SnapshotMetaData(entries.build()));
-                    return ClusterState.builder(currentState).metaData(mdBuilder).build();
-                }
-
-                @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.warn("[{}] failed to delete snapshot", t, snapshot.snapshotId());
-                }
-            });
+            removeSnapshotFromClusterState(snapshot.snapshotId(), null, t);
             if (snapshotCreated) {
                 try {
                     repositoriesService.repository(snapshot.snapshotId().getRepository()).finalizeSnapshot(snapshot.snapshotId(), ExceptionsHelper.detailedMessage(t), 0, ImmutableList.<SnapshotShardFailure>of());
@@ -1046,7 +1031,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                             listener.onSnapshotFailure(snapshotId, t);
                         }
                     } catch (Throwable t) {
-                        logger.warn("failed to refresh settings for [{}]", t, listener);
+                        logger.warn("failed to notify listener [{}]", t, listener);
                     }
                 }
 
@@ -1127,17 +1112,21 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                     logger.trace("adding snapshot completion listener to wait for deleted snapshot to finish");
                     addListener(new SnapshotCompletionListener() {
                         @Override
-                        public void onSnapshotCompletion(SnapshotId snapshotId, SnapshotInfo snapshot) {
-                            logger.trace("deleted snapshot completed - deleting files");
-                            removeListener(this);
-                            deleteSnapshotFromRepository(snapshotId, listener);
+                        public void onSnapshotCompletion(SnapshotId completedSnapshotId, SnapshotInfo snapshot) {
+                            if (completedSnapshotId.equals(snapshotId)) {
+                                logger.trace("deleted snapshot completed - deleting files");
+                                removeListener(this);
+                                deleteSnapshotFromRepository(snapshotId, listener);
+                            }
                         }
 
                         @Override
-                        public void onSnapshotFailure(SnapshotId snapshotId, Throwable t) {
-                            logger.trace("deleted snapshot failed - deleting files", t);
-                            removeListener(this);
-                            deleteSnapshotFromRepository(snapshotId, listener);
+                        public void onSnapshotFailure(SnapshotId failedSnapshotId, Throwable t) {
+                            if (failedSnapshotId.equals(snapshotId)) {
+                                logger.trace("deleted snapshot failed - deleting files", t);
+                                removeListener(this);
+                                deleteSnapshotFromRepository(snapshotId, listener);
+                            }
                         }
                     });
                 } else {
@@ -1203,21 +1192,22 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         for (String index : indices) {
             IndexMetaData indexMetaData = metaData.index(index);
             IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().index(index);
-            if (indexRoutingTable == null) {
-                throw new SnapshotCreationException(snapshotId, "Missing routing table for index [" + index + "]");
-            }
             for (int i = 0; i < indexMetaData.numberOfShards(); i++) {
                 ShardId shardId = new ShardId(index, i);
-                ShardRouting primary = indexRoutingTable.shard(i).primaryShard();
-                if (primary == null || !primary.assignedToNode()) {
-                    builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(null, State.MISSING, "primary shard is not allocated"));
-                } else if (clusterState.getNodes().smallestVersion().onOrAfter(Version.V_1_2_0) && (primary.relocating() || primary.initializing())) {
-                    // The WAITING state was introduced in V1.2.0 - don't use it if there are nodes with older version in the cluster
-                    builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(primary.currentNodeId(), State.WAITING));
-                } else if (!primary.started()) {
-                    builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(primary.currentNodeId(), State.MISSING, "primary shard hasn't been started yet"));
+                if (indexRoutingTable != null) {
+                    ShardRouting primary = indexRoutingTable.shard(i).primaryShard();
+                    if (primary == null || !primary.assignedToNode()) {
+                        builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(null, State.MISSING, "primary shard is not allocated"));
+                    } else if (clusterState.getNodes().smallestVersion().onOrAfter(Version.V_1_2_0) && (primary.relocating() || primary.initializing())) {
+                        // The WAITING state was introduced in V1.2.0 - don't use it if there are nodes with older version in the cluster
+                        builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(primary.currentNodeId(), State.WAITING));
+                    } else if (!primary.started()) {
+                        builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(primary.currentNodeId(), State.MISSING, "primary shard hasn't been started yet"));
+                    } else {
+                        builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(primary.currentNodeId()));
+                    }
                 } else {
-                    builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(primary.currentNodeId()));
+                    builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(null, State.MISSING, "missing routing table"));
                 }
             }
         }

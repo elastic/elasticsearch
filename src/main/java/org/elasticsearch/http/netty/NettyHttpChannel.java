@@ -28,14 +28,14 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.netty.ReleaseChannelFutureListener;
 import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.http.netty.pipelining.OrderedDownstreamChannelEvent;
+import org.elasticsearch.http.netty.pipelining.OrderedUpstreamMessageEvent;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.support.RestUtils;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.channel.ChannelFutureListener;
+import org.jboss.netty.channel.*;
 import org.jboss.netty.handler.codec.http.*;
 
 import java.util.List;
@@ -61,14 +61,20 @@ public class NettyHttpChannel extends HttpChannel {
     private final NettyHttpServerTransport transport;
     private final Channel channel;
     private final org.jboss.netty.handler.codec.http.HttpRequest nettyRequest;
+    private OrderedUpstreamMessageEvent orderedUpstreamMessageEvent = null;
     private Pattern corsPattern;
 
-    public NettyHttpChannel(NettyHttpServerTransport transport, Channel channel, NettyHttpRequest request, Pattern corsPattern) {
+    public NettyHttpChannel(NettyHttpServerTransport transport, NettyHttpRequest request, Pattern corsPattern) {
         super(request);
         this.transport = transport;
-        this.channel = channel;
+        this.channel = request.getChannel();
         this.nettyRequest = request.request();
         this.corsPattern = corsPattern;
+    }
+
+    public NettyHttpChannel(NettyHttpServerTransport transport, NettyHttpRequest request, Pattern corsPattern, OrderedUpstreamMessageEvent orderedUpstreamMessageEvent) {
+        this(transport, request, corsPattern);
+        this.orderedUpstreamMessageEvent = orderedUpstreamMessageEvent;
     }
 
     @Override
@@ -185,14 +191,25 @@ public class NettyHttpChannel extends HttpChannel {
                 }
             }
 
-            ChannelFuture future = channel.write(resp);
+            ChannelFuture future;
+
+            if (orderedUpstreamMessageEvent != null) {
+                OrderedDownstreamChannelEvent downstreamChannelEvent = new OrderedDownstreamChannelEvent(orderedUpstreamMessageEvent, 0, true, resp);
+                future = downstreamChannelEvent.getFuture();
+                channel.getPipeline().sendDownstream(downstreamChannelEvent);
+            } else {
+                future = channel.write(resp);
+            }
+
             if (response.contentThreadSafe() && content instanceof Releasable) {
                 future.addListener(new ReleaseChannelFutureListener((Releasable) content));
                 addedReleaseListener = true;
             }
+
             if (close) {
                 future.addListener(ChannelFutureListener.CLOSE);
             }
+
         } finally {
             if (!addedReleaseListener && content instanceof Releasable) {
                 ((Releasable) content).close();

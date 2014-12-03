@@ -21,9 +21,9 @@ package org.elasticsearch.node.internal;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.action.bench.BenchmarkModule;
 import org.elasticsearch.bulk.udp.BulkUdpModule;
 import org.elasticsearch.bulk.udp.BulkUdpService;
 import org.elasticsearch.cache.recycler.CacheRecycler;
@@ -102,6 +102,7 @@ import org.elasticsearch.tribe.TribeService;
 import org.elasticsearch.watcher.ResourceWatcherModule;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
@@ -154,8 +155,12 @@ public final class InternalNode implements Node {
         this.environment = new Environment(this.settings());
 
         CompressorFactory.configure(settings);
-
-        NodeEnvironment nodeEnvironment = new NodeEnvironment(this.settings, this.environment);
+        final NodeEnvironment nodeEnvironment;
+        try {
+            nodeEnvironment = new NodeEnvironment(this.settings, this.environment);
+        } catch (IOException ex) {
+            throw new ElasticsearchIllegalStateException("Failed to created node environment", ex);
+        }
 
         boolean success = false;
         try {
@@ -194,7 +199,6 @@ public final class InternalNode implements Node {
             modules.add(new ResourceWatcherModule());
             modules.add(new RepositoriesModule());
             modules.add(new TribeModule());
-            modules.add(new BenchmarkModule(settings));
 
             injector = modules.createInjector();
 

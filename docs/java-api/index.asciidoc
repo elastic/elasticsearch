@@ -53,6 +53,8 @@ include::delete-by-query.asciidoc[]
 
 include::facets.asciidoc[]
 
+include::aggs.asciidoc[]
+
 include::percolate.asciidoc[]
 
 include::query-dsl-queries.asciidoc[]

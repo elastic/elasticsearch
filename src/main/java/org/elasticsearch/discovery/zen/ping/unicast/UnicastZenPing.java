@@ -36,6 +36,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
@@ -212,44 +213,52 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     @Override
     public void ping(final PingListener listener, final TimeValue timeout) throws ElasticsearchException {
         final SendPingsHandler sendPingsHandler = new SendPingsHandler(pingHandlerIdGenerator.incrementAndGet());
-        receivedResponses.put(sendPingsHandler.id(), sendPingsHandler);
         try {
-            sendPings(timeout, null, sendPingsHandler);
-        } catch (RejectedExecutionException e) {
-            logger.debug("Ping execution rejected", e);
-            // The RejectedExecutionException can come from the fact unicastConnectExecutor is at its max down in sendPings
-            // But don't bail here, we can retry later on after the send ping has been scheduled.
-        }
-        threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new AbstractRunnable() {
-            @Override
-            protected void doRun() {
+            receivedResponses.put(sendPingsHandler.id(), sendPingsHandler);
+            try {
                 sendPings(timeout, null, sendPingsHandler);
-                threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new AbstractRunnable() {
-                    @Override
-                    protected void doRun() throws Exception {
-                        sendPings(timeout, TimeValue.timeValueMillis(timeout.millis() / 2), sendPingsHandler);
-                        sendPingsHandler.close();
-                        for (DiscoveryNode node : sendPingsHandler.nodeToDisconnect) {
-                            logger.trace("[{}] disconnecting from {}", sendPingsHandler.id(), node);
-                            transportService.disconnectFromNode(node);
+            } catch (RejectedExecutionException e) {
+                logger.debug("Ping execution rejected", e);
+                // The RejectedExecutionException can come from the fact unicastConnectExecutor is at its max down in sendPings
+                // But don't bail here, we can retry later on after the send ping has been scheduled.
+            }
+            threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new AbstractRunnable() {
+                @Override
+                protected void doRun() {
+                    sendPings(timeout, null, sendPingsHandler);
+                    threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new AbstractRunnable() {
+                        @Override
+                        protected void doRun() throws Exception {
+                            sendPings(timeout, TimeValue.timeValueMillis(timeout.millis() / 2), sendPingsHandler);
+                            sendPingsHandler.close();
+                            for (DiscoveryNode node : sendPingsHandler.nodeToDisconnect) {
+                                logger.trace("[{}] disconnecting from {}", sendPingsHandler.id(), node);
+                                transportService.disconnectFromNode(node);
+                            }
+                            listener.onPing(sendPingsHandler.pingCollection().toArray());
                         }
-                        listener.onPing(sendPingsHandler.pingCollection().toArray());
-                    }
 
-                    @Override
-                    public void onFailure(Throwable t) {
-                        logger.debug("Ping execution failed", t);
-                        sendPingsHandler.close();
-                    }
-                });
-            }
+                        @Override
+                        public void onFailure(Throwable t) {
+                            logger.debug("Ping execution failed", t);
+                            sendPingsHandler.close();
+                        }
+                    });
+                }
 
-            @Override
-            public void onFailure(Throwable t) {
-                logger.debug("Ping execution failed", t);
-                sendPingsHandler.close();
-            }
-        });
+                @Override
+                public void onFailure(Throwable t) {
+                    logger.debug("Ping execution failed", t);
+                    sendPingsHandler.close();
+                }
+            });
+        } catch (EsRejectedExecutionException ex) { // TODO: remove this once ScheduledExecutor has support for AbstractRunnable
+            sendPingsHandler.close();
+            // we are shutting down
+        } catch (Exception e) {
+            sendPingsHandler.close();
+            throw new ElasticsearchException("Ping execution failed", e);
+        }
     }
 
     class SendPingsHandler implements Closeable {
@@ -384,6 +393,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                         } catch (ConnectTransportException e) {
                             // can't connect to the node - this is a more common path!
                             logger.trace("[{}] failed to connect to {}", e, sendPingsHandler.id(), finalNodeToSend);
+                        } catch (RemoteTransportException e) {
+                            // something went wrong on the other side
+                            logger.debug("[{}] received a remote error as a response to ping {}", e, sendPingsHandler.id(), finalNodeToSend);
                         } catch (Throwable e) {
                             logger.warn("[{}] failed send ping to {}", e, sendPingsHandler.id(), finalNodeToSend);
                         } finally {
@@ -513,8 +525,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     private UnicastPingResponse handlePingRequest(final UnicastPingRequest request) {
-        if (lifecycle.stoppedOrClosed()) {
-            throw new ElasticsearchIllegalStateException("received ping request while stopped/closed");
+        if (!lifecycle.started()) {
+            throw new ElasticsearchIllegalStateException("received ping request while not started");
         }
         temporalResponses.add(request.pingResponse);
         threadPool.schedule(TimeValue.timeValueMillis(request.timeout.millis() * 2), ThreadPool.Names.SAME, new Runnable() {

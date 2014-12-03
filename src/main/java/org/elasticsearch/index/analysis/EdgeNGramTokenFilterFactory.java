@@ -53,7 +53,7 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
         this.minGram = settings.getAsInt("min_gram", NGramTokenFilter.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenFilter.DEFAULT_MAX_NGRAM_SIZE);
         this.side = EdgeNGramTokenFilter.Side.getSide(settings.get("side", Lucene43EdgeNGramTokenizer.DEFAULT_SIDE.getLabel()));
-        this.esVersion = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT);
+        this.esVersion = org.elasticsearch.Version.indexCreated(indexSettings);
     }
 
     @Override

@@ -19,7 +19,9 @@
 
 package org.elasticsearch.search.fields;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Base64;
@@ -31,21 +33,21 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -490,6 +492,27 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getAt(0).field(field).getValues().get(1).toString(), equalTo("value2"));
     }
 
+    @Test // see #8203
+    public void testSingleValueFieldDatatField() throws ExecutionException, InterruptedException {
+        createIndex("test");
+        indexRandom(true, client().prepareIndex("test", "type", "1").setSource("test_field", "foobar"));
+        refresh();
+        SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").setSource(new BytesArray(new BytesRef("{\"query\":{\"match_all\":{}},\"fielddata_fields\": \"test_field\"}"))).get();
+        assertHitCount(searchResponse, 1);
+        Map<String,SearchHitField> fields = searchResponse.getHits().getHits()[0].getFields();
+        assertThat((String)fields.get("test_field").value(), equalTo("foobar"));
+    }
+
+    @Test(expected = SearchPhaseExecutionException.class)
+    public void testInvalidFieldDataField() throws ExecutionException, InterruptedException {
+        createIndex("test");
+        if (randomBoolean()) {
+            client().prepareSearch("test").setTypes("type").setSource(new BytesArray(new BytesRef("{\"query\":{\"match_all\":{}},\"fielddata_fields\": {}}"))).get();
+        } else {
+            client().prepareSearch("test").setTypes("type").setSource(new BytesArray(new BytesRef("{\"query\":{\"match_all\":{}},\"fielddata_fields\": 1.0}"))).get();
+        }
+    }
+
     @Test
     public void testFieldsPulledFromFieldData() throws Exception {
         createIndex("test");
@@ -550,5 +573,44 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getAt(0).fields().get("date_field").value(), equalTo((Object) 1332374400000L));
         assertThat(searchResponse.getHits().getAt(0).fields().get("boolean_field").value().toString(), equalTo("T"));
 
+    }
+
+    public void testScriptFields() throws Exception {
+        assertAcked(prepareCreate("index").addMapping("type",
+                "s", "type=string,index=not_analyzed",
+                "l", "type=long",
+                "d", "type=double",
+                "ms", "type=string,index=not_analyzed",
+                "ml", "type=long",
+                "md", "type=double").get());
+        final int numDocs = randomIntBetween(3, 8);
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+        for (int i = 0; i < numDocs; ++i) {
+            reqs.add(client().prepareIndex("index", "type", Integer.toString(i)).setSource(
+                    "s", Integer.toString(i),
+                    "ms", new String[] {Integer.toString(i), Integer.toString(i+1)},
+                    "l", i,
+                    "ml", new long[] {i, i+1},
+                    "d", i,
+                    "md", new double[] {i, i+1}));
+        }
+        indexRandom(true, reqs);
+        ensureSearchable();
+        SearchRequestBuilder req = client().prepareSearch("index");
+        for (String field : Arrays.asList("s", "ms", "l", "ml", "d", "md")) {
+            req.addScriptField(field, "doc['" + field + "'].values");
+        }
+        SearchResponse resp = req.get();
+        assertSearchResponse(resp);
+        for (SearchHit hit : resp.getHits().getHits()) {
+            final int id = Integer.parseInt(hit.getId());
+            Map<String, SearchHitField> fields = hit.getFields();
+            assertThat(fields.get("s").getValue(), equalTo((Object) Collections.singletonList(Integer.toString(id))));
+            assertThat(fields.get("l").getValue(), equalTo((Object) Collections.singletonList((long) id)));
+            assertThat(fields.get("d").getValue(), equalTo((Object) Collections.singletonList((double) id)));
+            assertThat(fields.get("ms").getValue(), equalTo((Object) Arrays.asList(Integer.toString(id), Integer.toString(id + 1))));
+            assertThat(fields.get("ml").getValue(), equalTo((Object) Arrays.asList((long) id, id+1L)));
+            assertThat(fields.get("md").getValue(), equalTo((Object) Arrays.asList((double) id, id+1d)));
+        }
     }
 }

@@ -74,7 +74,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     private boolean templateSourceUnsafe;
     private String templateName;
     private ScriptService.ScriptType templateType;
-    private Map<String, String> templateParams = Collections.emptyMap();
+    private Map<String, Object> templateParams = Collections.emptyMap();
 
     private BytesReference source;
     private boolean sourceUnsafe;
@@ -385,7 +385,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             builder.map(extraSource);
             return extraSource(builder);
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + extraSource + "]", e);
         }
     }
 
@@ -466,7 +466,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     /**
      * Template parameters used for rendering
      */
-    public void templateParams(Map<String, String> params) {
+    public void templateParams(Map<String, Object> params) {
         this.templateParams = params;
     }
 
@@ -487,7 +487,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     /**
      * Template parameters used for rendering
      */
-    public Map<String, String> templateParams() {
+    public Map<String, Object> templateParams() {
         return templateParams;
     }
 
@@ -593,7 +593,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
                 templateType = ScriptService.ScriptType.readFrom(in);
             }
             if (in.readBoolean()) {
-                templateParams = (Map<String, String>) in.readGenericValue();
+                templateParams = (Map<String, Object>) in.readGenericValue();
             }
         }
 

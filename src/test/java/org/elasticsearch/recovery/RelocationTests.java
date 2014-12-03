@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.IntOpenHashSet;
 import com.carrotsearch.hppc.procedures.IntProcedure;
 import com.google.common.base.Predicate;
 import com.google.common.util.concurrent.ListenableFuture;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -33,44 +34,69 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesLifecycle;
+import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.*;
 import org.junit.Test;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
+@TestLogging("indices.recovery:TRACE,index.shard.service:TRACE")
 public class RelocationTests extends ElasticsearchIntegrationTest {
     private final TimeValue ACCEPTABLE_RELOCATION_TIME = new TimeValue(5, TimeUnit.MINUTES);
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.builder()
+                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName()).build();
+    }
 
 
     @Test
@@ -314,7 +340,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
             indexRandom(true, true, builders2);
 
             // verify cluster was finished.
-            assertFalse(client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setTimeout("30s").get().isTimedOut());
+            assertFalse(client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setWaitForEvents(Priority.LANGUID).setTimeout("30s").get().isTimedOut());
             logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
 
             logger.debug("--> verifying all searches return the same number of docs");
@@ -337,14 +363,14 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
         final String indexName = "test";
 
         ListenableFuture<String> blueFuture = internalCluster().startNodeAsync(ImmutableSettings.builder().put("node.color", "blue").build());
-        internalCluster().startNodeAsync(ImmutableSettings.builder().put("node.color", "green").build());
         ListenableFuture<String> redFuture = internalCluster().startNodeAsync(ImmutableSettings.builder().put("node.color", "red").build());
+        internalCluster().startNode(ImmutableSettings.builder().put("node.color", "green").build());
+        final String blueNodeName = blueFuture.get();
+        final String redNodeName = redFuture.get();
 
         ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes(">=3").get();
         assertThat(response.isTimedOut(), is(false));
 
-        String blueNodeName = blueFuture.get();
-        final String redNodeName = redFuture.get();
 
         client().admin().indices().prepareCreate(indexName)
                 .setSettings(
@@ -415,6 +441,115 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
 
         stateResponse = client().admin().cluster().prepareState().get();
         assertTrue(stateResponse.getState().readOnlyRoutingNodes().node(blueNodeId).isEmpty());
+    }
+
+    @Test
+    @Slow
+    public void testCancellationCleansTempFiles() throws Exception {
+        final String indexName = "test";
+
+        final String p_node = internalCluster().startNode();
+
+        client().admin().indices().prepareCreate(indexName)
+                .setSettings(ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();
+
+        internalCluster().startNodesAsync(2).get();
+
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        int numDocs = scaledRandomIntBetween(25, 250);
+        for (int i = 0; i < numDocs; i++) {
+            requests.add(client().prepareIndex(indexName, "type").setCreate(true).setSource("{}"));
+        }
+        indexRandom(true, requests);
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("3").setWaitForGreenStatus().get().isTimedOut());
+        flush();
+
+        int allowedFailures = randomIntBetween(3, 10);
+        logger.info("--> blocking recoveries from primary (allowed failures: [{}])", allowedFailures);
+        CountDownLatch corruptionCount = new CountDownLatch(allowedFailures);
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, p_node);
+        MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, p_node);
+        for (DiscoveryNode node : clusterService.state().nodes()) {
+            if (!node.equals(clusterService.localNode())) {
+                mockTransportService.addDelegate(node, new RecoveryCorruption(mockTransportService.original(), corruptionCount));
+            }
+        }
+
+        client().admin().indices().prepareUpdateSettings(indexName).setSettings(ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)).get();
+
+        corruptionCount.await();
+
+        logger.info("--> stopping replica assignment");
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(ImmutableSettings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")));
+
+        logger.info("--> wait for all replica shards to be removed, on all nodes");
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                for (String node : internalCluster().getNodeNames()) {
+                    if (node.equals(p_node)) {
+                        continue;
+                    }
+                    ClusterState state = client(node).admin().cluster().prepareState().setLocal(true).get().getState();
+                    assertThat(node + " indicates assigned replicas",
+                            state.getRoutingTable().index(indexName).shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
+                }
+            }
+        });
+
+        logger.info("--> verifying no temporary recoveries are left");
+        for (String node : internalCluster().getNodeNames()) {
+            NodeEnvironment nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, node);
+            for (final File shardLoc : nodeEnvironment.shardLocations(new ShardId(indexName, 0))) {
+                assertBusy(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            Files.walkFileTree(shardLoc.toPath(), new SimpleFileVisitor<Path>() {
+                                @Override
+                                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                                    assertThat("found a temporary recovery file: " + file, file.getFileName().toString(), not(startsWith("recovery.")));
+                                    return FileVisitResult.CONTINUE;
+                                }
+                            });
+                        } catch (IOException e) {
+                            throw new AssertionError("failed to walk file tree starting at [" + shardLoc.toPath() + "]", e);
+                        }
+                    }
+                });
+            }
+        }
+    }
+
+    class RecoveryCorruption extends MockTransportService.DelegateTransport {
+
+        private final CountDownLatch corruptionCount;
+
+        public RecoveryCorruption(Transport transport, CountDownLatch corruptionCount) {
+            super(transport);
+            this.corruptionCount = corruptionCount;
+        }
+
+        @Override
+        public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+//            if (action.equals(RecoveryTarget.Actions.PREPARE_TRANSLOG)) {
+//                logger.debug("dropped [{}] to {}", action, node);
+            //} else
+            if (action.equals(RecoveryTarget.Actions.FILE_CHUNK)) {
+                RecoveryFileChunkRequest chunkRequest = (RecoveryFileChunkRequest) request;
+                if (chunkRequest.name().startsWith(IndexFileNames.SEGMENTS)) {
+                    // corrupting the segments_N files in order to make sure future recovery re-send files
+                    logger.debug("corrupting [{}] to {}. file name: [{}]", action, node, chunkRequest.name());
+                    byte[] array = chunkRequest.content().array();
+                    array[0] = (byte) ~array[0]; // flip one byte in the content
+                    corruptionCount.countDown();
+                }
+                transport.sendRequest(node, requestId, action, request, options);
+            } else {
+                transport.sendRequest(node, requestId, action, request, options);
+            }
+        }
     }
 
 }

@@ -22,6 +22,8 @@ package org.elasticsearch.script;
 import com.google.common.base.Charsets;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.RemovalListener;
+import com.google.common.cache.RemovalNotification;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -212,7 +214,7 @@ public class ScriptService extends AbstractComponent {
                          ResourceWatcherService resourceWatcherService) {
         super(settings);
 
-        int cacheMaxSize = settings.getAsInt(SCRIPT_CACHE_SIZE_SETTING, 500);
+        int cacheMaxSize = settings.getAsInt(SCRIPT_CACHE_SIZE_SETTING, 100);
         TimeValue cacheExpire = settings.getAsTime(SCRIPT_CACHE_EXPIRE_SETTING, null);
         logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
 
@@ -226,6 +228,7 @@ public class ScriptService extends AbstractComponent {
         if (cacheExpire != null) {
             cacheBuilder.expireAfterAccess(cacheExpire.nanos(), TimeUnit.NANOSECONDS);
         }
+        cacheBuilder.removalListener(new ScriptCacheRemovalListener());
         this.cache = cacheBuilder.build();
 
         ImmutableMap.Builder<String, ScriptEngineService> builder = ImmutableMap.builder();
@@ -357,12 +360,12 @@ public class ScriptService extends AbstractComponent {
         }
     }
 
-    public GetResponse queryScriptIndex(GetIndexedScriptRequest request) {
+    public void queryScriptIndex(GetIndexedScriptRequest request, final ActionListener<GetResponse> listener) {
         String scriptLang = validateScriptLanguage(request.scriptLang());
         GetRequest getRequest = new GetRequest(request, SCRIPT_INDEX).type(scriptLang).id(request.id())
                 .version(request.version()).versionType(request.versionType())
                 .operationThreaded(false).preference("_local"); //Set preference for no forking
-        return client.get(getRequest).actionGet();
+        client.get(getRequest, listener);
     }
 
     private String validateScriptLanguage(String scriptLang) {
@@ -489,6 +492,30 @@ public class ScriptService extends AbstractComponent {
         }
     }
 
+    /**
+     * A small listener for the script cache that calls each
+     * {@code ScriptEngineService}'s {@code scriptRemoved} method when the
+     * script has been removed from the cache
+     */
+    private class ScriptCacheRemovalListener implements RemovalListener<CacheKey, CompiledScript> {
+
+        @Override
+        public void onRemoval(RemovalNotification<CacheKey, CompiledScript> notification) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("notifying script services of script removal due to: [{}]", notification.getCause());
+            }
+            for (ScriptEngineService service : scriptEngines.values()) {
+                try {
+                    service.scriptRemoved(notification.getValue());
+                } catch (Exception e) {
+                    logger.warn("exception calling script removal listener for script service", e);
+                    // We don't rethrow because Guava would just catch the
+                    // exception and log it, which we have already done
+                }
+            }
+        }
+    }
+
     private class ScriptChangesListener extends FileChangesListener {
 
         private Tuple<String, String> scriptNameExt(File file) {
@@ -543,8 +570,10 @@ public class ScriptService extends AbstractComponent {
         @Override
         public void onFileDeleted(File file) {
             Tuple<String, String> scriptNameExt = scriptNameExt(file);
-            logger.info("removing script file [{}]", file.getAbsolutePath());
-            staticCache.remove(scriptNameExt.v1());
+            if (scriptNameExt != null) {
+                logger.info("removing script file [{}]", file.getAbsolutePath());
+                staticCache.remove(scriptNameExt.v1());
+            }
         }
 
         @Override

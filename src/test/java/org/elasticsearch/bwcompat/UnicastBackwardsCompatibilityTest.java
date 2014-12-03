@@ -69,7 +69,6 @@ public class UnicastBackwardsCompatibilityTest extends ElasticsearchBackwardsCom
 
 
     @Test
-    @TestLogging("discovery.zen:TRACE")
     public void testUnicastDiscovery() throws ExecutionException, InterruptedException, IOException {
         // the backwards comparability infra will *sometimes* start one client node which will grab the first port
         // to make sure this always happens and gives us port stability start the node here.

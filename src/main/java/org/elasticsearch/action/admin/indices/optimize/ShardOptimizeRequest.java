@@ -37,7 +37,7 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
     private int maxNumSegments = OptimizeRequest.Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = OptimizeRequest.Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = OptimizeRequest.Defaults.FLUSH;
-    private boolean force = OptimizeRequest.Defaults.FORCE;
+    private boolean upgrade = OptimizeRequest.Defaults.UPGRADE;
 
     ShardOptimizeRequest() {
     }
@@ -48,7 +48,7 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         maxNumSegments = request.maxNumSegments();
         onlyExpungeDeletes = request.onlyExpungeDeletes();
         flush = request.flush();
-        force = request.force();
+        upgrade = request.force() || request.upgrade();
     }
 
     boolean waitForMerge() {
@@ -67,8 +67,8 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         return flush;
     }
 
-    public boolean force() {
-        return force;
+    public boolean upgrade() {
+        return upgrade;
     }
 
     @Override
@@ -79,7 +79,7 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-            force = in.readBoolean();
+            upgrade = in.readBoolean();
         }
     }
 
@@ -91,7 +91,7 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
         if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-            out.writeBoolean(force);
+            out.writeBoolean(upgrade);
         }
     }
 }

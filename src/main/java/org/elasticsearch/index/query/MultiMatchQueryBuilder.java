@@ -280,7 +280,7 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
 
     /**
      * <p>Tie-Breaker for "best-match" disjunction queries (OR-Queries).
-     * The tie breaker capability allows documents that match more than on query clause
+     * The tie breaker capability allows documents that match more than one query clause
      * (in this case on more than one field) to be scored better than documents that
      * match only the best of the fields, without confusing this with the better case of
      * two distinct matches in the multiple fields.</p>

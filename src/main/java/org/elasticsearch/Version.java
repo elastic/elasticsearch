@@ -202,12 +202,20 @@ public class Version implements Serializable {
     public static final Version V_1_3_4 = new Version(V_1_3_4_ID, false, org.apache.lucene.util.Version.LUCENE_4_9);
     public static final int V_1_3_5_ID = /*00*/1030599;
     public static final Version V_1_3_5 = new Version(V_1_3_5_ID, false, org.apache.lucene.util.Version.LUCENE_4_9);
+    public static final int V_1_3_6_ID = /*00*/1030699;
+    public static final Version V_1_3_6 = new Version(V_1_3_6_ID, false, org.apache.lucene.util.Version.LUCENE_4_9);
+    public static final int V_1_3_7_ID = /*00*/1030799;
+    public static final Version V_1_3_7 = new Version(V_1_3_7_ID, false, org.apache.lucene.util.Version.LUCENE_4_9);
     public static final int V_1_4_0_Beta1_ID = /*00*/1040001;
     public static final Version V_1_4_0_Beta1 = new Version(V_1_4_0_Beta1_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_1);
     public static final int V_1_4_0_ID = /*00*/1040099;
-    public static final Version V_1_4_0 = new Version(V_1_4_0_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_1);
+    public static final Version V_1_4_0 = new Version(V_1_4_0_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_2);
+    public static final int V_1_4_1_ID = /*00*/1040199;
+    public static final Version V_1_4_1 = new Version(V_1_4_1_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_2);
+    public static final int V_1_4_2_ID = /*00*/1040299;
+    public static final Version V_1_4_2 = new Version(V_1_4_2_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_2);
     public static final int V_1_5_0_ID = /*00*/1050099;
-    public static final Version V_1_5_0 = new Version(V_1_5_0_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_1);
+    public static final Version V_1_5_0 = new Version(V_1_5_0_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_3);
 
     public static final Version CURRENT = V_1_5_0;
 
@@ -223,10 +231,18 @@ public class Version implements Serializable {
         switch (id) {
             case V_1_5_0_ID:
                 return V_1_5_0;
+            case V_1_4_2_ID:
+                return V_1_4_2;
+            case V_1_4_1_ID:
+                return V_1_4_1;
             case V_1_4_0_ID:
                  return V_1_4_0;
             case V_1_4_0_Beta1_ID:
                 return V_1_4_0_Beta1;
+            case V_1_3_7_ID:
+                return V_1_3_7;
+            case V_1_3_6_ID:
+                return V_1_3_6;
             case V_1_3_5_ID:
                 return V_1_3_5;
             case V_1_3_4_ID:
@@ -392,11 +408,14 @@ public class Version implements Serializable {
 
     /**
      * Return the {@link Version} of Elasticsearch that has been used to create an index given its settings.
+     * @throws ElasticsearchIllegalStateException if the given index settings doesn't contain a value for the key {@value IndexMetaData#SETTING_VERSION_CREATED}
      */
     public static Version indexCreated(Settings indexSettings) {
-        assert indexSettings.get(IndexMetaData.SETTING_UUID) == null // if the UUDI is there the index has actually been created otherwise this might be a test
-                || indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) != null : IndexMetaData.SETTING_VERSION_CREATED + " not set in IndexSettings";
-        return indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+        final Version indexVersion = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null);
+        if (indexVersion == null) {
+            throw new ElasticsearchIllegalStateException("[" + IndexMetaData.SETTING_VERSION_CREATED + "] is not present in the index settings for index with uuid: [" + indexSettings.get(IndexMetaData.SETTING_UUID) + "]");
+        }
+        return indexVersion;
     }
 
     public static void writeVersion(Version version, StreamOutput out) throws IOException {
@@ -424,17 +443,22 @@ public class Version implements Serializable {
         if (!Strings.hasLength(version)) {
             return Version.CURRENT;
         }
-
+        final boolean snapshot;
+        if (snapshot = version.endsWith("-SNAPSHOT")) {
+            version = version.substring(0, version.length() - 9);
+        }
         String[] parts = version.split("\\.");
         if (parts.length < 3 || parts.length > 4) {
             throw new IllegalArgumentException("the version needs to contain major, minor and revision, and optionally the build");
         }
 
         try {
+
             //we reverse the version id calculation based on some assumption as we can't reliably reverse the modulo
-            int major = Integer.parseInt(parts[0]) * 1000000;
-            int minor = Integer.parseInt(parts[1]) * 10000;
-            int revision = Integer.parseInt(parts[2]) * 100;
+            final int major = Integer.parseInt(parts[0]) * 1000000;
+            final int minor = Integer.parseInt(parts[1]) * 10000;
+            final int revision = Integer.parseInt(parts[2]) * 100;
+
 
             int build = 99;
             if (parts.length == 4) {
@@ -447,7 +471,11 @@ public class Version implements Serializable {
                 }
             }
 
-            return fromId(major + minor + revision + build);
+            final Version versionFromId = fromId(major + minor + revision + build);
+            if (snapshot != versionFromId.snapshot()) {
+                return new Version(versionFromId.id, snapshot, versionFromId.luceneVersion);
+            }
+            return versionFromId;
 
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("unable to parse version " + version, e);

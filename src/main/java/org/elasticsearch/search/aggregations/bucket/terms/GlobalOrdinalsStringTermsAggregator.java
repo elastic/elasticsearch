@@ -150,6 +150,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         } else {
             size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.getShardSize());
         }
+        long otherDocCount = 0;
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
         OrdBucket spare = new OrdBucket(-1, 0, null, showTermDocCountError, 0);
         for (long globalTermOrd = 0; globalTermOrd < globalOrds.getValueCount(); ++globalTermOrd) {
@@ -161,6 +162,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             if (bucketCountThresholds.getMinDocCount() > 0 && bucketDocCount == 0) {
                 continue;
             }
+            otherDocCount += bucketDocCount;
             spare.globalOrd = globalTermOrd;
             spare.bucketOrd = bucketOrd;
             spare.docCount = bucketDocCount;
@@ -182,6 +184,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             copy(globalOrds.lookupOrd(bucket.globalOrd), scratch);
             list[i] = new StringTerms.Bucket(scratch, bucket.docCount, null, showTermDocCountError, 0);
             list[i].bucketOrd = bucket.bucketOrd;
+            otherDocCount -= list[i].docCount;
         }
         //replay any deferred collections
         runDeferredCollections(survivingBucketOrds);
@@ -193,7 +196,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
           bucket.docCountError = 0;
         }
 
-        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError, 0);
+        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError, 0, otherDocCount);
     }
     
     /** This is used internally only, just for compare using global ordinal instead of term bytes in the PQ */

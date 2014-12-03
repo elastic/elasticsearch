@@ -49,6 +49,7 @@ public class RestPutRepositoryAction extends BaseRestHandler {
         PutRepositoryRequest putRepositoryRequest = putRepositoryRequest(request.param("repository"));
         putRepositoryRequest.listenerThreaded(false);
         putRepositoryRequest.source(request.content().toUtf8());
+        putRepositoryRequest.verify(request.paramAsBoolean("verify", true));
         putRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRepositoryRequest.masterNodeTimeout()));
         putRepositoryRequest.timeout(request.paramAsTime("timeout", putRepositoryRequest.timeout()));
         client.admin().cluster().putRepository(putRepositoryRequest, new AcknowledgedRestListener<PutRepositoryResponse>(channel));

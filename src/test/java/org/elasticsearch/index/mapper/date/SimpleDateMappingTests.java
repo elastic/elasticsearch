@@ -36,7 +36,9 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.TestSearchContext;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
@@ -221,7 +223,13 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
                 .bytes());
         assertThat(((LongFieldMapper.CustomLongNumericField) doc.rootDoc().getField("date_field")).numericAsString(), equalTo(Long.toString(new DateTime(TimeValue.timeValueHours(10).millis(), DateTimeZone.UTC).getMillis())));
 
-        Filter filter = defaultMapper.mappers().smartNameFieldMapper("date_field").rangeFilter("10:00:00", "11:00:00", true, true, null);
+        Filter filter;
+        try {
+            SearchContext.setCurrent(new TestSearchContext());
+            filter = defaultMapper.mappers().smartNameFieldMapper("date_field").rangeFilter("10:00:00", "11:00:00", true, true, null);
+        } finally {
+            SearchContext.removeCurrent();
+        }
         assertThat(filter, instanceOf(NumericRangeFilter.class));
         NumericRangeFilter<Long> rangeFilter = (NumericRangeFilter<Long>) filter;
         assertThat(rangeFilter.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(11).millis() + 999).getMillis())); // +999 to include the 00-01 minute
@@ -245,7 +253,13 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
                 .bytes());
         assertThat(((LongFieldMapper.CustomLongNumericField) doc.rootDoc().getField("date_field")).numericAsString(), equalTo(Long.toString(new DateTime(TimeValue.timeValueHours(34).millis(), DateTimeZone.UTC).getMillis())));
 
-        Filter filter = defaultMapper.mappers().smartNameFieldMapper("date_field").rangeFilter("Jan 02 10:00:00", "Jan 02 11:00:00", true, true, null);
+        Filter filter;
+        try {
+            SearchContext.setCurrent(new TestSearchContext());
+            filter = defaultMapper.mappers().smartNameFieldMapper("date_field").rangeFilter("Jan 02 10:00:00", "Jan 02 11:00:00", true, true, null);
+        } finally {
+            SearchContext.removeCurrent();
+        }
         assertThat(filter, instanceOf(NumericRangeFilter.class));
         NumericRangeFilter<Long> rangeFilter = (NumericRangeFilter<Long>) filter;
         assertThat(rangeFilter.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(35).millis() + 999).getMillis())); // +999 to include the 00-01 minute

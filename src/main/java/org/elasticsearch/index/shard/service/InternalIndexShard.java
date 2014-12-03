@@ -43,6 +43,7 @@ import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
@@ -89,7 +90,7 @@ import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
-import org.elasticsearch.indices.recovery.RecoveryStatus;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -146,7 +147,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private volatile ScheduledFuture mergeScheduleFuture;
     private volatile ShardRouting shardRouting;
 
-    private RecoveryStatus recoveryStatus;
+    @Nullable
+    private RecoveryState recoveryState;
 
     private ApplyRefreshSettings applyRefreshSettings = new ApplyRefreshSettings();
 
@@ -675,14 +677,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         synchronized (mutex) {
             indexSettingsService.removeListener(applyRefreshSettings);
             if (state != IndexShardState.CLOSED) {
-                if (refreshScheduledFuture != null) {
-                    refreshScheduledFuture.cancel(true);
-                    refreshScheduledFuture = null;
-                }
-                if (mergeScheduleFuture != null) {
-                    mergeScheduleFuture.cancel(true);
-                    mergeScheduleFuture = null;
-                }
+                FutureUtils.cancel(refreshScheduledFuture);
+                refreshScheduledFuture = null;
+                FutureUtils.cancel(mergeScheduleFuture);
+                mergeScheduleFuture = null;
             }
             changeState(IndexShardState.CLOSED, reason);
         }
@@ -733,15 +731,15 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     /**
-     * The peer recovery status if this shard recovered from a peer shard.
+     * The peer recovery state if this shard recovered from a peer shard, null o.w.
      */
-    public RecoveryStatus recoveryStatus() {
-        return this.recoveryStatus;
+    public RecoveryState recoveryState() {
+        return this.recoveryState;
     }
 
-    public void performRecoveryFinalization(boolean withFlush, RecoveryStatus recoveryStatus) throws ElasticsearchException {
+    public void performRecoveryFinalization(boolean withFlush, RecoveryState recoveryState) throws ElasticsearchException {
         performRecoveryFinalization(withFlush);
-        this.recoveryStatus = recoveryStatus;
+        this.recoveryState = recoveryState;
     }
 
     public void performRecoveryFinalization(boolean withFlush) throws ElasticsearchException {
@@ -929,7 +927,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 if (!refreshInterval.equals(InternalIndexShard.this.refreshInterval)) {
                     logger.info("updating refresh_interval from [{}] to [{}]", InternalIndexShard.this.refreshInterval, refreshInterval);
                     if (refreshScheduledFuture != null) {
-                        refreshScheduledFuture.cancel(false);
+                        // NOTE: we pass false here so we do NOT attempt Thread.interrupt if EngineRefresher.run is currently running.  This is
+                        // very important, because doing so can cause files to suddenly be closed if they were doing IO when the interrupt
+                        // hit.  See https://issues.apache.org/jira/browse/LUCENE-2239
+                        FutureUtils.cancel(refreshScheduledFuture);
                         refreshScheduledFuture = null;
                     }
                     InternalIndexShard.this.refreshInterval = refreshInterval;
@@ -946,11 +947,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         public void run() {
             // we check before if a refresh is needed, if not, we reschedule, otherwise, we fork, refresh, and then reschedule
             if (!engine().refreshNeeded()) {
-                synchronized (mutex) {
-                    if (state != IndexShardState.CLOSED) {
-                        refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, this);
-                    }
-                }
+                reschedule();
                 return;
             }
             threadPool.executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
@@ -979,13 +976,19 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                             logger.warn("Failed to perform scheduled engine refresh", e);
                         }
                     }
-                    synchronized (mutex) {
-                        if (state != IndexShardState.CLOSED) {
-                            refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, EngineRefresher.this);
-                        }
-                    }
+
+                    reschedule();
                 }
             });
+        }
+
+        /** Schedules another (future) refresh, if refresh_interval is still enabled. */
+        private void reschedule() {
+            synchronized (mutex) {
+                if (state != IndexShardState.CLOSED && refreshInterval.millis() > 0) {
+                    refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, this);
+                }
+            }
         }
     }
 

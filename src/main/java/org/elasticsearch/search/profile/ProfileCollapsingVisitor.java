@@ -116,6 +116,8 @@ public class ProfileCollapsingVisitor extends Visitor<Object, ArrayList> {
             }
         }
 
+        //NOCOMMIT if both empty?
+
         return profiles;
     }
 

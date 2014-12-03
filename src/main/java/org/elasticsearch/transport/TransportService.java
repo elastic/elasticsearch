@@ -34,6 +34,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -213,8 +214,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             // or because we failed serializing the message
             final RequestHolder holderToNotify = clientHandlers.remove(requestId);
             // if the scheduler raise a EsRejectedExecutionException (due to shutdown), we may have a timeout handler, but no future
-            if (timeoutHandler != null && timeoutHandler.future != null) {
-                timeoutHandler.future.cancel(false);
+            if (timeoutHandler != null) {
+                FutureUtils.cancel(timeoutHandler.future);
             }
 
             // If holderToNotify == null then handler has already been taken care of.
@@ -444,7 +445,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
         public void cancel() {
             if (timeout != null) {
-                timeout.future.cancel(false);
+                FutureUtils.cancel(timeout.future);
             }
         }
     }

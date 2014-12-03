@@ -276,4 +276,10 @@ comma separated list of nodes to connect to (e.g. localhost:9300). A transport c
 be created based on that and used for all the before|after test operations, and to extract
 the http addresses of the nodes so that REST requests can be sent to them.
 
+== Skip validate
 
+To disable validation step (forbidden API or `// NOCOMMIT`) use
+
+---------------------------------------------------------------------------
+mvn test -Dvalidate.skip=true
+---------------------------------------------------------------------------

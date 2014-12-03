@@ -36,24 +36,18 @@ The following settings may be used:
      Defaults to `2`.
 
 `cluster.routing.allocation.enable`::
-    Controls shard allocation for all indices, by allowing specific
-    kinds of shard to be allocated.
 
-    Can be set to:
-    * `all` (default) - Allows shard allocation for all kinds of shards.
-    * `primaries` - Allows shard allocation only for primary shards.
-    * `new_primaries` - Allows shard allocation only for primary shards for new indices.
-    * `none` - No shard allocations of any kind are allowed for all indices.
+Controls shard allocation for all indices, by allowing specific
+kinds of shard to be allocated.
++
+--
+Can be set to:
 
-`cluster.routing.allocation.disable_new_allocation`::
-
-
-`cluster.routing.allocation.disable_allocation`::
-
-
-
-`cluster.routing.allocation.disable_replica_allocation`::
-
+* `all` - (default) Allows shard allocation for all kinds of shards.
+* `primaries` -  Allows shard allocation only for primary shards.
+* `new_primaries` - Allows shard allocation only for primary shards for new indices.
+* `none` - No shard allocations of any kind are allowed for all indices.
+--
 
 `cluster.routing.allocation.same_shard.host`::
       Allows to perform a check to prevent allocation of multiple instances
@@ -117,7 +111,7 @@ nodes that don't have values set for those attributes.
 
 Sometimes, we know in advance the number of values an awareness
 attribute can have, and more over, we would like never to have more
-replicas then needed allocated on a specific group of nodes with the
+replicas than needed allocated on a specific group of nodes with the
 same awareness attribute value. For that, we can force awareness on
 specific attributes.
 

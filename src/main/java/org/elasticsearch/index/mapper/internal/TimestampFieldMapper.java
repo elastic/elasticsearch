@@ -145,9 +145,9 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     private final String path;
     private final String defaultTimestamp;
 
-    public TimestampFieldMapper() {
+    public TimestampFieldMapper(Settings indexSettings) {
         this(new FieldType(Defaults.FIELD_TYPE), null, Defaults.ENABLED, Defaults.PATH, Defaults.DATE_TIME_FORMATTER, Defaults.DEFAULT_TIMESTAMP,
-                Defaults.ROUND_CEIL, Defaults.IGNORE_MALFORMED, Defaults.COERCE, null, null, null, null, ImmutableSettings.EMPTY);
+                Defaults.ROUND_CEIL, Defaults.IGNORE_MALFORMED, Defaults.COERCE, null, null, null, null, indexSettings);
     }
 
     protected TimestampFieldMapper(FieldType fieldType, Boolean docValues, EnabledAttributeMapper enabledState, String path,

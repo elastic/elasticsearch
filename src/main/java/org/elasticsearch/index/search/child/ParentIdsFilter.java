@@ -137,7 +137,7 @@ final class ParentIdsFilter extends Filter {
 
         FixedBitSet nonNestedDocs = null;
         if (nonNestedDocsFilter != null) {
-            nonNestedDocs = (FixedBitSet) nonNestedDocsFilter.getDocIdSet(context, acceptDocs);
+            nonNestedDocs = (FixedBitSet) nonNestedDocsFilter.getDocIdSet(context, null);
         }
 
         DocsEnum docsEnum = null;

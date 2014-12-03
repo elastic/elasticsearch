@@ -47,6 +47,7 @@ import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.test.disruption.*;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -68,7 +69,6 @@ import static org.hamcrest.Matchers.*;
 /**
  */
 @LuceneTestCase.Slow
-@TestLogging("discovery.zen:TRACE")
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTest {
 
@@ -180,9 +180,9 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
 
         if (discoveryConfig == null) {
             if (unicastHostsOrdinals == null) {
-                discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(numberOfNodes, nodeSettings);
+                discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(numberOfNodes, nodeSettings, Scope.TEST);
             } else {
-                discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(numberOfNodes, nodeSettings, unicastHostsOrdinals);
+                discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(numberOfNodes, nodeSettings, unicastHostsOrdinals, Scope.TEST);
             }
         }
     }
@@ -235,7 +235,6 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
 
     /** Verify that nodes fault detection works after master (re) election */
     @Test
-    @TestLogging(value = "cluster.service:TRACE,indices.recovery:TRACE")
     public void testNodesFDAfterMasterReelection() throws Exception {
         startCluster(3);
 
@@ -263,7 +262,6 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
      * Verify that the proper block is applied when nodes loose their master
      */
     @Test
-    @TestLogging(value = "cluster.service:TRACE,indices.recovery:TRACE")
     public void testVerifyApiBlocksDuringPartition() throws Exception {
         startCluster(3);
 
@@ -344,7 +342,6 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
      * and verifies that all node agree on the new cluster state
      */
     @Test
-    @TestLogging("discovery.zen:TRACE,action:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE")
     public void testIsolateMasterAndVerifyClusterStateConsensus() throws Exception {
         final List<String> nodes = startCluster(3);
 
@@ -408,7 +405,6 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
      * Test that cluster recovers from a long GC on master that causes other nodes to elect a new one
      */
     @Test
-    @TestLogging("discovery.zen:TRACE,action:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE")
     public void testMasterNodeGCs() throws Exception {
         // TODO: on mac OS multicast threads are shared between nodes and we therefore we can't simulate GC and stop pinging for just one node
         // find a way to block thread creation in the generic thread pool to avoid this.
@@ -461,7 +457,6 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
      * @throws Exception
      */
     @Test
-    @TestLogging("discovery.zen:TRACE,action:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE")
     public void testRejoinDocumentExistsInAllShardCopies() throws Exception {
         List<String> nodes = startCluster(3);
 
@@ -517,7 +512,6 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
      * The rejoining node should take this master node and connect.
      */
     @Test
-    @TestLogging("discovery.zen:TRACE,action:TRACE")
     public void unicastSinglePingResponseContainsMaster() throws Exception {
         List<String> nodes = startUnicastCluster(4, new int[]{0}, -1);
         // Figure out what is the elected master node
@@ -554,7 +548,6 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
     }
 
     @Test
-    @TestLogging("discovery.zen:TRACE,action:TRACE")
     public void isolatedUnicastNodes() throws Exception {
         List<String> nodes = startUnicastCluster(3, new int[]{0}, -1);
         // Figure out what is the elected master node
@@ -592,7 +585,6 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
 
     /** Test cluster join with issues in cluster state publishing * */
     @Test
-    @TestLogging("discovery.zen:TRACE,action:TRACE")
     public void testClusterJoinDespiteOfPublishingIssues() throws Exception {
         List<String> nodes = startCluster(2, 1);
 
@@ -639,7 +631,6 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
 
 
     @Test
-    @TestLogging("discovery.zen:TRACE,action:TRACE")
     public void testClusterFormingWithASlowNode() throws Exception {
         configureCluster(3, 2);
 

@@ -75,7 +75,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = AllFieldMapper.NAME;
         public static final String INDEX_NAME = AllFieldMapper.NAME;
-        public static final boolean ENABLED = true;
+        public static final EnabledAttributeMapper ENABLED = EnabledAttributeMapper.UNSET_ENABLED;
 
         public static final FieldType FIELD_TYPE = new FieldType();
 
@@ -88,7 +88,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
 
     public static class Builder extends AbstractFieldMapper.Builder<Builder, AllFieldMapper> {
 
-        private boolean enabled = Defaults.ENABLED;
+        private EnabledAttributeMapper enabled = Defaults.ENABLED;
 
         // an internal flag, automatically set if we encounter boosting
         boolean autoBoost = false;
@@ -99,7 +99,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
             indexName = Defaults.INDEX_NAME;
         }
 
-        public Builder enabled(boolean enabled) {
+        public Builder enabled(EnabledAttributeMapper enabled) {
             this.enabled = enabled;
             return this;
         }
@@ -123,7 +123,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    builder.enabled(nodeBooleanValue(fieldNode));
+                    builder.enabled(nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
                 } else if (fieldName.equals("auto_boost")) {
                     builder.autoBoost = nodeBooleanValue(fieldNode);
                 }
@@ -133,7 +133,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
     }
 
 
-    private boolean enabled;
+    private EnabledAttributeMapper enabledState;
     // The autoBoost flag is automatically set based on indexed docs on the mappings
     // if a doc is indexed with a specific boost value and part of _all, it is automatically
     // set to true. This allows to optimize (automatically, which we like) for the common case
@@ -146,7 +146,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
     }
 
     protected AllFieldMapper(String name, FieldType fieldType, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
-                             boolean enabled, boolean autoBoost, PostingsFormatProvider postingsProvider,
+                             EnabledAttributeMapper enabled, boolean autoBoost, PostingsFormatProvider postingsProvider,
                              DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity, Loading normsLoading,
                              @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(name, name, name, name), 1.0f, fieldType, null, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider,
@@ -154,13 +154,13 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
         if (hasDocValues()) {
             throw new MapperParsingException("Field [" + names.fullName() + "] is always tokenized and cannot have doc values");
         }
-        this.enabled = enabled;
+        this.enabledState = enabled;
         this.autoBoost = autoBoost;
 
     }
 
     public boolean enabled() {
-        return this.enabled;
+        return this.enabledState.enabled;
     }
 
     @Override
@@ -210,7 +210,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        if (!enabled) {
+        if (!enabledState.enabled) {
             return;
         }
         // reset the entries
@@ -277,8 +277,8 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
     }
 
     private void innerToXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
-        if (includeDefaults || enabled != Defaults.ENABLED) {
-            builder.field("enabled", enabled);
+        if (includeDefaults || enabledState != Defaults.ENABLED) {
+            builder.field("enabled", enabledState.enabled);
         }
         if (includeDefaults || autoBoost != false) {
             builder.field("auto_boost", autoBoost);
@@ -347,7 +347,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
 
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        if (((AllFieldMapper)mergeWith).enabled() != this.enabled()) {
+        if (((AllFieldMapper)mergeWith).enabled() != this.enabled() && ((AllFieldMapper)mergeWith).enabledState != Defaults.ENABLED) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] enabled is " + this.enabled() + " now encountering "+ ((AllFieldMapper)mergeWith).enabled());
         }
         super.merge(mergeWith, mergeContext);

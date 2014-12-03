@@ -75,6 +75,9 @@ public class TermsQueryParser implements QueryParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
+                if  (fieldName != null) {
+                    throw new QueryParsingException(parseContext.index(), "[terms] query does not support multiple fields");
+                }
                 fieldName = currentFieldName;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     Object value = parser.objectBytes();

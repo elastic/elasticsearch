@@ -28,19 +28,15 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
-import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.indices.IndicesService;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -924,6 +920,99 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
             // and return the generated term vectors
             checkBrownFoxTermVector(resp.getFields(), "non_existing", false);
         }
+    }
+
+    @Test
+    public void testPerFieldAnalyzer() throws ElasticsearchException, IOException {
+        int numFields = 25;
+
+        // setup mapping and document source
+        Set<String> withTermVectors = new HashSet<>();
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1").startObject("properties");
+        XContentBuilder source = jsonBuilder().startObject();
+        for (int i = 0; i < numFields; i++) {
+            String fieldName = "field" + i;
+            if (randomBoolean()) {
+                withTermVectors.add(fieldName);
+            }
+            mapping.startObject(fieldName)
+                    .field("type", "string")
+                    .field("term_vector", withTermVectors.contains(fieldName) ? "yes" : "no")
+                    .endObject();
+            source.field(fieldName, "some text here");
+        }
+        source.endObject();
+        mapping.endObject().endObject().endObject();
+
+        // setup indices with mapping
+        ImmutableSettings.Builder settings = settingsBuilder()
+                .put(indexSettings())
+                .put("index.analysis.analyzer", "standard");
+        assertAcked(prepareCreate("test")
+                .addAlias(new Alias("alias"))
+                .setSettings(settings)
+                .addMapping("type1", mapping));
+        ensureGreen();
+
+        // index a single document with prepared source
+        client().prepareIndex("test", "type1", "0").setSource(source).get();
+        refresh();
+
+        // create random per_field_analyzer and selected fields
+        Map<String, String> perFieldAnalyzer = new HashMap<>();
+        Set<String> selectedFields = new HashSet<>();
+        for (int i = 0; i < numFields; i++) {
+            if (randomBoolean()) {
+                perFieldAnalyzer.put("field" + i, "keyword");
+            }
+            if (randomBoolean()) {
+                perFieldAnalyzer.put("non_existing" + i, "keyword");
+            }
+            if (randomBoolean()) {
+                selectedFields.add("field" + i);
+            }
+            if (randomBoolean()) {
+                selectedFields.add("non_existing" + i);
+            }
+        }
+
+        // selected fields not specified
+        TermVectorResponse response = client().prepareTermVector(indexOrAlias(), "type1", "0")
+                .setPerFieldAnalyzer(perFieldAnalyzer)
+                .get();
+
+        // should return all fields that have terms vectors, some with overridden analyzer
+        checkAnalyzedFields(response.getFields(), withTermVectors, perFieldAnalyzer);
+
+        // selected fields specified including some not in the mapping
+        response = client().prepareTermVector(indexOrAlias(), "type1", "0")
+                .setSelectedFields(selectedFields.toArray(Strings.EMPTY_ARRAY))
+                .setPerFieldAnalyzer(perFieldAnalyzer)
+                .get();
+
+        // should return only the specified valid fields, with some with overridden analyzer
+        checkAnalyzedFields(response.getFields(), selectedFields, perFieldAnalyzer);
+    }
+
+    private void checkAnalyzedFields(Fields fieldsObject, Set<String> fieldNames, Map<String, String> perFieldAnalyzer) throws IOException {
+        Set<String> validFields = new HashSet<>();
+        for (String fieldName : fieldNames){
+            if (fieldName.startsWith("non_existing")) {
+                assertThat("Non existing field\"" + fieldName + "\" should not be returned!", fieldsObject.terms(fieldName), nullValue());
+                continue;
+            }
+            Terms terms = fieldsObject.terms(fieldName);
+            assertThat("Existing field " + fieldName + "should have been returned", terms, notNullValue());
+            // check overridden by keyword analyzer ...
+            if (perFieldAnalyzer.containsKey(fieldName)) {
+                TermsEnum iterator = terms.iterator(null);
+                assertThat("Analyzer for " + fieldName + " should have been overridden!", iterator.next().utf8ToString(), equalTo("some text here"));
+                assertThat(iterator.next(), nullValue());
+            }
+            validFields.add(fieldName);
+        }
+        // ensure no other fields are returned
+        assertThat("More fields than expected are returned!", fieldsObject.size(), equalTo(validFields.size()));
     }
 
     private static String indexOrAlias() {

@@ -20,6 +20,8 @@
 package org.elasticsearch.index.store.distributor;
 
 import org.apache.lucene.store.*;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -27,7 +29,6 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -124,11 +125,12 @@ public class DistributorTests extends ElasticsearchTestCase {
 
     }
 
-    public static class FakeDirectoryService implements DirectoryService {
+    public static class FakeDirectoryService extends DirectoryService {
 
         private final Directory[] directories;
 
         public FakeDirectoryService(Directory[] directories) {
+            super(new ShardId("fake", 1), ImmutableSettings.EMPTY);
             this.directories = directories;
         }
 
@@ -144,10 +146,6 @@ public class DistributorTests extends ElasticsearchTestCase {
 
         @Override
         public void renameFile(Directory dir, String from, String to) throws IOException {
-        }
-
-        @Override
-        public void fullDelete(Directory dir) throws IOException {
         }
     }
 

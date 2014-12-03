@@ -47,10 +47,7 @@ import org.joda.time.format.ISODateTimeFormat;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Locale;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -103,8 +100,8 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumps"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "quick brown"),
                 client().prepareIndex("test", "type1", "3").setSource("field1", "quick"));
-        assertHitCount(client().prepareSearch().setQuery(queryString("quick")).get(), 3l);
-        assertHitCount(client().prepareSearch().setQuery(queryString("")).get(), 0l); // return no docs
+        assertHitCount(client().prepareSearch().setQuery(queryStringQuery("quick")).get(), 3l);
+        assertHitCount(client().prepareSearch().setQuery(queryStringQuery("")).get(), 0l); // return no docs
     }
 
     @Test // see https://github.com/elasticsearch/elasticsearch/issues/3177
@@ -243,7 +240,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         );
         int iters = scaledRandomIntBetween(100, 200);
         for (int i = 0; i < iters; i++) {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(queryString("*:*^10.0").boost(10.0f)).get();
+            SearchResponse searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("*:*^10.0").boost(10.0f)).get();
             assertHitCount(searchResponse, 2l);
 
             searchResponse = client().prepareSearch("test").setQuery(
@@ -262,7 +259,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("message", "test message", "comment", "whatever"),
                 client().prepareIndex("test", "type1", "2").setSource("message", "hello world", "comment", "test comment"));
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(commonTerms("_all", "test")).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(commonTermsQuery("_all", "test")).get();
         assertHitCount(searchResponse, 2l);
         assertFirstHit(searchResponse, hasId("2"));
         assertSecondHit(searchResponse, hasId("1"));
@@ -278,35 +275,35 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree") );
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the quick brown").cutoffFrequency(3).lowFreqOperator(Operator.OR)).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the quick brown").cutoffFrequency(3).lowFreqOperator(Operator.OR)).get();
         assertHitCount(searchResponse, 3l);
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("2"));
         assertThirdHit(searchResponse, hasId("3"));
 
-        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the quick brown").cutoffFrequency(3).lowFreqOperator(Operator.AND)).get();
+        searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the quick brown").cutoffFrequency(3).lowFreqOperator(Operator.AND)).get();
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("2"));
 
         // Default
-        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the quick brown").cutoffFrequency(3)).get();
+        searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the quick brown").cutoffFrequency(3)).get();
         assertHitCount(searchResponse, 3l);
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("2"));
         assertThirdHit(searchResponse, hasId("3"));
 
 
-        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the huge fox").lowFreqMinimumShouldMatch("2")).get();
+        searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the huge fox").lowFreqMinimumShouldMatch("2")).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("2"));
 
-        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("3")).get();
+        searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("3")).get();
         assertHitCount(searchResponse, 2l);
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("2"));
 
-        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("4")).get();
+        searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("4")).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("2"));
 
@@ -315,11 +312,11 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertFirstHit(searchResponse, hasId("2"));
 
         // Default
-        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the lazy fox brown").cutoffFrequency(1)).get();
+        searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the lazy fox brown").cutoffFrequency(1)).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("2"));
 
-        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the quick brown").cutoffFrequency(3).analyzer("stop")).get();
+        searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the quick brown").cutoffFrequency(3).analyzer("stop")).get();
         assertHitCount(searchResponse, 3l);
         // stop drops "the" since its a stopword
         assertFirstHit(searchResponse, hasId("1"));
@@ -371,35 +368,35 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree") );
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the fast brown").cutoffFrequency(3).lowFreqOperator(Operator.OR)).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the fast brown").cutoffFrequency(3).lowFreqOperator(Operator.OR)).get();
         assertHitCount(searchResponse, 3l);
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("2"));
         assertThirdHit(searchResponse, hasId("3"));
 
-        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the fast brown").cutoffFrequency(3).lowFreqOperator(Operator.AND)).get();
+        searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the fast brown").cutoffFrequency(3).lowFreqOperator(Operator.AND)).get();
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("2"));
 
         // Default
-        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the fast brown").cutoffFrequency(3)).get();
+        searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the fast brown").cutoffFrequency(3)).get();
         assertHitCount(searchResponse, 3l);
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("2"));
         assertThirdHit(searchResponse, hasId("3"));
 
 
-        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the fast huge fox").lowFreqMinimumShouldMatch("3")).get();
+        searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the fast huge fox").lowFreqMinimumShouldMatch("3")).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("2"));
 
-        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the fast lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("5")).get();
+        searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the fast lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("5")).get();
         assertHitCount(searchResponse, 2l);
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("2"));
 
-        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the fast lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("6")).get();
+        searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the fast lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("6")).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("2"));
 
@@ -408,11 +405,11 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertFirstHit(searchResponse, hasId("2"));
 
         // Default
-        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the fast lazy fox brown").cutoffFrequency(1)).get();
+        searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the fast lazy fox brown").cutoffFrequency(1)).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("2"));
 
-        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the quick brown").cutoffFrequency(3).analyzer("stop")).get();
+        searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the quick brown").cutoffFrequency(3).analyzer("stop")).get();
         assertHitCount(searchResponse, 3l);
         // stop drops "the" since its a stopword
         assertFirstHit(searchResponse, hasId("1"));
@@ -491,19 +488,19 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(queryString("value*").analyzeWildcard(true)).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("value*").analyzeWildcard(true)).get();
         assertHitCount(searchResponse, 1l);
 
-        searchResponse = client().prepareSearch().setQuery(queryString("*ue*").analyzeWildcard(true)).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("*ue*").analyzeWildcard(true)).get();
         assertHitCount(searchResponse, 1l);
 
-        searchResponse = client().prepareSearch().setQuery(queryString("*ue_1").analyzeWildcard(true)).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("*ue_1").analyzeWildcard(true)).get();
         assertHitCount(searchResponse, 1l);
 
-        searchResponse = client().prepareSearch().setQuery(queryString("val*e_1").analyzeWildcard(true)).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("val*e_1").analyzeWildcard(true)).get();
         assertHitCount(searchResponse, 1l);
 
-        searchResponse = client().prepareSearch().setQuery(queryString("v?l*e?1").analyzeWildcard(true)).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("v?l*e?1").analyzeWildcard(true)).get();
         assertHitCount(searchResponse, 1l);
     }
 
@@ -514,17 +511,17 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(queryString("VALUE_3~1").lowercaseExpandedTerms(true)).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("VALUE_3~1").lowercaseExpandedTerms(true)).get();
         assertHitCount(searchResponse, 1l);
-        searchResponse = client().prepareSearch().setQuery(queryString("VALUE_3~1").lowercaseExpandedTerms(false)).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("VALUE_3~1").lowercaseExpandedTerms(false)).get();
         assertHitCount(searchResponse, 0l);
-        searchResponse = client().prepareSearch().setQuery(queryString("ValUE_*").lowercaseExpandedTerms(true)).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("ValUE_*").lowercaseExpandedTerms(true)).get();
         assertHitCount(searchResponse, 1l);
-        searchResponse = client().prepareSearch().setQuery(queryString("vAl*E_1")).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("vAl*E_1")).get();
         assertHitCount(searchResponse, 1l);
-        searchResponse = client().prepareSearch().setQuery(queryString("[VALUE_1 TO VALUE_3]")).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("[VALUE_1 TO VALUE_3]")).get();
         assertHitCount(searchResponse, 1l);
-        searchResponse = client().prepareSearch().setQuery(queryString("[VALUE_1 TO VALUE_3]").lowercaseExpandedTerms(false)).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("[VALUE_1 TO VALUE_3]").lowercaseExpandedTerms(false)).get();
         assertHitCount(searchResponse, 0l);
     }
 
@@ -542,19 +539,39 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type", "1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(queryString("past:[now-2M/d TO now/d]")).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("past:[now-2M/d TO now/d]")).get();
         assertHitCount(searchResponse, 1l);
 
-        searchResponse = client().prepareSearch().setQuery(queryString("future:[now/d TO now+2M/d]").lowercaseExpandedTerms(false)).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("future:[now/d TO now+2M/d]").lowercaseExpandedTerms(false)).get();
         assertHitCount(searchResponse, 1l);
 
         try {
-            client().prepareSearch().setQuery(queryString("future:[now/D TO now+2M/d]").lowercaseExpandedTerms(false)).get();
+            client().prepareSearch().setQuery(queryStringQuery("future:[now/D TO now+2M/d]").lowercaseExpandedTerms(false)).get();
             fail("expected SearchPhaseExecutionException (total failure)");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
             assertThat(e.getMessage(), containsString("unit [D] not supported for date math"));
         }
+    }
+
+    @Test // https://github.com/elasticsearch/elasticsearch/issues/7880
+    public void testDateRangeInQueryStringWithTimeZone_7880() {
+        //the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
+        //as with dynamic mappings some shards might be lacking behind and parse a different query
+        assertAcked(prepareCreate("test").addMapping(
+                "type", "past", "type=date"
+        ));
+        ensureGreen();
+
+        DateTimeZone timeZone = randomDateTimeZone();
+        String now = ISODateTimeFormat.dateTime().print(new DateTime(timeZone));
+        logger.info(" --> Using time_zone [{}], now is [{}]", timeZone.getID(), now);
+        client().prepareIndex("test", "type", "1").setSource("past", now).get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("past:[now-1m/m TO now+1m/m]")
+                .timeZone(timeZone.getID())).get();
+        assertHitCount(searchResponse, 1l);
     }
 
     @Test
@@ -667,7 +684,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "1", "2");
 
-        searchResponse = client().prepareSearch().setQuery(queryString("_exists_:field1")).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("_exists_:field1")).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "1", "2");
 
@@ -701,7 +718,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "3", "4");
 
-        searchResponse = client().prepareSearch().setQuery(queryString("_missing_:field1")).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("_missing_:field1")).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "3", "4");
 
@@ -942,16 +959,16 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "2").setSource("str", "shay", "date", "2012-02-05", "num", 20).get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(queryString("str:kimcy~1")).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("str:kimcy~1")).get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("1"));
 
-        searchResponse = client().prepareSearch().setQuery(queryString("num:11~1")).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("num:11~1")).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("1"));
 
-        searchResponse = client().prepareSearch().setQuery(queryString("date:2012-02-02~1d")).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("date:2012-02-02~1d")).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("1"));
     }
@@ -965,14 +982,14 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         );
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(queryString("\"phrase match\"").field("important", boost).field("less_important")).get();
+                .setQuery(queryStringQuery("\"phrase match\"").field("important", boost).field("less_important")).get();
         assertHitCount(searchResponse, 2l);
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("2"));
         assertThat((double)searchResponse.getHits().getAt(0).score(), closeTo(boost * searchResponse.getHits().getAt(1).score(), .1));
 
         searchResponse = client().prepareSearch()
-                .setQuery(queryString("\"phrase match\"").field("important", boost).field("less_important").useDisMax(false)).get();
+                .setQuery(queryStringQuery("\"phrase match\"").field("important", boost).field("less_important").useDisMax(false)).get();
         assertHitCount(searchResponse, 2l);
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("2"));
@@ -986,27 +1003,27 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "2").setSource("str", "shay", "date", "2012-02-05", "num", 20).get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(queryString("num:>19")).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("num:>19")).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("2"));
 
-        searchResponse = client().prepareSearch().setQuery(queryString("num:>20")).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("num:>20")).get();
         assertHitCount(searchResponse, 0l);
 
-        searchResponse = client().prepareSearch().setQuery(queryString("num:>=20")).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("num:>=20")).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("2"));
 
-        searchResponse = client().prepareSearch().setQuery(queryString("num:>11")).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("num:>11")).get();
         assertHitCount(searchResponse, 2l);
 
-        searchResponse = client().prepareSearch().setQuery(queryString("num:<20")).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("num:<20")).get();
         assertHitCount(searchResponse, 1l);
 
-        searchResponse = client().prepareSearch().setQuery(queryString("num:<=20")).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("num:<=20")).get();
         assertHitCount(searchResponse, 2l);
 
-        searchResponse = client().prepareSearch().setQuery(queryString("+num:>11 +num:<20")).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("+num:>11 +num:<20")).get();
         assertHitCount(searchResponse, 1l);
     }
 
@@ -1510,6 +1527,45 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testSpanNot() throws ElasticsearchException, IOException, ExecutionException, InterruptedException {
+        createIndex("test");
+        ensureGreen();
+
+        client().prepareIndex("test", "test", "1").setSource("description", "the quick brown fox jumped over the lazy dog").get();
+        client().prepareIndex("test", "test", "2").setSource("description", "the quick black fox leaped over the sleeping dog").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(spanNotQuery().include(spanNearQuery()
+                        .clause(QueryBuilders.spanTermQuery("description", "quick"))
+                        .clause(QueryBuilders.spanTermQuery("description", "fox")).slop(1)).exclude(spanTermQuery("description", "brown"))).get();
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(spanNotQuery().include(spanNearQuery()
+                        .clause(QueryBuilders.spanTermQuery("description", "quick"))
+                        .clause(QueryBuilders.spanTermQuery("description", "fox")).slop(1)).exclude(spanTermQuery("description", "sleeping")).dist(5)).get();
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(spanNotQuery().include(spanNearQuery()
+                        .clause(QueryBuilders.spanTermQuery("description", "quick"))
+                        .clause(QueryBuilders.spanTermQuery("description", "fox")).slop(1)).exclude(spanTermQuery("description", "jumped")).pre(1).post(1)).get();
+        assertHitCount(searchResponse, 1l);
+
+        try {
+            client().prepareSearch("test")
+                    .setQuery(spanNotQuery().include(spanNearQuery()
+                            .clause(QueryBuilders.spanTermQuery("description", "quick"))
+                            .clause(QueryBuilders.spanTermQuery("description", "fox")).slop(1)).exclude(spanTermQuery("description", "jumped")).dist(2).pre(2)
+                    ).get();
+            fail("ElasticsearchIllegalArgumentException should have been caught");
+        } catch (ElasticsearchException e) {
+            assertThat("ElasticsearchIllegalArgumentException should have been caught", e.getDetailedMessage(), containsString("spanNot can either use [dist] or [pre] & [post] (or none)"));
+        }
+    }
+
+    @Test
     public void testSimpleDFSQuery() throws ElasticsearchException, IOException {
         assertAcked(prepareCreate("test")
             .addMapping("s", jsonBuilder()
@@ -1569,20 +1625,20 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     public void testMultiFieldQueryString() {
         client().prepareIndex("test", "s", "1").setSource("field1", "value1", "field2", "value2").setRefresh(true).get();
         logger.info("regular");
-        assertHitCount(client().prepareSearch("test").setQuery(queryString("value1").field("field1").field("field2")).get(), 1);
-        assertHitCount(client().prepareSearch("test").setQuery(queryString("field\\*:value1")).get(), 1);
+        assertHitCount(client().prepareSearch("test").setQuery(queryStringQuery("value1").field("field1").field("field2")).get(), 1);
+        assertHitCount(client().prepareSearch("test").setQuery(queryStringQuery("field\\*:value1")).get(), 1);
         logger.info("prefix");
-        assertHitCount(client().prepareSearch("test").setQuery(queryString("value*").field("field1").field("field2")).get(), 1);
-        assertHitCount(client().prepareSearch("test").setQuery(queryString("field\\*:value*")).get(), 1);
+        assertHitCount(client().prepareSearch("test").setQuery(queryStringQuery("value*").field("field1").field("field2")).get(), 1);
+        assertHitCount(client().prepareSearch("test").setQuery(queryStringQuery("field\\*:value*")).get(), 1);
         logger.info("wildcard");
-        assertHitCount(client().prepareSearch("test").setQuery(queryString("v?lue*").field("field1").field("field2")).get(), 1);
-        assertHitCount(client().prepareSearch("test").setQuery(queryString("field\\*:v?lue*")).get(), 1);
+        assertHitCount(client().prepareSearch("test").setQuery(queryStringQuery("v?lue*").field("field1").field("field2")).get(), 1);
+        assertHitCount(client().prepareSearch("test").setQuery(queryStringQuery("field\\*:v?lue*")).get(), 1);
         logger.info("fuzzy");
-        assertHitCount(client().prepareSearch("test").setQuery(queryString("value~").field("field1").field("field2")).get(), 1);
-        assertHitCount(client().prepareSearch("test").setQuery(queryString("field\\*:value~")).get(), 1);
+        assertHitCount(client().prepareSearch("test").setQuery(queryStringQuery("value~").field("field1").field("field2")).get(), 1);
+        assertHitCount(client().prepareSearch("test").setQuery(queryStringQuery("field\\*:value~")).get(), 1);
         logger.info("regexp");
-        assertHitCount(client().prepareSearch("test").setQuery(queryString("/value[01]/").field("field1").field("field2")).get(), 1);
-        assertHitCount(client().prepareSearch("test").setQuery(queryString("field\\*:/value[01]/")).get(), 1);
+        assertHitCount(client().prepareSearch("test").setQuery(queryStringQuery("/value[01]/").field("field1").field("field2")).get(), 1);
+        assertHitCount(client().prepareSearch("test").setQuery(queryStringQuery("field\\*:/value[01]/")).get(), 1);
     }
 
     // see #3881 - for extensive description of the issue
@@ -1660,19 +1716,19 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "test", "1").setSource("text", "quick brown fox").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(queryString("quick").defaultField("text").defaultOperator(QueryStringQueryBuilder.Operator.AND)).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("quick").defaultField("text").defaultOperator(QueryStringQueryBuilder.Operator.AND)).get();
         assertHitCount(searchResponse, 1);
-        searchResponse = client().prepareSearch("test").setQuery(queryString("quick brown").defaultField("text").defaultOperator(QueryStringQueryBuilder.Operator.AND)).get();
+        searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("quick brown").defaultField("text").defaultOperator(QueryStringQueryBuilder.Operator.AND)).get();
         assertHitCount(searchResponse, 1);
-        searchResponse = client().prepareSearch().setQuery(queryString("fast").defaultField("text").defaultOperator(QueryStringQueryBuilder.Operator.AND)).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("fast").defaultField("text").defaultOperator(QueryStringQueryBuilder.Operator.AND)).get();
         assertHitCount(searchResponse, 1);
 
         client().prepareIndex("test", "test", "2").setSource("text", "fast brown fox").get();
         refresh();
 
-        searchResponse = client().prepareSearch("test").setQuery(queryString("quick").defaultField("text").defaultOperator(QueryStringQueryBuilder.Operator.AND)).get();
+        searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("quick").defaultField("text").defaultOperator(QueryStringQueryBuilder.Operator.AND)).get();
         assertHitCount(searchResponse, 2);
-        searchResponse = client().prepareSearch("test").setQuery(queryString("quick brown").defaultField("text").defaultOperator(QueryStringQueryBuilder.Operator.AND)).get();
+        searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("quick brown").defaultField("text").defaultOperator(QueryStringQueryBuilder.Operator.AND)).get();
         assertHitCount(searchResponse, 2);
     }
 
@@ -1699,7 +1755,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("test")
                 .setQuery(
-                        queryString("foo.baz").useDisMax(false).defaultOperator(QueryStringQueryBuilder.Operator.AND)
+                        queryStringQuery("foo.baz").useDisMax(false).defaultOperator(QueryStringQueryBuilder.Operator.AND)
                                 .field("field1").field("field2")).get();
         assertHitCount(response, 1l);
     }
@@ -2025,23 +2081,23 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "product", "2").setSource("desc", "one two three").get();
         refresh();
         {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryString("\"one two\"").defaultField("desc")).get();
+            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("\"one two\"").defaultField("desc")).get();
             assertHitCount(searchResponse, 2);
         }
         {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryString("\"one two\"").field("product.desc")).get();
+            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("\"one two\"").field("product.desc")).get();
             assertHitCount(searchResponse, 1);
         }
         {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryString("\"one three\"~5").field("product.desc")).get();
+            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("\"one three\"~5").field("product.desc")).get();
             assertHitCount(searchResponse, 1);
         }
         {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryString("\"one two\"").defaultField("customer.desc")).get();
+            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("\"one two\"").defaultField("customer.desc")).get();
             assertHitCount(searchResponse, 1);
         }
         {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryString("\"one two\"").defaultField("customer.desc")).get();
+            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("\"one two\"").defaultField("customer.desc")).get();
             assertHitCount(searchResponse, 1);
         }
     }
@@ -2056,215 +2112,6 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         } else {
             return FilterBuilders.numericRangeFilter(field).from(from).to(to);
         }
-    }
-
-    @Test
-    public void testSimpleQueryString() throws ExecutionException, InterruptedException {
-        createIndex("test");
-        indexRandom(true, false,
-                client().prepareIndex("test", "type1", "1").setSource("body", "foo"),
-                client().prepareIndex("test", "type1", "2").setSource("body", "bar"),
-                client().prepareIndex("test", "type1", "3").setSource("body", "foo bar"),
-                client().prepareIndex("test", "type1", "4").setSource("body", "quux baz eggplant"),
-                client().prepareIndex("test", "type1", "5").setSource("body", "quux baz spaghetti"),
-                client().prepareIndex("test", "type1", "6").setSource("otherbody", "spaghetti"));
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryString("foo bar")).get();
-        assertHitCount(searchResponse, 3l);
-        assertSearchHits(searchResponse, "1", "2", "3");
-
-        searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("foo bar").defaultOperator(SimpleQueryStringBuilder.Operator.AND)).get();
-        assertHitCount(searchResponse, 1l);
-        assertFirstHit(searchResponse, hasId("3"));
-
-        searchResponse = client().prepareSearch().setQuery(simpleQueryString("\"quux baz\" +(eggplant | spaghetti)")).get();
-        assertHitCount(searchResponse, 2l);
-        assertSearchHits(searchResponse, "4", "5");
-
-        searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("eggplants").analyzer("snowball")).get();
-        assertHitCount(searchResponse, 1l);
-        assertFirstHit(searchResponse, hasId("4"));
-
-        searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("spaghetti").field("body", 10.0f).field("otherbody", 2.0f).queryName("myquery")).get();
-        assertHitCount(searchResponse, 2l);
-        assertFirstHit(searchResponse, hasId("5"));
-        assertSearchHits(searchResponse, "5", "6");
-        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("myquery"));
-
-        searchResponse = client().prepareSearch().setQuery(simpleQueryString("spaghetti").field("*body")).get();
-        assertHitCount(searchResponse, 2l);
-        assertSearchHits(searchResponse, "5", "6");
-
-        // Have to bypass the builder here because the builder always uses "fields" instead of "field"
-        searchResponse = client().prepareSearch().setQuery("{\"simple_query_string\": {\"query\": \"spaghetti\", \"field\": \"_all\"}}").get();
-        assertHitCount(searchResponse, 2l);
-        assertSearchHits(searchResponse, "5", "6");
-    }
-
-    @Test
-    public void testSimpleQueryStringLowercasing() {
-        createIndex("test");
-        client().prepareIndex("test", "type1", "1").setSource("body", "Professional").get();
-        refresh();
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryString("Professio*")).get();
-        assertHitCount(searchResponse, 1l);
-        assertSearchHits(searchResponse, "1");
-
-        searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("Professio*").lowercaseExpandedTerms(false)).get();
-        assertHitCount(searchResponse, 0l);
-
-        searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("Professionan~1")).get();
-        assertHitCount(searchResponse, 1l);
-        assertSearchHits(searchResponse, "1");
-
-        searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("Professionan~1").lowercaseExpandedTerms(false)).get();
-        assertHitCount(searchResponse, 0l);
-    }
-
-    @Test
-    public void testQueryStringLocale() {
-        createIndex("test");
-        client().prepareIndex("test", "type1", "1").setSource("body", "bılly").get();
-        refresh();
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryString("BILL*")).get();
-        assertHitCount(searchResponse, 0l);
-        searchResponse = client().prepareSearch().setQuery(queryString("body:BILL*")).get();
-        assertHitCount(searchResponse, 0l);
-
-        searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("BILL*").locale(new Locale("tr", "TR"))).get();
-        assertHitCount(searchResponse, 1l);
-        assertSearchHits(searchResponse, "1");
-        searchResponse = client().prepareSearch().setQuery(
-                queryString("body:BILL*").locale(new Locale("tr", "TR"))).get();
-        assertHitCount(searchResponse, 1l);
-        assertSearchHits(searchResponse, "1");
-    }
-
-    @Test
-    public void testNestedFieldSimpleQueryString() throws IOException {
-        assertAcked(prepareCreate("test")
-                .addMapping("type1", jsonBuilder()
-                        .startObject()
-                        .startObject("type1")
-                        .startObject("properties")
-                        .startObject("body").field("type", "string")
-                        .startObject("fields")
-                        .startObject("sub").field("type", "string")
-                        .endObject() // sub
-                        .endObject() // fields
-                        .endObject() // body
-                        .endObject() // properties
-                        .endObject() // type1
-                        .endObject()));
-        client().prepareIndex("test", "type1", "1").setSource("body", "foo bar baz").get();
-        refresh();
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("foo bar baz").field("body")).get();
-        assertHitCount(searchResponse, 1l);
-        assertSearchHits(searchResponse, "1");
-
-        searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("foo bar baz").field("type1.body")).get();
-        assertHitCount(searchResponse, 1l);
-        assertSearchHits(searchResponse, "1");
-
-        searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("foo bar baz").field("body.sub")).get();
-        assertHitCount(searchResponse, 1l);
-        assertSearchHits(searchResponse, "1");
-
-        searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("foo bar baz").field("type1.body.sub")).get();
-        assertHitCount(searchResponse, 1l);
-        assertSearchHits(searchResponse, "1");
-    }
-
-    @Test
-    public void testSimpleQueryStringFlags() throws ExecutionException, InterruptedException {
-        createIndex("test");
-        indexRandom(true,
-                client().prepareIndex("test", "type1", "1").setSource("body", "foo"),
-                client().prepareIndex("test", "type1", "2").setSource("body", "bar"),
-                client().prepareIndex("test", "type1", "3").setSource("body", "foo bar"),
-                client().prepareIndex("test", "type1", "4").setSource("body", "quux baz eggplant"),
-                client().prepareIndex("test", "type1", "5").setSource("body", "quux baz spaghetti"),
-                client().prepareIndex("test", "type1", "6").setSource("otherbody", "spaghetti"));
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("foo bar").flags(SimpleQueryStringFlag.ALL)).get();
-        assertHitCount(searchResponse, 3l);
-        assertSearchHits(searchResponse, "1", "2", "3");
-
-        // Sending a negative 'flags' value is the same as SimpleQueryStringFlag.ALL
-        searchResponse = client().prepareSearch().setQuery("{\"simple_query_string\": {\"query\": \"foo bar\", \"flags\": -1}}").get();
-        assertHitCount(searchResponse, 3l);
-        assertSearchHits(searchResponse, "1", "2", "3");
-
-        searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("foo | bar")
-                        .defaultOperator(SimpleQueryStringBuilder.Operator.AND)
-                        .flags(SimpleQueryStringFlag.OR)).get();
-        assertHitCount(searchResponse, 3l);
-        assertSearchHits(searchResponse, "1", "2", "3");
-
-        searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("foo | bar")
-                        .defaultOperator(SimpleQueryStringBuilder.Operator.AND)
-                        .flags(SimpleQueryStringFlag.NONE)).get();
-        assertHitCount(searchResponse, 1l);
-        assertFirstHit(searchResponse, hasId("3"));
-
-        searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("baz | egg*")
-                        .defaultOperator(SimpleQueryStringBuilder.Operator.AND)
-                        .flags(SimpleQueryStringFlag.NONE)).get();
-        assertHitCount(searchResponse, 0l);
-
-        searchResponse = client().prepareSearch().setSource("{\n" +
-                "  \"query\": {\n" +
-                "    \"simple_query_string\": {\n" +
-                "      \"query\": \"foo|bar\",\n" +
-                "      \"default_operator\": \"AND\"," +
-                "      \"flags\": \"NONE\"\n" +
-                "    }\n" +
-                "  }\n" +
-                "}").get();
-        assertHitCount(searchResponse, 1l);
-
-        searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("baz | egg*")
-                        .defaultOperator(SimpleQueryStringBuilder.Operator.AND)
-                        .flags(SimpleQueryStringFlag.WHITESPACE, SimpleQueryStringFlag.PREFIX)).get();
-        assertHitCount(searchResponse, 1l);
-        assertFirstHit(searchResponse, hasId("4"));
-    }
-
-    @Test
-    public void testSimpleQueryStringLenient() throws ExecutionException, InterruptedException {
-        createIndex("test1", "test2");
-        indexRandom(true, client().prepareIndex("test1", "type1", "1").setSource("field", "foo"),
-                client().prepareIndex("test2", "type1", "10").setSource("field", 5));
-        refresh();
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryString("foo").field("field")).get();
-        assertFailures(searchResponse);
-        assertHitCount(searchResponse, 1l);
-        assertSearchHits(searchResponse, "1");
-
-        searchResponse = client().prepareSearch().setQuery(simpleQueryString("foo").field("field").lenient(true)).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 1l);
-        assertSearchHits(searchResponse, "1");
     }
 
     @Test
@@ -2685,7 +2532,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setQuery(QueryBuilders.queryString("xyz").boost(100))
+                .setQuery(QueryBuilders.queryStringQuery("xyz").boost(100))
                 .get();
         assertThat(response.getHits().totalHits(), equalTo(1l));
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));
@@ -2694,7 +2541,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < 100; i++) {
             response = client().prepareSearch("test")
                     .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                    .setQuery(QueryBuilders.queryString("xyz").boost(100))
+                    .setQuery(QueryBuilders.queryStringQuery("xyz").boost(100))
                     .get();
 
             assertThat(response.getHits().totalHits(), equalTo(1l));

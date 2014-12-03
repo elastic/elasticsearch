@@ -44,22 +44,6 @@ public class DateMathParser {
         return parse(text, now, false, null);
     }
 
-    public long parse(String text, long now, DateTimeZone timeZone) {
-        return parse(text, now, false, timeZone);
-    }
-
-    public long parseRoundCeil(String text, long now) {
-        return parse(text, now, true, null);
-    }
-
-    public long parseRoundCeil(String text, long now, DateTimeZone timeZone) {
-        return parse(text, now, true, timeZone);
-    }
-
-    public long parse(String text, long now, boolean roundCeil) {
-        return parse(text, now, roundCeil, null);
-    }
-
     public long parse(String text, long now, boolean roundCeil, DateTimeZone timeZone) {
         long time;
         String mathString;
@@ -92,139 +76,110 @@ public class DateMathParser {
 
     private long parseMath(String mathString, long time, boolean roundUp) throws ElasticsearchParseException {
         MutableDateTime dateTime = new MutableDateTime(time, DateTimeZone.UTC);
-        try {
-            for (int i = 0; i < mathString.length(); ) {
-                char c = mathString.charAt(i++);
-                int type;
-                if (c == '/') {
-                    type = 0;
-                } else if (c == '+') {
-                    type = 1;
+        for (int i = 0; i < mathString.length(); ) {
+            char c = mathString.charAt(i++);
+            final boolean round;
+            final int sign;
+            if (c == '/') {
+                round = true;
+                sign = 1;
+            } else {
+                round = false;
+                if (c == '+') {
+                    sign = 1;
                 } else if (c == '-') {
-                    type = 2;
+                    sign = -1;
                 } else {
                     throw new ElasticsearchParseException("operator not supported for date math [" + mathString + "]");
                 }
+            }
+                
+            if (i >= mathString.length()) {
+                throw new ElasticsearchParseException("truncated date math [" + mathString + "]");
+            }
 
-                int num;
-                if (!Character.isDigit(mathString.charAt(i))) {
-                    num = 1;
+            final int num;
+            if (!Character.isDigit(mathString.charAt(i))) {
+                num = 1;
+            } else {
+                int numFrom = i;
+                while (i < mathString.length() && Character.isDigit(mathString.charAt(i))) {
+                    i++;
+                }
+                if (i >= mathString.length()) {
+                    throw new ElasticsearchParseException("truncated date math [" + mathString + "]");
+                }
+                num = Integer.parseInt(mathString.substring(numFrom, i));
+            }
+            if (round) {
+                if (num != 1) {
+                    throw new ElasticsearchParseException("rounding `/` can only be used on single unit types [" + mathString + "]");
+                }
+            }
+            char unit = mathString.charAt(i++);
+            MutableDateTime.Property propertyToRound = null;
+            switch (unit) {
+                case 'y':
+                    if (round) {
+                        propertyToRound = dateTime.yearOfCentury();
+                    } else {
+                        dateTime.addYears(sign * num);
+                    }
+                    break;
+                case 'M':
+                    if (round) {
+                        propertyToRound = dateTime.monthOfYear();
+                    } else {
+                        dateTime.addMonths(sign * num);
+                    }
+                    break;
+                case 'w':
+                    if (round) {
+                        propertyToRound = dateTime.weekOfWeekyear();
+                    } else {
+                        dateTime.addWeeks(sign * num);
+                    }
+                    break;
+                case 'd':
+                    if (round) {
+                        propertyToRound = dateTime.dayOfMonth();
+                    } else {
+                        dateTime.addDays(sign * num);
+                    }
+                    break;
+                case 'h':
+                case 'H':
+                    if (round) {
+                        propertyToRound = dateTime.hourOfDay();
+                    } else {
+                        dateTime.addHours(sign * num);
+                    }
+                    break;
+                case 'm':
+                    if (round) {
+                        propertyToRound = dateTime.minuteOfHour();
+                    } else {
+                        dateTime.addMinutes(sign * num);
+                    }
+                    break;
+                case 's':
+                    if (round) {
+                        propertyToRound = dateTime.secondOfMinute();
+                    } else {
+                        dateTime.addSeconds(sign * num);
+                    }
+                    break;
+                default:
+                    throw new ElasticsearchParseException("unit [" + unit + "] not supported for date math [" + mathString + "]");
+            }
+            if (propertyToRound != null) {
+                if (roundUp) {
+                    propertyToRound.roundCeiling();
+                    dateTime.addMillis(-1); // subtract 1 millisecond to get the largest inclusive value
                 } else {
-                    int numFrom = i;
-                    while (Character.isDigit(mathString.charAt(i))) {
-                        i++;
-                    }
-                    num = Integer.parseInt(mathString.substring(numFrom, i));
-                }
-                if (type == 0) {
-                    // rounding is only allowed on whole numbers
-                    if (num != 1) {
-                        throw new ElasticsearchParseException("rounding `/` can only be used on single unit types [" + mathString + "]");
-                    }
-                }
-                char unit = mathString.charAt(i++);
-                switch (unit) {
-                    case 'y':
-                        if (type == 0) {
-                            if (roundUp) {
-                                dateTime.yearOfCentury().roundCeiling();
-                            } else {
-                                dateTime.yearOfCentury().roundFloor();
-                            }
-                        } else if (type == 1) {
-                            dateTime.addYears(num);
-                        } else if (type == 2) {
-                            dateTime.addYears(-num);
-                        }
-                        break;
-                    case 'M':
-                        if (type == 0) {
-                            if (roundUp) {
-                                dateTime.monthOfYear().roundCeiling();
-                            } else {
-                                dateTime.monthOfYear().roundFloor();
-                            }
-                        } else if (type == 1) {
-                            dateTime.addMonths(num);
-                        } else if (type == 2) {
-                            dateTime.addMonths(-num);
-                        }
-                        break;
-                    case 'w':
-                        if (type == 0) {
-                            if (roundUp) {
-                                dateTime.weekOfWeekyear().roundCeiling();
-                            } else {
-                                dateTime.weekOfWeekyear().roundFloor();
-                            }
-                        } else if (type == 1) {
-                            dateTime.addWeeks(num);
-                        } else if (type == 2) {
-                            dateTime.addWeeks(-num);
-                        }
-                        break;
-                    case 'd':
-                        if (type == 0) {
-                            if (roundUp) {
-                                dateTime.dayOfMonth().roundCeiling();
-                            } else {
-                                dateTime.dayOfMonth().roundFloor();
-                            }
-                        } else if (type == 1) {
-                            dateTime.addDays(num);
-                        } else if (type == 2) {
-                            dateTime.addDays(-num);
-                        }
-                        break;
-                    case 'h':
-                    case 'H':
-                        if (type == 0) {
-                            if (roundUp) {
-                                dateTime.hourOfDay().roundCeiling();
-                            } else {
-                                dateTime.hourOfDay().roundFloor();
-                            }
-                        } else if (type == 1) {
-                            dateTime.addHours(num);
-                        } else if (type == 2) {
-                            dateTime.addHours(-num);
-                        }
-                        break;
-                    case 'm':
-                        if (type == 0) {
-                            if (roundUp) {
-                                dateTime.minuteOfHour().roundCeiling();
-                            } else {
-                                dateTime.minuteOfHour().roundFloor();
-                            }
-                        } else if (type == 1) {
-                            dateTime.addMinutes(num);
-                        } else if (type == 2) {
-                            dateTime.addMinutes(-num);
-                        }
-                        break;
-                    case 's':
-                        if (type == 0) {
-                            if (roundUp) {
-                                dateTime.secondOfMinute().roundCeiling();
-                            } else {
-                                dateTime.secondOfMinute().roundFloor();
-                            }
-                        } else if (type == 1) {
-                            dateTime.addSeconds(num);
-                        } else if (type == 2) {
-                            dateTime.addSeconds(-num);
-                        }
-                        break;
-                    default:
-                        throw new ElasticsearchParseException("unit [" + unit + "] not supported for date math [" + mathString + "]");
+                    propertyToRound.roundFloor();
                 }
             }
-        } catch (Exception e) {
-            if (e instanceof ElasticsearchParseException) {
-                throw (ElasticsearchParseException) e;
-            }
-            throw new ElasticsearchParseException("failed to parse date math [" + mathString + "]");
         }
         return dateTime.getMillis();
     }

@@ -90,9 +90,11 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     @Override
     public void circuitBreak(String fieldName, long bytesNeeded) {
         this.trippedCount.incrementAndGet();
-        throw new CircuitBreakingException("[" + this.name + "] Data too large, data for [" +
+        final String message = "[" + this.name + "] Data too large, data for [" +
                 fieldName + "] would be larger than limit of [" +
-                memoryBytesLimit + "/" + new ByteSizeValue(memoryBytesLimit) + "]",
+                memoryBytesLimit + "/" + new ByteSizeValue(memoryBytesLimit) + "]";
+        logger.debug(message);
+        throw new CircuitBreakingException(message,
                 bytesNeeded, this.memoryBytesLimit);
     }
 

@@ -323,7 +323,11 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                             File[] shardLocations = nodeEnv.shardLocations(shardId);
                             if (FileSystemUtils.exists(shardLocations)) {
                                 logger.debug("{} deleting shard that is no longer used", shardId);
-                                FileSystemUtils.deleteRecursively(shardLocations);
+                                try {
+                                    nodeEnv.deleteShardDirectorySafe(shardId);
+                                } catch (Exception ex) {
+                                    logger.debug("failed to delete shard locations", ex);
+                                }
                             }
                         }
                     } else {

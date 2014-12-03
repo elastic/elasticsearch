@@ -20,17 +20,18 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
@@ -139,7 +140,7 @@ public class NestedQueryParser implements QueryParser {
                 throw new QueryParsingException(parseContext.index(), "[nested] nested object under path [" + path + "] is not of nested type");
             }
 
-            Filter childFilter = parseContext.cacheFilter(objectMapper.nestedTypeFilter(), null);
+            FixedBitSetFilter childFilter = parseContext.fixedBitSetFilter(objectMapper.nestedTypeFilter());
             usAsParentFilter.filter = childFilter;
             // wrap the child query to only work on the nested path type
             query = new XFilteredQuery(query, childFilter);
@@ -166,11 +167,13 @@ public class NestedQueryParser implements QueryParser {
         }
     }
 
-    static ThreadLocal<LateBindingParentFilter> parentFilterContext = new ThreadLocal<>();
+    // TODO: Change this mechanism in favour of how parent nested object type is resolved in nested and reverse_nested agg
+    // with this also proper validation can be performed on what is a valid nested child nested object type to be used
+    public static ThreadLocal<LateBindingParentFilter> parentFilterContext = new ThreadLocal<>();
 
-    static class LateBindingParentFilter extends Filter {
+    public static class LateBindingParentFilter extends FixedBitSetFilter {
 
-        Filter filter;
+        public FixedBitSetFilter filter;
 
         @Override
         public int hashCode() {
@@ -179,7 +182,8 @@ public class NestedQueryParser implements QueryParser {
 
         @Override
         public boolean equals(Object obj) {
-            return filter.equals(obj);
+            if (!(obj instanceof LateBindingParentFilter)) return false;
+            return filter.equals(((LateBindingParentFilter) obj).filter);
         }
 
         @Override
@@ -188,7 +192,7 @@ public class NestedQueryParser implements QueryParser {
         }
 
         @Override
-        public DocIdSet getDocIdSet(AtomicReaderContext ctx, Bits liveDocs) throws IOException {
+        public FixedBitSet getDocIdSet(AtomicReaderContext ctx, Bits liveDocs) throws IOException {
             //LUCENE 4 UPGRADE just passing on ctx and live docs here
             return filter.getDocIdSet(ctx, liveDocs);
         }

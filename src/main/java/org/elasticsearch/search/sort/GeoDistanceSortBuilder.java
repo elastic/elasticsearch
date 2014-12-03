@@ -152,20 +152,16 @@ public class GeoDistanceSortBuilder extends SortBuilder {
         if (geohashes.size() == 0 && points.size() == 0) {
             throw new ElasticsearchParseException("No points provided for _geo_distance sort.");
         }
-        if (geohashes.size() == 1 && points.size() == 0) {
-            builder.field(fieldName, geohashes.get(0));
-        } else if (geohashes.size() == 1 && points.size() == 0) {
-            builder.field(fieldName, points.get(0));
-        } else {
-            builder.startArray(fieldName);
-            for (GeoPoint point : points) {
-                builder.value(point);
-            }
-            for (String geohash : geohashes) {
-                builder.value(geohash);
-            }
-            builder.endArray();
+
+        builder.startArray(fieldName);
+        for (GeoPoint point : points) {
+            builder.value(point);
         }
+        for (String geohash : geohashes) {
+            builder.value(geohash);
+        }
+        builder.endArray();
+
         if (unit != null) {
             builder.field("unit", unit);
         }

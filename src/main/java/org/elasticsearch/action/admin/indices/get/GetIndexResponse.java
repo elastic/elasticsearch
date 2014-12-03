@@ -21,17 +21,27 @@ package org.elasticsearch.action.admin.indices.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
+
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.ImmutableOpenMap.Builder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
+import org.elasticsearch.search.warmer.IndexWarmersMetaData.Entry;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * A response for a delete index action.
@@ -48,10 +58,18 @@ public class GetIndexResponse extends ActionResponse {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings,
             ImmutableOpenMap<String, ImmutableList<AliasMetaData>> aliases, ImmutableOpenMap<String, Settings> settings) {
         this.indices = indices;
-        this.warmers = warmers;
-        this.mappings = mappings;
-        this.aliases = aliases;
-        this.settings = settings;
+        if (warmers != null) {
+            this.warmers = warmers;
+        }
+        if (mappings != null) {
+            this.mappings = mappings;
+        }
+        if (aliases != null) {
+            this.aliases = aliases;
+        }
+        if (settings != null) {
+            this.settings = settings;
+        }
     }
 
     GetIndexResponse() {
@@ -188,5 +206,53 @@ public class GetIndexResponse extends ActionResponse {
             out.writeString(indexEntry.key);
             ImmutableSettings.writeSettingsToStream(indexEntry.value, out);
         }
+    }
+
+    public static GetIndexResponse convertResponses(GetAliasesResponse aliasesResponse, GetMappingsResponse mappingsResponse,
+            GetSettingsResponse settingsResponse, GetWarmersResponse warmersResponse) {
+        Set<String> indices = new HashSet<String>();
+        Builder<String, ImmutableList<AliasMetaData>> aliasesBuilder = ImmutableOpenMap.builder();
+        if (aliasesResponse != null) {
+            ImmutableOpenMap<String, List<AliasMetaData>> returnedAliasesMap = aliasesResponse.getAliases();
+            if (returnedAliasesMap != null) {
+                for (ObjectObjectCursor<String, List<AliasMetaData>> entry : returnedAliasesMap) {
+                    ImmutableList.Builder<AliasMetaData> listBuilder = ImmutableList.builder();
+                    listBuilder.addAll(entry.value);
+                    aliasesBuilder.put(entry.key, listBuilder.build());
+                    indices.add(entry.key);
+                }
+            }
+        }
+        ImmutableOpenMap<String, ImmutableList<AliasMetaData>> aliases = aliasesBuilder.build();
+        ImmutableOpenMap<String, ImmutableList<Entry>> warmers = null;
+        if (warmersResponse != null) {
+            warmers = warmersResponse.getWarmers();
+            if (warmers != null) {
+                for (ObjectObjectCursor<String, ImmutableList<Entry>> warmer : warmers) {
+                    indices.add(warmer.key);
+                }
+            }
+        }
+        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = null;
+        if (mappingsResponse != null) {
+            mappings = mappingsResponse.getMappings();
+            if (mappings != null) {
+                for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> mapping : mappings) {
+                    indices.add(mapping.key);
+                }
+            }
+        }
+        ImmutableOpenMap<String, Settings> indexToSettings = null;
+        if (settingsResponse != null) {
+            indexToSettings = settingsResponse.getIndexToSettings();
+            if (indexToSettings != null) {
+                for (ObjectObjectCursor<String, Settings> settings : indexToSettings) {
+                    indices.add(settings.key);
+                }
+            }
+        }
+        GetIndexResponse response = new GetIndexResponse(indices.toArray(new String[indices.size()]), warmers, mappings,
+                aliases, indexToSettings);
+        return response;
     }
 }

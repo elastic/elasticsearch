@@ -58,7 +58,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     private final TransportService transportService;
     private final ClusterService clusterService;
-    private final DiscoveryService discoveryService;
     private final DiscoveryNodeService discoveryNodeService;
     private AllocationService allocationService;
     private final ClusterName clusterName;
@@ -78,7 +77,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     @Inject
     public LocalDiscovery(Settings settings, ClusterName clusterName, TransportService transportService, ClusterService clusterService,
-                          DiscoveryNodeService discoveryNodeService, Version version, DiscoverySettings discoverySettings, DiscoveryService discoveryService) {
+                          DiscoveryNodeService discoveryNodeService, Version version, DiscoverySettings discoverySettings) {
         super(settings);
         this.clusterName = clusterName;
         this.clusterService = clusterService;
@@ -86,7 +85,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         this.discoveryNodeService = discoveryNodeService;
         this.version = version;
         this.discoverySettings = discoverySettings;
-        this.discoveryService = discoveryService;
     }
 
     @Override
@@ -308,7 +306,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 // ignore cluster state messages that do not include "me", not in the game yet...
                 if (nodeSpecificClusterState.nodes().localNode() != null) {
                     assert nodeSpecificClusterState.nodes().masterNode() != null : "received a cluster state without a master";
-                    assert !nodeSpecificClusterState.blocks().hasGlobalBlock(discoveryService.getNoMasterBlock()) : "received a cluster state with a master block";
+                    assert !nodeSpecificClusterState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock()) : "received a cluster state with a master block";
 
                     discovery.clusterService.submitStateUpdateTask("local-disco-receive(from master)", new ProcessedClusterStateNonMasterUpdateTask() {
                         @Override
@@ -317,7 +315,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                                 return currentState;
                             }
 
-                            if (currentState.blocks().hasGlobalBlock(discoveryService.getNoMasterBlock())) {
+                            if (currentState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock())) {
                                 // its a fresh update from the master as we transition from a start of not having a master to having one
                                 logger.debug("got first state from fresh master [{}]", nodeSpecificClusterState.nodes().masterNodeId());
                                 return nodeSpecificClusterState;

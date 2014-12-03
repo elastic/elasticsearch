@@ -77,7 +77,7 @@ public class UUIDTests extends ElasticsearchTestCase {
     public void testUUIDThreaded(UUIDGenerator uuidSource) {
         HashSet<UUIDGenRunner> runners = new HashSet<>();
         HashSet<Thread> threads = new HashSet<>();
-        int count = 100;
+        int count = 20;
         int uuids = 10000;
         for (int i = 0; i < count; ++i) {
             UUIDGenRunner runner = new UUIDGenRunner(uuids, uuidSource);

@@ -755,7 +755,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
     @Test
     public void script_MultiValued() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values").interval(interval))
+                .addAggregation(histogram("histo").script("doc['" + MULTI_VALUED_FIELD_NAME + "']").interval(interval))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -777,7 +777,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
     @Test
     public void script_MultiValued_WithAggregatorInherited() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values").interval(interval)
+                .addAggregation(histogram("histo").script("doc['" + MULTI_VALUED_FIELD_NAME + "']").interval(interval)
                         .subAggregation(sum("sum")))
                 .execute().actionGet();
 

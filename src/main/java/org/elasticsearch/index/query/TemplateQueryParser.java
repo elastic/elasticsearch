@@ -83,7 +83,7 @@ public class TemplateQueryParser implements QueryParser {
         BytesReference querySource = (BytesReference) executable.run();
 
         try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
-            final QueryParseContext context = new QueryParseContext(parseContext.index(), parseContext.indexQueryParser);
+            final QueryParseContext context = new QueryParseContext(parseContext.index(), parseContext.indexQueryParserService());
             context.reset(qSourceParser);
             Query result = context.parseInnerQuery();
             return result;

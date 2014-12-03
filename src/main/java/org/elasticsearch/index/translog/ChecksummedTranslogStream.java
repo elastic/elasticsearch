@@ -22,6 +22,7 @@ package org.elasticsearch.index.translog;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.InputStreamDataInput;
 import org.apache.lucene.store.OutputStreamDataOutput;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.io.stream.*;
 
 import java.io.EOFException;
@@ -106,14 +107,21 @@ public class ChecksummedTranslogStream implements TranslogStream {
 
     @Override
     public StreamInput openInput(File translogFile) throws IOException {
+        final FileInputStream fileInputStream = new FileInputStream(translogFile);
+        boolean success = false;
         try {
-            InputStreamStreamInput in = new InputStreamStreamInput(new FileInputStream(translogFile));
+            final InputStreamStreamInput in = new InputStreamStreamInput(fileInputStream);
             CodecUtil.checkHeader(new InputStreamDataInput(in), TranslogStreams.TRANSLOG_CODEC, VERSION, VERSION);
+            success = true;
             return in;
         } catch (EOFException e) {
             throw new TruncatedTranslogException("translog header truncated", e);
         } catch (IOException e) {
             throw new TranslogCorruptedException("translog header corrupted", e);
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(fileInputStream);
+            }
         }
     }
 }

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.store.fs;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -81,7 +80,11 @@ public abstract class FsIndexStore extends AbstractIndexStore {
         if (indexService.hasShard(shardId.id())) {
             throw new ElasticsearchIllegalStateException(shardId + " allocated, can't be deleted");
         }
-        FileSystemUtils.deleteRecursively(shardLocations(shardId));
+        try {
+            nodeEnv.deleteShardDirectorySafe(shardId);
+        } catch (Exception ex) {
+            logger.debug("failed to delete shard locations", ex);
+        }
     }
 
     public File[] shardLocations(ShardId shardId) {

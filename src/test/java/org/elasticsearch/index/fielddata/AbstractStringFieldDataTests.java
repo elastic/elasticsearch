@@ -20,10 +20,8 @@
 package org.elasticsearch.index.fielddata;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
+import org.apache.lucene.document.*;
 import org.apache.lucene.document.Field.Store;
-import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.*;
@@ -51,32 +49,37 @@ import static org.hamcrest.Matchers.*;
  */
 public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImplTests {
 
+    private void addField(Document d, String name, String value) {
+        d.add(new StringField(name, value, Field.Store.YES));
+        d.add(new SortedSetDocValuesField(name, new BytesRef(value)));
+    }
+
     protected void fillSingleValueAllSet() throws Exception {
         Document d = new Document();
-        d.add(new StringField("_id", "1", Field.Store.NO));
-        d.add(new StringField("value", "2", Field.Store.NO));
+        addField(d, "_id", "1");
+        addField(d, "value", "2");
         writer.addDocument(d);
 
         d = new Document();
-        d.add(new StringField("_id", "1", Field.Store.NO));
-        d.add(new StringField("value", "1", Field.Store.NO));
+        addField(d, "_id", "1");
+        addField(d, "value", "1");
         writer.addDocument(d);
 
         d = new Document();
-        d.add(new StringField("_id", "3", Field.Store.NO));
-        d.add(new StringField("value", "3", Field.Store.NO));
+        addField(d, "_id", "3");
+        addField(d, "value", "3");
         writer.addDocument(d);
     }
 
     protected void add2SingleValuedDocumentsAndDeleteOneOfThem() throws Exception {
         Document d = new Document();
-        d.add(new StringField("_id", "1", Field.Store.NO));
-        d.add(new StringField("value", "2", Field.Store.NO));
+        addField(d, "_id", "1");
+        addField(d, "value", "2");
         writer.addDocument(d);
 
         d = new Document();
-        d.add(new StringField("_id", "2", Field.Store.NO));
-        d.add(new StringField("value", "4", Field.Store.NO));
+        addField(d, "_id", "2");
+        addField(d, "value", "4");
         writer.addDocument(d);
 
         writer.commit();
@@ -86,101 +89,101 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
 
     protected void fillSingleValueWithMissing() throws Exception {
         Document d = new Document();
-        d.add(new StringField("_id", "1", Field.Store.NO));
-        d.add(new StringField("value", "2", Field.Store.NO));
+        addField(d, "_id", "1");
+        addField(d, "value", "2");
         writer.addDocument(d);
 
         d = new Document();
-        d.add(new StringField("_id", "2", Field.Store.NO));
+        addField(d, "_id", "2");
         //d.add(new StringField("value", one(), Field.Store.NO)); // MISSING....
         writer.addDocument(d);
 
         d = new Document();
-        d.add(new StringField("_id", "3", Field.Store.NO));
-        d.add(new StringField("value", "3", Field.Store.NO));
+        addField(d, "_id", "3");
+        addField(d, "value", "3");
         writer.addDocument(d);
     }
 
     protected void fillMultiValueAllSet() throws Exception {
         Document d = new Document();
-        d.add(new StringField("_id", "1", Field.Store.NO));
-        d.add(new StringField("value", "2", Field.Store.NO));
-        d.add(new StringField("value", "4", Field.Store.NO));
+        addField(d, "_id", "1");
+        addField(d, "value", "2");
+        addField(d, "value", "4");
         writer.addDocument(d);
 
         d = new Document();
-        d.add(new StringField("_id", "2", Field.Store.NO));
-        d.add(new StringField("value", "1", Field.Store.NO));
+        addField(d, "_id", "2");
+        addField(d, "value", "1");
         writer.addDocument(d);
         writer.commit(); // TODO: Have tests with more docs for sorting
 
         d = new Document();
-        d.add(new StringField("_id", "3", Field.Store.NO));
-        d.add(new StringField("value", "3", Field.Store.NO));
+        addField(d, "_id", "3");
+        addField(d, "value", "3");
         writer.addDocument(d);
     }
 
     protected void fillMultiValueWithMissing() throws Exception {
         Document d = new Document();
-        d.add(new StringField("_id", "1", Field.Store.NO));
-        d.add(new StringField("value", "2", Field.Store.NO));
-        d.add(new StringField("value", "4", Field.Store.NO));
+        addField(d, "_id", "1");
+        addField(d, "value", "2");
+        addField(d, "value", "4");
         writer.addDocument(d);
 
         d = new Document();
-        d.add(new StringField("_id", "2", Field.Store.NO));
+        addField(d, "_id", "2");
         //d.add(new StringField("value", one(), Field.Store.NO)); // MISSING
         writer.addDocument(d);
 
         d = new Document();
-        d.add(new StringField("_id", "3", Field.Store.NO));
-        d.add(new StringField("value", "3", Field.Store.NO));
+        addField(d, "_id", "3");
+        addField(d, "value", "3");
         writer.addDocument(d);
     }
 
     protected void fillAllMissing() throws Exception {
         Document d = new Document();
-        d.add(new StringField("_id", "1", Field.Store.NO));
+        addField(d, "_id", "1");
         writer.addDocument(d);
 
         d = new Document();
-        d.add(new StringField("_id", "2", Field.Store.NO));
+        addField(d, "_id", "2");
         writer.addDocument(d);
 
         d = new Document();
-        d.add(new StringField("_id", "3", Field.Store.NO));
+        addField(d, "_id", "3");
         writer.addDocument(d);
     }
 
     protected void fillExtendedMvSet() throws Exception {
         Document d = new Document();
-        d.add(new StringField("_id", "1", Field.Store.NO));
-        d.add(new StringField("value", "02", Field.Store.NO));
-        d.add(new StringField("value", "04", Field.Store.NO));
+        addField(d, "_id", "1");
+        addField(d, "value", "02");
+        addField(d, "value", "04");
         writer.addDocument(d);
 
         d = new Document();
-        d.add(new StringField("_id", "2", Field.Store.NO));
+        addField(d, "_id", "2");
         writer.addDocument(d);
 
         d = new Document();
-        d.add(new StringField("_id", "3", Field.Store.NO));
-        d.add(new StringField("value", "03", Field.Store.NO));
+        addField(d, "_id", "3");
+        addField(d, "value", "03");
         writer.addDocument(d);
         writer.commit();
 
         d = new Document();
-        d.add(new StringField("_id", "4", Field.Store.NO));
-        d.add(new StringField("value", "04", Field.Store.NO));
-        d.add(new StringField("value", "05", Field.Store.NO));
-        d.add(new StringField("value", "06", Field.Store.NO));
+        addField(d, "_id", "4");
+        addField(d, "value", "04");
+        addField(d, "value", "05");
+        addField(d, "value", "06");
         writer.addDocument(d);
 
         d = new Document();
-        d.add(new StringField("_id", "5", Field.Store.NO));
-        d.add(new StringField("value", "06", Field.Store.NO));
-        d.add(new StringField("value", "07", Field.Store.NO));
-        d.add(new StringField("value", "08", Field.Store.NO));
+        addField(d, "_id", "5");
+        addField(d, "value", "06");
+        addField(d, "value", "07");
+        addField(d, "value", "08");
         writer.addDocument(d);
 
         d = new Document();
@@ -188,18 +191,18 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         writer.addDocument(d);
 
         d = new Document();
-        d.add(new StringField("_id", "7", Field.Store.NO));
-        d.add(new StringField("value", "08", Field.Store.NO));
-        d.add(new StringField("value", "09", Field.Store.NO));
-        d.add(new StringField("value", "10", Field.Store.NO));
+        addField(d, "_id", "7");
+        addField(d, "value", "08");
+        addField(d, "value", "09");
+        addField(d, "value", "10");
         writer.addDocument(d);
         writer.commit();
 
         d = new Document();
-        d.add(new StringField("_id", "8", Field.Store.NO));
-        d.add(new StringField("value", "!08", Field.Store.NO));
-        d.add(new StringField("value", "!09", Field.Store.NO));
-        d.add(new StringField("value", "!10", Field.Store.NO));
+        addField(d, "_id", "8");
+        addField(d, "value", "!08");
+        addField(d, "value", "!09");
+        addField(d, "value", "!10");
         writer.addDocument(d);
     }
 
@@ -213,9 +216,6 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
 
     public void testActualMissingValue(boolean reverse) throws IOException {
         // missing value is set to an actual value
-        Document d = new Document();
-        final StringField s = new StringField("value", "", Field.Store.YES);
-        d.add(s);
         final String[] values = new String[randomIntBetween(2, 30)];
         for (int i = 1; i < values.length; ++i) {
             values[i] = TestUtil.randomUnicodeString(getRandom());
@@ -226,7 +226,8 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
             if (value == null) {
                 writer.addDocument(new Document());
             } else {
-                s.setStringValue(value);
+                Document d = new Document();
+                addField(d, "value", value);
                 writer.addDocument(d);
             }
             if (randomInt(10) == 0) {
@@ -271,9 +272,6 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
     }
 
     public void testSortMissing(boolean first, boolean reverse) throws IOException {
-        Document d = new Document();
-        final StringField s = new StringField("value", "", Field.Store.YES);
-        d.add(s);
         final String[] values = new String[randomIntBetween(2, 10)];
         for (int i = 1; i < values.length; ++i) {
             values[i] = TestUtil.randomUnicodeString(getRandom());
@@ -284,7 +282,8 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
             if (value == null) {
                 writer.addDocument(new Document());
             } else {
-                s.setStringValue(value);
+                Document d = new Document();
+                addField(d, "value", value);
                 writer.addDocument(d);
             }
             if (randomInt(10) == 0) {
@@ -341,7 +340,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
                 final int numValues = randomInt(3);
                 for (int k = 0; k < numValues; ++k) {
                     final String value = RandomPicks.randomFrom(getRandom(), values);
-                    child.add(new StringField("text", value, Store.YES));
+                    addField(child, "text", value);
                 }
                 docs.add(child);
             }
@@ -349,7 +348,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
             parent.add(new StringField("type", "parent", Store.YES));
             final String value = RandomPicks.randomFrom(getRandom(), values);
             if (value != null) {
-                parent.add(new StringField("text", value, Store.YES));
+                addField(parent, "text", value);
             }
             docs.add(parent);
             parents.set(parents.prevSetBit(parents.length() - 1) + docs.size());
@@ -426,6 +425,19 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         searcher.getIndexReader().close();
     }
 
+    private void assertIteratorConsistentWithRandomAccess(RandomAccessOrds ords, int maxDoc) {
+        for (int doc = 0; doc < maxDoc; ++doc) {
+            ords.setDocument(doc);
+            final int cardinality = ords.cardinality();
+            for (int i = 0; i < cardinality; ++i) {
+                assertEquals(ords.nextOrd(), ords.ordAt(i));
+            }
+            for (int i = 0; i < 3; ++i) {
+                assertEquals(ords.nextOrd(), -1);
+            }
+        }
+    }
+
     @Test
     public void testGlobalOrdinals() throws Exception {
         fillExtendedMvSet();
@@ -437,8 +449,10 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
 
         // First segment
         assertThat(globalOrdinals, instanceOf(GlobalOrdinalsIndexFieldData.class));
-        AtomicOrdinalsFieldData afd = globalOrdinals.load(topLevelReader.leaves().get(0));
+        AtomicReaderContext leaf = topLevelReader.leaves().get(0);
+        AtomicOrdinalsFieldData afd = globalOrdinals.load(leaf);
         RandomAccessOrds values = afd.getOrdinalsValues();
+        assertIteratorConsistentWithRandomAccess(values, leaf.reader().maxDoc());
         values.setDocument(0);
         assertThat(values.cardinality(), equalTo(2));
         long ord = values.nextOrd();
@@ -456,8 +470,10 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("03"));
 
         // Second segment
-        afd = globalOrdinals.load(topLevelReader.leaves().get(1));
+        leaf = topLevelReader.leaves().get(1);
+        afd = globalOrdinals.load(leaf);
         values = afd.getOrdinalsValues();
+        assertIteratorConsistentWithRandomAccess(values, leaf.reader().maxDoc());
         values.setDocument(0);
         assertThat(values.cardinality(), equalTo(3));
         ord = values.nextOrd();
@@ -495,8 +511,10 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("10"));
 
         // Third segment
-        afd = globalOrdinals.load(topLevelReader.leaves().get(2));
+        leaf = topLevelReader.leaves().get(2);
+        afd = globalOrdinals.load(leaf);
         values = afd.getOrdinalsValues();
+        assertIteratorConsistentWithRandomAccess(values, leaf.reader().maxDoc());
         values.setDocument(0);
         values.setDocument(0);
         assertThat(values.cardinality(), equalTo(3));

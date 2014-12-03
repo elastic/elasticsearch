@@ -34,6 +34,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.facet.FacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
@@ -628,7 +629,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Sets a raw (xcontent) binary representation of addAggregation to use.
      */
     public SearchRequestBuilder setAggregations(byte[] aggregations, int aggregationsOffset, int aggregationsLength) {
-        sourceBuilder().facets(aggregations, aggregationsOffset, aggregationsLength);
+        sourceBuilder().aggregations(aggregations, aggregationsOffset, aggregationsLength);
         return this;
     }
 
@@ -841,6 +842,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setHighlighterExplicitFieldOrder(boolean explicitFieldOrder) {
         highlightBuilder().useExplicitFieldOrder(explicitFieldOrder);
+        return this;
+    }
+
+    public SearchRequestBuilder addInnerHit(String name, InnerHitsBuilder.InnerHit innerHit) {
+        innerHitsBuilder().addInnerHit(name, innerHit);
         return this;
     }
 
@@ -1061,7 +1067,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
-    public SearchRequestBuilder setTemplateParams(Map<String,String> templateParams) {
+    public SearchRequestBuilder setTemplateParams(Map<String,Object> templateParams) {
         request.templateParams(templateParams);
         return this;
     }
@@ -1133,6 +1139,10 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     private HighlightBuilder highlightBuilder() {
         return sourceBuilder().highlighter();
+    }
+
+    private InnerHitsBuilder innerHitsBuilder() {
+        return sourceBuilder().innerHitsBuilder();
     }
 
     private SuggestBuilder suggestBuilder() {

@@ -56,6 +56,7 @@ import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.partial.PartialFieldsContext;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
@@ -164,6 +165,10 @@ public abstract class SearchContext implements Releasable {
 
     public abstract void highlight(SearchContextHighlight highlight);
 
+    public abstract void innerHits(InnerHitsContext innerHitsContext);
+
+    public abstract InnerHitsContext innerHits();
+
     public abstract SuggestionSearchContext suggest();
 
     public abstract void suggest(SuggestionSearchContext suggest);
@@ -258,9 +263,9 @@ public abstract class SearchContext implements Releasable {
 
     public abstract ParsedQuery parsedQuery();
 
-    public abstract SearchContext profiledQuery(boolean profile);
+    public abstract SearchContext profileQuery(boolean profile);
 
-    public abstract boolean profiledQuery();
+    public abstract boolean profileQuery();
 
     /**
      * The query to execute, might be rewritten.

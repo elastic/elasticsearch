@@ -20,13 +20,13 @@
 package org.elasticsearch.monitor.jvm;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashSet;
@@ -35,7 +35,6 @@ import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
-import static org.elasticsearch.monitor.jvm.DeadlockAnalyzer.deadlockAnalyzer;
 import static org.elasticsearch.monitor.jvm.JvmStats.GarbageCollector;
 import static org.elasticsearch.monitor.jvm.JvmStats.jvmStats;
 
@@ -124,7 +123,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
         if (!enabled) {
             return;
         }
-        scheduledFuture.cancel(true);
+        FutureUtils.cancel(scheduledFuture);
     }
 
     @Override

@@ -47,6 +47,7 @@ import java.util.Set;
 public class ClusterModule extends AbstractModule implements SpawnModules {
 
     private final Settings settings;
+    public static final String CLUSTER_SERVICE_IMPL = "cluster.info.service.type";
 
     private Set<Class<? extends IndexTemplateFilter>> indexTemplateFilters = new HashSet<>();
 
@@ -87,7 +88,7 @@ public class ClusterModule extends AbstractModule implements SpawnModules {
         bind(NodeMappingRefreshAction.class).asEagerSingleton();
         bind(MappingUpdatedAction.class).asEagerSingleton();
 
-        bind(ClusterInfoService.class).to(InternalClusterInfoService.class).asEagerSingleton();
+        bind(ClusterInfoService.class).to(settings.getAsClass(CLUSTER_SERVICE_IMPL, InternalClusterInfoService.class)).asEagerSingleton();
 
         Multibinder<IndexTemplateFilter> mbinder = Multibinder.newSetBinder(binder(), IndexTemplateFilter.class);
         for (Class<? extends IndexTemplateFilter> indexTemplateFilter : indexTemplateFilters) {

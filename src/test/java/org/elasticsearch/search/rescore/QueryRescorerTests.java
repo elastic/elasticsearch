@@ -28,8 +28,8 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -83,7 +83,6 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
                 }
             }
         }
-
     }
 
     @Test
@@ -193,6 +192,142 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         assertFirstHit(searchResponse, hasId("2"));
         assertSecondHit(searchResponse, hasId("6"));
         assertThirdHit(searchResponse, hasId("3"));
+
+        // Make sure non-zero from works:
+        searchResponse = client()
+                .prepareSearch()
+                .setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(MatchQueryBuilder.Operator.OR))
+                .setFrom(2)
+                .setSize(5)
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setRescorer(
+                        RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3))
+                                .setQueryWeight(0.6f).setRescoreQueryWeight(2.0f)).setRescoreWindow(20).execute().actionGet();
+
+        assertThat(searchResponse.getHits().hits().length, equalTo(3));
+        assertHitCount(searchResponse, 9);
+        assertFirstHit(searchResponse, hasId("3"));
+    }
+
+    // Tests a rescore window smaller than number of hits:
+    @Test
+    public void testSmallRescoreWindow() throws Exception {
+        Builder builder = ImmutableSettings.builder();
+        builder.put("index.analysis.analyzer.synonym.tokenizer", "whitespace");
+        builder.putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
+        builder.put("index.analysis.filter.synonym.type", "synonym");
+        builder.putArray("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
+
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .startObject("field1").field("type", "string").field("index_analyzer", "whitespace").field("search_analyzer", "synonym")
+                .endObject().endObject().endObject().endObject();
+
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", mapping).setSettings(builder.put("index.number_of_shards", 1)));
+
+        client().prepareIndex("test", "type1", "3").setSource("field1", "massachusetts").execute().actionGet();
+        client().prepareIndex("test", "type1", "6").setSource("field1", "massachusetts avenue lexington massachusetts").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "lexington massachusetts avenue").execute().actionGet();
+        client().prepareIndex("test", "type1", "2").setSource("field1", "lexington avenue boston massachusetts road").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+
+        SearchResponse searchResponse = client()
+                .prepareSearch()
+                .setQuery(QueryBuilders.matchQuery("field1", "massachusetts"))
+                .setFrom(0)
+            .setSize(5).execute().actionGet();
+        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        assertHitCount(searchResponse, 4);
+        assertFirstHit(searchResponse, hasId("3"));
+        assertSecondHit(searchResponse, hasId("6"));
+        assertThirdHit(searchResponse, hasId("1"));
+        assertFourthHit(searchResponse, hasId("2"));
+
+        // Now, rescore only top 2 hits w/ proximity:
+        searchResponse = client()
+                .prepareSearch()
+                .setQuery(QueryBuilders.matchQuery("field1", "massachusetts"))
+                .setFrom(0)
+                .setSize(5)
+                .setRescorer(
+                        RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3))
+                                .setQueryWeight(0.6f).setRescoreQueryWeight(2.0f)).setRescoreWindow(2).execute().actionGet();
+        // Only top 2 hits were re-ordered:
+        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        assertHitCount(searchResponse, 4);
+        assertFirstHit(searchResponse, hasId("6"));
+        assertSecondHit(searchResponse, hasId("3"));
+        assertThirdHit(searchResponse, hasId("1"));
+        assertFourthHit(searchResponse, hasId("2"));
+
+        // Now, rescore only top 3 hits w/ proximity:
+        searchResponse = client()
+                .prepareSearch()
+                .setQuery(QueryBuilders.matchQuery("field1", "massachusetts"))
+                .setFrom(0)
+                .setSize(5)
+                .setRescorer(
+                        RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3))
+                                .setQueryWeight(0.6f).setRescoreQueryWeight(2.0f)).setRescoreWindow(3).execute().actionGet();
+
+        // Only top 3 hits were re-ordered:
+        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        assertHitCount(searchResponse, 4);
+        assertFirstHit(searchResponse, hasId("6"));
+        assertSecondHit(searchResponse, hasId("1"));
+        assertThirdHit(searchResponse, hasId("3"));
+        assertFourthHit(searchResponse, hasId("2"));
+    }
+
+    // Tests a rescorer that penalizes the scores:
+    @Test
+    public void testRescorerMadeScoresWorse() throws Exception {
+        Builder builder = ImmutableSettings.builder();
+        builder.put("index.analysis.analyzer.synonym.tokenizer", "whitespace");
+        builder.putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
+        builder.put("index.analysis.filter.synonym.type", "synonym");
+        builder.putArray("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
+
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .startObject("field1").field("type", "string").field("index_analyzer", "whitespace").field("search_analyzer", "synonym")
+                .endObject().endObject().endObject().endObject();
+
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", mapping).setSettings(builder.put("index.number_of_shards", 1)));
+
+        client().prepareIndex("test", "type1", "3").setSource("field1", "massachusetts").execute().actionGet();
+        client().prepareIndex("test", "type1", "6").setSource("field1", "massachusetts avenue lexington massachusetts").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "lexington massachusetts avenue").execute().actionGet();
+        client().prepareIndex("test", "type1", "2").setSource("field1", "lexington avenue boston massachusetts road").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+
+        SearchResponse searchResponse = client()
+                .prepareSearch()
+                .setQuery(QueryBuilders.matchQuery("field1", "massachusetts").operator(MatchQueryBuilder.Operator.OR))
+                .setFrom(0)
+            .setSize(5).execute().actionGet();
+        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        assertHitCount(searchResponse, 4);
+        assertFirstHit(searchResponse, hasId("3"));
+        assertSecondHit(searchResponse, hasId("6"));
+        assertThirdHit(searchResponse, hasId("1"));
+        assertFourthHit(searchResponse, hasId("2"));
+
+        // Now, penalizing rescore (nothing matches the rescore query):
+        searchResponse = client()
+                .prepareSearch()
+                .setQuery(QueryBuilders.matchQuery("field1", "massachusetts").operator(MatchQueryBuilder.Operator.OR))
+                .setFrom(0)
+                .setSize(5)
+                .setRescorer(
+                        RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3))
+                                .setQueryWeight(1.0f).setRescoreQueryWeight(-1f)).setRescoreWindow(3).execute().actionGet();
+
+        // 6 and 1 got worse, and then the hit (2) outside the rescore window were sorted ahead:
+        assertFirstHit(searchResponse, hasId("3"));
+        assertSecondHit(searchResponse, hasId("2"));
+        assertThirdHit(searchResponse, hasId("6"));
+        assertFourthHit(searchResponse, hasId("1"));
     }
 
     // Comparator that sorts hits and rescored hits in the same way.
@@ -540,10 +675,10 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
 
         // Now use one rescore to drag the number we're looking for into the window of another
         QueryRescorer ninetyIsGood = RescoreBuilder.queryRescorer(
-                QueryBuilders.functionScoreQuery(QueryBuilders.queryString("*ninety*")).boostMode(CombineFunction.REPLACE)
+                QueryBuilders.functionScoreQuery(QueryBuilders.queryStringQuery("*ninety*")).boostMode(CombineFunction.REPLACE)
                 .add(ScoreFunctionBuilders.scriptFunction("1000.0f"))).setScoreMode("total");
         QueryRescorer oneToo = RescoreBuilder.queryRescorer(
-                QueryBuilders.functionScoreQuery(QueryBuilders.queryString("*one*")).boostMode(CombineFunction.REPLACE)
+                QueryBuilders.functionScoreQuery(QueryBuilders.queryStringQuery("*one*")).boostMode(CombineFunction.REPLACE)
                 .add(ScoreFunctionBuilders.scriptFunction("1000.0f"))).setScoreMode("total");
         request.clearRescorers().addRescorer(ninetyIsGood).addRescorer(oneToo, 10);
         response = request.setSize(2).get();

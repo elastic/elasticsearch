@@ -30,7 +30,7 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.UpdateInPlaceMap;
+import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -175,7 +175,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         }
 
         protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers, @Nullable @IndexSettings Settings settings) {
-            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, pathType, mappers, settings);
+            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, pathType, mappers);
         }
     }
 
@@ -318,22 +318,21 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
     private Boolean includeInAll;
 
-    private final UpdateInPlaceMap<String, Mapper> mappers;
+    private volatile CopyOnWriteHashMap<String, Mapper> mappers;
 
     private final Object mutex = new Object();
 
-    ObjectMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers, @Nullable @IndexSettings Settings settings) {
+    ObjectMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers) {
         this.name = name;
         this.fullPath = fullPath;
         this.enabled = enabled;
         this.nested = nested;
         this.dynamic = dynamic;
         this.pathType = pathType;
-        this.mappers = UpdateInPlaceMap.of(MapperService.getFieldMappersCollectionSwitch(settings));
-        if (mappers != null) {
-            UpdateInPlaceMap<String, Mapper>.Mutator mappersMutator = this.mappers.mutator();
-            mappersMutator.putAll(mappers);
-            mappersMutator.close();
+        if (mappers == null) {
+            this.mappers = new CopyOnWriteHashMap<>();
+        } else {
+            this.mappers = CopyOnWriteHashMap.copyOf(mappers);
         }
         this.nestedTypePathAsString = "__" + fullPath;
         this.nestedTypePathAsBytes = new BytesRef(nestedTypePathAsString);
@@ -396,9 +395,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             ((AllFieldMapper.IncludeInAll) mapper).includeInAllIfNotSet(includeInAll);
         }
         synchronized (mutex) {
-            UpdateInPlaceMap<String, Mapper>.Mutator mappingMutator = this.mappers.mutator();
-            mappingMutator.put(mapper.name(), mapper);
-            mappingMutator.close();
+            mappers = mappers.copyAndPut(mapper.name(), mapper);
         }
         return this;
     }
@@ -742,11 +739,6 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                         }
                     }
 
-                    if (!resolved && context.parser().textLength() == 0) {
-                        // empty string with no mapping, treat it like null value
-                        return;
-                    }
-
                     if (!resolved && context.root().dateDetection()) {
                         String text = context.parser().text();
                         // a safe check since "1" gets parsed as well
@@ -1040,4 +1032,5 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
 
     }
+
 }

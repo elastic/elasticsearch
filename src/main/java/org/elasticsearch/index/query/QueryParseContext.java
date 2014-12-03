@@ -21,24 +21,29 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
+import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.Version;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
+import org.elasticsearch.common.lucene.search.NoCacheQuery;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.ResolvableFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.cache.query.parser.QueryParserCache;
 import org.elasticsearch.index.engine.IndexEngine;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
@@ -83,7 +88,7 @@ public class QueryParseContext {
 
     private boolean requireCustomQueryWrappingFilter = false;
 
-    final IndexQueryParserService indexQueryParser;
+    private final IndexQueryParserService indexQueryParser;
 
     private final Map<String, Filter> namedFilters = Maps.newHashMap();
 
@@ -137,6 +142,10 @@ public class QueryParseContext {
     public XContentParser parser() {
         return parser;
     }
+    
+    public IndexQueryParserService indexQueryParserService() {
+        return indexQueryParser;
+    }
 
     public AnalysisService analysisService() {
         return indexQueryParser.analysisService;
@@ -188,17 +197,37 @@ public class QueryParseContext {
         return indexQueryParser.fixedBitSetFilterCache.getFixedBitSetFilter(filter);
     }
 
-    public Filter cacheFilter(Filter filter, @Nullable CacheKeyFilter.Key cacheKey) {
+    public Filter cacheFilter(Filter filter, @Nullable final CacheKeyFilter.Key cacheKey) {
         if (filter == null) {
             return null;
         }
         if (this.disableFilterCaching || this.propagateNoCache || filter instanceof NoCacheFilter) {
             return filter;
         }
-        if (cacheKey != null) {
-            filter = new CacheKeyFilter.Wrapper(filter, cacheKey);
+        if (filter instanceof ResolvableFilter) {
+            final ResolvableFilter resolvableFilter = (ResolvableFilter) filter;
+            // We need to wrap it another filter, because this method is invoked at query parse time, which
+            // may not be during search execution time. (for example index alias filter and percolator)
+            return new Filter() {
+                @Override
+                public DocIdSet getDocIdSet(AtomicReaderContext atomicReaderContext, Bits bits) throws IOException {
+                    Filter filter = resolvableFilter.resolve();
+                    if (filter == null) {
+                        return null;
+                    }
+                    if (cacheKey != null) {
+                        filter = new CacheKeyFilter.Wrapper(filter, cacheKey);
+                    }
+                    filter = indexQueryParser.indexCache.filter().cache(filter);
+                    return filter.getDocIdSet(atomicReaderContext, bits);
+                }
+            };
+        } else {
+            if (cacheKey != null) {
+                filter = new CacheKeyFilter.Wrapper(filter, cacheKey);
+            }
+            return indexQueryParser.indexCache.filter().cache(filter);
         }
-        return indexQueryParser.indexCache.filter().cache(filter);
     }
 
     public <IFD extends IndexFieldData<?>> IFD getForField(FieldMapper<?> mapper) {
@@ -249,6 +278,9 @@ public class QueryParseContext {
         if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
             // if we are at END_OBJECT, move to the next one...
             parser.nextToken();
+        }
+        if (result instanceof NoCacheQuery) {
+            propagateNoCache = true;
         }
         if (CustomQueryWrappingFilter.shouldUseCustomQueryWrappingFilter(result)) {
             requireCustomQueryWrappingFilter = true;

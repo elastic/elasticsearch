@@ -254,7 +254,6 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
                 client.prepareIndex(),
                 client.prepareClearScroll(),
                 client.prepareMultiGet(),
-                client.prepareBenchStatus()
         };
 
         for (ActionRequestBuilder requestBuilder : requestBuilders) {

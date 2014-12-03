@@ -37,12 +37,10 @@ public class PreBuiltAnalyzerProviderFactoryTests extends ElasticsearchTestCase 
     public void testVersioningInFactoryProvider() throws Exception {
         PreBuiltAnalyzerProviderFactory factory = new PreBuiltAnalyzerProviderFactory("default", AnalyzerScope.INDEX, PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT));
 
-        AnalyzerProvider currentAnalyzerProvider = factory.create("default", ImmutableSettings.Builder.EMPTY_SETTINGS);
         AnalyzerProvider former090AnalyzerProvider = factory.create("default", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_0).build());
         AnalyzerProvider currentAnalyzerProviderReference = factory.create("default", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
 
         // would love to access the version inside of the lucene analyzer, but that is not possible...
-        assertThat(currentAnalyzerProvider, is(currentAnalyzerProviderReference));
-        assertThat(currentAnalyzerProvider, is(not(former090AnalyzerProvider)));
+        assertThat(currentAnalyzerProviderReference, is(not(former090AnalyzerProvider)));
     }
 }

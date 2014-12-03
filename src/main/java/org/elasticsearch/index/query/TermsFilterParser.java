@@ -101,6 +101,9 @@ public class TermsFilterParser implements FilterParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
+                if  (fieldName != null) {
+                    throw new QueryParsingException(parseContext.index(), "[terms] filter does not support multiple fields");
+                }
                 fieldName = currentFieldName;
 
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

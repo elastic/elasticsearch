@@ -186,6 +186,16 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    @Override
+    protected int maximumNumberOfShards() {
+        return 3; // never go crazy in the REST tests
+    }
+
+    @Override
+    protected int maximumNumberOfReplicas() {
+        return 1; // never go crazy in the REST tests
+    }
+
     /**
      * Used to obtain settings for the REST client that is used to send REST requests.
      */

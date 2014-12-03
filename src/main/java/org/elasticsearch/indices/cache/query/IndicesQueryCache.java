@@ -26,6 +26,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchType;
@@ -85,6 +86,7 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
 
     public static final String INDICES_CACHE_QUERY_SIZE = "indices.cache.query.size";
     public static final String INDICES_CACHE_QUERY_EXPIRE = "indices.cache.query.expire";
+    public static final String INDICES_CACHE_QUERY_CONCURRENCY_LEVEL = "indices.cache.query.concurrency_level";
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -95,9 +97,12 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
     final ConcurrentMap<CleanupKey, Boolean> registeredClosedListeners = ConcurrentCollections.newConcurrentMap();
     final Set<CleanupKey> keysToClean = ConcurrentCollections.newConcurrentSet();
 
+
     //TODO make these changes configurable on the cluster level
-    private volatile String size;
-    private volatile TimeValue expire;
+    private final String size;
+    private final TimeValue expire;
+    private final int concurrencyLevel;
+
     private volatile Cache<Key, BytesReference> cache;
 
     @Inject
@@ -109,6 +114,11 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
         // this cache can be very small yet still be very effective
         this.size = settings.get(INDICES_CACHE_QUERY_SIZE, "1%");
         this.expire = settings.getAsTime(INDICES_CACHE_QUERY_EXPIRE, null);
+        // defaults to 4, but this is a busy map for all indices, increase it a bit by default
+        this.concurrencyLevel =  settings.getAsInt(INDICES_CACHE_QUERY_CONCURRENCY_LEVEL, 16);
+        if (concurrencyLevel <= 0) {
+            throw new ElasticsearchIllegalArgumentException("concurrency_level must be > 0 but was: " + concurrencyLevel);
+        }
         buildCache();
 
         this.reaper = new Reaper();
@@ -120,9 +130,7 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
 
         CacheBuilder<Key, BytesReference> cacheBuilder = CacheBuilder.newBuilder()
                 .maximumWeight(sizeInBytes).weigher(new QueryCacheWeigher()).removalListener(this);
-
-        // defaults to 4, but this is a busy map for all indices, increase it a bit
-        cacheBuilder.concurrencyLevel(16);
+        cacheBuilder.concurrencyLevel(concurrencyLevel);
 
         if (expire != null) {
             cacheBuilder.expireAfterAccess(expire.millis(), TimeUnit.MILLISECONDS);
@@ -415,13 +423,9 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
     private static Key buildKey(ShardSearchRequest request, SearchContext context) throws Exception {
         // TODO: for now, this will create different keys for different JSON order
         // TODO: tricky to get around this, need to parse and order all, which can be expensive
-        BytesStreamOutput out = new BytesStreamOutput();
-        request.writeTo(out, true);
-        // copy it over, most requests are small, we might as well copy to make sure we are not sliced...
-        // we could potentially keep it without copying, but then pay the price of extra unused bytes up to a page
         return new Key(context.indexShard(),
                 ((DirectoryReader) context.searcher().getIndexReader()).getVersion(),
-                out.bytes().copyBytesArray());
+                request.cacheKey());
     }
 
     /**

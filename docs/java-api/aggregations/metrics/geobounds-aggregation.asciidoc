@@ -1,0 +1,46 @@
+[[java-aggs-metrics-geobounds]]
+==== Cardinality Aggregation
+
+Here is how you can use
+{ref}/search-aggregations-metrics-geobounds-aggregation.html[Geo Bounds Aggregation]
+with Java API.
+
+
+===== Prepare aggregation request
+
+Here is an example on how to create the aggregation request:
+
+[source,java]
+--------------------------------------------------
+GeoBoundsBuilder aggregation =
+        AggregationBuilders
+                .geoBounds("agg")
+                .field("address.location")
+                .wrapLongitude(true);
+--------------------------------------------------
+
+
+===== Use aggregation response
+
+Import Aggregation definition classes:
+
+[source,java]
+--------------------------------------------------
+import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBounds;
+--------------------------------------------------
+
+[source,java]
+--------------------------------------------------
+// sr is here your SearchResponse object
+GeoBounds agg = sr.getAggregations().get("agg");
+GeoPoint bottomRight = agg.bottomRight();
+GeoPoint topLeft = agg.topLeft();
+logger.info("bottomRight {}, topLeft {}", bottomRight, topLeft);
+--------------------------------------------------
+
+This will basically produce:
+
+[source,text]
+--------------------------------------------------
+bottomRight [40.70500764381921, 13.952946866893775], topLeft [53.49603022435221, -4.190029308156676]
+--------------------------------------------------

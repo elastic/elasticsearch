@@ -15,6 +15,8 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import static org.elasticsearch.common.cli.CliTool.Command;
@@ -78,6 +80,8 @@ public class KeyPairGenerationToolTests extends CliToolTestCase {
         File tempFile2 = temporaryFolder.newFile();
         String publicKeyPath = tempFile1.getAbsolutePath();
         String privateKeyPath = tempFile2.getAbsolutePath();
+        Path publicKeyFilePath = Paths.get(publicKeyPath);
+        Path privateKeyFilePath = Paths.get(privateKeyPath);
 
         assertThat(tempFile1.delete(), equalTo(true));
         assertThat(tempFile2.delete(), equalTo(true));
@@ -87,17 +91,17 @@ public class KeyPairGenerationToolTests extends CliToolTestCase {
 
         assertThat(command, instanceOf(KeyGenerator.class));
         KeyGenerator keyGenerator = (KeyGenerator) command;
-        assertThat(keyGenerator.privateKeyPath, equalTo(privateKeyPath));
-        assertThat(keyGenerator.publicKeyPath, equalTo(publicKeyPath));
+        assertThat(keyGenerator.privateKeyPath, equalTo(privateKeyFilePath));
+        assertThat(keyGenerator.publicKeyPath, equalTo(publicKeyFilePath));
 
-        assertThat(Paths.get(publicKeyPath).toFile().exists(), equalTo(false));
-        assertThat(Paths.get(privateKeyPath).toFile().exists(), equalTo(false));
+        assertThat(Files.exists(publicKeyFilePath), equalTo(false));
+        assertThat(Files.exists(privateKeyFilePath), equalTo(false));
 
         assertThat(keyGenerator.execute(ImmutableSettings.EMPTY, new Environment(ImmutableSettings.EMPTY)), equalTo(ExitStatus.OK));
-        assertThat(Paths.get(publicKeyPath).toFile().exists(), equalTo(true));
-        assertThat(Paths.get(privateKeyPath).toFile().exists(), equalTo(true));
+        assertThat(Files.exists(publicKeyFilePath), equalTo(true));
+        assertThat(Files.exists(privateKeyFilePath), equalTo(true));
 
-        assertThat(Paths.get(publicKeyPath).toFile().delete(), equalTo(true));
-        assertThat(Paths.get(privateKeyPath).toFile().delete(), equalTo(true));
+        Files.delete(publicKeyFilePath);
+        Files.delete(privateKeyFilePath);
     }
 }

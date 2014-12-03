@@ -68,7 +68,7 @@ public class LicenseVerificationTool extends CliTool {
         }
 
         public static Command parse(Terminal terminal, CommandLine commandLine) throws IOException {
-            String publicKeyPath = commandLine.getOptionValue("publicKeyPath");
+            String publicKeyPathString = commandLine.getOptionValue("publicKeyPath");
             String[] licenseSources = commandLine.getOptionValues("license");
             String[] licenseSourceFiles = commandLine.getOptionValues("licenseFile");
 
@@ -82,7 +82,7 @@ public class LicenseVerificationTool extends CliTool {
             if (licenseSourceFiles != null) {
                 for (String licenseFilePath : licenseSourceFiles) {
                     Path licensePath = Paths.get(licenseFilePath);
-                    if (!exists(licenseFilePath)) {
+                    if (!Files.exists(licensePath)) {
                         return exitCmd(ExitStatus.USAGE, terminal, licenseFilePath + " does not exist");
                     }
                     licenses.addAll(Licenses.fromSource(Files.readAllBytes(licensePath)));
@@ -93,11 +93,12 @@ public class LicenseVerificationTool extends CliTool {
                 return exitCmd(ExitStatus.USAGE, terminal, "no license provided");
             }
 
-            if (!exists(publicKeyPath)) {
+            Path publicKeyPath = Paths.get(publicKeyPathString);
+            if (!Files.exists(publicKeyPath)) {
                 return exitCmd(ExitStatus.USAGE, terminal, publicKeyPath + " does not exist");
             }
 
-            return new LicenseVerifier(terminal, licenses, Paths.get(publicKeyPath));
+            return new LicenseVerifier(terminal, licenses, publicKeyPath);
         }
 
         @Override
@@ -118,10 +119,6 @@ public class LicenseVerificationTool extends CliTool {
             terminal.print(builder.string());
 
             return ExitStatus.OK;
-        }
-
-        private static boolean exists(String filePath) {
-            return new File(filePath).exists();
         }
     }
 

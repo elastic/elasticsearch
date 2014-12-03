@@ -12,9 +12,9 @@ import org.elasticsearch.common.cli.commons.CommandLine;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -51,22 +51,22 @@ public class KeyPairGeneratorTool extends CliTool {
                         option("pri", "privateKeyPath").required(true).hasArg(true)
                 ).build();
 
-        public final String publicKeyPath;
-        public final String privateKeyPath;
+        public final Path publicKeyPath;
+        public final Path privateKeyPath;
 
-        protected KeyGenerator(Terminal terminal, String publicKeyPath, String privateKeyPath) {
+        protected KeyGenerator(Terminal terminal, Path publicKeyPath, Path privateKeyPath) {
             super(terminal);
             this.privateKeyPath = privateKeyPath;
             this.publicKeyPath = publicKeyPath;
         }
 
         public static Command parse(Terminal terminal, CommandLine commandLine) {
-            String publicKeyPath = commandLine.getOptionValue("publicKeyPath");
-            String privateKeyPath = commandLine.getOptionValue("privateKeyPath");
+            Path publicKeyPath = Paths.get(commandLine.getOptionValue("publicKeyPath"));
+            Path privateKeyPath = Paths.get(commandLine.getOptionValue("privateKeyPath"));
 
-            if (exists(privateKeyPath)) {
+            if (Files.exists(privateKeyPath)) {
                 return exitCmd(ExitStatus.USAGE, terminal, privateKeyPath + " already exists");
-            } else if (exists(publicKeyPath)) {
+            } else if (Files.exists(publicKeyPath)) {
                 return exitCmd(ExitStatus.USAGE, terminal, publicKeyPath + " already exists");
             }
             return new KeyGenerator(terminal, publicKeyPath, privateKeyPath);
@@ -79,25 +79,21 @@ public class KeyPairGeneratorTool extends CliTool {
             return (keyPair != null) ? ExitStatus.OK : ExitStatus.CANT_CREATE;
         }
 
-        private static boolean exists(String filePath) {
-            return new File(filePath).exists();
-        }
-
-        private static KeyPair generateKeyPair(String privateKeyFileName, String publicKeyFileName) throws IOException, NoSuchAlgorithmException {
+        private static KeyPair generateKeyPair(Path privateKeyPath, Path publicKeyPath) throws IOException, NoSuchAlgorithmException {
             SecureRandom random = new SecureRandom();
 
             KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
             keyGen.initialize(2048, random);
             KeyPair keyPair = keyGen.generateKeyPair();
 
-            saveKeyPairToFiles(keyPair, privateKeyFileName, publicKeyFileName);
+            saveKeyPairToFiles(keyPair, privateKeyPath, publicKeyPath);
             return keyPair;
         }
     }
 
-    private static void saveKeyPairToFiles(KeyPair keyPair, String privateKeyFileName, String publicKeyFileName) throws IOException {
-        Files.write(Paths.get(privateKeyFileName), writeEncryptedPrivateKey(keyPair.getPrivate()));
-        Files.write(Paths.get(publicKeyFileName), writeEncryptedPublicKey(keyPair.getPublic()));
+    private static void saveKeyPairToFiles(KeyPair keyPair, Path privateKeyPath, Path publicKeyPath) throws IOException {
+        Files.write(privateKeyPath, writeEncryptedPrivateKey(keyPair.getPrivate()));
+        Files.write(publicKeyPath, writeEncryptedPublicKey(keyPair.getPublic()));
     }
 
     public static void main(String[] args) throws Exception {

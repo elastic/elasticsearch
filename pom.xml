@@ -976,6 +976,11 @@
                                     </mapper>
                                 </data>
                                 <data>
+                                    <src>${project.basedir}/src/deb/systemd/elasticsearch.service</src>
+                                    <dst>/usr/lib/systemd/system/elasticsearch.service</dst>
+                                    <type>file</type>
+                                </data>
+                                <data>
                                     <src>${project.basedir}/config</src>
                                     <type>directory</type>
                                     <excludes>.DS_Store</excludes>

@@ -27,13 +27,18 @@ import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
+import org.elasticsearch.search.internal.SubSearchContext;
 
 import java.io.IOException;
 
@@ -41,8 +46,11 @@ public class NestedFilterParser implements FilterParser {
 
     public static final String NAME = "nested";
 
+    private final InnerHitsQueryParserHelper innerHitsQueryParserHelper;
+
     @Inject
-    public NestedFilterParser() {
+    public NestedFilterParser(InnerHitsQueryParserHelper innerHitsQueryParserHelper) {
+        this.innerHitsQueryParserHelper = innerHitsQueryParserHelper;
     }
 
     @Override
@@ -63,6 +71,7 @@ public class NestedFilterParser implements FilterParser {
         boolean cache = false;
         HashedBytesRef cacheKey = null;
         String filterName = null;
+        Tuple<String, SubSearchContext> innerHits = null;
 
         // we need a late binding filter so we can inject a parent nested filter inner nested queries
         NestedQueryParser.LateBindingParentFilter currentParentFilterContext = NestedQueryParser.parentFilterContext.get();
@@ -83,6 +92,8 @@ public class NestedFilterParser implements FilterParser {
                     } else if ("filter".equals(currentFieldName)) {
                         filterFound = true;
                         filter = parseContext.parseInnerFilter();
+                    } else if ("inner_hits".equals(currentFieldName)) {
+                        innerHits = innerHitsQueryParserHelper.parse(parseContext);
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[nested] filter does not support [" + currentFieldName + "]");
                     }
@@ -135,6 +146,13 @@ public class NestedFilterParser implements FilterParser {
             usAsParentFilter.filter = childFilter;
             // wrap the child query to only work on the nested path type
             query = new FilteredQuery(query, childFilter);
+            if (innerHits != null) {
+                DocumentMapper childDocumentMapper = mapper.docMapper();
+                ObjectMapper parentObjectMapper = childDocumentMapper.findParentObjectMapper(objectMapper);
+                InnerHitsContext.NestedInnerHits nestedInnerHits = new InnerHitsContext.NestedInnerHits(innerHits.v2(), query, null, parentObjectMapper, objectMapper);
+                String name = innerHits.v1() != null ? innerHits.v1() : path;
+                parseContext.addInnerHits(name, nestedInnerHits);
+            }
 
             BitDocIdSetFilter parentFilter = currentParentFilterContext;
             if (parentFilter == null) {

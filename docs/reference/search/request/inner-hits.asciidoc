@@ -11,32 +11,21 @@ it's very useful to know which inner nested objects (in the case of nested or ch
 of parent/child) caused certain information to be returned. The inner hits feature can be used for this. This feature
 returns per search hit in the search response additional nested hits that caused a search hit to match in a different scope.
 
-The following snippet explains the basic structure of inner hits:
+Inner hits can be used by defining a `inner_hits` definition on a `nested`, `has_child` or `has_parent` query and filter.
+The structure looks like this:
 
 [source,js]
 --------------------------------------------------
 "inner_hits" : {
-    "<inner_hits_name>" : {
-        "<path|type>" : {
-            "<path-to-nested-object-field|child-or-parent-type>" : {
-                <inner_hits_body>
-                [,"inner_hits" : { [<sub_inner_hits>]+ } ]?
-            }
+    "<query>" : {
+        "inner_hits" : {
+            <inner_hits_options>
         }
     }
-    [,"<inner_hits_name_2>" : { ... } ]*
 }
 --------------------------------------------------
 
-Inside the `inner_hits` definition, first the name if the inner hit is defined then whether the inner_hit
-is a nested by defining `path` or a parent/child based definition by defining `type`. The next object layer contains
-the name of the nested object field if the inner_hits is nested or the parent or child type if the inner_hit definition
-is parent/child based.
-
-Multiple inner hit definitions can be defined in a single request. In the `<inner_hits_body>` any option for features
-that `inner_hits` support can be defined. Optionally another `inner_hits` definition can be defined in the `<inner_hits_body>`.
-
-If `inner_hits` is defined, each search will contain a `inner_hits` json object with the following structure:
+If `_inner_hits` is defined on a query that supports it then each search hit will contain a `inner_hits` json object with the following structure:
 
 [source,js]
 --------------------------------------------------
@@ -71,15 +60,13 @@ If `inner_hits` is defined, each search will contain a `inner_hits` json object 
 Inner hits support the following options:
 
 [horizontal]
-`path`:: Defines the nested scope where hits will be collected from.
-`type`:: Defines the parent or child type score where hits will be collected from.
-`query`:: Defines the query that will run in the defined nested, parent or child scope to collect and score hits. By default all document in the scope will be matched.
 `from`:: The offset from where the first hit to fetch for each `inner_hits` in the returned regular search hits.
 `size`:: The maximum number of hits to return per `inner_hits`. By default the top three matching hits are returned.
 `sort`:: How the inner hits should be sorted per `inner_hits`. By default the hits are sorted by the score.
-
-Either `path` or `type` must be defined. The `path` or `type` defines the scope from where hits are fetched and
-used as inner hits.
+`name`:: The name to be used for the particular inner hit definition in the response. Useful when multiple inner hits
+         have been defined in a single search request. The default depends in which query the inner hit is defined.
+         For `has_child` query and filter this is the child type, `has_parent` query and filter this is the parent type
+         and the nested query and filter this is the nested path.
 
 Inner hits also supports the following per document features:
 
@@ -105,29 +92,14 @@ The example below assumes that there is a nested object field defined with the n
             "path" : "comments",
             "query" : {
                 "match" : {"comments.message" : "[actual query]"}
-            }
-        }
-    },
-    "inner_hits" : {
-        "comment" : {
-            "path" : { <1>
-                "comments" : { <2>
-                    "query" : {
-                        "match" : {"comments.message" : "[actual query]"}
-                    }
-                }
-            }
+            },
+            "inner_hits" : {} <1>
         }
     }
 }
 --------------------------------------------------
 
-<1> The inner hit definition is nested and requires the `path` option.
-<2> The path option refers to the nested object field `comments`
-
-Above, the query is repeated in both the query and the `comment` inner hit definition. At the moment there is
-no query referencing support, so in order to make sure that only inner nested objects are returned that contributed to
-the matching of the regular hits, the inner query in the `nested` query needs to also be defined on the inner hits definition.
+<1> The inner hit definition in the nested query. No other options need to be defined.
 
 An example of a response snippet that could be generated from the above search request:
 
@@ -143,7 +115,7 @@ An example of a response snippet that could be generated from the above search r
         "_id": "1",
         "_source": ...,
         "inner_hits": {
-           "comment": {
+           "comments": { <1>
               "hits": {
                  "total": ...,
                  "hits": [
@@ -164,6 +136,8 @@ An example of a response snippet that could be generated from the above search r
      },
      ...
 --------------------------------------------------
+
+<1> The name used in the inner hit definition in the search request. A custom key can be used via the `name` option.
 
 The `_nested` metadata is crucial in the above example, because it defines from what inner nested object this inner hit
 came from. The `field` defines the object array field the nested hit is from and the `offset` relative to its location
@@ -193,25 +167,14 @@ The examples below assumes that there is a `_parent` field mapping in the `comme
             "type" : "comment",
             "query" : {
                 "match" : {"message" : "[actual query]"}
-            }
-        }
-    },
-    "inner_hits" : {
-        "comment" : {
-            "type" : { <1>
-                "comment" : { <2>
-                    "query" : {
-                        "match" : {"message" : "[actual query]"}
-                    }
-                }
-            }
+            },
+            "inner_hits" : {} <1>
         }
     }
 }
 --------------------------------------------------
 
-<1> This is a parent/child inner hit definition and requires the `type` option.
-<2> Refers to the document type `comment`
+<1> The inner hit definition like in the nested example.
 
 An example of a response snippet that could be generated from the above search request:
 
@@ -244,3 +207,80 @@ An example of a response snippet that could be generated from the above search r
      },
      ...
 --------------------------------------------------
+
+[[top-level-inner-hits]]
+==== top level inner hits
+
+Besides defining inner hits on query and filters, inner hits can also be defined as a top level construct alongside the
+`query` and `aggregations` definition. The main reason for using the top level inner hits definition is to let the
+inner hits return documents that don't match with the main query. Also inner hits definitions can be nested via the
+top level notation. Other then that the inner hit definition inside the query should be used, because that is the most
+compact way for defining inner hits.
+
+The following snippet explains the basic structure of inner hits defined at the top level of the search request body:
+
+[source,js]
+--------------------------------------------------
+"inner_hits" : {
+    "<inner_hits_name>" : {
+        "<path|type>" : {
+            "<path-to-nested-object-field|child-or-parent-type>" : {
+                <inner_hits_body>
+                [,"inner_hits" : { [<sub_inner_hits>]+ } ]?
+            }
+        }
+    }
+    [,"<inner_hits_name_2>" : { ... } ]*
+}
+--------------------------------------------------
+
+Inside the `inner_hits` definition, first the name if the inner hit is defined then whether the inner_hit
+is a nested by defining `path` or a parent/child based definition by defining `type`. The next object layer contains
+the name of the nested object field if the inner_hits is nested or the parent or child type if the inner_hit definition
+is parent/child based.
+
+Multiple inner hit definitions can be defined in a single request. In the `<inner_hits_body>` any option for features
+that `inner_hits` support can be defined. Optionally another `inner_hits` definition can be defined in the `<inner_hits_body>`.
+
+An example that shows the use of nested inner hits via the top level notation:
+
+[source,js]
+--------------------------------------------------
+{
+    "query" : {
+        "nested" : {
+            "path" : "comments",
+            "query" : {
+                "match" : {"comments.message" : "[actual query]"}
+            }
+        }
+    },
+    "inner_hits" : {
+        "comment" : {
+            "path" : { <1>
+                "comments" : { <2>
+                    "query" : {
+                        "match" : {"comments.message" : "[different query]"} <3>
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+<1> The inner hit definition is nested and requires the `path` option.
+<2> The path option refers to the nested object field `comments`
+<3> A query that runs to collect the nested inner documents for each search hit returned. If no query is defined all nested
+    inner documents will be included belonging to a search hit. This shows that it only make sense to the top level
+    inner hit definition if no query or a different query is specified.
+
+Additional options that are only available when using the top level inner hits notation:
+
+[horizontal]
+`path`:: Defines the nested scope where hits will be collected from.
+`type`:: Defines the parent or child type score where hits will be collected from.
+`query`:: Defines the query that will run in the defined nested, parent or child scope to collect and score hits. By default all document in the scope will be matched.
+
+Either `path` or `type` must be defined. The `path` or `type` defines the scope from where hits are fetched and
+used as inner hits.

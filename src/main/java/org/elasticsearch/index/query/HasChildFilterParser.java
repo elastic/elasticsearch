@@ -23,17 +23,21 @@ import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
 import org.elasticsearch.index.query.support.XContentStructure;
 import org.elasticsearch.index.search.child.ChildrenConstantScoreQuery;
 import org.elasticsearch.index.search.child.ChildrenQuery;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
+import org.elasticsearch.search.internal.SubSearchContext;
 
 import java.io.IOException;
 
@@ -46,8 +50,11 @@ public class HasChildFilterParser implements FilterParser {
 
     public static final String NAME = "has_child";
 
+    private final InnerHitsQueryParserHelper innerHitsQueryParserHelper;
+
     @Inject
-    public HasChildFilterParser() {
+    public HasChildFilterParser(InnerHitsQueryParserHelper innerHitsQueryParserHelper) {
+        this.innerHitsQueryParserHelper = innerHitsQueryParserHelper;
     }
 
     @Override
@@ -66,6 +73,7 @@ public class HasChildFilterParser implements FilterParser {
         int shortCircuitParentDocSet = 8192; // Tests show a cut of point between 8192 and 16384.
         int minChildren = 0;
         int maxChildren = 0;
+        Tuple<String, SubSearchContext> innerHits = null;
 
         String filterName = null;
         String currentFieldName = null;
@@ -86,6 +94,8 @@ public class HasChildFilterParser implements FilterParser {
                 } else if ("filter".equals(currentFieldName)) {
                     innerFilter = new XContentStructure.InnerFilter(parseContext, childType == null ? null : new String[] {childType});
                     filterFound = true;
+                } else if ("inner_hits".equals(currentFieldName)) {
+                    innerHits = innerHitsQueryParserHelper.parse(parseContext);
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_child] filter does not support [" + currentFieldName + "]");
                 }
@@ -130,6 +140,11 @@ public class HasChildFilterParser implements FilterParser {
         DocumentMapper childDocMapper = parseContext.mapperService().documentMapper(childType);
         if (childDocMapper == null) {
             throw new QueryParsingException(parseContext.index(), "No mapping for for type [" + childType + "]");
+        }
+        if (innerHits != null) {
+            InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.v2(), query, null, childDocMapper);
+            String name = innerHits.v1() != null ? innerHits.v1() : childType;
+            parseContext.addInnerHits(name, parentChildInnerHits);
         }
         ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
         if (!parentFieldMapper.active()) {

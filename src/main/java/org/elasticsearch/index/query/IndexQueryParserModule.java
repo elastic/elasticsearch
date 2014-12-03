@@ -26,6 +26,7 @@ import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.inject.assistedinject.FactoryProvider;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
 
 import java.util.LinkedList;
 import java.util.Map;
@@ -146,6 +147,7 @@ public class IndexQueryParserModule extends AbstractModule {
     protected void configure() {
 
         bind(IndexQueryParserService.class).asEagerSingleton();
+        bind(InnerHitsQueryParserHelper.class).asEagerSingleton();
 
         // handle XContenQueryParsers
         MapBinder<String, QueryParserFactory> queryBinder

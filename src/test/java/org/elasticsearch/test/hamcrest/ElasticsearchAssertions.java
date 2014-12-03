@@ -185,6 +185,7 @@ public class ElasticsearchAssertions {
         }
         assertVersionSerializable(countResponse);
     }
+
     public static void assertExists(ExistsResponse existsResponse, boolean expected) {
         if (existsResponse.exists() != expected) {
             fail("Exist is " + existsResponse.exists() + " but " + expected + " was expected " + formatShardStatus(existsResponse));
@@ -261,14 +262,14 @@ public class ElasticsearchAssertions {
                 assertThat(shardSearchFailure.reason(), reasonMatcher);
             }
             assertVersionSerializable(searchResponse);
-        } catch(SearchPhaseExecutionException e) {
+        } catch (SearchPhaseExecutionException e) {
             assertThat(e.status(), equalTo(restStatus));
             assertThat(e.getMessage(), reasonMatcher);
             for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
                 assertThat(shardSearchFailure.status(), equalTo(restStatus));
                 assertThat(shardSearchFailure.reason(), reasonMatcher);
             }
-        } catch(Exception e) {
+        } catch (Exception e) {
             fail("SearchPhaseExecutionException expected but got " + e.getClass());
         }
     }
@@ -581,10 +582,10 @@ public class ElasticsearchAssertions {
             Streamable newInstance = tryCreateNewInstance(streamable);
             if (newInstance == null) {
                 return; // can't create a new instance - we never modify a
-                        // streamable that comes in.
+                // streamable that comes in.
             }
             if (streamable instanceof ActionRequest) {
-                ((ActionRequest<?>)streamable).validate();
+                ((ActionRequest<?>) streamable).validate();
             }
             BytesReference orig = serialize(version, streamable);
             StreamInput input = new BytesStreamInput(orig);
@@ -691,12 +692,12 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertNodeContainsPlugins(NodesInfoResponse response, String nodeId,
-                                           List<String> expectedJvmPluginNames,
-                                           List<String> expectedJvmPluginDescriptions,
-                                           List<String> expectedJvmVersions,
-                                           List<String> expectedSitePluginNames,
-                                           List<String> expectedSitePluginDescriptions,
-                                           List<String> expectedSiteVersions) {
+                                                 List<String> expectedJvmPluginNames,
+                                                 List<String> expectedJvmPluginDescriptions,
+                                                 List<String> expectedJvmVersions,
+                                                 List<String> expectedSitePluginNames,
+                                                 List<String> expectedSitePluginDescriptions,
+                                                 List<String> expectedSiteVersions) {
 
         Assert.assertThat(response.getNodesMap().get(nodeId), notNullValue());
 

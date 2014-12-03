@@ -30,10 +30,10 @@ public final class TransportLivenessAction extends BaseTransportRequestHandler<L
 
     private final ClusterService clusterService;
     private final ClusterName clusterName;
-    public static final String NAME = "node:alive";
+    public static final String NAME = "internal:alive";
 
     @Inject
-    public TransportLivenessAction(Settings settings, ClusterName clusterName,
+    public TransportLivenessAction(ClusterName clusterName,
                                    ClusterService clusterService, TransportService transportService) {
         this.clusterService = clusterService;
         this.clusterName = clusterName;
@@ -47,11 +47,7 @@ public final class TransportLivenessAction extends BaseTransportRequestHandler<L
 
     @Override
     public void messageReceived(LivenessRequest request, TransportChannel channel) throws Exception {
-        try {
-            channel.sendResponse(new LivenessResponse(clusterName, clusterService.localNode()));
-        } catch (Throwable e) {
-            channel.sendResponse(e);
-        }
+        channel.sendResponse(new LivenessResponse(clusterName, clusterService.localNode()));
     }
 
     @Override

@@ -106,7 +106,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTests {
         public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request, TransportRequestOptions options, TransportResponseHandler<T> handler) {
             if (TransportLivenessAction.NAME.equals(action)) {
                 assertHeaders(request);
-                ((TransportResponseHandler<LivenessResponse>) handler).handleResponse(new LivenessResponse(ClusterName.DEFAULT, null));
+                ((TransportResponseHandler<LivenessResponse>) handler).handleResponse(new LivenessResponse(ClusterName.DEFAULT, node));
                 return;
             }
             if (ClusterStateAction.NAME.equals(action)) {

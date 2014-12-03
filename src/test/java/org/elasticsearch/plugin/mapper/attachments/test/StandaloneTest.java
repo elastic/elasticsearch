@@ -24,6 +24,7 @@ import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.cli.commons.CommandLine;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
@@ -33,14 +34,17 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
 import org.elasticsearch.index.mapper.xcontent.MapperTestUtils;
 
-import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.net.URL;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Locale;
 
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.option;
-import static org.elasticsearch.common.io.Streams.copyToByteArray;
+import static org.elasticsearch.common.io.Streams.copy;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
@@ -95,13 +99,7 @@ public class StandaloneTest extends CliTool {
                 builder.field("_content", base64text);
             } else {
                 // A file is provided
-                File file = new File(new URL(url).getFile());
-                boolean exists = file.exists();
-                if (!exists) {
-                    return ExitStatus.IO_ERROR;
-                }
-
-                byte[] bytes = copyToByteArray(file);
+                byte[] bytes = copyToBytes(Paths.get(url));
                 builder.field("_content", bytes);
             }
 
@@ -132,6 +130,18 @@ public class StandaloneTest extends CliTool {
 
         private void printMetadataContent(ParseContext.Document doc, String field) {
             terminal.println("- %s: %s", field, doc.get(docMapper.mappers().smartName("file." + field).mapper().names().indexName()));
+        }
+
+        public static byte[] copyToBytes(Path path) throws IOException {
+            try (InputStream is = Files.newInputStream(path)) {
+                if (is == null) {
+                    throw new FileNotFoundException("Resource [" + path + "] not found in classpath");
+                }
+                try (BytesStreamOutput out = new BytesStreamOutput()) {
+                    copy(is, out);
+                    return out.bytes().toBytes();
+                }
+            }
         }
 
         public static Command parse(Terminal terminal, CommandLine cli) throws IOException {

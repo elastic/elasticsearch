@@ -34,7 +34,29 @@ import java.util.*;
 
 import static org.hamcrest.CoreMatchers.*;
 
+/**
+ * This test verifies that all of the action names follow our defined naming conventions.
+ * Also, it verifies the backwards compatibility mechanism that allowed us to rename the action names in a bwc manner,
+ * by converting the new name to the old one when needed.
+ *
+ * Actions that get added after 1.4.0 don't need any renaming/mapping, thus this test needs to be instructed to
+ * ignore those actions by adding them to the post_1_4_actions set, as it is fine to not have a mapping for those.
+ */
 public class ActionNamesTests extends ElasticsearchIntegrationTest {
+
+    private static final Set<String> post_1_4_actions = new HashSet<>();
+
+    static {
+        //add here new actions that don't need a mapping as they weren't available prior to 1.4
+        post_1_4_actions.add(ExistsAction.NAME);
+        post_1_4_actions.add(ExistsAction.NAME + "[s]");
+        post_1_4_actions.add(GetIndexAction.NAME);
+        post_1_4_actions.add(UnicastZenPing.ACTION_NAME_GTE_1_4);
+        post_1_4_actions.add(SearchServiceTransportAction.FREE_CONTEXT_SCROLL_ACTION_NAME);
+        post_1_4_actions.add(SearchServiceTransportAction.FETCH_ID_SCROLL_ACTION_NAME);
+        post_1_4_actions.add(VerifyRepositoryAction.NAME);
+        post_1_4_actions.add(VerifyNodeRepositoryAction.ACTION_NAME);
+    }
 
     @Test
     @SuppressWarnings("unchecked")
@@ -124,19 +146,5 @@ public class ActionNamesTests extends ElasticsearchIntegrationTest {
                 assertThat(incomingAction, equalTo(ActionNames.post_1_4_action(action)));
             }
         }
-    }
-
-    private static final Set<String> post_1_4_actions = new HashSet<>();
-
-    static {
-        //add here new actions that don't need a mapping as they weren't available prior to 1.4
-        post_1_4_actions.add(ExistsAction.NAME);
-        post_1_4_actions.add(ExistsAction.NAME + "[s]");
-        post_1_4_actions.add(GetIndexAction.NAME);
-        post_1_4_actions.add(UnicastZenPing.ACTION_NAME_GTE_1_4);
-        post_1_4_actions.add(SearchServiceTransportAction.FREE_CONTEXT_SCROLL_ACTION_NAME);
-        post_1_4_actions.add(SearchServiceTransportAction.FETCH_ID_SCROLL_ACTION_NAME);
-        post_1_4_actions.add(VerifyRepositoryAction.NAME);
-        post_1_4_actions.add(VerifyNodeRepositoryAction.ACTION_NAME);
     }
 }

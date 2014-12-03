@@ -119,6 +119,25 @@ import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotsService;
 
+/**
+ * This class provides the transport action names given the version of the node we are talking to. It was introduced
+ * to maintain backwards compatibility after changing all of the transport action names to better categorize them.
+ * It takes care of the mapping between new action names and previous action names depending on the version of a node.
+ *
+ * The identified categories are:
+ * - indices:admin: apis that allow to perform administration tasks against indices
+ * - indices:data: apis that are about data
+ * - indices:read: apis that read data
+ * - indices:write: apis that write data
+ * - cluster:admin: cluster apis that allow to perform administration tasks
+ * - cluster:monitor: cluster apis that allow to monitor the system
+ * - internal: internal actions that are used from node to node but not directly exposed to users
+ *
+ * Any transport action belongs to one of the above categories and its name starts with its category, followed by a '/'
+ * and the name of the api itself (e.g. cluster:admin/nodes/restart).
+ * When an api exposes multiple transport handlers, some of which are invoked internally during the execution of the api,
+ * we use the `[n]` suffix to identify node actions and the `[s]` suffix to identify shard actions.
+ */
 final class ActionNames {
 
     static final ImmutableBiMap<String, String> ACTION_NAMES = createActionNamesMap();
@@ -127,6 +146,10 @@ final class ActionNames {
 
     }
 
+    /**
+     * Converts, when needed, the action name of an incoming request to the name known by the current node
+     * based on the sender given version
+     */
     static String incomingAction(String action, Version version) {
         if (version.before(Version.V_1_4_0_Beta1)) {
             String post_1_4_action = post_1_4_action(action);
@@ -138,6 +161,10 @@ final class ActionNames {
         return action;
     }
 
+    /**
+     * Converts, when needed, the action name of an outgoing request to the action name known by the recipient node
+     * based on its given version
+     */
     static String outgoingAction(String action, Version version) {
         if (version.before(Version.V_1_4_0_Beta1)) {
             String pre_1_4_Action = pre_1_4_Action(action);
@@ -157,6 +184,13 @@ final class ActionNames {
         return ACTION_NAMES.get(action);
     }
 
+    /**
+     * Initializes the map that contains all the known transport actions and allows to retrieve the new name given
+     * the previous one and the other way around depending on the version of a node, if needed.
+     * Only actions that were present at time of renaming need to be present in the mapping. Actions that are added
+     * from 1.4 on will just use their name that follows the new conventions, no need for any mapping.
+     * their name
+     */
     private static ImmutableBiMap<String, String> createActionNamesMap() {
         ImmutableBiMap.Builder<String, String> builder = ImmutableBiMap.builder();
 
@@ -331,11 +365,19 @@ final class ActionNames {
         return builder.build();
     }
 
+    /**
+     * Adds the mapping for an action that exposes a per node endpoint. The suffix of the node endpoint used to be '/n'
+     * and became '[n]' after renaming.
+     */
     private static void addNodeAction(String name, String pre_14_name, ImmutableBiMap.Builder<String, String> builder) {
         builder.put(name, pre_14_name);
         builder.put(name + "[n]", pre_14_name + "/n");
     }
 
+    /**
+     * Adds the mapping for an action that exposes a per shard endpoint. The suffix of the shard endpoint used to be '/s'
+     * and became '[s]' after renaming.
+     */
     private static void addShardAction(String name, String pre_14_name, ImmutableBiMap.Builder<String, String> builder) {
         builder.put(name, pre_14_name);
         builder.put(name + "[s]", pre_14_name + "/s");

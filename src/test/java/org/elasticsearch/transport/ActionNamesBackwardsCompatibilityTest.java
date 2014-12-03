@@ -46,7 +46,36 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.CoreMatchers.*;
 
+/**
+ * This test verifies the backwards compatibility mechanism that allowed us to rename the action names in a bwc manner,
+ * by converting the new name to the old one when needed.
+ *
+ * Actions that get added after 1.4.0 don't need any renaming/mapping, thus this test needs to be instructed to
+ * ignore those actions by adding them to the actionsVersions map, as it is fine to not have a mapping for those.DOCS
+ */
 public class ActionNamesBackwardsCompatibilityTest extends ElasticsearchBackwardsCompatIntegrationTest {
+
+    private static final Map<String, Version> actionsVersions = new HashMap<>();
+
+    static {
+        actionsVersions.put(GetIndexAction.NAME, Version.V_1_4_0_Beta1);
+
+        actionsVersions.put(ExistsAction.NAME, Version.V_1_4_0_Beta1);
+        actionsVersions.put(ExistsAction.NAME + "[s]", Version.V_1_4_0_Beta1);
+
+        actionsVersions.put(IndicesStore.ACTION_SHARD_EXISTS, Version.V_1_3_0);
+
+        actionsVersions.put(GetIndexedScriptAction.NAME, Version.V_1_3_0);
+        actionsVersions.put(DeleteIndexedScriptAction.NAME, Version.V_1_3_0);
+        actionsVersions.put(PutIndexedScriptAction.NAME, Version.V_1_3_0);
+
+        actionsVersions.put(UnicastZenPing.ACTION_NAME_GTE_1_4, Version.V_1_4_0_Beta1);
+
+        actionsVersions.put(SearchServiceTransportAction.FREE_CONTEXT_SCROLL_ACTION_NAME, Version.V_1_4_0_Beta1);
+        actionsVersions.put(SearchServiceTransportAction.FETCH_ID_SCROLL_ACTION_NAME, Version.V_1_4_0_Beta1);
+        actionsVersions.put(VerifyRepositoryAction.NAME, Version.V_1_4_0);
+        actionsVersions.put(VerifyNodeRepositoryAction.ACTION_NAME, Version.V_1_4_0);
+    }
 
     @Test
     @SuppressWarnings("unchecked")
@@ -113,27 +142,5 @@ public class ActionNamesBackwardsCompatibilityTest extends ElasticsearchBackward
     private static boolean isActionNotFoundExpected(Version version, String action) {
         Version actionVersion = actionsVersions.get(action);
         return actionVersion != null && version.before(actionVersion);
-    }
-
-    private static final Map<String, Version> actionsVersions = new HashMap<>();
-
-    static {
-        actionsVersions.put(GetIndexAction.NAME, Version.V_1_4_0_Beta1);
-
-        actionsVersions.put(ExistsAction.NAME, Version.V_1_4_0_Beta1);
-        actionsVersions.put(ExistsAction.NAME + "[s]", Version.V_1_4_0_Beta1);
-
-        actionsVersions.put(IndicesStore.ACTION_SHARD_EXISTS, Version.V_1_3_0);
-
-        actionsVersions.put(GetIndexedScriptAction.NAME, Version.V_1_3_0);
-        actionsVersions.put(DeleteIndexedScriptAction.NAME, Version.V_1_3_0);
-        actionsVersions.put(PutIndexedScriptAction.NAME, Version.V_1_3_0);
-
-        actionsVersions.put(UnicastZenPing.ACTION_NAME_GTE_1_4, Version.V_1_4_0_Beta1);
-
-        actionsVersions.put(SearchServiceTransportAction.FREE_CONTEXT_SCROLL_ACTION_NAME, Version.V_1_4_0_Beta1);
-        actionsVersions.put(SearchServiceTransportAction.FETCH_ID_SCROLL_ACTION_NAME, Version.V_1_4_0_Beta1);
-        actionsVersions.put(VerifyRepositoryAction.NAME, Version.V_1_4_0);
-        actionsVersions.put(VerifyNodeRepositoryAction.ACTION_NAME, Version.V_1_4_0);
     }
 }

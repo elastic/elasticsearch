@@ -22,7 +22,6 @@ package org.elasticsearch.transport;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -277,8 +276,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
 
         @Override
-        public TransportRequestHandler handler(String action, Version version) {
-            return serverHandlers.get(ActionNames.incomingAction(action, version));
+        public TransportRequestHandler handler(String action) {
+            return serverHandlers.get(action);
         }
 
         @Override
@@ -341,11 +340,6 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             } catch (EsRejectedExecutionException ex) {
                 logger.debug("Rejected execution on NodeDisconnected", ex);
             }
-        }
-
-        @Override
-        public String action(String action, Version version) {
-            return ActionNames.outgoingAction(action, version);
         }
     }
 

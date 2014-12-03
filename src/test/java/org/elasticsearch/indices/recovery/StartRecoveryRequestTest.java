@@ -70,11 +70,7 @@ public class StartRecoveryRequestTest extends ElasticsearchTestCase {
         assertThat(outRequest.markAsRelocated(), equalTo(inRequest.markAsRelocated()));
         assertThat(outRequest.existingFiles(), equalTo(inRequest.existingFiles()));
         assertThat(outRequest.recoveryId(), equalTo(inRequest.recoveryId()));
-        if (targetNodeVersion.onOrAfter(Version.V_1_2_2)) {
-            assertThat(outRequest.recoveryType(), equalTo(inRequest.recoveryType()));
-        } else {
-            assertThat(inRequest.recoveryType(), nullValue());
-        }
+        assertThat(outRequest.recoveryType(), equalTo(inRequest.recoveryType()));
     }
 
 

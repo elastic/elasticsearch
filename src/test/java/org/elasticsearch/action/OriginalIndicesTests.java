@@ -51,13 +51,8 @@ public class OriginalIndicesTests extends ElasticsearchTestCase {
             in.setVersion(out.getVersion());
             OriginalIndices originalIndices2 = OriginalIndices.readOriginalIndices(in);
 
-            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-                assertThat(originalIndices2.indices(), equalTo(originalIndices.indices()));
-                assertThat(originalIndices2.indicesOptions(), equalTo(originalIndices.indicesOptions()));
-            } else {
-                assertThat(originalIndices2.indices(), nullValue());
-                assertThat(originalIndices2.indicesOptions(), nullValue());
-            }
+            assertThat(originalIndices2.indices(), equalTo(originalIndices.indices()));
+            assertThat(originalIndices2.indicesOptions(), equalTo(originalIndices.indicesOptions()));
         }
     }
 
@@ -81,13 +76,8 @@ public class OriginalIndicesTests extends ElasticsearchTestCase {
             in.setVersion(out.getVersion());
             OriginalIndices originalIndices2 = OriginalIndices.readOptionalOriginalIndices(in);
 
-            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-                assertThat(originalIndices2.indices(), equalTo(originalIndices.indices()));
-                assertThat(originalIndices2.indicesOptions(), equalTo(originalIndices.indicesOptions()));
-            } else {
-                assertThat(originalIndices2.indices(), nullValue());
-                assertThat(originalIndices2.indicesOptions(), nullValue());
-            }
+            assertThat(originalIndices2.indices(), equalTo(originalIndices.indices()));
+            assertThat(originalIndices2.indicesOptions(), equalTo(originalIndices.indicesOptions()));
         }
     }
 

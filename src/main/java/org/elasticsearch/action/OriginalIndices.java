@@ -62,38 +62,29 @@ public class OriginalIndices implements IndicesRequest {
     }
 
     public static OriginalIndices readOptionalOriginalIndices(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            boolean empty = in.readBoolean();
-            if (!empty) {
-                return new OriginalIndices(in.readStringArray(), IndicesOptions.readIndicesOptions(in));
-            }
-        }
-        return OriginalIndices.EMPTY;
-    }
-
-    public static void writeOptionalOriginalIndices(OriginalIndices originalIndices, StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            boolean empty = originalIndices == EMPTY;
-            out.writeBoolean(empty);
-            if (!empty) {
-                out.writeStringArrayNullable(originalIndices.indices);
-                originalIndices.indicesOptions.writeIndicesOptions(out);
-            }
-        }
-    }
-
-    public static OriginalIndices readOriginalIndices(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+        boolean empty = in.readBoolean();
+        if (!empty) {
             return new OriginalIndices(in.readStringArray(), IndicesOptions.readIndicesOptions(in));
         }
         return OriginalIndices.EMPTY;
     }
 
-
-    public static void writeOriginalIndices(OriginalIndices originalIndices, StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+    public static void writeOptionalOriginalIndices(OriginalIndices originalIndices, StreamOutput out) throws IOException {
+        boolean empty = originalIndices == EMPTY;
+        out.writeBoolean(empty);
+        if (!empty) {
             out.writeStringArrayNullable(originalIndices.indices);
             originalIndices.indicesOptions.writeIndicesOptions(out);
         }
+    }
+
+    public static OriginalIndices readOriginalIndices(StreamInput in) throws IOException {
+        return new OriginalIndices(in.readStringArray(), IndicesOptions.readIndicesOptions(in));
+    }
+
+
+    public static void writeOriginalIndices(OriginalIndices originalIndices, StreamOutput out) throws IOException {
+        out.writeStringArrayNullable(originalIndices.indices);
+        originalIndices.indicesOptions.writeIndicesOptions(out);
     }
 }

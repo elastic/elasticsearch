@@ -159,15 +159,9 @@ public class IndexingStats implements Streamable, ToXContent {
             deleteCount = in.readVLong();
             deleteTimeInMillis = in.readVLong();
             deleteCurrent = in.readVLong();
-
-            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-                noopUpdateCount = in.readVLong();
-            }
-
-            if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
-                isThrottled = in.readBoolean();
-                throttleTimeInMillis = in.readLong();
-            }
+            noopUpdateCount = in.readVLong();
+            isThrottled = in.readBoolean();
+            throttleTimeInMillis = in.readLong();
         }
 
         @Override
@@ -179,15 +173,9 @@ public class IndexingStats implements Streamable, ToXContent {
             out.writeVLong(deleteCount);
             out.writeVLong(deleteTimeInMillis);
             out.writeVLong(deleteCurrent);
-
-            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-                out.writeVLong(noopUpdateCount);
-            }
-
-            if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
-                out.writeBoolean(isThrottled);
-                out.writeLong(throttleTimeInMillis);
-            }
+            out.writeVLong(noopUpdateCount);
+            out.writeBoolean(isThrottled);
+            out.writeLong(throttleTimeInMillis);
 
         }
 

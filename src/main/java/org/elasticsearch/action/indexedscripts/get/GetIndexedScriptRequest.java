@@ -159,7 +159,7 @@ public class GetIndexedScriptRequest extends ActionRequest<GetIndexedScriptReque
             in.readByte(); //Realtime
         }
         this.versionType = VersionType.fromValue(in.readByte());
-        this.version = Versions.readVersionWithVLongForBW(in);
+        this.version = in.readLong();
 
         if (in.getVersion().before(Version.V_1_5_0)) {
             FetchSourceContext.optionalReadFromStream(in);
@@ -182,7 +182,7 @@ public class GetIndexedScriptRequest extends ActionRequest<GetIndexedScriptReque
         }
 
         out.writeByte(versionType.getValue());
-        Versions.writeVersionWithVLongForBW(version, out);
+        out.writeLong(version);
 
         if (out.getVersion().before(Version.V_1_5_0)) {
             FetchSourceContext.optionalWriteToStream(null, out);

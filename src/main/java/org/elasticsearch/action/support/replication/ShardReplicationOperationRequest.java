@@ -201,9 +201,7 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
         index = in.readSharedString();
-        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-            canHaveDuplicates = in.readBoolean();
-        }
+        canHaveDuplicates = in.readBoolean();
         // no need to serialize threaded* parameters, since they only matter locally
     }
 
@@ -214,9 +212,7 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
         out.writeSharedString(index);
-        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            out.writeBoolean(canHaveDuplicates);
-        }
+        out.writeBoolean(canHaveDuplicates);
     }
 
     /**

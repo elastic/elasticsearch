@@ -155,9 +155,7 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
         maxNumSegments = in.readInt();
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-            upgrade = in.readBoolean();
-        }
+        upgrade = in.readBoolean();
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -166,8 +164,6 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
         out.writeInt(maxNumSegments);
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
-        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-            out.writeBoolean(upgrade);
-        }
+        out.writeBoolean(upgrade);
     }
 }

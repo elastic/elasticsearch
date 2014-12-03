@@ -200,10 +200,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         public static EmptyBucketInfo readFrom(StreamInput in) throws IOException {
             Rounding rounding = Rounding.Streams.read(in);
             InternalAggregations aggs = InternalAggregations.readAggregations(in);
-            if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-                if (in.readBoolean()) {
-                    return new EmptyBucketInfo(rounding, aggs, ExtendedBounds.readFrom(in));
-                }
+            if (in.readBoolean()) {
+                return new EmptyBucketInfo(rounding, aggs, ExtendedBounds.readFrom(in));
             }
             return new EmptyBucketInfo(rounding, aggs);
         }
@@ -211,11 +209,9 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         public static void writeTo(EmptyBucketInfo info, StreamOutput out) throws IOException {
             Rounding.Streams.write(info.rounding, out);
             info.subAggregations.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-                out.writeBoolean(info.bounds != null);
-                if (info.bounds != null) {
-                    info.bounds.writeTo(out);
-                }
+            out.writeBoolean(info.bounds != null);
+            if (info.bounds != null) {
+                info.bounds.writeTo(out);
             }
         }
 

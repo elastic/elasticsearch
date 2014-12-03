@@ -611,11 +611,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
             }
         }
 
-        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
-            minimumShouldMatch(in.readString());
-        } else {
-            percentTermsToMatch(in.readFloat());
-        }
+        minimumShouldMatch(in.readString());
 
         minTermFreq = in.readVInt();
         maxQueryTerms = in.readVInt();
@@ -631,19 +627,9 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
         minWordLength = in.readVInt();
         maxWordLength = in.readVInt();
         boostTerms = in.readFloat();
-        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-            include = in.readBoolean();
-        } else {
-            include = false; // hard-coded behavior until Elasticsearch 1.2
-        }
+        include = in.readBoolean();
 
         searchType = SearchType.fromId(in.readByte());
-        if (in.getVersion().before(Version.V_1_4_0_Beta1)) {
-            //searchQueryHint was unused and removed in 1.4
-            if (in.readBoolean()) {
-                in.readString();
-            }
-        }
         size = in.readVInt();
         if (size == 0) {
             searchIndices = null;
@@ -693,11 +679,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
             }
         }
 
-        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
-            out.writeString(minimumShouldMatch);
-        } else {
-            out.writeFloat(percentTermsToMatch());
-        }
+        out.writeString(minimumShouldMatch);
 
         out.writeVInt(minTermFreq);
         out.writeVInt(maxQueryTerms);
@@ -714,15 +696,9 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
         out.writeVInt(minWordLength);
         out.writeVInt(maxWordLength);
         out.writeFloat(boostTerms);
-        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            out.writeBoolean(include);
-        }
+        out.writeBoolean(include);
 
         out.writeByte(searchType.id());
-        if (out.getVersion().before(Version.V_1_4_0_Beta1)) {
-            //searchQueryHint was unused and removed in 1.4
-            out.writeBoolean(false);
-        }
         if (searchIndices == null) {
             out.writeVInt(0);
         } else {

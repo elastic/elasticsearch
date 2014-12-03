@@ -260,16 +260,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     }
 
     private static XContentType randomXContentType() {
-        if (globalCompatibilityVersion().onOrAfter(Version.V_1_2_0)) {
-            return randomFrom(XContentType.values());
-        } else {
-            // CBOR was added in 1.2.0 earlier version can't derive the format
-            XContentType type = randomFrom(XContentType.values());
-            while(type == XContentType.CBOR) {
-                type = randomFrom(XContentType.values());
-            }
-            return type;
-        }
+        return randomFrom(XContentType.values());
     }
 
     @AfterClass

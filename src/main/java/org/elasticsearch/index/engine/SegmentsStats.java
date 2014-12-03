@@ -178,31 +178,19 @@ public class SegmentsStats implements Streamable, ToXContent {
     public void readFrom(StreamInput in) throws IOException {
         count = in.readVLong();
         memoryInBytes = in.readLong();
-        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
-            indexWriterMemoryInBytes = in.readLong();
-            versionMapMemoryInBytes = in.readLong();
-        }
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            indexWriterMaxMemoryInBytes = in.readLong();
-        }
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            bitsetMemoryInBytes = in.readLong();
-        }
+        indexWriterMemoryInBytes = in.readLong();
+        versionMapMemoryInBytes = in.readLong();
+        indexWriterMaxMemoryInBytes = in.readLong();
+        bitsetMemoryInBytes = in.readLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(count);
         out.writeLong(memoryInBytes);
-        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
-            out.writeLong(indexWriterMemoryInBytes);
-            out.writeLong(versionMapMemoryInBytes);
-        }
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeLong(indexWriterMaxMemoryInBytes);
-        }
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeLong(bitsetMemoryInBytes);
-        }
+        out.writeLong(indexWriterMemoryInBytes);
+        out.writeLong(versionMapMemoryInBytes);
+        out.writeLong(indexWriterMaxMemoryInBytes);
+        out.writeLong(bitsetMemoryInBytes);
     }
 }

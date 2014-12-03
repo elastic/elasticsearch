@@ -79,14 +79,8 @@ public class PendingClusterTask implements Streamable {
         insertOrder = in.readVLong();
         priority = Priority.readFrom(in);
         source = in.readText();
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
-            timeInQueue = in.readLong();
-        } else {
-            timeInQueue = in.readVLong();
-        }
-        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
-            executing = in.readBoolean();
-        }
+        timeInQueue = in.readLong();
+        executing = in.readBoolean();
     }
 
     @Override
@@ -94,14 +88,7 @@ public class PendingClusterTask implements Streamable {
         out.writeVLong(insertOrder);
         Priority.writeTo(priority, out);
         out.writeText(source);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
-            // timeInQueue is set to -1 when unknown and can be negative if time goes backwards
-            out.writeLong(timeInQueue);
-        } else {
-            out.writeVLong(timeInQueue);
-        }
-        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
-            out.writeBoolean(executing);
-        }
+        out.writeLong(timeInQueue);
+        out.writeBoolean(executing);
     }
 }

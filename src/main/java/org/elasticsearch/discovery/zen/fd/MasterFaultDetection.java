@@ -423,9 +423,7 @@ public class MasterFaultDetection extends FaultDetection {
             super.readFrom(in);
             nodeId = in.readString();
             masterNodeId = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-                clusterName = ClusterName.readClusterName(in);
-            }
+            clusterName = ClusterName.readClusterName(in);
         }
 
         @Override
@@ -433,9 +431,7 @@ public class MasterFaultDetection extends FaultDetection {
             super.writeTo(out);
             out.writeString(nodeId);
             out.writeString(masterNodeId);
-            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-                clusterName.writeTo(out);
-            }
+            clusterName.writeTo(out);
         }
     }
 

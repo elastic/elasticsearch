@@ -305,12 +305,10 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
         } else if (realtime == 1) {
             this.realtime = true;
         }
-        if(in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            this.ignoreErrorsOnGeneratedFields = in.readBoolean();
-        }
+        this.ignoreErrorsOnGeneratedFields = in.readBoolean();
 
         this.versionType = VersionType.fromValue(in.readByte());
-        this.version = Versions.readVersionWithVLongForBW(in);
+        this.version = in.readLong();
 
         fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
     }
@@ -339,11 +337,9 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
         } else {
             out.writeByte((byte) 1);
         }
-        if(out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeBoolean(ignoreErrorsOnGeneratedFields);
-        }
+        out.writeBoolean(ignoreErrorsOnGeneratedFields);
         out.writeByte(versionType.getValue());
-        Versions.writeVersionWithVLongForBW(version, out);
+        out.writeLong(version);
 
         FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
     }

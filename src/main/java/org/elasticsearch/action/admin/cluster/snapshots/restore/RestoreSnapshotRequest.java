@@ -560,10 +560,8 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
         renameReplacement = in.readOptionalString();
         waitForCompletion = in.readBoolean();
         includeGlobalState = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
-            partial = in.readBoolean();
-            includeAliases = in.readBoolean();
-        }
+        partial = in.readBoolean();
+        includeAliases = in.readBoolean();
         settings = readSettingsFromStream(in);
     }
 
@@ -578,10 +576,8 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
         out.writeOptionalString(renameReplacement);
         out.writeBoolean(waitForCompletion);
         out.writeBoolean(includeGlobalState);
-        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
-            out.writeBoolean(partial);
-            out.writeBoolean(includeAliases);
-        }
+        out.writeBoolean(partial);
+        out.writeBoolean(includeAliases);
         writeSettingsToStream(settings, out);
     }
 }

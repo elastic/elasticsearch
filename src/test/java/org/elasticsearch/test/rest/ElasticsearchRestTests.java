@@ -242,11 +242,6 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
         return messageBuilder.toString();
     }
 
-    @Override
-    protected boolean randomizeNumberOfShardsAndReplicas() {
-        return compatibilityVersion().onOrAfter(Version.V_1_2_0);
-    }
-
     @Test
     public void test() throws IOException {
         //let's check that there is something to run, otherwise there might be a problem with the test section

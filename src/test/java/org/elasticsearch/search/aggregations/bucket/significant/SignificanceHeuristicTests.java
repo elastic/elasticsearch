@@ -87,11 +87,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
 
         sigTerms[1].readFrom(in);
 
-        if (version.onOrAfter(Version.V_1_3_0)) {
-            assertTrue(sigTerms[1].significanceHeuristic.equals(sigTerms[0].significanceHeuristic));
-        } else {
-            assertTrue(sigTerms[1].significanceHeuristic instanceof JLHScore);
-        }
+        assertTrue(sigTerms[1].significanceHeuristic.equals(sigTerms[0].significanceHeuristic));
     }
 
     InternalSignificantTerms[] getRandomSignificantTerms(SignificanceHeuristic heuristic) {

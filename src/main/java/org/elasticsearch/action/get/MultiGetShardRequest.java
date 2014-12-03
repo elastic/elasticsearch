@@ -121,50 +121,9 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         locations = new IntArrayList(size);
         items = new ArrayList<>(size);
 
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            for (int i = 0; i < size; i++) {
-                locations.add(in.readVInt());
-                items.add(MultiGetRequest.Item.readItem(in));
-            }
-        } else {
-            List<String> types = new ArrayList<>(size);
-            List<String> ids = new ArrayList<>(size);
-            List<String[]> fields = new ArrayList<>(size);
-            LongArrayList versions = new LongArrayList(size);
-            List<VersionType> versionTypes = new ArrayList<>(size);
-            List<FetchSourceContext> fetchSourceContexts = new ArrayList<>(size);
-
-            for (int i = 0; i < size; i++) {
-                locations.add(in.readVInt());
-                if (in.readBoolean()) {
-                    types.add(in.readSharedString());
-                } else {
-                    types.add(null);
-                }
-                ids.add(in.readString());
-                int size1 = in.readVInt();
-                if (size1 > 0) {
-                    String[] fieldsArray = new String[size1];
-                    for (int j = 0; j < size1; j++) {
-                        fieldsArray[j] = in.readString();
-                    }
-                    fields.add(fieldsArray);
-                } else {
-                    fields.add(null);
-                }
-                versions.add(Versions.readVersionWithVLongForBW(in));
-                versionTypes.add(VersionType.fromValue(in.readByte()));
-
-                fetchSourceContexts.add(FetchSourceContext.optionalReadFromStream(in));
-            }
-
-            for (int i = 0; i < size; i++) {
-                //before 1.4 we have only one index, the concrete one
-                MultiGetRequest.Item item = new MultiGetRequest.Item(index, types.get(i), ids.get(i))
-                        .fields(fields.get(i)).version(versions.get(i)).versionType(versionTypes.get(i))
-                        .fetchSourceContext(fetchSourceContexts.get(i));
-                items.add(item);
-            }
+        for (int i = 0; i < size; i++) {
+            locations.add(in.readVInt());
+            items.add(MultiGetRequest.Item.readItem(in));
         }
 
         preference = in.readOptionalString();
@@ -175,9 +134,7 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         } else if (realtime == 1) {
             this.realtime = true;
         }
-        if(in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            ignoreErrorsOnGeneratedFields = in.readBoolean();
-        }
+        ignoreErrorsOnGeneratedFields = in.readBoolean();
     }
 
     @Override
@@ -185,34 +142,9 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         super.writeTo(out);
         out.writeVInt(locations.size());
 
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            for (int i = 0; i < locations.size(); i++) {
-                out.writeVInt(locations.get(i));
-                items.get(i).writeTo(out);
-            }
-        } else {
-            for (int i = 0; i < locations.size(); i++) {
-                out.writeVInt(locations.get(i));
-                MultiGetRequest.Item item = items.get(i);
-                if (item.type() == null) {
-                    out.writeBoolean(false);
-                } else {
-                    out.writeBoolean(true);
-                    out.writeSharedString(item.type());
-                }
-                out.writeString(item.id());
-                if (item.fields() == null) {
-                    out.writeVInt(0);
-                } else {
-                    out.writeVInt(item.fields().length);
-                    for (String field : item.fields()) {
-                        out.writeString(field);
-                    }
-                }
-                Versions.writeVersionWithVLongForBW(item.version(), out);
-                out.writeByte(item.versionType().getValue());
-                FetchSourceContext.optionalWriteToStream(item.fetchSourceContext(), out);
-            }
+        for (int i = 0; i < locations.size(); i++) {
+            out.writeVInt(locations.get(i));
+            items.get(i).writeTo(out);
         }
 
         out.writeOptionalString(preference);
@@ -224,9 +156,7 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         } else {
             out.writeByte((byte) 1);
         }
-        if(out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeBoolean(ignoreErrorsOnGeneratedFields);
-        }
+        out.writeBoolean(ignoreErrorsOnGeneratedFields);
 
     }
 

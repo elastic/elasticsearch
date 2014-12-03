@@ -571,29 +571,19 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
 
-        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-            templateSourceUnsafe = false;
-            templateSource = in.readBytesReference();
-            templateName = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
-                templateType = ScriptService.ScriptType.readFrom(in);
-            }
-            if (in.readBoolean()) {
-                templateParams = (Map<String, Object>) in.readGenericValue();
-            }
+        templateSourceUnsafe = false;
+        templateSource = in.readBytesReference();
+        templateName = in.readOptionalString();
+        templateType = ScriptService.ScriptType.readFrom(in);
+        if (in.readBoolean()) {
+            templateParams = (Map<String, Object>) in.readGenericValue();
         }
-
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            queryCache = in.readOptionalBoolean();
-        }
+        queryCache = in.readOptionalBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_1_2_0)) {
-            out.writeByte((byte) 2); // operation threading
-        }
         out.writeByte(searchType.id());
 
         out.writeVInt(indices.length);
@@ -615,21 +605,15 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
 
-        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-            out.writeBytesReference(templateSource);
-            out.writeOptionalString(templateName);
-            if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
-                ScriptService.ScriptType.writeTo(templateType, out);
-            }
-            boolean existTemplateParams = templateParams != null;
-            out.writeBoolean(existTemplateParams);
-            if (existTemplateParams) {
-                out.writeGenericValue(templateParams);
-            }
+        out.writeBytesReference(templateSource);
+        out.writeOptionalString(templateName);
+        ScriptService.ScriptType.writeTo(templateType, out);
+        boolean existTemplateParams = templateParams != null;
+        out.writeBoolean(existTemplateParams);
+        if (existTemplateParams) {
+            out.writeGenericValue(templateParams);
         }
 
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeOptionalBoolean(queryCache);
-        }
+        out.writeOptionalBoolean(queryCache);
     }
 }

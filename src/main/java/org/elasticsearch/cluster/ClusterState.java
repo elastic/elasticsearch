@@ -625,21 +625,15 @@ public class ClusterState implements ToXContent {
         }
 
         public static void writeTo(ClusterState state, StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_1_1_1)) {
-                out.writeBoolean(state.clusterName != null);
-                if (state.clusterName != null) {
-                    state.clusterName.writeTo(out);
-                }
+            out.writeBoolean(state.clusterName != null);
+            if (state.clusterName != null) {
+                state.clusterName.writeTo(out);
             }
             out.writeLong(state.version());
             MetaData.Builder.writeTo(state.metaData(), out);
             RoutingTable.Builder.writeTo(state.routingTable(), out);
             DiscoveryNodes.Builder.writeTo(state.nodes(), out);
             ClusterBlocks.Builder.writeClusterBlocks(state.blocks(), out);
-            if (out.getVersion().before(Version.V_1_1_0)) {
-                // Versions before 1.1.0 are expecting AllocationExplanation
-                AllocationExplanation.EMPTY.writeTo(out);
-            }
             out.writeVInt(state.customs().size());
             for (ObjectObjectCursor<String, Custom> cursor : state.customs()) {
                 out.writeString(cursor.key);
@@ -655,11 +649,8 @@ public class ClusterState implements ToXContent {
          */
         public static ClusterState readFrom(StreamInput in, @Nullable DiscoveryNode localNode, @Nullable ClusterName defaultClusterName) throws IOException {
             ClusterName clusterName = defaultClusterName;
-            if (in.getVersion().onOrAfter(Version.V_1_1_1)) {
-                // it might be null even if it comes from a >= 1.1.1 node since it's origin might be an older node
-                if (in.readBoolean()) {
-                    clusterName = ClusterName.readClusterName(in);
-                }
+            if (in.readBoolean()) {
+                clusterName = ClusterName.readClusterName(in);
             }
             Builder builder = new Builder(clusterName);
             builder.version = in.readLong();
@@ -667,10 +658,6 @@ public class ClusterState implements ToXContent {
             builder.routingTable = RoutingTable.Builder.readFrom(in);
             builder.nodes = DiscoveryNodes.Builder.readFrom(in, localNode);
             builder.blocks = ClusterBlocks.Builder.readClusterBlocks(in);
-            if (in.getVersion().before(Version.V_1_1_0)) {
-                // Ignore the explanation read, since after 1.1.0 it's not part of the cluster state
-                AllocationExplanation.readAllocationExplanation(in);
-            }
             int customSize = in.readVInt();
             for (int i = 0; i < customSize; i++) {
                 String type = in.readString();

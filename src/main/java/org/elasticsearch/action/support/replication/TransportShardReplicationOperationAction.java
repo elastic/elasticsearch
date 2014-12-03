@@ -290,11 +290,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             int shard = -1;
-            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-                shardId = ShardId.readShardId(in);
-            } else {
-                shard = in.readVInt();
-            }
+            shardId = ShardId.readShardId(in);
             request = newReplicaRequestInstance();
             request.readFrom(in);
             if (in.getVersion().before(Version.V_1_4_0_Beta1)) {
@@ -307,13 +303,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-                shardId.writeTo(out);
-            } else {
-                out.writeVInt(shardId.id());
-                //older nodes expect the concrete index as part of the request
-                request.index(shardId.getIndex());
-            }
+            shardId.writeTo(out);
             request.writeTo(out);
         }
     }

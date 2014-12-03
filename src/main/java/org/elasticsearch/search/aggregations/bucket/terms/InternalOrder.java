@@ -292,18 +292,7 @@ class InternalOrder extends Terms.Order {
                 Aggregation aggregationOrder = (Aggregation) order;
                 out.writeBoolean(((MultiBucketsAggregation.Bucket.SubAggregationComparator) aggregationOrder.comparator).asc());
                 AggregationPath path = ((Aggregation) order).path();
-                if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-                    out.writeString(path.toString());
-                } else {
-                    // prev versions only supported sorting on a single level -> a single token;
-                    AggregationPath.PathElement token = path.lastPathElement();
-                    out.writeString(token.name);
-                    boolean hasValueName = token.key != null;
-                    out.writeBoolean(hasValueName);
-                    if (hasValueName) {
-                        out.writeString(token.key);
-                    }
-                }
+                out.writeString(path.toString());
             } else if (order instanceof CompoundOrder) {
                 CompoundOrder compoundOrder = (CompoundOrder) order;
                     out.writeByte(order.id());
@@ -330,15 +319,7 @@ class InternalOrder extends Terms.Order {
                 case Aggregation.ID:
                     boolean asc = in.readBoolean();
                     String key = in.readString();
-                    if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-                        return new InternalOrder.Aggregation(key, asc);
-                    }
-                    boolean hasValueNmae = in.readBoolean();
-                    if (hasValueNmae) {
-                        return new InternalOrder.Aggregation(key + "." + in.readString(), asc);
-                    }
-                    Terms.Order order = new InternalOrder.Aggregation(key, asc);
-                    return absoluteOrder ? new CompoundOrder(Collections.singletonList(order)) : order;
+                    return new InternalOrder.Aggregation(key, asc);
                 case CompoundOrder.ID:
                     int size = in.readVInt();
                     List<Terms.Order> compoundOrder = new ArrayList<>(size);

@@ -386,17 +386,11 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().before(Version.V_1_4_0_Beta1)) {
-            //term vector used to read & write the index twice, here and in the parent class
-            in.readString();
-        }
         type = in.readString();
         id = in.readString();
 
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            if (in.readBoolean()) {
-                doc = in.readBytesReference();
-            }
+        if (in.readBoolean()) {
+            doc = in.readBytesReference();
         }
         routing = in.readOptionalString();
         preference = in.readOptionalString();
@@ -415,29 +409,21 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
                 selectedFields.add(in.readString());
             }
         }
-        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
-            if (in.readBoolean()) {
-                perFieldAnalyzer = readPerFieldAnalyzer(in.readMap());
-            }
-            this.realtime = in.readBoolean();
+        if (in.readBoolean()) {
+            perFieldAnalyzer = readPerFieldAnalyzer(in.readMap());
         }
+        this.realtime = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_1_4_0_Beta1)) {
-            //term vector used to read & write the index twice, here and in the parent class
-            out.writeString(index);
-        }
         out.writeString(type);
         out.writeString(id);
 
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeBoolean(doc != null);
-            if (doc != null) {
-                out.writeBytesReference(doc);
-            }
+        out.writeBoolean(doc != null);
+        if (doc != null) {
+            out.writeBytesReference(doc);
         }
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
@@ -454,13 +440,11 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
         } else {
             out.writeVInt(0);
         }
-        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
-            out.writeBoolean(perFieldAnalyzer != null);
-            if (perFieldAnalyzer != null) {
-                out.writeGenericValue(perFieldAnalyzer);
-            }
-            out.writeBoolean(realtime());
+        out.writeBoolean(perFieldAnalyzer != null);
+        if (perFieldAnalyzer != null) {
+            out.writeGenericValue(perFieldAnalyzer);
         }
+        out.writeBoolean(realtime());
     }
 
     public static enum Flag {

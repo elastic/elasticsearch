@@ -25,23 +25,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
-public class EmailAlertActionFactory implements AlertActionFactory, ConfigurableComponentListener {
+public class SnptAlertActionFactory implements AlertActionFactory, ConfigurableComponentListener {
 
     private static final String GLOBAL_EMAIL_CONFIG = "email";
 
-    private static final String PORT_SETTING = "server.port";
-    private static final String SERVER_SETTING = "server.name";
-    private static final String FROM_SETTING = "from.address";
-    private static final String PASSWD_SETTING = "from.passwd";
+    private static final String PORT_SETTING = "alerts.action.snpt.server.port";
+    private static final String SERVER_SETTING = "alerts.action.email.server.name";
+    private static final String FROM_SETTING = "alerts.action.email.from.address";
+    private static final String PASSWD_SETTING = "alerts.action.email.from.passwd";
 
     private final ConfigurationManager configurationManager;
     private Settings settings;
 
-    public EmailAlertActionFactory(ConfigurationManager configurationManager) {
+    public SnptAlertActionFactory(ConfigurationManager configurationManager) {
         this.configurationManager = configurationManager;
     }
-
-
 
     @Override
     public AlertAction createAction(XContentParser parser) throws IOException {
@@ -85,8 +83,8 @@ public class EmailAlertActionFactory implements AlertActionFactory, Configurable
         }
         EmailAlertAction emailAlertAction = (EmailAlertAction)action;
         if (settings == null) {
-            settings = configurationManager.getConfigForComponent(GLOBAL_EMAIL_CONFIG);
-            configurationManager.registerListener(GLOBAL_EMAIL_CONFIG, this);
+            settings = configurationManager.getGlobalConfig();
+            configurationManager.registerListener(this);
         }
 
         if (settings == null) {

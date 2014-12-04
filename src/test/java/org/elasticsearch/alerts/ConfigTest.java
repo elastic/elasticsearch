@@ -44,7 +44,7 @@ public class ConfigTest extends ElasticsearchIntegrationTest {
         assertTrue(isReady); //Should always be ready on a clean start
 
         SettingsListener settingsListener = new SettingsListener();
-        configurationManager.registerListener("foo", settingsListener);
+        configurationManager.registerListener(settingsListener);
         TimeValue tv2 = TimeValue.timeValueMillis(10);
         XContentBuilder jsonSettings = XContentFactory.jsonBuilder();
         jsonSettings.startObject();
@@ -52,7 +52,7 @@ public class ConfigTest extends ElasticsearchIntegrationTest {
                 .field("bar", 100)
                 .field("baz", false);
         jsonSettings.endObject();
-        configurationManager.newConfig("foo", jsonSettings.bytes());
+        configurationManager.newConfig(jsonSettings.bytes());
 
         assertThat(settingsListener.settings.getAsTime("foo", new TimeValue(0)).getMillis(), equalTo(tv2.getMillis()));
         assertThat(settingsListener.settings.getAsInt("bar", 0), equalTo(100));

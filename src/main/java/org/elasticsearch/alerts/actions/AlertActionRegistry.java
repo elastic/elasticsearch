@@ -28,7 +28,7 @@ public class AlertActionRegistry extends AbstractComponent {
     public AlertActionRegistry(Settings settings, Client client, ConfigurationManager configurationManager) {
         super(settings);
         actionImplemented = ImmutableOpenMap.<String, AlertActionFactory>builder()
-                .fPut("email", new EmailAlertActionFactory(configurationManager))
+                .fPut("email", new SnptAlertActionFactory(configurationManager))
                 .fPut("index", new IndexAlertActionFactory(client, configurationManager))
                 .build();
     }

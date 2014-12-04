@@ -57,16 +57,10 @@ public class TransportConfigAlertAction extends TransportMasterNodeOperationActi
     protected void masterOperation(ConfigAlertRequest request, ClusterState state, ActionListener<ConfigAlertResponse> listener) throws ElasticsearchException {
         try {
 
-            IndexResponse indexResponse = client.prepareIndex(ConfigurationManager.CONFIG_INDEX, ConfigurationManager.CONFIG_TYPE, request.getConfigName())
+            IndexResponse indexResponse = client.prepareIndex(ConfigurationManager.CONFIG_INDEX, ConfigurationManager.CONFIG_TYPE, ConfigurationManager.GLOBAL_CONFIG_NAME)
                     .setSource(request.getConfigSource(), request.isConfigSourceUnsafe()).get();
-
-            configManager.newConfig(request.getConfigName(), request.getConfigSource());
-
+            configManager.newConfig( request.getConfigSource());
             listener.onResponse(new ConfigAlertResponse(indexResponse));
-
-
-            //ConfigAlertResponse response = new ConfigAlertResponse(alertManager.deleteAlert(request.getConfigName()));
-            //listener.onResponse(response);
         } catch (Exception e) {
             listener.onFailure(e);
         }

@@ -75,8 +75,8 @@ public class AlertActionManager extends AbstractComponent {
     private final TemplateHelper templateHelper;
     private final AlertActionRegistry actionRegistry;
 
-    private int scrollSize;
-    private TimeValue scrollTimeout;
+    private final int scrollSize;
+    private final TimeValue scrollTimeout;
 
     private final AtomicLong largestQueueSize = new AtomicLong(0);
     private final AtomicBoolean started = new AtomicBoolean(false);

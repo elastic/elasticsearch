@@ -8,7 +8,7 @@ package org.elasticsearch.alerts.transport.actions.config;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
-import org.elasticsearch.alerts.AlertsStore;
+import org.elasticsearch.alerts.ConfigurationManager;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,7 +20,6 @@ import java.io.IOException;
  */
 public class ConfigAlertRequest extends MasterNodeOperationRequest<ConfigAlertRequest> {
 
-    private String configName;
     private BytesReference configSource;
     private boolean configSourceUnsafe;
 
@@ -28,29 +27,6 @@ public class ConfigAlertRequest extends MasterNodeOperationRequest<ConfigAlertRe
     public ConfigAlertRequest() {
     }
 
-    /**
-     * The constructor for the requests that takes the name of the config to modify
-     * @param configName
-     */
-    public ConfigAlertRequest(String configName) {
-        this.configName = configName;
-    }
-
-    /**
-     * The name of the config to be modified
-     * @return
-     */
-    public String getConfigName() {
-        return configName;
-    }
-
-    /**
-     * The name of the config to be modified
-     * @param configName
-     */
-    public void setConfigName(String configName) {
-        this.configName = configName;
-    }
 
 
     /**
@@ -88,7 +64,7 @@ public class ConfigAlertRequest extends MasterNodeOperationRequest<ConfigAlertRe
      * @param configSource
      * @param configSourceUnsafe
      */
-    public void setAlertSource(BytesReference configSource, boolean configSourceUnsafe) {
+    public void setConfigSource(BytesReference configSource, boolean configSourceUnsafe) {
         this.configSource = configSource;
         this.configSourceUnsafe = configSourceUnsafe;
     }
@@ -105,7 +81,7 @@ public class ConfigAlertRequest extends MasterNodeOperationRequest<ConfigAlertRe
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (configName == null){
+        if (configSource == null){
             validationException = ValidateActions.addValidationError("configName is missing", validationException);
         }
         return validationException;
@@ -114,17 +90,18 @@ public class ConfigAlertRequest extends MasterNodeOperationRequest<ConfigAlertRe
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        configName = in.readString();
+        configSource = in.readBytesReference();
+        configSourceUnsafe = false;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(configName);
+        out.writeBytesReference(configSource);
     }
 
     @Override
     public String toString() {
-        return "delete {[" + AlertsStore.ALERT_INDEX + "][" + configName + "]}";
+        return "delete {[" + ConfigurationManager.CONFIG_INDEX + "][" + ConfigurationManager.CONFIG_TYPE + "]}";
     }
 }

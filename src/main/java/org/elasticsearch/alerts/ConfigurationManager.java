@@ -11,7 +11,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -19,7 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.indices.IndexMissingException;
 
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -31,23 +29,22 @@ public class ConfigurationManager extends AbstractComponent {
 
     public static final String CONFIG_TYPE = "config";
     public static final String CONFIG_INDEX = AlertsStore.ALERT_INDEX;
-    private final String GLOBAL_CONFIG_NAME = "global";
+    public static final String GLOBAL_CONFIG_NAME = "global";
     private volatile boolean readyToRead = false;
-    private volatile ImmutableOpenMap<String, List<ConfigurableComponentListener>> componentNameToListener;
+    private volatile CopyOnWriteArrayList<ConfigurableComponentListener> registeredComponents;
 
     @Inject
     public ConfigurationManager(Settings settings, Client client) {
         super(settings);
         this.client = client;
-        componentNameToListener = ImmutableOpenMap.<String, List<ConfigurableComponentListener>>builder().build();
+        registeredComponents = new CopyOnWriteArrayList<>();
     }
 
     /**
-     * This method gets the config for a component name
-     * @param componentName
+     * This method gets the config
      * @return The immutable settings loaded from the index
      */
-    public Settings getConfigForComponent(String componentName) {
+    public Settings getGlobalConfig() {
         ensureReady();
         try {
             client.admin().indices().prepareRefresh(CONFIG_INDEX).get();
@@ -55,7 +52,7 @@ public class ConfigurationManager extends AbstractComponent {
             logger.info("No index [" + CONFIG_INDEX + "] found");
             return null;
         }
-        GetResponse response = client.prepareGet(CONFIG_INDEX, CONFIG_TYPE, componentName).get();
+        GetResponse response = client.prepareGet(CONFIG_INDEX, CONFIG_TYPE, GLOBAL_CONFIG_NAME).get();
         if (!response.isExists()) {
             return null;
         }
@@ -67,23 +64,18 @@ public class ConfigurationManager extends AbstractComponent {
         return settingsBuilder.build();
     }
 
-    public Settings getGlobalConfig() {
-        return getConfigForComponent(GLOBAL_CONFIG_NAME);
-    }
-
     /**
      * Notify the listeners of a new config
-     * @param componentName
      * @param settingsSource
      */
-    public void newConfig(String componentName, BytesReference settingsSource) {
+    public void newConfig(BytesReference settingsSource) {
         Map<String, Object> settingsMap = XContentHelper.convertToMap(settingsSource, true).v2();
         ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder();
         for (Map.Entry<String, Object> configEntry : settingsMap.entrySet() ) {
             settingsBuilder.put(configEntry.getKey(), configEntry.getValue());
         }
         Settings settings = settingsBuilder.build();
-        for (ConfigurableComponentListener componentListener : componentNameToListener.get(componentName)) {
+        for (ConfigurableComponentListener componentListener : registeredComponents) {
             componentListener.receiveConfigurationUpdate(settings);
         }
     }
@@ -113,7 +105,6 @@ public class ConfigurationManager extends AbstractComponent {
         IndexMetaData configIndexMetadata = clusterState.getMetaData().index(CONFIG_INDEX);
         if (configIndexMetadata == null) {
             logger.info("No previous [" + CONFIG_INDEX + "]");
-
             return true;
         } else {
             if (clusterState.routingTable().index(CONFIG_INDEX).allPrimaryShardsActive()) {
@@ -128,18 +119,10 @@ public class ConfigurationManager extends AbstractComponent {
 
     /**
      * Registers an component to receive config updates
-     * @param componentName
-     * @param configListener
      */
-    public synchronized void registerListener(String componentName, ConfigurableComponentListener configListener) {
-        if (componentNameToListener.get(componentName) == null ){
-            List<ConfigurableComponentListener> componentListeners = new CopyOnWriteArrayList<>();
-            componentListeners.add(configListener);
-            ImmutableOpenMap.Builder componentNameToListenerBuilder = ImmutableOpenMap.builder(componentNameToListener)
-                    .fPut(componentName, componentListeners);
-            componentNameToListener = componentNameToListenerBuilder.build();
-        } else if (!componentNameToListener.get(componentName).contains(configListener)) {
-            componentNameToListener.get(componentName).add(configListener);
+    public void registerListener(ConfigurableComponentListener configListener) {
+        if (!registeredComponents.contains(configListener)) {
+            registeredComponents.add(configListener);
         }
     }
 }

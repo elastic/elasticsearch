@@ -91,7 +91,7 @@ public class AlertManager extends AbstractComponent {
                 stop();
             }
         });
-
+        manuallyStopped = !settings.getAsBoolean("alerts.start_immediately",  true);
     }
 
     public DeleteResponse deleteAlert(String name) throws InterruptedException, ExecutionException {
@@ -146,10 +146,6 @@ public class AlertManager extends AbstractComponent {
         } finally {
             alertLock.release(alertName);
         }
-    }
-
-    private void loadSettings() {
-        manuallyStopped = !settings.getAsBoolean("alerts.start_immediately",  true);
     }
 
     public TriggerResult executeAlert(AlertActionEntry entry) throws IOException {

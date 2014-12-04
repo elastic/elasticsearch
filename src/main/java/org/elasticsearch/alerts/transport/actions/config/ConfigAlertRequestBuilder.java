@@ -8,6 +8,7 @@ package org.elasticsearch.alerts.transport.actions.config;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.alerts.client.AlertsClient;
+import org.elasticsearch.common.bytes.BytesReference;
 
 /**
  * A alert config action request builder.
@@ -19,17 +20,24 @@ public class ConfigAlertRequestBuilder
         super(client, new ConfigAlertRequest());
     }
 
-    public ConfigAlertRequestBuilder(AlertsClient client, String alertName) {
-        super(client, new ConfigAlertRequest(alertName));
+    /**
+     * Sets the source of the config to be modified
+     * @param configSource
+     * @return
+     */
+    public ConfigAlertRequestBuilder setConfigSource(BytesReference configSource) {
+        this.request().setConfigSource(configSource);
+        return this;
     }
 
     /**
-     * Sets the name of the config to be modified
-     * @param configName
+     * Sets the source of the config to be modified with boolean to control safety
+     * @param configSource
      * @return
      */
-    public ConfigAlertRequestBuilder setAlertName(String configName) {
-        this.request().setConfigName(configName);
+    public ConfigAlertRequestBuilder setConfigSource(BytesReference configSource, boolean sourceUnsafe) {
+        this.request().setConfigSource(configSource);
+        this.request().setConfigSourceUnsafe(sourceUnsafe);
         return this;
     }
 

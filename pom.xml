@@ -61,6 +61,25 @@
     </properties>
 
     <dependencies>
+        <!-- real dependencies -->
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>elasticsearch</artifactId>
+            <version>${elasticsearch.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>elasticsearch-license-plugin</artifactId>
+            <version>${license.plugin.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>commons-codec</groupId>
+            <artifactId>commons-codec</artifactId>
+            <version>1.10</version>
+        </dependency>
+
         <!-- test deps -->
         <dependency>
             <groupId>org.apache.lucene</groupId>
@@ -72,8 +91,8 @@
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch</artifactId>
             <version>${elasticsearch.version}</version>
-            <scope>test</scope>
             <type>test-jar</type>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.hamcrest</groupId>
@@ -147,28 +166,6 @@
             <version>2.3.2</version>
             <scope>test</scope>
         </dependency>
-
-        <!-- real dependencies -->
-
-        <dependency>
-            <groupId>org.elasticsearch</groupId>
-            <artifactId>elasticsearch</artifactId>
-            <version>${elasticsearch.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>commons-codec</groupId>
-            <artifactId>commons-codec</artifactId>
-            <version>1.9</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.elasticsearch</groupId>
-            <artifactId>elasticsearch-license-plugin</artifactId>
-            <version>${license.plugin.version}</version>
-            <scope>provided</scope>
-        </dependency>
-
     </dependencies>
 
 
@@ -342,7 +339,6 @@
                     <skipTests>true</skipTests>
                 </configuration>
             </plugin>
-
 
             <plugin>
                 <groupId>de.thetaphi</groupId>

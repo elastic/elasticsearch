@@ -25,9 +25,9 @@
         "throttle_period": {
           "type": "string"
         },
-	"ack_state" : {
-          "type": "string"
-	},
+        "ack_state" : {
+              "type": "string"
+        },
         "trigger": {
           "type": "object",
           "enabled" : false,

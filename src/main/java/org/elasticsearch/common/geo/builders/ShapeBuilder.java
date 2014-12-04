@@ -346,6 +346,10 @@ public abstract class ShapeBuilder implements ToXContent {
             this.coordinate = null;
         }
 
+        protected boolean isEmpty() {
+            return (coordinate == null && (children == null || children.isEmpty()));
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (children == null) {
@@ -607,7 +611,19 @@ public abstract class ShapeBuilder implements ToXContent {
             }
         }
         
+        protected static void validatePointNode(CoordinateNode node) {
+            if (node.isEmpty()) {
+                throw new ElasticsearchParseException("Invalid number of points (0) provided when expecting a single coordinate "
+                        + "([lat, lng])");
+            } else if (node.coordinate == null) {
+                if (node.children.isEmpty() == false) {
+                    throw new ElasticsearchParseException("multipoint data provided when single point data expected.");
+                }
+            }
+        }
+
         protected static PointBuilder parsePoint(CoordinateNode node) {
+            validatePointNode(node);
             return newPoint(node.coordinate);
         }
 
@@ -619,7 +635,24 @@ public abstract class ShapeBuilder implements ToXContent {
             return newEnvelope().topLeft(coordinates.children.get(0).coordinate).bottomRight(coordinates.children.get(1).coordinate);
         }
 
+        protected static void validateMultiPointNode(CoordinateNode coordinates) {
+            if (coordinates.children == null || coordinates.children.isEmpty()) {
+                if (coordinates.coordinate != null) {
+                    throw new ElasticsearchParseException("single coordinate found when expecting an array of " +
+                            "coordinates. change type to point or change data to an array of >0 coordinates");
+                }
+                throw new ElasticsearchParseException("No data provided for multipoint object when expecting " +
+                        ">0 points (e.g., [[lat, lng]] or [[lat, lng], ...])");
+            } else {
+                for (CoordinateNode point : coordinates.children) {
+                    validatePointNode(point);
+                }
+            }
+        }
+
         protected static MultiPointBuilder parseMultiPoint(CoordinateNode coordinates) {
+            validateMultiPointNode(coordinates);
+
             MultiPointBuilder points = new MultiPointBuilder();
             for (CoordinateNode node : coordinates.children) {
                 points.point(node.coordinate);
@@ -671,6 +704,11 @@ public abstract class ShapeBuilder implements ToXContent {
         }
 
         protected static PolygonBuilder parsePolygon(CoordinateNode coordinates) {
+            if (coordinates.children == null || coordinates.children.isEmpty()) {
+                throw new ElasticsearchParseException("Invalid LinearRing provided for type polygon. Linear ring must be an array of " +
+                        "coordinates");
+            }
+
             LineStringBuilder shell = parseLinearRing(coordinates.children.get(0));
             PolygonBuilder polygon = new PolygonBuilder(shell.points);
             for (int i = 1; i < coordinates.children.size(); i++) {

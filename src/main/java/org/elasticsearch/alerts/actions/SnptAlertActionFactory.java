@@ -73,15 +73,15 @@ public class SnptAlertActionFactory implements AlertActionFactory, ConfigurableC
                 throw new ElasticsearchIllegalArgumentException("Unexpected token [" + token + "]");
             }
         }
-        return new EmailAlertAction(display, addresses.toArray(new String[addresses.size()]));
+        return new SntpAlertAction(display, addresses.toArray(new String[addresses.size()]));
     }
 
     @Override
     public boolean doAction(AlertAction action, Alert alert, TriggerResult result) {
-        if (!(action instanceof EmailAlertAction)) {
-            throw new ElasticsearchIllegalStateException("Bad action [" + action.getClass() + "] passed to EmailAlertActionFactory expected [" + EmailAlertAction.class + "]");
+        if (!(action instanceof SntpAlertAction)) {
+            throw new ElasticsearchIllegalStateException("Bad action [" + action.getClass() + "] passed to EmailAlertActionFactory expected [" + SntpAlertAction.class + "]");
         }
-        EmailAlertAction emailAlertAction = (EmailAlertAction)action;
+        SntpAlertAction sntpAlertAction = (SntpAlertAction)action;
         if (settings == null) {
             settings = configurationManager.getGlobalConfig();
             configurationManager.registerListener(this);
@@ -113,8 +113,9 @@ public class SnptAlertActionFactory implements AlertActionFactory, ConfigurableC
         try {
             message.setFrom(new InternetAddress(settings.get(FROM_SETTING)));
             message.setRecipients(Message.RecipientType.TO,
-                    emailAlertAction.getEmailAddresses().toArray(new Address[1]));
+                    sntpAlertAction.getEmailAddresses().toArray(new Address[1]));
             message.setSubject("Elasticsearch Alert " + alert.getAlertName() + " triggered");
+
             StringBuilder output = new StringBuilder();
             output.append("The following query triggered because ").append(result.getTrigger().toString()).append("\n");
             Object totalHits = XContentMapValues.extractValue("hits.total", result.getTriggerResponse());
@@ -129,12 +130,13 @@ public class SnptAlertActionFactory implements AlertActionFactory, ConfigurableC
             output.append("\n");
             output.append("\n");
 
-            if (emailAlertAction.getDisplayField() != null) {
+
+            if (sntpAlertAction.getDisplayField() != null) {
                 List<Map<String, Object>> hits = (List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", result.getActionResponse());
                 for (Map<String, Object> hit : hits) {
                     Map<String, Object> _source = (Map<String, Object>) hit.get("_source");
-                    if (_source.containsKey(emailAlertAction.getDisplayField())) {
-                        output.append(_source.get(emailAlertAction.getDisplayField()).toString());
+                    if (_source.containsKey(sntpAlertAction.getDisplayField())) {
+                        output.append(_source.get(sntpAlertAction.getDisplayField()).toString());
                     } else {
                         output.append(_source);
                     }

@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.TestCluster;
@@ -181,7 +182,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
                         .get();
                 assertThat(searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo(minimumExpectedAlertActionsWithActionPerformed));
                 if (assertTriggerSearchMatched) {
-                    assertThat(searchResponse.getHits().totalHits(), greaterThanOrEqualTo(1L));
+                    assertThat((Integer) XContentMapValues.extractValue("trigger_response.hits.total", searchResponse.getHits().getAt(0).sourceAsMap()), greaterThanOrEqualTo(1));
                 }
             }
         });

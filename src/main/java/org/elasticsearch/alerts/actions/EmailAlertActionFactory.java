@@ -92,12 +92,12 @@ public class EmailAlertActionFactory implements AlertActionFactory {
             message.setSubject("Elasticsearch Alert " + alert.getAlertName() + " triggered");
             StringBuilder output = new StringBuilder();
             output.append("The following query triggered because ").append(result.getTrigger().toString()).append("\n");
-            Object totalHits = XContentMapValues.extractValue("hits.total", result.getResponse());
+            Object totalHits = XContentMapValues.extractValue("hits.total", result.getTriggerResponse());
             output.append("The total number of hits returned : ").append(totalHits).append("\n");
-            output.append("For query : ").append(result.getRequest());
+            output.append("For query : ").append(result.getActionRequest());
             output.append("\n");
             output.append("Indices : ");
-            for (String index : result.getRequest().indices()) {
+            for (String index : result.getActionRequest().indices()) {
                 output.append(index);
                 output.append("/");
             }
@@ -105,7 +105,7 @@ public class EmailAlertActionFactory implements AlertActionFactory {
             output.append("\n");
 
             if (emailAlertAction.getDisplayField() != null) {
-                List<Map<String, Object>> hits = (List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", result.getResponse());
+                List<Map<String, Object>> hits = (List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", result.getActionResponse());
                 for (Map<String, Object> hit : hits) {
                     Map<String, Object> _source = (Map<String, Object>) hit.get("_source");
                     if (_source.containsKey(emailAlertAction.getDisplayField())) {
@@ -116,7 +116,7 @@ public class EmailAlertActionFactory implements AlertActionFactory {
                     output.append("\n");
                 }
             } else {
-                output.append(result.getResponse().toString());
+                output.append(result.getActionResponse().toString());
             }
 
             message.setText(output.toString());

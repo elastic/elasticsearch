@@ -106,7 +106,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         }
         builder.startObject();
         builder.field("schedule", cron);
-        builder.field("request");
+        builder.field("trigger_request");
         AlertUtils.writeSearchRequest(request, builder, ToXContent.EMPTY_PARAMS);
 
         if (metadata != null) {
@@ -133,7 +133,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
     protected SearchRequest createTriggerSearchRequest(String... indices) {
         SearchRequest request = new SearchRequest(indices);
         request.indicesOptions(AlertUtils.DEFAULT_INDICES_OPTIONS);
-        request.searchType(AlertUtils.DEFAULT_SEARCH_TYPE);
+        request.searchType(AlertUtils.DEFAULT_TRIGGER_SEARCH_TYPE);
         return request;
     }
 

@@ -31,14 +31,16 @@ public class AlertActionEntry implements ToXContent {
     private AlertTrigger trigger;
     private List<AlertAction> actions;
     private AlertActionState state;
-    private SearchRequest searchRequest;
-    /*Optional*/
-    private Map<String, Object> searchResponse;
+    private SearchRequest triggerRequest;
 
+
+    /*Optional*/
+    private Map<String, Object> triggerResponse;
+    private SearchRequest payloadRequest;
+    private Map<String, Object> payloadResponse;
     private boolean triggered;
     private String errorMsg;
     private Map<String,Object> metadata;
-
     private transient long version;
     private transient XContentType contentType;
 
@@ -53,11 +55,10 @@ public class AlertActionEntry implements ToXContent {
         this.trigger = alert.getTrigger();
         this.actions = alert.getActions();
         this.state = state;
-        this.searchRequest = alert.getSearchRequest();
         this.metadata = alert.getMetadata();
-
         this.version = 1;
         this.contentType = alert.getContentType();
+        this.triggerRequest = alert.getTriggerSearchRequest();
     }
 
     /**
@@ -129,23 +130,23 @@ public class AlertActionEntry implements ToXContent {
     /**
      * @return The query that ran at fire time
      */
-    public SearchRequest getSearchRequest() {
-        return searchRequest;
+    public SearchRequest getTriggerRequest() {
+        return triggerRequest;
     }
 
-    void setSearchRequest(SearchRequest searchRequest) {
-        this.searchRequest = searchRequest;
+    public void setTriggerRequest(SearchRequest triggerRequest) {
+        this.triggerRequest = triggerRequest;
     }
 
     /**
      * @return The search response that resulted at out the search request that ran.
      */
-    public Map<String, Object> getSearchResponse() {
-        return searchResponse;
+    public Map<String, Object> getTriggerResponse() {
+        return triggerResponse;
     }
 
-    void setSearchResponse(Map<String, Object> searchResponse) {
-        this.searchResponse = searchResponse;
+    public void setTriggerResponse(Map<String, Object> triggerResponse) {
+        this.triggerResponse = triggerResponse;
     }
 
     /**
@@ -211,6 +212,30 @@ public class AlertActionEntry implements ToXContent {
         this.metadata = metadata;
     }
 
+    /**
+     * @return the payload search response
+     */
+    public Map<String, Object> getPayloadResponse() {
+        return payloadResponse;
+    }
+
+    public void setPayloadResponse(Map<String, Object> payloadResponse) {
+        this.payloadResponse = payloadResponse;
+    }
+
+    /**
+     * @return the payload search request
+     */
+    public SearchRequest getPayloadRequest() {
+        return payloadRequest;
+    }
+
+    public void setPayloadRequest(SearchRequest payloadRequest) {
+        this.payloadRequest = payloadRequest;
+    }
+
+
+
     @Override
     public XContentBuilder toXContent(XContentBuilder historyEntry, Params params) throws IOException {
         historyEntry.startObject();
@@ -222,10 +247,18 @@ public class AlertActionEntry implements ToXContent {
         historyEntry.startObject();
         historyEntry.field(trigger.getTriggerName(), trigger, params);
         historyEntry.endObject();
-        historyEntry.field("request");
-        AlertUtils.writeSearchRequest(searchRequest, historyEntry, params);
-        if (searchResponse != null) {
-            historyEntry.field("response", searchResponse);
+        historyEntry.field("trigger_request");
+        AlertUtils.writeSearchRequest(triggerRequest, historyEntry, params);
+        if (triggerResponse != null) {
+            historyEntry.field("trigger_response", triggerResponse);
+        }
+
+        if (payloadRequest != null) {
+            historyEntry.field("payload_request");
+            AlertUtils.writeSearchRequest(payloadRequest, historyEntry, params);
+        }
+        if (payloadResponse != null) {
+            historyEntry.field("payload_response", triggerResponse);
         }
 
         historyEntry.startObject("actions");

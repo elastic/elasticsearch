@@ -15,14 +15,17 @@ public class TriggerResult {
 
     private final boolean triggered;
     private boolean throttled;
-    private final SearchRequest request;
-    private final Map<String, Object> response;
+    private final SearchRequest triggerRequest;
+    private final Map<String, Object> triggerResponse;
     private final AlertTrigger trigger;
 
-    public TriggerResult(boolean triggered, SearchRequest request, Map<String, Object> response, AlertTrigger trigger) {
+    private SearchRequest payloadRequest = null;
+    private Map<String, Object> payloadResponse = null;
+
+    public TriggerResult(boolean triggered, SearchRequest triggerRequest, Map<String, Object> triggerResponse, AlertTrigger trigger) {
         this.triggered = triggered;
-        this.request = request;
-        this.response = response;
+        this.triggerRequest = triggerRequest;
+        this.triggerResponse = triggerResponse;
         this.trigger = trigger;
     }
 
@@ -38,16 +41,61 @@ public class TriggerResult {
         this.throttled = throttled;
     }
 
-    public SearchRequest getRequest() {
-        return request;
+    /**
+     * Get's the request to trigger
+     */
+    public SearchRequest getTriggerRequest() {
+        return triggerRequest;
     }
 
-    public Map<String, Object> getResponse() {
-        return response;
+    /**
+     * The response from the trigger request
+     * @return
+     */
+    public Map<String, Object> getTriggerResponse() {
+        return triggerResponse;
+    }
+
+    /**
+     * The request to generate the payloads for the alert actions
+     * @return
+     */
+    public SearchRequest getPayloadRequest() {
+        return payloadRequest;
+    }
+
+    public void setPayloadRequest(SearchRequest payloadRequest) {
+        this.payloadRequest = payloadRequest;
+    }
+
+    /**
+     * The response from the payload request
+     * @return
+     */
+    public Map<String,Object> getPayloadResponse() {
+        return payloadResponse;
+    }
+
+    public void setPayloadResponse(Map<String, Object> payloadResponse) {
+        this.payloadResponse = payloadResponse;
     }
 
     public AlertTrigger getTrigger() {
         return trigger;
+    }
+
+    /**
+     * @return the response the actions should use
+     */
+    public Map<String, Object> getActionResponse() {
+        return payloadResponse != null ? payloadResponse : triggerResponse;
+    }
+
+    /**
+     * @return the request the actions should use
+     */
+    public SearchRequest getActionRequest() {
+        return payloadRequest != null ? payloadRequest : triggerRequest;
     }
 
 }

@@ -52,11 +52,11 @@ public class AlertThrottleTests extends AbstractAlertingTests {
 
         Alert alert = new Alert();
         alert.setAckState(AlertAckState.NOT_TRIGGERED);
-        alert.setSearchRequest(createTriggerSearchRequest("test-index").source(searchSource().query(matchAllQuery())));
+
+        alert.setTriggerSearchRequest(createTriggerSearchRequest("test-index").source(searchSource().query(matchAllQuery())));
         alert.setTrigger(new ScriptedTrigger("hits.total > 0", ScriptService.ScriptType.INLINE, "groovy"));
         alert.getActions().add(new IndexAlertAction("action-index", "action-type"));
         alert.setSchedule("0/5 * * * * ? *");
-
         alert.lastExecuteTime(new DateTime());
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
@@ -124,10 +124,11 @@ public class AlertThrottleTests extends AbstractAlertingTests {
 
         Alert alert = new Alert();
         alert.setAckState(AlertAckState.NOT_ACKABLE);
-        alert.setSearchRequest(createTriggerSearchRequest("test-index").source(searchSource().query(matchAllQuery())));
+        alert.setTriggerSearchRequest(createTriggerSearchRequest("test-index").source(searchSource().query(matchAllQuery())));
         alert.setTrigger(new ScriptedTrigger("hits.total > 0", ScriptService.ScriptType.INLINE, "groovy"));
         alert.getActions().add(new IndexAlertAction("action-index", "action-type"));
         alert.setSchedule("0/5 * * * * ? *");
+
         alert.lastExecuteTime(new DateTime());
         alert.setThrottlePeriod(new TimeValue(10, TimeUnit.SECONDS));
 

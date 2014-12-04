@@ -158,6 +158,58 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testParse_invalidPoint() throws IOException {
+        // test case 1: create an invalid point object with multipoint data format
+        String invalidPoint1 = XContentFactory.jsonBuilder().startObject().field("type", "point")
+                .startArray("coordinates")
+                .startArray().value(-74.011).value(40.753).endArray()
+                .endArray()
+                .endObject().string();
+        XContentParser parser = JsonXContent.jsonXContent.createParser(invalidPoint1);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+
+        // test case 2: create an invalid point object with an empty number of coordinates
+        String invalidPoint2 = XContentFactory.jsonBuilder().startObject().field("type", "point")
+                .startArray("coordinates")
+                .endArray()
+                .endObject().string();
+        parser = JsonXContent.jsonXContent.createParser(invalidPoint2);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+    }
+
+    @Test
+    public void testParse_invalidMultipoint() throws IOException {
+        // test case 1: create an invalid multipoint object with single coordinate
+        String invalidMultipoint1 = XContentFactory.jsonBuilder().startObject().field("type", "multipoint")
+                .startArray("coordinates").value(-74.011).value(40.753).endArray()
+                .endObject().string();
+        XContentParser parser = JsonXContent.jsonXContent.createParser(invalidMultipoint1);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+
+        // test case 2: create an invalid multipoint object with null coordinate
+        String invalidMultipoint2 = XContentFactory.jsonBuilder().startObject().field("type", "multipoint")
+                .startArray("coordinates")
+                .endArray()
+                .endObject().string();
+        parser = JsonXContent.jsonXContent.createParser(invalidMultipoint2);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+
+        // test case 3: create a valid formatted multipoint object with invalid number (0) of coordinates
+        String invalidMultipoint3 = XContentFactory.jsonBuilder().startObject().field("type", "multipoint")
+                .startArray("coordinates")
+                .startArray().endArray()
+                .endArray()
+                .endObject().string();
+        parser = JsonXContent.jsonXContent.createParser(invalidMultipoint3);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+    }
+
+    @Test
     public void testParse_invalidPolygon() throws IOException {
         /**
          * The following 3 test cases ensure proper error handling of invalid polygons 
@@ -225,6 +277,15 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
         parser = JsonXContent.jsonXContent.createParser(invalidPoly5);
         parser.nextToken();
         ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchIllegalArgumentException.class);
+
+        // test case 6: create an invalid polygon with 0 LinearRings
+        String invalidPoly6 = XContentFactory.jsonBuilder().startObject().field("type", "polygon")
+                .startArray("coordinates").endArray()
+                .endObject().string();
+
+        parser = JsonXContent.jsonXContent.createParser(invalidPoly6);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
     }
 
     @Test

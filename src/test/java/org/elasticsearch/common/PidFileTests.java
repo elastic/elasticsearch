@@ -55,7 +55,7 @@ public class PidFileTests extends ElasticsearchTestCase {
             if (randomBoolean()) {
                 try {
                     Path link = dir.resolve("link_to_real_path");
-                    Files.createSymbolicLink(link, parent);
+                    Files.createSymbolicLink(link, parent.getFileName());
                     parent = link;
                 } catch (UnsupportedOperationException ex) {
                    // fine - no links on this system

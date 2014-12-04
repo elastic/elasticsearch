@@ -30,7 +30,7 @@ public final class TransportLivenessAction extends BaseTransportRequestHandler<L
 
     private final ClusterService clusterService;
     private final ClusterName clusterName;
-    public static final String NAME = "internal:alive";
+    public static final String NAME = "cluster:monitor/nodes/liveness";
 
     @Inject
     public TransportLivenessAction(ClusterName clusterName,

@@ -21,7 +21,6 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -545,9 +544,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().before(Version.V_1_2_0)) {
-            in.readByte(); // backward comp. for operation threading
-        }
         searchType = SearchType.fromId(in.readByte());
 
         indices = new String[in.readVInt()];

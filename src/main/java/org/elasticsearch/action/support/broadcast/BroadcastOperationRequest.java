@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.support.broadcast;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -89,9 +88,6 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
-        if (out.getVersion().before(Version.V_1_2_0)) {
-            out.writeByte((byte) 2); // bwc operation threading
-        }
         indicesOptions.writeIndicesOptions(out);
     }
 
@@ -99,9 +95,6 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         indices = in.readStringArray();
-        if (in.getVersion().before(Version.V_1_2_0)) {
-            in.readByte(); // bwc operation threading
-        }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 }

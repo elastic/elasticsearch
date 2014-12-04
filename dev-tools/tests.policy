@@ -27,6 +27,7 @@ grant {
   permission java.io.FilePermission "${junit4.childvm.cwd}", "read,execute,write";
   permission java.io.FilePermission "${junit4.childvm.cwd}${/}-", "read,execute,write,delete";
   permission java.io.FilePermission "${junit4.tempDir}${/}*", "read,execute,write,delete";
+  permission java.nio.file.LinkPermission "symbolic";
   permission groovy.security.GroovyCodeSourcePermission "/groovy/script";
 
   // Allow connecting to the internet anywhere

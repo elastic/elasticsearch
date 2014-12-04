@@ -28,8 +28,9 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.liveness.LivenessRequest;
+import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
+import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Requests;
@@ -347,21 +348,21 @@ public class TransportClientNodesService extends AbstractComponent {
                     }
                 }
                 try {
-                    NodesInfoResponse nodeInfo = transportService.submitRequest(listedNode, NodesInfoAction.NAME,
-                            headers.applyTo(Requests.nodesInfoRequest("_local").clear()),
+                    LivenessResponse livenessResponse = transportService.submitRequest(listedNode, TransportLivenessAction.NAME,
+                            headers.applyTo(new LivenessRequest()),
                             TransportRequestOptions.options().withType(TransportRequestOptions.Type.STATE).withTimeout(pingTimeout),
-                            new FutureTransportResponseHandler<NodesInfoResponse>() {
+                            new FutureTransportResponseHandler<LivenessResponse>() {
                                 @Override
-                                public NodesInfoResponse newInstance() {
-                                    return new NodesInfoResponse();
+                                public LivenessResponse newInstance() {
+                                    return new LivenessResponse();
                                 }
                             }).txGet();
-                    if (!ignoreClusterName && !clusterName.equals(nodeInfo.getClusterName())) {
+                    if (!ignoreClusterName && !clusterName.equals(livenessResponse.getClusterName())) {
                         logger.warn("node {} not part of the cluster {}, ignoring...", listedNode, clusterName);
                         newFilteredNodes.add(listedNode);
-                    } else if (nodeInfo.getNodes().length != 0) {
+                    } else if (livenessResponse.getDiscoveryNode() != null) {
                         // use discovered information but do keep the original transport address, so people can control which address is exactly used.
-                        DiscoveryNode nodeWithInfo = nodeInfo.getNodes()[0].getNode();
+                        DiscoveryNode nodeWithInfo = livenessResponse.getDiscoveryNode();
                         newNodes.add(new DiscoveryNode(nodeWithInfo.name(), nodeWithInfo.id(), nodeWithInfo.getHostName(), nodeWithInfo.getHostAddress(), listedNode.address(), nodeWithInfo.attributes(), nodeWithInfo.version()));
                     } else {
                         // although we asked for one node, our target may not have completed initialization yet and doesn't have cluster nodes

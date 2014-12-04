@@ -738,6 +738,22 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         return random.nextBoolean() ? new LeastUsedDistributor(service) : new RandomWeightedDistributor(service);
     }
 
+    /**
+     * Legacy indices without lucene CRC32 did never write or calculate checksums for segments_N files
+     * but for other files
+     */
+    @Test
+    public void testRecoveryDiffWithLegacyCommit() {
+        Map<String, StoreFileMetaData> metaDataMap = new HashMap<>();
+        metaDataMap.put("segments_1", new StoreFileMetaData("segments_1", 50, null, null, new BytesRef(new byte[] {1})));
+        metaDataMap.put("_0_1.del", new StoreFileMetaData("_0_1.del", 42, "foobarbaz", null, new BytesRef()));
+        Store.MetadataSnapshot first = new Store.MetadataSnapshot(metaDataMap);
+
+        Store.MetadataSnapshot second = new Store.MetadataSnapshot(metaDataMap);
+        Store.RecoveryDiff recoveryDiff = first.recoveryDiff(second);
+        assertEquals(recoveryDiff.toString(), recoveryDiff.different.size(), 2);
+    }
+
 
     @Test
     public void testRecoveryDiff() throws IOException, InterruptedException {
@@ -985,6 +1001,29 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             assertEquals("we wrote one checksum but it's gone now? - checksums are supposed to be kept", numChecksums, 1);
         }
 
+        store.deleteContent();
+        IOUtils.close(store);
+    }
+
+    @Test
+    public void testCleanUpWithLegacyChecksums() throws IOException {
+        Map<String, StoreFileMetaData> metaDataMap = new HashMap<>();
+        metaDataMap.put("segments_1", new StoreFileMetaData("segments_1", 50, null, null, new BytesRef(new byte[] {1})));
+        metaDataMap.put("_0_1.del", new StoreFileMetaData("_0_1.del", 42, "foobarbaz", null, new BytesRef()));
+        Store.MetadataSnapshot snapshot = new Store.MetadataSnapshot(metaDataMap);
+
+        final ShardId shardId = new ShardId(new Index("index"), 1);
+        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
+        Store store = new Store(shardId, ImmutableSettings.EMPTY, null, directoryService, randomDistributor(directoryService), new DummyShardLock(shardId));
+        for (String file : metaDataMap.keySet()) {
+            try (IndexOutput output = store.directory().createOutput(file, IOContext.DEFAULT)) {
+                BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
+                output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+                CodecUtil.writeFooter(output);
+            }
+        }
+
+        store.verifyAfterCleanup(snapshot, snapshot);
         store.deleteContent();
         IOUtils.close(store);
     }

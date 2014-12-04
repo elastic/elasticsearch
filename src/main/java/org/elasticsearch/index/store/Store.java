@@ -587,29 +587,46 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         try {
             cleanup(reason, sourceMetaData.asMap().keySet());
             final Store.MetadataSnapshot metadataOrEmpty = getMetadata();
-            final Store.RecoveryDiff recoveryDiff = metadataOrEmpty.recoveryDiff(sourceMetaData);
-            if (recoveryDiff.identical.size() != recoveryDiff.size()) {
-                if (recoveryDiff.missing.isEmpty()) {
-                    for (StoreFileMetaData meta : recoveryDiff.different) {
-                        StoreFileMetaData local = metadataOrEmpty.get(meta.name());
-                        StoreFileMetaData remote = sourceMetaData.get(meta.name());
-                        // if we have different files the they must have no checksums otherwise something went wrong during recovery.
-                        // we have that problem when we have an empty index is only a segments_1 file then we can't tell if it's a Lucene 4.8 file
-                        // and therefore no checksum. That isn't much of a problem since we simply copy it over anyway but those files come out as
-                        // different in the diff. That's why we have to double check here again if the rest of it matches.
-                        boolean consistent = (local.checksum() == null && remote.checksum() == null && local.hash().equals(remote.hash()) && local.length() == remote.length());
-                        if (consistent == false) {
-                            throw new ElasticsearchIllegalStateException("local version: " + local + " is different from remote version after recovery: " + remote, null);
-                        }
-                    }
-                } else {
-                    logger.debug("Files are missing on the recovery target: {} ", recoveryDiff);
-                    throw new ElasticsearchIllegalStateException("Files are missing on the recovery target: [different="
-                            + recoveryDiff.different + ", missing=" + recoveryDiff.missing +']', null);
-                }
-            }
+            verifyAfterCleanup(sourceMetaData, metadataOrEmpty);
         } finally {
             metadataLock.writeLock().unlock();
+        }
+    }
+
+    // pkg private for testing
+    final void verifyAfterCleanup(MetadataSnapshot sourceMetaData, MetadataSnapshot targetMetaData) {
+        final RecoveryDiff recoveryDiff = targetMetaData.recoveryDiff(sourceMetaData);
+        if (recoveryDiff.identical.size() != recoveryDiff.size()) {
+            if (recoveryDiff.missing.isEmpty()) {
+                for (StoreFileMetaData meta : recoveryDiff.different) {
+                    StoreFileMetaData local = targetMetaData.get(meta.name());
+                    StoreFileMetaData remote = sourceMetaData.get(meta.name());
+                    // if we have different files the they must have no checksums otherwise something went wrong during recovery.
+                    // we have that problem when we have an empty index is only a segments_1 file then we can't tell if it's a Lucene 4.8 file
+                    // and therefore no checksum. That isn't much of a problem since we simply copy it over anyway but those files come out as
+                    // different in the diff. That's why we have to double check here again if the rest of it matches.
+
+                    // all is fine this file is just part of a commit or a segment that is different
+                    final boolean same = local.isSame(remote);
+
+                    // this check ensures that the two files are consistent ie. if we don't have checksums only the rest needs to match we are just
+                    // verifying that we are consistent on both ends source and target
+                    final boolean hashAndLengthEqual = (
+                                    local.checksum() == null
+                                    && remote.checksum() == null
+                                    && local.hash().equals(remote.hash())
+                                    && local.length() == remote.length());
+                    final boolean consistent = hashAndLengthEqual || same;
+                    if (consistent == false) {
+                        logger.debug("Files are different on the recovery target: {} ", recoveryDiff);
+                        throw new ElasticsearchIllegalStateException("local version: " + local + " is different from remote version after recovery: " + remote, null);
+                    }
+                }
+            } else {
+                logger.debug("Files are missing on the recovery target: {} ", recoveryDiff);
+                throw new ElasticsearchIllegalStateException("Files are missing on the recovery target: [different="
+                        + recoveryDiff.different + ", missing=" + recoveryDiff.missing +']', null);
+            }
         }
     }
 

@@ -59,6 +59,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryException;
@@ -416,7 +417,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())));
 
         logger.info("-->  creating test template");
-        assertThat(client.admin().indices().preparePutTemplate("test-template").setTemplate("te*").addMapping("test-mapping", "{}").get().isAcknowledged(), equalTo(true));
+        assertThat(client.admin().indices().preparePutTemplate("test-template").setTemplate("te*").addMapping("test-mapping", XContentFactory.jsonBuilder().startObject().startObject("test-mapping").startObject("properties")
+            .startObject("field1").field("type", "string").field("store", "yes").endObject()
+            .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+            .endObject().endObject().endObject()).get().isAcknowledged(), equalTo(true));
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setIndices().setWaitForCompletion(true).get();
@@ -449,7 +453,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setType("fs").setSettings(Settings.builder().put("location", location)));
 
         logger.info("-->  creating test template");
-        assertThat(client.admin().indices().preparePutTemplate("test-template").setTemplate("te*").addMapping("test-mapping", "{}").get().isAcknowledged(), equalTo(true));
+        assertThat(client.admin().indices().preparePutTemplate("test-template").setTemplate("te*").addMapping("test-mapping", XContentFactory.jsonBuilder().startObject().startObject("test-mapping").startObject("properties")
+            .startObject("field1").field("type", "string").field("store", "yes").endObject()
+            .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+            .endObject().endObject().endObject()).get().isAcknowledged(), equalTo(true));
 
         logger.info("--> snapshot without global state");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-no-global-state").setIndices().setIncludeGlobalState(false).setWaitForCompletion(true).get();

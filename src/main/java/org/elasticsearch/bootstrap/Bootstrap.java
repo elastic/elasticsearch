@@ -152,8 +152,18 @@ public class Bootstrap {
         if (pidFile != null) {
             try {
                 Path fPidFile = Paths.get(pidFile);
-                Files.createDirectories(fPidFile.getParent());
-                OutputStream outputStream = Files.newOutputStream(fPidFile, StandardOpenOption.DELETE_ON_CLOSE);
+                Path dir = fPidFile.getParent();
+                // if pidFile is relative there may be no path
+                if (dir != null) {
+                    try   { Files.createDirectories(dir); }
+                    // thrown if dir exists and is a soft link, ignore for now
+                    catch (FileAlreadyExistsException ignored) { }
+                }
+                OpenOption[] opts = new OpenOption[] {
+                                        StandardOpenOption.CREATE,
+                                        StandardOpenOption.TRUNCATE_EXISTING,
+                                        StandardOpenOption.DELETE_ON_CLOSE };
+                OutputStream outputStream = Files.newOutputStream(fPidFile, opts);
                 outputStream.write(Long.toString(JvmInfo.jvmInfo().pid()).getBytes(Charsets.UTF_8));
                 outputStream.flush(); // make those bytes visible...
                 // don't close this stream we will delete on JVM exit

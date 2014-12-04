@@ -149,7 +149,7 @@ public class PythonScriptSearchTests extends ElasticsearchIntegrationTest {
         assertThat(sObj2Arr2.get(0).toString(), equalTo("arr_value1"));
         assertThat(sObj2Arr2.get(1).toString(), equalTo("arr_value2"));
 
-        sObj2Arr2 = (List) response.getHits().getAt(0).field("s_obj2_arr2").value();
+        sObj2Arr2 = (List) response.getHits().getAt(0).field("s_obj2_arr2").values();
         assertThat(sObj2Arr2.size(), equalTo(2));
         assertThat(sObj2Arr2.get(0).toString(), equalTo("arr_value1"));
         assertThat(sObj2Arr2.get(1).toString(), equalTo("arr_value2"));

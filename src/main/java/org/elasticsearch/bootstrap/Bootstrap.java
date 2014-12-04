@@ -22,6 +22,7 @@ package org.elasticsearch.bootstrap;
 import com.google.common.base.Charsets;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
@@ -58,7 +59,6 @@ public class Bootstrap {
 
     private static volatile Thread keepAliveThread;
     private static volatile CountDownLatch keepAliveLatch;
-
     private static Bootstrap bootstrap;
 
     private void setup(boolean addShutdownHook, Tuple<Settings, Environment> tuple) throws Exception {
@@ -151,12 +151,7 @@ public class Bootstrap {
 
         if (pidFile != null) {
             try {
-                Path fPidFile = Paths.get(pidFile);
-                Files.createDirectories(fPidFile.getParent());
-                OutputStream outputStream = Files.newOutputStream(fPidFile, StandardOpenOption.DELETE_ON_CLOSE);
-                outputStream.write(Long.toString(JvmInfo.jvmInfo().pid()).getBytes(Charsets.UTF_8));
-                outputStream.flush(); // make those bytes visible...
-                // don't close this stream we will delete on JVM exit
+                PidFile.create(Paths.get(pidFile), true);
             } catch (Exception e) {
                 String errorMessage = buildErrorMessage("pid", e);
                 System.err.println(errorMessage);
@@ -164,7 +159,6 @@ public class Bootstrap {
                 System.exit(3);
             }
         }
-
         boolean foreground = System.getProperty("es.foreground", System.getProperty("es-foreground")) != null;
         // handle the wrapper system property, if its a service, don't run as a service
         if (System.getProperty("wrapper.service", "XXX").equalsIgnoreCase("true")) {

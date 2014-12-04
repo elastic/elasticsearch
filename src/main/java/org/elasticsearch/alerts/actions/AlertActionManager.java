@@ -373,8 +373,8 @@ public class AlertActionManager extends AbstractComponent {
                     } else if (entry.getState() != AlertActionState.THROTTLED) {
                         entry.setState(AlertActionState.ACTION_PERFORMED);
                     }
-                    entry.setPayloadRequest(trigger.getPayloadRequest());
-                    entry.setPayloadResponse(trigger.getPayloadResponse());
+                    entry.setPayloadRequest(result.getPayloadRequest());
+                    entry.setPayloadResponse(result.getPayloadResponse());
                 } else {
                     entry.setState(AlertActionState.NO_ACTION_NEEDED);
                 }

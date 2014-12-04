@@ -22,7 +22,7 @@ import java.util.Map;
 public class Alert implements ToXContent {
 
     private String alertName;
-    private SearchRequest searchRequest;
+    private SearchRequest triggerSearchRequest;
     private AlertTrigger trigger;
     private List<AlertAction> actions;
     private String schedule;
@@ -30,7 +30,10 @@ public class Alert implements ToXContent {
     private TimeValue throttlePeriod = new TimeValue(0);
     private DateTime timeLastActionExecuted = null;
     private AlertAckState ackState = AlertAckState.NOT_ACKABLE;
-    private Map<String,Object> metadata = null;
+
+    //Optional
+    private Map<String,Object> metadata;
+    private SearchRequest payloadSearchRequest;
 
     private transient long version;
     private transient XContentType contentType;
@@ -40,9 +43,9 @@ public class Alert implements ToXContent {
     }
 
 
-    public Alert(String alertName, SearchRequest searchRequest, AlertTrigger trigger, List<AlertAction> actions, String schedule, DateTime lastExecuteTime, long version, TimeValue throttlePeriod, AlertAckState ackState) {
+    public Alert(String alertName, SearchRequest triggerSearchRequest, AlertTrigger trigger, List<AlertAction> actions, String schedule, DateTime lastExecuteTime, long version, TimeValue throttlePeriod, AlertAckState ackState) {
         this.alertName = alertName;
-        this.searchRequest = searchRequest;
+        this.triggerSearchRequest = triggerSearchRequest;
         this.trigger = trigger;
         this.actions = actions;
         this.schedule = schedule;
@@ -56,8 +59,14 @@ public class Alert implements ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(AlertsStore.SCHEDULE_FIELD.getPreferredName(), schedule);
-        builder.field(AlertsStore.REQUEST_FIELD.getPreferredName());
-        AlertUtils.writeSearchRequest(searchRequest, builder, params);
+        builder.field(AlertsStore.TRIGGER_REQUEST_FIELD.getPreferredName());
+        AlertUtils.writeSearchRequest(triggerSearchRequest, builder, params);
+
+        if (payloadSearchRequest != null) {
+            builder.field(AlertsStore.PAYLOAD_REQUEST_FIELD.getPreferredName());
+            AlertUtils.writeSearchRequest(payloadSearchRequest, builder, params);
+        }
+
         builder.field(AlertsStore.THROTTLE_PERIOD_FIELD.getPreferredName(), throttlePeriod.millis());
         builder.field(AlertsStore.ACK_STATE_FIELD.getPreferredName(), ackState.toString());
 
@@ -138,12 +147,12 @@ public class Alert implements ToXContent {
     /**
      * @return The search request that runs when the alert runs by the sc
      */
-    public SearchRequest getSearchRequest() {
-        return searchRequest;
+    public SearchRequest getTriggerSearchRequest() {
+        return triggerSearchRequest;
     }
 
-    void setSearchRequest(SearchRequest searchRequest) {
-        this.searchRequest = searchRequest;
+    public void setTriggerSearchRequest(SearchRequest triggerSearchRequest) {
+        this.triggerSearchRequest = triggerSearchRequest;
     }
 
     /**
@@ -221,6 +230,17 @@ public class Alert implements ToXContent {
 
     void setMetadata(Map<String, Object> metadata) {
         this.metadata = metadata;
+    }
+
+    /**
+     * @return the search request that will be run for actions
+     */
+    public SearchRequest getPayloadSearchRequest() {
+        return payloadSearchRequest;
+    }
+
+    public void setPayloadSearchRequest(SearchRequest payloadSearchRequest) {
+        this.payloadSearchRequest = payloadSearchRequest;
     }
 
 

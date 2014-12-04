@@ -19,7 +19,6 @@ import org.elasticsearch.alerts.transport.actions.put.PutAlertRequest;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.alerts.triggers.ScriptedTrigger;
-import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.DateTimeZone;
@@ -70,8 +69,8 @@ public class AlertActionsTest extends AbstractAlertingTests {
         builder.startObject();
         builder.field(AlertActionManager.ALERT_NAME_FIELD, "testName");
         builder.field(AlertActionManager.TRIGGERED_FIELD, true);
-        builder.field(AlertActionManager.FIRE_TIME_FIELD, TriggerManager.dateTimeFormatter.printer().print(fireTime));
-        builder.field(AlertActionManager.SCHEDULED_FIRE_TIME_FIELD, TriggerManager.dateTimeFormatter.printer().print(scheduledFireTime));
+        builder.field(AlertActionManager.FIRE_TIME_FIELD, AlertUtils.dateTimeFormatter.printer().print(fireTime));
+        builder.field(AlertActionManager.SCHEDULED_FIRE_TIME_FIELD, AlertUtils.dateTimeFormatter.printer().print(scheduledFireTime));
         builder.field(AlertActionManager.TRIGGER_FIELD, triggerMap);
         SearchRequest searchRequest = new SearchRequest("test123");
         builder.field(AlertActionManager.REQUEST);
@@ -96,7 +95,7 @@ public class AlertActionsTest extends AbstractAlertingTests {
         assertEquals(actionEntry.getScheduledTime(), scheduledFireTime);
         assertEquals(actionEntry.getFireTime(), fireTime);
         assertEquals(actionEntry.getState(), AlertActionState.SEARCH_NEEDED);
-        assertEquals(XContentMapValues.extractValue("hits.total", actionEntry.getSearchResponse()), 10);
+        assertEquals(XContentMapValues.extractValue("hits.total", actionEntry.getTriggerResponse()), 10);
     }
 
     @Test

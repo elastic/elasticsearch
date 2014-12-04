@@ -6,39 +6,28 @@
 package org.elasticsearch.alerts.triggers;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.AlertUtils;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class TriggerManager extends AbstractComponent {
-
-    private static final String FIRE_TIME_VARIABLE_NAME = "FIRE_TIME";
-    private static final String SCHEDULED_FIRE_TIME_VARIABLE_NAME = "SCHEDULED_FIRE_TIME";
-    public static final FormatDateTimeFormatter dateTimeFormatter = DateFieldMapper.Defaults.DATE_TIME_FORMATTER;
 
     private final Client client;
     private final ScriptService scriptService;
@@ -101,7 +90,7 @@ public class TriggerManager extends AbstractComponent {
      * @throws IOException
      */
     public TriggerResult isTriggered(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
-        SearchRequest request = prepareTriggerSearch(alert, scheduledFireTime, fireTime);
+        SearchRequest request = AlertUtils.createSearchRequestWithTimes(alert.getTriggerSearchRequest(), scheduledFireTime, fireTime, scriptService);
         if (logger.isTraceEnabled()) {
             logger.trace("For alert [{}] running query for [{}]", alert.getAlertName(), XContentHelper.convertToJson(request.source(), false, true));
         }
@@ -127,30 +116,6 @@ public class TriggerManager extends AbstractComponent {
 
         boolean triggered = factory.isTriggered(trigger, request,response);
         return new TriggerResult(triggered, request, response, trigger);
-    }
-
-    private SearchRequest prepareTriggerSearch(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
-        SearchRequest triggerSearchRequest = new SearchRequest(alert.getSearchRequest())
-                .indicesOptions(alert.getSearchRequest().indicesOptions())
-                .indices(alert.getSearchRequest().indices());
-        if (Strings.hasLength(alert.getSearchRequest().source())) {
-            Map<String, String> templateParams = new HashMap<>();
-            templateParams.put(SCHEDULED_FIRE_TIME_VARIABLE_NAME, dateTimeFormatter.printer().print(scheduledFireTime));
-            templateParams.put(FIRE_TIME_VARIABLE_NAME, dateTimeFormatter.printer().print(fireTime));
-            String requestSource = XContentHelper.convertToJson(alert.getSearchRequest().source(), false);
-            ExecutableScript script = scriptService.executable("mustache", requestSource, ScriptService.ScriptType.INLINE, templateParams);
-            triggerSearchRequest.source((BytesReference) script.unwrap(script.run()), false);
-        } else if (alert.getSearchRequest().templateName() != null) {
-            MapBuilder<String, String> templateParams = MapBuilder.newMapBuilder(alert.getSearchRequest().templateParams())
-                    .put(SCHEDULED_FIRE_TIME_VARIABLE_NAME, dateTimeFormatter.printer().print(scheduledFireTime))
-                    .put(FIRE_TIME_VARIABLE_NAME, dateTimeFormatter.printer().print(fireTime));
-            triggerSearchRequest.templateParams(templateParams.map());
-            triggerSearchRequest.templateName(alert.getSearchRequest().templateName());
-            triggerSearchRequest.templateType(alert.getSearchRequest().templateType());
-        } else {
-            throw new ElasticsearchIllegalStateException("Search requests needs either source or template name");
-        }
-        return triggerSearchRequest;
     }
 
 }

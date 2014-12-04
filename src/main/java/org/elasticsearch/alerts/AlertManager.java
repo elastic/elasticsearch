@@ -10,12 +10,15 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.alerts.actions.AlertActionEntry;
 import org.elasticsearch.alerts.actions.AlertActionManager;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
 import org.elasticsearch.alerts.scheduler.AlertScheduler;
 import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.alerts.triggers.TriggerResult;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,13 +31,19 @@ import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class AlertManager extends AbstractComponent {
 
@@ -45,6 +54,8 @@ public class AlertManager extends AbstractComponent {
     private final AlertActionRegistry actionRegistry;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
+    private final ScriptService scriptService;
+    private final Client client;
     private final KeyedLock<String> alertLock = new KeyedLock<>();
     private final AtomicReference<State> state = new AtomicReference<>(State.STOPPED);
 
@@ -53,7 +64,7 @@ public class AlertManager extends AbstractComponent {
     @Inject
     public AlertManager(Settings settings, ClusterService clusterService, AlertScheduler scheduler, AlertsStore alertsStore,
                         IndicesService indicesService, TriggerManager triggerManager, AlertActionManager actionManager,
-                        AlertActionRegistry actionRegistry, ThreadPool threadPool) {
+                        AlertActionRegistry actionRegistry, ThreadPool threadPool, ScriptService scriptService, Client client) {
         super(settings);
         this.scheduler = scheduler;
         this.threadPool = threadPool;
@@ -64,6 +75,8 @@ public class AlertManager extends AbstractComponent {
         this.actionManager.setAlertManager(this);
         this.actionRegistry = actionRegistry;
         this.clusterService = clusterService;
+        this.scriptService = scriptService;
+        this.client = client;
         clusterService.add(new AlertsClusterStateListener());
         manuallyStopped = !settings.getAsBoolean("alerts.start_immediately", true);
         // Close if the indices service is being stopped, so we don't run into search failures (locally) that will
@@ -140,9 +153,18 @@ public class AlertManager extends AbstractComponent {
                 throw new ElasticsearchException("Alert is not available");
             }
             TriggerResult triggerResult = triggerManager.isTriggered(alert, entry.getScheduledTime(), entry.getFireTime());
+
             if (triggerResult.isTriggered()) {
                 triggerResult.setThrottled(isActionThrottled(alert));
                 if (!triggerResult.isThrottled()) {
+                    if (alert.getPayloadSearchRequest() != null) {
+                        SearchRequest payloadRequest = AlertUtils.createSearchRequestWithTimes(alert.getPayloadSearchRequest(), entry.getScheduledTime(), entry.getFireTime(), scriptService);
+                        SearchResponse payloadResponse = client.search(payloadRequest).actionGet();
+                        triggerResult.setPayloadRequest(payloadRequest);
+                        XContentBuilder builder = jsonBuilder().startObject().value(payloadResponse).endObject();
+                        Map<String, Object> responseMap = XContentHelper.convertToMap(builder.bytes(), false).v2();
+                        triggerResult.setPayloadResponse(responseMap);
+                    }
                     actionRegistry.doAction(alert, triggerResult);
                     alert.setTimeLastActionExecuted(entry.getScheduledTime());
                     if (alert.getAckState() == AlertAckState.NOT_TRIGGERED) {

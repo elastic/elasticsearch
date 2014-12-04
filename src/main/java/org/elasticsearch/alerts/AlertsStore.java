@@ -52,7 +52,8 @@ public class AlertsStore extends AbstractComponent {
     public static final ParseField TRIGGER_FIELD = new ParseField("trigger");
     public static final ParseField ACTION_FIELD = new ParseField("actions");
     public static final ParseField LAST_ACTION_FIRE = new ParseField("last_alert_executed");
-    public static final ParseField REQUEST_FIELD = new ParseField("request");
+    public static final ParseField TRIGGER_REQUEST_FIELD = new ParseField("trigger_request");
+    public static final ParseField PAYLOAD_REQUEST_FIELD = new ParseField("payload_request");
     public static final ParseField THROTTLE_PERIOD_FIELD = new ParseField("throttle_period");
     public static final ParseField LAST_ACTION_EXECUTED_FIELD = new ParseField("last_action_executed");
     public static final ParseField ACK_STATE_FIELD = new ParseField("ack_state");
@@ -253,8 +254,10 @@ public class AlertsStore extends AbstractComponent {
                     } else if (ACTION_FIELD.match(currentFieldName)) {
                         List<AlertAction> actions = alertActionRegistry.instantiateAlertActions(parser);
                         alert.setActions(actions);
-                    } else if (REQUEST_FIELD.match(currentFieldName)) {
-                        alert.setSearchRequest(AlertUtils.readSearchRequest(parser));
+                    } else if (TRIGGER_REQUEST_FIELD.match(currentFieldName)) {
+                        alert.setTriggerSearchRequest(AlertUtils.readSearchRequest(parser, AlertUtils.DEFAULT_TRIGGER_SEARCH_TYPE));
+                    } else if (PAYLOAD_REQUEST_FIELD.match(currentFieldName)) {
+                        alert.setPayloadSearchRequest(AlertUtils.readSearchRequest(parser, AlertUtils.DEFAULT_PAYLOAD_SEARCH_TYPE));
                     } else if (META_FIELD.match(currentFieldName)) {
                         alert.setMetadata(parser.map());
                     } else {

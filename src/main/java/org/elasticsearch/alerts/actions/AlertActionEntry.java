@@ -31,14 +31,14 @@ public class AlertActionEntry implements ToXContent {
     private AlertTrigger trigger;
     private List<AlertAction> actions;
     private AlertActionState state;
-    private SearchRequest searchRequest;
-    /*Optional*/
-    private Map<String, Object> searchResponse;
+    private SearchRequest triggerRequest;
 
+
+    /*Optional*/
+    private Map<String, Object> triggerResponse;
     private boolean triggered;
     private String errorMsg;
     private Map<String,Object> metadata;
-
     private transient long version;
     private transient XContentType contentType;
 
@@ -53,11 +53,10 @@ public class AlertActionEntry implements ToXContent {
         this.trigger = alert.getTrigger();
         this.actions = alert.getActions();
         this.state = state;
-        this.searchRequest = alert.getSearchRequest();
         this.metadata = alert.getMetadata();
-
         this.version = 1;
         this.contentType = alert.getContentType();
+        this.triggerRequest = alert.getTriggerSearchRequest();
     }
 
     /**
@@ -129,23 +128,23 @@ public class AlertActionEntry implements ToXContent {
     /**
      * @return The query that ran at fire time
      */
-    public SearchRequest getSearchRequest() {
-        return searchRequest;
+    public SearchRequest getTriggerRequest() {
+        return triggerRequest;
     }
 
-    void setSearchRequest(SearchRequest searchRequest) {
-        this.searchRequest = searchRequest;
+    public void setTriggerRequest(SearchRequest triggerRequest) {
+        this.triggerRequest = triggerRequest;
     }
 
     /**
      * @return The search response that resulted at out the search request that ran.
      */
-    public Map<String, Object> getSearchResponse() {
-        return searchResponse;
+    public Map<String, Object> getTriggerResponse() {
+        return triggerResponse;
     }
 
-    void setSearchResponse(Map<String, Object> searchResponse) {
-        this.searchResponse = searchResponse;
+    public void setTriggerResponse(Map<String, Object> triggerResponse) {
+        this.triggerResponse = triggerResponse;
     }
 
     /**
@@ -223,9 +222,9 @@ public class AlertActionEntry implements ToXContent {
         historyEntry.field(trigger.getTriggerName(), trigger, params);
         historyEntry.endObject();
         historyEntry.field("request");
-        AlertUtils.writeSearchRequest(searchRequest, historyEntry, params);
-        if (searchResponse != null) {
-            historyEntry.field("response", searchResponse);
+        AlertUtils.writeSearchRequest(triggerRequest, historyEntry, params);
+        if (triggerResponse != null) {
+            historyEntry.field("response", triggerResponse);
         }
 
         historyEntry.startObject("actions");

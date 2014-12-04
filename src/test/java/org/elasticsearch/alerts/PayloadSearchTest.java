@@ -6,8 +6,10 @@
 package org.elasticsearch.alerts;
 
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.alerts.actions.AlertAction;
-import org.elasticsearch.alerts.actions.EmailAlertAction;
+import org.elasticsearch.alerts.actions.IndexAlertAction;
+import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
 import org.elasticsearch.alerts.triggers.ScriptedTrigger;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
@@ -15,27 +17,35 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchHit;
 import org.junit.Test;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.hamcrest.Matchers.greaterThan;
 
-public class AlertSerializationTest extends AbstractAlertingTests {
+/**
+ */
+public class PayloadSearchTest extends AbstractAlertingTests {
 
     @Test
-    public void testAlertSerialization() throws Exception {
+    public void testPayloadSearchRequest() throws Exception {
+        createIndex("my-trigger-index", "my-payload-index", "my-payload-output");
+        ensureGreen("my-trigger-index", "my-payload-index", "my-payload-output");
+
+        index("my-payload-index","payload", "mytestresult");
+        refresh();
 
         SearchRequest triggerRequest = createTriggerSearchRequest("my-trigger-index").source(searchSource().query(matchAllQuery()));
         SearchRequest payloadRequest = createTriggerSearchRequest("my-payload-index").source(searchSource().query(matchAllQuery()));
+        payloadRequest.searchType(AlertUtils.DEFAULT_PAYLOAD_SEARCH_TYPE);
 
         List<AlertAction> actions = new ArrayList<>();
-        actions.add(new EmailAlertAction("message", "foo@bar.com"));
-        Alert alert = new Alert("test-serialization",
+        actions.add(new IndexAlertAction("my-payload-output","result"));
+        Alert alert = new Alert("test-payload",
                 triggerRequest,
                 new ScriptedTrigger("return true", ScriptService.ScriptType.INLINE, "groovy"),
                 actions,
@@ -43,35 +53,23 @@ public class AlertSerializationTest extends AbstractAlertingTests {
                 new DateTime(),
                 0,
                 new TimeValue(0),
-                AlertAckState.NOT_TRIGGERED);
+                AlertAckState.NOT_ACKABLE);
 
         alert.setPayloadSearchRequest(payloadRequest);
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("foo", "bar");
-        metadata.put("list", "baz");
-        alert.setMetadata(metadata);
-
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
+        PutAlertResponse putAlertResponse = alertClient().preparePutAlert("test-payload").setAlertSource(jsonBuilder.bytes()).get();
+        assertTrue(putAlertResponse.indexResponse().isCreated());
 
-        final AlertsStore alertsStore =
-                internalTestCluster().getInstance(AlertsStore.class, internalTestCluster().getMasterName());
+        assertAlertTriggered("test-payload", 1, false);
+        refresh();
+        SearchRequest searchRequest = client().prepareSearch("my-payload-output").request();
+        searchRequest.source(searchSource().query(matchAllQuery()));
+        SearchResponse searchResponse = client().search(searchRequest).actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), greaterThan(0L));
+        SearchHit hit = searchResponse.getHits().getHits()[0];
+        String source = hit.getSourceRef().toUtf8();
 
-        Alert parsedAlert = alertsStore.parseAlert("test-serialization", jsonBuilder.bytes());
-
-        assertEquals(parsedAlert.getVersion(), alert.getVersion());
-        assertEquals(parsedAlert.getActions(), alert.getActions());
-        assertEquals(parsedAlert.getLastExecuteTime().getMillis(), alert.getLastExecuteTime().getMillis());
-        assertEquals(parsedAlert.getSchedule(), alert.getSchedule());
-        assertEquals(parsedAlert.getTriggerSearchRequest().indices()[0], "my-trigger-index");
-        assertEquals(parsedAlert.getPayloadSearchRequest().indices()[0], "my-payload-index");
-        assertEquals(parsedAlert.getTrigger(), alert.getTrigger());
-        assertEquals(parsedAlert.getThrottlePeriod(), alert.getThrottlePeriod());
-        if (parsedAlert.getTimeLastActionExecuted() == null) {
-            assertNull(alert.getTimeLastActionExecuted());
-        }
-        assertEquals(parsedAlert.getAckState(), alert.getAckState());
-        assertEquals(parsedAlert.getMetadata(), alert.getMetadata());
+        assertTrue(source.contains("mytestresult"));
     }
-
 }

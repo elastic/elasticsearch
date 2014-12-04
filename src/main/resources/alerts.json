@@ -38,7 +38,12 @@
           "enabled" : false,
           "dynamic" : true
         },
-        "request": {
+        "trigger_request": {
+          "type" : "object",
+          "enabled" : false,
+          "dynamic" : true
+        },
+        "payload_request": {
           "type" : "object",
           "enabled" : false,
           "dynamic" : true

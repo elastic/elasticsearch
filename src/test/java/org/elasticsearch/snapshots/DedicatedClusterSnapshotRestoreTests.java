@@ -308,10 +308,11 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(100L));
 
         logger.info("--> creating repository");
+        File repo = newTempDir(LifecycleScope.TEST);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(
                         ImmutableSettings.settingsBuilder()
-                                .put("location", newTempDir(LifecycleScope.TEST))
+                                .put("location", repo)
                                 .put("random", randomAsciiOfLength(10))
                                 .put("wait_after_unblock", 200)
                 ).get();
@@ -322,6 +323,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         // Remove it from the list of available nodes
         nodes.remove(blockedNode);
 
+        int numberOfFilesBeforeSnapshot = numberOfFiles(repo);
         logger.info("--> snapshot");
         client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
 
@@ -347,6 +349,8 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
         logger.info("--> making sure that snapshot no longer exists");
         assertThrows(client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute(), SnapshotMissingException.class);
+        // Subtract index file from the count
+        assertThat("not all files were deleted during snapshot cancellation", numberOfFilesBeforeSnapshot, equalTo(numberOfFiles(repo) - 1));
         logger.info("--> done");
     }
 

@@ -682,7 +682,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.FAILED));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(0));
+        assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(3));
         assertThat(createSnapshotResponse.getSnapshotInfo().reason(), startsWith("Indices don't have primary shards"));
     }
 

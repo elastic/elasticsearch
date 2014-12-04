@@ -81,4 +81,9 @@ public class BlobContainerWrapper implements BlobContainer {
     public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
         return delegate.listBlobsByPrefix(blobNamePrefix);
     }
+
+    @Override
+    public void move(String sourceBlobName, String targetBlobName) throws IOException {
+        delegate.move(sourceBlobName, targetBlobName);
+    }
 }

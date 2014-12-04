@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAct
 import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartAction;
 import org.elasticsearch.action.admin.cluster.node.restart.TransportNodesRestartAction;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownAction;
@@ -224,7 +225,6 @@ public class ActionModule extends AbstractModule {
             actionFilterMultibinder.addBinding().to(actionFilter);
         }
         bind(ActionFilters.class).asEagerSingleton();
-
         registerAction(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class);
         registerAction(NodesStatsAction.INSTANCE, TransportNodesStatsAction.class);
         registerAction(NodesShutdownAction.INSTANCE, TransportNodesShutdownAction.class);
@@ -332,10 +332,10 @@ public class ActionModule extends AbstractModule {
         for (Map.Entry<String, ActionEntry> entry : actions.entrySet()) {
             actionsBinder.addBinding(entry.getKey()).toInstance(entry.getValue().action);
         }
-
         // register GenericAction -> transportAction Map that can be injected to instances.
         // also register any supporting classes
         if (!proxy) {
+            bind(TransportLivenessAction.class).asEagerSingleton();
             MapBinder<GenericAction, TransportAction> transportActionsBinder
                     = MapBinder.newMapBinder(binder(), GenericAction.class, TransportAction.class);
             for (Map.Entry<String, ActionEntry> entry : actions.entrySet()) {

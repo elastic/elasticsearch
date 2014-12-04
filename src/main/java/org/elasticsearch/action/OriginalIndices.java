@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,15 +30,8 @@ import java.io.IOException;
  */
 public class OriginalIndices implements IndicesRequest {
 
-    public static OriginalIndices EMPTY = new OriginalIndices();
-
     private final String[] indices;
     private final IndicesOptions indicesOptions;
-
-    private OriginalIndices() {
-        this.indices = null;
-        this.indicesOptions = null;
-    }
 
     public OriginalIndices(IndicesRequest indicesRequest) {
         this(indicesRequest.indices(), indicesRequest.indicesOptions());
@@ -59,23 +51,6 @@ public class OriginalIndices implements IndicesRequest {
     @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
-    }
-
-    public static OriginalIndices readOptionalOriginalIndices(StreamInput in) throws IOException {
-        boolean empty = in.readBoolean();
-        if (!empty) {
-            return new OriginalIndices(in.readStringArray(), IndicesOptions.readIndicesOptions(in));
-        }
-        return OriginalIndices.EMPTY;
-    }
-
-    public static void writeOptionalOriginalIndices(OriginalIndices originalIndices, StreamOutput out) throws IOException {
-        boolean empty = originalIndices == EMPTY;
-        out.writeBoolean(empty);
-        if (!empty) {
-            out.writeStringArrayNullable(originalIndices.indices);
-            originalIndices.indicesOptions.writeIndicesOptions(out);
-        }
     }
 
     public static OriginalIndices readOriginalIndices(StreamInput in) throws IOException {

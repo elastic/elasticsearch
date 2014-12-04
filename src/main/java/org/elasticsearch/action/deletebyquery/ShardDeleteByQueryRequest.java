@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.deletebyquery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -137,7 +136,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest<
         }
 
         nowInMillis = in.readVLong();
-        originalIndices = OriginalIndices.readOptionalOriginalIndices(in);
+        originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
     @Override
@@ -163,7 +162,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest<
             out.writeVInt(0);
         }
         out.writeVLong(nowInMillis);
-        OriginalIndices.writeOptionalOriginalIndices(originalIndices, out);
+        OriginalIndices.writeOriginalIndices(originalIndices, out);
     }
 
     @Override

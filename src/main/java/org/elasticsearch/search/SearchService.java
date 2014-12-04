@@ -540,7 +540,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         SearchContext.setCurrent(context);
         try {
             context.scroll(request.scroll());
-            context.useSlowScroll(request.useSlowScroll());
 
             parseTemplate(request);
             parseSource(context, request.source());
@@ -722,7 +721,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
      * handles this as well since the result is always size * shards for Q_A_F
      */
     private void shortcutDocIdsToLoad(SearchContext context) {
-        if (!context.useSlowScroll() && context.request().scroll() != null) {
+        if (context.request().scroll() != null) {
             TopDocs topDocs = context.queryResult().topDocs();
             int[] docIdsToLoad = new int[topDocs.scoreDocs.length];
             for (int i = 0; i < topDocs.scoreDocs.length; i++) {

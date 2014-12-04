@@ -115,7 +115,7 @@ public class QueryPhase implements SearchPhase {
                 topDocs = searchContext.scanContext().execute(searchContext);
             } else {
                 // Perhaps have a dedicated scroll phase?
-                if (!searchContext.useSlowScroll() && searchContext.request().scroll() != null) {
+                if (searchContext.request().scroll() != null) {
                     numDocs = searchContext.size();
                     ScoreDoc lastEmittedDoc = searchContext.lastEmittedDoc();
                     if (searchContext.sort() != null) {

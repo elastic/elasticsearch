@@ -175,8 +175,6 @@ public class DefaultSearchContext extends SearchContext {
 
     private volatile long lastAccessTime = -1;
 
-    private volatile boolean useSlowScroll;
-
     private InnerHitsContext innerHitsContext;
 
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
@@ -687,16 +685,6 @@ public class DefaultSearchContext extends SearchContext {
 
     public MapperService.SmartNameObjectMapper smartNameObjectMapper(String name) {
         return mapperService().smartNameObjectMapper(name, request.types());
-    }
-
-    @Override
-    public boolean useSlowScroll() {
-        return useSlowScroll;
-    }
-
-    public DefaultSearchContext useSlowScroll(boolean useSlowScroll) {
-        this.useSlowScroll = useSlowScroll;
-        return this;
     }
 
     @Override

@@ -351,10 +351,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract MapperService.SmartNameObjectMapper smartNameObjectMapper(String name);
 
-    public abstract boolean useSlowScroll();
-
-    public abstract SearchContext useSlowScroll(boolean useSlowScroll);
-
     public abstract Counter timeEstimateCounter();
 
     /**

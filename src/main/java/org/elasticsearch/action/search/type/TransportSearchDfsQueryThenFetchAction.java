@@ -143,7 +143,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
         }
 
         void innerExecuteFetchPhase() throws Exception {
-            boolean useScroll = !useSlowScroll && request.scroll() != null;
+            boolean useScroll = request.scroll() != null;
             sortedShardList = searchPhaseController.sortDocs(useScroll, queryResults);
             searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardList);
 

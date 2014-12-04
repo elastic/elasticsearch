@@ -67,12 +67,8 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
     private class AsyncAction extends AbstractAsyncAction {
 
         private final SearchScrollRequest request;
-        private volatile boolean useSlowScroll;
-
         private final ActionListener<SearchResponse> listener;
-
         private final ParsedScrollId scrollId;
-
         private final DiscoveryNodes nodes;
 
         private volatile AtomicArray<ShardSearchFailure> shardFailures;
@@ -192,7 +188,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
         }
 
         private void innerFinishHim() throws Exception {
-            ScoreDoc[] sortedShardList = searchPhaseController.sortDocs(!useSlowScroll, queryFetchResults);
+            ScoreDoc[] sortedShardList = searchPhaseController.sortDocs(true, queryFetchResults);
             final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults);
             String scrollId = null;
             if (request.scroll() != null) {

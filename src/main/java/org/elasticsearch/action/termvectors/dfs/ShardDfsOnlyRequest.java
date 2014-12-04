@@ -39,7 +39,7 @@ class ShardDfsOnlyRequest extends BroadcastShardOperationRequest {
 
     ShardDfsOnlyRequest(ShardRouting shardRouting, int numberOfShards, @Nullable String[] filteringAliases, long nowInMillis, DfsOnlyRequest request) {
         super(shardRouting.shardId(), request);
-        this.shardSearchRequest = new ShardSearchTransportRequest(request.getSearchRequest(), shardRouting, numberOfShards, false,
+        this.shardSearchRequest = new ShardSearchTransportRequest(request.getSearchRequest(), shardRouting, numberOfShards,
                 filteringAliases, nowInMillis);
     }
 

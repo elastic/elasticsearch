@@ -554,16 +554,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean useSlowScroll() {
-        return in.useSlowScroll();
-    }
-
-    @Override
-    public SearchContext useSlowScroll(boolean useSlowScroll) {
-        return in.useSlowScroll(useSlowScroll);
-    }
-
-    @Override
     public Counter timeEstimateCounter() {
         return in.timeEstimateCounter();
     }

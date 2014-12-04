@@ -78,7 +78,7 @@ public class TransportSearchQueryAndFetchAction extends TransportSearchTypeActio
             threadPool.executor(ThreadPool.Names.SEARCH).execute(new ActionRunnable<SearchResponse>(listener) {
                 @Override
                 public void doRun() throws IOException {
-                    boolean useScroll = !useSlowScroll && request.scroll() != null;
+                    boolean useScroll = request.scroll() != null;
                     sortedShardList = searchPhaseController.sortDocs(useScroll, firstResults);
                     final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, firstResults, firstResults);
                     String scrollId = null;

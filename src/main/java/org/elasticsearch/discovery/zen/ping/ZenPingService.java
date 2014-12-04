@@ -50,12 +50,6 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
 
     private volatile ImmutableList<? extends ZenPing> zenPings = ImmutableList.of();
 
-    // here for backward comp. with discovery plugins
-    public ZenPingService(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName, NetworkService networkService,
-                          ElectMasterService electMasterService, @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
-        this(settings, threadPool, transportService, clusterName, networkService, Version.CURRENT, electMasterService, unicastHostsProviders);
-    }
-
     @Inject
     public ZenPingService(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName, NetworkService networkService,
                           Version version, ElectMasterService electMasterService, @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
@@ -72,19 +66,6 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
 
     public ImmutableList<? extends ZenPing> zenPings() {
         return this.zenPings;
-    }
-
-    public void zenPings(ImmutableList<? extends ZenPing> pings) {
-        this.zenPings = pings;
-        if (lifecycle.started()) {
-            for (ZenPing zenPing : zenPings) {
-                zenPing.start();
-            }
-        } else if (lifecycle.stopped()) {
-            for (ZenPing zenPing : zenPings) {
-                zenPing.stop();
-            }
-        }
     }
 
     @Override

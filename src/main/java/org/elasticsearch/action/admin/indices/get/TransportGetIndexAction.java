@@ -80,7 +80,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, ImmutableList<AliasMetaData>> aliasesResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
-        Feature[] features = request.featuresAsEnums();
+        Feature[] features = request.features();
         boolean doneAliases = false;
         boolean doneMappings = false;
         boolean doneSettings = false;

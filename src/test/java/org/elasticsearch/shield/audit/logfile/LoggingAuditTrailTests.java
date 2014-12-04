@@ -218,6 +218,30 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testAccessGranted_SystemAction() throws Exception {
+        for (Level level : Level.values()) {
+            CapturingLogger logger = new CapturingLogger(level);
+            LoggingAuditTrail auditTrail = new LoggingAuditTrail(logger);
+            TransportMessage message = randomBoolean() ? new MockMessage() : new MockIndicesRequest();
+            auditTrail.accessGranted(new User.Simple("_username", "r1"), "internal:_action", message);
+            switch (level) {
+                case ERROR:
+                case WARN:
+                case INFO:
+                case DEBUG:
+                    assertEmptyLog(logger);
+                    break;
+                case TRACE:
+                    if (message instanceof IndicesRequest) {
+                        assertMsg(logger, Level.TRACE, "ACCESS_GRANTED\thost=[local[_host]], principal=[_username], action=[internal:_action], indices=[idx1,idx2], request=[mock-message]");
+                    } else {
+                        assertMsg(logger, Level.TRACE, "ACCESS_GRANTED\thost=[local[_host]], principal=[_username], action=[internal:_action], request=[mock-message]");
+                    }
+            }
+        }
+    }
+
+    @Test
     public void testAccessDenied() throws Exception {
         for (Level level : Level.values()) {
             CapturingLogger logger = new CapturingLogger(level);

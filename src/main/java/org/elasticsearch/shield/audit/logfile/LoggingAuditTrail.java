@@ -7,6 +7,7 @@ package org.elasticsearch.shield.audit.logfile;
 
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -15,6 +16,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationToken;
+import org.elasticsearch.shield.authz.Privilege;
 import org.elasticsearch.shield.transport.filter.ProfileIpFilterRule;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
@@ -27,6 +29,8 @@ import java.net.InetAddress;
 public class LoggingAuditTrail implements AuditTrail {
 
     public static final String NAME = "logfile";
+
+    private static final Predicate<String> SYSTEM_ACTION_MATCHER = Privilege.SYSTEM.predicate();
 
     private final ESLogger logger;
 
@@ -120,6 +124,19 @@ public class LoggingAuditTrail implements AuditTrail {
     @Override
     public void accessGranted(User user, String action, TransportMessage<?> message) {
         String indices = indices(message);
+
+        // special treatment for system actions - only log on trace
+        if (SYSTEM_ACTION_MATCHER.apply(action)) {
+            if (logger.isTraceEnabled()) {
+                if (indices != null) {
+                    logger.trace("ACCESS_GRANTED\thost=[{}], principal=[{}], action=[{}], indices=[{}], request=[{}]", message.remoteAddress(), user.principal(), action, indices, message);
+                } else {
+                    logger.trace("ACCESS_GRANTED\thost=[{}], principal=[{}], action=[{}], request=[{}]", message.remoteAddress(), user.principal(), action, message);
+                }
+            }
+            return;
+        }
+
         if (indices != null) {
             if (logger.isDebugEnabled()) {
                 logger.debug("ACCESS_GRANTED\thost=[{}], principal=[{}], action=[{}], indices=[{}], request=[{}]", message.remoteAddress(), user.principal(), action, indices, message);

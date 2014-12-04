@@ -19,10 +19,8 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.search.type.ParsedScrollId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -85,13 +83,11 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
 
     private long nowInMillis;
 
-    private boolean useSlowScroll;
-
     ShardSearchLocalRequest() {
     }
 
     ShardSearchLocalRequest(SearchRequest searchRequest, ShardRouting shardRouting, int numberOfShards,
-                            boolean useSlowScroll, String[] filteringAliases, long nowInMillis) {
+                            String[] filteringAliases, long nowInMillis) {
         this(shardRouting.shardId(), numberOfShards, searchRequest.searchType(),
                 searchRequest.source(), searchRequest.types(), searchRequest.queryCache());
 
@@ -101,7 +97,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         this.templateType = searchRequest.templateType();
         this.templateParams = searchRequest.templateParams();
         this.scroll = searchRequest.scroll();
-        this.useSlowScroll = useSlowScroll;
         this.filteringAliases = filteringAliases;
         this.nowInMillis = nowInMillis;
     }
@@ -207,11 +202,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         return scroll;
     }
 
-    @Override
-    public boolean useSlowScroll() {
-        return useSlowScroll;
-    }
-
     @SuppressWarnings("unchecked")
     protected void innerReadFrom(StreamInput in) throws IOException {
         index = in.readString();
@@ -235,7 +225,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         if (in.readBoolean()) {
             templateParams = (Map<String, Object>) in.readGenericValue();
         }
-        useSlowScroll = in.readBoolean();
         queryCache = in.readOptionalBoolean();
     }
 
@@ -268,7 +257,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         if (existTemplateParams) {
             out.writeGenericValue(templateParams);
         }
-        out.writeBoolean(useSlowScroll);
         out.writeOptionalBoolean(queryCache);
     }
 

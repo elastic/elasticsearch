@@ -122,11 +122,10 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
         }
 
         private void finishHim() {
-            threadPool.executor(ThreadPool.Names.SEARCH).execute(new ActionRunnable(listener) {
+            threadPool.executor(ThreadPool.Names.SEARCH).execute(new ActionRunnable<SearchResponse>(listener) {
                 @Override
                 public void doRun() throws IOException {
-                    boolean useScroll = !useSlowScroll && request.scroll() != null;
-                    sortedShardList = searchPhaseController.sortDocs(useScroll, queryFetchResults);
+                    sortedShardList = searchPhaseController.sortDocs(true, queryFetchResults);
                     final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults);
                     String scrollId = null;
                     if (request.scroll() != null) {

@@ -346,11 +346,6 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public SearchContext useSlowScroll(boolean useSlowScroll) {
-        throw new UnsupportedOperationException("Not supported");
-    }
-
-    @Override
     public Counter timeEstimateCounter() {
         throw new UnsupportedOperationException("Not supported");
     }

@@ -85,8 +85,6 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
 
         private final AtomicInteger successfulOps;
 
-        private volatile boolean useSlowScroll;
-
         private AsyncAction(SearchScrollRequest request, ParsedScrollId scrollId, ActionListener<SearchResponse> listener) {
             this.request = request;
             this.listener = listener;
@@ -191,7 +189,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
         }
 
         private void executeFetchPhase() throws Exception {
-            sortedShardList = searchPhaseController.sortDocs(!useSlowScroll, queryResults);
+            sortedShardList = searchPhaseController.sortDocs(true, queryResults);
             AtomicArray<IntArrayList> docIdsToLoad = new AtomicArray<>(queryResults.length());
             searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardList);
 
@@ -201,12 +199,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
             }
 
 
-            final ScoreDoc[] lastEmittedDocPerShard;
-            if (useSlowScroll) {
-                lastEmittedDocPerShard = new ScoreDoc[queryResults.length()];
-            } else {
-                lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(sortedShardList, queryResults.length());
-            }
+            final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(sortedShardList, queryResults.length());
             final AtomicInteger counter = new AtomicInteger(docIdsToLoad.asList().size());
             for (final AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
                 IntArrayList docIds = entry.value;

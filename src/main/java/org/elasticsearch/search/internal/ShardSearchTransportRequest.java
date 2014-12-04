@@ -50,10 +50,9 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     public ShardSearchTransportRequest(SearchRequest searchRequest, ShardRouting shardRouting, int numberOfShards,
-                                       boolean useSlowScroll, String[] filteringAliases, long nowInMillis) {
+                                       String[] filteringAliases, long nowInMillis) {
         super(searchRequest);
-        this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardRouting, numberOfShards,
-                useSlowScroll, filteringAliases, nowInMillis);
+        this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardRouting, numberOfShards, filteringAliases, nowInMillis);
         this.originalIndices = new OriginalIndices(searchRequest);
     }
 
@@ -151,11 +150,6 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     @Override
     public Scroll scroll() {
         return shardSearchLocalRequest.scroll();
-    }
-
-    @Override
-    public boolean useSlowScroll() {
-        return shardSearchLocalRequest.useSlowScroll();
     }
 
     @Override

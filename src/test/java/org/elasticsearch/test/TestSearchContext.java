@@ -580,16 +580,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean useSlowScroll() {
-        return false;
-    }
-
-    @Override
-    public SearchContext useSlowScroll(boolean useSlowScroll) {
-        return null;
-    }
-
-    @Override
     public Counter timeEstimateCounter() {
         throw new UnsupportedOperationException();
     }

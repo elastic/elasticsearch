@@ -99,8 +99,6 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
         private final Object shardFailuresMutex = new Object();
         protected volatile ScoreDoc[] sortedShardList;
 
-        protected final boolean useSlowScroll;
-
         protected BaseAsyncAction(SearchRequest request, ActionListener<SearchResponse> listener) {
             this.request = request;
             this.listener = listener;
@@ -124,7 +122,6 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
 
             firstResults = new AtomicArray<>(shardsIts.size());
-            this.useSlowScroll = false;
         }
 
         public void start() {
@@ -157,7 +154,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                     onFirstPhaseResult(shardIndex, shard, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
                 } else {
                     String[] filteringAliases = clusterState.metaData().filteringAliases(shard.index(), request.indices());
-                    sendExecuteFirstPhase(node, internalSearchRequest(shard, shardsIts.size(), request, filteringAliases, startTime(), useSlowScroll), new SearchServiceListener<FirstResult>() {
+                    sendExecuteFirstPhase(node, internalSearchRequest(shard, shardsIts.size(), request, filteringAliases, startTime()), new SearchServiceListener<FirstResult>() {
                         @Override
                         public void onResult(FirstResult result) {
                             onFirstPhaseResult(shardIndex, shard, result, shardIt);

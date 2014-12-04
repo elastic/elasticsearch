@@ -138,10 +138,11 @@ public class SearchPhaseController extends AbstractComponent {
     }
 
     /**
-     * @param scrollSort Whether to ignore the from and sort all hits in each shard result. Only used for scroll search
+     * @param ignoreFrom Whether to ignore the from and sort all hits in each shard result.
+     *                   Enabled only for scroll search, because that only retrieves hits of length 'size' in the query phase.
      * @param resultsArr Shard result holder
      */
-    public ScoreDoc[] sortDocs(boolean scrollSort, AtomicArray<? extends QuerySearchResultProvider> resultsArr) throws IOException {
+    public ScoreDoc[] sortDocs(boolean ignoreFrom, AtomicArray<? extends QuerySearchResultProvider> resultsArr) throws IOException {
         List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> results = resultsArr.asList();
         if (results.isEmpty()) {
             return EMPTY_DOCS;
@@ -171,7 +172,7 @@ public class SearchPhaseController extends AbstractComponent {
             }
             if (canOptimize) {
                 int offset = result.from();
-                if (scrollSort) {
+                if (ignoreFrom) {
                     offset = 0;
                 }
                 ScoreDoc[] scoreDocs = result.topDocs().scoreDocs;
@@ -220,7 +221,7 @@ public class SearchPhaseController extends AbstractComponent {
             shardTopDocs[sortedResult.index] = topDocs;
         }
         int from = firstResult.queryResult().from();
-        if (scrollSort) {
+        if (ignoreFrom) {
             from = 0;
         }
         // TopDocs#merge can't deal with null shard TopDocs

@@ -669,16 +669,6 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public boolean useSlowScroll() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public SearchContext useSlowScroll(boolean useSlowScroll) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public Counter timeEstimateCounter() {
         throw new UnsupportedOperationException();
     }

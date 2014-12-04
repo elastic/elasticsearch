@@ -67,15 +67,6 @@ public interface ShardSearchRequest {
     Scroll scroll();
 
     /**
-     * This setting is internal and will be enabled when at least one node is on versions 1.0.x and 1.1.x to enable
-     * scrolling that those versions support.
-     *
-     * @return Whether the scrolling should use regular search and incrementing the from on each round, which can
-     * bring down nodes due to the big priority queues being generated to accommodate from + size hits for sorting.
-     */
-    boolean useSlowScroll();
-
-    /**
      * Returns the cache key for this shard search request, based on its content
      */
     BytesReference cacheKey() throws IOException;

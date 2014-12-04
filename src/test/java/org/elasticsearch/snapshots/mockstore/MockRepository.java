@@ -292,6 +292,12 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
+            public void move(String sourceBlob, String targetBlob) throws IOException {
+                maybeIOExceptionOrBlock(targetBlob);
+                super.move(sourceBlob, targetBlob);
+            }
+
+            @Override
             public OutputStream createOutput(String blobName) throws IOException {
                 maybeIOExceptionOrBlock(blobName);
                 return super.createOutput(blobName);

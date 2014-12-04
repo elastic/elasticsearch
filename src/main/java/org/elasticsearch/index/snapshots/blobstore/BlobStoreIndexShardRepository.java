@@ -240,7 +240,6 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream).prettyPrint();
         BlobStoreIndexShardSnapshot.toXContent(snapshot, builder, ToXContent.EMPTY_PARAMS);
         builder.flush();
-        builder.close();
     }
 
     /**
@@ -510,14 +509,14 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 // now create and write the commit point
                 snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FINALIZE);
 
-                String commitPointName = snapshotBlobName(snapshotId);
+                String snapshotBlobName = snapshotBlobName(snapshotId);
                 BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getSnapshot(),
                         snapshotIndexCommit.getGeneration(), indexCommitPointFiles, snapshotStatus.startTime(),
                         // snapshotStatus.startTime() is assigned on the same machine, so it's safe to use with VLong
                         System.currentTimeMillis() - snapshotStatus.startTime(), indexNumberOfFiles, indexTotalFilesSize);
                 //TODO: The time stored in snapshot doesn't include cleanup time.
                 logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
-                try (OutputStream output = blobContainer.createOutput(commitPointName)) {
+                try (OutputStream output = blobContainer.createOutput(snapshotBlobName)) {
                     writeSnapshot(snapshot, output);
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);

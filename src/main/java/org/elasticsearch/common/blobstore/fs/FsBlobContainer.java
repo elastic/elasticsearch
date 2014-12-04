@@ -21,7 +21,6 @@ package org.elasticsearch.common.blobstore.fs;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
@@ -30,8 +29,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.FileSystemUtils;
 
 import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 
 /**
@@ -98,5 +96,16 @@ public class FsBlobContainer extends AbstractBlobContainer {
                 IOUtils.fsync(path, true);
             }
         }, blobStore.bufferSizeInBytes());
+    }
+
+    @Override
+    public void move(String source, String target) throws IOException {
+        Path sourcePath = path.resolve(source);
+        Path targetPath = path.resolve(target);
+        // If the target file exists then Files.move() behaviour is implementation specific
+        // the existing file might be replaced or this method fails by throwing an IOException.
+        assert !Files.exists(targetPath);
+        Files.move(sourcePath, targetPath, StandardCopyOption.ATOMIC_MOVE);
+        IOUtils.fsync(path, true);
     }
 }

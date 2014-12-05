@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.alerts.AlertsStore;
 import org.elasticsearch.alerts.ConfigurationManager;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -28,15 +27,12 @@ import org.elasticsearch.transport.TransportService;
 public class TransportConfigAlertAction extends TransportMasterNodeOperationAction<ConfigAlertRequest, ConfigAlertResponse> {
 
     private final ConfigurationManager configManager;
-    private final Client client;
 
     @Inject
     public TransportConfigAlertAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                      ThreadPool threadPool, ActionFilters actionFilters, ConfigurationManager configManager,
-                                      Client client) {
+                                      ThreadPool threadPool, ActionFilters actionFilters, ConfigurationManager configManager) {
         super(settings, ConfigAlertAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.configManager = configManager;
-        this.client = client;
     }
 
     @Override

@@ -22,7 +22,7 @@ public class ShieldActionModule extends AbstractShieldModule.Node implements Pre
 
     @Override
     public void processModule(Module module) {
-        if (shieldEnabled && !clientMode && module instanceof ActionModule) {
+        if (!clientMode && module instanceof ActionModule) {
             ((ActionModule) module).registerFilter(ShieldActionFilter.class);
         }
     }

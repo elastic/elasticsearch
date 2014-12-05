@@ -97,7 +97,7 @@ public class LicensingTests extends ShieldIntegrationTest {
     }
 
     @Test
-    public void testEnableDisbleBehaviour() throws Exception {
+    public void testEnableDisableBehaviour() throws Exception {
         IndexResponse indexResponse = index("test", "type", jsonBuilder()
                 .startObject()
                 .field("name", "value")
@@ -157,13 +157,13 @@ public class LicensingTests extends ShieldIntegrationTest {
         assertThat(indexResponse.isCreated(), is(true));
     }
 
-    private void disableLicensing() {
+    public static void disableLicensing() {
         for (InternalLicensesClientService service : internalCluster().getInstances(InternalLicensesClientService.class)) {
             service.disable();
         }
     }
 
-    private void enableLicensing() {
+    public static void enableLicensing() {
         for (InternalLicensesClientService service : internalCluster().getInstances(InternalLicensesClientService.class)) {
             service.enable();
         }
@@ -171,7 +171,7 @@ public class LicensingTests extends ShieldIntegrationTest {
 
     public static class InternalLicensePlugin extends AbstractPlugin {
 
-        static final String NAME = "internal-licensing";
+        public static final String NAME = "internal-licensing";
 
         @Override
         public String name() {

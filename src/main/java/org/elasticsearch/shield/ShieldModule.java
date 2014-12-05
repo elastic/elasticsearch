@@ -30,6 +30,8 @@ public class ShieldModule extends AbstractShieldModule.Spawn {
 
     @Override
     public Iterable<? extends Module> spawnModules(boolean clientMode) {
+        assert shieldEnabled : "this module should get loaded only when shield is enabled";
+
         // spawn needed parts in client mode
         if (clientMode) {
             return ImmutableList.<Module>of(

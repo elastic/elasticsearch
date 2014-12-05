@@ -37,7 +37,8 @@ public class ShieldPluginTests extends ShieldIntegrationTest {
             response = new HttpRequestBuilder(httpClient).httpTransport(httpServerTransport).method("GET").path("/_shield").addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                     basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME, new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))).execute();
             assertThat(response.getStatusCode(), is(OK.getStatus()));
-            assertThat(response.getBody(), allOf(containsString("build_hash"), containsString("build_timestamp"), containsString("build_version")));
+            assertThat(response.getBody(), allOf(containsString("status"), containsString("cluster_name"), containsString("number"),
+                    containsString("build_hash"), containsString("build_timestamp"),  containsString("build_snapshot")));
         }
     }
 }

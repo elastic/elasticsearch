@@ -35,7 +35,7 @@ public class ShieldPlugin extends AbstractPlugin {
 
     public ShieldPlugin(Settings settings) {
         this.settings = settings;
-        this.enabled = settings.getAsBoolean("shield.enabled", true);
+        this.enabled = shieldEnabled(settings);
         this.clientMode = clientMode(settings);
     }
 
@@ -53,7 +53,7 @@ public class ShieldPlugin extends AbstractPlugin {
     public Collection<Class<? extends Module>> modules() {
         return enabled ?
                 ImmutableList.<Class<? extends Module>>of(ShieldModule.class) :
-                ImmutableList.<Class<? extends Module>>of();
+                ImmutableList.<Class<? extends Module>>of(ShieldDisabledModule.class);
     }
 
     @Override
@@ -96,5 +96,9 @@ public class ShieldPlugin extends AbstractPlugin {
 
     public static boolean clientMode(Settings settings) {
         return !"node".equals(settings.get(Client.CLIENT_TYPE_SETTING));
+    }
+
+    public static boolean shieldEnabled(Settings settings) {
+        return settings.getAsBoolean("shield.enabled", true);
     }
 }

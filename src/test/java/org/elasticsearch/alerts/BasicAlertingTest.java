@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
+import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.FilterBuilders;
@@ -30,6 +31,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
@@ -47,6 +49,11 @@ public class BasicAlertingTest extends AbstractAlertingTests {
                 .setAlertSource(alertSource)
                 .get();
         assertAlertTriggered("my-first-alert", 1);
+
+        GetAlertResponse getAlertResponse = alertClient().prepareGetAlert().setAlertName("my-first-alert").get();
+        assertThat(getAlertResponse.getResponse().isExists(), is(true));
+        assertThat(getAlertResponse.getResponse().isSourceEmpty(), is(false));
+        assertThat(getAlertResponse.getResponse().getSource().get("last_action_executed"), notNullValue());
     }
 
     @Test

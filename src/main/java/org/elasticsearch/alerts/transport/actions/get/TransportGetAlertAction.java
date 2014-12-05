@@ -5,39 +5,78 @@
  */
 package org.elasticsearch.alerts.transport.actions.get;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.AlertManager;
 import org.elasticsearch.alerts.AlertsStore;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 /**
  * Performs the get operation.
  */
-public class TransportGetAlertAction extends TransportAction<GetAlertRequest,  GetAlertResponse> {
+public class TransportGetAlertAction extends TransportMasterNodeOperationAction<GetAlertRequest,  GetAlertResponse> {
 
-    private final Client client;
+    private final AlertManager alertManager;
 
     @Inject
-    public TransportGetAlertAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters, Client client) {
-        super(settings, GetAlertAction.NAME, threadPool, actionFilters);
-        this.client = client;
+    public TransportGetAlertAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                   ThreadPool threadPool, ActionFilters actionFilters, AlertManager alertManager) {
+        super(settings, GetAlertAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        this.alertManager = alertManager;
     }
 
     @Override
-    protected void doExecute(GetAlertRequest request, ActionListener<GetAlertResponse> listener) {
-        try {
-            GetResponse getResponse = client.prepareGet(AlertsStore.ALERT_INDEX, AlertsStore.ALERT_TYPE, request.alertName())
-                    .setVersion(request.version())
-                    .setVersionType(request.versionType()).execute().actionGet();
-            GetAlertResponse response = new GetAlertResponse(getResponse);
-            listener.onResponse(response);
-        } catch (Exception e) {
-            listener.onFailure(e);
+    protected String executor() {
+        return ThreadPool.Names.SAME; // Super lightweight operation, so don't fork
+    }
+
+    @Override
+    protected GetAlertRequest newRequest() {
+        return new GetAlertRequest();
+    }
+
+    @Override
+    protected GetAlertResponse newResponse() {
+        return new GetAlertResponse();
+    }
+
+    @Override
+    protected void masterOperation(GetAlertRequest request, ClusterState state, ActionListener<GetAlertResponse> listener) throws ElasticsearchException {
+        Alert alert = alertManager.getAlert(request.alertName());
+        GetResult getResult;
+        if (alert != null) {
+            BytesReference alertSource = null;
+            try (XContentBuilder builder = XContentBuilder.builder(alert.getContentType().xContent())) {
+                builder.value(alert);
+                alertSource = builder.bytes();
+            } catch (IOException e) {
+                listener.onFailure(e);
+            }
+            getResult = new GetResult(AlertsStore.ALERT_INDEX, AlertsStore.ALERT_TYPE, alert.getAlertName(), alert.getVersion(), true, alertSource, null);
+        } else {
+            getResult = new GetResult(AlertsStore.ALERT_INDEX, AlertsStore.ALERT_TYPE, request.alertName(), -1, false, null, null);
         }
+        listener.onResponse(new GetAlertResponse(new GetResponse(getResult)));
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(GetAlertRequest request, ClusterState state) {
+        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, AlertsStore.ALERT_INDEX);
     }
 }

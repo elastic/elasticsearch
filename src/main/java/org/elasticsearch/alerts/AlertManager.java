@@ -121,6 +121,14 @@ public class AlertManager extends AbstractComponent {
         }
     }
 
+    /**
+     * Retrieves an alert by name from memory.
+     */
+    // TODO: add version, fields, etc support that the core get api has as well.
+    public Alert getAlert(String alertName) {
+        return alertsStore.getAlert(alertName);
+    }
+
     public State getState() {
         return state.get();
     }

@@ -16,7 +16,7 @@ import java.io.IOException;
  * The GetAlertResponse the response class wraps a GetResponse containing the alert source
  */
 public class GetAlertResponse extends ActionResponse {
-    private boolean found = false;
+
     private GetResponse getResponse;
 
     public GetAlertResponse() {

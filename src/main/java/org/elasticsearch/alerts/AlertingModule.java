@@ -53,6 +53,7 @@ public class AlertingModule extends AbstractModule {
         bind(RestAlertsStatsAction.class).asEagerSingleton();
         bind(RestGetAlertAction.class).asEagerSingleton();
         bind(RestAlertServiceAction.class).asEagerSingleton();
+        bind(RestConfigAlertAction.class).asEagerSingleton();
     }
 
 }

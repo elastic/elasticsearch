@@ -44,7 +44,7 @@ public class SmtpAlertActionFactory implements AlertActionFactory, ConfigurableC
     @Override
     public AlertAction createAction(XContentParser parser) throws IOException {
         if (settings == null) {
-            settings = configurationManager.getGlobalConfig();
+            settings = configurationManager.getConfig();
             configurationManager.registerListener(this);
         }
 

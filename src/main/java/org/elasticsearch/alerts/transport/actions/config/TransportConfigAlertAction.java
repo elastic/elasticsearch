@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.alerts.AlertsStore;
 import org.elasticsearch.alerts.ConfigurationManager;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
@@ -56,10 +57,9 @@ public class TransportConfigAlertAction extends TransportMasterNodeOperationActi
     @Override
     protected void masterOperation(ConfigAlertRequest request, ClusterState state, ActionListener<ConfigAlertResponse> listener) throws ElasticsearchException {
         try {
-
-            IndexResponse indexResponse = client.prepareIndex(ConfigurationManager.CONFIG_INDEX, ConfigurationManager.CONFIG_TYPE, ConfigurationManager.GLOBAL_CONFIG_NAME)
+            IndexResponse indexResponse = client.prepareIndex(AlertsStore.ALERT_INDEX, ConfigurationManager.CONFIG_TYPE, ConfigurationManager.GLOBAL_CONFIG_NAME)
                     .setSource(request.getConfigSource(), request.isConfigSourceUnsafe()).get();
-            configManager.newConfig( request.getConfigSource());
+            configManager.updateConfig(request.getConfigSource());
             listener.onResponse(new ConfigAlertResponse(indexResponse));
         } catch (Exception e) {
             listener.onFailure(e);
@@ -69,7 +69,7 @@ public class TransportConfigAlertAction extends TransportMasterNodeOperationActi
     @Override
     protected ClusterBlockException checkBlock(ConfigAlertRequest request, ClusterState state) {
         request.beforeLocalFork(); // This is the best place to make the config source safe
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.WRITE, new String[]{ConfigurationManager.CONFIG_INDEX});
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.WRITE, new String[]{AlertsStore.ALERT_INDEX});
     }
 
 

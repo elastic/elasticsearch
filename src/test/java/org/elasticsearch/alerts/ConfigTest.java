@@ -6,8 +6,6 @@
 package org.elasticsearch.alerts;
 
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -40,10 +38,6 @@ public class ConfigTest extends ElasticsearchIntegrationTest {
                 .build();
         ConfigurationManager configurationManager = new ConfigurationManager(oldSettings, client());
 
-
-        boolean isReady = configurationManager.start(ClusterState.builder(new ClusterName("foobar")).build());
-        assertTrue(isReady); //Should always be ready on a clean start
-
         SettingsListener settingsListener = new SettingsListener();
         configurationManager.registerListener(settingsListener);
         TimeValue tv2 = TimeValue.timeValueMillis(10);
@@ -53,7 +47,7 @@ public class ConfigTest extends ElasticsearchIntegrationTest {
                 .field("bar", 100)
                 .field("baz", false);
         jsonSettings.endObject();
-        configurationManager.newConfig(jsonSettings.bytes());
+        configurationManager.updateConfig(jsonSettings.bytes());
 
         assertThat(settingsListener.settings.getAsTime("foo", new TimeValue(0)).getMillis(), equalTo(tv2.getMillis()));
         assertThat(settingsListener.settings.getAsInt("bar", 0), equalTo(100));
@@ -80,13 +74,13 @@ public class ConfigTest extends ElasticsearchIntegrationTest {
         newSettings.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
         jsonBuilder.endObject();
         IndexResponse indexResponse = client()
-                .prepareIndex(ConfigurationManager.CONFIG_INDEX, ConfigurationManager.CONFIG_TYPE, "global")
+                .prepareIndex(AlertsStore.ALERT_INDEX, ConfigurationManager.CONFIG_TYPE, "global")
                 .setSource(jsonBuilder)
                 .get();
         assertTrue(indexResponse.isCreated());
+
         ConfigurationManager configurationManager = new ConfigurationManager(oldSettings, client());
-        assertTrue(configurationManager.start(ClusterState.builder(new ClusterName("foobar")).build()));
-        Settings loadedSettings = configurationManager.getGlobalConfig();
+        Settings loadedSettings = configurationManager.getConfig();
         assertThat(loadedSettings.get("foo"), equalTo(newSettings.get("foo")));
         assertThat(loadedSettings.get("bar"), equalTo(newSettings.get("bar")));
         assertThat(loadedSettings.get("baz"), equalTo(newSettings.get("baz")));

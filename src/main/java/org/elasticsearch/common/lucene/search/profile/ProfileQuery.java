@@ -130,6 +130,11 @@ public class ProfileQuery extends Query implements ProfileComponent {
     }
 
     @Override
+    public Query clone() {
+        return new ProfileQuery(subQuery.clone());
+    }
+
+    @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
         stopwatch.start();
         Weight subQueryWeight = subQuery.createWeight(searcher);

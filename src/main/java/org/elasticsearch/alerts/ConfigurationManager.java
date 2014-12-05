@@ -15,26 +15,22 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.indices.IndexMissingException;
 
-import java.util.Map;
+import java.io.IOException;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  */
 public class ConfigurationManager extends AbstractComponent {
 
-    private final Client client;
-
     public static final String CONFIG_TYPE = "config";
     public static final String CONFIG_INDEX = AlertsStore.ALERT_INDEX;
     public static final String GLOBAL_CONFIG_NAME = "global";
 
+    private final Client client;
+    private volatile boolean started = false;
     private final CopyOnWriteArrayList<ConfigurableComponentListener> registeredComponents;
-
-    private volatile boolean readyToRead = false;
-
 
     @Inject
     public ConfigurationManager(Settings settings, Client client) {
@@ -48,36 +44,28 @@ public class ConfigurationManager extends AbstractComponent {
      * @return The immutable settings loaded from the index
      */
     public Settings getGlobalConfig() {
-        ensureReady();
+        ensureStarted();
         try {
             client.admin().indices().prepareRefresh(CONFIG_INDEX).get();
         } catch (IndexMissingException ime) {
-            logger.info("No index [" + CONFIG_INDEX + "] found");
+            logger.error("No index [" + CONFIG_INDEX + "] found");
             return null;
         }
         GetResponse response = client.prepareGet(CONFIG_INDEX, CONFIG_TYPE, GLOBAL_CONFIG_NAME).get();
-        if (!response.isExists()) {
+        if (response.isExists()) {
+            return ImmutableSettings.settingsBuilder().loadFromSource(response.getSourceAsString()).build();
+        } else {
             return null;
         }
-        Map<String, Object> sourceMap = response.getSourceAsMap();
-        ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder();
-        for (Map.Entry<String, Object> configEntry : sourceMap.entrySet() ) {
-            settingsBuilder.put(configEntry.getKey(), configEntry.getValue());
-        }
-        return settingsBuilder.build();
     }
 
     /**
      * Notify the listeners of a new config
+     *
      * @param settingsSource
      */
-    public void newConfig(BytesReference settingsSource) {
-        Map<String, Object> settingsMap = XContentHelper.convertToMap(settingsSource, true).v2();
-        ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder();
-        for (Map.Entry<String, Object> configEntry : settingsMap.entrySet() ) {
-            settingsBuilder.put(configEntry.getKey(), configEntry.getValue());
-        }
-        Settings settings = settingsBuilder.build();
+    public void newConfig(BytesReference settingsSource) throws IOException {
+        Settings settings = ImmutableSettings.settingsBuilder().loadFromSource(settingsSource.toUtf8()).build();
         for (ConfigurableComponentListener componentListener : registeredComponents) {
             componentListener.receiveConfigurationUpdate(settings);
         }
@@ -89,13 +77,19 @@ public class ConfigurationManager extends AbstractComponent {
      * @param clusterState
      * @return true if ready to read or false if not
      */
-    public boolean isReady(ClusterState clusterState) {
-        if (readyToRead) {
+    public boolean start(ClusterState clusterState) {
+        if (started) {
             return true;
         } else {
-            readyToRead = checkIndexState(clusterState);
-            return readyToRead;
+            started = checkIndexState(clusterState);
+            return started;
         }
+    }
+
+    public void stop() {
+        // Even though we just check if the config index is started, we need to do it again if alert manager is restarted,
+        // the index may not be available
+        started = false;
     }
 
     /**
@@ -107,8 +101,8 @@ public class ConfigurationManager extends AbstractComponent {
         }
     }
 
-    private void ensureReady() {
-        if (!readyToRead) {
+    private void ensureStarted() {
+        if (!started) {
             throw new ElasticsearchException("Config index [" + CONFIG_INDEX + "] is not known to be started");
         }
     }
@@ -121,7 +115,6 @@ public class ConfigurationManager extends AbstractComponent {
         } else {
             if (clusterState.routingTable().index(CONFIG_INDEX).allPrimaryShardsActive()) {
                 logger.info("Index [" + CONFIG_INDEX + "] is started.");
-
                 return true;
             } else {
                 return false;

@@ -251,6 +251,7 @@ public class AlertManager extends AbstractComponent {
             actionManager.stop();
             scheduler.stop();
             alertsStore.stop();
+            configurationManager.stop();
             state.set(State.STOPPED);
             logger.info("Alert manager has stopped");
         }
@@ -260,8 +261,8 @@ public class AlertManager extends AbstractComponent {
         if (state.compareAndSet(State.STOPPED, State.STARTING)) {
             ClusterState clusterState = initialState;
 
-            while(true) {
-                if (configurationManager.isReady(initialState)) {
+            while (true) {
+                if (configurationManager.start(initialState)) {
                     break;
                 }
                 clusterState = newClusterState(clusterState);

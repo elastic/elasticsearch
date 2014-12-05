@@ -152,7 +152,7 @@ public class AlertsStore extends AbstractComponent {
             return true;
         }
 
-        if (!configurationManager.isReady(state)) {
+        if (!configurationManager.start(state)) {
             return false;
         }
 

@@ -41,7 +41,7 @@ public class ConfigTest extends ElasticsearchIntegrationTest {
         ConfigurationManager configurationManager = new ConfigurationManager(oldSettings, client());
 
 
-        boolean isReady = configurationManager.isReady(ClusterState.builder(new ClusterName("foobar")).build());
+        boolean isReady = configurationManager.start(ClusterState.builder(new ClusterName("foobar")).build());
         assertTrue(isReady); //Should always be ready on a clean start
 
         SettingsListener settingsListener = new SettingsListener();
@@ -85,7 +85,7 @@ public class ConfigTest extends ElasticsearchIntegrationTest {
                 .get();
         assertTrue(indexResponse.isCreated());
         ConfigurationManager configurationManager = new ConfigurationManager(oldSettings, client());
-        assertTrue(configurationManager.isReady(ClusterState.builder(new ClusterName("foobar")).build()));
+        assertTrue(configurationManager.start(ClusterState.builder(new ClusterName("foobar")).build()));
         Settings loadedSettings = configurationManager.getGlobalConfig();
         assertThat(loadedSettings.get("foo"), equalTo(newSettings.get("foo")));
         assertThat(loadedSettings.get("bar"), equalTo(newSettings.get("bar")));

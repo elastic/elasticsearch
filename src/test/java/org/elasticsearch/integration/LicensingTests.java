@@ -9,9 +9,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -205,19 +202,15 @@ public class LicensingTests extends ShieldIntegrationTest {
         private final List<Listener> listeners = new ArrayList<>();
 
         @Inject
-        public InternalLicensesClientService(Settings settings, ClusterService clusterService) {
+        public InternalLicensesClientService(Settings settings) {
             super(settings);
-            clusterService.add(new ClusterStateListener() {
-                @Override
-                public void clusterChanged(ClusterChangedEvent event) {
-                    enable();
-                }
-            });
+            enable();
         }
 
         @Override
         public void register(String feature, LicensesService.TrialLicenseOptions trialLicenseOptions, Listener listener) {
             listeners.add(listener);
+            enable();
         }
 
         void enable() {

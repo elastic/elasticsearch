@@ -15,6 +15,8 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.license.plugin.core.LicenseExpiredException;
 import org.elasticsearch.license.plugin.core.LicensesClientService;
 import org.elasticsearch.shield.User;
@@ -35,6 +37,8 @@ import java.util.List;
  *
  */
 public class ShieldActionFilter implements ActionFilter {
+
+    private static final ESLogger logger = Loggers.getLogger(ShieldActionFilter.class);
 
     private static final Predicate<String> READ_ACTION_MATCHER = Privilege.Index.READ.predicate();
 
@@ -72,6 +76,7 @@ public class ShieldActionFilter implements ActionFilter {
             to operate normally, except all read operations will be blocked.
          */
         if (!licenseEnabled && READ_ACTION_MATCHER.apply(action)) {
+            logger.error("Blocking read operation [" + action + "] due to disabled license");
             throw new LicenseExpiredException(LicenseService.FEATURE_NAME);
         }
 

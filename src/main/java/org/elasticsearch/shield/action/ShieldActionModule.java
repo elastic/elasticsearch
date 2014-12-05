@@ -29,5 +29,7 @@ public class ShieldActionModule extends AbstractShieldModule.Node implements Pre
 
     @Override
     protected void configureNode() {
+        // we need to ensure that there's only a single instance of this filter.
+        bind(ShieldActionFilter.class).asEagerSingleton();
     }
 }

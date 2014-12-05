@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.hamcrest.Matcher;
 import org.junit.Test;
@@ -1120,4 +1121,107 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         return lessThan(value);
     }
 
+    @Test
+    public void testTermVectorsWithVersion() {
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)));
+        ensureGreen();
+
+        TermVectorsResponse response = client().prepareTermVectors("test", "type1", "1").get();
+        assertThat(response.isExists(), equalTo(false));
+
+        logger.info("--> index doc 1");
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").get();
+
+        // From translog:
+
+        // version 0 means ignore version, which is the default
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(0).get();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getVersion(), equalTo(1l));
+
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(1).get();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getVersion(), equalTo(1l));
+
+        try {
+            client().prepareGet(indexOrAlias(), "type1", "1").setVersion(2).get();
+            fail();
+        } catch (VersionConflictEngineException e) {
+            //all good
+        }
+
+        // From Lucene index:
+        refresh();
+
+        // version 0 means ignore version, which is the default
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(0).setRealtime(false).get();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getIndex(), equalTo("test"));
+        assertThat(response.getVersion(), equalTo(1l));
+
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(1).setRealtime(false).get();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getIndex(), equalTo("test"));
+        assertThat(response.getVersion(), equalTo(1l));
+
+        try {
+            client().prepareGet(indexOrAlias(), "type1", "1").setVersion(2).setRealtime(false).get();
+            fail();
+        } catch (VersionConflictEngineException e) {
+            //all good
+        }
+
+        logger.info("--> index doc 1 again, so increasing the version");
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").get();
+
+        // From translog:
+
+        // version 0 means ignore version, which is the default
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(0).get();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getIndex(), equalTo("test"));
+        assertThat(response.getVersion(), equalTo(2l));
+
+        try {
+            client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).get();
+            fail();
+        } catch (VersionConflictEngineException e) {
+            //all good
+        }
+
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(2).get();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getIndex(), equalTo("test"));
+        assertThat(response.getVersion(), equalTo(2l));
+
+        // From Lucene index:
+        refresh();
+
+        // version 0 means ignore version, which is the default
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(0).setRealtime(false).get();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getIndex(), equalTo("test"));
+        assertThat(response.getVersion(), equalTo(2l));
+
+        try {
+            client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).setRealtime(false).get();
+            fail();
+        } catch (VersionConflictEngineException e) {
+            //all good
+        }
+
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(2).setRealtime(false).get();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getIndex(), equalTo("test"));
+        assertThat(response.getVersion(), equalTo(2l));
+    }
 }

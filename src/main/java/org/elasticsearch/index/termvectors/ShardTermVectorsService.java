@@ -96,9 +96,9 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
             handleFieldWildcards(request);
         }
 
-        final Engine.Searcher searcher = get.searcher() != null ? get.searcher() : indexShard.acquireSearcher("term_vector");
+        final Engine.Searcher searcher = indexShard.acquireSearcher("term_vector");
         try {
-            Fields topLevelFields = MultiFields.getFields(searcher.reader());
+            Fields topLevelFields = MultiFields.getFields(get.searcher() != null ? get.searcher().reader() : searcher.reader());
             Versions.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
             /* from an artificial document */
             if (request.doc() != null) {
@@ -140,6 +140,7 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
             throw new ElasticsearchException("failed to execute term vector request", ex);
         } finally {
             searcher.close();
+            get.release();
         }
         return termVectorsResponse;
     }

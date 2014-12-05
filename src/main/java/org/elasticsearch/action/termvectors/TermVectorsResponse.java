@@ -347,6 +347,10 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
 
     }
 
+    public Long getVersion() {
+        return docVersion;
+    }
+
     public String getIndex() {
         return index;
     }

@@ -67,7 +67,6 @@ public class AlertActionManager extends AbstractComponent {
     public static final String ALERT_HISTORY_TYPE = "alerthistory";
 
     private final Client client;
-    private final ConfigurationManager configurationManager;
     private AlertManager alertManager;
     private final ThreadPool threadPool;
     private final AlertsStore alertsStore;
@@ -86,7 +85,7 @@ public class AlertActionManager extends AbstractComponent {
     @Inject
     public AlertActionManager(Settings settings, Client client, AlertActionRegistry actionRegistry,
                               ThreadPool threadPool, AlertsStore alertsStore, TriggerManager triggerManager,
-                              TemplateHelper templateHelper, ConfigurationManager configurationManager) {
+                              TemplateHelper templateHelper) {
         super(settings);
         this.client = client;
         this.actionRegistry = actionRegistry;
@@ -94,7 +93,6 @@ public class AlertActionManager extends AbstractComponent {
         this.alertsStore = alertsStore;
         this.triggerManager = triggerManager;
         this.templateHelper = templateHelper;
-        this.configurationManager = configurationManager;
         // Not using component settings, to let AlertsStore and AlertActionManager share the same settings
         this.scrollTimeout = settings.getAsTime("alerts.scroll.timeout", TimeValue.timeValueSeconds(30));
         this.scrollSize = settings.getAsInt("alerts.scroll.size", 100);
@@ -108,9 +106,6 @@ public class AlertActionManager extends AbstractComponent {
     public boolean start(ClusterState state) {
         if (started.get()) {
             return true;
-        }
-        if (!configurationManager.start(state)) {
-            return false;
         }
 
         String[] indices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), ALERT_HISTORY_INDEX_PREFIX + "*");

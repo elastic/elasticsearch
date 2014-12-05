@@ -64,7 +64,6 @@ public class AlertsStore extends AbstractComponent {
     private final TemplateHelper templateHelper;
     private final ConcurrentMap<String, Alert> alertMap;
     private final AlertActionRegistry alertActionRegistry;
-    private final ConfigurationManager configurationManager;
     private final AtomicBoolean started = new AtomicBoolean(false);
 
     private final int scrollSize;
@@ -72,14 +71,13 @@ public class AlertsStore extends AbstractComponent {
 
     @Inject
     public AlertsStore(Settings settings, Client client, AlertActionRegistry alertActionRegistry,
-                       TriggerManager triggerManager, TemplateHelper templateHelper, ConfigurationManager configurationManager) {
+                       TriggerManager triggerManager, TemplateHelper templateHelper) {
         super(settings);
         this.client = client;
         this.alertActionRegistry = alertActionRegistry;
         this.templateHelper = templateHelper;
         this.alertMap = ConcurrentCollections.newConcurrentMap();
         this.triggerManager = triggerManager;
-        this.configurationManager = configurationManager;
         // Not using component settings, to let AlertsStore and AlertActionManager share the same settings
         this.scrollTimeout = settings.getAsTime("alerts.scroll.timeout", TimeValue.timeValueSeconds(30));
         this.scrollSize = settings.getAsInt("alerts.scroll.size", 100);

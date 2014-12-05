@@ -63,7 +63,7 @@ public class TransportConfigAlertAction extends TransportMasterNodeOperationActi
     @Override
     protected ClusterBlockException checkBlock(ConfigAlertRequest request, ClusterState state) {
         request.beforeLocalFork(); // This is the best place to make the config source safe
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.WRITE, new String[]{AlertsStore.ALERT_INDEX});
+        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, AlertsStore.ALERT_INDEX);
     }
 
 

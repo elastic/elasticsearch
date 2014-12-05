@@ -61,7 +61,7 @@ public class TransportAckAlertAction extends TransportMasterNodeOperationAction<
 
     @Override
     protected ClusterBlockException checkBlock(AckAlertRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.WRITE, new String[]{AlertsStore.ALERT_INDEX});
+        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, AlertsStore.ALERT_INDEX);
     }
 
 

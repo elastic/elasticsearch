@@ -62,7 +62,7 @@ public class TransportPutAlertAction extends TransportMasterNodeOperationAction<
     @Override
     protected ClusterBlockException checkBlock(PutAlertRequest request, ClusterState state) {
         request.beforeLocalFork(); // This is the best place to make the alert source safe
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.WRITE, new String[]{AlertsStore.ALERT_INDEX});
+        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, AlertsStore.ALERT_INDEX);
     }
 
 }

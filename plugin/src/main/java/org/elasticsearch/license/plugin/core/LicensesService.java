@@ -354,7 +354,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
         // notify features to be disabled
         for (ListenerHolder holder : registeredListeners) {
-            holder.disableFeatureIfNeeded();
+            holder.disableFeatureIfNeeded(false);
         }
         // clear all handlers
         registeredListeners.clear();
@@ -468,7 +468,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                     nextScheduleFrequency = Math.min(expiryDuration, nextScheduleFrequency);
                 }
             } else {
-                listenerHolder.disableFeatureIfNeeded();
+                listenerHolder.disableFeatureIfNeeded(true);
             }
 
             if (logger.isDebugEnabled()) {
@@ -740,10 +740,12 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             }
         }
 
-        private void disableFeatureIfNeeded() {
+        private void disableFeatureIfNeeded(boolean log) {
             if (enabled.compareAndSet(true, false)) {
                 listener.onDisabled();
-                logger.info("license for [" + feature + "] - expired");
+                if (log) {
+                    logger.info("license for [" + feature + "] - expired");
+                }
             }
         }
 

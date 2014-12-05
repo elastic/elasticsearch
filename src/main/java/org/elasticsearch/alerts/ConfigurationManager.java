@@ -30,8 +30,11 @@ public class ConfigurationManager extends AbstractComponent {
     public static final String CONFIG_TYPE = "config";
     public static final String CONFIG_INDEX = AlertsStore.ALERT_INDEX;
     public static final String GLOBAL_CONFIG_NAME = "global";
-    private volatile boolean readyToRead = false;
+
     private final CopyOnWriteArrayList<ConfigurableComponentListener> registeredComponents;
+
+    private volatile boolean readyToRead = false;
+
 
     @Inject
     public ConfigurationManager(Settings settings, Client client) {
@@ -95,6 +98,15 @@ public class ConfigurationManager extends AbstractComponent {
         }
     }
 
+    /**
+     * Registers an component to receive config updates
+     */
+    public void registerListener(ConfigurableComponentListener configListener) {
+        if (!registeredComponents.contains(configListener)) {
+            registeredComponents.add(configListener);
+        }
+    }
+
     private void ensureReady() {
         if (!readyToRead) {
             throw new ElasticsearchException("Config index [" + CONFIG_INDEX + "] is not known to be started");
@@ -114,15 +126,6 @@ public class ConfigurationManager extends AbstractComponent {
             } else {
                 return false;
             }
-        }
-    }
-
-    /**
-     * Registers an component to receive config updates
-     */
-    public void registerListener(ConfigurableComponentListener configListener) {
-        if (!registeredComponents.contains(configListener)) {
-            registeredComponents.add(configListener);
         }
     }
 }

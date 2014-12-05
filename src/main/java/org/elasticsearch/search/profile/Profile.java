@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Locale;
 
 /**
  * This class represents the aggregated/collapsed results of a profiled query (e.g. a query wrapped in
@@ -191,7 +192,7 @@ public class Profile implements Streamable, ToXContent {
 
         builder.field("type", className);
         builder.field("time", time);
-        builder.field("relative", String.format("%.5g%%", ((float) time / (float)totalTime)*100f));
+        builder.field("relative", String.format(Locale.US, "%.5g%%", ((float) time / (float)totalTime)*100f));
         builder.field("lucene", details);
 
         if (components.size() > 0) {

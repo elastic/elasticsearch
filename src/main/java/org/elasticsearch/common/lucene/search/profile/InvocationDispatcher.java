@@ -22,6 +22,8 @@ package org.elasticsearch.common.lucene.search.profile;
  * limitations under the License.
  */
 
+import org.apache.lucene.util.CollectionUtil;
+
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -61,7 +63,7 @@ public class InvocationDispatcher<P, R> {
             }
         }
 
-        Collections.sort(dispatchableMethods, new Comparator<Method>() {
+        CollectionUtil.timSort(dispatchableMethods, new Comparator<Method>() {
 
             public int compare(Method o1, Method o2) {
                 return isSuperType(o1, o2) ? 1 : -1;

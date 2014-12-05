@@ -35,6 +35,13 @@ public abstract class CircuitBreakerService extends AbstractLifecycleComponent<C
     }
 
     /**
+     * Allows to register of a custom circuit breaker.
+     *
+     * @param breakerSettings
+     */
+    public abstract void registerBreaker(BreakerSettings breakerSettings);
+
+    /**
      * @return the breaker that can be used to register estimates against
      */
     public abstract CircuitBreaker getBreaker(CircuitBreaker.Name type);

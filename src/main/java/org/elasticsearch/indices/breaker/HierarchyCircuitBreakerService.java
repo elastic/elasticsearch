@@ -20,6 +20,8 @@
 package org.elasticsearch.indices.breaker;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -33,6 +35,7 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static com.google.common.collect.Lists.newArrayList;
@@ -65,12 +68,20 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     public static final String DEFAULT_BREAKER_TYPE = "memory";
 
-    private volatile BreakerSettings parentSettings;
+    private static final Set<CircuitBreaker.Name> BUILT_IN_BREAKER_NAMES = ImmutableSet.<CircuitBreaker.Name>builder()
+            .add(CircuitBreaker.Name.PARENT)
+            .add(CircuitBreaker.Name.FIELDDATA)
+            .add(CircuitBreaker.Name.REQUEST)
+            .build();
+
+
+private volatile BreakerSettings parentSettings;
     private volatile BreakerSettings fielddataSettings;
     private volatile BreakerSettings requestSettings;
 
     // Tripped count for when redistribution was attempted but wasn't successful
     private final AtomicLong parentTripCount = new AtomicLong(0);
+    private final Object lock = new Object();
 
     @Inject
     public HierarchyCircuitBreakerService(Settings settings, NodeSettingsService nodeSettingsService) {
@@ -133,7 +144,9 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
         tempBreakers.put(CircuitBreaker.Name.FIELDDATA, fielddataBreaker);
         tempBreakers.put(CircuitBreaker.Name.REQUEST, requestBreaker);
-        this.breakers = ImmutableMap.copyOf(tempBreakers);
+        synchronized (lock) {
+            this.breakers = ImmutableMap.copyOf(tempBreakers);
+        }
 
         nodeSettingsService.addListener(new ApplySettings());
     }
@@ -208,7 +221,9 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
                 tempBreakers.put(CircuitBreaker.Name.FIELDDATA, fielddataBreaker);
                 tempBreakers.put(CircuitBreaker.Name.REQUEST, requestBreaker);
-                HierarchyCircuitBreakerService.this.breakers = ImmutableMap.copyOf(tempBreakers);
+                synchronized (lock) {
+                    HierarchyCircuitBreakerService.this.breakers = ImmutableMap.copyOf(tempBreakers);
+                }
             }
         }
     }
@@ -275,6 +290,40 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                     label + "] would be larger than limit of [" +
                     parentLimit + "/" + new ByteSizeValue(parentLimit) + "]",
                     totalUsed, parentLimit);
+        }
+    }
+
+    /**
+     * Allows to register of a custom circuit breaker.
+     *
+     * Warning: Will overwrite any existing custom breaker with the same
+     * {@link CircuitBreaker.Name}.
+     * Trying to overwrite a built-in breaker like e.g. {@link CircuitBreaker.Name.REQUEST}
+     * will fail with an {@link ElasticsearchIllegalArgumentException}.
+     *
+     * @param breakerSettings
+     */
+    @Override
+    public void registerBreaker(BreakerSettings breakerSettings) {
+        // Validate the configured settings
+        if (BUILT_IN_BREAKER_NAMES.contains(breakerSettings.getName())) {
+            throw new ElasticsearchIllegalArgumentException(
+                    "Overwriting of built-in breaker " + breakerSettings.getName() + " is forbidden");
+        }
+        validateSettings(new BreakerSettings[] {breakerSettings});
+
+        CircuitBreaker breaker;
+        if (breakerSettings.getType() == CircuitBreaker.Type.NOOP) {
+            breaker = new NoopCircuitBreaker(breakerSettings.getName());
+        } else {
+            breaker = new ChildMemoryCircuitBreaker(breakerSettings, logger, this, breakerSettings.getName());
+        }
+
+        Map<CircuitBreaker.Name, CircuitBreaker> tempBreakers = new HashMap<>();
+        tempBreakers.putAll(this.breakers);
+        tempBreakers.put(breakerSettings.getName(), breaker);
+        synchronized (lock) {
+            this.breakers = ImmutableMap.copyOf(tempBreakers);
         }
     }
 }

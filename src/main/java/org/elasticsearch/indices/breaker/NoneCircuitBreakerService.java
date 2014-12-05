@@ -48,4 +48,9 @@ public class NoneCircuitBreakerService extends CircuitBreakerService {
     public CircuitBreakerStats stats(CircuitBreaker.Name name) {
         return new CircuitBreakerStats(CircuitBreaker.Name.FIELDDATA, -1, -1, 0, 0);
     }
+
+    @Override
+    public void registerBreaker(BreakerSettings breakerSettings) {
+        // ignore
+    }
 }

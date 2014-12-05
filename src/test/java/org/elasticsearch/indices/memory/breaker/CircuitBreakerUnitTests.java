@@ -19,14 +19,24 @@
 
 package org.elasticsearch.indices.memory.breaker;
 
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.indices.breaker.BreakerSettings;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Unit tests for the circuit breaker
@@ -63,4 +73,32 @@ public class CircuitBreakerUnitTests extends ElasticsearchTestCase {
                     e.getMessage().contains("must be non-negative"), equalTo(true));
         }
     }
+
+    @Test
+    public void testRegisterCustomBreaker() throws Exception {
+        CircuitBreakerService service = new HierarchyCircuitBreakerService(ImmutableSettings.EMPTY, new NodeSettingsService(ImmutableSettings.EMPTY));
+        CircuitBreaker.Name customName = CircuitBreaker.Name.register(3, "custom");
+        BreakerSettings settings = new BreakerSettings(customName, 20, 1.0);
+        service.registerBreaker(settings);
+
+        CircuitBreaker breaker = service.getBreaker(customName);
+        assertThat(breaker, notNullValue());
+        assertThat(breaker, instanceOf(CircuitBreaker.class));
+        assertThat(breaker.getName(), is(customName));
+    }
+
+    @Test
+    public void testRegisterBuiltInBreakerForbidden() throws Exception {
+        CircuitBreakerService service = new HierarchyCircuitBreakerService(ImmutableSettings.EMPTY, new NodeSettingsService(ImmutableSettings.EMPTY));
+        BreakerSettings settings = new BreakerSettings(CircuitBreaker.Name.FIELDDATA, 20, 1.0);
+
+        try {
+            service.registerBreaker(settings);
+            fail("registering built-in breaker is forbidden but did not throw an exception");
+        } catch (Exception e) {
+            assertThat("Incorrect message: " + e.getMessage(),
+                    e.getMessage().contains("Overwriting of built-in breaker " + CircuitBreaker.Name.FIELDDATA + " is forbidden"), equalTo(true));
+        }
+    }
+
 }

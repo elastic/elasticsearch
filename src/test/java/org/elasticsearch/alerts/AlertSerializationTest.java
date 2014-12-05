@@ -7,7 +7,7 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.alerts.actions.AlertAction;
-import org.elasticsearch.alerts.actions.SntpAlertAction;
+import org.elasticsearch.alerts.actions.SmtpAlertAction;
 import org.elasticsearch.alerts.triggers.ScriptedTrigger;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
@@ -34,7 +34,7 @@ public class AlertSerializationTest extends AbstractAlertingTests {
         SearchRequest payloadRequest = createTriggerSearchRequest("my-payload-index").source(searchSource().query(matchAllQuery()));
 
         List<AlertAction> actions = new ArrayList<>();
-        actions.add(new SntpAlertAction("message", "foo@bar.com"));
+        actions.add(new SmtpAlertAction("message", "foo@bar.com"));
         Alert alert = new Alert("test-serialization",
                 triggerRequest,
                 new ScriptedTrigger("return true", ScriptService.ScriptType.INLINE, "groovy"),

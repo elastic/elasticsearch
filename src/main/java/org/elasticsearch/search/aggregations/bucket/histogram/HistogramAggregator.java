@@ -118,8 +118,6 @@ public class HistogramAggregator extends BucketsAggregator {
             buckets.add(histogramFactory.createBucket(rounding.valueForKey(bucketOrds.get(i)), bucketDocCount(i), bucketAggregations(i), keyed, formatter));
         }
 
-        CollectionUtil.introSort(buckets, order.comparator());
-
         // value source will be null for unmapped fields
         InternalHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0 ? new InternalHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds) : null;
         return histogramFactory.create(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, getMetaData());

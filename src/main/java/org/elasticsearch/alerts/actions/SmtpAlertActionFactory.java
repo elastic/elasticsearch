@@ -43,6 +43,15 @@ public class SmtpAlertActionFactory implements AlertActionFactory, ConfigurableC
 
     @Override
     public AlertAction createAction(XContentParser parser) throws IOException {
+        if (settings == null) {
+            settings = configurationManager.getGlobalConfig();
+            configurationManager.registerListener(this);
+        }
+
+        if (settings == null) {
+            throw new ElasticsearchException("Unable to retrieve [" + GLOBAL_EMAIL_CONFIG + "] from the config index.");
+        }
+
         String display = null;
         List<String> addresses = new ArrayList<>();
 
@@ -82,15 +91,6 @@ public class SmtpAlertActionFactory implements AlertActionFactory, ConfigurableC
             throw new ElasticsearchIllegalStateException("Bad action [" + action.getClass() + "] passed to EmailAlertActionFactory expected [" + SmtpAlertAction.class + "]");
         }
         SmtpAlertAction smtpAlertAction = (SmtpAlertAction)action;
-        if (settings == null) {
-            settings = configurationManager.getGlobalConfig();
-            configurationManager.registerListener(this);
-        }
-
-        if (settings == null) {
-            throw new ElasticsearchException("Unable to retrieve [" + GLOBAL_EMAIL_CONFIG + "] from the config index.");
-        }
-
 
         Properties props = new Properties();
         props.put("mail.smtp.auth", "true");

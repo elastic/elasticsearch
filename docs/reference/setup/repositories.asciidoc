@@ -66,3 +66,19 @@ And your repository is ready for use. You can install it with :
 --------------------------------------------------
 yum install elasticsearch
 --------------------------------------------------
+
+Configure Elasticsearch to automatically start during bootup. If your
+distribution is using SysV, then you will need to run :
+
+[source,sh]
+--------------------------------------------------
+chkconfig --add elasticsearch
+--------------------------------------------------
+
+Otherwise if your distribution is using systemd :
+
+[source,sh]
+--------------------------------------------------
+sudo /bin/systemctl daemon-reload
+sudo /bin/systemctl enable elasticsearch.service
+--------------------------------------------------

@@ -149,6 +149,8 @@ public class ProfileQueryTests extends ElasticsearchIntegrationTest {
     public void testProfileQuery() throws Exception {
         ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder().put(indexSettings());
         createIndex("test");
+        ensureGreen();
+
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
@@ -159,13 +161,15 @@ public class ProfileQueryTests extends ElasticsearchIntegrationTest {
         }
 
         indexRandom(true, docs);
-        ensureGreen();
+
+        refresh();
         int iters = between(20, 100);
         for (int i = 0; i < iters; i++) {
             QueryBuilder q = randomQueryBuilder(numDocs, 3);
+            logger.info(q.toString());
 
             SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
-            assertNotNull(resp.getProfile());
+            assertNotNull("Profile response element should not be null", resp.getProfile());
 
         }
     }
@@ -246,6 +250,34 @@ public class ProfileQueryTests extends ElasticsearchIntegrationTest {
         assertEquals(second.getLuceneDetails(), "field1:two");
         assertEquals(second.totalTime(), p.totalTime());
         assertTrue(second.time() < first.totalTime());
+    }
+
+    @Test
+    public void testEmptyBool() throws Exception {
+        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder().put(indexSettings());
+        createIndex("test");
+        ensureGreen();
+
+        int numDocs = randomIntBetween(100, 150);
+        IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
+                    "field1", English.intToEnglish(i),
+                    "field2", i
+            );
+        }
+
+        indexRandom(true, docs);
+
+        refresh();
+
+        QueryBuilder q = QueryBuilders.boolQuery();
+        logger.info(q.toString());
+
+        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
+        assertNotNull("Profile response element should not be null", resp.getProfile());
+
+
     }
 
 

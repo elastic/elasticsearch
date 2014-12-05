@@ -121,7 +121,7 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
         // The fourth has one java plugin and one site plugin
         String server4NodeId = startNodeWithPlugins(4,TestNoVersionPlugin.class.getName());
 
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForNodes("4")).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
         NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().clear().setPlugins(true).execute().actionGet();

@@ -15,12 +15,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class SntpAlertAction implements AlertAction {
+public class SmtpAlertAction implements AlertAction {
 
     private final String displayField;
     private final List<Address> emailAddresses = new ArrayList<>();
 
-    public SntpAlertAction(String displayField, String... addresses){
+    public SmtpAlertAction(String displayField, String... addresses){
         for (String address : addresses) {
             addEmailAddress(address);
         }
@@ -70,7 +70,7 @@ public class SntpAlertAction implements AlertAction {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        SntpAlertAction that = (SntpAlertAction) o;
+        SmtpAlertAction that = (SmtpAlertAction) o;
 
         if (displayField != null ? !displayField.equals(that.displayField) : that.displayField != null) return false;
         if (emailAddresses != null ? !emailAddresses.equals(that.emailAddresses) : that.emailAddresses != null)

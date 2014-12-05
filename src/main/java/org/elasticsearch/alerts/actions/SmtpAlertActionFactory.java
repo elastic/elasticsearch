@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
-public class SnptAlertActionFactory implements AlertActionFactory, ConfigurableComponentListener {
+public class SmtpAlertActionFactory implements AlertActionFactory, ConfigurableComponentListener {
 
     private static final String GLOBAL_EMAIL_CONFIG = "email";
 
@@ -37,7 +37,7 @@ public class SnptAlertActionFactory implements AlertActionFactory, ConfigurableC
     private final ConfigurationManager configurationManager;
     private Settings settings;
 
-    public SnptAlertActionFactory(ConfigurationManager configurationManager) {
+    public SmtpAlertActionFactory(ConfigurationManager configurationManager) {
         this.configurationManager = configurationManager;
     }
 
@@ -73,15 +73,15 @@ public class SnptAlertActionFactory implements AlertActionFactory, ConfigurableC
                 throw new ElasticsearchIllegalArgumentException("Unexpected token [" + token + "]");
             }
         }
-        return new SntpAlertAction(display, addresses.toArray(new String[addresses.size()]));
+        return new SmtpAlertAction(display, addresses.toArray(new String[addresses.size()]));
     }
 
     @Override
     public boolean doAction(AlertAction action, Alert alert, TriggerResult result) {
-        if (!(action instanceof SntpAlertAction)) {
-            throw new ElasticsearchIllegalStateException("Bad action [" + action.getClass() + "] passed to EmailAlertActionFactory expected [" + SntpAlertAction.class + "]");
+        if (!(action instanceof SmtpAlertAction)) {
+            throw new ElasticsearchIllegalStateException("Bad action [" + action.getClass() + "] passed to EmailAlertActionFactory expected [" + SmtpAlertAction.class + "]");
         }
-        SntpAlertAction sntpAlertAction = (SntpAlertAction)action;
+        SmtpAlertAction smtpAlertAction = (SmtpAlertAction)action;
         if (settings == null) {
             settings = configurationManager.getGlobalConfig();
             configurationManager.registerListener(this);
@@ -113,7 +113,8 @@ public class SnptAlertActionFactory implements AlertActionFactory, ConfigurableC
         try {
             message.setFrom(new InternetAddress(settings.get(FROM_SETTING)));
             message.setRecipients(Message.RecipientType.TO,
-                    sntpAlertAction.getEmailAddresses().toArray(new Address[1]));
+                    smtpAlertAction.getEmailAddresses().toArray(new Address[1]));
+
             message.setSubject("Elasticsearch Alert " + alert.getAlertName() + " triggered");
 
             StringBuilder output = new StringBuilder();
@@ -131,12 +132,12 @@ public class SnptAlertActionFactory implements AlertActionFactory, ConfigurableC
             output.append("\n");
 
 
-            if (sntpAlertAction.getDisplayField() != null) {
+            if (smtpAlertAction.getDisplayField() != null) {
                 List<Map<String, Object>> hits = (List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", result.getActionResponse());
                 for (Map<String, Object> hit : hits) {
                     Map<String, Object> _source = (Map<String, Object>) hit.get("_source");
-                    if (_source.containsKey(sntpAlertAction.getDisplayField())) {
-                        output.append(_source.get(sntpAlertAction.getDisplayField()).toString());
+                    if (_source.containsKey(smtpAlertAction.getDisplayField())) {
+                        output.append(_source.get(smtpAlertAction.getDisplayField()).toString());
                     } else {
                         output.append(_source);
                     }

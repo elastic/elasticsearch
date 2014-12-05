@@ -27,8 +27,6 @@ import java.util.Properties;
 
 public class SmtpAlertActionFactory implements AlertActionFactory, ConfigurableComponentListener {
 
-    private static final String GLOBAL_EMAIL_CONFIG = "email";
-
     private static final String PORT_SETTING = "alerts.action.snpt.server.port";
     private static final String SERVER_SETTING = "alerts.action.email.server.name";
     private static final String FROM_SETTING = "alerts.action.email.from.address";
@@ -46,10 +44,6 @@ public class SmtpAlertActionFactory implements AlertActionFactory, ConfigurableC
         if (settings == null) {
             settings = configurationManager.getConfig();
             configurationManager.registerListener(this);
-        }
-
-        if (settings == null) {
-            throw new ElasticsearchException("Unable to retrieve [" + GLOBAL_EMAIL_CONFIG + "] from the config index.");
         }
 
         String display = null;
@@ -90,6 +84,11 @@ public class SmtpAlertActionFactory implements AlertActionFactory, ConfigurableC
         if (!(action instanceof SmtpAlertAction)) {
             throw new ElasticsearchIllegalStateException("Bad action [" + action.getClass() + "] passed to EmailAlertActionFactory expected [" + SmtpAlertAction.class + "]");
         }
+
+        if (settings == null) {
+            throw new ElasticsearchException("No settings loaded for Smtp (email)");
+        }
+
         SmtpAlertAction smtpAlertAction = (SmtpAlertAction)action;
 
         Properties props = new Properties();

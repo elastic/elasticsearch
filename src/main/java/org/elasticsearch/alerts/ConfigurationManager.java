@@ -6,6 +6,7 @@
 package org.elasticsearch.alerts;
 
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -62,11 +63,17 @@ public class ConfigurationManager extends AbstractComponent {
      *
      * @param settingsSource
      */
-    public void updateConfig(BytesReference settingsSource) throws IOException {
+    public IndexResponse updateConfig(BytesReference settingsSource) throws IOException {
+
+        IndexResponse indexResponse = client.prepareIndex(AlertsStore.ALERT_INDEX, ConfigurationManager.CONFIG_TYPE, ConfigurationManager.GLOBAL_CONFIG_NAME)
+                .setSource(settingsSource).get();
+
         Settings settings = ImmutableSettings.settingsBuilder().loadFromSource(settingsSource.toUtf8()).build();
         for (ConfigurableComponentListener componentListener : registeredComponents) {
             componentListener.receiveConfigurationUpdate(settings);
         }
+
+        return indexResponse;
     }
 
     /**

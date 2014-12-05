@@ -57,9 +57,7 @@ public class TransportConfigAlertAction extends TransportMasterNodeOperationActi
     @Override
     protected void masterOperation(ConfigAlertRequest request, ClusterState state, ActionListener<ConfigAlertResponse> listener) throws ElasticsearchException {
         try {
-            IndexResponse indexResponse = client.prepareIndex(AlertsStore.ALERT_INDEX, ConfigurationManager.CONFIG_TYPE, ConfigurationManager.GLOBAL_CONFIG_NAME)
-                    .setSource(request.getConfigSource(), request.isConfigSourceUnsafe()).get();
-            configManager.updateConfig(request.getConfigSource());
+            IndexResponse indexResponse = configManager.updateConfig(request.getConfigSource());
             listener.onResponse(new ConfigAlertResponse(indexResponse));
         } catch (Exception e) {
             listener.onFailure(e);

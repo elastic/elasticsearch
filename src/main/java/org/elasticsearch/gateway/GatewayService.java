@@ -104,6 +104,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
     @Override
     protected void doStart() throws ElasticsearchException {
         gateway.start();
+        clusterService.addLast(this);
         // if we received initial state, see if we can recover within the start phase, so we hold the
         // node from starting until we recovered properly
         if (discoveryService.initialStateReceived()) {
@@ -114,7 +115,6 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         } else {
             logger.debug("can't wait on start for (possibly) reading state from gateway, will do it asynchronously");
         }
-        clusterService.addLast(this);
     }
 
     @Override

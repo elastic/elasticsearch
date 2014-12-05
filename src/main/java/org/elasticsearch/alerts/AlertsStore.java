@@ -152,10 +152,6 @@ public class AlertsStore extends AbstractComponent {
             return true;
         }
 
-        if (!configurationManager.start(state)) {
-            return false;
-        }
-
         IndexMetaData alertIndexMetaData = state.getMetaData().index(ALERT_INDEX);
         if (alertIndexMetaData != null) {
             logger.debug("Previous alerting index");

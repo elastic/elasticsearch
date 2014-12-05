@@ -6,6 +6,7 @@
 package org.elasticsearch.alerts;
 
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -39,8 +40,8 @@ public class ConfigTest extends ElasticsearchIntegrationTest {
                 .build();
         ConfigurationManager configurationManager = new ConfigurationManager(oldSettings, client());
 
-        ClusterState clusterState = internalCluster().clusterService().state();
-        boolean isReady = configurationManager.isReady(clusterState);
+
+        boolean isReady = configurationManager.isReady(ClusterState.builder(new ClusterName("foobar")).build());
         assertTrue(isReady); //Should always be ready on a clean start
 
         SettingsListener settingsListener = new SettingsListener();
@@ -57,7 +58,6 @@ public class ConfigTest extends ElasticsearchIntegrationTest {
         assertThat(settingsListener.settings.getAsTime("foo", new TimeValue(0)).getMillis(), equalTo(tv2.getMillis()));
         assertThat(settingsListener.settings.getAsInt("bar", 0), equalTo(100));
         assertThat(settingsListener.settings.getAsBoolean("baz", true), equalTo(false));
-
     }
 
     public void testLoadingSettings() throws Exception {
@@ -85,7 +85,7 @@ public class ConfigTest extends ElasticsearchIntegrationTest {
                 .get();
         assertTrue(indexResponse.isCreated());
         ConfigurationManager configurationManager = new ConfigurationManager(oldSettings, client());
-        assertTrue(configurationManager.isReady(internalCluster().clusterService().state()));
+        assertTrue(configurationManager.isReady(ClusterState.builder(new ClusterName("foobar")).build()));
         Settings loadedSettings = configurationManager.getGlobalConfig();
         assertThat(loadedSettings.get("foo"), equalTo(newSettings.get("foo")));
         assertThat(loadedSettings.get("bar"), equalTo(newSettings.get("bar")));

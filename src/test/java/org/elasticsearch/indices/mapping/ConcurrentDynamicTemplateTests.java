@@ -24,6 +24,10 @@ import com.google.common.collect.Sets;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -92,9 +96,50 @@ public class ConcurrentDynamicTemplateTests extends ElasticsearchIntegrationTest
     @Test
     public void testDynamicMappingIntroductionPropagatesToAll() throws Exception {
         int numDocs = randomIntBetween(100, 1000);
-        int numberOfFields = randomIntBetween(1, 50);
+        int numberOfFields = scaledRandomIntBetween(1, 50);
         Set<Integer> fieldsIdx = Sets.newHashSet();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
+
+        XContentBuilder mappings = XContentFactory.jsonBuilder().startObject().startObject("_default_");
+        mappings.startArray("dynamic_templates")
+                .startObject()
+                .startObject("template-strings")
+                .field("match_mapping_type", "string")
+                .startObject("mapping")
+                .startObject("fielddata")
+                .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst"))
+                .field(FieldMapper.Loading.KEY, FieldMapper.Loading.LAZY) // always use lazy loading
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject()
+                .startObject("template-longs")
+                .field("match_mapping_type", "long")
+                .startObject("mapping")
+                .startObject("fielddata")
+                .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
+                .field(FieldMapper.Loading.KEY, FieldMapper.Loading.LAZY)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject()
+                .startObject("template-doubles")
+                .field("match_mapping_type", "double")
+                .startObject("mapping")
+                .startObject("fielddata")
+                .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
+                .field(FieldMapper.Loading.KEY, FieldMapper.Loading.LAZY)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endArray();
+        mappings.endObject().endObject();
+
+        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("_default_", mappings));
+        ensureGreen("idx");
         for (int i = 0; i < numDocs; ++i) {
             int fieldIdx = i % numberOfFields;
             fieldsIdx.add(fieldIdx);
@@ -102,7 +147,7 @@ public class ConcurrentDynamicTemplateTests extends ElasticsearchIntegrationTest
                     .startObject()
                     .field("str_value_" + fieldIdx, "s" + i)
                     .field("l_value_" + fieldIdx, i)
-                    .field("d_value_" + fieldIdx, i)
+                    .field("d_value_" + fieldIdx, (double)i + 0.01)
                     .endObject());
         }
         indexRandom(false, builders);

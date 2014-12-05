@@ -28,7 +28,6 @@ public class ShieldModule extends AbstractShieldModule.Spawn {
         super(settings);
     }
 
-
     @Override
     public Iterable<? extends Module> spawnModules(boolean clientMode) {
         // spawn needed parts in client mode

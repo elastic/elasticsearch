@@ -51,7 +51,9 @@ public class ShieldPlugin extends AbstractPlugin {
 
     @Override
     public Collection<Class<? extends Module>> modules() {
-        return ImmutableList.<Class<? extends Module>>of(ShieldModule.class);
+        return enabled ?
+                ImmutableList.<Class<? extends Module>>of(ShieldModule.class) :
+                ImmutableList.<Class<? extends Module>>of();
     }
 
     @Override

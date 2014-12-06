@@ -19,9 +19,12 @@
 
 package org.elasticsearch.cluster.node;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -64,21 +67,72 @@ public class DiscoveryNodeFilters {
         this.filters = filters;
     }
 
+    private boolean matchByIP(String[] values, @Nullable String hostIp, @Nullable String publishIp) {
+        for (String value : values) {
+            boolean matchIp = Regex.simpleMatch(value, hostIp) || Regex.simpleMatch(value, publishIp);
+            if (matchIp) {
+                return matchIp;
+            }
+        }
+        return false;
+    }
+
     public boolean match(DiscoveryNode node) {
         for (Map.Entry<String, String[]> entry : filters.entrySet()) {
             String attr = entry.getKey();
             String[] values = entry.getValue();
             if ("_ip".equals(attr)) {
-                for (String value : values) {
-                    if (Regex.simpleMatch(value, node.getHostAddress())) {
-                        if (opType == OpType.OR) {
-                            return true;
-                        }
-                    } else {
-                        if (opType == OpType.AND) {
-                            return false;
-                        }
+                // We check both the host_ip or the publish_ip
+                String publishAddress = null;
+                if (node.address() instanceof InetSocketTransportAddress) {
+                    publishAddress = NetworkAddress.format(((InetSocketTransportAddress) node.address()).address().getAddress());
+                }
+
+                boolean match = matchByIP(values, node.getHostAddress(), publishAddress);
+
+                if (opType == OpType.AND) {
+                    if (match) {
+                        // If we match, we can check to the next filter
+                        continue;
                     }
+                    return false;
+                }
+
+                if (match && opType == OpType.OR) {
+                    return true;
+                }
+            } else if ("_host_ip".equals(attr)) {
+                // We check explicitly only the host_ip
+                boolean match = matchByIP(values, node.getHostAddress(), null);
+                if (opType == OpType.AND) {
+                    if (match) {
+                        // If we match, we can check to the next filter
+                        continue;
+                    }
+                    return false;
+                }
+
+                if (match && opType == OpType.OR) {
+                    return true;
+                }
+            } else if ("_publish_ip".equals(attr)) {
+                // We check explicitly only the publish_ip
+                String address = null;
+                if (node.address() instanceof InetSocketTransportAddress) {
+                    address = NetworkAddress.format(((InetSocketTransportAddress) node.address()).address().getAddress());
+                }
+
+                boolean match = matchByIP(values, address, null);
+                if (opType == OpType.AND) {
+                    if (match) {
+                        // If we match, we can check to the next filter
+                        continue;
+                    }
+                    return false;
+                }
+
+                if (match && opType == OpType.OR) {
+                    return true;
                 }
             } else if ("_host".equals(attr)) {
                 for (String value : values) {
@@ -171,7 +225,7 @@ public class DiscoveryNodeFilters {
             for (String value : values) {
                 sb.append(value);
                 if (valueCount > 1) {
-                    sb.append(" " + opType.toString() + " ");
+                    sb.append(" ").append(opType.toString()).append(" ");
                 }
                 valueCount--;
             }

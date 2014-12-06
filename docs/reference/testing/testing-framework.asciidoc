@@ -24,6 +24,12 @@ First, you need to include the testing dependency in your project. If you use ma
 --------------------------------------------------
 <dependencies>
   <dependency>
+    <groupId>com.carrotsearch.randomizedtesting</groupId>
+    <artifactId>randomizedtesting-runner</artifactId>
+    <version>${randomizedtesting-runner.version}</version>
+    <scope>test</scope>
+  </dependency>
+  <dependency>
     <groupId>org.apache.lucene</groupId>
     <artifactId>lucene-test-framework</artifactId>
     <version>${lucene.version}</version>
@@ -45,7 +51,8 @@ First, you need to include the testing dependency in your project. If you use ma
 </dependencies>
 --------------------------------------------------
 
-Replace the elasticsearch version and the lucene versions with the current elasticsearch version and its accompanying lucene release. 
+Replace the elasticsearch version and the lucene versions with the current elasticsearch version and its accompanying lucene release.
+And replace the "randomizedtesting version" with the version that the current elasticsearch uses.
 
 There are already have a couple of classes, you can inherit from in your own test classes. The advantages of doing so is having already defined loggers, the whole randomized infrastructure is set up already.
 

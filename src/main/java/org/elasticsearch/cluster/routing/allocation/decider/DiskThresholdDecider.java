@@ -227,13 +227,12 @@ public class DiskThresholdDecider extends AllocationDecider {
      * If subtractShardsMovingAway is set then the size of shards moving away is subtracted from the total size
      * of all shards
      */
-    public long sizeOfRelocatingShards(RoutingNode node, RoutingAllocation allocation, Map<String, Long> shardSizes, boolean subtractShardsMovingAway) {
-        List<ShardRouting> relocatingShards = allocation.routingTable().shardsWithState(ShardRoutingState.RELOCATING);
+    public long sizeOfRelocatingShards(RoutingNode node, Map<String, Long> shardSizes, boolean subtractShardsMovingAway) {
         long totalSize = 0;
-        for (ShardRouting routing : relocatingShards) {
-            if (routing.relocatingNodeId().equals(node.nodeId())) {
+        for (ShardRouting routing : node.shardsWithState(ShardRoutingState.RELOCATING, ShardRoutingState.INITIALIZING)) {
+            if (routing.initializing() && routing.relocatingNodeId() != null) {
                 totalSize += getShardSize(routing, shardSizes);
-            } else if (subtractShardsMovingAway && routing.currentNodeId().equals(node.nodeId())) {
+            } else if (subtractShardsMovingAway && routing.relocating()) {
                 totalSize -= getShardSize(routing, shardSizes);
             }
         }
@@ -291,7 +290,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         if (includeRelocations) {
-            long relocatingShardsSize = sizeOfRelocatingShards(node, allocation, shardSizes, false);
+            long relocatingShardsSize = sizeOfRelocatingShards(node, shardSizes, false);
             DiskUsage usageIncludingRelocations = new DiskUsage(node.nodeId(), node.node().name(),
                     usage.getTotalBytes(), usage.getFreeBytes() - relocatingShardsSize);
             if (logger.isTraceEnabled()) {
@@ -437,7 +436,7 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         if (includeRelocations) {
             Map<String, Long> shardSizes = clusterInfo.getShardSizes();
-            long relocatingShardsSize = sizeOfRelocatingShards(node, allocation, shardSizes, true);
+            long relocatingShardsSize = sizeOfRelocatingShards(node, shardSizes, true);
             DiskUsage usageIncludingRelocations = new DiskUsage(node.nodeId(), node.node().name(),
                     usage.getTotalBytes(), usage.getFreeBytes() - relocatingShardsSize);
             if (logger.isTraceEnabled()) {

@@ -190,7 +190,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             recoveryState.setStage(RecoveryState.Stage.START);
             if (translogId == -1) {
                 // no translog files, bail
-                indexShard.postRecovery("post recovery from gateway, no translog");
+                indexShard.postRecovery("post recovery from gateway, no translog for id [" + translogId + "]");
                 // no index, just start the shard and bail
                 recoveryState.getStart().time(System.currentTimeMillis() - recoveryState.getStart().startTime());
                 recoveryState.getStart().checkIndexTime(indexShard.checkIndexTook());
@@ -202,22 +202,26 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             final Path translogName = translog.getPath(translogId);
             final Path recoverTranslogName = translogName.resolveSibling(translogName.getFileName() + ".recovering");
 
-
+            logger.trace("try recover from translog file {} locations: {}", translogName, Arrays.toString(translog.locations()));
             Path recoveringTranslogFile = null;
             for (Path translogLocation : translog.locations()) {
                 final Path tmpRecoveringFile = translogLocation.resolve(recoverTranslogName);
                 if (Files.exists(tmpRecoveringFile) == false) {
                     Path tmpTranslogFile = translogLocation.resolve(translogName);
                     if (Files.exists(tmpTranslogFile)) {
+                        logger.trace("Translog file found in {} - renaming", translogLocation);
                         for (int i = 0; i < RECOVERY_TRANSLOG_RENAME_RETRIES; i++) {
                             try {
                                 Files.move(tmpTranslogFile, tmpRecoveringFile, StandardCopyOption.ATOMIC_MOVE);
                                 recoveringTranslogFile = tmpRecoveringFile;
+                                logger.trace("Renamed translog from {} to {}", tmpTranslogFile.getFileName(), recoveringTranslogFile.getFileName());
                                 break;
                             } catch (Exception ex) {
                                 logger.debug("Failed to rename tmp recovery file", ex);
                             }
                         }
+                    } else {
+                        logger.trace("Translog file NOT found in {} - continue", translogLocation);
                     }
                 } else {
                     recoveringTranslogFile = tmpRecoveringFile;

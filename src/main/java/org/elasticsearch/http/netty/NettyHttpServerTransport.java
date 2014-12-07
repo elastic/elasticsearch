@@ -109,6 +109,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     private final String publishHost;
 
+    private int publishPort;
+
     private final String tcpNoDelay;
     private final String tcpKeepAlive;
     private final Boolean reuseAddress;
@@ -154,6 +156,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         this.port = componentSettings.get("port", settings.get("http.port", "9200-9300"));
         this.bindHost = componentSettings.get("bind_host", settings.get("http.bind_host", settings.get("http.host")));
         this.publishHost = componentSettings.get("publish_host", settings.get("http.publish_host", settings.get("http.host")));
+        this.publishPort = componentSettings.getAsInt("publish_port", settings.getAsInt("http.publish_port", 0));
         this.tcpNoDelay = componentSettings.get("tcp_no_delay", settings.get(TCP_NO_DELAY, "true"));
         this.tcpKeepAlive = componentSettings.get("tcp_keep_alive", settings.get(TCP_KEEP_ALIVE, "true"));
         this.reuseAddress = componentSettings.getAsBoolean("reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
@@ -266,8 +269,11 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
         InetSocketAddress boundAddress = (InetSocketAddress) serverChannel.getLocalAddress();
         InetSocketAddress publishAddress;
+        if (0 == publishPort) {
+            publishPort = boundAddress.getPort();
+        }
         try {
-            publishAddress = new InetSocketAddress(networkService.resolvePublishHostAddress(publishHost), boundAddress.getPort());
+            publishAddress = new InetSocketAddress(networkService.resolvePublishHostAddress(publishHost), publishPort);
         } catch (Exception e) {
             throw new BindTransportException("Failed to resolve publish address", e);
         }

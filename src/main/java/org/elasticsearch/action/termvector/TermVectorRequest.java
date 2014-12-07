@@ -365,7 +365,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     }
 
     public Boolean cache() {
-        return cache;
+        return this.cache == null ? false : this.cache;
     }
 
     public TermVectorRequest cache(Boolean cache) {
@@ -389,11 +389,18 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
+        String msg;
         if (type == null) {
-            validationException = ValidateActions.addValidationError("type is missing", validationException);
+            msg = "type is missing";
+            validationException = ValidateActions.addValidationError(msg, validationException);
         }
         if (id == null && doc == null) {
-            validationException = ValidateActions.addValidationError("id or doc is missing", validationException);
+            msg = "id or doc is missing";
+            validationException = ValidateActions.addValidationError(msg, validationException);
+        }
+        if (realtime() == true && cache() == true) {
+            msg = "to use _cache: true, realtime must be set to false";
+            validationException = ValidateActions.addValidationError(msg, validationException);
         }
         return validationException;
     }
@@ -458,7 +465,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
             out.writeString(index);
         }
         out.writeString(type);
-        if (!asKey || (asKey && this.doc() == null)) {
+        if (!asKey || this.doc() == null) {
             out.writeString(id);
         }
 

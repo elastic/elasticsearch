@@ -1125,4 +1125,49 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
         return lessThan(value);
     }
 
+    @Test
+    public void testSimpleTermVectorsCaching() throws ExecutionException, InterruptedException, IOException {
+        ImmutableSettings.Builder settings = settingsBuilder()
+                .put(indexSettings())
+                .put("index.analysis.analyzer", "standard")
+                .put("index.refresh_interval", -1);
+        assertAcked(prepareCreate("test")
+                .setSettings(settings)
+                .addAlias(new Alias("alias"))
+                .addMapping("type1", "text", "type=string,term_vector=with_positions_offsets"));
+        ensureGreen();
+
+        String quote1 = "Maybe I am a monster! I look like one—and sometimes I feel like one!";
+        String quote2 = "The Zone. Only place where I could win a beauty contest!";
+
+        // index one document
+        indexRandom(true, client().prepareIndex("test", "type1", "0").setSource("text", quote1));
+
+        // get term vectors with cache
+        TermVectorResponse termVectorsWithCache1 = client().prepareTermVector("test", "type1", "0").setCache(true).setRealtime(false).get();
+
+        // update the doc but don't refresh
+        indexRandom(false, client().prepareIndex("test", "type1", "0").setSource("text", quote2));
+
+        // get term vectors with cache again
+        TermVectorResponse termVectorsWithCache2 = client().prepareTermVector("test", "type1", "0").setCache(true).setRealtime(false).get();
+
+        // check same as before
+        compareTermVectors("text", termVectorsWithCache1.getFields(), termVectorsWithCache2.getFields());
+
+        // get term vectors without cache
+        TermVectorResponse termVectorsWithoutCache = client().prepareTermVector("test", "type1", "0").setCache(false).setRealtime(true).get();
+
+        // check it is different than with caching (before refresh)
+        assertNotSame(termVectorsWithCache1.getFields().terms("text").getStats(), termVectorsWithoutCache.getFields().terms("text").getStats());
+
+        // explicitly refresh
+        refresh();
+
+        // get term vectors with cache
+        termVectorsWithCache1 = client().prepareTermVector("test", "type1", "0").setCache(true).setRealtime(false).get();
+
+        // check same as previously without cache
+        compareTermVectors("text", termVectorsWithCache1.getFields(), termVectorsWithoutCache.getFields());
+    }
 }

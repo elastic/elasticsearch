@@ -76,7 +76,7 @@ import static org.elasticsearch.common.Strings.hasLength;
  * There are still several TODOs left in this class, some easily addressable, some more complex, but the support
  * is functional.
  */
-public class IndicesQueryCache extends AbstractComponent implements RemovalListener<IndicesQueryCache.Key, BytesReference> {
+public final class IndicesQueryCache extends AbstractComponent implements RemovalListener<IndicesQueryCache.Key, BytesReference> {
 
     /**
      * A setting to enable or disable query caching on an index level. Its dynamic by default
@@ -95,8 +95,8 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
     private final TimeValue cleanInterval;
     private final Reaper reaper;
 
-    final ConcurrentMap<CleanupKey, Boolean> registeredClosedListeners = ConcurrentCollections.newConcurrentMap();
-    final Set<CleanupKey> keysToClean = ConcurrentCollections.newConcurrentSet();
+    private final ConcurrentMap<CleanupKey, Boolean> registeredClosedListeners = ConcurrentCollections.newConcurrentMap();
+    private final Set<CleanupKey> keysToClean = ConcurrentCollections.newConcurrentSet();
 
 
     //TODO make these changes configurable on the cluster level

@@ -41,7 +41,7 @@ import java.util.concurrent.Callable;
  * Mostly wraps on {@link org.elasticsearch.indices.cache.query.IndicesQueryCache} to provide shard level caching
  * for term vectors coherent with NRT semantics.
  */
-public class IndicesTermVectorsCache extends AbstractComponent implements RemovalListener<IndicesQueryCache.Key, BytesReference> {
+public final class IndicesTermVectorsCache extends AbstractComponent implements RemovalListener<IndicesQueryCache.Key, BytesReference> {
 
     private final IndicesQueryCache indicesQueryCache;
     private final ClusterService clusterService;
@@ -75,7 +75,7 @@ public class IndicesTermVectorsCache extends AbstractComponent implements Remova
             return false;
         }
         // must be explicitly set in the request
-        if (request.cache() == null || !request.cache()) {
+        if (!request.cache()) {
             return false;
         }
         // if the reader is not a directory reader, we can't get the version from it
@@ -142,7 +142,7 @@ public class IndicesTermVectorsCache extends AbstractComponent implements Remova
         }
     }
 
-    private IndicesQueryCache.Key buildKey(TermVectorRequest request, IndexShard indexShard, IndexReader reader) throws Exception {
+    private static IndicesQueryCache.Key buildKey(TermVectorRequest request, IndexShard indexShard, IndexReader reader) throws Exception {
         long version = ((DirectoryReader) reader).getVersion();
         IndicesQueryCache.Key key = new IndicesQueryCache.Key(indexShard, version, request.cacheKey());
         key.keyType = "_termvectors";

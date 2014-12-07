@@ -93,7 +93,8 @@ performing the same request is expensive, as it is the case when term vectors
 are generated on the fly possibly asking for term statistics or distributed
 frequencies. The parameters of the cache are controlled by the shard query
 cache <<index-modules-shard-query-cache-cache-settings,settings>>. Note that
-caching is a near real-time feature, and not real-time.
+caching is a near realtime feature, and not realtime. Therefore when using
+caching, `realtime` must explicitly be set to `false`.
 
 [float]
 === Behaviour

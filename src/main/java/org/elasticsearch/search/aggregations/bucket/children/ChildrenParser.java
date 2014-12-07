@@ -67,27 +67,30 @@ public class ChildrenParser implements Aggregator.Parser {
             throw new SearchParseException(context, "Missing [child_type] field for children aggregation [" + aggregationName + "]");
         }
 
-        DocumentMapper childDocMapper = context.mapperService().documentMapper(childType);
-        if (childDocMapper == null) {
-            throw new SearchParseException(context, "[children] No mapping for for type [" + childType + "]");
-        }
-        ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
-        if (!parentFieldMapper.active()) {
-            throw new SearchParseException(context, "[children] _parent field not configured");
-        }
-
-        String parentType = parentFieldMapper.type();
-        DocumentMapper parentDocMapper = context.mapperService().documentMapper(parentType);
-        if (parentDocMapper == null) {
-            throw new SearchParseException(context, "[children]  Type [" + childType + "] points to a non existent parent type [" + parentType + "]");
-        }
-
-        Filter parentFilter = context.filterCache().cache(parentDocMapper.typeFilter(), null, context.queryParserService().autoFilterCachePolicy());
-        Filter childFilter = context.filterCache().cache(childDocMapper.typeFilter(), null, context.queryParserService().autoFilterCachePolicy());
-
-        ParentChildIndexFieldData parentChildIndexFieldData = context.fieldData().getForField(parentFieldMapper);
         ValuesSourceConfig<ValuesSource.Bytes.WithOrdinals.ParentChild> config = new ValuesSourceConfig<>(ValuesSource.Bytes.WithOrdinals.ParentChild.class);
-        config.fieldContext(new FieldContext(parentFieldMapper.names().indexName(), parentChildIndexFieldData, parentFieldMapper));
+        DocumentMapper childDocMapper = context.mapperService().documentMapper(childType);
+
+        String parentType = null;
+        Filter parentFilter = null;
+        Filter childFilter = null;
+        if (childDocMapper != null) {
+            ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
+            if (!parentFieldMapper.active()) {
+                throw new SearchParseException(context, "[children] _parent field not configured");
+            }
+            parentType = parentFieldMapper.type();
+            DocumentMapper parentDocMapper = context.mapperService().documentMapper(parentType);
+            if (parentDocMapper != null) {
+                parentFilter = context.filterCache().cache(parentDocMapper.typeFilter(), null, context.queryParserService().autoFilterCachePolicy());
+                childFilter = context.filterCache().cache(childDocMapper.typeFilter(), null, context.queryParserService().autoFilterCachePolicy());
+                ParentChildIndexFieldData parentChildIndexFieldData = context.fieldData().getForField(parentFieldMapper);
+                config.fieldContext(new FieldContext(parentFieldMapper.names().indexName(), parentChildIndexFieldData, parentFieldMapper));
+            } else {
+                config.unmapped(true);
+            }
+        } else {
+            config.unmapped(true);
+        }
         return new ParentToChildrenAggregator.Factory(aggregationName, config, parentType, parentFilter, childFilter);
     }
 }

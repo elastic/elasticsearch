@@ -24,7 +24,6 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.ReaderContextAware;
@@ -35,6 +34,7 @@ import org.elasticsearch.index.search.child.ConstantScorer;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -200,7 +200,14 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
 
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            throw new ElasticsearchIllegalStateException("[children] aggregation doesn't support unmapped");
+            return new NonCollectingAggregator(name, aggregationContext, parent, metaData) {
+
+                @Override
+                public InternalAggregation buildEmptyAggregation() {
+                    return new InternalChildren(name, 0, buildEmptySubAggregations(), getMetaData());
+                }
+
+            };
         }
 
         @Override

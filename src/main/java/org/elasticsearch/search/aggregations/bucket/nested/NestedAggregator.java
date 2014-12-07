@@ -31,11 +31,7 @@ import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -48,7 +44,6 @@ import java.util.Map;
  */
 public class NestedAggregator extends SingleBucketAggregator implements ReaderContextAware {
 
-    private final String nestedPath;
     private final Aggregator parentAggregator;
     private BitDocIdSetFilter parentFilter;
     private final Filter childFilter;
@@ -56,22 +51,9 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
     private DocIdSetIterator childDocs;
     private BitSet parentDocs;
 
-    public NestedAggregator(String name, AggregatorFactories factories, String nestedPath, AggregationContext aggregationContext, Aggregator parentAggregator, Map<String, Object> metaData, FilterCachingPolicy filterCachingPolicy) {
+    public NestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper, AggregationContext aggregationContext, Aggregator parentAggregator, Map<String, Object> metaData, FilterCachingPolicy filterCachingPolicy) {
         super(name, factories, aggregationContext, parentAggregator, metaData);
-        this.nestedPath = nestedPath;
         this.parentAggregator = parentAggregator;
-        MapperService.SmartNameObjectMapper mapper = aggregationContext.searchContext().smartNameObjectMapper(nestedPath);
-        if (mapper == null) {
-            throw new AggregationExecutionException("[nested] nested path [" + nestedPath + "] not found");
-        }
-        ObjectMapper objectMapper = mapper.mapper();
-        if (objectMapper == null) {
-            throw new AggregationExecutionException("[nested] nested path [" + nestedPath + "] not found");
-        }
-        if (!objectMapper.nested().isNested()) {
-            throw new AggregationExecutionException("[nested] nested path [" + nestedPath + "] is not nested");
-        }
-
         childFilter = aggregationContext.searchContext().filterCache().cache(objectMapper.nestedTypeFilter(), null, filterCachingPolicy);
         // The childDocs need to be consumed in docId order, this ensures that:
         aggregationContext.ensureScoreDocsInOrder();
@@ -144,10 +126,6 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
         return new InternalNested(name, 0, buildEmptySubAggregations(), getMetaData());
     }
 
-    public String getNestedPath() {
-        return nestedPath;
-    }
-
     private static Filter findClosestNestedPath(Aggregator parent) {
         for (; parent != null; parent = parent.parent()) {
             if (parent instanceof NestedAggregator) {
@@ -172,7 +150,32 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
 
         @Override
         public Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData) {
-            return new NestedAggregator(name, factories, path, context, parent, metaData, filterCachingPolicy);
+            MapperService.SmartNameObjectMapper mapper = context.searchContext().smartNameObjectMapper(path);
+            if (mapper == null) {
+                return new Unmapped(name, context, parent, metaData);
+            }
+            ObjectMapper objectMapper = mapper.mapper();
+            if (objectMapper == null) {
+                return new Unmapped(name, context, parent, metaData);
+            }
+            if (!objectMapper.nested().isNested()) {
+                throw new AggregationExecutionException("[nested] nested path [" + path + "] is not nested");
+            }
+            return new NestedAggregator(name, factories, objectMapper, context, parent, metaData, filterCachingPolicy);
+        }
+
+        private final static class Unmapped extends NonCollectingAggregator {
+
+            public Unmapped(String name, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
+                super(name, context, parent, metaData);
+            }
+
+            @Override
+            public InternalAggregation buildEmptyAggregation() {
+                return new InternalNested(name, 0, buildEmptySubAggregations(), getMetaData());
+            }
         }
     }
+
+
 }

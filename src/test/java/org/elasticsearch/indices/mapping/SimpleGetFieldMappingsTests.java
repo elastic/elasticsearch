@@ -19,8 +19,9 @@
 
 package org.elasticsearch.indices.mapping;
 
+import com.google.common.collect.Maps;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -144,6 +145,40 @@ public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
         assertThat((Map<String, Object>) response.fieldMappings("test", "type", "subfield").sourceAsMap().get("subfield"), hasEntry("index", (Object) "not_analyzed"));
         assertThat((Map<String, Object>) response.fieldMappings("test", "type", "subfield").sourceAsMap().get("subfield"), hasEntry("type", (Object) "string"));
 
+
+    }
+
+    //fix #6552
+    @Test
+    public void simpleGetFieldMappingsWithPretty() throws Exception {
+        assertAcked(prepareCreate("index").addMapping("type", getMappingForType("type")));
+        Map<String, String> params = Maps.newHashMap();
+        params.put("pretty", "true");
+        ensureYellow();
+        GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("index").setTypes("type").setFields("field1", "obj.subfield").get();
+        XContentBuilder responseBuilder = XContentFactory.jsonBuilder().prettyPrint();
+        responseBuilder.startObject();
+        response.toXContent(responseBuilder, new ToXContent.MapParams(params));
+        responseBuilder.endObject();
+        String responseStrings = responseBuilder.string();
+
+
+        XContentBuilder prettyJsonBuilder = XContentFactory.jsonBuilder().prettyPrint();
+        prettyJsonBuilder.copyCurrentStructure(XContentFactory.xContent(responseStrings).createParser(responseStrings));
+        assertThat(responseStrings, equalTo(prettyJsonBuilder.string()));
+
+        params.put("pretty", "false");
+
+        response = client().admin().indices().prepareGetFieldMappings("index").setTypes("type").setFields("field1", "obj.subfield").get();
+        responseBuilder = XContentFactory.jsonBuilder().prettyPrint().lfAtEnd();
+        responseBuilder.startObject();
+        response.toXContent(responseBuilder, new ToXContent.MapParams(params));
+        responseBuilder.endObject();
+        responseStrings = responseBuilder.string();
+
+        prettyJsonBuilder = XContentFactory.jsonBuilder().prettyPrint();
+        prettyJsonBuilder.copyCurrentStructure(XContentFactory.xContent(responseStrings).createParser(responseStrings));
+        assertThat(responseStrings, not(equalTo(prettyJsonBuilder.string())));
 
     }
 }

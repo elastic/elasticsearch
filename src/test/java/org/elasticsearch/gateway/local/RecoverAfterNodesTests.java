@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway.none;
+package org.elasticsearch.gateway.local;
 
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.client.Client;
@@ -31,7 +31,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.hasItem;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class RecoverAfterNodesTests extends ElasticsearchIntegrationTest {
 
-    private final static TimeValue BLOCK_WAIT_TIMEOUT = TimeValue.timeValueSeconds(1);
+    private final static TimeValue BLOCK_WAIT_TIMEOUT = TimeValue.timeValueSeconds(10);
 
     public ImmutableSet<ClusterBlock> waitForNoBlocksOnNode(TimeValue timeout, Client nodeClient) throws InterruptedException {
         long start = System.currentTimeMillis();

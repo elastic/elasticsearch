@@ -20,7 +20,9 @@
 package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -145,5 +147,45 @@ public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
         assertThat((Map<String, Object>) response.fieldMappings("test", "type", "subfield").sourceAsMap().get("subfield"), hasEntry("type", (Object) "string"));
 
 
+    }
+
+    //fix #6552
+    @Test
+    public void simpleGetFieldMappingsWithPretty() throws Exception {
+        assertAcked(prepareCreate("index").addMapping("type", getMappingForType("type")));
+        ensureYellow();
+        GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("index").setTypes("type").setFields("field1","obj.subfield").get();
+        XContentBuilder responseBuilder = XContentFactory.jsonBuilder().prettyPrint().lfAtEnd();
+        responseBuilder.startObject();
+        response.toXContent(responseBuilder, ToXContent.EMPTY_PARAMS);
+        responseBuilder.endObject();
+        String responseStrings = responseBuilder.string();
+
+        String expectedStrings ="{\n"+
+            "  \"index\" : {\n" +
+            "    \"mappings\" : {\n" +
+            "      \"type\" : {\n" +
+            "        \"obj.subfield\" : {\n" +
+            "          \"full_name\" : \"obj.subfield\",\n" +
+            "          \"mapping\" : {\n" +
+            "            \"subfield\" : {\n"+
+            "              \"type\" : \"string\",\n" +
+            "              \"index\" : \"not_analyzed\"\n" +
+            "            }\n" +
+            "          }\n" +
+            "        },\n" +
+            "        \"field1\" : {\n" +
+            "          \"full_name\" : \"field1\",\n" +
+            "          \"mapping\" : {\n" +
+            "            \"field1\" : {\n"+
+            "              \"type\" : \"string\"\n" +
+            "            }\n" +
+            "          }\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }\n"+
+            "}\n";
+        assertThat(responseStrings, equalTo(expectedStrings));
     }
 }

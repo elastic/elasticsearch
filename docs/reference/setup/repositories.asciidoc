@@ -6,6 +6,13 @@ We also have repositories available for APT and YUM based distributions.
 We have split the major versions in separate urls to avoid accidental upgrades across major version.
 For all 0.90.x releases use 0.90 as version number, for 1.0.x use 1.0, for 1.1.x use 1.1 etc.
 
+We use the PGP key link:http://pgp.mit.edu/pks/lookup?op=vindex&search=0xD27D666CD88E42B4[D88E42B4], 
+Elasticsearch Signing Key, with fingerprint
+```
+4609 5ACC 8548 582C 1A26 99A9 D27D 666C D88E 42B4
+```
+to sign all our packages.  It is available from pgp.mit.edu.
+
 [float]
 === APT
 

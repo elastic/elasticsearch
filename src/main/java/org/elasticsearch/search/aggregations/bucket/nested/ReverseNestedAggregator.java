@@ -51,28 +51,11 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
     private final Recycler.V<LongIntOpenHashMap> bucketOrdToLastCollectedParentDocRecycler;
     private final LongIntOpenHashMap bucketOrdToLastCollectedParentDoc;
 
-    public ReverseNestedAggregator(String name, AggregatorFactories factories, String nestedPath, AggregationContext aggregationContext, Aggregator parent) {
+    public ReverseNestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper, AggregationContext aggregationContext, Aggregator parent) {
         super(name, factories, aggregationContext, parent);
-
-        // Early validation
-        NestedAggregator closestNestedAggregator = findClosestNestedAggregator(parent);
-        if (closestNestedAggregator == null) {
-            throw new SearchParseException(context.searchContext(), "Reverse nested aggregation [" + name + "] can only be used inside a [nested] aggregation");
-        }
-        if (nestedPath == null) {
+        if (objectMapper == null) {
             parentFilter = SearchContext.current().fixedBitSetFilterCache().getFixedBitSetFilter(NonNestedDocsFilter.INSTANCE);
         } else {
-            MapperService.SmartNameObjectMapper mapper = SearchContext.current().smartNameObjectMapper(nestedPath);
-            if (mapper == null) {
-                throw new AggregationExecutionException("[reverse_nested] nested path [" + nestedPath + "] not found");
-            }
-            ObjectMapper objectMapper = mapper.mapper();
-            if (objectMapper == null) {
-                throw new AggregationExecutionException("[reverse_nested] nested path [" + nestedPath + "] not found");
-            }
-            if (!objectMapper.nested().isNested()) {
-                throw new AggregationExecutionException("[reverse_nested] nested path [" + nestedPath + "] is not nested");
-            }
             parentFilter = SearchContext.current().fixedBitSetFilterCache().getFixedBitSetFilter(objectMapper.nestedTypeFilter());
         }
         bucketOrdToLastCollectedParentDocRecycler = aggregationContext.searchContext().cacheRecycler().longIntMap(32);
@@ -166,7 +149,41 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
 
         @Override
         public Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
-            return new ReverseNestedAggregator(name, factories, path, context, parent);
+            // Early validation
+            NestedAggregator closestNestedAggregator = findClosestNestedAggregator(parent);
+            if (closestNestedAggregator == null) {
+                throw new SearchParseException(context.searchContext(), "Reverse nested aggregation [" + name + "] can only be used inside a [nested] aggregation");
+            }
+
+            final ObjectMapper objectMapper;
+            if (path != null) {
+                MapperService.SmartNameObjectMapper mapper = SearchContext.current().smartNameObjectMapper(path);
+                if (mapper == null) {
+                    return new Unmapped(name, context, parent);
+                }
+                objectMapper = mapper.mapper();
+                if (objectMapper == null) {
+                    return new Unmapped(name, context, parent);
+                }
+                if (!objectMapper.nested().isNested()) {
+                    throw new AggregationExecutionException("[reverse_nested] nested path [" + path + "] is not nested");
+                }
+            } else {
+                objectMapper = null;
+            }
+            return new ReverseNestedAggregator(name, factories, objectMapper, context, parent);
+        }
+
+        private final static class Unmapped extends NonCollectingAggregator {
+
+            public Unmapped(String name, AggregationContext context, Aggregator parent) {
+                super(name, context, parent);
+            }
+
+            @Override
+            public InternalAggregation buildEmptyAggregation() {
+                return new InternalReverseNested(name, 0, buildEmptySubAggregations());
+            }
         }
     }
 }

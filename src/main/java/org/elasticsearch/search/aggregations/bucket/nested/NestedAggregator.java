@@ -41,7 +41,6 @@ import java.io.IOException;
  */
 public class NestedAggregator extends SingleBucketAggregator implements ReaderContextAware {
 
-    private final String nestedPath;
     private final Aggregator parentAggregator;
     private FixedBitSetFilter parentFilter;
     private final Filter childFilter;
@@ -49,21 +48,9 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
     private DocIdSetIterator childDocs;
     private FixedBitSet parentDocs;
 
-    public NestedAggregator(String name, AggregatorFactories factories, String nestedPath, AggregationContext aggregationContext, Aggregator parentAggregator) {
+    public NestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper, AggregationContext aggregationContext, Aggregator parentAggregator) {
         super(name, factories, aggregationContext, parentAggregator);
-        this.nestedPath = nestedPath;
         this.parentAggregator = parentAggregator;
-        MapperService.SmartNameObjectMapper mapper = aggregationContext.searchContext().smartNameObjectMapper(nestedPath);
-        if (mapper == null) {
-            throw new AggregationExecutionException("[nested] nested path [" + nestedPath + "] not found");
-        }
-        ObjectMapper objectMapper = mapper.mapper();
-        if (objectMapper == null) {
-            throw new AggregationExecutionException("[nested] nested path [" + nestedPath + "] not found");
-        }
-        if (!objectMapper.nested().isNested()) {
-            throw new AggregationExecutionException("[nested] nested path [" + nestedPath + "] is not nested");
-        }
 
         // TODO: Revise the cache usage for childFilter
         // Typical usage of the childFilter in this agg is that not all parent docs match and because this agg executes
@@ -73,6 +60,7 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
 
         // By caching the childFilter we're consistent with other features and previous versions.
         childFilter = aggregationContext.searchContext().filterCache().cache(objectMapper.nestedTypeFilter());
+
         // The childDocs need to be consumed in docId order, this ensures that:
         aggregationContext.ensureScoreDocsInOrder();
     }
@@ -139,10 +127,6 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
         return new InternalNested(name, 0, buildEmptySubAggregations());
     }
 
-    public String getNestedPath() {
-        return nestedPath;
-    }
-
     private static Filter findClosestNestedPath(Aggregator parent) {
         for (; parent != null; parent = parent.parent()) {
             if (parent instanceof NestedAggregator) {
@@ -165,7 +149,30 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
 
         @Override
         public Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
-            return new NestedAggregator(name, factories, path, context, parent);
+            MapperService.SmartNameObjectMapper mapper = context.searchContext().smartNameObjectMapper(path);
+            if (mapper == null) {
+                return new Unmapped(name, context, parent);
+            }
+            ObjectMapper objectMapper = mapper.mapper();
+            if (objectMapper == null) {
+                return new Unmapped(name, context, parent);
+            }
+            if (!objectMapper.nested().isNested()) {
+                throw new AggregationExecutionException("[nested] nested path [" + path + "] is not nested");
+            }
+            return new NestedAggregator(name, factories, objectMapper, context, parent);
+        }
+
+        private final static class Unmapped extends NonCollectingAggregator {
+
+            public Unmapped(String name, AggregationContext context, Aggregator parent) {
+                super(name, context, parent);
+            }
+
+            @Override
+            public InternalAggregation buildEmptyAggregation() {
+                return new InternalNested(name, 0, buildEmptySubAggregations());
+            }
         }
     }
 }

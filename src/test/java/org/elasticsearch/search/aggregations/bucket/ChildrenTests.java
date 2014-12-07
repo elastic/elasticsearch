@@ -34,12 +34,8 @@ import java.util.*;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.is;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -256,6 +252,19 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
             assertThat(updateResponse.getVersion(), greaterThan(1l));
             refresh();
         }
+    }
+
+    @Test
+    public void testNonExistingChildType() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .addAggregation(
+                        children("non-existing").childType("xyz")
+                ).get();
+        assertSearchResponse(searchResponse);
+
+        Children children = searchResponse.getAggregations().get("non-existing");
+        assertThat(children.getName(), equalTo("non-existing"));
+        assertThat(children.getDocCount(), equalTo(0l));
     }
 
     private static final class Control {

@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -44,8 +44,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 /**
@@ -62,7 +61,7 @@ public class NestedTests extends ElasticsearchIntegrationTest {
     public void setupSuiteScopeCluster() throws Exception {
 
         assertAcked(prepareCreate("idx")
-                .addMapping("type", "nested", "type=nested"));
+                .addMapping("type", "nested", "type=nested", "incorrect", "type=object"));
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
 
@@ -188,17 +187,16 @@ public class NestedTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void onNonNestedField() throws Exception {
-        try {
-            client().prepareSearch("idx")
-                    .addAggregation(nested("nested").path("value")
-                            .subAggregation(stats("nested_value_stats").field("nested.value")))
-                    .execute().actionGet();
+    public void nonExistingNestedField() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx")
+                .addAggregation(nested("nested").path("value")
+                        .subAggregation(stats("nested_value_stats").field("nested.value")))
+                .execute().actionGet();
 
-            fail("expected execution to fail - an attempt to nested facet on non-nested field/path");
-
-        } catch (ElasticsearchException ese) {
-        }
+        Nested nested = searchResponse.getAggregations().get("nested");
+        assertThat(nested, Matchers.notNullValue());
+        assertThat(nested.getName(), equalTo("nested"));
+        assertThat(nested.getDocCount(), is(0l));
     }
 
     @Test
@@ -335,5 +333,18 @@ public class NestedTests extends ElasticsearchIntegrationTest {
         assertThat(nested, Matchers.notNullValue());
         assertThat(nested.getName(), equalTo("nested"));
         assertThat(nested.getDocCount(), is(0l));
+    }
+
+    @Test
+    public void nestedOnObjectField() throws Exception {
+        try {
+            client().prepareSearch("idx")
+                    .setQuery(matchAllQuery())
+                    .addAggregation(nested("object_field").path("incorrect"))
+                    .execute().actionGet();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getMessage(), containsString("[nested] nested path [incorrect] is not nested"));
+        }
     }
 }

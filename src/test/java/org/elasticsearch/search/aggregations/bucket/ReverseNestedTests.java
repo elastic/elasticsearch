@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.nested.ReverseNested;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -33,11 +34,11 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 /**
@@ -447,5 +448,20 @@ public class ReverseNestedTests extends ElasticsearchIntegrationTest {
                                                 )
                                 )
                 ).get();
+    }
+
+    @Test
+    public void nonExistingNestedField() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(nested("nested2").path("nested1.nested2").subAggregation(reverseNested("incorrect").path("nested3")))
+                .execute().actionGet();
+
+        Nested nested = searchResponse.getAggregations().get("nested2");
+        assertThat(nested, Matchers.notNullValue());
+        assertThat(nested.getName(), equalTo("nested2"));
+
+        ReverseNested reverseNested = nested.getAggregations().get("incorrect");
+        assertThat(reverseNested.getDocCount(), is(0l));
     }
 }

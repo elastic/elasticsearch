@@ -196,16 +196,19 @@ public class FileUserRolesStore {
 
         @Override
         public void onFileDeleted(File file) {
-            if (file.equals(FileUserRolesStore.this.file.toFile())) {
-                userRoles = ImmutableMap.of();
-                notifyRefresh();
-            }
+            onFileChanged(file);
         }
 
         @Override
         public void onFileChanged(File file) {
             if (file.equals(FileUserRolesStore.this.file.toFile())) {
-                userRoles = parseFile(file.toPath(), logger);
+                try {
+                    userRoles = parseFile(file.toPath(), logger);
+                    logger.info("updated users (users_roles file [{}] changed)", file.getAbsolutePath());
+                } catch (Throwable t) {
+                    logger.error("Failed to parse users_roles file [{}]. Current users_roles remain unmodified", t, file.getAbsolutePath());
+                    return;
+                }
                 notifyRefresh();
             }
         }

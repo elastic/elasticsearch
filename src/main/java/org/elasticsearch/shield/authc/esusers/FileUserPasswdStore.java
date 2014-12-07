@@ -13,6 +13,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.RefreshListener;
@@ -106,7 +107,7 @@ public class FileUserPasswdStore {
         try {
             lines = Files.readAllLines(path, Charsets.UTF_8);
         } catch (IOException ioe) {
-            throw new ElasticsearchException("Could not read users file [" + path.toAbsolutePath() + "]", ioe);
+            throw new ShieldException("Could not read users file [" + path.toAbsolutePath() + "]", ioe);
         }
 
         ImmutableMap.Builder<String, char[]> users = ImmutableMap.builder();
@@ -167,16 +168,19 @@ public class FileUserPasswdStore {
 
         @Override
         public void onFileDeleted(File file) {
-            if (file.equals(FileUserPasswdStore.this.file.toFile())) {
-                esUsers = ImmutableMap.of();
-                notifyRefresh();
-            }
+            onFileChanged(file);
         }
 
         @Override
         public void onFileChanged(File file) {
             if (file.equals(FileUserPasswdStore.this.file.toFile())) {
-                esUsers = parseFile(file.toPath(), logger);
+                try {
+                    esUsers = parseFile(file.toPath(), logger);
+                    logger.info("updated users (users file [{}] changed)", file.getAbsolutePath());
+                } catch (Throwable t) {
+                    logger.error("Failed to parse users file [{}]. Current users remain unmodified", t, file.getAbsolutePath());
+                    return;
+                }
                 notifyRefresh();
             }
         }

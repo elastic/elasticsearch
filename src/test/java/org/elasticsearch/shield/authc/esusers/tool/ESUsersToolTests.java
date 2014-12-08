@@ -632,6 +632,26 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     @Test
+    public void testListUsersAndRoles_Cmd_NoUsers() throws Exception {
+        File usersFile = writeFile("");
+        File usersRoleFile = writeFile("");
+        Settings settings = ImmutableSettings.builder()
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", usersFile)
+                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
+                .build();
+
+        CaptureOutputTerminal terminal = new CaptureOutputTerminal();
+        ESUsersTool.ListUsersAndRoles cmd = new ESUsersTool.ListUsersAndRoles(terminal, null);
+        CliTool.ExitStatus status = execute(cmd, settings);
+
+        assertThat(status, is(CliTool.ExitStatus.OK));
+        List<String> output = terminal.getTerminalOutput();
+        assertThat(output, hasSize(1));
+        assertThat(output.get(0), equalTo("No users found\n"));
+    }
+
+    @Test
     public void testListUsersAndRoles_Cmd_listSingleUserNotFound() throws Exception {
         File usersRoleFile = writeFile("admin: admin\nuser: user\nfoo:user\nbar:user\n");
         Settings settings = ImmutableSettings.builder()

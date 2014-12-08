@@ -404,18 +404,26 @@ public class ESUsersTool extends CliTool {
                 }
             } else {
                 boolean unknownRolesFound = false;
+                boolean usersExist = false;
                 for (Map.Entry<String, String[]> entry : userRoles.entrySet()) {
                     String[] roles = entry.getValue();
                     Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles.keySet());
                     String[] markedRoles = markUnknownRoles(roles, unknownRoles);
                     terminal.println("%-15s: %s", entry.getKey(), Joiner.on(",").join(markedRoles));
                     unknownRolesFound = unknownRolesFound || !unknownRoles.isEmpty();
+                    usersExist = true;
                 }
                 // list users without roles
                 Set<String> usersWithoutRoles = Sets.newHashSet(users);
                 usersWithoutRoles.removeAll(userRoles.keySet());
                 for (String user : usersWithoutRoles) {
                     terminal.println("%-15s: -", user);
+                    usersExist = true;
+                }
+
+                if (!usersExist) {
+                    terminal.println("No users found");
+                    return ExitStatus.OK;
                 }
 
                 if (unknownRolesFound) {

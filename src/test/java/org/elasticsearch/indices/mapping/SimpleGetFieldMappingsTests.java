@@ -166,7 +166,6 @@ public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
 
         assertTrue(responseStrings.contains("\"mapping\" : {\n"));
 
-        // pretty=false
         params.put("pretty", "false");
 
         response = client().admin().indices().prepareGetFieldMappings("index").setTypes("type").setFields("field1","obj.subfield").get();

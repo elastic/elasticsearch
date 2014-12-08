@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.admin.indices.mapping.get;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
@@ -29,7 +28,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
@@ -82,8 +80,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
                     status = NOT_FOUND;
                 }
                 builder.startObject();
-                Map<String, String> param = Maps.newHashMap();
-                response.toXContent(builder, new ToXContent.DelegatingMapParams(param, request));
+                response.toXContent(builder, request);
                 builder.endObject();
                 return new BytesRestResponse(status, builder);
             }

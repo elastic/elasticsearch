@@ -28,6 +28,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
@@ -37,6 +39,7 @@ import org.junit.Ignore;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
@@ -97,7 +100,7 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
         File file = new File(path, "elasticsearch-" + version);
         if (!file.exists()) {
             throw new IllegalArgumentException("Backwards tests location is missing: " + file.getAbsolutePath());
-        }   
+        }
         if (!file.isDirectory()) {
             throw new IllegalArgumentException("Backwards tests location is not a directory: " + file.getAbsolutePath());
         }
@@ -124,9 +127,20 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
         return new CompositeTestCluster((InternalTestCluster) cluster, between(minExternalNodes(), maxExternalNodes()), externalNode);
     }
 
-    protected int minExternalNodes() {
-        return 1;
+    private Settings addLoggerSettings(Settings externalNodesSettings) {
+        TestLogging logging = getClass().getAnnotation(TestLogging.class);
+        Map<String, String> loggingLevels = LoggingListener.getLoggersAndLevelsFromAnnotation(logging);
+        ImmutableSettings.Builder finalSettings = ImmutableSettings.settingsBuilder();
+        if (loggingLevels != null) {
+            for (Map.Entry<String, String> level : loggingLevels.entrySet()) {
+                finalSettings.put("logger." + level.getKey(), level.getValue());
+            }
+        }
+        finalSettings.put(externalNodesSettings);
+        return finalSettings.build();
     }
+
+    protected int minExternalNodes() { return 1; }
 
     protected int maxExternalNodes() {
         return 2;
@@ -175,6 +189,6 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
     }
 
     protected Settings externalNodeSettings(int nodeOrdinal) {
-        return nodeSettings(nodeOrdinal);
+        return addLoggerSettings(nodeSettings(nodeOrdinal));
     }
 }

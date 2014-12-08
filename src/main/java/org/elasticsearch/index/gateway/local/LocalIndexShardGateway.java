@@ -211,7 +211,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                         for (int i = 0; i < RECOVERY_TRANSLOG_RENAME_RETRIES; i++) {
                             if (tmpTranslogFile.renameTo(tmpRecoveringFile)) {
                                 recoveringTranslogFile = tmpRecoveringFile;
-                                logger.trace("Renamed translog from {} to {}", tmpRecoveringFile.getName(), recoveringTranslogFile.getName());
+                                logger.trace("Renamed translog from {} to {}", tmpTranslogFile.getName(), recoveringTranslogFile.getName());
                                 break;
                             }
                         }

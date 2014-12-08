@@ -631,6 +631,13 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     /**
+     * Returns the current reference count.
+     */
+    public int refCount() {
+        return refCounter.refCount();
+    }
+
+    /**
      * This exists so {@link org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat} can load its boolean setting; can we find a more straightforward way?
      */
     public final class StoreDirectory extends FilterDirectory {

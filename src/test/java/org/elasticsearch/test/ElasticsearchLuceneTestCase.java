@@ -36,7 +36,8 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
         ReproduceInfoPrinter.class
 })
 @ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchThreadFilter.class})
-@ThreadLeakScope(Scope.NONE)
+@ThreadLeakScope(Scope.SUITE)
+@ThreadLeakLingering(linger = 5000) // 5 sec lingering
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @SuppressCodecs("Lucene3x")
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")

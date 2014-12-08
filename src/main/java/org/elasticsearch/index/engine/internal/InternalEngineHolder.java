@@ -146,7 +146,7 @@ public class InternalEngineHolder extends AbstractIndexShardComponent implements
 
         this.settingsListener = new ApplySettings();
         this.indexSettingsService.addListener(this.settingsListener);
-
+        store.incRef();
     }
 
     @Override
@@ -195,10 +195,15 @@ public class InternalEngineHolder extends AbstractIndexShardComponent implements
         if (currentEngine != null) {
             throw new EngineAlreadyStartedException(shardId);
         }
-        InternalEngine newEngine = createEngineImpl();
-        newEngine.start();
-        boolean success = this.currentEngine.compareAndSet(null, newEngine);
-        assert success : "engine changes should be done under a synchronize";
+        InternalEngine newEngine = createEngine();
+        store.incRef();
+        try {
+            newEngine.start();
+            boolean success = this.currentEngine.compareAndSet(null, newEngine);
+            assert success : "engine changes should be done under a synchronize";
+        } finally {
+            store.decRef();
+        }
     }
 
     @Override
@@ -211,17 +216,24 @@ public class InternalEngineHolder extends AbstractIndexShardComponent implements
 
     @Override
     public synchronized void close() throws ElasticsearchException {
-        closed = true;
-        InternalEngine currentEngine = this.currentEngine.getAndSet(null);
-        if (currentEngine != null) {
-            currentEngine.close();
+        if (closed) {
+            return;
         }
-        mergeScheduler.removeFailureListener(mergeSchedulerFailureListener);
-        mergeScheduler.removeListener(mergeSchedulerListener);
-        indexSettingsService.removeListener(settingsListener);
+        closed = true;
+        try {
+            InternalEngine currentEngine = this.currentEngine.getAndSet(null);
+            if (currentEngine != null) {
+                currentEngine.close();
+            }
+            mergeScheduler.removeFailureListener(mergeSchedulerFailureListener);
+            mergeScheduler.removeListener(mergeSchedulerListener);
+            indexSettingsService.removeListener(settingsListener);
+        } finally {
+            store.decRef();
+        }
     }
 
-    protected InternalEngine createEngineImpl() {
+    protected InternalEngine createEngine() {
         return new InternalEngine(shardId, logger, codecService, threadPool, indexingService,
                 warmer, store, deletionPolicy, translog, mergePolicyProvider, mergeScheduler, analysisService, similarityService,
                 enableGcDeletes, gcDeletesInMillis,
@@ -333,12 +345,16 @@ public class InternalEngineHolder extends AbstractIndexShardComponent implements
     // called by the current engine
     @Override
     public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable failure) {
-        for (FailedEngineListener listener : failedEngineListeners) {
-            try {
-                listener.onFailedEngine(shardId, reason, failure);
-            } catch (Exception e) {
-                logger.warn("exception while notifying engine failure", e);
+        try {
+            for (FailedEngineListener listener : failedEngineListeners) {
+                try {
+                    listener.onFailedEngine(shardId, reason, failure);
+                } catch (Exception e) {
+                    logger.warn("exception while notifying engine failure", e);
+                }
             }
+        } finally {
+            close(); // we need to close ourself - we failed all bets are off
         }
     }
 

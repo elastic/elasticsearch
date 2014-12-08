@@ -89,7 +89,7 @@ public final class MockInternalEngineHolder extends InternalEngineHolder impleme
     }
 
     @Override
-    protected InternalEngine createEngineImpl() {
+    protected InternalEngine createEngine() {
         return new MockInternalEngine(mockContext, shardId, logger, codecService, threadPool, indexingService,
                 warmer, store, deletionPolicy, translog, mergePolicyProvider, mergeScheduler, analysisService, similarityService,
                 enableGcDeletes, gcDeletesInMillis,

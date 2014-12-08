@@ -54,7 +54,8 @@ public class MockRamDirectoryService extends DirectoryService {
     }
 
     @Override
-    public void renameFile(Directory dir, String from, String to) throws IOException {
+    public void
+    renameFile(Directory dir, String from, String to) throws IOException {
         delegateService.renameFile(dir, from, to);
     }
 

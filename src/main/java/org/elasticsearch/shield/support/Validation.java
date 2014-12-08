@@ -21,7 +21,7 @@ public final class Validation {
         public static Error validateUsername(String username) {
             return COMMON_NAME_PATTERN.matcher(username).matches() ?
                     null :
-                    new Error("A valid username must be at least 1 characher and no longer than 30 characters. " +
+                    new Error("A valid username must be at least 1 character and no longer than 30 characters. " +
                             "It must begin with a letter (`a-z` or `A-Z`) or an underscore (`_`). Subsequent " +
                             "characters can be letters, underscores (`_`), digits (`0-9`) or any of the following " +
                             "symbols `@`, `-` or `$`");
@@ -30,7 +30,7 @@ public final class Validation {
         public static Error validatePassword(char[] password) {
             return password.length >= MIN_PASSWD_LENGTH ?
                     null :
-                    new Error("passwords must must be at least [" + MIN_PASSWD_LENGTH + "] charachters long");
+                    new Error("passwords must be at least [" + MIN_PASSWD_LENGTH + "] characters long");
         }
 
     }
@@ -40,7 +40,7 @@ public final class Validation {
         public static Error validateRoleName(String roleName) {
             return COMMON_NAME_PATTERN.matcher(roleName).matches() ?
                     null :
-                    new Error("A valid role name must be at least 1 characher and no longer than 30 characters. " +
+                    new Error("A valid role name must be at least 1 character and no longer than 30 characters. " +
                             "It must begin with a letter (`a-z` or `A-Z`) or an underscore (`_`). Subsequent " +
                             "characters can be letters, underscores (`_`), digits (`0-9`) or any of the following " +
                             "symbols `@`, `-` or `$`");

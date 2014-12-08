@@ -36,7 +36,6 @@ import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.InternalClusterInfoService.shardIdentifierFromRouting;
@@ -218,6 +217,46 @@ public class DiskThresholdDecider extends AllocationDecider {
         this.enabled = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true);
         nodeSettingsService.addListener(new ApplySettings());
         infoService.addListener(new DiskListener(client));
+    }
+
+    // For Testing
+    ApplySettings newApplySettings() {
+        return new ApplySettings();
+    }
+
+    // For Testing
+    public Double getFreeDiskThresholdLow() {
+        return freeDiskThresholdLow;
+    }
+
+    // For Testing
+    public Double getFreeDiskThresholdHigh() {
+        return freeDiskThresholdHigh;
+    }
+
+    // For Testing
+    public ByteSizeValue getFreeBytesThresholdLow() {
+        return freeBytesThresholdLow;
+    }
+
+    // For Testing
+    public ByteSizeValue getFreeBytesThresholdHigh() {
+        return freeBytesThresholdHigh;
+    }
+
+    // For Testing
+    public boolean isIncludeRelocations() {
+        return includeRelocations;
+    }
+
+    // For Testing
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    // For Testing
+    public TimeValue getRerouteInterval() {
+        return rerouteInterval;
     }
 
     /**

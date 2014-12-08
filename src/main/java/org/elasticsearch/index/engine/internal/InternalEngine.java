@@ -24,6 +24,7 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
@@ -65,6 +66,7 @@ import org.elasticsearch.indices.warmer.IndicesWarmer;
 import org.elasticsearch.indices.warmer.InternalIndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -122,6 +124,7 @@ public class InternalEngine implements Engine {
     private volatile SearcherManager searcherManager;
 
     private volatile boolean closed = false;
+    private volatile Closeable storeReference;
 
     // flag indicating if a dirty operation has occurred since the last refresh
     private volatile boolean dirty = false;
@@ -198,9 +201,6 @@ public class InternalEngine implements Engine {
         this.optimizeAutoGenerateId = optimizeAutoGenerateId;
         this.failEngineOnCorruption = failEngineOnCorruption;
         this.failedEngineListener = failedEngineListener;
-        // will be decremented in close()
-        store.incRef();
-
         throttle = new IndexThrottle();
     }
 
@@ -236,81 +236,91 @@ public class InternalEngine implements Engine {
 
     @Override
     public void addFailedEngineListener(FailedEngineListener listener) {
-        throw new UnsupportedOperationException("addFailedEngineListener is not supported by InternalEngineImpl. Use InternalEngine.");
+        throw new UnsupportedOperationException("addFailedEngineListener is not supported by InternalEngine. Use InternalEngineHolder.");
     }
 
     @Override
     public void start() throws EngineException {
         store.incRef();
+        /*
+         * This might look weird but it's in-fact needed since if we close
+         * the engine due to a corruption on IW startup the reference is decremented in the close
+         * method and this must not happen more than once
+         */
+        final Closeable storeRef = new Closeable() {
+            private final AtomicBoolean closed = new AtomicBoolean(false);
+            @Override
+            public void close() throws IOException {
+                if (closed.compareAndSet(false, true)) {
+                    store.decRef();
+                }
+            }
+        };
+        final List<Closeable> closeOnFailure = new ArrayList<>(Arrays.asList(storeRef));
         try (InternalLock _ = writeLock.acquire()) {
-
+            IndexWriter indexWriter = this.indexWriter;
             if (indexWriter != null) {
                 throw new EngineAlreadyStartedException(shardId);
             }
             if (closed) {
                 throw new EngineClosedException(shardId);
             }
+            storeReference = storeRef;
 
             if (logger.isDebugEnabled()) {
                 logger.debug("starting engine");
             }
             try {
-                this.indexWriter = createWriter();
+                indexWriter = createWriter();
+                closeOnFailure.add(indexWriter);
             } catch (IOException e) {
                 maybeFailEngine(e, "start");
-                if (this.indexWriter != null) {
-                    try {
-                        IndexWriter pending = indexWriter;
-                        indexWriter = null;
-                        pending.rollback();
-                    } catch (IOException e1) {
-                        e.addSuppressed(e1);
-                    }
-                }
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
             }
-
             try {
                 // commit on a just opened writer will commit even if there are no changes done to it
                 // we rely on that for the commit data translog id key
-                translogIdGenerator.set(Math.max(0, translog.findLargestPresentTranslogId()));
-                translogIdGenerator.incrementAndGet();
+                final long translogId = Math.max(0, translog.findLargestPresentTranslogId()) + 1;
                 boolean mustCommitTranslogId = true;
                 if (Lucene.indexExists(store.directory())) {
                     final Map<String, String> commitUserData = Lucene.readSegmentInfos(store.directory()).getUserData();
                     mustCommitTranslogId = !commitUserData.containsKey(Translog.TRANSLOG_ID_KEY);
                 }
                 if (mustCommitTranslogId) { // translog id is not in the metadata - fix this inconsistency some code relies on this and old indices might not have it.
-                    indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogIdGenerator.get())));
+                    indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
                     indexWriter.commit();
                 }
-                translog.newTranslog(translogIdGenerator.get());
-                this.searcherManager = buildSearchManager(indexWriter);
+
+                translog.newTranslog(translogId);
+                final SearcherManager searcherManager = buildSearchManager(indexWriter);
+                closeOnFailure.add(searcherManager);
                 versionMap.setManager(searcherManager);
-                readLastCommittedSegmentsInfo();
+                this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+                this.searcherManager = searcherManager;
+                translogIdGenerator.set(translogId);
+                this.indexWriter = indexWriter;
+                closeOnFailure.clear(); // all is well
             } catch (IOException e) {
                 maybeFailEngine(e, "start");
                 try {
-                    indexWriter.rollback();
-                } catch (IOException e1) {
-                    // ignore
-                } finally {
-                    IOUtils.closeWhileHandlingException(indexWriter);
+                    if (indexWriter != null) {
+                        indexWriter.rollback();
+                    }
+                } catch (IOException e1) { // iw is closed below
+                    e.addSuppressed(e1);
                 }
                 throw new EngineCreationFailureException(shardId, "failed to open reader on writer", e);
             }
         } finally {
-            store.decRef();
+            if (closeOnFailure.isEmpty() == false) { // release everything we created on a failure
+                IOUtils.closeWhileHandlingException(closeOnFailure);
+            }
         }
     }
 
     @Override
     public void stop() throws EngineException {
-        throw new UnsupportedOperationException("stop() is not supported by InternalEngineImpl. Use InternalEngine.");
-    }
-
-    private void readLastCommittedSegmentsInfo() throws IOException {
-        lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+        throw new UnsupportedOperationException("stop() is not supported by InternalEngine. Use InternalEngineHolder.");
     }
 
     @Override
@@ -969,7 +979,7 @@ public class InternalEngine implements Engine {
             // reread the last committed segment infos
             try (InternalLock _ = readLock.acquire()) {
                 ensureOpen();
-                readLastCommittedSegmentsInfo();
+                lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
             } catch (Throwable e) {
                 if (!closed) {
                     logger.warn("failed to read latest segment infos on flush", e);
@@ -1333,8 +1343,8 @@ public class InternalEngine implements Engine {
                 } catch (Throwable e) {
                     logger.warn("failed to rollback writer on close", e);
                 } finally {
-                    store.decRef();
                     indexWriter = null;
+                    IOUtils.closeWhileHandlingException(storeReference);
                 }
             }
         }

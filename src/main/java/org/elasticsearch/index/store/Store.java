@@ -603,6 +603,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
+    /**
+     * Returns the current reference count.
+     */
+    public int refCount() {
+        return refCounter.refCount();
+    }
+
     private static final class StoreDirectory extends FilterDirectory {
 
         private final ESLogger deletesLogger;

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.engine.internal;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import com.google.common.base.Predicate;
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
@@ -33,8 +34,7 @@ import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
-import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.apache.lucene.store.MockDirectoryWrapper;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -74,7 +74,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogSizeMatcher;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.test.DummyShardLock;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchLuceneTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
@@ -89,15 +89,20 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomDouble;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
+import static org.elasticsearch.test.ElasticsearchTestCase.awaitBusy;
+import static org.elasticsearch.test.ElasticsearchTestCase.terminate;
 import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
-public class InternalEngineTests extends ElasticsearchTestCase {
+public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
@@ -119,14 +124,14 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         defaultSettings = ImmutableSettings.builder()
-                .put(InternalEngineHolder.INDEX_COMPOUND_ON_FLUSH, getRandom().nextBoolean())
+                .put(InternalEngineHolder.INDEX_COMPOUND_ON_FLUSH, randomBoolean())
                 .put(InternalEngineHolder.INDEX_GC_DELETES, "1h") // make sure this doesn't kick in on us
                 .put(InternalEngineHolder.INDEX_FAIL_ON_CORRUPTION, randomBoolean())
                 .build(); // TODO randomize more settings
         threadPool = new ThreadPool(getClass().getName());
         store = createStore();
         store.deleteContent();
-        storeReplica = createStoreReplica();
+        storeReplica = createStore();
         storeReplica.deleteContent();
         engineSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         engine = createEngine(engineSettingsService, store, createTranslog());
@@ -181,26 +186,14 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     }
 
     protected Store createStore() throws IOException {
-        final DirectoryService directoryService = new DirectoryService(shardId, EMPTY_SETTINGS) {
-            @Override
-            public Directory[] build() throws IOException {
-                return new Directory[]{new RAMDirectory()};
-            }
-
-            @Override
-            public long throttleTimeInNanos() {
-                return 0;
-            }
-        };
-        return new Store(shardId, EMPTY_SETTINGS, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
+       return createStore(newDirectory());
     }
 
-    protected Store createStoreReplica() throws IOException {
-
+    protected Store createStore(final Directory directory) throws IOException {
         final DirectoryService directoryService = new DirectoryService(shardId, EMPTY_SETTINGS) {
             @Override
             public Directory[] build() throws IOException {
-                return new Directory[]{new RAMDirectory()};
+                return new Directory[]{ directory };
             }
 
             @Override
@@ -1423,6 +1416,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         // Get should not find the document
         getResult = engine.get(new Engine.Get(true, newUid("2")));
         assertThat(getResult.exists(), equalTo(false));
+        engine.close();
     }
 
     protected Term newUid(String id) {
@@ -1435,6 +1429,61 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             ShardId shardId = ShardUtils.extractShardId(test.reader());
             assertNotNull(shardId);
             assertEquals(shardId, engine.shardId());
-        };
+        }
+    }
+
+    /**
+     * Random test that throws random exception and ensures all references are
+     * counted down / released and resources are closed.
+     */
+    @Test
+    public void testFailStart() throws IOException {
+        // this test fails if any reader, searcher or directory is not closed - MDW FTW
+        final int iters = scaledRandomIntBetween(10, 100);
+        for (int i = 0; i < iters; i++) {
+            MockDirectoryWrapper wrapper = newMockDirectory();
+            wrapper.setFailOnOpenInput(randomBoolean());
+            wrapper.setAllowRandomFileNotFoundException(randomBoolean());
+            wrapper.setRandomIOExceptionRate(randomDouble());
+            wrapper.setRandomIOExceptionRateOnOpen(randomDouble());
+            try (Store store = createStore(wrapper)) {
+                int refCount = store.refCount();
+                assertTrue("refCount: "+ store.refCount(), store.refCount() > 0);
+                Translog translog = createTranslog();
+                Settings build = ImmutableSettings.builder()
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+                IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), build);
+                Engine holder = createEngine(indexSettingsService, store, translog);
+                indexSettingsService.refreshSettings(ImmutableSettings.builder()
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(InternalEngineHolder.INDEX_FAIL_ON_CORRUPTION, true).build());
+
+                assertEquals(store.refCount(), refCount+1);
+                final int numStarts = scaledRandomIntBetween(1, 5);
+                for (int j = 0; j < numStarts; j++) {
+                    try {
+                        holder.start();
+                        assertEquals(store.refCount(), refCount + 2);
+                        break;
+                    } catch (EngineCreationFailureException ex) {
+                        // all is fine
+                        if (ex.getCause() instanceof CorruptIndexException) {
+                            assertEquals(store.refCount(), refCount);
+                            try {
+                                holder.start();
+                                fail("Engine must have failed on corrupt index");
+                            } catch (EngineClosedException e) {
+                                // good!
+                            }
+                            break; // failed engine can't start again
+                        }
+                        assertEquals(store.refCount(), refCount + 1);
+                    }
+                }
+                translog.close();
+                holder.close();
+                assertEquals(store.refCount(), refCount);
+            }
+        }
     }
 }

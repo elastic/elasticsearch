@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.engine.internal;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import com.google.common.base.Predicate;
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
@@ -100,9 +99,6 @@ import static org.elasticsearch.test.ElasticsearchTestCase.awaitBusy;
 import static org.elasticsearch.test.ElasticsearchTestCase.terminate;
 import static org.hamcrest.Matchers.*;
 
-/**
- *
- */
 public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
@@ -247,6 +243,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         List<Segment> segments = engine.segments();
         assertThat(segments.isEmpty(), equalTo(true));
         assertThat(engine.segmentsStats().getCount(), equalTo(0l));
+        assertThat(engine.segmentsStats().getMemoryInBytes(), equalTo(0l));
         final boolean defaultCompound = defaultSettings.getAsBoolean(InternalEngineHolder.INDEX_COMPOUND_ON_FLUSH, true);
 
         // create a doc and refresh
@@ -259,7 +256,13 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
         segments = engine.segments();
         assertThat(segments.size(), equalTo(1));
-        assertThat(engine.segmentsStats().getCount(), equalTo(1l));
+        SegmentsStats stats = engine.segmentsStats();
+        assertThat(stats.getCount(), equalTo(1l));
+        assertThat(stats.getTermsMemoryInBytes(), greaterThan(0l));
+        assertThat(stats.getStoredFieldsMemoryInBytes(), greaterThan(0l));
+        assertThat(stats.getTermVectorsMemoryInBytes(), equalTo(0l));
+        assertThat(stats.getNormsMemoryInBytes(), greaterThan(0l));
+        assertThat(stats.getDocValuesMemoryInBytes(), greaterThan(0l));
         assertThat(segments.get(0).isCommitted(), equalTo(false));
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(2));
@@ -286,6 +289,11 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         segments = engine.segments();
         assertThat(segments.size(), equalTo(2));
         assertThat(engine.segmentsStats().getCount(), equalTo(2l));
+        assertThat(engine.segmentsStats().getTermsMemoryInBytes(), greaterThan(stats.getTermsMemoryInBytes()));
+        assertThat(engine.segmentsStats().getStoredFieldsMemoryInBytes(), greaterThan(stats.getStoredFieldsMemoryInBytes()));
+        assertThat(engine.segmentsStats().getTermVectorsMemoryInBytes(), equalTo(0l));
+        assertThat(engine.segmentsStats().getNormsMemoryInBytes(), greaterThan(stats.getNormsMemoryInBytes()));
+        assertThat(engine.segmentsStats().getDocValuesMemoryInBytes(), greaterThan(stats.getDocValuesMemoryInBytes()));
         assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
         assertThat(segments.get(0).isCommitted(), equalTo(true));
         assertThat(segments.get(0).isSearch(), equalTo(true));

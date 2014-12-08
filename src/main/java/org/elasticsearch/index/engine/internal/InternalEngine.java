@@ -20,19 +20,8 @@
 package org.elasticsearch.index.engine.internal;
 
 import com.google.common.collect.Lists;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.LiveIndexWriterConfig;
-import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.MultiReader;
-import org.apache.lucene.index.SegmentCommitInfo;
-import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -54,7 +43,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.SegmentReaderUtils;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -1208,8 +1197,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     }
 
     private static long getReaderRamBytesUsed(LeafReaderContext reader) {
-        final SegmentReader segmentReader = SegmentReaderUtils.segmentReader(reader.reader());
-        return segmentReader.ramBytesUsed();
+        return segmentReader(reader.reader()).ramBytesUsed();
     }
 
     @Override
@@ -1239,8 +1227,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             Searcher searcher = acquireSearcher("segments");
             try {
                 for (LeafReaderContext reader : searcher.reader().leaves()) {
-                    assert reader.reader() instanceof SegmentReader;
-                    SegmentCommitInfo info = SegmentReaderUtils.segmentReader(reader.reader()).getSegmentInfo();
+                    SegmentCommitInfo info = segmentReader(reader.reader()).getSegmentInfo();
                     assert !segments.containsKey(info.info.name);
                     Segment segment = new Segment(info.info.name);
                     segment.search = true;
@@ -1425,7 +1412,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
      */
     private static boolean isMergedSegment(LeafReader reader) {
         // We expect leaves to be segment readers
-        final Map<String, String> diagnostics = SegmentReaderUtils.segmentReader(reader).getSegmentInfo().info.getDiagnostics();
+        final Map<String, String> diagnostics = segmentReader(reader).getSegmentInfo().info.getDiagnostics();
         final String source = diagnostics.get(IndexWriter.SOURCE);
         assert Arrays.asList(IndexWriter.SOURCE_ADDINDEXES_READERS, IndexWriter.SOURCE_FLUSH, IndexWriter.SOURCE_MERGE).contains(source) : "Unknown source " + source;
         return IndexWriter.SOURCE_MERGE.equals(source);
@@ -1546,7 +1533,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     }
 
     private SearcherManager buildSearchManager(IndexWriter indexWriter) throws IOException {
-        return new SearcherManager(indexWriter, true, searcherFactory);
+        final DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter, true), shardId);
+        return new SearcherManager(directoryReader, searcherFactory);
     }
 
     class EngineSearcher implements Searcher {
@@ -1813,5 +1801,20 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         public Condition newCondition() {
             throw new UnsupportedOperationException("NoOpLock can't provide a condition");
         }
+    }
+
+    /**
+     * Tries to extract a segment reader from the given index reader.
+     * If no SegmentReader can be extracted an {@link org.elasticsearch.ElasticsearchIllegalStateException} is thrown.
+     */
+    private static SegmentReader segmentReader(LeafReader reader) {
+        if (reader instanceof SegmentReader) {
+            return (SegmentReader) reader;
+        } else if (reader instanceof FilterLeafReader) {
+            final FilterLeafReader fReader = (FilterLeafReader) reader;
+            return segmentReader(FilterLeafReader.unwrap(fReader));
+        }
+        // hard fail - we can't get a SegmentReader
+        throw new ElasticsearchIllegalStateException("Can not extract segment reader from given index reader [" + reader + "]");
     }
 }

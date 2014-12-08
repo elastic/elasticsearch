@@ -19,45 +19,63 @@
 
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.*;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.SegmentReaderUtils;
-import org.elasticsearch.index.store.DirectoryUtils;
-import org.elasticsearch.index.store.Store;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.index.ElasticsearchLeafReader;
 
-/**
- */
-public class ShardUtils {
+public final class ShardUtils {
+
+    private ShardUtils() {}
 
     /**
      * Tries to extract the shard id from a reader if possible, when its not possible,
-     * will return null. This method requires the reader to be a {@link SegmentReader}
-     * and the directory backing it to be {@link org.elasticsearch.index.store.Store.StoreDirectory}.
-     * This will be the case in almost all cases, except for percolator currently.
+     * will return null.
      */
     @Nullable
     public static ShardId extractShardId(LeafReader reader) {
-        return extractShardId(SegmentReaderUtils.segmentReaderOrNull(reader));
+        final ElasticsearchLeafReader esReader = getElasticsearchLeafReader(reader);
+        if (esReader != null) {
+            assert reader.getRefCount() > 0 : "ElasticsearchLeafReader is already closed";
+            return esReader.shardId();
+        }
+        return null;
     }
 
+    /**
+     * Tries to extract the shard id from a reader if possible, when its not possible,
+     * will return null.
+     */
     @Nullable
-    private static ShardId extractShardId(SegmentReader reader) {
-        if (reader != null) {
-            assert reader.getRefCount() > 0 : "SegmentReader is already closed";
-            // reader.directory doesn't call ensureOpen for internal reasons.
-            Store.StoreDirectory storeDir = DirectoryUtils.getStoreDirectory(reader.directory());
-            if (storeDir != null) {
-                return storeDir.shardId();
+    public static ShardId extractShardId(IndexReader reader) {
+        final ElasticsearchDirectoryReader esReader = getElasticsearchDirectoryReader(reader);
+        if (esReader != null) {
+            return esReader.shardId();
+        }
+        if (!reader.leaves().isEmpty()) {
+            return extractShardId(reader.leaves().get(0).reader());
+        }
+        return null;
+    }
+
+    private static ElasticsearchLeafReader getElasticsearchLeafReader(LeafReader reader) {
+        if (reader instanceof FilterLeafReader) {
+            if (reader instanceof ElasticsearchLeafReader) {
+                return (ElasticsearchLeafReader) reader;
+            } else {
+                return getElasticsearchLeafReader(FilterLeafReader.unwrap(reader));
             }
         }
         return null;
     }
 
-    public static ShardId extractShardId(IndexReader reader) {
-        if (!reader.leaves().isEmpty()) {
-            return extractShardId(reader.leaves().get(0).reader());
+    private static ElasticsearchDirectoryReader getElasticsearchDirectoryReader(IndexReader reader) {
+        if (reader instanceof FilterDirectoryReader) {
+            if (reader instanceof ElasticsearchDirectoryReader) {
+                return (ElasticsearchDirectoryReader) reader;
+            } else {
+                return null; // lucene needs a getDelegate method on FilteredDirectoryReader - not a big deal here
+            }
         }
         return null;
     }

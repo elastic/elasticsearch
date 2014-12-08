@@ -109,7 +109,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public Store(ShardId shardId, @IndexSettings Settings indexSettings, DirectoryService directoryService, Distributor distributor, ShardLock shardLock) throws IOException {
         super(shardId, indexSettings);
         this.directoryService = directoryService;
-        this.directory = new StoreDirectory(directoryService.newFromDistributor(distributor));
+        this.directory = new StoreDirectory(directoryService.newFromDistributor(distributor), Loggers.getLogger("index.store.deletes", indexSettings, shardId));
         this.shardLock = shardLock;
         assert shardLock != null;
         assert shardLock.getShardId().equals(shardId);
@@ -547,12 +547,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         failIfCorrupted();
         metadataLock.writeLock().lock();
         try {
-            final Directory dir = directory();
+            final StoreDirectory dir = directory;
             for (String existingFile : dir.listAll()) {
                 // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete checksum)
                 if (!sourceMetaData.contains(existingFile) && !Store.isChecksum(existingFile)) {
                     try {
-                        logDeleteFile(reason, existingFile);
+                        dir.deleteFile(reason, existingFile);
                         dir.deleteFile(existingFile);
                     } catch (Exception e) {
                         // ignore, we don't really care, will get deleted later on
@@ -603,21 +603,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
-    /**
-     * This exists so {@link org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat} can load its boolean setting; can we find a more straightforward way?
-     */
-    public final class StoreDirectory extends FilterDirectory {
+    private static final class StoreDirectory extends FilterDirectory {
 
-        public final ESLogger deletesLogger;
+        private final ESLogger deletesLogger;
 
-        StoreDirectory(Directory delegateDirectory) throws IOException {
+        StoreDirectory(Directory delegateDirectory, ESLogger deletesLogger) throws IOException {
             super(delegateDirectory);
-            deletesLogger = Loggers.getLogger("index.store.deletes", indexSettings, shardId);
-        }
-
-        public ShardId shardId() {
-            ensureOpen();
-            return Store.this.shardId();
+            this.deletesLogger = deletesLogger;
         }
 
         @Override
@@ -625,10 +617,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             assert false : "Nobody should close this directory except of the Store itself";
         }
 
+        public void deleteFile(String msg, String name) throws IOException {
+            deletesLogger.trace("{}: delete file {}", msg, name);
+            super.deleteFile(name);
+        }
+
         @Override
         public void deleteFile(String name) throws IOException {
-            logDeleteFile("StoreDirectory.deleteFile", name);
-            super.deleteFile(name);
+            deleteFile("StoreDirectory.deleteFile", name);
         }
 
         private void innerClose() throws IOException {
@@ -642,17 +638,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /** Log that we are about to delete this file, to the index.store.deletes component. */
-    public void logDeleteFile(String message, String fileName) {
-        logDeleteFile(directory(), message, fileName);
-    }
-
-    /** Log that we are about to delete this file, to the index.store.deletes component. */
-    public static void logDeleteFile(Directory dir, String message, String fileName) {
-        assert dir instanceof StoreDirectory;
-        if (dir instanceof StoreDirectory) {
-            ((StoreDirectory) dir).deletesLogger.trace("{}: delete file {}", message, fileName);
-        }
-        // else what to do...?
+    public void deleteFile(String msg, String storeFile) throws IOException {
+        directory.deleteFile(msg, storeFile);
     }
 
     /**

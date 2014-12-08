@@ -34,7 +34,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.SegmentReaderUtils;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.CachedFilter;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
@@ -169,7 +168,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
                     Boolean previous = cache.seenReaders.putIfAbsent(context.reader().getCoreCacheKey(), Boolean.TRUE);
                     if (previous == null) {
                         // we add a core closed listener only, for non core IndexReaders we rely on clear being called (percolator for example)
-                        SegmentReaderUtils.registerCoreListener(context.reader(), cache);
+                        context.reader().addCoreClosedListener(cache);
                     }
                 }
                 // we can't pass down acceptedDocs provided, because we are caching the result, and acceptedDocs

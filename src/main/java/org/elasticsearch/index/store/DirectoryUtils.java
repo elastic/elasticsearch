@@ -31,25 +31,6 @@ public final class DirectoryUtils {
 
     private DirectoryUtils() {} // no instance
 
-    /**
-     * Try and extract a store directory out of a directory, tries to take into
-     * account the fact that a directory is a filter directory, and/or a compound dir.
-     */
-    @Nullable
-    public static Store.StoreDirectory getStoreDirectory(Directory dir) {
-        Directory current = dir;
-        while (true) {
-            if (current instanceof Store.StoreDirectory) {
-                return (Store.StoreDirectory) current;
-            }
-            if (current instanceof FilterDirectory) {
-                current = ((FilterDirectory) current).getDelegate();
-            } else {
-                return null;
-            }
-        }
-    }
-
     static final Directory getLeafDirectory(FilterDirectory dir) {
         Directory current = dir.getDelegate();
         while (true) {

@@ -64,7 +64,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.test.engine.MockInternalEngineImpl;
+import org.elasticsearch.test.engine.MockInternalEngine;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -185,6 +185,7 @@ public class ElasticsearchAssertions {
         }
         assertVersionSerializable(countResponse);
     }
+
     public static void assertExists(ExistsResponse existsResponse, boolean expected) {
         if (existsResponse.exists() != expected) {
             fail("Exist is " + existsResponse.exists() + " but " + expected + " was expected " + formatShardStatus(existsResponse));
@@ -261,14 +262,14 @@ public class ElasticsearchAssertions {
                 assertThat(shardSearchFailure.reason(), reasonMatcher);
             }
             assertVersionSerializable(searchResponse);
-        } catch(SearchPhaseExecutionException e) {
+        } catch (SearchPhaseExecutionException e) {
             assertThat(e.status(), equalTo(restStatus));
             assertThat(e.getMessage(), reasonMatcher);
             for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
                 assertThat(shardSearchFailure.status(), equalTo(restStatus));
                 assertThat(shardSearchFailure.reason(), reasonMatcher);
             }
-        } catch(Exception e) {
+        } catch (Exception e) {
             fail("SearchPhaseExecutionException expected but got " + e.getClass());
         }
     }
@@ -581,10 +582,10 @@ public class ElasticsearchAssertions {
             Streamable newInstance = tryCreateNewInstance(streamable);
             if (newInstance == null) {
                 return; // can't create a new instance - we never modify a
-                        // streamable that comes in.
+                // streamable that comes in.
             }
             if (streamable instanceof ActionRequest) {
-                ((ActionRequest<?>)streamable).validate();
+                ((ActionRequest<?>) streamable).validate();
             }
             BytesReference orig = serialize(version, streamable);
             StreamInput input = new BytesStreamInput(orig);
@@ -637,27 +638,27 @@ public class ElasticsearchAssertions {
         try {
             if (awaitBusy(new Predicate<Object>() {
                 public boolean apply(Object o) {
-                    return MockInternalEngineImpl.INFLIGHT_ENGINE_SEARCHERS.isEmpty();
+                    return MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty();
                 }
             }, 5, TimeUnit.SECONDS)) {
                 return;
             }
         } catch (InterruptedException ex) {
-            if (MockInternalEngineImpl.INFLIGHT_ENGINE_SEARCHERS.isEmpty()) {
+            if (MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty()) {
                 return;
             }
         }
         try {
             RuntimeException ex = null;
             StringBuilder builder = new StringBuilder("Unclosed Searchers instance for shards: [");
-            for (Map.Entry<MockInternalEngineImpl.AssertingSearcher, RuntimeException> entry : MockInternalEngineImpl.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
+            for (Map.Entry<MockInternalEngine.AssertingSearcher, RuntimeException> entry : MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
                 ex = entry.getValue();
                 builder.append(entry.getKey().shardId()).append(",");
             }
             builder.append("]");
             throw new RuntimeException(builder.toString(), ex);
         } finally {
-            MockInternalEngineImpl.INFLIGHT_ENGINE_SEARCHERS.clear();
+            MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.clear();
         }
     }
 
@@ -691,12 +692,12 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertNodeContainsPlugins(NodesInfoResponse response, String nodeId,
-                                           List<String> expectedJvmPluginNames,
-                                           List<String> expectedJvmPluginDescriptions,
-                                           List<String> expectedJvmVersions,
-                                           List<String> expectedSitePluginNames,
-                                           List<String> expectedSitePluginDescriptions,
-                                           List<String> expectedSiteVersions) {
+                                                 List<String> expectedJvmPluginNames,
+                                                 List<String> expectedJvmPluginDescriptions,
+                                                 List<String> expectedJvmVersions,
+                                                 List<String> expectedSitePluginNames,
+                                                 List<String> expectedSitePluginDescriptions,
+                                                 List<String> expectedSiteVersions) {
 
         Assert.assertThat(response.getNodesMap().get(nodeId), notNullValue());
 

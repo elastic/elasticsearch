@@ -19,9 +19,8 @@
 
 package org.elasticsearch.search.basic;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.English;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -36,9 +35,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.engine.MockInternalEngine;
+import org.elasticsearch.test.engine.MockInternalEngineHolder;
 import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.hamcrest.Matchers;
@@ -49,39 +47,37 @@ import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 
 public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTest {
-    
+
     @Test
     public void testRandomDirectoryIOExceptions() throws IOException, InterruptedException, ExecutionException {
         String mapping = XContentFactory.jsonBuilder().
                 startObject().
-                    startObject("type").
-                        startObject("properties").
-                            startObject("test")
-                                .field("type", "string")
-                                .field("index", "not_analyzed")
-                            .endObject().
+                startObject("type").
+                startObject("properties").
+                startObject("test")
+                .field("type", "string")
+                .field("index", "not_analyzed")
+                .endObject().
                         endObject().
-                    endObject()
+                        endObject()
                 .endObject().string();
         final double exceptionRate;
         final double exceptionOnOpenRate;
         if (frequently()) {
             if (randomBoolean()) {
                 if (randomBoolean()) {
-                    exceptionOnOpenRate =  1.0/between(5, 100);
+                    exceptionOnOpenRate = 1.0 / between(5, 100);
                     exceptionRate = 0.0d;
                 } else {
-                    exceptionRate =  1.0/between(5, 100);
+                    exceptionRate = 1.0 / between(5, 100);
                     exceptionOnOpenRate = 0.0d;
                 }
             } else {
-                exceptionOnOpenRate =  1.0/between(5, 100);
-                exceptionRate =  1.0/between(5, 100);
+                exceptionOnOpenRate = 1.0 / between(5, 100);
+                exceptionRate = 1.0 / between(5, 100);
             }
         } else {
             // rarely no exception
@@ -101,7 +97,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
                     .addMapping("type", mapping).execute().actionGet();
             numInitialDocs = between(10, 100);
             ensureGreen();
-            for (int i = 0; i < numInitialDocs ; i++) {
+            for (int i = 0; i < numInitialDocs; i++) {
                 client().prepareIndex("test", "type", "init" + i).setSource("test", "init").get();
             }
             client().admin().indices().prepareRefresh("test").execute().get();
@@ -113,10 +109,10 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
             client().admin().indices().prepareOpen("test").execute().get();
         } else {
             Builder settings = settingsBuilder()
-            .put("index.number_of_replicas", randomIntBetween(0, 1))
-            .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
-            .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE, exceptionRate)
-            .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, exceptionOnOpenRate); // we cannot expect that the index will be valid
+                    .put("index.number_of_replicas", randomIntBetween(0, 1))
+                    .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
+                    .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE, exceptionRate)
+                    .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, exceptionOnOpenRate); // we cannot expect that the index will be valid
             logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
             client().admin().indices().prepareCreate("test")
                     .setSettings(settings)
@@ -140,7 +136,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
         }
         long numCreated = 0;
         boolean[] added = new boolean[numDocs];
-        for (int i = 0; i < numDocs ; i++) {
+        for (int i = 0; i < numDocs; i++) {
             added[i] = false;
             try {
                 IndexResponse indexResponse = client().prepareIndex("test", "type", Integer.toString(i)).setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", English.intToEnglish(i)).get();
@@ -161,7 +157,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
         // we don't check anything here really just making sure we don't leave any open files or a broken index behind.
         for (int i = 0; i < numSearches; i++) {
             try {
-                int docToQuery = between(0, numDocs-1);
+                int docToQuery = between(0, numDocs - 1);
                 long expectedResults = added[docToQuery] ? 1 : 0;
                 logger.info("Searching for [test:{}]", English.intToEnglish(docToQuery));
                 SearchResponse searchResponse = client().prepareSearch().setTypes("type").setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery))).get();
@@ -216,15 +212,15 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
         if (frequently()) {
             if (randomBoolean()) {
                 if (randomBoolean()) {
-                    lowLevelRate =  1.0/between(2, 10);
+                    lowLevelRate = 1.0 / between(2, 10);
                     topLevelRate = 0.0d;
                 } else {
-                    topLevelRate =  1.0/between(2, 10);
+                    topLevelRate = 1.0 / between(2, 10);
                     lowLevelRate = 0.0d;
                 }
             } else {
-                lowLevelRate =  1.0/between(2, 10);
-                topLevelRate =  1.0/between(2, 10);
+                lowLevelRate = 1.0 / between(2, 10);
+                topLevelRate = 1.0 / between(2, 10);
             }
         } else {
             // rarely no exception
@@ -234,10 +230,10 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
 
         Builder settings = settingsBuilder()
                 .put(indexSettings())
-                .put(MockInternalEngine.READER_WRAPPER_TYPE, RandomExceptionDirectoryReaderWrapper.class.getName())
+                .put(MockInternalEngineHolder.READER_WRAPPER_TYPE, RandomExceptionDirectoryReaderWrapper.class.getName())
                 .put(EXCEPTION_TOP_LEVEL_RATIO_KEY, topLevelRate)
                 .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)
-                .put(MockInternalEngine.WRAP_READER_RATIO, 1.0d);
+                .put(MockInternalEngineHolder.WRAP_READER_RATIO, 1.0d);
         logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
@@ -246,7 +242,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
         final int numDocs = between(10, 100);
         long numCreated = 0;
         boolean[] added = new boolean[numDocs];
-        for (int i = 0; i < numDocs ; i++) {
+        for (int i = 0; i < numDocs; i++) {
             try {
                 IndexResponse indexResponse = client().prepareIndex("test", "type", "" + i).setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", English.intToEnglish(i)).get();
                 if (indexResponse.isCreated()) {
@@ -266,7 +262,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
         // we don't check anything here really just making sure we don't leave any open files or a broken index behind.
         for (int i = 0; i < numSearches; i++) {
             try {
-                int docToQuery = between(0, numDocs-1);
+                int docToQuery = between(0, numDocs - 1);
                 long expectedResults = added[docToQuery] ? 1 : 0;
                 logger.info("Searching for [test:{}]", English.intToEnglish(docToQuery));
                 SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery))).get();
@@ -292,10 +288,11 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
     public static final String EXCEPTION_LOW_LEVEL_RATIO_KEY = "index.engine.exception.ratio.low";
 
 
-    public static class RandomExceptionDirectoryReaderWrapper extends MockInternalEngine.DirectoryReaderWrapper {
+    public static class RandomExceptionDirectoryReaderWrapper extends MockInternalEngineHolder.DirectoryReaderWrapper {
         private final Settings settings;
+
         static class ThrowingSubReaderWrapper extends SubReaderWrapper implements ThrowingLeafReaderWrapper.Thrower {
-             private final Random random;
+            private final Random random;
             private final double topLevelRatio;
             private final double lowLevelRatio;
 

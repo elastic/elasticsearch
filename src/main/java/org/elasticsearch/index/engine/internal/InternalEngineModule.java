@@ -29,6 +29,6 @@ public class InternalEngineModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(Engine.class).to(InternalEngine.class).asEagerSingleton();
+        bind(Engine.class).to(InternalEngineHolder.class).asEagerSingleton();
     }
 }

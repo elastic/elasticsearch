@@ -648,7 +648,7 @@ public class ESUsersToolTests extends CliToolTestCase {
         assertThat(status, is(CliTool.ExitStatus.OK));
         List<String> output = terminal.getTerminalOutput();
         assertThat(output, hasSize(1));
-        assertThat(output.get(0), equalTo("No users found\n"));
+        assertThat(output.get(0), equalTo("No users found" + System.lineSeparator()));
     }
 
     @Test

@@ -82,16 +82,13 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class InternalEngine implements Engine {
 
     protected final ESLogger logger;
-
     protected final ShardId shardId;
-
 
     private volatile boolean failEngineOnCorruption;
     private volatile ByteSizeValue indexingBufferSize;
     private volatile int indexConcurrency;
     private volatile boolean compoundOnFlush;
-
-    private long gcDeletesInMillis;
+    private volatile long gcDeletesInMillis;
 
     /** When we last pruned expired tombstones from versionMap.deletes: */
     private volatile long lastDeleteVersionPruneTimeMSec;

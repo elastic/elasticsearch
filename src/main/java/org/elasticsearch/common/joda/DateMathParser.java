@@ -52,14 +52,11 @@ public class DateMathParser {
             mathString = text.substring("now".length());
         } else {
             int index = text.indexOf("||");
-            String parseString;
             if (index == -1) {
-                parseString = text;
-                mathString = ""; // nothing else
-            } else {
-                parseString = text.substring(0, index);
-                mathString = text.substring(index + 2);
+                return parseStringValue(text, timeZone);
             }
+            String parseString = text.substring(0, index);
+            mathString = text.substring(index + 2);
             if (roundCeil) {
                 time = parseRoundCeilStringValue(parseString, timeZone);
             } else {

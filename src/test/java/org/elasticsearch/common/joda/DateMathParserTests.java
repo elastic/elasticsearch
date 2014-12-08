@@ -57,6 +57,11 @@ public class DateMathParserTests extends ElasticsearchTestCase {
         assertDateMathEquals("2014-05-30T20:21:35.123", "2014-05-30T20:21:35.123");
     }
     
+    public void testRoundingDoesNotAffectExactDate() {
+        assertDateMathEquals("2014", "2014-01-01T00:00:00.000", 0, true, null);
+        assertDateMathEquals("2014", "2014-01-01T00:00:00.000", 0, false, null);
+    }
+    
     public void testBasicMath() {
         assertDateMathEquals("2014-11-18||+y", "2015-11-18");
         assertDateMathEquals("2014-11-18||-2y", "2012-11-18");

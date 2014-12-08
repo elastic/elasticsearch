@@ -179,7 +179,7 @@ public class PercolatorService extends AbstractComponent {
 
         SearchShardTarget searchShardTarget = new SearchShardTarget(clusterService.localNode().id(), request.shardId().getIndex(), request.shardId().id());
         final PercolateContext context = new PercolateContext(
-                request, searchShardTarget, indexShard, percolateIndexService, pageCacheRecycler, bigArrays, scriptService
+                request, searchShardTarget, indexShard, percolateIndexService, pageCacheRecycler, bigArrays, scriptService, clusterService
         );
         try {
             ParsedDocument parsedDocument = parseRequest(percolateIndexService, request, context);

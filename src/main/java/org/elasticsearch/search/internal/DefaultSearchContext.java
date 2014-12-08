@@ -31,6 +31,7 @@ import org.apache.lucene.util.Counter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.AndFilter;
@@ -99,6 +100,8 @@ public class DefaultSearchContext extends SearchContext {
     private final IndexShard indexShard;
 
     private final IndexService indexService;
+
+    private final ClusterService clusterService;
 
     private final ContextIndexSearcher searcher;
 
@@ -178,7 +181,7 @@ public class DefaultSearchContext extends SearchContext {
     private InnerHitsContext innerHitsContext;
 
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
-                         Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
+                         Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard, ClusterService clusterService,
                          ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
                          BigArrays bigArrays, Counter timeEstimateCounter) {
         this.id = id;
@@ -195,6 +198,7 @@ public class DefaultSearchContext extends SearchContext {
         this.fetchResult = new FetchSearchResult(id, shardTarget);
         this.indexShard = indexShard;
         this.indexService = indexService;
+        this.clusterService = clusterService;
 
         this.searcher = new ContextIndexSearcher(this, engineSearcher);
 
@@ -426,6 +430,10 @@ public class DefaultSearchContext extends SearchContext {
 
     public ScriptService scriptService() {
         return scriptService;
+    }
+
+    public ClusterService clusterService() {
+        return clusterService;
     }
 
     public PageCacheRecycler pageCacheRecycler() {

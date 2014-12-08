@@ -26,6 +26,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -276,6 +277,11 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public ScriptService scriptService() {
         return in.scriptService();
+    }
+
+    @Override
+    public ClusterService clusterService() {
+        return in.clusterService();
     }
 
     @Override

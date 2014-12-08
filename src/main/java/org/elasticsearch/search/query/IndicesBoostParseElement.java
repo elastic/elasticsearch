@@ -19,6 +19,9 @@
 
 package org.elasticsearch.search.query;
 
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
@@ -40,10 +43,12 @@ public class IndicesBoostParseElement implements SearchParseElement {
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
         XContentParser.Token token;
+        ClusterService clusterService = context.clusterService();
+
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 String indexName = parser.currentName();
-                if (indexName.equals(context.shardTarget().index())) {
+                if (matchesIndex(clusterService, context.shardTarget().index(), indexName)) {
                     parser.nextToken(); // move to the value
                     // we found our query boost
                     context.queryBoost(parser.floatValue());
@@ -51,4 +56,15 @@ public class IndicesBoostParseElement implements SearchParseElement {
             }
         }
     }
+
+    protected boolean matchesIndex(ClusterService clusterService, String currentIndex, String boostTargetIndex) {
+        final String[] concreteIndices = clusterService.state().metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), boostTargetIndex);
+        for (String index : concreteIndices) {
+            if (Regex.simpleMatch(index, currentIndex)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 }

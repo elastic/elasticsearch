@@ -28,6 +28,7 @@ import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.util.BigArrays;
@@ -88,6 +89,7 @@ public class PercolateContext extends SearchContext {
     private final PageCacheRecycler pageCacheRecycler;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
+    private final ClusterService clusterService;
     private final ConcurrentMap<BytesRef, Query> percolateQueries;
     private final int numberOfShards;
     private String[] types;
@@ -109,7 +111,7 @@ public class PercolateContext extends SearchContext {
 
     public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard,
                             IndexService indexService, PageCacheRecycler pageCacheRecycler,
-                            BigArrays bigArrays, ScriptService scriptService) {
+                            BigArrays bigArrays, ScriptService scriptService, ClusterService clusterService) {
         this.indexShard = indexShard;
         this.indexService = indexService;
         this.fieldDataService = indexService.fieldData();
@@ -122,6 +124,7 @@ public class PercolateContext extends SearchContext {
         this.engineSearcher = indexShard.acquireSearcher("percolate");
         this.searcher = new ContextIndexSearcher(this, engineSearcher);
         this.scriptService = scriptService;
+        this.clusterService = clusterService;
         this.numberOfShards = request.getNumberOfShards();
     }
 
@@ -422,6 +425,11 @@ public class PercolateContext extends SearchContext {
     @Override
     public ScriptService scriptService() {
         return scriptService;
+    }
+
+    @Override
+    public ClusterService clusterService() {
+        return clusterService;
     }
 
     @Override

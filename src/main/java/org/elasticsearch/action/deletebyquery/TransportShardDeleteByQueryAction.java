@@ -106,7 +106,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
         IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
 
         SearchContext.setCurrent(new DefaultSearchContext(0, new ShardSearchLocalRequest(request.types(), request.nowInMillis()), null,
-                indexShard.acquireSearcher(DELETE_BY_QUERY_API), indexService, indexShard, scriptService,
+                indexShard.acquireSearcher(DELETE_BY_QUERY_API), indexService, indexShard, clusterService, scriptService,
                 pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter()));
         try {
             Engine.DeleteByQuery deleteByQuery = indexShard.prepareDeleteByQuery(request.source(), request.filteringAliases(), Engine.Operation.Origin.PRIMARY, request.types());
@@ -128,7 +128,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
         IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
 
         SearchContext.setCurrent(new DefaultSearchContext(0, new ShardSearchLocalRequest(request.types(), request.nowInMillis()), null,
-                indexShard.acquireSearcher(DELETE_BY_QUERY_API, true), indexService, indexShard, scriptService,
+                indexShard.acquireSearcher(DELETE_BY_QUERY_API, true), indexService, indexShard, clusterService, scriptService,
                 pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter()));
         try {
             Engine.DeleteByQuery deleteByQuery = indexShard.prepareDeleteByQuery(request.source(), request.filteringAliases(), Engine.Operation.Origin.REPLICA, request.types());

@@ -114,7 +114,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
 
         SearchContext context = new DefaultSearchContext(
                 0, new ShardSearchLocalRequest(new String[]{request.type()}, request.nowInMillis, request.filteringAlias()),
-                null, result.searcher(), indexService, indexShard,
+                null, result.searcher(), indexService, indexShard, clusterService,
                 scriptService, pageCacheRecycler,
                 bigArrays, threadPool.estimatedTimeInMillisCounter()
         );

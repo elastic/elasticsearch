@@ -66,7 +66,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     public static final String ACTION_NAME = "internal:discovery/zen/unicast";
 
-    public static final int LIMIT_PORTS_COUNT = 1;
+    public static final String LIMIT_PORTS_COUNT = "discovery.zen.ping.unicast.limit_ports_count";
 
     private final ThreadPool threadPool;
     private final TransportService transportService;
@@ -125,8 +125,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         for (String host : hosts) {
             try {
                 TransportAddress[] addresses = transportService.addressesFromString(host);
-                // we only limit to 1 addresses, makes no sense to ping 100 ports
-                for (int i = 0; (i < addresses.length && i < LIMIT_PORTS_COUNT); i++) {
+                int limitPortsCount = settings.getAsInt(LIMIT_PORTS_COUNT, 2);
+                for (int i = 0; (i < addresses.length && i < limitPortsCount); i++) {
                     configuredTargetNodes.add(new DiscoveryNode(UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "#", addresses[i], version.minimumCompatibilityVersion()));
                 }
             } catch (Exception e) {

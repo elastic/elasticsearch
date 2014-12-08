@@ -320,6 +320,10 @@
 #    to perform discovery when new nodes (master or data) are started:
 #
 #discovery.zen.ping.unicast.hosts: ["host1", "host2:port"]
+#
+# 3. Set the number of ports to scan when trying to join a cluster:
+#
+#discovery.zen.ping.unicast.limit_ports_count: 2
 
 # EC2 discovery allows to use AWS EC2 API in order to perform discovery.
 #

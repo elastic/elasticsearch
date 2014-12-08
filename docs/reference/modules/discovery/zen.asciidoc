@@ -58,6 +58,8 @@ as gossip routers. It provides the following settings with the
 |`hosts` |Either an array setting or a comma delimited setting. Each
 value is either in the form of `host:port`, or in the form of
 `host[port1-port2]`.
+|`limit_ports_count` |The number of ports to scan when trying to join a 
+cluster. Defaults to `2`.
 |=======================================================================
 
 The unicast discovery uses the

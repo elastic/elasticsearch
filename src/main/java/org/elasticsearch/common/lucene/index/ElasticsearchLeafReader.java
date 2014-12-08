@@ -49,4 +49,14 @@ public final class ElasticsearchLeafReader extends FilterLeafReader {
     public ShardId shardId() {
         return this.shardId;
     }
+
+    @Override
+    public Object getCoreCacheKey() {
+        return in.getCoreCacheKey();
+    }
+
+    @Override
+    public Object getCombinedCoreAndDeletesKey() {
+        return in.getCombinedCoreAndDeletesKey();
+    }
 }

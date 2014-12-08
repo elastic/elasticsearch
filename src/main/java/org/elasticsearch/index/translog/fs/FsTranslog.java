@@ -210,6 +210,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                             continue;
                         }
                         try {
+                            logger.trace("clearing unreferenced translog {}", file);
                             file.delete();
                         } catch (Exception e) {
                             // ignore
@@ -239,7 +240,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                 }
             }
             try {
-                newFile = type.create(shardId, id, new RafReference(new File(location, "translog-" + id)), bufferSize);
+                newFile = type.create(shardId, id, new RafReference(new File(location, "translog-" + id), logger), bufferSize);
             } catch (IOException e) {
                 throw new TranslogException(shardId, "failed to create new translog file", e);
             }
@@ -256,6 +257,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         } finally {
             rwl.writeLock().unlock();
         }
+        logger.trace("created new translog id: {}", id);
     }
 
     @Override
@@ -274,12 +276,14 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                     location = file;
                 }
             }
-            this.trans = type.create(shardId, id, new RafReference(new File(location, "translog-" + id)), transientBufferSize);
+            this.trans = type.create(shardId, id, new RafReference(new File(location, "translog-" + id), logger), transientBufferSize);
         } catch (IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
         } finally {
             rwl.writeLock().unlock();
         }
+        logger.trace("created new transient translog id: {}", id);
+
     }
 
     @Override
@@ -294,12 +298,14 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         } finally {
             rwl.writeLock().unlock();
         }
+        logger.trace("make transient current {}", old);
         old.close(true);
         current.reuse(old);
     }
 
     @Override
     public void revertTransient() {
+
         FsTranslogFile tmpTransient;
         rwl.writeLock().lock();
         try {
@@ -308,6 +314,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         } finally {
             rwl.writeLock().unlock();
         }
+        logger.trace("revert transient {}", tmpTransient);
         // previous transient might be null because it was failed on its creation
         // for example
         if (tmpTransient != null) {
@@ -412,9 +419,11 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         if (current1 == null) {
             return;
         }
+        logger.trace("sync translog {}", current1);
         try {
             current1.sync();
         } catch (IOException e) {
+            logger.trace("sync failed for {}", current1, e);
             // if we switches translots (!=), then this failure is not relevant
             // we are working on a new translog
             if (this.current == current1) {

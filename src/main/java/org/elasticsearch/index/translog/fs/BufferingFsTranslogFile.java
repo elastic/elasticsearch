@@ -252,4 +252,12 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
             bufferCount += len;
         }
     }
+
+    @Override
+    public String toString() {
+        return "buffered{" +
+                "id=" + id +
+                ", operationCounter=" + operationCounter +
+                '}';
+    }
 }

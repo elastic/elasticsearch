@@ -42,6 +42,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 
 /**
  */
+@TestLogging("index.translog.fs:TRACE")
 public class FunctionScoreBackwardCompatibilityTests extends ElasticsearchBackwardsCompatIntegrationTest {
 
     /**

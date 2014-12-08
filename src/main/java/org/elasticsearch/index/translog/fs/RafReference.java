@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.translog.fs;
 
+import org.elasticsearch.common.logging.ESLogger;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -39,11 +41,15 @@ public class RafReference {
 
     private final AtomicInteger refCount = new AtomicInteger();
 
-    public RafReference(File file) throws FileNotFoundException {
+    private final ESLogger logger;
+
+    public RafReference(File file, ESLogger logger) throws FileNotFoundException {
+        this.logger = logger;
         this.file = file;
         this.raf = new RandomAccessFile(file, "rw");
         this.channel = raf.getChannel();
         this.refCount.incrementAndGet();
+        logger.trace("created RAF reference for {}", file.getAbsolutePath());
     }
 
     public File file() {
@@ -69,11 +75,13 @@ public class RafReference {
     public void decreaseRefCount(boolean delete) {
         if (refCount.decrementAndGet() <= 0) {
             try {
+                logger.trace("closing RAF reference delete: {} length: {} file: {}", delete, raf.length(), file.getAbsolutePath());
                 raf.close();
                 if (delete) {
                     file.delete();
                 }
             } catch (IOException e) {
+                logger.debug("failed to close RAF file", e);
                 // ignore
             }
         }

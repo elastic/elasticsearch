@@ -174,4 +174,12 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
     public void updateBufferSize(int bufferSize) throws TranslogException {
         // nothing to do here...
     }
+
+    @Override
+    public String toString() {
+        return "simple{" +
+                "id=" + id +
+                ", operationCounter=" + operationCounter +
+                '}';
+    }
 }

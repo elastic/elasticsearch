@@ -35,7 +35,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.SegmentReaderUtils;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -130,7 +129,7 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
         Cache<Filter, Value> filterToFbs = loadedFilters.get(coreCacheReader, new Callable<Cache<Filter, Value>>() {
             @Override
             public Cache<Filter, Value> call() throws Exception {
-                SegmentReaderUtils.registerCoreListener(context.reader(), BitsetFilterCache.this);
+                context.reader().addCoreClosedListener(BitsetFilterCache.this);
                 return CacheBuilder.newBuilder().build();
             }
         });

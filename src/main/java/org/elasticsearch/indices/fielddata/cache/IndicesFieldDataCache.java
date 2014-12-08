@@ -28,7 +28,6 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.lucene.SegmentReaderUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -169,7 +168,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             final Accountable accountable = cache.get(key, new Callable<AtomicFieldData>() {
                 @Override
                 public AtomicFieldData call() throws Exception {
-                    SegmentReaderUtils.registerCoreListener(context.reader(), IndexFieldCache.this);
+                    context.reader().addCoreClosedListener(IndexFieldCache.this);
 
                     key.listeners.add(indicesFieldDataCacheListener);
                     final ShardId shardId = ShardUtils.extractShardId(context.reader());

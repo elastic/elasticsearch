@@ -115,7 +115,11 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field("full_name", fullName);
-            builder.field("mapping", sourceAsMap() );
+            if (params.paramAsBoolean("pretty", false)) {
+                builder.field("mapping", sourceAsMap());
+            } else {
+                builder.rawField("mapping", source);
+            }
             return builder;
         }
     }

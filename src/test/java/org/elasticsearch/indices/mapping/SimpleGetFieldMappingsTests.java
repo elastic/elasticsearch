@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.mapping;
 
+import com.google.common.collect.Maps;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -153,39 +154,29 @@ public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
     @Test
     public void simpleGetFieldMappingsWithPretty() throws Exception {
         assertAcked(prepareCreate("index").addMapping("type", getMappingForType("type")));
+        Map<String, String> params = Maps.newHashMap();
+        params.put("pretty", "true");
         ensureYellow();
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("index").setTypes("type").setFields("field1","obj.subfield").get();
-        XContentBuilder responseBuilder = XContentFactory.jsonBuilder().prettyPrint().lfAtEnd();
+        XContentBuilder responseBuilder = XContentFactory.jsonBuilder().prettyPrint();
         responseBuilder.startObject();
-        response.toXContent(responseBuilder, ToXContent.EMPTY_PARAMS);
+        response.toXContent(responseBuilder, new ToXContent.MapParams(params));
         responseBuilder.endObject();
         String responseStrings = responseBuilder.string();
 
-        String expectedStrings ="{\n"+
-            "  \"index\" : {\n" +
-            "    \"mappings\" : {\n" +
-            "      \"type\" : {\n" +
-            "        \"obj.subfield\" : {\n" +
-            "          \"full_name\" : \"obj.subfield\",\n" +
-            "          \"mapping\" : {\n" +
-            "            \"subfield\" : {\n"+
-            "              \"type\" : \"string\",\n" +
-            "              \"index\" : \"not_analyzed\"\n" +
-            "            }\n" +
-            "          }\n" +
-            "        },\n" +
-            "        \"field1\" : {\n" +
-            "          \"full_name\" : \"field1\",\n" +
-            "          \"mapping\" : {\n" +
-            "            \"field1\" : {\n"+
-            "              \"type\" : \"string\"\n" +
-            "            }\n" +
-            "          }\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }\n" +
-            "  }\n"+
-            "}\n";
-        assertThat(responseStrings, equalTo(expectedStrings));
+        assertTrue(responseStrings.contains("\"mapping\" : {\n"));
+
+        // pretty=false
+        params.put("pretty", "false");
+
+        response = client().admin().indices().prepareGetFieldMappings("index").setTypes("type").setFields("field1","obj.subfield").get();
+        responseBuilder = XContentFactory.jsonBuilder().prettyPrint().lfAtEnd();
+        responseBuilder.startObject();
+        response.toXContent(responseBuilder, new ToXContent.MapParams(params));
+        responseBuilder.endObject();
+        responseStrings = responseBuilder.string();
+
+        assertFalse(responseStrings.contains("\"mapping\" : {\n"));
+
     }
 }

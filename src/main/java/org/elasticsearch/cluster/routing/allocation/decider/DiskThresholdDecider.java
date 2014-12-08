@@ -36,7 +36,6 @@ import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.InternalClusterInfoService.shardIdentifierFromRouting;
@@ -87,6 +86,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         public void onRefreshSettings(Settings settings) {
             String newLowWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, null);
             String newHighWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, null);
+            Boolean newRelocationsSetting = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS, null);
             Boolean newEnableSetting =  settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, null);
             TimeValue newRerouteInterval = settings.getAsTime(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL, null);
 
@@ -94,6 +94,11 @@ public class DiskThresholdDecider extends AllocationDecider {
                 logger.info("updating [{}] from [{}] to [{}]", CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED,
                         DiskThresholdDecider.this.enabled, newEnableSetting);
                 DiskThresholdDecider.this.enabled = newEnableSetting;
+            }
+            if (newRelocationsSetting != null) {
+                logger.info("updating [{}] from [{}] to [{}]", CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS,
+                        DiskThresholdDecider.this.includeRelocations, newRelocationsSetting);
+                DiskThresholdDecider.this.includeRelocations = newRelocationsSetting;
             }
             if (newLowWatermark != null) {
                 if (!validWatermarkSetting(newLowWatermark)) {

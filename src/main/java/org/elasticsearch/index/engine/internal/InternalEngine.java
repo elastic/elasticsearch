@@ -26,6 +26,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -1213,9 +1214,12 @@ public class InternalEngine implements Engine {
         }
         return t;
     }
-
-    private static long getReaderRamBytesUsed(LeafReaderContext reader) {
-        return segmentReader(reader.reader()).ramBytesUsed();
+    
+    private long guardedRamBytesUsed(Accountable a) {
+        if (a == null) {
+            return 0;
+        }
+        return a.ramBytesUsed();
     }
 
     @Override
@@ -1225,7 +1229,13 @@ public class InternalEngine implements Engine {
             try (final Searcher searcher = acquireSearcher("segments_stats")) {
                 SegmentsStats stats = new SegmentsStats();
                 for (LeafReaderContext reader : searcher.reader().leaves()) {
-                    stats.add(1, getReaderRamBytesUsed(reader));
+                    final SegmentReader segmentReader = segmentReader(reader.reader());
+                    stats.add(1, segmentReader.ramBytesUsed());
+                    stats.addTermsMemoryInBytes(guardedRamBytesUsed(segmentReader.fields()));
+                    stats.addStoredFieldsMemoryInBytes(guardedRamBytesUsed(segmentReader.getFieldsReader()));
+                    stats.addTermVectorsMemoryInBytes(guardedRamBytesUsed(segmentReader.getTermVectorsReader()));
+                    stats.addNormsMemoryInBytes(guardedRamBytesUsed(segmentReader.getNormsReader()));
+                    stats.addDocValuesMemoryInBytes(guardedRamBytesUsed(segmentReader.getDocValuesReader()));
                 }
                 stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
                 stats.addIndexWriterMemoryInBytes(indexWriter.ramBytesUsed());
@@ -1258,7 +1268,9 @@ public class InternalEngine implements Engine {
                     } catch (IOException e) {
                         logger.trace("failed to get size for [{}]", e, info.info.name);
                     }
-                    segment.memoryInBytes = getReaderRamBytesUsed(reader);
+                    final SegmentReader segmentReader = segmentReader(reader.reader());
+                    segment.memoryInBytes = segmentReader.ramBytesUsed();
+                    // TODO: add more fine grained mem stats values to per segment info here
                     segments.put(info.info.name, segment);
                 }
             } finally {

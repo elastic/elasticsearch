@@ -28,7 +28,7 @@ public final class Validation {
         }
 
         public static Error validatePassword(char[] password) {
-            return password.length > MIN_PASSWD_LENGTH ?
+            return password.length >= MIN_PASSWD_LENGTH ?
                     null :
                     new Error("passwords must must be at least [" + MIN_PASSWD_LENGTH + "] charachters long");
         }

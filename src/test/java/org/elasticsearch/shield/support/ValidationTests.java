@@ -64,6 +64,17 @@ public class ValidationTests extends ElasticsearchTestCase {
     }
 
     @Test @Repeat(iterations = 100)
+    public void testESUsers_validatePassword() throws Exception {
+        String passwd = randomAsciiOfLength(randomIntBetween(0, 20));
+        logger.info(passwd + "[{}]", passwd.length());
+        if (passwd.length() >= 6) {
+            assertThat(Validation.ESUsers.validatePassword(passwd.toCharArray()), nullValue());
+        } else {
+            assertThat(Validation.ESUsers.validatePassword(passwd.toCharArray()), notNullValue());
+        }
+    }
+
+    @Test @Repeat(iterations = 100)
     public void testRoles_validateRoleName() throws Exception {
         int length = randomIntBetween(1, 30);
         String name = new String(generateValidName(length));

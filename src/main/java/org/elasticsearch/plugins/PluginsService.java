@@ -21,7 +21,6 @@ package org.elasticsearch.plugins;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.*;
-import com.google.common.primitives.Chars;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -42,13 +41,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.net.URL;
-import java.nio.charset.Charset;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.file.*;
 import java.util.*;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
@@ -60,6 +59,9 @@ public class PluginsService extends AbstractComponent {
     public static final String ES_PLUGIN_PROPERTIES_FILE_KEY = "properties_file";
     public static final String ES_PLUGIN_PROPERTIES = "es-plugin.properties";
     public static final String LOAD_PLUGIN_FROM_CLASSPATH = "load_classpath_plugins";
+
+    private static final PathMatcher PLUGIN_LIB_MATCHER = FileSystems.getDefault().getPathMatcher("glob:**.{jar,zip}");
+
 
     private final Environment environment;
 
@@ -368,6 +370,7 @@ public class PluginsService extends AbstractComponent {
             return;
         }
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory)) {
+
             for (Path plugin : stream) {
                 // We check that subdirs are directories and readable
                 if (!isAccessibleDirectory(plugin, logger)) {
@@ -389,7 +392,7 @@ public class PluginsService extends AbstractComponent {
 
                     // if there are jars in it, add it as well
                     for (Path libFile : libFiles) {
-                        if (!(libFile.getFileName().endsWith(".jar") || libFile.getFileName().endsWith(".zip"))) {
+                        if (!hasLibExtension(libFile)) {
                             continue;
                         }
                         addURL.invoke(classLoader, libFile.toUri().toURL());
@@ -399,6 +402,10 @@ public class PluginsService extends AbstractComponent {
                 }
             }
         }
+    }
+
+    protected static boolean hasLibExtension(Path lib) {
+        return PLUGIN_LIB_MATCHER.matches(lib);
     }
 
     private Path[] files(Path from) throws IOException {

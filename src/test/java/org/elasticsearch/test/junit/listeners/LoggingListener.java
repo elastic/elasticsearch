@@ -47,7 +47,7 @@ public class LoggingListener extends RunListener {
 
     @Override
     public void testRunStarted(Description description) throws Exception {
-        previousPackageLoggingMap = processTestLogging( description.getTestClass().getPackage().getAnnotation(TestLogging.class));
+        previousPackageLoggingMap = processTestLogging(description.getTestClass().getPackage().getAnnotation(TestLogging.class));
         previousClassLoggingMap = processTestLogging(description.getAnnotation(TestLogging.class));
     }
 
@@ -80,11 +80,13 @@ public class LoggingListener extends RunListener {
         if (map == null) {
             return null;
         }
+        Map<String, String> previousValues = new HashMap<>();
         for (Map.Entry<String, String> entry : map.entrySet()) {
             ESLogger esLogger = resolveLogger(entry.getKey());
+            previousValues.put(entry.getKey(), esLogger.getLevel());
             esLogger.setLevel(entry.getValue());
         }
-        return map;
+        return previousValues;
     }
 
     public static Map<String, String> getLoggersAndLevelsFromAnnotation(TestLogging testLogging) {

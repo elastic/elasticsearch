@@ -143,21 +143,17 @@ import static org.hamcrest.Matchers.*;
 
 /**
  * {@link ElasticsearchIntegrationTest} is an abstract base class to run integration
- * tests against a JVM private Elasticsearch Cluster. The test class supports 3 different
+ * tests against a JVM private Elasticsearch Cluster. The test class supports 2 different
  * cluster scopes.
  * <ul>
- * <li>{@link Scope#GLOBAL} - uses a cluster shared across test suites. This cluster doesn't allow any modifications to
- * the cluster settings and will fail if any persistent cluster settings are applied during tear down.</li>
  * <li>{@link Scope#TEST} - uses a new cluster for each individual test method.</li>
- * <li>{@link Scope#SUITE} - uses a cluster shared across all test method in the same suite</li>
+ * <li>{@link Scope#SUITE} - uses a cluster shared across all test methods in the same suite</li>
  * </ul>
  * <p/>
- * The most common test scope it {@link Scope#GLOBAL} which shares a cluster per JVM. This cluster is only set-up once
- * and can be used as long as the tests work on a per index basis without changing any cluster wide settings or require
- * any specific node configuration. This is the best performing option since it sets up the cluster only once.
+ * The most common test scope is {@link Scope#SUITE} which shares a cluster per test suite.
  * <p/>
- * If the tests need specific node settings or change persistent and/or transient cluster settings either {@link Scope#TEST}
- * or {@link Scope#SUITE} should be used. To configure a scope for the test cluster the {@link ClusterScope} annotation
+ * If the test methods need specific node settings or change persistent and/or transient cluster settings {@link Scope#TEST}
+ * should be used. To configure a scope for the test cluster the {@link ClusterScope} annotation
  * should be used, here is an example:
  * <pre>
  *
@@ -166,12 +162,11 @@ import static org.hamcrest.Matchers.*;
  * }
  * </pre>
  * <p/>
- * If no {@link ClusterScope} annotation is present on an integration test the default scope it {@link Scope#GLOBAL}
+ * If no {@link ClusterScope} annotation is present on an integration test the default scope is {@link Scope#SUITE}
  * <p/>
  * A test cluster creates a set of nodes in the background before the test starts. The number of nodes in the cluster is
- * determined at random and can change across tests. The minimum number of nodes in the shared global cluster is <code>2</code>.
- * For other scopes the {@link ClusterScope} allows configuring the initial number of nodes that are created before
- * the tests start.
+ * determined at random and can change across tests. The {@link ClusterScope} allows configuring the initial number of nodes 
+ * that are created before the tests start.
  * <p/>
  *  <pre>
  * @ClusterScope(scope=Scope.SUITE, numDataNodes=3)
@@ -204,7 +199,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     public static final String SUITE_CLUSTER_NODE_PREFIX = "node_s";
     public static final String TEST_CLUSTER_NODE_PREFIX = "node_t";
 
-    private static TestCluster GLOBAL_CLUSTER;
     /**
      * Key used to set the transport client ratio via the commandline -D{@value #TESTS_CLIENT_RATIO}
      */
@@ -277,9 +271,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         try {
             final Scope currentClusterScope = getCurrentClusterScope();
             switch (currentClusterScope) {
-                case GLOBAL:
-                    currentCluster = buildAndPutCluster(currentClusterScope, SeedUtils.parseSeed(RandomizedContext.current().getRunnerSeedAsString()));
-                    break;
                 case SUITE:
                     assert SUITE_SEED != null : "Suite seed was not initialized";
                     currentCluster = buildAndPutCluster(currentClusterScope, SUITE_SEED.longValue());
@@ -571,12 +562,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         TestCluster testCluster = clusters.remove(clazz); // remove this cluster first
         clearClusters(); // all leftovers are gone by now... this is really just a double safety if we miss something somewhere
         switch (currentClusterScope) {
-            case GLOBAL:
-                // never put the global cluster into the map otherwise it will be closed
-                if (GLOBAL_CLUSTER == null) {
-                    return GLOBAL_CLUSTER = buildWithPrivateContext(currentClusterScope, seed);
-                }
-                return GLOBAL_CLUSTER;
             case SUITE:
                 if (testCluster == null) { // only build if it's not there yet
                     testCluster = buildWithPrivateContext(currentClusterScope, seed);
@@ -588,7 +573,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 testCluster = buildTestCluster(currentClusterScope, seed);
                 break;
         }
-        assert testCluster != GLOBAL_CLUSTER : "Global cluster must be handled via the GLOBAL_CLUSTER static member";
         clusters.put(clazz, testCluster);
         return testCluster;
     }
@@ -635,12 +619,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 // we also reset everything in the case we had a failure in the suite to make sure subsequent
                 // tests get a new / clean cluster
                 clearClusters();
-                if (currentCluster == GLOBAL_CLUSTER) {
-                    if (GLOBAL_CLUSTER != null) {
-                        IOUtils.closeWhileHandlingException(GLOBAL_CLUSTER);
-                    }
-                    GLOBAL_CLUSTER = null;
-                }
                 currentCluster = null;
             }
             if (currentCluster != null) {
@@ -1431,11 +1409,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     public static enum Scope {
         /**
-         * A globally shared cluster. This cluster doesn't allow modification of transient or persistent
-         * cluster settings.
-         */
-        GLOBAL,
-        /**
          * A cluster shared across all method in a single test suite
          */
         SUITE,
@@ -1447,16 +1420,16 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     /**
      * Defines a cluster scope for a {@link org.elasticsearch.test.ElasticsearchIntegrationTest} subclass.
-     * By default if no {@link ClusterScope} annotation is present {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#GLOBAL} is used
+     * By default if no {@link ClusterScope} annotation is present {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#SUITE} is used
      * together with randomly chosen settings like number of nodes etc.
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ElementType.TYPE})
     public @interface ClusterScope {
         /**
-         * Returns the scope. {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#GLOBAL} is default.
+         * Returns the scope. {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#SUITE} is default.
          */
-        Scope scope() default Scope.GLOBAL;
+        Scope scope() default Scope.SUITE;
 
         /**
          * Returns the number of nodes in the cluster. Default is <tt>-1</tt> which means
@@ -1570,8 +1543,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     private static Scope getCurrentClusterScope(Class<?> clazz) {
         ClusterScope annotation = getAnnotation(clazz);
-        // if we are not annotated assume global!
-        return annotation == null ? Scope.GLOBAL : annotation.scope();
+        // if we are not annotated assume suite!
+        return annotation == null ? Scope.SUITE : annotation.scope();
     }
 
     private int getNumDataNodes() {
@@ -1639,12 +1612,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         SettingsSource settingsSource = InternalTestCluster.DEFAULT_SETTINGS_SOURCE;
         final String nodePrefix;
         switch (scope) {
-            case GLOBAL:
-                if (globalCompatibilityVersion().before(Version.V_1_2_0)) {
-                    numClientNodes = 0;
-                }
-                nodePrefix = GLOBAL_CLUSTER_NODE_PREFIX;
-                break;
             case TEST:
                 nodePrefix = TEST_CLUSTER_NODE_PREFIX;
                 break;
@@ -1654,50 +1621,30 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             default:
                 throw new ElasticsearchException("Scope not supported: " + scope);
         }
-        if (scope == Scope.GLOBAL) {
-            String cluster = System.getProperty(TESTS_CLUSTER);
-            if (Strings.hasLength(cluster)) {
-                String[] stringAddresses = cluster.split(",");
-                TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
-                int i = 0;
-                for (String stringAddress : stringAddresses) {
-                    String[] split = stringAddress.split(":");
-                    if (split.length < 2) {
-                        throw new IllegalArgumentException("address [" + cluster + "] not valid");
-                    }
-                    try {
-                        transportAddresses[i++] = new InetSocketTransportAddress(split[0], Integer.valueOf(split[1]));
-                    } catch (NumberFormatException e) {
-                        throw new IllegalArgumentException("port is not valid, expected number but was [" + split[1] + "]");
-                    }
-                }
-                return new ExternalTestCluster(transportAddresses);
+        settingsSource = new SettingsSource() {
+            @Override
+            public Settings node(int nodeOrdinal) {
+                return ImmutableSettings.builder().put(InternalNode.HTTP_ENABLED, false).
+                        put(nodeSettings(nodeOrdinal)).build();
             }
+            
+            @Override
+            public Settings transportClient() {
+                return transportClientSettings();
+            }
+        };
+        
+        int numDataNodes = getNumDataNodes();
+        if (numDataNodes >= 0) {
+            minNumDataNodes = maxNumDataNodes = numDataNodes;
         } else {
-            settingsSource = new SettingsSource() {
-                @Override
-                public Settings node(int nodeOrdinal) {
-                    return ImmutableSettings.builder().put(InternalNode.HTTP_ENABLED, false).
-                            put(nodeSettings(nodeOrdinal)).build();
-                }
-
-                @Override
-                public Settings transportClient() {
-                    return transportClientSettings();
-                }
-            };
-
-            int numDataNodes = getNumDataNodes();
-            if (numDataNodes >= 0) {
-                minNumDataNodes = maxNumDataNodes = numDataNodes;
-            } else {
-                minNumDataNodes = getMinNumDataNodes();
-                maxNumDataNodes = getMaxNumDataNodes();
-            }
-
-            numClientNodes = getNumClientNodes();
-            enableRandomBenchNodes = enableRandomBenchNodes();
+            minNumDataNodes = getMinNumDataNodes();
+            maxNumDataNodes = getMaxNumDataNodes();
         }
+        
+        numClientNodes = getNumClientNodes();
+        enableRandomBenchNodes = enableRandomBenchNodes();
+        
         return new InternalTestCluster(seed, minNumDataNodes, maxNumDataNodes,
                 clusterName(scope.name(), Integer.toString(CHILD_JVM_ID), seed), settingsSource, numClientNodes,
                 enableRandomBenchNodes, enableHttpPipelining, CHILD_JVM_ID, nodePrefix);

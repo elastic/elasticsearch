@@ -116,17 +116,10 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
         }
 
         private static int scopeId(ElasticsearchIntegrationTest.Scope scope) {
-            switch(scope) {
-                case GLOBAL:
-                    //we reserve a special base port for global clusters, as they stick around
-                    //the assumption is that no counter is needed as there's only one global cluster per jvm
-                    return 0;
-                default:
-                    //ports can be reused as suite or test clusters are never run concurrently
-                    //we don't reuse the same port immediately though but leave some time to make sure ports are freed
-                    //reserve 0 to global cluster, prevent conflicts between jvms by never going above 9
-                    return 1 + portCounter.incrementAndGet() % 9;
-            }
+            //ports can be reused as suite or test clusters are never run concurrently
+            //we don't reuse the same port immediately though but leave some time to make sure ports are freed
+            //prevent conflicts between jvms by never going above 9
+            return portCounter.incrementAndGet() % 9;
         }
 
         @Override

@@ -50,7 +50,7 @@ public class SimpleRecoveryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleRecovery() throws Exception {
-        assertAcked(prepareCreate("test", 1).execute().actionGet(5000));
+        assertAcked(prepareCreate("test", 1).execute().actionGet());
 
         NumShards numShards = getNumShards("test");
 
@@ -76,13 +76,13 @@ public class SimpleRecoveryTests extends ElasticsearchIntegrationTest {
         GetResponse getResult;
 
         for (int i = 0; i < 5; i++) {
-            getResult = client().get(getRequest("test").type("type1").id("1").operationThreaded(false)).actionGet(1000);
+            getResult = client().get(getRequest("test").type("type1").id("1").operationThreaded(false)).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
-            getResult = client().get(getRequest("test").type("type1").id("1").operationThreaded(false)).actionGet(1000);
+            getResult = client().get(getRequest("test").type("type1").id("1").operationThreaded(false)).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
-            getResult = client().get(getRequest("test").type("type1").id("2").operationThreaded(true)).actionGet(1000);
+            getResult = client().get(getRequest("test").type("type1").id("2").operationThreaded(true)).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
-            getResult = client().get(getRequest("test").type("type1").id("2").operationThreaded(true)).actionGet(1000);
+            getResult = client().get(getRequest("test").type("type1").id("2").operationThreaded(true)).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
         }
 
@@ -93,17 +93,17 @@ public class SimpleRecoveryTests extends ElasticsearchIntegrationTest {
         ensureGreen();
 
         for (int i = 0; i < 5; i++) {
-            getResult = client().get(getRequest("test").type("type1").id("1")).actionGet(1000);
+            getResult = client().get(getRequest("test").type("type1").id("1")).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
-            getResult = client().get(getRequest("test").type("type1").id("1")).actionGet(1000);
+            getResult = client().get(getRequest("test").type("type1").id("1")).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
-            getResult = client().get(getRequest("test").type("type1").id("1")).actionGet(1000);
+            getResult = client().get(getRequest("test").type("type1").id("1")).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
-            getResult = client().get(getRequest("test").type("type1").id("2").operationThreaded(true)).actionGet(1000);
+            getResult = client().get(getRequest("test").type("type1").id("2").operationThreaded(true)).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
-            getResult = client().get(getRequest("test").type("type1").id("2").operationThreaded(true)).actionGet(1000);
+            getResult = client().get(getRequest("test").type("type1").id("2").operationThreaded(true)).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
-            getResult = client().get(getRequest("test").type("type1").id("2").operationThreaded(true)).actionGet(1000);
+            getResult = client().get(getRequest("test").type("type1").id("2").operationThreaded(true)).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
         }
     }

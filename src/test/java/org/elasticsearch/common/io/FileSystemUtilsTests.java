@@ -24,7 +24,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -47,7 +46,7 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
 
     @Before
     public void copySourceFilesToTarget() throws IOException {
-        Path globalTempDir = globalTempDir().toPath();
+        Path globalTempDir = globalTempDirPath();
         src = globalTempDir.resolve("iocopyappend-src");
         dst = globalTempDir.resolve("iocopyappend-dst");
         Files.createDirectories(src);
@@ -92,7 +91,7 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
 
     @Test
     public void testMoveOverExistingFileAndIgnore() throws IOException {
-        Path dest = globalTempDir().toPath();
+        Path dest = globalTempDirPath();
 
         FileSystemUtils.moveFilesWithoutOverwriting(src.resolve("v1"), dest, null);
         assertFileContent(dest, "file1.txt", "version1");

@@ -23,6 +23,7 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.Iterables;
+
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
@@ -70,10 +71,10 @@ import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 
-import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -787,22 +788,8 @@ public class ElasticsearchAssertions {
     /**
      * Check if a file exists
      */
-    public static void assertFileExists(File file) {
-        assertThat("file/dir [" + file + "] should exist.", file.exists(), is(true));
-    }
-
-    /**
-     * Check if a file exists
-     */
     public static void assertFileExists(Path file) {
-        assertFileExists(file.toFile());
-    }
-
-    /**
-     * Check if a directory exists
-     */
-    public static void assertDirectoryExists(File dir) {
-        assertFileExists(dir);
+        assertThat("file/dir [" + file + "] should exist.", Files.exists(file), is(true));
     }
 
     /**
@@ -810,5 +797,6 @@ public class ElasticsearchAssertions {
      */
     public static void assertDirectoryExists(Path dir) {
         assertFileExists(dir);
+        assertThat("file [" + dir + "] should be a directory.", Files.isDirectory(dir), is(true));
     }
 }

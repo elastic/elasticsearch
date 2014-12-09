@@ -28,6 +28,7 @@ import org.junit.AfterClass;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 
 /**
@@ -42,13 +43,13 @@ public class FsBufferedTranslogTests extends AbstractSimpleTranslogTests {
                         .put("index.translog.fs.type", FsTranslogFile.Type.BUFFERED.name())
                         .put("index.translog.fs.buffer_size", 10 + randomInt(128 * 1024))
                         .build(),
-                Paths.get(translogFileDirectory())
+                translogFileDirectory()
         );
     }
 
     @Override
-    protected String translogFileDirectory() {
-        return "data/fs-buf-translog";
+    protected Path translogFileDirectory() {
+        return Paths.get("data/fs-buf-translog");
     }
 
     @AfterClass

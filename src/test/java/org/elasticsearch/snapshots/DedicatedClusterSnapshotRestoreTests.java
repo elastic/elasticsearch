@@ -25,6 +25,7 @@ import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
@@ -58,8 +59,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -116,7 +117,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
     @Test
     public void restoreCustomMetadata() throws Exception {
-        File tempDir = newTempDir();
+        Path tempDir = newTempDirPath();
 
         logger.info("--> start node");
         internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
@@ -308,7 +309,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(100L));
 
         logger.info("--> creating repository");
-        File repo = newTempDir(LifecycleScope.TEST);
+        Path repo = newTempDirPath(LifecycleScope.TEST);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(
                         ImmutableSettings.settingsBuilder()

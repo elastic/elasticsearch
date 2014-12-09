@@ -30,8 +30,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import java.io.File;
 import java.net.URL;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,10 +48,10 @@ public class Log4jESLoggerTests extends ElasticsearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         LogConfigurator.reset();
-        File configDir = resolveConfigDir();
+        Path configDir = resolveConfigDir();
         // Need to set custom path.conf so we can use a custom logging.yml file for the test
         Settings settings = ImmutableSettings.builder()
-                .put("path.conf", configDir.getAbsolutePath())
+                .put("path.conf", configDir.toAbsolutePath())
                 .build();
         LogConfigurator.configure(settings);
 
@@ -114,9 +115,9 @@ public class Log4jESLoggerTests extends ElasticsearchTestCase {
         
     }
 
-    private static File resolveConfigDir() throws Exception {
+    private static Path resolveConfigDir() throws Exception {
         URL url = Log4jESLoggerTests.class.getResource("config");
-        return new File(url.toURI());
+        return Paths.get(url.toURI());
     }
 
     private static class TestAppender extends AppenderSkeleton {

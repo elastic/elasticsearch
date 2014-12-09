@@ -114,7 +114,7 @@ public class ScriptedMetricTests extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("path.conf", getResource("/org/elasticsearch/search/aggregations/metrics/scripted/conf"))
+                .put("path.conf", getResourcePath("/org/elasticsearch/search/aggregations/metrics/scripted/conf"))
                 .build();
         return settings;
     }

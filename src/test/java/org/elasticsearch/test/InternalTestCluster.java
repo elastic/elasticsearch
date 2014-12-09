@@ -29,6 +29,7 @@ import com.google.common.collect.*;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.util.AbstractRandomizedTest;
@@ -108,6 +109,7 @@ import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -277,7 +279,7 @@ public final class InternalTestCluster extends TestCluster {
             if (numOfDataPaths > 0) {
                 StringBuilder dataPath = new StringBuilder();
                 for (int i = 0; i < numOfDataPaths; i++) {
-                    dataPath.append(new File("data/d" + i).getAbsolutePath()).append(',');
+                    dataPath.append(Paths.get("data/d" + i).toAbsolutePath()).append(',');
                 }
                 builder.put("path.data", dataPath.toString());
             }

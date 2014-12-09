@@ -291,7 +291,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
     public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
         Settings build = ImmutableSettings.builder()
                 .put(settings)
-                .put("path.home", newTempDir().getAbsolutePath())
+                .put("path.home", newTempDirPath().toAbsolutePath())
                 .putArray("path.data", tmpPaths()).build();
         return new NodeEnvironment(build, new Environment(build));
     }

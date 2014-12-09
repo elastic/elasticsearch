@@ -20,6 +20,7 @@ package org.elasticsearch.gateway.local.state.meta;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.collect.Iterators;
+
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -50,10 +51,12 @@ import java.io.InputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.net.URISyntaxException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -88,7 +91,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
                 return MetaData.Builder.fromXContent(parser);
             }
         };
-        Path tmp = newTempDir().toPath();
+        Path tmp = newTempDirPath();
         final InputStream resource = this.getClass().getResourceAsStream("global-3.st");
         assertThat(resource, notNullValue());
         Path dst = tmp.resolve("global-3.st");
@@ -102,7 +105,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
     public void testReadWriteState() throws IOException {
         Path[] dirs = new Path[randomIntBetween(1, 5)];
         for (int i = 0; i < dirs.length; i++) {
-            dirs[i] = newTempDir(LifecycleScope.TEST).toPath();
+            dirs[i] = newTempDirPath(LifecycleScope.TEST);
         }
         final boolean deleteOldFiles = randomBoolean();
         Format format = new Format(randomFrom(XContentType.values()), deleteOldFiles);
@@ -153,7 +156,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
     public void testVersionMismatch() throws IOException {
         Path[] dirs = new Path[randomIntBetween(1, 5)];
         for (int i = 0; i < dirs.length; i++) {
-            dirs[i] = newTempDir(LifecycleScope.TEST).toPath();
+            dirs[i] = newTempDirPath(LifecycleScope.TEST);
         }
         final boolean deleteOldFiles = randomBoolean();
         Format format = new Format(randomFrom(XContentType.values()), deleteOldFiles);
@@ -183,7 +186,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
     public void testCorruption() throws IOException {
         Path[] dirs = new Path[randomIntBetween(1, 5)];
         for (int i = 0; i < dirs.length; i++) {
-            dirs[i] = newTempDir(LifecycleScope.TEST).toPath();
+            dirs[i] = newTempDirPath(LifecycleScope.TEST);
         }
         final boolean deleteOldFiles = randomBoolean();
         Format format = new Format(randomFrom(XContentType.values()), deleteOldFiles);
@@ -219,14 +222,19 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
             try (IndexInput input = dir.openInput(fileToCorrupt.getFileName().toString(), IOContext.DEFAULT)) {
                 checksumBeforeCorruption = CodecUtil.retrieveChecksum(input);
             }
-            try (RandomAccessFile raf = new RandomAccessFile(fileToCorrupt.toAbsolutePath().toString(), "rw")) {
-                raf.seek(randomIntBetween(0, (int)Math.min(Integer.MAX_VALUE, raf.length()-1)));
-                long filePointer = raf.getFilePointer();
-                byte b = raf.readByte();
-                raf.seek(filePointer);
-                raf.writeByte(~b);
-                raf.getFD().sync();
-                logger.debug("Corrupting file {} --  flipping at position {} from {} to {} ", fileToCorrupt.getFileName().toString(), filePointer, Integer.toHexString(b), Integer.toHexString(~b));
+            try (FileChannel raf = FileChannel.open(fileToCorrupt, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
+                raf.position(randomIntBetween(0, (int)Math.min(Integer.MAX_VALUE, raf.size()-1)));
+                long filePointer = raf.position();
+                ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
+                raf.read(bb);
+                
+                bb.flip();
+                byte oldValue = bb.get(0);
+                byte newValue = (byte) ~oldValue;
+                
+                raf.position(filePointer);
+                raf.write(bb);
+                logger.debug("Corrupting file {} --  flipping at position {} from {} to {} ", fileToCorrupt.getFileName().toString(), filePointer, Integer.toHexString(oldValue), Integer.toHexString(newValue));
             }
         long checksumAfterCorruption;
         long actualChecksumAfterCorruption;
@@ -253,8 +261,8 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         final ToXContent.Params params = ToXContent.EMPTY_PARAMS;
         MetaDataStateFormat<MetaData> format = LocalGatewayMetaState.globalStateFormat(randomFrom(XContentType.values()), params, randomBoolean());
         final Path[] dirs = new Path[2];
-        dirs[0] = newTempDir(LifecycleScope.TEST).toPath();
-        dirs[1] = newTempDir(LifecycleScope.TEST).toPath();
+        dirs[0] = newTempDirPath(LifecycleScope.TEST);
+        dirs[1] = newTempDirPath(LifecycleScope.TEST);
         for (Path dir : dirs) {
             Files.createDirectories(dir.resolve(MetaDataStateFormat.STATE_DIR_NAME));
         }
@@ -288,8 +296,8 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         final ToXContent.Params params = ToXContent.EMPTY_PARAMS;
         MetaDataStateFormat<MetaData> format = LocalGatewayMetaState.globalStateFormat(randomFrom(XContentType.values()), params, randomBoolean());
         final Path[] dirs = new Path[2];
-        dirs[0] = newTempDir(LifecycleScope.TEST).toPath();
-        dirs[1] = newTempDir(LifecycleScope.TEST).toPath();
+        dirs[0] = newTempDirPath(LifecycleScope.TEST);
+        dirs[1] = newTempDirPath(LifecycleScope.TEST);
         for (Path dir : dirs) {
             Files.createDirectories(dir.resolve(MetaDataStateFormat.STATE_DIR_NAME));
         }
@@ -329,7 +337,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         Set<Path> corruptedFiles = new HashSet<>();
         MetaDataStateFormat<MetaData> format = LocalGatewayMetaState.globalStateFormat(randomFrom(XContentType.values()), params, randomBoolean());
         for (int i = 0; i < dirs.length; i++) {
-            dirs[i] = newTempDir(LifecycleScope.TEST).toPath();
+            dirs[i] = newTempDirPath(LifecycleScope.TEST);
             Files.createDirectories(dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME));
             for (int j = 0; j < numLegacy; j++) {
                 XContentType type = format.format();

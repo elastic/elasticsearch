@@ -26,6 +26,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
+
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.IOUtils;
@@ -71,6 +72,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -115,13 +117,14 @@ import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
 import org.junit.*;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1850,31 +1853,31 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     /**
      * Return settings that could be used to start a node that has the given zipped home directory.
      */
-    protected Settings prepareBackwardsDataDir(File backwardsIndex, Object... settings) throws IOException {
-        File indexDir = newTempDir();
-        File dataDir = new File(indexDir, "data");
-        try (FileInputStream stream = new FileInputStream(backwardsIndex)) {
-            TestUtil.unzip(stream, indexDir.toPath());
+    protected Settings prepareBackwardsDataDir(Path backwardsIndex, Object... settings) throws IOException {
+        Path indexDir = newTempDirPath();
+        Path dataDir = indexDir.resolve("data");
+        try (InputStream stream = Files.newInputStream(backwardsIndex)) {
+            TestUtil.unzip(stream, indexDir);
         }
-        assertTrue(dataDir.exists());
-        String[] list = dataDir.list();
-        if (list == null || list.length > 1) {
+        assertTrue(Files.exists(dataDir));
+        Path[] list = FileSystemUtils.files(dataDir);
+        if (list.length != 1) {
             throw new IllegalStateException("Backwards index must contain exactly one cluster");
         }
-        File src = new File(dataDir, list[0]);
-        File dest = new File(dataDir, internalCluster().getClusterName());
-        assertTrue(src.exists());
-        src.renameTo(dest);
-        assertFalse(src.exists());
-        assertTrue(dest.exists());
+        Path src = list[0];
+        Path dest = dataDir.resolve(internalCluster().getClusterName());
+        assertTrue(Files.exists(src));
+        Files.move(src, dest);
+        assertFalse(Files.exists(src));
+        assertTrue(Files.exists(dest));
         ImmutableSettings.Builder builder = ImmutableSettings.builder()
                 .put(settings)
                 .put("gateway.type", "local") // this is important we need to recover from gateway
-                .put("path.data", dataDir.getPath());
+                .put("path.data", dataDir.toAbsolutePath());
 
-        File configDir = new File(indexDir, "config");
-        if (configDir.exists()) {
-            builder.put("path.conf", configDir.getPath());
+        Path configDir = indexDir.resolve("config");
+        if (Files.exists(configDir)) {
+            builder.put("path.conf", configDir.toAbsolutePath());
         }
         return builder.build();
     }

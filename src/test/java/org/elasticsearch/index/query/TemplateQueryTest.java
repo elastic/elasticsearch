@@ -65,7 +65,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
-                .put("path.conf", this.getResource("config").getPath()).build();
+                .put("path.conf", this.getResourcePath("config")).build();
     }
 
     @Test

@@ -164,7 +164,7 @@ public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
         responseBuilder.endObject();
         String responseStrings = responseBuilder.string();
 
-        assertTrue(responseStrings.contains("\"mapping\" : {\n"));
+        assertFalse(responseStrings.contains(":{"));
 
         params.put("pretty", "false");
 
@@ -175,7 +175,7 @@ public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
         responseBuilder.endObject();
         responseStrings = responseBuilder.string();
 
-        assertFalse(responseStrings.contains("\"mapping\" : {\n"));
+        assertTrue(responseStrings.contains(":{"));
 
     }
 }

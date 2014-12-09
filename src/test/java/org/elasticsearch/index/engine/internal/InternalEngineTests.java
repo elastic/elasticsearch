@@ -1480,7 +1480,8 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                     try {
                         holder.start();
                         assertEquals(store.refCount(), refCount + 2);
-                        break;
+                        holder.stop();
+                        assertEquals(store.refCount(), refCount + 1);
                     } catch (EngineCreationFailureException ex) {
                         // all is fine
                         if (ex.getCause() instanceof CorruptIndexException) {

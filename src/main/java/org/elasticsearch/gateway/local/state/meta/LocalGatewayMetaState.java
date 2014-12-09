@@ -27,7 +27,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
-import org.elasticsearch.bootstrap.Elasticsearch;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
@@ -39,7 +38,6 @@ import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -51,13 +49,10 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -167,7 +162,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
         }
         if (DiscoveryNode.masterNode(settings)) {
             try {
-                pre019Upgrade();
+                ensureNoPre019State();
                 pre20Upgrade();
                 long start = System.currentTimeMillis();
                 loadState();
@@ -479,11 +474,10 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
     }
 
 
-    private void pre019Upgrade() throws Exception {
-        long index = -1;
-        Path metaDataFile = null;
-        MetaData metaData = null;
-        long version = -1;
+    /**
+     * Throws an IAE if a pre 0.19 state is detected
+     */
+    private void ensureNoPre019State() throws Exception {
         for (Path dataLocation : nodeEnv.nodeDataPaths()) {
             final Path stateLocation = dataLocation.resolve(MetaDataStateFormat.STATE_DIR_NAME);
             if (!Files.exists(stateLocation)) {
@@ -494,86 +488,15 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                     if (logger.isTraceEnabled()) {
                         logger.trace("[upgrade]: processing [" + stateFile.getFileName() + "]");
                     }
-                    String name = stateFile.getFileName().toString();
-                    if (!name.startsWith("metadata-")) {
-                        continue;
-                    }
-                    long fileIndex = Long.parseLong(name.substring(name.indexOf('-') + 1));
-                    if (fileIndex >= index) {
-                        // try and read the meta data
-                        try {
-                            byte[] data = Files.readAllBytes(stateFile);
-                            if (data.length == 0) {
-                                continue;
-                            }
-                            try (XContentParser parser = XContentHelper.createParser(data, 0, data.length)) {
-                                String currentFieldName = null;
-                                XContentParser.Token token = parser.nextToken();
-                                if (token != null) {
-                                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                                        if (token == XContentParser.Token.FIELD_NAME) {
-                                            currentFieldName = parser.currentName();
-                                        } else if (token == XContentParser.Token.START_OBJECT) {
-                                            if ("meta-data".equals(currentFieldName)) {
-                                                metaData = MetaData.Builder.fromXContent(parser);
-                                            }
-                                        } else if (token.isValue()) {
-                                            if ("version".equals(currentFieldName)) {
-                                                version = parser.longValue();
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            index = fileIndex;
-                            metaDataFile = stateFile;
-                        } catch (IOException e) {
-                            logger.warn("failed to read pre 0.19 state from [" + name + "], ignoring...", e);
-                        }
+                    final String name = stateFile.getFileName().toString();
+                    if (name.startsWith("metadata-")) {
+                        throw new ElasticsearchIllegalStateException("Detected pre 0.19 metadata file please upgrade to a version before "
+                                + Version.CURRENT.minimumCompatibilityVersion()
+                                + " first to upgrade state structures - metadata found: [" + stateFile.getParent().toAbsolutePath());
                     }
                 }
             }
         }
-        if (metaData == null) {
-            return;
-        }
-
-        logger.info("found old metadata state, loading metadata from [{}] and converting to new metadata location and structure...", metaDataFile.toAbsolutePath());
-
-        writeGlobalState("upgrade", MetaData.builder(metaData).version(version).build());
-        for (IndexMetaData indexMetaData : metaData) {
-            IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(indexMetaData).version(version);
-            // set the created version to 0.18
-            indexMetaDataBuilder.settings(ImmutableSettings.settingsBuilder().put(indexMetaData.settings()).put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_18_0));
-            writeIndex("upgrade", indexMetaDataBuilder.build(), null);
-        }
-
-        // rename shards state to backup state
-        Path backupFile = metaDataFile.resolveSibling("backup-" + metaDataFile.getFileName());
-        Files.move(metaDataFile, backupFile, StandardCopyOption.ATOMIC_MOVE);
-
-        // delete all other shards state files
-        for (Path dataLocation : nodeEnv.nodeDataPaths()) {
-            Path stateLocation = dataLocation.resolve(MetaDataStateFormat.STATE_DIR_NAME);
-            if (!Files.exists(stateLocation)) {
-                continue;
-            }
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(stateLocation)) {
-                for (Path stateFile : stream) {
-                    String name = stateFile.getFileName().toString();
-                    if (!name.startsWith("metadata-")) {
-                        continue;
-                    }
-                    try {
-                        Files.delete(stateFile);
-                    } catch (Exception ex) {
-                        logger.debug("failed to delete file " + stateFile, ex);
-                    }
-                }
-            }
-        }
-
-        logger.info("conversion to new metadata location and format done, backup create at [{}]", backupFile.toAbsolutePath());
     }
 
     /**

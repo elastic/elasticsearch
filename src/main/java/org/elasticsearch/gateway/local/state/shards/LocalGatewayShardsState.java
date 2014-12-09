@@ -20,6 +20,8 @@
 package org.elasticsearch.gateway.local.state.shards;
 
 import com.google.common.collect.Maps;
+import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -27,7 +29,6 @@ import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.*;
@@ -63,7 +64,7 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
         listGatewayStartedShards.initGateway(this);
         if (DiscoveryNode.dataNode(settings)) {
             try {
-                pre019Upgrade();
+                ensureNoPre019State();
                 long start = System.currentTimeMillis();
                 currentState = loadShardsStateInfo();
                 logger.debug("took {} to load started shards state", TimeValue.timeValueMillis(System.currentTimeMillis() - start));
@@ -151,19 +152,6 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
                 it.remove();
             }
         }
-
-        // REMOVED: don't delete shard state, rely on IndicesStore to delete the shard location
-        //          only once all shards are allocated on another node
-        // now, go over the current ones and delete ones that are not in the new one
-//        for (Map.Entry<ShardId, ShardStateInfo> entry : currentState.entrySet()) {
-//            ShardId shardId = entry.getKey();
-//            if (!newState.containsKey(shardId)) {
-//                if (!metaState.isDangling(shardId.index().name())) {
-//                    deleteShardState(shardId);
-//                }
-//            }
-//        }
-
         this.currentState = newState;
     }
 
@@ -249,114 +237,18 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
         };
     }
 
-    private void pre019Upgrade() throws Exception {
-        long index = -1;
-        Path latest = null;
+    private void ensureNoPre019State() throws Exception {
         for (Path dataLocation : nodeEnv.nodeDataPaths()) {
             final Path stateLocation = dataLocation.resolve(MetaDataStateFormat.STATE_DIR_NAME);
-            if (!Files.exists(stateLocation)) {
-                continue;
-            }
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(stateLocation, "shards-*")) {
-                for (Path stateFile : stream) {
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("[find_latest_state]: processing [" + stateFile.getFileName() + "]");
-                    }
-                    String name = stateFile.getFileName().toString();
-                    assert name.startsWith("shards-");
-                    long fileIndex = Long.parseLong(name.substring(name.indexOf('-') + 1));
-                    if (fileIndex >= index) {
-                        // try and read the meta data
-                        try {
-                            byte[] data = Files.readAllBytes(stateFile);
-                            if (data.length == 0) {
-                                logger.debug("[upgrade]: not data for [" + name + "], ignoring...");
-                            }
-                            pre09ReadState(data);
-                            index = fileIndex;
-                            latest = stateFile;
-                        } catch (IOException e) {
-                            logger.warn("[upgrade]: failed to read state from [" + name + "], ignoring...", e);
-                        }
+            if (Files.exists(stateLocation)) {
+                try (DirectoryStream<Path> stream = Files.newDirectoryStream(stateLocation, "shards-*")) {
+                    for (Path stateFile : stream) {
+                        throw new ElasticsearchIllegalStateException("Detected pre 0.19 shard state file please upgrade to a version before "
+                                + Version.CURRENT.minimumCompatibilityVersion()
+                                + " first to upgrade state structures - shard state found: [" + stateFile.getParent().toAbsolutePath());
                     }
                 }
             }
-        }
-        if (latest == null) {
-            return;
-        }
-
-        logger.info("found old shards state, loading started shards from [{}] and converting to new shards state locations...", latest.toAbsolutePath());
-        Map<ShardId, ShardStateInfo> shardsState = pre09ReadState(Files.readAllBytes(latest));
-
-        for (Map.Entry<ShardId, ShardStateInfo> entry : shardsState.entrySet()) {
-            writeShardState("upgrade", entry.getKey(), entry.getValue(), null);
-        }
-
-        // rename shards state to backup state
-        Path backupFile = latest.resolveSibling("backup-" + latest.getFileName());
-        Files.move(latest, backupFile, StandardCopyOption.ATOMIC_MOVE);
-
-        // delete all other shards state files
-        for (Path dataLocation : nodeEnv.nodeDataPaths()) {
-            final Path stateLocation = dataLocation.resolve(MetaDataStateFormat.STATE_DIR_NAME);
-            if (!Files.exists(stateLocation)) {
-                continue;
-            }
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(stateLocation, "shards-*")) {
-                for (Path stateFile : stream) {
-                    try {
-                        Files.delete(stateFile);
-                    } catch (Exception ex) {
-                        logger.debug("Failed to delete state file {}", ex, stateFile);
-                    }
-
-                }
-            }
-        }
-
-        logger.info("conversion to new shards state location and format done, backup create at [{}]", backupFile.toAbsolutePath());
-    }
-
-    private Map<ShardId, ShardStateInfo> pre09ReadState(byte[] data) throws IOException {
-        final Map<ShardId, ShardStateInfo> shardsState = Maps.newHashMap();
-        try (XContentParser parser = XContentHelper.createParser(data, 0, data.length)) {
-            String currentFieldName = null;
-            XContentParser.Token token = parser.nextToken();
-            if (token == null) {
-                // no data...
-                return shardsState;
-            }
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_ARRAY) {
-                    if ("shards".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (token == XContentParser.Token.START_OBJECT) {
-                                String shardIndex = null;
-                                int shardId = -1;
-                                long version = -1;
-                                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                                    if (token == XContentParser.Token.FIELD_NAME) {
-                                        currentFieldName = parser.currentName();
-                                    } else if (token.isValue()) {
-                                        if ("index".equals(currentFieldName)) {
-                                            shardIndex = parser.text();
-                                        } else if ("id".equals(currentFieldName)) {
-                                            shardId = parser.intValue();
-                                        } else if (VERSION_KEY.equals(currentFieldName)) {
-                                            version = parser.longValue();
-                                        }
-                                    }
-                                }
-                                shardsState.put(new ShardId(shardIndex, shardId), new ShardStateInfo(version, null));
-                            }
-                        }
-                    }
-                }
-            }
-            return shardsState;
         }
     }
 }

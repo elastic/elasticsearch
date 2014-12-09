@@ -1639,6 +1639,8 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         logger.info("regexp");
         assertHitCount(client().prepareSearch("test").setQuery(queryStringQuery("/value[01]/").field("field1").field("field2")).get(), 1);
         assertHitCount(client().prepareSearch("test").setQuery(queryStringQuery("field\\*:/value[01]/")).get(), 1);
+        logger.info("varargs");
+        assertHitCount(client().prepareSearch("test").setQuery(queryStringQuery("value*").fields("field1", "field2")).get(), 1);
     }
 
     // see #3881 - for extensive description of the issue

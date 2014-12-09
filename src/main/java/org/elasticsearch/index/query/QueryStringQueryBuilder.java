@@ -138,6 +138,19 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
         return this;
     }
 
+   /**
+     * Adds multiple fields to run the query string against.
+     */
+    public QueryStringQueryBuilder fields(String... fieldList) {
+        for (String field : fieldList) {
+            if (fields == null) {
+                fields = newArrayList();
+            }
+            fields.add(field);
+        }
+        return this;
+    }
+
     /**
      * When more than one field is used with the query string, should queries be combined using
      * dis max, or boolean query. Defaults to dis max (<tt>true</tt>).

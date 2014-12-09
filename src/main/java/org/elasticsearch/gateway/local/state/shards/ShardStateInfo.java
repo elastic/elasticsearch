@@ -23,7 +23,7 @@ import org.elasticsearch.common.Nullable;
 
 /**
  */
-public class ShardStateInfo {
+public final class ShardStateInfo {
 
     public final long version;
 
@@ -34,5 +34,33 @@ public class ShardStateInfo {
     public ShardStateInfo(long version, Boolean primary) {
         this.version = version;
         this.primary = primary;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        ShardStateInfo that = (ShardStateInfo) o;
+
+        if (version != that.version) return false;
+        if (primary != null ? !primary.equals(that.primary) : that.primary != null) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = (int) (version ^ (version >>> 32));
+        result = 31 * result + (primary != null ? primary.hashCode() : 0);
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "ShardStateInfo{" +
+                "version=" + version +
+                ", primary=" + primary +
+                '}';
     }
 }

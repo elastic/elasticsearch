@@ -5,11 +5,13 @@
  */
 package org.elasticsearch.shield.authc.active_directory;
 
+import org.elasticsearch.shield.ShieldException;
+
 /**
  * ActiveDirectoryExceptions typically wrap jndi Naming exceptions, and have an additional
  * parameter of DN attached to each message.
  */
-public class ActiveDirectoryException extends SecurityException {
+public class ActiveDirectoryException extends ShieldException {
 
     public ActiveDirectoryException(String msg){
         super(msg);

@@ -7,7 +7,6 @@ package org.elasticsearch.shield.authc.support.ldap;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
-import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.shield.authc.support.RefreshListener;
@@ -44,7 +43,7 @@ public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm {
             List<String> groupDNs = session.groups();
             Set<String> roles = roleMapper.mapRoles(groupDNs);
             return new User.Simple(token.principal(), roles.toArray(new String[roles.size()]));
-        } catch (ShieldException e) {
+        } catch (Throwable e) {
             if (logger.isDebugEnabled()) {
                 logger.debug("Authentication Failed for user [{}]", e, token.principal());
             }

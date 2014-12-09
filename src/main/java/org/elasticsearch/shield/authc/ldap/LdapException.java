@@ -5,11 +5,13 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
+import org.elasticsearch.shield.ShieldException;
+
 /**
  * LdapExceptions typically wrap jndi Naming exceptions, and have an additional
  * parameter of DN attached to each message.
  */
-public class LdapException extends SecurityException {
+public class LdapException extends ShieldException {
 
     public LdapException(String msg){
         super(msg);

@@ -32,7 +32,7 @@ to use the above example in search request:
 
 [source,js]
 --------------------------------------------------
-curl -XGET localhost:9200/_search -d '
+curl -XPOST localhost:9200/_search -d '
 {
   "query": {
     "filtered": { <1>
@@ -59,7 +59,7 @@ wherever a query is expected.
 
 [source,js]
 --------------------------------------------------
-curl -XGET localhost:9200/_search -d '
+curl -XPOST localhost:9200/_search -d '
 {
   "query": {
     "filtered": { <1>

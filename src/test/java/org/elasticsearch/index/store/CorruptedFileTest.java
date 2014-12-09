@@ -486,7 +486,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
             Path file = Paths.get(path).resolve(relativeDataLocationPath);
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
                 for (Path item : stream) {
-                    if (Files.isRegularFile(item) && "write.lock".equals(item.getFileName()) == false) {
+                    if (Files.isRegularFile(item) && "write.lock".equals(item.getFileName().toString()) == false) {
                         if (includePerCommitFiles || isPerSegmentFile(item.getFileName().toString())) {
                             files.add(item);
                         }

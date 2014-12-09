@@ -23,6 +23,7 @@ import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
@@ -39,7 +40,6 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.*;
 import java.nio.file.*;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -61,7 +61,9 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
     public LocalGatewayShardsState(Settings settings, NodeEnvironment nodeEnv, TransportNodesListGatewayStartedShards listGatewayStartedShards) throws Exception {
         super(settings);
         this.nodeEnv = nodeEnv;
-        listGatewayStartedShards.initGateway(this);
+        if (listGatewayStartedShards != null) { // for testing
+            listGatewayStartedShards.initGateway(this);
+        }
         if (DiscoveryNode.dataNode(settings)) {
             try {
                 ensureNoPre019State();
@@ -81,79 +83,86 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().blocks().disableStatePersistence()) {
-            return;
-        }
+        final ClusterState state = event.state();
+        if (state.blocks().disableStatePersistence() == false
+            && state.nodes().localNode().dataNode()
+            && event.routingTableChanged()) {
+            // now, add all the ones that are active and on this node
+            RoutingNode routingNode = state.readOnlyRoutingNodes().node(state.nodes().localNodeId());
+            final Map<ShardId, ShardStateInfo> newState;
+            if (routingNode != null) {
+               newState = persistRoutingNodeState(routingNode);
+            } else {
+               newState = Maps.newHashMap();
+            }
 
-        if (!event.state().nodes().localNode().dataNode()) {
-            return;
-        }
-
-        if (!event.routingTableChanged()) {
-            return;
-        }
-
-        Map<ShardId, ShardStateInfo> newState = Maps.newHashMap();
-        newState.putAll(this.currentState);
-
-
-        // remove from the current state all the shards that are completely started somewhere, we won't need them anymore
-        // and if they are still here, we will add them in the next phase
-        // Also note, this works well when closing an index, since a closed index will have no routing shards entries
-        // so they won't get removed (we want to keep the fact that those shards are allocated on this node if needed)
-        for (IndexRoutingTable indexRoutingTable : event.state().routingTable()) {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                if (indexShardRoutingTable.countWithState(ShardRoutingState.STARTED) == indexShardRoutingTable.size()) {
-                    newState.remove(indexShardRoutingTable.shardId());
+            // preserve all shards that:
+            //   * are not already in the new map AND
+            //   * belong to an active index AND
+            //   * used to be on this node but are not yet completely stated on any other node
+            // since these shards are NOT active on this node the won't need to be written above - we just preserve these
+            // in this map until they are fully started anywhere else or are re-assigned and we need to update the state
+            final RoutingTable indexRoutingTables = state.routingTable();
+            for (Map.Entry<ShardId, ShardStateInfo> entry : this.currentState.entrySet()) {
+                ShardId shardId = entry.getKey();
+                if (newState.containsKey(shardId) == false) { // this shard used to be here
+                    String indexName = shardId.index().getName();
+                    if (state.metaData().hasIndex(indexName)) { // it's index is not deleted
+                        IndexRoutingTable index = indexRoutingTables.index(indexName);
+                        if (index != null && index.shard(shardId.id()).allShardsStarted() == false) {
+                           // not all shards are active on another node so we put it back until they are active
+                           newState.put(shardId, entry.getValue());
+                        }
+                    }
                 }
             }
+            this.currentState = newState;
         }
-        // remove deleted indices from the started shards
-        for (ShardId shardId : currentState.keySet()) {
-            if (!event.state().metaData().hasIndex(shardId.index().name())) {
-                newState.remove(shardId);
-            }
-        }
-        // now, add all the ones that are active and on this node
-        RoutingNode routingNode = event.state().readOnlyRoutingNodes().node(event.state().nodes().localNodeId());
-        if (routingNode != null) {
-            // our node is not in play yet...
-            for (MutableShardRouting shardRouting : routingNode) {
-                if (shardRouting.active()) {
-                    newState.put(shardRouting.shardId(), new ShardStateInfo(shardRouting.version(), shardRouting.primary()));
-                }
-            }
-        }
-
-        // go over the write started shards if needed
-        for (Iterator<Map.Entry<ShardId, ShardStateInfo>> it = newState.entrySet().iterator(); it.hasNext(); ) {
-            Map.Entry<ShardId, ShardStateInfo> entry = it.next();
-            ShardId shardId = entry.getKey();
-            ShardStateInfo shardStateInfo = entry.getValue();
-
-            String writeReason = null;
-            ShardStateInfo currentShardStateInfo = currentState.get(shardId);
-            if (currentShardStateInfo == null) {
-                writeReason = "freshly started, version [" + shardStateInfo.version + "]";
-            } else if (currentShardStateInfo.version != shardStateInfo.version) {
-                writeReason = "version changed from [" + currentShardStateInfo.version + "] to [" + shardStateInfo.version + "]";
-            }
-
-            // we update the write reason if we really need to write a new one...
-            if (writeReason == null) {
-                continue;
-            }
-
-            try {
-                writeShardState(writeReason, shardId, shardStateInfo, currentShardStateInfo);
-            } catch (Exception e) {
-                // we failed to write the shard state, remove it from our builder, we will try and write
-                // it next time...
-                it.remove();
-            }
-        }
-        this.currentState = newState;
     }
+
+    Map<ShardId, ShardStateInfo> persistRoutingNodeState(RoutingNode routingNode) {
+        final Map<ShardId, ShardStateInfo> newState = Maps.newHashMap();
+        for (MutableShardRouting shardRouting : routingNode) {
+            if (shardRouting.active()) {
+                ShardId shardId = shardRouting.shardId();
+                ShardStateInfo shardStateInfo = new ShardStateInfo(shardRouting.version(), shardRouting.primary());
+                final ShardStateInfo previous = currentState.get(shardId);
+                if(maybeWriteShardState(shardId, shardStateInfo, previous) ) {
+                    newState.put(shardId, shardStateInfo);
+                } else if (previous != null) {
+                    currentState.put(shardId, previous);
+                }
+            }
+        }
+        return newState;
+    }
+
+    Map<ShardId, ShardStateInfo> getCurrentState() {
+        return currentState;
+    }
+
+    boolean maybeWriteShardState(ShardId shardId, ShardStateInfo shardStateInfo, ShardStateInfo previousState) {
+        final String writeReason;
+        if (previousState == null) {
+            writeReason = "freshly started, version [" + shardStateInfo.version + "]";
+        } else if (previousState.version < shardStateInfo.version) {
+            writeReason = "version changed from [" + previousState.version + "] to [" + shardStateInfo.version + "]";
+        } else {
+            logger.trace("skip writing shard state - has been written before shardID: " + shardId + " previous version:  [" + previousState.version + "] current version [" + shardStateInfo.version + "]");
+            assert previousState.version <= shardStateInfo.version : "version should not go backwards for shardID: " + shardId + " previous version:  [" + previousState.version + "] current version [" + shardStateInfo.version + "]";
+            return previousState.version == shardStateInfo.version;
+        }
+
+        try {
+            writeShardState(writeReason, shardId, shardStateInfo, previousState);
+        } catch (Exception e) {
+            logger.warn("failed to write shard state for shard " + shardId, e);
+            // we failed to write the shard state, we will try and write
+            // it next time...
+        }
+        return true;
+    }
+
 
     private Map<ShardId, ShardStateInfo> loadShardsStateInfo() throws Exception {
         Set<ShardId> shardIds = nodeEnv.findAllShardIds();

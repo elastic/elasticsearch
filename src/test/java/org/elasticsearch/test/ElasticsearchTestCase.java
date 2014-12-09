@@ -18,11 +18,13 @@
  */
 package org.elasticsearch.test;
 
+import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.*;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
+
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.AbstractRandomizedTest;
@@ -193,19 +195,6 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 
     public static String randomNumericType(Random random) {
         return numericTypes[random.nextInt(numericTypes.length)];
-    }
-
-    /**
-     * Returns a {@link File} pointing to the class path relative resource given
-     * as the first argument. In contrast to
-     * <code>getClass().getResource(...).getFile()</code> this method will not
-     * return URL encoded paths if the parent path contains spaces or other
-     * non-standard characters.
-     */
-    @Deprecated
-    public File getResource(String relativePath) {
-        URI uri = URI.create(getClass().getResource(relativePath).toString());
-        return new File(uri);
     }
 
     /**
@@ -550,6 +539,37 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     public static boolean terminate(ThreadPool service) throws InterruptedException {
         return ThreadPool.terminate(service, 10, TimeUnit.SECONDS);
     }
+    
+    // TODO: these method names stink, but are a temporary solution.
+    // see https://github.com/carrotsearch/randomizedtesting/pull/178
+
+    /**
+     * Returns a temporary file
+     */
+    public Path newTempFilePath() {
+        return newTempFile().toPath();
+    }
+    
+    /**
+     * Returns a temporary directory
+     */
+    public Path newTempDirPath() {
+        return newTempDir().toPath();
+    }
+    
+    /**
+     * Returns a temporary directory
+     */
+    public static Path newTempDirPath(LifecycleScope scope) {
+        return newTempDir(scope).toPath();
+    }
+    
+    /**
+     * Returns 'global' temp dir (seems like a bad idea)
+     */
+    public static Path globalTempDirPath() {
+        return globalTempDir().toPath();
+    }
 
     /**
      * Returns a random number of temporary paths.
@@ -558,7 +578,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         final int numPaths = randomIntBetween(1, 3);
         final String[] absPaths = new String[numPaths];
         for (int i = 0; i < numPaths; i++) {
-            absPaths[i] = newTempDir().getAbsolutePath();
+            absPaths[i] = newTempDirPath().toAbsolutePath().toString();
         }
         return absPaths;
     }

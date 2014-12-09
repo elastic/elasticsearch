@@ -29,7 +29,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.SizeValue;
 
-import java.io.File;
+import java.nio.file.Paths;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -40,7 +40,7 @@ public class LuceneUidScanBenchmark {
 
     public static void main(String[] args) throws Exception {
 
-        FSDirectory dir = FSDirectory.open(new File("work/test").toPath());
+        FSDirectory dir = FSDirectory.open(Paths.get("work/test"));
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         final int NUMBER_OF_THREADS = 2;

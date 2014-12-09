@@ -386,7 +386,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
         // We want to check that Plugin Manager moves content to _site
         String pluginDir = PLUGIN_DIR.concat("/plugin-site/_site");
-        assertFileExists(new File(pluginDir));
+        assertFileExists(Paths.get(pluginDir));
     }
 
 

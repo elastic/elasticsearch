@@ -35,6 +35,7 @@ import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 
 import java.io.File;
 import java.net.InetSocketAddress;
+import java.nio.file.Paths;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -48,7 +49,7 @@ public class StaticIndexBackwardCompatibilityTest extends ElasticsearchIntegrati
 
     public void loadIndex(String index, Object... settings) throws Exception {
         logger.info("Checking static index " + index);
-        Settings nodeSettings = prepareBackwardsDataDir(new File(getClass().getResource(index).toURI()), settings);
+        Settings nodeSettings = prepareBackwardsDataDir(Paths.get(getClass().getResource(index).toURI()), settings);
         internalCluster().startNode(nodeSettings);
         ensureGreen("test");
         assertIndexSanity();

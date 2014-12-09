@@ -20,6 +20,7 @@
 package org.elasticsearch.snapshots.mockstore;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -33,7 +34,12 @@ import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.fs.FsRepository;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -92,9 +98,9 @@ public class MockRepository extends FsRepository {
     }
 
     private static Settings localizeLocation(Settings settings, ClusterService clusterService) {
-        File location = new File(settings.get("location"));
-        location = new File(location, clusterService.localNode().getId());
-        return settingsBuilder().put(settings).put("location", location.getAbsolutePath()).build();
+        Path location = Paths.get(settings.get("location"));
+        location = location.resolve(clusterService.localNode().getId());
+        return settingsBuilder().put(settings).put("location", location.toAbsolutePath()).build();
     }
 
     private void addFailure() {
@@ -200,9 +206,7 @@ public class MockRepository extends FsRepository {
                     int i = 0;
                     return ((bytes[i++] & 0xFF) << 24) | ((bytes[i++] & 0xFF) << 16)
                             | ((bytes[i++] & 0xFF) << 8) | (bytes[i++] & 0xFF);
-                } catch (NoSuchAlgorithmException ex) {
-                    throw new ElasticsearchException("cannot calculate hashcode", ex);
-                } catch (UnsupportedEncodingException ex) {
+                } catch (NoSuchAlgorithmException | UnsupportedEncodingException ex) {
                     throw new ElasticsearchException("cannot calculate hashcode", ex);
                 }
             }

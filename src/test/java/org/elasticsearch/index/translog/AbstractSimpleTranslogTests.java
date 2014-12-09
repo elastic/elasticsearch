@@ -35,11 +35,12 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -87,7 +88,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
 
     protected abstract Translog create() throws IOException;
 
-    protected abstract String translogFileDirectory();
+    protected abstract Path translogFileDirectory();
 
     @Test
     public void testRead() throws IOException {
@@ -528,21 +529,19 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
     /**
      * Randomly overwrite some bytes in the translog files
      */
-    private void corruptTranslogs(String directory) throws Exception {
-        File[] files = new File(directory).listFiles();
-        if (files != null) {
-            for (File file : files) {
-                if (file.getName().startsWith("translog-")) {
-                    logger.info("--> corrupting {}...", file.getName());
-                    RandomAccessFile f = new RandomAccessFile(file, "rw");
-                    int corruptions = scaledRandomIntBetween(10, 50);
-                    for (int i = 0; i < corruptions; i++) {
-                        f.seek(randomIntBetween(0, (int)f.length()));
-                        f.write(randomByte());
-                    }
-                    f.close();
-                }
+    private void corruptTranslogs(Path directory) throws Exception {
+        Path[] files = FileSystemUtils.files(directory, "translog-*");
+        for (Path file : files) {
+            logger.info("--> corrupting {}...", file);
+            FileChannel f = FileChannel.open(file, StandardOpenOption.READ, StandardOpenOption.WRITE);
+            int corruptions = scaledRandomIntBetween(10, 50);
+            for (int i = 0; i < corruptions; i++) {
+                // note: with the current logic, this will sometimes be a no-op
+                long pos = randomIntBetween(0, (int)f.size());
+                ByteBuffer junk = ByteBuffer.wrap(new byte[] { randomByte() });
+                f.write(junk, pos);
             }
+            f.close();
         }
     }
 

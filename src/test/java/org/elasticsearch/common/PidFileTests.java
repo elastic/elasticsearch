@@ -37,7 +37,7 @@ public class PidFileTests extends ElasticsearchTestCase {
 
     @Test(expected = ElasticsearchIllegalArgumentException.class)
     public void testParentIsFile() throws IOException {
-        Path dir = newTempDir().toPath();
+        Path dir = newTempDirPath();
         Path parent = dir.resolve("foo");
         try(BufferedWriter stream = Files.newBufferedWriter(parent, Charsets.UTF_8, StandardOpenOption.CREATE_NEW)) {
             stream.write("foo");
@@ -48,7 +48,7 @@ public class PidFileTests extends ElasticsearchTestCase {
 
     @Test
     public void testPidFile() throws IOException {
-        Path dir = newTempDir().toPath();
+        Path dir = newTempDirPath();
         Path parent = dir.resolve("foo");
         if (randomBoolean()) {
             Files.createDirectories(parent);

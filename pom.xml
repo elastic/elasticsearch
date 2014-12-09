@@ -1281,6 +1281,10 @@
                                 <!-- start exclude for test GC simulation using Thread.suspend -->
                                 <exclude>org/elasticsearch/test/disruption/LongGCDisruption.class</exclude>
                                 <!-- end exclude for GC simulation  -->
+                                <!-- start exclude for java.io.File bridging -->
+                                <exclude>org/elasticsearch/test/ExternalNode.class</exclude>
+                                <exclude>org/elasticsearch/test/ElasticsearchTestCase.class</exclude>
+                                <!-- end exclude for java.io.File bridging -->
                             </excludes>
                             <signaturesFiles>
                                 <signaturesFile>dev-tools/forbidden/test-signatures.txt</signaturesFile>

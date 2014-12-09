@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.io.Files;
+
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.ClusterName;
@@ -33,8 +33,9 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
-import java.io.File;
-import java.io.FileOutputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -44,15 +45,16 @@ public class FileBasedMappingsTests extends ElasticsearchTestCase {
     private static final String NAME = FileBasedMappingsTests.class.getSimpleName();
 
     public void testFileBasedMappings() throws Exception {
-        File configDir = Files.createTempDir();
-        File mappingsDir = new File(configDir, "mappings");
-        File indexMappings = new File(new File(mappingsDir, "index"), "type.json");
-        File defaultMappings = new File(new File(mappingsDir, "_default"), "type.json");
+        Path configDir = newTempDirPath();
+        Path mappingsDir = configDir.resolve("mappings");
+        Path indexMappings = mappingsDir.resolve("index").resolve("type.json");
+        Path defaultMappings = mappingsDir.resolve("_default").resolve("type.json");
         try {
-            indexMappings.getParentFile().mkdirs();
-            defaultMappings.getParentFile().mkdirs();
+            Files.createDirectories(indexMappings.getParent());
+            Files.createDirectories(defaultMappings.getParent());
 
-            try (XContentBuilder builder = new XContentBuilder(JsonXContent.jsonXContent, new FileOutputStream(indexMappings))) {
+            try (OutputStream stream = Files.newOutputStream(indexMappings);
+                 XContentBuilder builder = new XContentBuilder(JsonXContent.jsonXContent, stream)) {
                 builder.startObject()
                         .startObject("type")
                             .startObject("properties")
@@ -64,7 +66,8 @@ public class FileBasedMappingsTests extends ElasticsearchTestCase {
                     .endObject();
             }
 
-            try (XContentBuilder builder = new XContentBuilder(JsonXContent.jsonXContent, new FileOutputStream(defaultMappings))) {
+            try (OutputStream stream = Files.newOutputStream(defaultMappings);
+                 XContentBuilder builder = new XContentBuilder(JsonXContent.jsonXContent, stream)) {
                 builder.startObject()
                         .startObject("type")
                             .startObject("properties")
@@ -79,7 +82,7 @@ public class FileBasedMappingsTests extends ElasticsearchTestCase {
             Settings settings = ImmutableSettings.builder()
                     .put(ClusterName.SETTING, NAME)
                     .put("node.name", NAME)
-                    .put("path.conf", configDir.getAbsolutePath())
+                    .put("path.conf", configDir.toAbsolutePath())
                     .put("http.enabled", false)
                     .build();
 
@@ -100,7 +103,7 @@ public class FileBasedMappingsTests extends ElasticsearchTestCase {
                 }
             }
         } finally {
-            IOUtils.rm(configDir.toPath());
+            IOUtils.rm(configDir);
         }
     }
 

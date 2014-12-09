@@ -20,7 +20,7 @@ package org.elasticsearch.indices.template;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.base.Charsets;
-import com.google.common.io.Files;
+
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -29,7 +29,9 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
 
-import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -46,18 +48,18 @@ public class IndexTemplateFileLoadingTests extends ElasticsearchIntegrationTest 
         settingsBuilder.put(super.nodeSettings(nodeOrdinal));
 
         try {
-            File directory = newTempDir(LifecycleScope.SUITE);
-            settingsBuilder.put("path.conf", directory.getPath());
+            Path directory = newTempDirPath(LifecycleScope.SUITE);
+            settingsBuilder.put("path.conf", directory.toAbsolutePath());
 
-            File templatesDir = new File(directory + File.separator + "templates");
-            templatesDir.mkdir();
+            Path templatesDir = directory.resolve("templates");
+            Files.createDirectory(templatesDir);
 
-            File dst = new File(templatesDir, "template.json");
+            Path dst = templatesDir.resolve("template.json");
             String templatePath = "/org/elasticsearch/indices/template/template" + randomInt(5) + ".json";
             logger.info("Picking template path [{}]", templatePath);
             // random template, one uses the 'setting.index.number_of_shards', the other 'settings.number_of_shards'
             String template = Streams.copyToStringFromClasspath(templatePath);
-            Files.write(template, dst, Charsets.UTF_8);
+            Files.write(dst, template.getBytes(StandardCharsets.UTF_8));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

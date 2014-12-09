@@ -37,8 +37,10 @@ import org.elasticsearch.transport.netty.NettyTransport;
 import org.junit.Before;
 import org.junit.Ignore;
 
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
@@ -84,7 +86,7 @@ import static org.hamcrest.Matchers.is;
 @Ignore
 public abstract class ElasticsearchBackwardsCompatIntegrationTest extends ElasticsearchIntegrationTest {
 
-    private static File backwardsCompatibilityPath() {
+    private static Path backwardsCompatibilityPath() {
         String path = System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_PATH);
         if (path == null || path.isEmpty()) {
             throw new IllegalArgumentException("Must specify backwards test path with property " + TESTS_BACKWARDS_COMPATIBILITY_PATH);
@@ -97,12 +99,12 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
             throw new IllegalArgumentException("Backcompat elasticsearch version must be same major version as current. " +
                 "backcompat: " + version + ", current: " + Version.CURRENT.toString());
         }
-        File file = new File(path, "elasticsearch-" + version);
-        if (!file.exists()) {
-            throw new IllegalArgumentException("Backwards tests location is missing: " + file.getAbsolutePath());
+        Path file = Paths.get(path, "elasticsearch-" + version);
+        if (!Files.exists(file)) {
+            throw new IllegalArgumentException("Backwards tests location is missing: " + file.toAbsolutePath());
         }
-        if (!file.isDirectory()) {
-            throw new IllegalArgumentException("Backwards tests location is not a directory: " + file.getAbsolutePath());
+        if (!Files.isDirectory(file)) {
+            throw new IllegalArgumentException("Backwards tests location is not a directory: " + file.toAbsolutePath());
         }
         return file;
     }

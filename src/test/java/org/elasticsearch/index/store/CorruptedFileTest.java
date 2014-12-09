@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Charsets;
 import com.google.common.base.Predicate;
+
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexFileNames;
@@ -72,7 +73,15 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.*;
 import org.junit.Test;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -283,10 +292,10 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                 }
             }
         }
-        final List<File> files = listShardFiles(shardRouting);
-        File corruptedFile = null;
-        for (File file : files) {
-            if (file.getName().startsWith("corrupted_")) {
+        final List<Path> files = listShardFiles(shardRouting);
+        Path corruptedFile = null;
+        for (Path file : files) {
+            if (file.getFileName().toString().startsWith("corrupted_")) {
                 corruptedFile = file;
                 break;
             }
@@ -430,17 +439,17 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         logger.info("-->  creating repository");
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(settingsBuilder()
-                        .put("location", newTempDir(LifecycleScope.SUITE).getAbsolutePath())
+                        .put("location", newTempDirPath(LifecycleScope.SUITE).toAbsolutePath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000))));
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.PARTIAL));
         logger.info("failed during snapshot -- maybe SI file got corrupted");
-        final List<File> files = listShardFiles(shardRouting);
-        File corruptedFile = null;
-        for (File file : files) {
-            if (file.getName().startsWith("corrupted_")) {
+        final List<Path> files = listShardFiles(shardRouting);
+        Path corruptedFile = null;
+        for (Path file : files) {
+            if (file.getFileName().toString().startsWith("corrupted_")) {
                 corruptedFile = file;
                 break;
             }
@@ -470,43 +479,51 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         assertTrue(shardRouting.assignedToNode());
         String nodeId = shardRouting.currentNodeId();
         NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(nodeId).setFs(true).get();
-        Set<File> files = new TreeSet<>(); // treeset makes sure iteration order is deterministic
+        Set<Path> files = new TreeSet<>(); // treeset makes sure iteration order is deterministic
         for (FsStats.Info info : nodeStatses.getNodes()[0].getFs()) {
             String path = info.getPath();
             final String relativeDataLocationPath = "indices/test/" + Integer.toString(shardRouting.getId()) + "/index";
-            File file = new File(path, relativeDataLocationPath);
-            files.addAll(Arrays.asList(file.listFiles(new FileFilter() {
-                @Override
-                public boolean accept(File pathname) {
-                    if (pathname.isFile() && "write.lock".equals(pathname.getName()) == false) {
-                        return (includePerCommitFiles || isPerSegmentFile(pathname.getName()));
+            Path file = Paths.get(path).resolve(relativeDataLocationPath);
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
+                for (Path item : stream) {
+                    if (Files.isRegularFile(item) && "write.lock".equals(item.getFileName()) == false) {
+                        if (includePerCommitFiles || isPerSegmentFile(item.getFileName().toString())) {
+                            files.add(item);
+                        }
                     }
-                    return false; // no dirs no write.locks
                 }
-            })));
+            }
         }
         pruneOldDeleteGenerations(files);
-        File fileToCorrupt = null;
+        Path fileToCorrupt = null;
         if (!files.isEmpty()) {
             fileToCorrupt = RandomPicks.randomFrom(getRandom(), files);
-            try (Directory dir = FSDirectory.open(fileToCorrupt.getParentFile().toPath())) {
+            try (Directory dir = FSDirectory.open(fileToCorrupt.toAbsolutePath().getParent())) {
                 long checksumBeforeCorruption;
-                try (IndexInput input = dir.openInput(fileToCorrupt.getName(), IOContext.DEFAULT)) {
+                try (IndexInput input = dir.openInput(fileToCorrupt.getFileName().toString(), IOContext.DEFAULT)) {
                     checksumBeforeCorruption = CodecUtil.retrieveChecksum(input);
                 }
-                try (RandomAccessFile raf = new RandomAccessFile(fileToCorrupt, "rw")) {
-                    raf.seek(randomIntBetween(0, (int) Math.min(Integer.MAX_VALUE, raf.length() - 1)));
-                    long filePointer = raf.getFilePointer();
-                    byte b = raf.readByte();
-                    raf.seek(filePointer);
-                    int corruptedValue = (b + 1) & 0xff;
-                    raf.writeByte(corruptedValue);
-                    raf.getFD().sync();
-                    logger.info("Corrupting file for shard {} --  flipping at position {} from {} to {} file: {}", shardRouting, filePointer, Integer.toHexString(b), Integer.toHexString(corruptedValue), fileToCorrupt.getName());
+                try (FileChannel raf = FileChannel.open(fileToCorrupt, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
+                    // read
+                    raf.position(randomIntBetween(0, (int) Math.min(Integer.MAX_VALUE, raf.size() - 1)));
+                    long filePointer = raf.position();
+                    ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
+                    raf.read(bb);
+                    bb.flip();
+                    
+                    // corrupt
+                    byte oldValue = bb.get(0);
+                    byte newValue = (byte) (oldValue + 1);
+                    bb.put(0, newValue);
+                    
+                    // rewrite
+                    raf.position(filePointer);
+                    raf.write(bb);
+                    logger.info("Corrupting file for shard {} --  flipping at position {} from {} to {} file: {}", shardRouting, filePointer, Integer.toHexString(oldValue), Integer.toHexString(newValue), fileToCorrupt.getFileName());
                 }
                 long checksumAfterCorruption;
                 long actualChecksumAfterCorruption;
-                try (ChecksumIndexInput input = dir.openChecksumInput(fileToCorrupt.getName(), IOContext.DEFAULT)) {
+                try (ChecksumIndexInput input = dir.openChecksumInput(fileToCorrupt.getFileName().toString(), IOContext.DEFAULT)) {
                     assertThat(input.getFilePointer(), is(0l));
                     input.seek(input.length() - 8); // one long is the checksum... 8 bytes
                     checksumAfterCorruption = input.getChecksum();
@@ -518,7 +535,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                 msg.append("Checksum before: [").append(checksumBeforeCorruption).append("]");
                 msg.append(" after: [").append(checksumAfterCorruption).append("]");
                 msg.append(" checksum value after corruption: ").append(actualChecksumAfterCorruption).append("]");
-                msg.append(" file: ").append(fileToCorrupt.getName()).append(" length: ").append(dir.fileLength(fileToCorrupt.getName()));
+                msg.append(" file: ").append(fileToCorrupt.getFileName()).append(" length: ").append(dir.fileLength(fileToCorrupt.getFileName().toString()));
                 logger.info(msg.toString());
                 assumeTrue("Checksum collision - " + msg.toString(),
                         checksumAfterCorruption != checksumBeforeCorruption // collision
@@ -541,21 +558,21 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
     /**
      * prunes the list of index files such that only the latest del generation files are contained.
      */
-    private void pruneOldDeleteGenerations(Set<File> files) {
-        final TreeSet<File> delFiles = new TreeSet<>();
-        for (File file : files) {
-            if (file.getName().endsWith(".liv")) {
+    private void pruneOldDeleteGenerations(Set<Path> files) {
+        final TreeSet<Path> delFiles = new TreeSet<>();
+        for (Path file : files) {
+            if (file.getFileName().toString().endsWith(".liv")) {
                 delFiles.add(file);
             }
         }
-        File last = null;
-        for (File current : delFiles) {
+        Path last = null;
+        for (Path current : delFiles) {
             if (last != null) {
-                final String newSegmentName = IndexFileNames.parseSegmentName(current.getName());
-                final String oldSegmentName = IndexFileNames.parseSegmentName(last.getName());
+                final String newSegmentName = IndexFileNames.parseSegmentName(current.getFileName().toString());
+                final String oldSegmentName = IndexFileNames.parseSegmentName(last.getFileName().toString());
                 if (newSegmentName.equals(oldSegmentName)) {
-                    int oldGen = Integer.parseInt(IndexFileNames.stripExtension(IndexFileNames.stripSegmentName(last.getName())).replace("_", ""), Character.MAX_RADIX);
-                    int newGen = Integer.parseInt(IndexFileNames.stripExtension(IndexFileNames.stripSegmentName(current.getName())).replace("_", ""), Character.MAX_RADIX);
+                    int oldGen = Integer.parseInt(IndexFileNames.stripExtension(IndexFileNames.stripSegmentName(last.getFileName().toString())).replace("_", ""), Character.MAX_RADIX);
+                    int newGen = Integer.parseInt(IndexFileNames.stripExtension(IndexFileNames.stripSegmentName(current.getFileName().toString())).replace("_", ""), Character.MAX_RADIX);
                     if (newGen > oldGen) {
                         files.remove(last);
                     } else {
@@ -568,15 +585,19 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         }
     }
 
-    public List<File> listShardFiles(ShardRouting routing) {
+    public List<Path> listShardFiles(ShardRouting routing) throws IOException {
         NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(routing.currentNodeId()).setFs(true).get();
 
         assertThat(routing.toString(), nodeStatses.getNodes().length, equalTo(1));
-        List<File> files = new ArrayList<>();
+        List<Path> files = new ArrayList<>();
         for (FsStats.Info info : nodeStatses.getNodes()[0].getFs()) {
             String path = info.getPath();
-            File file = new File(path, "indices/test/" + Integer.toString(routing.getId()) + "/index");
-            files.addAll(Arrays.asList(file.listFiles()));
+            Path file = Paths.get(path).resolve("indices/test/" + Integer.toString(routing.getId()) + "/index");
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
+                for (Path item : stream) {
+                    files.add(item);
+                }
+            }
         }
         return files;
     }

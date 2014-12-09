@@ -28,6 +28,7 @@ import org.junit.AfterClass;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 
 /**
@@ -39,12 +40,12 @@ public class FsSimpleTranslogTests extends AbstractSimpleTranslogTests {
     protected Translog create() throws IOException {
         return new FsTranslog(shardId,
                 ImmutableSettings.settingsBuilder().put("index.translog.fs.type", FsTranslogFile.Type.SIMPLE.name()).build(),
-                Paths.get(translogFileDirectory()));
+                translogFileDirectory());
     }
 
     @Override
-    protected String translogFileDirectory() {
-        return "data/fs-simple-translog";
+    protected Path translogFileDirectory() {
+        return Paths.get("data/fs-simple-translog");
     }
 
     @AfterClass

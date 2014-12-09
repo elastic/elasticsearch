@@ -129,10 +129,9 @@ public class SimpleSearchTests extends ElasticsearchIntegrationTest {
     public void simpleDateRangeWithUpperInclusiveEnabledTests() throws Exception {
         createIndex("test");
         client().prepareIndex("test", "type1", "1").setSource("field", "2010-01-05T02:00").execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("field", "2010-01-06T02:00").execute().actionGet();
+        client().prepareIndex("test", "type1", "2").setSource("field", "2010-01-06T00:00").execute().actionGet();
         refresh();
 
-        // test include upper on ranges to include the full day on the upper bound
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05").lte("2010-01-06")).execute().actionGet();
         assertHitCount(searchResponse, 2l);
         searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05").lt("2010-01-06")).execute().actionGet();

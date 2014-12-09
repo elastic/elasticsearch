@@ -34,6 +34,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -469,7 +470,7 @@ public class PluginsService extends AbstractComponent {
         // Let's try to find all _site plugins we did not already found
         Path pluginsFile = environment.pluginsFile();
 
-        if (!Files.exists(pluginsFile) || !Files.isDirectory(pluginsFile)) {
+        if (FileSystemUtils.isAccessibleDirectory(pluginsFile, logger) == false) {
             return sitePlugins.build();
         }
 

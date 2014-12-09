@@ -20,6 +20,7 @@ package org.elasticsearch.snapshots;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
+
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.metadata.SnapshotMetaData;
@@ -30,8 +31,13 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Ignore;
 
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -49,19 +55,16 @@ public abstract class AbstractSnapshotTests extends ElasticsearchIntegrationTest
         return failureCount;
     }
 
-    public static int numberOfFiles(File dir) {
-        int count = 0;
-        File[] files = dir.listFiles();
-        if (files != null) {
-            for (File file : files) {
-                if (file.isDirectory()) {
-                    count += numberOfFiles(file);
-                } else {
-                    count++;
-                }
+    public static int numberOfFiles(Path dir) throws IOException {
+        final AtomicInteger count = new AtomicInteger();
+        Files.walkFileTree(dir, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                count.incrementAndGet();
+                return FileVisitResult.CONTINUE;
             }
-        }
-        return count;
+        });
+        return count.get();
     }
 
     public static void stopNode(final String node) throws IOException {

@@ -33,7 +33,8 @@ import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
-import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -50,7 +51,7 @@ public class RoutingBackwardCompatibilityUponUpgradeTests extends ElasticsearchI
     }
 
     private void test(String name, Class<? extends HashFunction> expectedHashFunction, boolean expectedUseType) throws Exception {
-        File zippedIndexDir = new File(getClass().getResource("/org/elasticsearch/cluster/routing/" + name + ".zip").toURI());
+        Path zippedIndexDir = Paths.get(getClass().getResource("/org/elasticsearch/cluster/routing/" + name + ".zip").toURI());
         Settings baseSettings = prepareBackwardsDataDir(zippedIndexDir);
         internalCluster().startNode(ImmutableSettings.builder()
                 .put(baseSettings)

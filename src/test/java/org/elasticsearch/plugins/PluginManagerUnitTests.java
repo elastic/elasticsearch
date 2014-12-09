@@ -20,13 +20,14 @@
 package org.elasticsearch.plugins;
 
 import com.google.common.io.Files;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.is;
@@ -39,8 +40,8 @@ public class PluginManagerUnitTests extends ElasticsearchTestCase {
     @Test
     public void testThatConfigDirectoryCanBeOutsideOfElasticsearchHomeDirectory() throws IOException {
         String pluginName = randomAsciiOfLength(10);
-        File homeFolder = newTempDir();
-        File genericConfigFolder = newTempDir();
+        Path homeFolder = newTempDirPath();
+        Path genericConfigFolder = newTempDirPath();
 
         Settings settings = settingsBuilder()
                 .put("path.conf", genericConfigFolder)
@@ -50,7 +51,7 @@ public class PluginManagerUnitTests extends ElasticsearchTestCase {
 
         PluginManager.PluginHandle pluginHandle = new PluginManager.PluginHandle(pluginName, "version", "user", "repo");
         String configDirPath = Files.simplifyPath(pluginHandle.configDir(environment).normalize().toString());
-        String expectedDirPath = Files.simplifyPath(new File(genericConfigFolder, pluginName).toPath().normalize().toString());
+        String expectedDirPath = Files.simplifyPath(genericConfigFolder.resolve(pluginName).normalize().toString());
 
         assertThat(configDirPath, is(expectedDirPath));
     }

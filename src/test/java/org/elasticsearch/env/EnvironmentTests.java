@@ -19,29 +19,16 @@
 package org.elasticsearch.env;
 
 import com.google.common.base.Charsets;
-import org.apache.lucene.store.LockObtainFailedException;
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Simple unit-tests for Environment.java
@@ -55,7 +42,7 @@ public class EnvironmentTests extends ElasticsearchTestCase {
     public Environment newEnvironment(Settings settings) throws IOException {
         Settings build = ImmutableSettings.builder()
                 .put(settings)
-                .put("path.home", newTempDir().getAbsolutePath())
+                .put("path.home", newTempDirPath().toAbsolutePath())
                 .putArray("path.data", tmpPaths()).build();
         return new Environment(build);
     }

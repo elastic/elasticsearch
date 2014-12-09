@@ -20,6 +20,7 @@ package org.elasticsearch.snapshots;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -31,13 +32,15 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -56,7 +59,7 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
         logger.info("-->  creating repository");
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", newTempDir(LifecycleScope.SUITE).getAbsolutePath())
+                        .put("location", newTempDirPath(LifecycleScope.SUITE).toAbsolutePath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000))));
         String[] indicesBefore = new String[randomIntBetween(2,5)];
@@ -162,7 +165,7 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
 
     public void testSnapshotMoreThanOnce() throws ExecutionException, InterruptedException, IOException {
         Client client = client();
-        final File tempDir = newTempDir(LifecycleScope.SUITE).getAbsoluteFile();
+        final Path tempDir = newTempDirPath(LifecycleScope.SUITE).toAbsolutePath();
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
@@ -219,7 +222,7 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
             logger.info("--> move from 0 to 1 replica");
             client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)).get();
         }
-        logger.debug("---> repo exists: " + new File(tempDir, "indices/test/0").exists() + " files: " + Arrays.toString(new File(tempDir, "indices/test/0").list())); // it's only one shard!
+        logger.debug("---> repo exists: " + Files.exists(tempDir.resolve("indices/test/0")) + " files: " + Arrays.toString(FileSystemUtils.files(tempDir.resolve("indices/test/0")))); // it's only one shard!
         CreateSnapshotResponse createSnapshotResponseSecond = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-1").setWaitForCompletion(true).setIndices("test").get();
         assertThat(createSnapshotResponseSecond.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(createSnapshotResponseSecond.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponseSecond.getSnapshotInfo().totalShards()));

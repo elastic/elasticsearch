@@ -29,7 +29,6 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.Test;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -46,8 +45,8 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testScriptsWithoutExtensions() throws IOException {
-        Path homeFolder = newTempDir().toPath();
-        Path genericConfigFolder = newTempDir().toPath();
+        Path homeFolder = newTempDirPath();
+        Path genericConfigFolder = newTempDirPath();
 
         Settings settings = settingsBuilder()
                 .put("path.conf", genericConfigFolder)

@@ -19,6 +19,7 @@
 package org.elasticsearch.test.rest.spec;
 
 import com.google.common.collect.Maps;
+
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.support.FileUtils;
@@ -26,6 +27,9 @@ import org.elasticsearch.test.rest.support.FileUtils;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 
 /**
@@ -51,9 +55,9 @@ public class RestSpec {
     public static RestSpec parseFrom(String optionalPathPrefix, String... paths) throws IOException {
         RestSpec restSpec = new RestSpec();
         for (String path : paths) {
-            for (File jsonFile : FileUtils.findJsonSpec(optionalPathPrefix, path)) {
-                try {
-                    XContentParser parser = JsonXContent.jsonXContent.createParser(new FileInputStream(jsonFile));
+            for (Path jsonFile : FileUtils.findJsonSpec(optionalPathPrefix, path)) {
+                try (InputStream stream = Files.newInputStream(jsonFile)) {
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(stream);
                     RestApi restApi = new RestApiParser().parse(parser);
                     restSpec.addApi(restApi);
                 } catch (Throwable ex) {

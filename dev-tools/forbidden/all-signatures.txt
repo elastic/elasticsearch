@@ -2,8 +2,14 @@
 java.net.URL#getPath()
 java.net.URL#getFile()
 
-java.io.File#delete() @ use Files.delete for real exception, IOUtils.deleteFilesIgnoringExceptions if you dont care
-
-# temporary situation, until we upgrade with LUCENE-6051 fix 
-# (at which point forbidden apis will fail and we remove this section)
-@defaultMessage Use FileSystemUtils methods for now to workaround LUCENE-6051
+@defaultMessage Use java.nio.file instead of java.io.File API
+java.util.jar.JarFile
+java.util.zip.ZipFile
+java.io.File
+java.io.FileInputStream
+java.io.FileOutputStream
+java.io.PrintStream#<init>(java.lang.String,java.lang.String)
+java.io.PrintWriter#<init>(java.lang.String,java.lang.String)
+java.util.Formatter#<init>(java.lang.String,java.lang.String,java.util.Locale)
+java.io.RandomAccessFile
+java.nio.file.Path#toFile()

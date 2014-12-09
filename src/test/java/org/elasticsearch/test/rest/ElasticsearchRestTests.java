@@ -25,6 +25,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.google.common.collect.Lists;
+
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
@@ -47,6 +48,7 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.FileSystems;
+import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
 import java.util.*;
@@ -129,14 +131,14 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
 
     private static List<RestTestCandidate> collectTestCandidates() throws RestTestParseException, IOException {
         String[] paths = resolvePathsProperty(REST_TESTS_SUITE, DEFAULT_TESTS_PATH);
-        Map<String, Set<File>> yamlSuites = FileUtils.findYamlSuites(DEFAULT_TESTS_PATH, paths);
+        Map<String, Set<Path>> yamlSuites = FileUtils.findYamlSuites(DEFAULT_TESTS_PATH, paths);
 
         List<RestTestCandidate> testCandidates = Lists.newArrayList();
         RestTestSuiteParser restTestSuiteParser = new RestTestSuiteParser();
         //yaml suites are grouped by directory (effectively by api)
         for (String api : yamlSuites.keySet()) {
-            List<File> yamlFiles = Lists.newArrayList(yamlSuites.get(api));
-            for (File yamlFile : yamlFiles) {
+            List<Path> yamlFiles = Lists.newArrayList(yamlSuites.get(api));
+            for (Path yamlFile : yamlFiles) {
                 //tests distribution disabled for now since it causes reporting problems,
                 // due to the non unique suite name
                 //if (mustExecute(yamlFile.getAbsolutePath())) {

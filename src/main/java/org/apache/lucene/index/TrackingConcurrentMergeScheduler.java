@@ -29,6 +29,7 @@ import org.elasticsearch.index.merge.OnGoingMerge;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -117,10 +118,17 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
             totalMergesNumDocs.inc(totalNumDocs);
             totalMergesSizeInBytes.inc(totalSizeInBytes);
             totalMerges.inc(took);
+            String message = String.format(Locale.ROOT,
+                                           "merge segment %s done: took %s, %.1f MB, %d docs",
+                                           merge.info == null ? "_na_" : merge.info.info.name,
+                                           TimeValue.timeValueMillis(took),
+                                           totalSizeInBytes/1024./1024.,
+                                           totalNumDocs);
+
             if (took > 20000) { // if more than 20 seconds, DEBUG log it
-                logger.debug("merge [{}] done, took [{}]", merge.info == null ? "_na_" : merge.info.info.name, TimeValue.timeValueMillis(took));
+                logger.debug(message);
             } else if (logger.isTraceEnabled()) {
-                logger.trace("merge [{}] done, took [{}]", merge.info == null ? "_na_" : merge.info.info.name, TimeValue.timeValueMillis(took));
+                logger.trace(message);
             }
         }
     }

@@ -82,11 +82,7 @@ public class RestMainAction extends BaseRestHandler {
                 .field("build_hash", Build.CURRENT.hash())
                 .field("build_timestamp", Build.CURRENT.timestamp())
                 .field("build_snapshot", version.snapshot)
-                        // We use the lucene version from lucene constants since
-                        // this includes bugfix release version as well and is already in
-                        // the right format. We can also be sure that the format is maitained
-                        // since this is also recorded in lucene segments and has BW compat
-                .field("lucene_version", Constants.LUCENE_MAIN_VERSION)
+                .field("lucene_version", version.luceneVersion.toString())
                 .endObject();
         builder.field("tagline", "You Know, for Search");
         builder.endObject();

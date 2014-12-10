@@ -3,8 +3,8 @@
     "documentation" : "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/docs-termvectors.html",
     "methods" : ["GET", "POST"],
     "url" : {
-      "path" : "/{index}/{type}/{id}/_termvectors",
-      "paths" : ["/{index}/{type}/{id}/_termvectors"],
+      "path" : "/{index}/{type}/_termvectors",
+      "paths" : ["/{index}/{type}/_termvectors", "/{index}/{type}/{id}/_termvectors"],
       "parts" : {
         "index" : {
          "type" : "string",
@@ -18,8 +18,7 @@
         },
         "id" : {
            "type" : "string",
-           "description" : "The id of the document.",
-           "required" : true
+           "description" : "The id of the document, when not specified a doc param should be supplied."
          }
       },
       "params": {
@@ -87,7 +86,7 @@
       }
     },
     "body": {
-      "description" : "Define parameters. See documentation.",
+      "description" : "Define parameters and or supply a document to get termvectors for. See documentation.",
       "required" : false
     }
   }

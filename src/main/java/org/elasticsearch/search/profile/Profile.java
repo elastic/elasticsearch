@@ -124,10 +124,16 @@ public class Profile implements Streamable, ToXContent {
         if (components.size() > 0) {
             for (int i = 0; i < this.components.size(); ++i) {
                 if (other.components != null && i < other.components.size()) {
-                    components.set(i, components.get(i).merge(other.components.get(i)));
+                    Profile thisProfile = components.get(i);
+                    Profile otherProfile = other.components.get(i);
+
+                    if (thisProfile.equals(otherProfile)) {
+                        components.set(i, thisProfile.merge(otherProfile));
+                    }
+
                 }
             }
-        } else {
+        } else if (other.components.size() > 0) {
             // We don't have any components (possible because of differences in shards), but `other`
             // has some...so we'll use those and just skip the merge process
             components.addAll(other.components);
@@ -240,5 +246,15 @@ public class Profile implements Streamable, ToXContent {
             component.writeTo(out);
         }
 
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        Profile other = (Profile) o;
+        return this.components.equals(other.components) && this.getLuceneDetails().equals(other.getLuceneDetails()) ;
     }
 }

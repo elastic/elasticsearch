@@ -157,7 +157,7 @@ units, which default to `METERS`.
 For all types, both the inner `type` and `coordinates` fields are
 required.
 
-Note: In GeoJSON, and therefore Elasticsearch, the correct *coordinate
+In GeoJSON, and therefore Elasticsearch, the correct *coordinate
 order is longitude, latitude (X, Y)* within coordinate arrays. This
 differs from many Geospatial APIs (e.g., Google Maps) that generally
 use the colloquial latitude, longitude (Y, X).
@@ -230,6 +230,36 @@ arrays represent the interior shapes ("holes"):
         "coordinates" : [
             [ [100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0] ],
             [ [100.2, 0.2], [100.8, 0.2], [100.8, 0.8], [100.2, 0.8], [100.2, 0.2] ]
+        ]
+    }
+}
+--------------------------------------------------
+
+*IMPORTANT NOTE:* GeoJSON does not mandate a specific order for vertices thus ambiguous
+polygons around the dateline and poles are possible. To alleviate ambiguity
+the Open Geospatial Consortium (OGC)
+http://www.opengeospatial.org/standards/sfa[Simple Feature Access] specification
+defines the following vertex ordering:
+
+* Outer Ring - Counterclockwise
+* Inner Ring(s) / Holes - Clockwise
+
+For polygons that do not cross the dateline, vertex order will not matter in
+Elasticsearch. For polygons that do cross the dateline, Elasticsearch requires
+vertex orderinging comply with the OGC specification. Otherwise, an unintended polygon
+may be created and unexpected query/filter results will be returned.
+
+The following provides an example of an ambiguous polygon.  Elasticsearch will apply
+OGC standards to eliminate ambiguity resulting in a polygon that crosses the dateline.
+
+[source,js]
+--------------------------------------------------
+{
+    "location" : {
+        "type" : "polygon",
+        "coordinates" : [
+            [ [-177.0, 10.0], [176.0, 15.0], [172.0, 0.0], [176.0, -15.0], [-177.0, -10.0], [-177.0, 10.0] ],
+            [ [178.2, 8.2], [-178.8, 8.2], [-180.8, -8.8], [178.2, 8.8] ]
         ]
     }
 }

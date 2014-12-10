@@ -357,10 +357,8 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     }
 
     public void testStartAndAcquireConcurrently() throws IOException {
-        // Close engine from setUp (we create our own):
-        engine.close();
-
         ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS));
+        final Store store = createStore();
         final Engine engine = createEngine(engineSettingsService, store, createTranslog(), mergeSchedulerProvider);
         final AtomicBoolean startPending = new AtomicBoolean(true);
         Thread thread = new Thread() {
@@ -384,6 +382,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             }
         }
         engine.close();
+        store.close();
     }
 
 

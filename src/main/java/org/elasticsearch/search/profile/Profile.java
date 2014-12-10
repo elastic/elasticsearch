@@ -130,7 +130,7 @@ public class Profile implements Streamable, ToXContent {
         } else {
             // We don't have any components (possible because of differences in shards), but `other`
             // has some...so we'll use those and just skip the merge process
-            components = other.components;
+            components.addAll(other.components);
         }
         this.time += other.time();
 

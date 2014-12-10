@@ -34,7 +34,7 @@ import org.elasticsearch.index.query.*;
 import org.junit.Test;
 
 
-
+@ElasticsearchIntegrationTest.ClusterScope(scope=ElasticsearchIntegrationTest.Scope.TEST)
 public class ProfileQueryTests extends ElasticsearchIntegrationTest {
 
     private QueryBuilder randomQueryBuilder(int numDocs, int depth) {
@@ -212,7 +212,9 @@ public class ProfileQueryTests extends ElasticsearchIntegrationTest {
     public void testBool() throws Exception {
         ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder().put(indexSettings());
         createIndex("test");
-        int numDocs = randomIntBetween(100, 150);
+        ensureGreen();
+
+        int numDocs = randomIntBetween(1000, 1500);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
             docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
@@ -222,12 +224,15 @@ public class ProfileQueryTests extends ElasticsearchIntegrationTest {
         }
 
         indexRandom(true, docs);
-        ensureGreen();
 
         QueryBuilder q = QueryBuilders.boolQuery().must(QueryBuilders.matchQuery("field1", "one")).must(QueryBuilders.matchQuery("field1", "two"));
 
-        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
+        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).execute().actionGet();
         Profile p = resp.getProfile();
+
+        logger.info(p.time() + " " + p.totalTime() + " " + p.getComponents().get(0).totalTime() + " " + p.getComponents().get(1).totalTime());
+        sleep(5000);
+        logger.info(p.time() + " " + p.totalTime() + " " + p.getComponents().get(0).totalTime() + " " + p.getComponents().get(1).totalTime());
 
         assertNotNull(p);
         assertEquals(p.getComponents().size(), 2);

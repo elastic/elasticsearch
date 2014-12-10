@@ -20,7 +20,11 @@
 package org.elasticsearch.index.codec;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.lucene50.Lucene50Codec;
+import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
+import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat.Mode;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
@@ -50,6 +54,7 @@ public class CodecService extends AbstractIndexComponent {
     private final ImmutableMap<String, Codec> codecs;
 
     public final static String DEFAULT_CODEC = "default";
+    public final static String BEST_COMPRESSION_CODEC = "best_compression";
 
     public CodecService(Index index) {
         this(index, ImmutableSettings.Builder.EMPTY_SETTINGS);
@@ -68,9 +73,17 @@ public class CodecService extends AbstractIndexComponent {
         this.mapperService = mapperService;
         MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
         if (mapperService == null) {
-            codecs.put(DEFAULT_CODEC, Codec.getDefault());
+            codecs.put(DEFAULT_CODEC, new Lucene50Codec());
+            codecs.put(BEST_COMPRESSION_CODEC, new Lucene50Codec(Mode.BEST_COMPRESSION));
         } else {
-            codecs.put(DEFAULT_CODEC, new PerFieldMappingPostingFormatCodec(mapperService,
+            codecs.put(DEFAULT_CODEC, 
+                    new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED,
+                    mapperService,
+                    postingsFormatService.get(PostingsFormatService.DEFAULT_FORMAT).get(),
+                    docValuesFormatService.get(DocValuesFormatService.DEFAULT_FORMAT).get(), logger));
+            codecs.put(BEST_COMPRESSION_CODEC, 
+                    new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION,
+                    mapperService,
                     postingsFormatService.get(PostingsFormatService.DEFAULT_FORMAT).get(),
                     docValuesFormatService.get(DocValuesFormatService.DEFAULT_FORMAT).get(), logger));
         }

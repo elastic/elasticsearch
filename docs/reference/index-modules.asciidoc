@@ -41,6 +41,11 @@ otherwise it is written in non-compound format.
 	refresh operation will be executed. Defaults to `1s`. Can be set to `-1`
 	in order to disable it.
 
+`index.codec`::
+        The `default` value compresses stored data with LZ4 compression, but
+        this can be set to `best_compression` for a higher compression ratio,
+        at the expense of slower stored fields performance.
+
 `index.shard.check_on_startup`::
         Should shard consistency be checked upon opening.
         When `true`, the shard will be checked, preventing it from being open in

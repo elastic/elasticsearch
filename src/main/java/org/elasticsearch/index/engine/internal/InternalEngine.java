@@ -1752,4 +1752,29 @@ public class InternalEngine implements Engine {
         // hard fail - we can't get a SegmentReader
         throw new ElasticsearchIllegalStateException("Can not extract segment reader from given index reader [" + reader + "]");
     }
+
+    long getGcDeletesInMillis() {
+        return gcDeletesInMillis;
+    }
+
+    String getCodecName() {
+        return codecName;
+    }
+
+    boolean isCompoundOnFlush() {
+        return compoundOnFlush;
+    }
+
+    int getIndexConcurrency() {
+        return indexConcurrency;
+    }
+
+    boolean isFailEngineOnCorruption() {
+        return failEngineOnCorruption;
+    }
+
+    LiveIndexWriterConfig getCurrentIndexWriterConfig() {
+        IndexWriter writer = currentIndexWriter();
+        return writer == null ? null : writer.getConfig();
+    }
 }

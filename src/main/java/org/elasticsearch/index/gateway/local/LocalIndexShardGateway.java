@@ -242,7 +242,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             recoveryState.getTranslog().startTime(System.currentTimeMillis());
             recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
             StreamInput in = null;
-
+            logger.trace("recovering translog file: {} length: {}", recoveringTranslogFile, recoveringTranslogFile.length());
             final Set<String> typesToUpdate = Sets.newHashSet();
             try {
                 TranslogStream stream = TranslogStreams.translogStreamFor(recoveringTranslogFile);
@@ -250,7 +250,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                     in = stream.openInput(recoveringTranslogFile);
                 } catch (TruncatedTranslogException e) {
                     // file is empty or header has been half-written and should be ignored
-                    logger.trace("ignoring truncation exception, the translog is either empty or half-written ([{}])", e.getMessage());
+                    logger.trace("ignoring truncation exception, the translog is either empty or half-written", e);
                 }
                 while (true) {
                     if (in == null) {
@@ -264,11 +264,11 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                         operation = stream.read(in);
                     } catch (EOFException e) {
                         // ignore, not properly written the last op
-                        logger.trace("ignoring translog EOF exception, the last operation was not properly written ([{}])", e.getMessage());
+                        logger.trace("ignoring translog EOF exception, the last operation was not properly written", e);
                         break;
                     } catch (IOException e) {
                         // ignore, not properly written last op
-                        logger.trace("ignoring translog IO exception, the last operation was not properly written ([{}])", e.getMessage());
+                        logger.trace("ignoring translog IO exception, the last operation was not properly written", e);
                         break;
                     }
                     try {

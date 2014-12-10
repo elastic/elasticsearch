@@ -350,8 +350,12 @@ public class SearchPhaseController extends AbstractComponent {
                 } else {
                     finalProfile = Profile.merge(finalProfile, entry.value.queryResult().profile());
                 }
-                finalProfile.makeTopLevelProfile();
             }
+        }
+
+        // If we generated a profile, we need to recursively merge down the total time
+        if (finalProfile != null) {
+            finalProfile.makeTopLevelProfile();
         }
 
         if (Float.isInfinite(maxScore)) {

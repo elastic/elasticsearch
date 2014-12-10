@@ -106,10 +106,15 @@ public class Profile implements Streamable, ToXContent {
         return totalTime;
     }
 
-    public void setTotalTime(long time) { this.totalTime = time; }
+    public void setTotalTime(long time) {
+        this.totalTime = time;
+        for (Profile p : components) {
+            p.setTotalTime(time);
+        }
+    }
 
     public void makeTopLevelProfile() {
-        this.totalTime = this.time;
+        this.setTotalTime(time);
         this.topProfile = true;
     }
 
@@ -204,7 +209,6 @@ public class Profile implements Streamable, ToXContent {
         if (components.size() > 0) {
             builder.startArray("components");
             for (Profile component : components) {
-                component.setTotalTime(totalTime);
                 component.toXContent(builder, params);
             }
             builder.endArray();

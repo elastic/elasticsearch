@@ -187,6 +187,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         IOUtils.close(verifyingOutput, dir);
     }
 
+    // TODO: remove this, its too fragile. just use a static old index instead.
     private static final class OldSIMockingCodec extends FilterCodec {
 
         protected OldSIMockingCodec() {
@@ -232,6 +233,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
                             }
                         }
                         output.writeStringSet(files);
+                        output.writeStringStringMap(si.getAttributes());
                         CodecUtil.writeFooter(output);
                         success = true;
                     } finally {
@@ -245,6 +247,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         }
     }
 
+    // IF THIS TEST FAILS ON UPGRADE GO LOOK AT THE OldSIMockingCodec!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     @Test
     public void testWriteLegacyChecksums() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);

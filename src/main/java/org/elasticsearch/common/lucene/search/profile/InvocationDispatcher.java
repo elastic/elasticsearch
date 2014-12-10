@@ -31,7 +31,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +43,7 @@ public class InvocationDispatcher<P, R> {
     private final Map<Class<?>, Method> methodByType = new ConcurrentHashMap<Class<?>, Method>();   // TODO Simon, the CopyOnWriteMap as throwing dozens of errors? Replaced with regular map
     private final Class<?> dispatchabelType;
     private final String methodName;
+    private final Disambiguator disambiguator;
     /**
      * Creates a new {@link InvocationDispatcher} that will dispatch to methods
      * of the given method name, belonging to the given Class and its supertypes
@@ -53,10 +53,12 @@ public class InvocationDispatcher<P, R> {
      * @param parameterType Type that parameters will be when dispatched
      * @param returnType Type that the return type of the method's is expected to be
      */
-    public InvocationDispatcher(Class<?> classType, String methodName, Class<P> parameterType, Class<R> returnType) {
+    public InvocationDispatcher(Class<?> classType, String methodName, Class<P> parameterType, Class<R> returnType, Disambiguator disambiguator) {
         this.dispatchableMethods = new ArrayList<Method>();
         dispatchabelType = classType;
         this.methodName = methodName;
+        this.disambiguator = disambiguator;
+
         for (; classType != Object.class; classType = classType.getSuperclass()) {
             for (Method method : classType.getDeclaredMethods()) {
                 if (isDispatchableMethod(method, methodName, parameterType, returnType)) {
@@ -99,13 +101,15 @@ public class InvocationDispatcher<P, R> {
                 }
             }
 
-            if (possibleMethods.size() == 0) {
+            if (possibleMethods.size() == 1) {
+                method = possibleMethods.get(0);
+            } else if (possibleMethods.size() == 0) {
                 throw new NoMatchingMethodException(dispatchabelType, parameterType, methodName);
-            } else if (possibleMethods.size() > 1) {
-                throw new AmbigousMethodException(dispatchabelType, parameterType, possibleMethods, methodName);
+            } else {
+                method = disambiguator.disambiguate(dispatchabelType, parameterType, possibleMethods, methodName);
             }
 
-            method = possibleMethods.get(0);
+
             methodByType.put(parameterType, method);
         }
         try {
@@ -218,5 +222,11 @@ public class InvocationDispatcher<P, R> {
         }
         return builder.toString();
 
+    }
+
+
+
+    public static interface Disambiguator {
+        Method disambiguate(Class<?> dispatchableType, Class<?> parameterType, List<Method> methods, String methodName);
     }
 }

@@ -26,7 +26,10 @@ import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.common.lucene.search.*;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.ListIterator;
 
 /**
  * This class walks a query and wraps all applicable components in ProfileQuery
@@ -35,7 +38,34 @@ import java.util.ArrayList;
 public class ProfileQueryVisitor extends Visitor<Object, ProfileComponent> {
 
     public ProfileQueryVisitor() {
-        super(ProfileQueryVisitor.class, Object.class, ProfileComponent.class);
+        super(ProfileQueryVisitor.class, Object.class, ProfileComponent.class, new InvocationDispatcher.Disambiguator() {
+            @Override
+            public Method disambiguate(Class<?> dispatchableType, Class<?> parameterType, List<Method> methods, String methodName) {
+                ListIterator<Method> iter = methods.listIterator();
+
+                Method genericQuery = null;
+                while(iter.hasNext()){
+                    Method next = iter.next();
+                    if(next.getParameterTypes()[0].equals(Query.class)){
+                        genericQuery = next;
+                        iter.remove();
+                    }
+                }
+
+                // If there is only one method left, we found a (hopefully) more specific method
+                if (methods.size() == 1) {
+                    return methods.get(0);
+                } else if (methods.size() > 1 && genericQuery != null) {
+                    // If there are still multiple options, try to fallback to the most basic Query method call
+                    // Wont be great, but might muddle through
+                    return genericQuery;
+                } else {
+                    // Otherwise just give up
+                    throw new InvocationDispatcher.AmbigousMethodException(dispatchableType, parameterType, methods, methodName);
+                }
+
+            }
+        });
     }
 
     public ProfileQuery visit(BooleanQuery booleanQuery) {

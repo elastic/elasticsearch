@@ -25,7 +25,9 @@ package org.elasticsearch.common.lucene.search.profile;
  */
 
 
+import java.lang.reflect.Method;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -57,6 +59,16 @@ public abstract class Visitor<I, O> {
 
     private static final String METHOD_NAME = "visit";
 
+
+    protected Visitor(Class<? extends Object> visitorClass, Class<I> inputType, Class<O> outputType) {
+        this(visitorClass, inputType, outputType, new InvocationDispatcher.Disambiguator() {
+            @Override
+            public Method disambiguate(Class<?> dispatchableType, Class<?> parameterType, List<Method> methods, String methodName) {
+                throw new InvocationDispatcher.AmbigousMethodException(dispatchableType, parameterType, methods, methodName);
+            }
+        });
+    }
+
     /**
      * Creates a new Visitor that will visit methods in the given visitor class,
      * that accept parameters of the given input type, returning values of the
@@ -67,14 +79,15 @@ public abstract class Visitor<I, O> {
      * @param outputType Type of the outputs of the visiting
      */
     @SuppressWarnings("unchecked")
-    protected Visitor(Class<? extends Object> visitorClass, Class<I> inputType, Class<O> outputType) {
+    protected Visitor(Class<? extends Object> visitorClass, Class<I> inputType, Class<O> outputType, InvocationDispatcher.Disambiguator disambiguator) {
         InvocationDispatcher<I, O> dispatcher = (InvocationDispatcher<I, O>) dispatcherByClass.get(visitorClass);
         if (dispatcher == null) {
-            dispatcher = new InvocationDispatcher<I, O>(visitorClass, METHOD_NAME, inputType, outputType);
+            dispatcher = new InvocationDispatcher<I, O>(visitorClass, METHOD_NAME, inputType, outputType, disambiguator);
             dispatcherByClass.put(visitorClass, (InvocationDispatcher<Object, Object>) dispatcher);
         }
         this.dispatcher = dispatcher;
     }
+
 
     /**
      * Applies the given input to the visitor
@@ -85,4 +98,6 @@ public abstract class Visitor<I, O> {
     public final O apply(I input) {
         return dispatcher.dispatch(this, input);
     }
+
+
 }

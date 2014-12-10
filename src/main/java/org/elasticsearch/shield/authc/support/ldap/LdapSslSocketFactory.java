@@ -8,12 +8,10 @@ package org.elasticsearch.shield.authc.support.ldap;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.ssl.SSLService;
-import org.elasticsearch.shield.ssl.SSLServiceProvider;
 
 import javax.net.SocketFactory;
 import java.io.IOException;
@@ -44,14 +42,14 @@ public class LdapSslSocketFactory extends SocketFactory {
 
     private static LdapSslSocketFactory instance;
 
-    private static Provider<SSLService> sslServiceProvider;
+    private static SSLService sslService;
 
     /**
      * This should only be invoked once to establish a static instance that will be used for each constructor.
      */
     @Inject
-    public static void init(SSLServiceProvider sslServiceProvider) {
-        LdapSslSocketFactory.sslServiceProvider = sslServiceProvider;
+    public static void init(SSLService sslService) {
+        LdapSslSocketFactory.sslService = sslService;
     }
 
     /**
@@ -74,7 +72,7 @@ public class LdapSslSocketFactory extends SocketFactory {
      */
     public static synchronized SocketFactory getDefault() {
         if (instance == null) {
-            instance = new LdapSslSocketFactory(sslServiceProvider.get().getSSLSocketFactory());
+            instance = new LdapSslSocketFactory(sslService.getSSLSocketFactory());
         }
         return instance;
     }

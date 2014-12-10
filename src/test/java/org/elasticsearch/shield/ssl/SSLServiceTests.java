@@ -8,9 +8,9 @@ package org.elasticsearch.shield.ssl;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
+import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import java.io.File;
 
@@ -34,19 +34,7 @@ public class SSLServiceTests extends ElasticsearchTestCase {
                             .put("shield.ssl.keystore.password", "testnode")
                             .put("shield.ssl.truststore.path", testnodeStore.getPath())
                             .put("shield.ssl.truststore.password", "testnode")
-                        .build());
-    }
-
-    @Test @Ignore //TODO it appears that setting a specific protocol doesn't make a difference
-    public void testSpecificProtocol() {
-        SSLService ssl = new SSLService(settingsBuilder()
-                .put("shield.ssl.protocol", "TLSv1.2")
-                .put("shield.ssl.keystore.path", testnodeStore.getPath())
-                .put("shield.ssl.keystore.password", "testnode")
-                .put("shield.ssl.truststore.path", testnodeStore.getPath())
-                .put("shield.ssl.truststore.password", "testnode")
-                .build());
-        assertThat(ssl.createSSLEngine().getSSLParameters().getProtocols(), arrayContaining("TLSv1.2"));
+                        .build()).createSSLEngine();
     }
 
     @Test
@@ -62,7 +50,23 @@ public class SSLServiceTests extends ElasticsearchTestCase {
                 .put("truststore.path", testClientStore.getPath())
                 .put("truststore.password", "testclient");
 
-        SSLEngine sslEngineWithTruststore = sslService.createSSLEngineWithTruststore(settingsBuilder.build());
+        SSLEngine sslEngineWithTruststore = sslService.createSSLEngine(settingsBuilder.build());
         assertThat(sslEngineWithTruststore, is(not(nullValue())));
+
+        SSLEngine sslEngine = sslService.createSSLEngine();
+        assertThat(sslEngineWithTruststore, is(not(sameInstance(sslEngine))));
+    }
+
+    @Test
+    public void testThatSslContextCachingWorks() throws Exception {
+        SSLService sslService = new SSLService(settingsBuilder()
+            .put("shield.ssl.keystore.path", testnodeStore.getPath())
+            .put("shield.ssl.keystore.password", "testnode")
+            .build());
+
+        SSLContext sslContext = sslService.getSslContext();
+        SSLContext cachedSslContext = sslService.getSslContext();
+
+        assertThat(sslContext, is(sameInstance(cachedSslContext)));
     }
 }

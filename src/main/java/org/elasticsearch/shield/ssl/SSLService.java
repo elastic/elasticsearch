@@ -6,9 +6,10 @@
 package org.elasticsearch.shield.ssl;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldSettingsException;
 
@@ -16,6 +17,7 @@ import javax.net.ssl.*;
 import java.io.FileInputStream;
 import java.security.KeyStore;
 import java.util.Arrays;
+import java.util.Map;
 
 /**
  * This service houses the private key and trust managers needed for SSL/TLS negotiation.  It is the central place to
@@ -25,22 +27,41 @@ public class SSLService extends AbstractComponent {
 
     static final String[] DEFAULT_CIPHERS = new String[]{ "TLS_RSA_WITH_AES_128_CBC_SHA256", "TLS_RSA_WITH_AES_128_CBC_SHA", "TLS_DHE_RSA_WITH_AES_128_CBC_SHA", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA" };
 
-    private final TrustManagerFactory trustFactory;
-    private final KeyManagerFactory keyManagerFactory;
-    private final String sslProtocol;
-    private final SSLContext sslContext;
-    private final String[] ciphers;
+    private Map<String, SSLContext> sslContexts = Maps.newHashMapWithExpectedSize(3);
 
-    SSLService(Settings settings) {
+    @Inject
+    public SSLService(Settings settings) {
         super(settings);
+    }
 
-        String keyStorePath = componentSettings.get("keystore.path", System.getProperty("javax.net.ssl.keyStore"));
-        String keyStorePassword = componentSettings.get("keystore.password", System.getProperty("javax.net.ssl.keyStorePassword"));
-        String keyStoreAlgorithm = componentSettings.get("keystore.algorithm", System.getProperty("ssl.KeyManagerFactory.algorithm", KeyManagerFactory.getDefaultAlgorithm()));
+    /**
+     * @return An SSLSocketFactory (for client-side SSL handshaking)
+     */
+    public SSLSocketFactory getSSLSocketFactory() {
+        return getSslContext(ImmutableSettings.EMPTY).getSocketFactory();
+    }
 
-        String trustStorePath = componentSettings.get("truststore.path", System.getProperty("javax.net.ssl.trustStore"));
-        String trustStorePassword = componentSettings.get("truststore.password", System.getProperty("javax.net.ssl.trustStorePassword"));
-        String trustStoreAlgorithm = componentSettings.get("truststore.algorithm", System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));
+    public SSLEngine createSSLEngine() {
+        return createSSLEngine(ImmutableSettings.EMPTY);
+    }
+
+    public SSLEngine createSSLEngine(Settings settings) {
+        String[] ciphers = settings.getAsArray("ciphers", componentSettings.getAsArray("ciphers", DEFAULT_CIPHERS));
+        return createSSLEngine(getSslContext(settings), ciphers);
+    }
+
+    public SSLContext getSslContext() {
+        return getSslContext(ImmutableSettings.EMPTY);
+    }
+
+    private SSLContext getSslContext(Settings settings) {
+        String keyStorePath = settings.get("keystore.path", componentSettings.get("keystore.path", System.getProperty("javax.net.ssl.keyStore")));
+        String keyStorePassword = settings.get("keystore.password", componentSettings.get("keystore.password", System.getProperty("javax.net.ssl.keyStorePassword")));
+        String keyStoreAlgorithm = settings.get("keystore.algorithm", componentSettings.get("keystore.algorithm", System.getProperty("ssl.KeyManagerFactory.algorithm", KeyManagerFactory.getDefaultAlgorithm())));
+
+        String trustStorePath = settings.get("truststore.path", componentSettings.get("truststore.path", System.getProperty("javax.net.ssl.trustStore")));
+        String trustStorePassword = settings.get("truststore.password", componentSettings.get("truststore.password", System.getProperty("javax.net.ssl.trustStorePassword")));
+        String trustStoreAlgorithm = settings.get("truststore.algorithm", componentSettings.get("truststore.algorithm", System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm())));
 
         if (trustStorePath == null) {
             //the keystore will also be the truststore
@@ -55,49 +76,29 @@ public class SSLService extends AbstractComponent {
             throw new ShieldSettingsException("No keystore password configured");
         }
 
-        this.ciphers = componentSettings.getAsArray("ciphers", DEFAULT_CIPHERS);
         //protocols supported: https://docs.oracle.com/javase/7/docs/technotes/guides/security/StandardNames.html#SSLContext
-        this.sslProtocol = componentSettings.get("protocol", "TLS");
+        String sslProtocol = componentSettings.get("protocol", "TLS");
 
-        logger.debug("using keyStore[{}], keyAlgorithm[{}], trustStore[{}], truststoreAlgorithm[{}], ciphersuites[{}], TLS protocol[{}]",
-                keyStorePath, keyStoreAlgorithm, trustStorePath, trustStoreAlgorithm, ciphers, sslProtocol);
+        // no need for a complex key, same path + protocol define about reusability of a SSLContext
+        // also no need for pwd verification. If it worked before, it will work again
+        String key = keyStorePath + trustStorePath + sslProtocol;
+        SSLContext sslContext = sslContexts.get(key);
+        if (sslContext == null) {
+            logger.debug("using keyStore[{}], keyAlgorithm[{}], trustStore[{}], truststoreAlgorithm[{}], TLS protocol[{}]",
+                keyStorePath, keyStoreAlgorithm, trustStorePath, trustStoreAlgorithm, sslProtocol);
 
-        this.trustFactory = getTrustFactory(trustStorePath, trustStorePassword, trustStoreAlgorithm);
-        this.keyManagerFactory = createKeyManagerFactory(keyStorePath, keyStorePassword, keyStoreAlgorithm);
-        this.sslContext = createSslContext(trustFactory);
-    }
+            TrustManagerFactory trustFactory = getTrustFactory(trustStorePath, trustStorePassword, trustStoreAlgorithm);
+            KeyManagerFactory keyManagerFactory = createKeyManagerFactory(keyStorePath, keyStorePassword, keyStoreAlgorithm);
+            sslContext = createSslContext(keyManagerFactory, trustFactory, sslProtocol);
+            sslContexts.put(key, sslContext);
+        } else {
+            logger.trace("Found keystore[{}], trustStore[{}], TLS protocol[{}] in SSL context cache, reusing", keyStorePath, trustStorePath, sslProtocol);
+        }
 
-    /**
-     * @return An SSLSocketFactory (for client-side SSL handshaking)
-     */
-    public SSLSocketFactory getSSLSocketFactory() {
-        return sslContext.getSocketFactory();
-    }
-
-    public SSLEngine createSSLEngine() {
-        return createSSLEngine(this.sslContext);
-    }
-
-    public SSLContext getSslContext() {
         return sslContext;
     }
 
-    public SSLEngine createSSLEngineWithTruststore(Settings settings) {
-        String trustStore = settings.get("truststore.path", System.getProperty("javax.net.ssl.trustStore"));
-        String trustStorePassword = settings.get("truststore.password", System.getProperty("javax.net.ssl.trustStorePassword"));
-        String trustStoreAlgorithm = settings.get("truststore.algorithm", System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));
-
-        // no truststore or password, return regular ssl engine
-        if (trustStore == null || trustStorePassword == null) {
-            return createSSLEngine();
-        }
-
-        TrustManagerFactory trustFactory = getTrustFactory(trustStore, trustStorePassword, trustStoreAlgorithm);
-        SSLContext customTruststoreSSLContext = createSslContext(trustFactory);
-        return createSSLEngine(customTruststoreSSLContext);
-    }
-
-    private SSLEngine createSSLEngine(SSLContext sslContext) {
+    private SSLEngine createSSLEngine(SSLContext sslContext, String[] ciphers) {
         SSLEngine sslEngine = sslContext.createSSLEngine();
         try {
             sslEngine.setEnabledCipherSuites(ciphers);
@@ -122,7 +123,7 @@ public class SSLService extends AbstractComponent {
         }
     }
 
-    private SSLContext createSslContext(TrustManagerFactory trustFactory) {
+    private SSLContext createSslContext(KeyManagerFactory keyManagerFactory, TrustManagerFactory trustFactory, String sslProtocol) {
         // Initialize sslContext
         try {
             SSLContext sslContext = SSLContext.getInstance(sslProtocol);

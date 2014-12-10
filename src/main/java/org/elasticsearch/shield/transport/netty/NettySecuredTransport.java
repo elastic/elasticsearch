@@ -15,7 +15,6 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.shield.ssl.SSLService;
-import org.elasticsearch.shield.ssl.SSLServiceProvider;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty.NettyTransport;
@@ -27,17 +26,17 @@ import javax.net.ssl.SSLEngine;
  */
 public class NettySecuredTransport extends NettyTransport {
 
-    private final @Nullable SSLService sslService;
-    private final @Nullable
-    IPFilter authenticator;
+    private final SSLService sslService;
+    private final @Nullable IPFilter authenticator;
+    private final boolean ssl;
 
     @Inject
     public NettySecuredTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version,
-                                 @Nullable IPFilter authenticator, SSLServiceProvider sslServiceProvider) {
+                                 @Nullable IPFilter authenticator, SSLService sslService) {
         super(settings, threadPool, networkService, bigArrays, version);
         this.authenticator = authenticator;
-        boolean ssl = settings.getAsBoolean("shield.transport.ssl", false);
-        this.sslService = ssl ? sslServiceProvider.get() : null;
+        this.ssl = settings.getAsBoolean("shield.transport.ssl", false);
+        this.sslService = sslService;
     }
 
     @Override
@@ -62,10 +61,10 @@ public class NettySecuredTransport extends NettyTransport {
         @Override
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = super.getPipeline();
-            if (sslService != null) {
+            if (ssl) {
                 SSLEngine serverEngine;
                 if (profileSettings.get("shield.truststore.path") != null) {
-                    serverEngine = sslService.createSSLEngineWithTruststore(profileSettings.getByPrefix("shield."));
+                    serverEngine = sslService.createSSLEngine(profileSettings.getByPrefix("shield."));
                 } else {
                     serverEngine = sslService.createSSLEngine();
                 }
@@ -91,7 +90,7 @@ public class NettySecuredTransport extends NettyTransport {
         @Override
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = super.getPipeline();
-            if (sslService != null) {
+            if (ssl) {
                 SSLEngine clientEngine = sslService.createSSLEngine();
                 clientEngine.setUseClientMode(true);
 

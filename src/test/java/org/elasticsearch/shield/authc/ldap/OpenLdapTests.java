@@ -8,7 +8,7 @@ package org.elasticsearch.shield.authc.ldap;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.ldap.LdapSslSocketFactory;
-import org.elasticsearch.shield.ssl.SSLServiceProvider;
+import org.elasticsearch.shield.ssl.SSLService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.AfterClass;
@@ -30,7 +30,7 @@ public class OpenLdapTests extends ElasticsearchTestCase {
     @BeforeClass
     public static void setTrustStore() throws URISyntaxException {
         File filename = new File(LdapConnectionTests.class.getResource("../support/ldap/ldaptrust.jks").toURI()).getAbsoluteFile();
-        LdapSslSocketFactory.init(new SSLServiceProvider(ImmutableSettings.builder()
+        LdapSslSocketFactory.init(new SSLService(ImmutableSettings.builder()
                 .put("shield.ssl.keystore.path", filename)
                 .put("shield.ssl.keystore.password", "changeit")
                 .build()));

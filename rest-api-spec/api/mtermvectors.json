@@ -13,11 +13,7 @@
         "type" : {
           "type" : "string",
           "description" : "The type of the document."
-        },
-        "id" : {
-           "type" : "string",
-           "description" : "The id of the document."
-         }
+        }
       },
       "params" : {
         "ids" : {
@@ -78,7 +74,7 @@
       }
     },
     "body" : {
-        "description" : "Define ids, parameters or a list of parameters per document here. You must at least provide a list of document ids. See documentation.",
+        "description" : "Define ids, documents, parameters or a list of parameters per document here. You must at least provide a list of document ids. See documentation.",
         "required" : false
 
     }

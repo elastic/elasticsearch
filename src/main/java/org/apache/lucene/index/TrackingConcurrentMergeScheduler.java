@@ -119,7 +119,7 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
             totalMergesSizeInBytes.inc(totalSizeInBytes);
             totalMerges.inc(took);
             String message = String.format(Locale.ROOT,
-                                           "merge segment %s done: took %s, %,.1f MB, %,d docs",
+                                           "merge segment [%s] done: took [%s], [%,.1f MB], [%,d docs]",
                                            merge.info == null ? "_na_" : merge.info.info.name,
                                            TimeValue.timeValueMillis(took),
                                            totalSizeInBytes/1024f/1024f,

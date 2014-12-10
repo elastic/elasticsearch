@@ -23,11 +23,13 @@ import com.google.common.io.Files;
 import org.apache.log4j.Appender;
 import org.apache.log4j.Logger;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -50,26 +52,31 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
 
     @Test
     public void testResolveMultipleConfigs() throws Exception {
-        File configDir = resolveConfigDir();
-        Settings settings = ImmutableSettings.builder()
-                .put("path.conf", configDir.getAbsolutePath())
-                .build();
-        LogConfigurator.configure(settings);
+        String level = Log4jESLoggerFactory.getLogger("test").getLevel();
+        try {
+            File configDir = resolveConfigDir();
+            Settings settings = ImmutableSettings.builder()
+                    .put("path.conf", configDir.getAbsolutePath())
+                    .build();
+            LogConfigurator.configure(settings);
 
-        ESLogger esLogger = Log4jESLoggerFactory.getLogger("test");
-        Logger logger = ((Log4jESLogger) esLogger).logger();
-        Appender appender = logger.getAppender("console");
-        assertThat(appender, notNullValue());
+            ESLogger esLogger = Log4jESLoggerFactory.getLogger("test");
+            Logger logger = ((Log4jESLogger) esLogger).logger();
+            Appender appender = logger.getAppender("console");
+            assertThat(appender, notNullValue());
 
-        esLogger = Log4jESLoggerFactory.getLogger("second");
-        logger = ((Log4jESLogger) esLogger).logger();
-        appender = logger.getAppender("console2");
-        assertThat(appender, notNullValue());
+            esLogger = Log4jESLoggerFactory.getLogger("second");
+            logger = ((Log4jESLogger) esLogger).logger();
+            appender = logger.getAppender("console2");
+            assertThat(appender, notNullValue());
 
-        esLogger = Log4jESLoggerFactory.getLogger("third");
-        logger = ((Log4jESLogger) esLogger).logger();
-        appender = logger.getAppender("console3");
-        assertThat(appender, notNullValue());
+            esLogger = Log4jESLoggerFactory.getLogger("third");
+            logger = ((Log4jESLogger) esLogger).logger();
+            appender = logger.getAppender("console3");
+            assertThat(appender, notNullValue());
+        } finally {
+            Log4jESLoggerFactory.getLogger("test").setLevel(level);
+        }
     }
 
     @Test

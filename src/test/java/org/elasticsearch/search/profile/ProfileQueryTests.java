@@ -44,7 +44,7 @@ public class ProfileQueryTests extends ElasticsearchIntegrationTest {
         }
 
         QueryBuilder q;
-        switch (randomIntBetween(0,5)) {
+        switch (randomIntBetween(0,8)) {
             case 0:
                 q = QueryBuilders.filteredQuery(randomQueryBuilder(numDocs, depth -1), randomFilterBuilder(numDocs, depth -1));
                 break;
@@ -74,6 +74,22 @@ public class ProfileQueryTests extends ElasticsearchIntegrationTest {
                 break;
             case 5:
                 q = QueryBuilders.matchAllQuery();
+                break;
+            case 6:
+                q = QueryBuilders.boostingQuery().boost(randomFloat())
+                        .positive(randomQueryBuilder(numDocs, depth - 1))
+                        .negativeBoost(randomFloat())
+                        .negative(randomQueryBuilder(numDocs, depth - 1)); 
+                break;
+            case 7:
+                if (randomBoolean()) {
+                    q = QueryBuilders.constantScoreQuery(randomQueryBuilder(numDocs, depth - 1));
+                } else {
+                    q = QueryBuilders.constantScoreQuery(randomFilterBuilder(numDocs, depth - 1));
+                }
+                break;
+            case 8:
+                q = QueryBuilders.commonTermsQuery("field1", English.intToEnglish(randomIntBetween(0,numDocs)));
                 break;
             default:
                 q = QueryBuilders.termQuery("field1", English.intToEnglish(randomIntBetween(0,numDocs)));
@@ -214,7 +230,7 @@ public class ProfileQueryTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         ensureGreen();
 
-        int numDocs = randomIntBetween(1000, 1500);
+        int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
             docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
@@ -229,10 +245,6 @@ public class ProfileQueryTests extends ElasticsearchIntegrationTest {
 
         SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).execute().actionGet();
         Profile p = resp.getProfile();
-
-        logger.info(p.time() + " " + p.totalTime() + " " + p.getComponents().get(0).totalTime() + " " + p.getComponents().get(1).totalTime());
-        sleep(5000);
-        logger.info(p.time() + " " + p.totalTime() + " " + p.getComponents().get(0).totalTime() + " " + p.getComponents().get(1).totalTime());
 
         assertNotNull(p);
         assertEquals(p.getComponents().size(), 2);
@@ -285,6 +297,36 @@ public class ProfileQueryTests extends ElasticsearchIntegrationTest {
 
     }
 
+    @Test
+    public void testBoosting() throws Exception {
+        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder().put(indexSettings());
+        createIndex("test");
+        ensureGreen();
+
+        int numDocs = randomIntBetween(100, 150);
+        IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
+                    "field1", English.intToEnglish(i),
+                    "field2", i
+            );
+        }
+
+        indexRandom(true, docs);
+
+        refresh();
+
+        QueryBuilder q = QueryBuilders.boostingQuery().boost(randomFloat())
+                .positive(QueryBuilders.matchQuery("field1", "one"))
+                .negativeBoost(randomFloat())
+                .negative(QueryBuilders.matchQuery("field1", "two"));
+        logger.info(q.toString());
+
+        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
+        assertNotNull("Profile response element should not be null", resp.getProfile());
+
+
+    }
 
 }
 

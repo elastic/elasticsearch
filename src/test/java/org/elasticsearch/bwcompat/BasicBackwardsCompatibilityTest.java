@@ -341,7 +341,8 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             indexRandom(true, docs);
         } while (upgraded);
         client().admin().indices().prepareUpdateSettings(indices).setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
-        CountResponse countResponse  = client().prepareCount().get();
+        ensureYellow();
+        CountResponse countResponse = client().prepareCount().get();
         assertHitCount(countResponse, numDocs);
         assertSimpleSort("num_double", "num_int");
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine.internal;
 
 import com.google.common.collect.Lists;
+
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.search.*;
@@ -69,6 +70,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1054,10 +1056,13 @@ public class InternalEngine implements Engine {
         }
     }
 
+    // TODO: can we please remove this method?!
     private void waitForMerges(boolean flushAfter) {
         try {
-            currentIndexWriter().waitForMerges();
-        } catch (IOException e) {
+            Method method = IndexWriter.class.getDeclaredMethod("waitForMerges");
+            method.setAccessible(true);
+            method.invoke(currentIndexWriter());
+        } catch (ReflectiveOperationException e) {
             throw new OptimizeFailedEngineException(shardId, e);
         }
         if (flushAfter) {

@@ -26,11 +26,13 @@ import org.apache.log4j.Logger;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.spi.LoggingEvent;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexDeletionPolicy;
+import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
@@ -38,6 +40,7 @@ import org.apache.lucene.store.MockDirectoryWrapper;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
@@ -63,6 +66,8 @@ import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
+import org.elasticsearch.index.settings.IndexDynamicSettings;
+import org.elasticsearch.index.settings.IndexDynamicSettingsModule;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
@@ -89,13 +94,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomDouble;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.test.ElasticsearchTestCase.awaitBusy;
+import static org.elasticsearch.test.ElasticsearchTestCase.randomFrom;
 import static org.elasticsearch.test.ElasticsearchTestCase.terminate;
 import static org.hamcrest.Matchers.*;
 
@@ -1500,6 +1504,63 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                 holder.close();
                 assertEquals(store.refCount(), refCount);
             }
+        }
+    }
+
+    @Test
+    public void testSettings() {
+        final InternalEngineHolder holder = (InternalEngineHolder) engine;
+        IndexDynamicSettingsModule settings = new IndexDynamicSettingsModule();
+        assertTrue(settings.containsSetting(InternalEngineHolder.INDEX_FAIL_ON_CORRUPTION));
+        assertTrue(settings.containsSetting(InternalEngineHolder.INDEX_COMPOUND_ON_FLUSH));
+        assertTrue(settings.containsSetting(InternalEngineHolder.INDEX_GC_DELETES));
+        assertTrue(settings.containsSetting(InternalEngineHolder.INDEX_CODEC));
+        assertTrue(settings.containsSetting(InternalEngineHolder.INDEX_FAIL_ON_MERGE_FAILURE));
+        assertTrue(settings.containsSetting(InternalEngineHolder.INDEX_INDEX_CONCURRENCY));
+
+        final int iters = between(1, 20);
+        for (int i = 0; i < iters; i++) {
+            boolean compoundOnFlush = randomBoolean();
+            boolean failOnCorruption = randomBoolean();
+            boolean failOnMerge = randomBoolean();
+            long gcDeletes = Math.max(0, randomLong());
+            int indexConcurrency = randomIntBetween(1, 20);
+            String codecName = randomFrom(holder.codecService.availableCodecs());
+
+            Settings build = ImmutableSettings.builder()
+                    .put(InternalEngineHolder.INDEX_FAIL_ON_CORRUPTION, failOnCorruption)
+                    .put(InternalEngineHolder.INDEX_COMPOUND_ON_FLUSH, compoundOnFlush)
+                    .put(InternalEngineHolder.INDEX_GC_DELETES, gcDeletes)
+                    .put(InternalEngineHolder.INDEX_CODEC, codecName)
+                    .put(InternalEngineHolder.INDEX_FAIL_ON_MERGE_FAILURE, failOnMerge)
+                    .put(InternalEngineHolder.INDEX_INDEX_CONCURRENCY, indexConcurrency)
+                    .build();
+
+            engineSettingsService.refreshSettings(build);
+            LiveIndexWriterConfig currentIndexWriterConfig = holder.engineSafe().getCurrentIndexWriterConfig();
+            assertEquals(holder.compoundOnFlush, compoundOnFlush);
+            assertEquals(holder.engineSafe().isCompoundOnFlush(), compoundOnFlush);
+            assertEquals(currentIndexWriterConfig.getUseCompoundFile(), compoundOnFlush);
+
+
+            assertEquals(holder.gcDeletesInMillis, gcDeletes);
+            assertEquals(holder.engineSafe().getGcDeletesInMillis(), gcDeletes);
+
+            assertEquals(holder.codecName, codecName);
+            assertEquals(holder.engineSafe().getCodecName(), codecName);
+            assertEquals(currentIndexWriterConfig.getCodec(), holder.codecService.codec(codecName));
+
+
+            assertEquals(holder.failEngineOnCorruption, failOnCorruption);
+            assertEquals(holder.engineSafe().isFailEngineOnCorruption(), failOnCorruption);
+
+            assertEquals(holder.failOnMergeFailure, failOnMerge); // only on the holder
+
+            assertEquals(holder.indexConcurrency, indexConcurrency);
+            assertEquals(holder.engineSafe().getIndexConcurrency(), indexConcurrency);
+            assertEquals(currentIndexWriterConfig.getMaxThreadStates(), indexConcurrency);
+
+
         }
     }
 }

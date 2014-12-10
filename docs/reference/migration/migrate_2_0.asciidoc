@@ -89,6 +89,11 @@ with values in a single array.
 }
 ---------------
 
+=== Main API
+
+Previously, calling `GET /` was giving back the http status code within the json response
+in addition to the actual HTTP status code. We removed `status` field in json response.
+
 === Java API
 
 Some query builders have been removed or renamed:

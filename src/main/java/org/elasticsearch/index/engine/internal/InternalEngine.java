@@ -1742,4 +1742,33 @@ public class InternalEngine implements Engine {
             throw new UnsupportedOperationException("NoOpLock can't provide a condition");
         }
     }
+
+    long getGcDeletesInMillis() {
+        return gcDeletesInMillis;
+    }
+
+    String getCodecName() {
+        return codecName;
+    }
+
+    boolean isCompoundOnFlush() {
+        return compoundOnFlush;
+    }
+
+    int getIndexConcurrency() {
+        return indexConcurrency;
+    }
+
+    boolean isFailEngineOnCorruption() {
+        return failEngineOnCorruption;
+    }
+
+    LiveIndexWriterConfig getCurrentIndexWriterConfig() {
+        IndexWriter writer = currentIndexWriter();
+        return writer == null ? null : writer.getConfig();
+    }
+
+    public boolean isChecksumOnMerge() {
+        return checksumOnMerge;
+    }
 }

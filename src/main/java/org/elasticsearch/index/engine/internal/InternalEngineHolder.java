@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -64,7 +65,7 @@ public class InternalEngineHolder extends AbstractIndexShardComponent implements
     private final FailEngineOnMergeFailure mergeSchedulerFailureListener;
     private final ApplySettings settingsListener;
     private final MergeScheduleListener mergeSchedulerListener;
-    private volatile Boolean failOnMergeFailure;
+    protected volatile Boolean failOnMergeFailure;
     protected volatile boolean failEngineOnCorruption;
     protected volatile ByteSizeValue indexingBufferSize;
     protected volatile int indexConcurrency;
@@ -144,7 +145,7 @@ public class InternalEngineHolder extends AbstractIndexShardComponent implements
         this.mergeSchedulerListener = new MergeScheduleListener();
         this.mergeScheduler.addListener(mergeSchedulerListener);
 
-        this.settingsListener = new ApplySettings();
+        this.settingsListener = new ApplySettings(logger, this);
         this.indexSettingsService.addListener(this.settingsListener);
         store.incRef();
     }
@@ -216,20 +217,19 @@ public class InternalEngineHolder extends AbstractIndexShardComponent implements
 
     @Override
     public synchronized void close() throws ElasticsearchException {
-        if (closed) {
-            return;
-        }
-        closed = true;
-        try {
-            InternalEngine currentEngine = this.currentEngine.getAndSet(null);
-            if (currentEngine != null) {
-                currentEngine.close();
+        if (closed == false) {
+            closed = true;
+            try {
+                InternalEngine currentEngine = this.currentEngine.getAndSet(null);
+                if (currentEngine != null) {
+                    currentEngine.close();
+                }
+                mergeScheduler.removeFailureListener(mergeSchedulerFailureListener);
+                mergeScheduler.removeListener(mergeSchedulerListener);
+                indexSettingsService.removeListener(settingsListener);
+            } finally {
+                store.decRef();
             }
-            mergeScheduler.removeFailureListener(mergeSchedulerFailureListener);
-            mergeScheduler.removeListener(mergeSchedulerListener);
-            indexSettingsService.removeListener(settingsListener);
-        } finally {
-            store.decRef();
         }
     }
 
@@ -358,60 +358,80 @@ public class InternalEngineHolder extends AbstractIndexShardComponent implements
         }
     }
 
-    class ApplySettings implements IndexSettingsService.Listener {
+    static class ApplySettings implements IndexSettingsService.Listener {
+
+        private final ESLogger logger;
+        private final InternalEngineHolder holder;
+
+        ApplySettings(ESLogger logger, InternalEngineHolder holder) {
+            this.logger = logger;
+            this.holder = holder;
+        }
 
         @Override
         public void onRefreshSettings(Settings settings) {
-            InternalEngine currentEngine = InternalEngineHolder.this.currentEngine.get();
             boolean change = false;
-            long gcDeletesInMillis = settings.getAsTime(INDEX_GC_DELETES, TimeValue.timeValueMillis(InternalEngineHolder.this.gcDeletesInMillis)).millis();
-            if (gcDeletesInMillis != InternalEngineHolder.this.gcDeletesInMillis) {
-                logger.info("updating index.gc_deletes from [{}] to [{}]", TimeValue.timeValueMillis(InternalEngineHolder.this.gcDeletesInMillis), TimeValue.timeValueMillis(gcDeletesInMillis));
-                InternalEngineHolder.this.gcDeletesInMillis = gcDeletesInMillis;
+            long gcDeletesInMillis = settings.getAsTime(INDEX_GC_DELETES, TimeValue.timeValueMillis(holder.gcDeletesInMillis)).millis();
+            if (gcDeletesInMillis != holder.gcDeletesInMillis) {
+                logger.info("updating index.gc_deletes from [{}] to [{}]", TimeValue.timeValueMillis(holder.gcDeletesInMillis), TimeValue.timeValueMillis(gcDeletesInMillis));
+                holder.gcDeletesInMillis = gcDeletesInMillis;
                 change = true;
             }
 
-            final boolean compoundOnFlush = settings.getAsBoolean(INDEX_COMPOUND_ON_FLUSH, InternalEngineHolder.this.compoundOnFlush);
-            if (compoundOnFlush != InternalEngineHolder.this.compoundOnFlush) {
-                logger.info("updating {} from [{}] to [{}]", INDEX_COMPOUND_ON_FLUSH, InternalEngineHolder.this.compoundOnFlush, compoundOnFlush);
-                InternalEngineHolder.this.compoundOnFlush = compoundOnFlush;
+            final boolean compoundOnFlush = settings.getAsBoolean(INDEX_COMPOUND_ON_FLUSH, holder.compoundOnFlush);
+            if (compoundOnFlush != holder.compoundOnFlush) {
+                logger.info("updating {} from [{}] to [{}]", INDEX_COMPOUND_ON_FLUSH, holder.compoundOnFlush, compoundOnFlush);
+                holder.compoundOnFlush = compoundOnFlush;
                 change = true;
             }
 
-            final boolean checksumOnMerge = settings.getAsBoolean(INDEX_CHECKSUM_ON_MERGE, InternalEngineHolder.this.checksumOnMerge);
-            if (checksumOnMerge != InternalEngineHolder.this.checksumOnMerge) {
-                logger.info("updating {} from [{}] to [{}]", InternalEngineHolder.INDEX_CHECKSUM_ON_MERGE, InternalEngineHolder.this.checksumOnMerge, checksumOnMerge);
-                InternalEngineHolder.this.checksumOnMerge = checksumOnMerge;
+            final boolean checksumOnMerge = settings.getAsBoolean(INDEX_CHECKSUM_ON_MERGE, holder.checksumOnMerge);
+            if (checksumOnMerge != holder.checksumOnMerge) {
+                logger.info("updating {} from [{}] to [{}]", InternalEngineHolder.INDEX_CHECKSUM_ON_MERGE, holder.checksumOnMerge, checksumOnMerge);
+                holder.checksumOnMerge = checksumOnMerge;
                 change = true;
             }
 
-
-            final boolean failEngineOnCorruption = settings.getAsBoolean(INDEX_FAIL_ON_CORRUPTION, InternalEngineHolder.this.failEngineOnCorruption);
-            if (failEngineOnCorruption != InternalEngineHolder.this.failEngineOnCorruption) {
-                logger.info("updating {} from [{}] to [{}]", INDEX_FAIL_ON_CORRUPTION, InternalEngineHolder.this.failEngineOnCorruption, failEngineOnCorruption);
-                InternalEngineHolder.this.failEngineOnCorruption = failEngineOnCorruption;
+            final boolean failEngineOnCorruption = settings.getAsBoolean(INDEX_FAIL_ON_CORRUPTION, holder.failEngineOnCorruption);
+            if (failEngineOnCorruption != holder.failEngineOnCorruption) {
+                logger.info("updating {} from [{}] to [{}]", INDEX_FAIL_ON_CORRUPTION, holder.failEngineOnCorruption, failEngineOnCorruption);
+                holder.failEngineOnCorruption = failEngineOnCorruption;
                 change = true;
             }
-            int indexConcurrency = settings.getAsInt(INDEX_INDEX_CONCURRENCY, InternalEngineHolder.this.indexConcurrency);
-            if (indexConcurrency != InternalEngineHolder.this.indexConcurrency) {
-                logger.info("updating index.index_concurrency from [{}] to [{}]", InternalEngineHolder.this.indexConcurrency, indexConcurrency);
-                InternalEngineHolder.this.indexConcurrency = indexConcurrency;
+            int indexConcurrency = settings.getAsInt(INDEX_INDEX_CONCURRENCY, holder.indexConcurrency);
+            if (indexConcurrency != holder.indexConcurrency) {
+                logger.info("updating index.index_concurrency from [{}] to [{}]", holder.indexConcurrency, indexConcurrency);
+                holder.indexConcurrency = indexConcurrency;
                 // we have to flush in this case, since it only applies on a new index writer
                 change = true;
             }
-            if (!codecName.equals(InternalEngineHolder.this.codecName)) {
-                logger.info("updating index.codec from [{}] to [{}]", InternalEngineHolder.this.codecName, codecName);
-                InternalEngineHolder.this.codecName = codecName;
+            final String codecName = settings.get(INDEX_CODEC, holder.codecName);
+            if (!codecName.equals(holder.codecName)) {
+                logger.info("updating index.codec from [{}] to [{}]", holder.codecName, codecName);
+                holder.codecName = codecName;
                 // we want to flush in this case, so the new codec will be reflected right away...
                 change = true;
             }
-            if (failOnMergeFailure != InternalEngineHolder.this.failOnMergeFailure) {
-                logger.info("updating {} from [{}] to [{}]", INDEX_FAIL_ON_MERGE_FAILURE, InternalEngineHolder.this.failOnMergeFailure, failOnMergeFailure);
-                InternalEngineHolder.this.failOnMergeFailure = failOnMergeFailure;
+            final boolean failOnMergeFailure = settings.getAsBoolean(INDEX_FAIL_ON_MERGE_FAILURE, holder.failOnMergeFailure);
+            if (failOnMergeFailure != holder.failOnMergeFailure) {
+                logger.info("updating {} from [{}] to [{}]", INDEX_FAIL_ON_MERGE_FAILURE, holder.failOnMergeFailure, failOnMergeFailure);
+                holder.failOnMergeFailure = failOnMergeFailure;
             }
-            if (change && currentEngine != null) {
-                currentEngine.updateSettings(gcDeletesInMillis, compoundOnFlush, checksumOnMerge, failEngineOnCorruption, indexConcurrency, codecName);
+
+
+            if (change) {
+                holder.updateSettings();
             }
+        }
+    }
+
+     synchronized void updateSettings() {
+        // we need to make sure that we wait for the engine to be fully initialized
+        // the start method sets the current engine once it's done but samples the settings
+        // at construction time.
+        final InternalEngine engine = currentEngine.get();
+        if (engine != null) {
+            engine.updateSettings(gcDeletesInMillis, compoundOnFlush, checksumOnMerge, failEngineOnCorruption, indexConcurrency, codecName);
         }
     }
 

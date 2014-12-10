@@ -134,4 +134,11 @@ public class IndexDynamicSettingsModule extends AbstractModule {
     protected void configure() {
         bind(DynamicSettings.class).annotatedWith(IndexDynamicSettings.class).toInstance(indexDynamicSettings);
     }
+
+    /**
+     * Returns <code>true</code> iff the given setting is in the dynamic settings map. Otherwise <code>false</code>.
+     */
+    public boolean containsSetting(String setting) {
+        return indexDynamicSettings.hasDynamicSetting(setting);
+    }
 }

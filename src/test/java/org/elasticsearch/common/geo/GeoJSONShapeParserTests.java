@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.geo;
 
+import com.spatial4j.core.exception.InvalidShapeException;
 import com.spatial4j.core.shape.Circle;
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
@@ -428,6 +429,28 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                 holeCoordinates.toArray(new Coordinate[holeCoordinates.size()]));
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, holes);
         assertGeometryEquals(jtsGeom(expected), polygonGeoJson);
+    }
+
+    @Test
+    public void testParse_selfCrossingPolygon() throws IOException {
+        // test self crossing ccw poly not crossing dateline
+        String polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
+                .startArray("coordinates")
+                .startArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .startArray().value(-177.0).value(10.0).endArray()
+                .startArray().value(-177.0).value(-10.0).endArray()
+                .startArray().value(176.0).value(-15.0).endArray()
+                .startArray().value(-177.0).value(15.0).endArray()
+                .startArray().value(172.0).value(0.0).endArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+
+        XContentParser parser = JsonXContent.jsonXContent.createParser(polygonGeoJson);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertValidException(parser, InvalidShapeException.class);
     }
 
     @Test

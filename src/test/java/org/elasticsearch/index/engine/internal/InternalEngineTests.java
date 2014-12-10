@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.engine.internal;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import com.google.common.base.Predicate;
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
@@ -35,7 +34,6 @@ import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.elasticsearch.ExceptionsHelper;
@@ -73,7 +71,6 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
-import org.elasticsearch.index.store.ram.RamDirectoryService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogSizeMatcher;
 import org.elasticsearch.index.translog.fs.FsTranslog;
@@ -358,8 +355,9 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         assertThat(segments.get(2).isCompound(), equalTo(true));
     }
 
-    public void testStartAndAcquireConcurrently() {
+    public void testStartAndAcquireConcurrently() throws IOException {
         ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS));
+        final Store store = createStore();
         final Engine engine = createEngine(engineSettingsService, store, createTranslog(), mergeSchedulerProvider);
         final AtomicBoolean startPending = new AtomicBoolean(true);
         Thread thread = new Thread() {
@@ -383,6 +381,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             }
         }
         engine.close();
+        store.close();
     }
 
 

@@ -36,25 +36,21 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.service.IndexShard;
-import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.*;
-import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.EOFException;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.Set;
@@ -72,7 +68,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
     private final ThreadPool threadPool;
     private final MappingUpdatedAction mappingUpdatedAction;
     private final IndexService indexService;
-    private final InternalIndexShard indexShard;
+    private final IndexShard indexShard;
 
     private final TimeValue waitForMappingUpdatePostRecovery;
 
@@ -88,7 +84,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         this.threadPool = threadPool;
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.indexService = indexService;
-        this.indexShard = (InternalIndexShard) indexShard;
+        this.indexShard = indexShard;
 
         this.waitForMappingUpdatePostRecovery = componentSettings.getAsTime("wait_for_mapping_update_post_recovery", TimeValue.timeValueSeconds(30));
         syncInterval = componentSettings.getAsTime("sync", TimeValue.timeValueSeconds(5));

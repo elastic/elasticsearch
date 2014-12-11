@@ -36,7 +36,7 @@ import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.TermFilterBuilder;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 
 public class DocIdSetsTests extends ElasticsearchSingleNodeTest {

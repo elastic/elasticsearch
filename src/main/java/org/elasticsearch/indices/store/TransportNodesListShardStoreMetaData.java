@@ -40,16 +40,15 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
@@ -146,7 +145,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
     private StoreFilesMetaData listStoreMetaData(ShardId shardId) throws IOException {
         IndexService indexService = indicesService.indexService(shardId.index().name());
         if (indexService != null) {
-            InternalIndexShard indexShard = (InternalIndexShard) indexService.shard(shardId.id());
+            IndexShard indexShard = indexService.shard(shardId.id());
             if (indexShard != null) {
                 final Store store = indexShard.store();
                 store.incRef();

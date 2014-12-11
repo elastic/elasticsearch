@@ -27,7 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.internal.InternalEngineHolder;
-import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -45,13 +45,13 @@ public class IndexingMemoryControllerTests extends ElasticsearchIntegrationTest 
 
         ensureGreen();
 
-        final InternalIndexShard shard1 = (InternalIndexShard) internalCluster().getInstance(IndicesService.class).indexService("test1").shard(0);
+        final IndexShard shard1 = internalCluster().getInstance(IndicesService.class).indexService("test1").shard(0);
 
         prepareCreate("test2").setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).get();
 
         ensureGreen();
 
-        final InternalIndexShard shard2 = (InternalIndexShard) internalCluster().getInstance(IndicesService.class).indexService("test2").shard(0);
+        final IndexShard shard2 = internalCluster().getInstance(IndicesService.class).indexService("test2").shard(0);
         final long expected1ShardSize = internalCluster().getInstance(IndexingMemoryController.class).indexingBufferSize().bytes();
         final long expected2ShardsSize = expected1ShardSize / 2;
 
@@ -95,7 +95,7 @@ public class IndexingMemoryControllerTests extends ElasticsearchIntegrationTest 
 
         ensureGreen();
 
-        final InternalIndexShard shard1 = (InternalIndexShard) internalCluster().getInstance(IndicesService.class).indexService("test1").shard(0);
+        final IndexShard shard1 = internalCluster().getInstance(IndicesService.class).indexService("test1").shard(0);
         boolean success = awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object input) {

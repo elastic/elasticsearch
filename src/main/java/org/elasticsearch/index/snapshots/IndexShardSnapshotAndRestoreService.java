@@ -33,8 +33,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.service.IndexShard;
-import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.RestoreService;
 
@@ -46,7 +45,7 @@ import org.elasticsearch.snapshots.RestoreService;
  */
 public class IndexShardSnapshotAndRestoreService extends AbstractIndexShardComponent {
 
-    private final InternalIndexShard indexShard;
+    private final IndexShard indexShard;
 
     private final RepositoriesService repositoriesService;
 
@@ -55,7 +54,7 @@ public class IndexShardSnapshotAndRestoreService extends AbstractIndexShardCompo
     @Inject
     public IndexShardSnapshotAndRestoreService(ShardId shardId, @IndexSettings Settings indexSettings, IndexShard indexShard, RepositoriesService repositoriesService, RestoreService restoreService) {
         super(shardId, indexSettings);
-        this.indexShard = (InternalIndexShard) indexShard;
+        this.indexShard = indexShard;
         this.repositoriesService = repositoriesService;
         this.restoreService = restoreService;
     }

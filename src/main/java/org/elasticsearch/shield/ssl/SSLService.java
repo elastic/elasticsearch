@@ -58,6 +58,7 @@ public class SSLService extends AbstractComponent {
         String keyStorePath = settings.get("keystore.path", componentSettings.get("keystore.path", System.getProperty("javax.net.ssl.keyStore")));
         String keyStorePassword = settings.get("keystore.password", componentSettings.get("keystore.password", System.getProperty("javax.net.ssl.keyStorePassword")));
         String keyStoreAlgorithm = settings.get("keystore.algorithm", componentSettings.get("keystore.algorithm", System.getProperty("ssl.KeyManagerFactory.algorithm", KeyManagerFactory.getDefaultAlgorithm())));
+        String keyPassword = settings.get("keystore.key_password", componentSettings.get("keystore.key_password", keyStorePassword));
 
         String trustStorePath = settings.get("truststore.path", componentSettings.get("truststore.path", System.getProperty("javax.net.ssl.trustStore")));
         String trustStorePassword = settings.get("truststore.password", componentSettings.get("truststore.password", System.getProperty("javax.net.ssl.trustStorePassword")));
@@ -88,7 +89,7 @@ public class SSLService extends AbstractComponent {
                 keyStorePath, keyStoreAlgorithm, trustStorePath, trustStoreAlgorithm, sslProtocol);
 
             TrustManagerFactory trustFactory = getTrustFactory(trustStorePath, trustStorePassword, trustStoreAlgorithm);
-            KeyManagerFactory keyManagerFactory = createKeyManagerFactory(keyStorePath, keyStorePassword, keyStoreAlgorithm);
+            KeyManagerFactory keyManagerFactory = createKeyManagerFactory(keyStorePath, keyStorePassword, keyStoreAlgorithm, keyPassword);
             sslContext = createSslContext(keyManagerFactory, trustFactory, sslProtocol);
             sslContexts.put(key, sslContext);
         } else {
@@ -108,7 +109,7 @@ public class SSLService extends AbstractComponent {
         return sslEngine;
     }
 
-    private KeyManagerFactory createKeyManagerFactory(String keyStore, String keyStorePassword, String keyStoreAlgorithm) {
+    private KeyManagerFactory createKeyManagerFactory(String keyStore, String keyStorePassword, String keyStoreAlgorithm, String keyPassword) {
         try (FileInputStream in = new FileInputStream(keyStore)) {
             // Load KeyStore
             KeyStore ks = KeyStore.getInstance("jks");
@@ -116,7 +117,7 @@ public class SSLService extends AbstractComponent {
 
             // Initialize KeyManagerFactory
             KeyManagerFactory kmf = KeyManagerFactory.getInstance(keyStoreAlgorithm);
-            kmf.init(ks, keyStorePassword.toCharArray());
+            kmf.init(ks, keyPassword.toCharArray());
             return kmf;
         } catch (Exception e) {
             throw new ElasticsearchSSLException("Failed to initialize a KeyManagerFactory", e);

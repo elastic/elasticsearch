@@ -315,6 +315,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
             randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards())
                     .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas());
+            
+            randomSettingsBuilder.put("index.codec", randomFrom("default", "best_compression"));
             XContentBuilder mappings = null;
             if (frequently() && randomDynamicTemplates()) {
                 mappings = XContentFactory.jsonBuilder().startObject().startObject("_default_");

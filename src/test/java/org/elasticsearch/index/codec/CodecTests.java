@@ -33,7 +33,15 @@ import org.apache.lucene.codecs.lucene46.Lucene46Codec;
 import org.apache.lucene.codecs.lucene49.Lucene49Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50DocValuesFormat;
+import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
+import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat.Mode;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -172,6 +180,34 @@ public class CodecTests extends ElasticsearchSingleNodeLuceneTestCase {
         DocumentMapper documentMapper = codecService.mapperService().documentMapperParser().parse(mapping);
         assertThat(documentMapper.rootMapper(VersionFieldMapper.class).docValuesFormatProvider(), instanceOf(PreBuiltDocValuesFormatProvider.class));
         assertThat(documentMapper.rootMapper(VersionFieldMapper.class).docValuesFormatProvider().get(), instanceOf(Lucene410DocValuesFormat.class));
+    }
+    
+    public void testDefault() throws Exception {
+        Codec codec = createCodecService().codec("default");
+        assertCompressionEquals(Mode.BEST_SPEED, codec);
+    }
+    
+    public void testBestCompression() throws Exception {
+        Codec codec = createCodecService().codec("best_compression");
+        assertCompressionEquals(Mode.BEST_COMPRESSION, codec);
+    }
+    
+    // write some docs with it, inspect .si to see this was the used compression
+    private void assertCompressionEquals(Mode expected, Codec actual) throws Exception {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig(null);
+        iwc.setCodec(actual);
+        IndexWriter iw = new IndexWriter(dir, iwc);
+        iw.addDocument(new Document());
+        iw.commit();
+        iw.close();
+        DirectoryReader ir = DirectoryReader.open(dir);
+        SegmentReader sr = (SegmentReader) ir.leaves().get(0).reader();
+        String v = sr.getSegmentInfo().info.getAttribute(Lucene50StoredFieldsFormat.MODE_KEY);
+        assertNotNull(v);
+        assertEquals(expected, Mode.valueOf(v));
+        ir.close();
+        dir.close();
     }
 
     private static CodecService createCodecService() {

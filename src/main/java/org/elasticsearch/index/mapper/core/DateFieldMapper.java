@@ -71,9 +71,6 @@ import static org.elasticsearch.index.mapper.MapperBuilders.dateField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseDateTimeFormatter;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 
-/**
- *
- */
 public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     public static final String CONTENT_TYPE = "date";
@@ -90,7 +87,6 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         public static final String NULL_VALUE = null;
 
         public static final TimeUnit TIME_UNIT = TimeUnit.MILLISECONDS;
-        public static final boolean ROUND_CEIL = true;
     }
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, DateFieldMapper> {
@@ -127,17 +123,12 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
         @Override
         public DateFieldMapper build(BuilderContext context) {
-            boolean roundCeil = Defaults.ROUND_CEIL;
-            if (context.indexSettings() != null) {
-                Settings settings = context.indexSettings();
-                roundCeil =  settings.getAsBoolean("index.mapping.date.round_ceil", settings.getAsBoolean("index.mapping.date.parse_upper_inclusive", Defaults.ROUND_CEIL));
-            }
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             if (!locale.equals(dateTimeFormatter.locale())) {
                 dateTimeFormatter = new FormatDateTimeFormatter(dateTimeFormatter.format(), dateTimeFormatter.parser(), dateTimeFormatter.printer(), locale);
             }
             DateFieldMapper fieldMapper = new DateFieldMapper(buildNames(context), dateTimeFormatter,
-                    fieldType.numericPrecisionStep(), boost, fieldType, docValues, nullValue, timeUnit, roundCeil, ignoreMalformed(context), coerce(context),
+                    fieldType.numericPrecisionStep(), boost, fieldType, docValues, nullValue, timeUnit, ignoreMalformed(context), coerce(context),
                     postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings(),
                     multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
@@ -182,15 +173,6 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     protected FormatDateTimeFormatter dateTimeFormatter;
 
-    // Triggers rounding up of the upper bound for range queries and filters if
-    // set to true.
-    // Rounding up a date here has the following meaning: If a date is not
-    // defined with full precision, for example, no milliseconds given, the date
-    // will be filled up to the next larger date with that precision.
-    // Example: An upper bound given as "2000-01-01", will be converted to
-    // "2000-01-01T23.59.59.999"
-    private final boolean roundCeil;
-
     private final DateMathParser dateMathParser;
 
     private String nullValue;
@@ -198,7 +180,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     protected final TimeUnit timeUnit;
 
     protected DateFieldMapper(Names names, FormatDateTimeFormatter dateTimeFormatter, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
-                              String nullValue, TimeUnit timeUnit, boolean roundCeil, Explicit<Boolean> ignoreMalformed,Explicit<Boolean> coerce,
+                              String nullValue, TimeUnit timeUnit, Explicit<Boolean> ignoreMalformed,Explicit<Boolean> coerce,
                               PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity,
 
                               Loading normsLoading, @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
@@ -208,7 +190,6 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         this.dateTimeFormatter = dateTimeFormatter;
         this.nullValue = nullValue;
         this.timeUnit = timeUnit;
-        this.roundCeil = roundCeil;
         this.dateMathParser = new DateMathParser(dateTimeFormatter, timeUnit);
     }
 
@@ -328,8 +309,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         if (forcedDateParser != null) {
             dateParser = forcedDateParser;
         }
-        boolean roundUp = inclusive && roundCeil;
-        return dateParser.parse(value, now, roundUp, zone);
+        return dateParser.parse(value, now, inclusive, zone);
     }
 
     @Override

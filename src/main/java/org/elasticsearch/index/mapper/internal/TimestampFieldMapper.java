@@ -49,8 +49,6 @@ import static org.elasticsearch.index.mapper.MapperBuilders.timestamp;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseDateTimeFormatter;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
-/**
- */
 public class TimestampFieldMapper extends DateFieldMapper implements InternalMapper, RootMapper {
 
     public static final String NAME = "_timestamp";
@@ -123,12 +121,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
                 assert fieldType.stored();
                 fieldType.setStored(false);
             }
-            boolean roundCeil = Defaults.ROUND_CEIL;
-            if (context.indexSettings() != null) {
-                Settings settings = context.indexSettings();
-                roundCeil =  settings.getAsBoolean("index.mapping.date.round_ceil", settings.getAsBoolean("index.mapping.date.parse_upper_inclusive", Defaults.ROUND_CEIL));
-            }
-            return new TimestampFieldMapper(fieldType, docValues, enabledState, path, dateTimeFormatter, defaultTimestamp, roundCeil,
+            return new TimestampFieldMapper(fieldType, docValues, enabledState, path, dateTimeFormatter, defaultTimestamp,
                     ignoreMalformed(context), coerce(context), postingsProvider, docValuesProvider, normsLoading, fieldDataSettings, context.indexSettings());
         }
     }
@@ -173,18 +166,18 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
 
     public TimestampFieldMapper(Settings indexSettings) {
         this(new FieldType(defaultFieldType(indexSettings)), null, Defaults.ENABLED, Defaults.PATH, Defaults.DATE_TIME_FORMATTER, Defaults.DEFAULT_TIMESTAMP,
-                Defaults.ROUND_CEIL, Defaults.IGNORE_MALFORMED, Defaults.COERCE, null, null, null, null, indexSettings);
+             Defaults.IGNORE_MALFORMED, Defaults.COERCE, null, null, null, null, indexSettings);
     }
 
     protected TimestampFieldMapper(FieldType fieldType, Boolean docValues, EnabledAttributeMapper enabledState, String path,
-                                   FormatDateTimeFormatter dateTimeFormatter, String defaultTimestamp, boolean roundCeil,
+                                   FormatDateTimeFormatter dateTimeFormatter, String defaultTimestamp,
                                    Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, PostingsFormatProvider postingsProvider,
                                    DocValuesFormatProvider docValuesProvider, Loading normsLoading,
                                    @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), dateTimeFormatter,
                 Defaults.PRECISION_STEP_64_BIT, Defaults.BOOST, fieldType, docValues,
                 Defaults.NULL_VALUE, TimeUnit.MILLISECONDS /*always milliseconds*/,
-                roundCeil, ignoreMalformed, coerce, postingsProvider, docValuesProvider, null, normsLoading, fieldDataSettings, 
+                ignoreMalformed, coerce, postingsProvider, docValuesProvider, null, normsLoading, fieldDataSettings, 
                 indexSettings, MultiFields.empty(), null);
         this.enabledState = enabledState;
         this.path = path;

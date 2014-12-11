@@ -232,7 +232,7 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         }
         assertThat(filter, instanceOf(NumericRangeFilter.class));
         NumericRangeFilter<Long> rangeFilter = (NumericRangeFilter<Long>) filter;
-        assertThat(rangeFilter.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(11).millis() + 999).getMillis())); // +999 to include the 00-01 minute
+        assertThat(rangeFilter.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(11).millis()).getMillis()));
         assertThat(rangeFilter.getMin(), equalTo(new DateTime(TimeValue.timeValueHours(10).millis()).getMillis()));
     }
 
@@ -262,7 +262,7 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         }
         assertThat(filter, instanceOf(NumericRangeFilter.class));
         NumericRangeFilter<Long> rangeFilter = (NumericRangeFilter<Long>) filter;
-        assertThat(rangeFilter.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(35).millis() + 999).getMillis())); // +999 to include the 00-01 minute
+        assertThat(rangeFilter.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(35).millis()).getMillis()));
         assertThat(rangeFilter.getMin(), equalTo(new DateTime(TimeValue.timeValueHours(34).millis()).getMillis()));
     }
 

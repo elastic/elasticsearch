@@ -100,11 +100,11 @@ public class DateHistogramParser implements Aggregator.Parser {
                 continue;
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
-                    preZone = DateMathParser.parseZone(parser.text());
+                    preZone = DateTimeZone.forID(parser.text());
                 } else if ("pre_zone".equals(currentFieldName) || "preZone".equals(currentFieldName)) {
-                    preZone = DateMathParser.parseZone(parser.text());
+                    preZone = DateTimeZone.forID(parser.text());
                 } else if ("post_zone".equals(currentFieldName) || "postZone".equals(currentFieldName)) {
-                    postZone = DateMathParser.parseZone(parser.text());
+                    postZone = DateTimeZone.forID(parser.text());
                 } else if ("pre_offset".equals(currentFieldName) || "preOffset".equals(currentFieldName)) {
                     preOffset = parseOffset(parser.text());
                 } else if ("post_offset".equals(currentFieldName) || "postOffset".equals(currentFieldName)) {

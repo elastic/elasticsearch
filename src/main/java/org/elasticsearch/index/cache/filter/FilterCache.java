@@ -22,7 +22,7 @@ package org.elasticsearch.index.cache.filter;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.index.IndexComponent;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 
 /**
  *

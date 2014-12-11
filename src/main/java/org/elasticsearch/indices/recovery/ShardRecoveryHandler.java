@@ -21,7 +21,6 @@ package org.elasticsearch.indices.recovery;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -46,11 +45,11 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
@@ -75,7 +74,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
 
     private final ESLogger logger;
     // Shard that is going to be recovered (the "source")
-    private final InternalIndexShard shard;
+    private final IndexShard shard;
     private final String indexName;
     private final int shardId;
     // Request containing source and target node information
@@ -101,7 +100,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
     };
 
 
-    public ShardRecoveryHandler(final InternalIndexShard shard, final StartRecoveryRequest request, final RecoverySettings recoverySettings,
+    public ShardRecoveryHandler(final IndexShard shard, final StartRecoveryRequest request, final RecoverySettings recoverySettings,
                                 final TransportService transportService, final TimeValue internalActionTimeout,
                                 final TimeValue internalActionLongTimeout, final ClusterService clusterService,
                                 final IndicesService indicesService, final MappingUpdatedAction mappingUpdatedAction, final ESLogger logger) {

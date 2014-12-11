@@ -28,7 +28,7 @@
         },
         "wait_for_completion": {
           "type" : "boolean",
-          "description" : "Specify whether the request should block until the all segments are upgraded (default: true)"
+          "description" : "Specify whether the request should block until the all segments are upgraded (default: false)"
         }
       }
     },

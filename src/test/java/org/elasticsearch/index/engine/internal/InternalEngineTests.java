@@ -388,6 +388,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testSegmentsWithMergeFlag() throws Exception {
+
         ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS));
         final AtomicReference<CountDownLatch> waitTillMerge = new AtomicReference<>();
         final AtomicReference<CountDownLatch> waitForMerge = new AtomicReference<>();
@@ -411,6 +412,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             }
         });
 
+        final Store store = createStore();
         final Engine engine = createEngine(engineSettingsService, store, createTranslog(), mergeSchedulerProvider);
         engine.start();
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), Lucene.STANDARD_ANALYZER, B_1, false);
@@ -481,6 +483,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         }
 
         engine.close();
+        store.close();
     }
 
     @Test
@@ -1364,6 +1367,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                 .put(InternalEngineHolder.INDEX_GC_DELETES, "0ms")
                 .build();
 
+        Store store = createStore();
         Engine engine = new InternalEngineHolder(shardId, settings, threadPool,
                 engineSettingsService,
                 new ShardIndexingService(shardId, settings,
@@ -1426,6 +1430,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         getResult = engine.get(new Engine.Get(true, newUid("2")));
         assertThat(getResult.exists(), equalTo(false));
         engine.close();
+        store.close();
     }
 
     protected Term newUid(String id) {

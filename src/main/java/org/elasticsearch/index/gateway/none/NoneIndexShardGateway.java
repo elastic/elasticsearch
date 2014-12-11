@@ -28,8 +28,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.service.IndexShard;
-import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.shard.IndexShard;
 
 import java.io.IOException;
 
@@ -38,14 +37,14 @@ import java.io.IOException;
  */
 public class NoneIndexShardGateway extends AbstractIndexShardComponent implements IndexShardGateway {
 
-    private final InternalIndexShard indexShard;
+    private final IndexShard indexShard;
 
     private final RecoveryState recoveryState = new RecoveryState();
 
     @Inject
     public NoneIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, IndexShard indexShard) {
         super(shardId, indexSettings);
-        this.indexShard = (InternalIndexShard) indexShard;
+        this.indexShard = indexShard;
     }
 
     @Override

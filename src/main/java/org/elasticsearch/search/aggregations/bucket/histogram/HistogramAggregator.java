@@ -118,7 +118,8 @@ public class HistogramAggregator extends BucketsAggregator {
             buckets.add(histogramFactory.createBucket(rounding.valueForKey(bucketOrds.get(i)), bucketDocCount(i), bucketAggregations(i), keyed, formatter));
         }
 
-        CollectionUtil.introSort(buckets, order.comparator());
+        // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
+        CollectionUtil.introSort(buckets, InternalOrder.KEY_ASC.comparator());
 
         // value source will be null for unmapped fields
         InternalHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0 ? new InternalHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds) : null;

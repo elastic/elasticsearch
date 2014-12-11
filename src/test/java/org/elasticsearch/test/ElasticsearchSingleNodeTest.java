@@ -38,8 +38,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.engine.internal.InternalEngine;
 import org.elasticsearch.index.engine.internal.InternalEngineHolder;
-import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
@@ -196,7 +196,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
     }
 
     protected static InternalEngine engine(IndexService service) {
-        return ((InternalEngineHolder) ((InternalIndexShard) service.shard(0)).engine()).engineSafe();
+        return ((InternalEngineHolder) ((IndexShard) service.shard(0)).engine()).engineSafe();
     }
 
     /**

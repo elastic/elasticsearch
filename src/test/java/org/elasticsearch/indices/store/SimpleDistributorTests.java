@@ -21,7 +21,7 @@ package org.elasticsearch.indices.store;
 
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -160,7 +160,7 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
         Set<String> nodes = internalCluster().nodesInclude("test");
         assertThat(nodes.isEmpty(), equalTo(false));
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodes.iterator().next());
-        InternalIndexShard indexShard = (InternalIndexShard) (indicesService.indexService(index).shardSafe(shardId));
+        IndexShard indexShard = indicesService.indexService(index).shardSafe(shardId);
         return indexShard.store().directory();
     }
 }

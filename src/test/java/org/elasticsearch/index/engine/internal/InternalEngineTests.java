@@ -392,9 +392,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testSegmentsWithMergeFlag() throws Exception {
-        // Close engine from setUp (we create our own):
-        engine.close();
-
+        final Store store = createStore();
         ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS));
         final AtomicReference<CountDownLatch> waitTillMerge = new AtomicReference<>();
         final AtomicReference<CountDownLatch> waitForMerge = new AtomicReference<>();
@@ -488,6 +486,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         }
 
         engine.close();
+        store.close();
     }
 
     @Test
@@ -1366,8 +1365,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testEnableGcDeletes() throws Exception {
 
-        // Close engine from setUp (we create our own):
-        engine.close();
+        Store store = createStore();
 
         // Make sure enableGCDeletes == false works:
         Settings settings = ImmutableSettings.builder()
@@ -1436,6 +1434,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         getResult = engine.get(new Engine.Get(true, newUid("2")));
         assertThat(getResult.exists(), equalTo(false));
         engine.close();
+        store.close();
     }
 
     protected Term newUid(String id) {

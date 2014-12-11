@@ -225,7 +225,7 @@ public class InternalEngine implements Engine {
             if (indexingBufferSize == Engine.INACTIVE_SHARD_INDEXING_BUFFER && preValue != Engine.INACTIVE_SHARD_INDEXING_BUFFER) {
                 logger.debug("updating index_buffer_size from [{}] to (inactive) [{}]", preValue, indexingBufferSize);
                 try {
-                    flush(new Flush().type(Flush.Type.COMMIT));
+                    flush(FlushType.COMMIT, false, false);
                 } catch (EngineClosedException e) {
                     // ignore
                 } catch (FlushNotAllowedEngineException e) {
@@ -393,7 +393,7 @@ public class InternalEngine implements Engine {
 
             } finally {
                 if (requiresFlushing) {
-                    flush(new Flush().type(Flush.Type.NEW_WRITER));
+                    flush(FlushType.NEW_WRITER, false, false);
                 }
             }
         }
@@ -578,7 +578,7 @@ public class InternalEngine implements Engine {
                 threadPool.executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
                     public void run() {
                         try {
-                            refresh(new Refresh("version_table_full"));
+                            refresh("version_table_full", false);
                         } catch (EngineClosedException ex) {
                             // ignore
                         }
@@ -745,7 +745,7 @@ public class InternalEngine implements Engine {
 
         // TODO: This is heavy, since we refresh, but we must do this because we don't know which documents were in fact deleted (i.e., our
         // versionMap isn't updated), so we must force a cutover to a new reader to "see" the deletions:
-        refresh(new Refresh("delete_by_query").force(true));
+        refresh("delete_by_query", true);
     }
 
     @Override
@@ -833,7 +833,7 @@ public class InternalEngine implements Engine {
     }
 
     @Override
-    public void refresh(Refresh refresh) throws EngineException {
+    public void refresh(String source, boolean force) throws EngineException {
         if (indexWriter == null) {
             throw new EngineClosedException(shardId);
         }
@@ -844,7 +844,7 @@ public class InternalEngine implements Engine {
             // maybeRefresh will only allow one refresh to execute, and the rest will "pass through",
             // but, we want to make sure not to loose ant refresh calls, if one is taking time
             synchronized (refreshMutex) {
-                if (refreshNeeded() || refresh.force()) {
+                if (refreshNeeded() || force) {
                     // we set dirty to false, even though the refresh hasn't happened yet
                     // as the refresh only holds for data indexed before it. Any data indexed during
                     // the refresh will not be part of it and will set the dirty flag back to true
@@ -870,23 +870,23 @@ public class InternalEngine implements Engine {
     }
 
     @Override
-    public void flush(Flush flush) throws EngineException {
+    public void flush(FlushType type, boolean force, boolean waitIfOngoing) throws EngineException {
         ensureOpen();
-        if (flush.type() == Flush.Type.NEW_WRITER || flush.type() == Flush.Type.COMMIT_TRANSLOG) {
+        if (type == FlushType.NEW_WRITER || type == FlushType.COMMIT_TRANSLOG) {
             // check outside the lock as well so we can check without blocking on the write lock
             if (onGoingRecoveries.get() > 0) {
-                throw new FlushNotAllowedEngineException(shardId, "recovery is in progress, flush [" + flush.type() + "] is not allowed");
+                throw new FlushNotAllowedEngineException(shardId, "recovery is in progress, flush [" + type + "] is not allowed");
             }
         }
         int currentFlushing = flushing.incrementAndGet();
-        if (currentFlushing > 1 && !flush.waitIfOngoing()) {
+        if (currentFlushing > 1 && waitIfOngoing == false) {
             flushing.decrementAndGet();
             throw new FlushNotAllowedEngineException(shardId, "already flushing...");
         }
 
         flushLock.lock();
         try {
-            if (flush.type() == Flush.Type.NEW_WRITER) {
+            if (type == FlushType.NEW_WRITER) {
                 try (InternalLock _ = writeLock.acquire()) {
                     if (onGoingRecoveries.get() > 0) {
                         throw new FlushNotAllowedEngineException(shardId, "Recovery is in progress, flush is not allowed");
@@ -903,7 +903,7 @@ public class InternalEngine implements Engine {
                         indexWriter = createWriter();
                         // commit on a just opened writer will commit even if there are no changes done to it
                         // we rely on that for the commit data translog id key
-                        if (flushNeeded || flush.force()) {
+                        if (flushNeeded || force) {
                             flushNeeded = false;
                             long translogId = translogIdGenerator.incrementAndGet();
                             indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
@@ -927,14 +927,14 @@ public class InternalEngine implements Engine {
                         throw new FlushFailedEngineException(shardId, t);
                     }
                 }
-            } else if (flush.type() == Flush.Type.COMMIT_TRANSLOG) {
+            } else if (type == FlushType.COMMIT_TRANSLOG) {
                 try (InternalLock _ = readLock.acquire()) {
                     final IndexWriter indexWriter = currentIndexWriter();
                     if (onGoingRecoveries.get() > 0) {
                         throw new FlushNotAllowedEngineException(shardId, "Recovery is in progress, flush is not allowed");
                     }
 
-                    if (flushNeeded || flush.force()) {
+                    if (flushNeeded || force) {
                         flushNeeded = false;
                         try {
                             long translogId = translogIdGenerator.incrementAndGet();
@@ -942,7 +942,7 @@ public class InternalEngine implements Engine {
                             indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
                             indexWriter.commit();
                             // we need to refresh in order to clear older version values
-                            refresh(new Refresh("version_table_flush").force(true));
+                            refresh("version_table_flush", true);
                             // we need to move transient to current only after we refresh
                             // so items added to current will still be around for realtime get
                             // when tans overrides it
@@ -961,7 +961,7 @@ public class InternalEngine implements Engine {
                     pruneDeletedTombstones();
                 }
 
-            } else if (flush.type() == Flush.Type.COMMIT) {
+            } else if (type == FlushType.COMMIT) {
                 // note, its ok to just commit without cleaning the translog, its perfectly fine to replay a
                 // translog on an index that was opened on a committed point in time that is "in the future"
                 // of that translog
@@ -986,7 +986,7 @@ public class InternalEngine implements Engine {
                 }
 
             } else {
-                throw new ElasticsearchIllegalStateException("flush type [" + flush.type() + "] not supported");
+                throw new ElasticsearchIllegalStateException("flush type [" + type + "] not supported");
             }
 
             // reread the last committed segment infos
@@ -1073,12 +1073,17 @@ public class InternalEngine implements Engine {
             throw new OptimizeFailedEngineException(shardId, e);
         }
         if (flushAfter) {
-            flush(new Flush().force(true).waitIfOngoing(true));
+            flush(FlushType.COMMIT_TRANSLOG, true, true);
         }
     }
 
     @Override
-    public void optimize(Optimize optimize) throws EngineException {
+    public void forceMerge(boolean flush, boolean waitForMerge) {
+        forceMerge(flush, waitForMerge, 1, false, false);
+    }
+
+    @Override
+    public void forceMerge(boolean flush, boolean waitForMerge, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade) throws EngineException {
         if (optimizeMutex.compareAndSet(false, true)) {
             try (InternalLock _ = readLock.acquire()) {
                 final IndexWriter writer = currentIndexWriter();
@@ -1092,17 +1097,17 @@ public class InternalEngine implements Engine {
                  */
                 MergePolicy mp = writer.getConfig().getMergePolicy();
                 assert mp instanceof ElasticsearchMergePolicy : "MergePolicy is " + mp.getClass().getName();
-                if (optimize.upgrade()) {
+                if (upgrade) {
                     ((ElasticsearchMergePolicy) mp).setUpgradeInProgress(true);
                 }
 
-                if (optimize.onlyExpungeDeletes()) {
+                if (onlyExpungeDeletes) {
                     writer.forceMergeDeletes(false);
-                } else if (optimize.maxNumSegments() <= 0) {
+                } else if (maxNumSegments <= 0) {
                     writer.maybeMerge();
                     possibleMergeNeeded = false;
                 } else {
-                    writer.forceMerge(optimize.maxNumSegments(), false);
+                    writer.forceMerge(maxNumSegments, false);
                 }
             } catch (Throwable t) {
                 maybeFailEngine(t, "optimize");
@@ -1113,9 +1118,9 @@ public class InternalEngine implements Engine {
         }
 
         // wait for the merges outside of the read lock
-        if (optimize.waitForMerge()) {
-            waitForMerges(optimize.flush());
-        } else if (optimize.flush()) {
+        if (waitForMerge) {
+            waitForMerges(flush);
+        } else if (flush) {
             // we only need to monitor merges for async calls if we are going to flush
             threadPool.executor(ThreadPool.Names.OPTIMIZE).execute(new AbstractRunnable() {
                 @Override
@@ -1136,7 +1141,7 @@ public class InternalEngine implements Engine {
     public SnapshotIndexCommit snapshotIndex() throws EngineException {
         // we have to flush outside of the readlock otherwise we might have a problem upgrading
         // the to a write lock when we fail the engine in this operation
-        flush(new Flush().type(Flush.Type.COMMIT).waitIfOngoing(true));
+        flush(FlushType.COMMIT, false, true);
         try (InternalLock _ = readLock.acquire()) {
             ensureOpen();
             return deletionPolicy.snapshot();

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.translog;
 
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -199,7 +200,7 @@ public class TranslogService extends AbstractIndexShardComponent {
                 @Override
                 public void run() {
                     try {
-                        indexShard.flush(new Engine.Flush());
+                        indexShard.flush(new FlushRequest());
                     } catch (IllegalIndexShardStateException e) {
                         // we are being closed, or in created state, ignore
                     } catch (FlushNotAllowedEngineException e) {

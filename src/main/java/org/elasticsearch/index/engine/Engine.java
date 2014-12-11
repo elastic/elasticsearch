@@ -122,14 +122,19 @@ public interface Engine extends CloseableComponent {
      * changes. Pass <tt>true</tt> if the refresh operation should include
      * all the operations performed up to this call.
      */
-    void refresh(Refresh refresh) throws EngineException;
+    void refresh(String source, boolean force) throws EngineException;
 
     /**
      * Flushes the state of the engine, clearing memory.
      */
-    void flush(Flush flush) throws EngineException, FlushNotAllowedEngineException;
+    void flush(FlushType type, boolean force, boolean waitIfOngoing) throws EngineException;
 
-    void optimize(Optimize optimize) throws EngineException;
+    /**
+     * Optimizes to 1 segment
+     */
+    void forceMerge(boolean flush, boolean waitForMerge);
+
+    void forceMerge(boolean flush, boolean waitForMerge, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade) throws EngineException;
 
     /**
      * Snapshots the index and returns a handle to it. Will always try and "commit" the
@@ -210,96 +215,19 @@ public interface Engine extends CloseableComponent {
         }
     }
 
-    static class Refresh {
-
-        private final String source;
-        private boolean force = false;
-
-        public Refresh(String source) {
-            this.source = source;
-        }
-
+    public static enum FlushType {
         /**
-         * Forces calling refresh, overriding the check that dirty operations even happened. Defaults
-         * to true (note, still lightweight if no refresh is needed).
+         * A flush that causes a new writer to be created.
          */
-        public Refresh force(boolean force) {
-            this.force = force;
-            return this;
-        }
-
-        public boolean force() {
-            return this.force;
-        }
-
-        public String source() {
-            return this.source;
-        }
-
-        @Override
-        public String toString() {
-            return "force[" + force + "], source [" + source + "]";
-        }
-    }
-
-    static class Flush {
-
-        public static enum Type {
-            /**
-             * A flush that causes a new writer to be created.
-             */
-            NEW_WRITER,
-            /**
-             * A flush that just commits the writer, without cleaning the translog.
-             */
-            COMMIT,
-            /**
-             * A flush that does a commit, as well as clears the translog.
-             */
-            COMMIT_TRANSLOG
-        }
-
-        private Type type = Type.COMMIT_TRANSLOG;
-        private boolean force = false;
+        NEW_WRITER,
         /**
-         * Should the flush operation wait if there is an ongoing flush operation.
+         * A flush that just commits the writer, without cleaning the translog.
          */
-        private boolean waitIfOngoing = false;
-
-        public Type type() {
-            return this.type;
-        }
-
+        COMMIT,
         /**
-         * Should a "full" flush be issued, basically cleaning as much memory as possible.
+         * A flush that does a commit, as well as clears the translog.
          */
-        public Flush type(Type type) {
-            this.type = type;
-            return this;
-        }
-
-        public boolean force() {
-            return this.force;
-        }
-
-        public Flush force(boolean force) {
-            this.force = force;
-            return this;
-        }
-
-        public boolean waitIfOngoing() {
-            return this.waitIfOngoing;
-        }
-
-        public Flush waitIfOngoing(boolean waitIfOngoing) {
-            this.waitIfOngoing = waitIfOngoing;
-            return this;
-        }
-
-        @Override
-        public String toString() {
-            return "type[" + type + "], force[" + force + "]";
-        }
+        COMMIT_TRANSLOG
     }
 
     static class Optimize {

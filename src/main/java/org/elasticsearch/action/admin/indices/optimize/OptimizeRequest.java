@@ -187,4 +187,15 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
             out.writeBoolean(upgrade);
         }
     }
+
+    @Override
+    public String toString() {
+        return "OptimizeRequest{" +
+                "waitForMerge=" + waitForMerge +
+                ", maxNumSegments=" + maxNumSegments +
+                ", onlyExpungeDeletes=" + onlyExpungeDeletes +
+                ", flush=" + flush +
+                ", upgrade=" + upgrade +
+                '}';
+    }
 }

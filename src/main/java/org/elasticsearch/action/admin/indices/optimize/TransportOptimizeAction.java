@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -108,13 +107,8 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
     @Override
     protected ShardOptimizeResponse shardOperation(ShardOptimizeRequest request) throws ElasticsearchException {
         IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).shardSafe(request.shardId().id());
-        indexShard.optimize(new Engine.Optimize()
-                .waitForMerge(request.waitForMerge())
-                .maxNumSegments(request.maxNumSegments())
-                .onlyExpungeDeletes(request.onlyExpungeDeletes())
-                .flush(request.flush())
-                .upgrade(request.upgrade())
-        );
+        indexShard.optimize(new OptimizeRequest().flush(request.flush()).onlyExpungeDeletes(request.onlyExpungeDeletes())
+                .maxNumSegments(request.maxNumSegments()).waitForMerge(request.waitForMerge()).upgrade(request.upgrade()));
         return new ShardOptimizeResponse(request.shardId());
     }
 

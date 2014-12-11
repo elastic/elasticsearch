@@ -26,6 +26,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.AbstractRandomizedTest;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -86,11 +87,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
                             // When the the internal engine closes we do a rollback, which removes uncommitted segments
                             // By doing a commit flush we perform a Lucene commit, but don't clear the translog,
                             // so that even in tests where don't flush we can check the integrity of the Lucene index
-                            indexShard.flush(
-                                    new Engine.Flush()
-                                            .type(Engine.Flush.Type.COMMIT) // Keep translog for tests that rely on replaying it
-                                            .waitIfOngoing(true)
-                            );
+                            ((InternalIndexShard)indexShard).engine().flush(Engine.FlushType.COMMIT, false, true); // Keep translog for tests that rely on replaying it
                             logger.info("flush finished in beforeIndexShardClosed");
                         }
                     }

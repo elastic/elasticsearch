@@ -355,7 +355,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
         if (request.refresh()) {
             try {
-                indexShard.refresh(new Engine.Refresh("refresh_flag_bulk").force(false));
+                indexShard.refresh("refresh_flag_bulk", false);
             } catch (Throwable e) {
                 // ignore
             }
@@ -618,7 +618,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
         if (request.refresh()) {
             try {
-                indexShard.refresh(new Engine.Refresh("refresh_flag_bulk").force(false));
+                indexShard.refresh("refresh_flag_bulk", false);
             } catch (Throwable e) {
                 // ignore
             }

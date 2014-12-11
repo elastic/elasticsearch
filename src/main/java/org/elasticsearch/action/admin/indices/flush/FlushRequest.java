@@ -45,7 +45,6 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
     private boolean waitIfOngoing = false;
 
     FlushRequest() {
-
     }
 
     /**

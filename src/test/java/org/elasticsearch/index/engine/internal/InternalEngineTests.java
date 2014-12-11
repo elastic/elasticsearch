@@ -388,6 +388,9 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testSegmentsWithMergeFlag() throws Exception {
+        // Close engine from setUp (we create our own):
+        engine.close();
+
         ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS));
         final AtomicReference<CountDownLatch> waitTillMerge = new AtomicReference<>();
         final AtomicReference<CountDownLatch> waitForMerge = new AtomicReference<>();
@@ -1358,6 +1361,9 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     @Slow
     @Test
     public void testEnableGcDeletes() throws Exception {
+
+        // Close engine from setUp (we create our own):
+        engine.close();
 
         // Make sure enableGCDeletes == false works:
         Settings settings = ImmutableSettings.builder()

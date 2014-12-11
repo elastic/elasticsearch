@@ -23,6 +23,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50Codec;
+import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
@@ -49,7 +50,8 @@ public class PerFieldMappingPostingFormatCodec extends Lucene50Codec {
         assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMappingPostingFormatCodec.class) : "PerFieldMappingPostingFormatCodec must subclass the latest lucene codec: " + Lucene.LATEST_CODEC;
     }
 
-    public PerFieldMappingPostingFormatCodec(MapperService mapperService, PostingsFormat defaultPostingFormat, DocValuesFormat defaultDocValuesFormat, ESLogger logger) {
+    public PerFieldMappingPostingFormatCodec(Lucene50StoredFieldsFormat.Mode compressionMode, MapperService mapperService, PostingsFormat defaultPostingFormat, DocValuesFormat defaultDocValuesFormat, ESLogger logger) {
+        super(compressionMode);
         this.mapperService = mapperService;
         this.logger = logger;
         this.defaultPostingFormat = defaultPostingFormat;

@@ -120,8 +120,9 @@ public class ProfileQuery extends Query implements ProfileComponent {
         ProfileQueryVisitor walker = new ProfileQueryVisitor();
         rewrittenQuery = (ProfileQuery) walker.apply(rewrittenQuery);
 
-        this.subQuery = rewrittenQuery;
-        return this;
+        ProfileQuery newProfile = new ProfileQuery(rewrittenQuery);
+        newProfile.setTime(this.time());
+        return newProfile;
     }
 
     @Override
@@ -136,6 +137,8 @@ public class ProfileQuery extends Query implements ProfileComponent {
 
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
+        long threadId = Thread.currentThread().getId();
+        System.out.println(threadId + " >> " + subQuery.getClass());
         stopwatch.start();
         Weight subQueryWeight = subQuery.createWeight(searcher);
         stopwatch.stop();
@@ -278,14 +281,27 @@ public class ProfileQuery extends Query implements ProfileComponent {
     }
 
     public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass())
+        if (this == o) {
+            return true;
+        }
+
+        if (o == null || getClass() != o.getClass()) {
             return false;
+        }
+
         ProfileQuery other = (ProfileQuery) o;
-        return this.getBoost() == other.getBoost() && this.subQuery.equals(other.subQuery);
+        return this.className.equals(other.className)
+                && this.details.equals(other.details)
+                && this.subQuery.equals(other.subQuery);
     }
 
-    // @TODO Do I just pick random features to make a hash?
     public int hashCode() {
-        return subQuery.hashCode() + 31 *  Float.floatToIntBits(getBoost());
+        final int prime = 31;
+        int result = prime * 19 + this.className.hashCode();
+        result = prime * result + this.details.hashCode();
+        result = prime * result + this.subQuery.hashCode();
+        return result;
+
+        //return subQuery.hashCode() + 31 *  Float.floatToIntBits(getBoost());
     }
 }

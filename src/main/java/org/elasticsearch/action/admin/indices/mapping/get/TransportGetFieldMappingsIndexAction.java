@@ -40,7 +40,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentFieldMappers;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.TypeMissingException;

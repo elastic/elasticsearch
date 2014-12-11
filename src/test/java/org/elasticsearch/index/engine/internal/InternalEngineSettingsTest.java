@@ -19,7 +19,7 @@
 package org.elasticsearch.index.engine.internal;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 
 import static org.hamcrest.Matchers.is;

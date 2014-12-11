@@ -47,7 +47,7 @@ import org.elasticsearch.index.mapper.internal.*;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;

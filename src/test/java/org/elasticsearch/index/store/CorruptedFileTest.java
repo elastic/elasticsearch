@@ -56,8 +56,7 @@ import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.service.IndexShard;
-import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
@@ -187,7 +186,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
             @Override
             public void afterIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard) {
                 if (indexShard != null) {
-                    Store store = ((InternalIndexShard) indexShard).store();
+                    Store store = ((IndexShard) indexShard).store();
                     store.incRef();
                     try {
                         if (!Lucene.indexExists(store.directory()) && indexShard.state() == IndexShardState.STARTED) {

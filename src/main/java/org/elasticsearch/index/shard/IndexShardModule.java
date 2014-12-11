@@ -21,8 +21,6 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.shard.service.IndexShard;
-import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 
 /**
@@ -30,19 +28,16 @@ import org.elasticsearch.index.warmer.ShardIndexWarmerService;
  */
 public class IndexShardModule extends AbstractModule {
 
-    private final Settings settings;
-
     private final ShardId shardId;
 
-    public IndexShardModule(Settings settings, ShardId shardId) {
-        this.settings = settings;
+    public IndexShardModule(ShardId shardId) {
         this.shardId = shardId;
     }
 
     @Override
     protected void configure() {
         bind(ShardId.class).toInstance(shardId);
-        bind(IndexShard.class).to(InternalIndexShard.class).asEagerSingleton();
+        bind(IndexShard.class).asEagerSingleton();
         bind(ShardIndexWarmerService.class).asEagerSingleton();
     }
 }

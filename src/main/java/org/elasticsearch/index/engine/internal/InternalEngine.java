@@ -1395,11 +1395,6 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     private IndexWriter createWriter() throws IOException {
         try {
-            // release locks when started
-            if (IndexWriter.isLocked(store.directory())) {
-                logger.warn("shard is locked, releasing lock");
-                IndexWriter.unlock(store.directory());
-            }
             boolean create = !Lucene.indexExists(store.directory());
             IndexWriterConfig config = new IndexWriterConfig(Lucene.VERSION, analysisService.defaultIndexAnalyzer());
             config.setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);

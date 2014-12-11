@@ -53,7 +53,7 @@ sudo apt-get install oracle-java7-installer
 java -version
 --------------------------------------------------
 
-The last command should verify a successful installation of the Oracle JDK.
+The last command should verify a successful installation of the Oracle JDK. If you want to install java8, you can call `apt-get install oracle-java8-installer`
 
 
 [float]

@@ -29,11 +29,12 @@ import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+
+import static org.elasticsearch.shield.support.ShieldFiles.openAtomicMoveWriter;
 
 /**
  *
@@ -145,12 +146,12 @@ public class FileUserPasswdStore {
     }
 
     public static void writeFile(Map<String, char[]> esUsers, Path path) {
-        try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(path, Charsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE))) {
+        try (PrintWriter writer = new PrintWriter(openAtomicMoveWriter(path))) {
             for (Map.Entry<String, char[]> entry : esUsers.entrySet()) {
                 writer.printf(Locale.ROOT, "%s:%s%s", entry.getKey(), new String(entry.getValue()), System.lineSeparator());
             }
         } catch (IOException ioe) {
-            throw new ElasticsearchException("Could not write users file [" + path.toAbsolutePath() + "], please check file permissions", ioe);
+            throw new ElasticsearchException("Could not write file [" + path.toAbsolutePath() + "], please check file permissions", ioe);
         }
     }
 

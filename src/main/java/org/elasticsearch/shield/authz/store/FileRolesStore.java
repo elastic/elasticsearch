@@ -192,33 +192,6 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
         }
     }
 
-    public static void writeFile(Map<String, Permission.Global.Role> roles, Path path) {
-        try (OutputStream output = Files.newOutputStream(path, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
-            XContentBuilder builder = XContentFactory.yamlBuilder(output);
-            for (Map.Entry<String, Permission.Global.Role> entry : roles.entrySet()) {
-                builder.startObject(entry.getKey());
-                Permission.Global.Role permission = entry.getValue();
-                Permission.Cluster.Core cluster = permission.cluster();
-                if (cluster != null && cluster.privilege() != Privilege.Cluster.NONE) {
-                    builder.field("cluster", cluster.privilege().name());
-                }
-                Permission.Indices.Core indices = permission.indices();
-                if (indices != null) {
-                    Permission.Global.Indices.Group[] groups = indices.groups();
-                    if (groups != null && groups.length > 0) {
-                        builder.startObject("indices");
-                        for (Permission.Indices.Group group : groups) {
-                            builder.field(Strings.arrayToCommaDelimitedString(group.indices())).value(group.privilege().name());
-                        }
-                        builder.endObject();
-                    }
-                }
-            }
-        } catch (IOException ioe) {
-            throw new ShieldException("Could not write roles file [" + path.toAbsolutePath() + "], please check file permissions", ioe);
-        }
-    }
-
     static interface Listener {
 
         static final Listener NOOP = new Listener() {

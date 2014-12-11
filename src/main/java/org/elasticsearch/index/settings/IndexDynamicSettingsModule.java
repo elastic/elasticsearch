@@ -35,7 +35,7 @@ import org.elasticsearch.index.merge.policy.LogDocMergePolicyProvider;
 import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.search.slowlog.ShardSlowLogSearchService;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.support.AbstractIndexStore;
 import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.index.translog.fs.FsTranslog;
@@ -70,7 +70,7 @@ public class IndexDynamicSettingsModule extends AbstractModule {
         indexDynamicSettings.addDynamicSetting(IndexMetaData.SETTING_BLOCKS_WRITE);
         indexDynamicSettings.addDynamicSetting(IndexMetaData.SETTING_BLOCKS_METADATA);
         indexDynamicSettings.addDynamicSetting(IndicesTTLService.INDEX_TTL_DISABLE_PURGE);
-        indexDynamicSettings.addDynamicSetting(IndexShard.INDEX_REFRESH_INTERVAL, Validator.TIME);
+        indexDynamicSettings.addDynamicSetting(InternalIndexShard.INDEX_REFRESH_INTERVAL, Validator.TIME);
         indexDynamicSettings.addDynamicSetting(LocalGatewayAllocator.INDEX_RECOVERY_INITIAL_SHARDS);
         indexDynamicSettings.addDynamicSetting(LogByteSizeMergePolicyProvider.INDEX_MERGE_POLICY_MIN_MERGE_SIZE, Validator.BYTES_SIZE);
         indexDynamicSettings.addDynamicSetting(LogByteSizeMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_SIZE, Validator.BYTES_SIZE);

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index;
+package org.elasticsearch.index.service;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -64,7 +64,8 @@ import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.IndexShardCreationException;
 import org.elasticsearch.index.shard.IndexShardModule;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotModule;
 import org.elasticsearch.index.store.IndexStore;
@@ -95,7 +96,7 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 /**
  *
  */
-public class IndexService extends AbstractIndexComponent implements IndexComponent, Iterable<IndexShard> {
+public class InternalIndexService extends AbstractIndexComponent implements IndexService {
 
     private final Injector injector;
 
@@ -138,7 +139,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     @Inject
-    public IndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv,
+    public InternalIndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv,
                                 AnalysisService analysisService, MapperService mapperService, IndexQueryParserService queryParserService,
                                 SimilarityService similarityService, IndexAliasesService aliasesService, IndexCache indexCache, IndexEngine indexEngine,
                                 IndexGateway indexGateway, IndexStore indexStore, IndexSettingsService settingsService, IndexFieldDataService indexFieldData,
@@ -169,6 +170,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         this.nodeEnv = nodeEnv;
     }
 
+    @Override
     public int numberOfShards() {
         return shards.size();
     }
@@ -178,20 +180,17 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         return shards.values().iterator();
     }
 
+    @Override
     public boolean hasShard(int shardId) {
         return shards.containsKey(shardId);
     }
 
-    /**
-     * Return the shard with the provided id, or null if there is no such shard.
-     */
-    @Nullable
+    @Override
     public IndexShard shard(int shardId) {
         return shards.get(shardId);
     }
-    /**
-     * Return the shard with the provided id, or throw an exception if it doesn't exist.
-     */
+
+    @Override
     public IndexShard shardSafe(int shardId) throws IndexShardMissingException {
         IndexShard indexShard = shard(shardId);
         if (indexShard == null) {
@@ -200,58 +199,72 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         return indexShard;
     }
 
+    @Override
     public ImmutableSet<Integer> shardIds() {
         return shards.keySet();
     }
 
+    @Override
     public Injector injector() {
         return injector;
     }
 
+    @Override
     public IndexGateway gateway() {
         return indexGateway;
     }
 
+    @Override
     public IndexSettingsService settingsService() {
         return this.settingsService;
     }
 
+    @Override
     public IndexStore store() {
         return indexStore;
     }
 
+    @Override
     public IndexCache cache() {
         return indexCache;
     }
 
+    @Override
     public IndexFieldDataService fieldData() {
         return indexFieldData;
     }
 
+    @Override
     public FixedBitSetFilterCache fixedBitSetFilterCache() {
         return fixedBitSetFilterCache;
     }
 
+    @Override
     public AnalysisService analysisService() {
         return this.analysisService;
     }
 
+    @Override
     public MapperService mapperService() {
         return mapperService;
     }
 
+    @Override
     public IndexQueryParserService queryParserService() {
         return queryParserService;
     }
 
+    @Override
     public SimilarityService similarityService() {
         return similarityService;
     }
 
+    @Override
     public IndexAliasesService aliasesService() {
         return aliasesService;
     }
 
+    @Override
     public IndexEngine engine() {
         return indexEngine;
     }
@@ -271,17 +284,12 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         }
     }
 
-    /**
-     * Return the shard injector for the provided id, or null if there is no such shard.
-     */
-    @Nullable
+    @Override
     public Injector shardInjector(int shardId) throws ElasticsearchException {
         return shardsInjectors.get(shardId);
     }
 
-    /**
-     * Return the shard injector for the provided id, or throw an exception if there is no such shard.
-     */
+    @Override
     public Injector shardInjectorSafe(int shardId) throws IndexShardMissingException {
         Injector shardInjector = shardInjector(shardId);
         if (shardInjector == null) {
@@ -290,10 +298,12 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         return shardInjector;
     }
 
+    @Override
     public String indexUUID() {
         return indexSettings.get(IndexMetaData.SETTING_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
     }
 
+    @Override
     public synchronized IndexShard createShard(int sShardId) throws ElasticsearchException {
         /*
          * TODO: we execute this in parallel but it's a synced method. Yet, we might
@@ -318,7 +328,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new ShardsPluginsModule(indexSettings, pluginsService));
-            modules.add(new IndexShardModule(shardId));
+            modules.add(new IndexShardModule(indexSettings, shardId));
             modules.add(new ShardIndexingModule());
             modules.add(new ShardSearchModule());
             modules.add(new ShardGetModule());
@@ -364,6 +374,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         }
     }
 
+    @Override
     public void removeShard(int shardId, String reason) throws ElasticsearchException {
         removeShard(shardId, reason, null);
     }
@@ -404,7 +415,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             // and close the shard so no operations are allowed to it
             if (indexShard != null) {
                 try {
-                    ((IndexShard) indexShard).close(reason);
+                    ((InternalIndexShard) indexShard).close(reason);
                 } catch (Throwable e) {
                     logger.debug("[{}] failed to close index shard", e, shardId);
                     // ignore

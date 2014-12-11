@@ -31,10 +31,11 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -163,8 +164,8 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
             for (IndexShard indexShard : activeToInactiveIndexingShards) {
                 // update inactive indexing buffer size
                 try {
-                    ((IndexShard) indexShard).engine().updateIndexingBufferSize(Engine.INACTIVE_SHARD_INDEXING_BUFFER);
-                    ((IndexShard) indexShard).translog().updateBuffer(Translog.INACTIVE_SHARD_TRANSLOG_BUFFER);
+                    ((InternalIndexShard) indexShard).engine().updateIndexingBufferSize(Engine.INACTIVE_SHARD_INDEXING_BUFFER);
+                    ((InternalIndexShard) indexShard).translog().updateBuffer(Translog.INACTIVE_SHARD_TRANSLOG_BUFFER);
                 } catch (EngineClosedException e) {
                     // ignore
                 } catch (FlushNotAllowedEngineException e) {
@@ -193,7 +194,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
                     final long time = threadPool.estimatedTimeInMillis();
 
-                    Translog translog = ((IndexShard) indexShard).translog();
+                    Translog translog = ((InternalIndexShard) indexShard).translog();
                     ShardIndexingStatus status = shardsIndicesStatus.get(indexShard.shardId());
                     if (status == null) {
                         status = new ShardIndexingStatus();
@@ -301,8 +302,8 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                     ShardIndexingStatus status = shardsIndicesStatus.get(indexShard.shardId());
                     if (status == null || status.activeIndexing) {
                         try {
-                            ((IndexShard) indexShard).engine().updateIndexingBufferSize(shardIndexingBufferSize);
-                            ((IndexShard) indexShard).translog().updateBuffer(shardTranslogBufferSize);
+                            ((InternalIndexShard) indexShard).engine().updateIndexingBufferSize(shardIndexingBufferSize);
+                            ((InternalIndexShard) indexShard).translog().updateBuffer(shardTranslogBufferSize);
                         } catch (EngineClosedException e) {
                             // ignore
                             continue;

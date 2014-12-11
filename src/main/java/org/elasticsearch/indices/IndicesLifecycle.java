@@ -22,10 +22,10 @@ package org.elasticsearch.indices;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.service.IndexShard;
 
 /**
  * A global component allowing to register for lifecycle of an index (create/closed) and
@@ -161,7 +161,7 @@ public interface IndicesLifecycle {
         /**
          * Called before the index gets deleted.
          * This listener method is invoked after
-         * {@link #beforeIndexClosed(org.elasticsearch.index.IndexService)} when an index is deleted
+         * {@link #beforeIndexClosed(org.elasticsearch.index.service.IndexService)} when an index is deleted
          *
          * @param indexService The index service
          */

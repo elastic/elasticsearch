@@ -25,10 +25,10 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.service.IndexShard;
 
 import java.util.concurrent.CopyOnWriteArrayList;
 

@@ -23,7 +23,7 @@ package org.elasticsearch.index.mapper.null_value;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 

@@ -35,9 +35,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
@@ -141,8 +141,8 @@ public class TransportRecoveryAction extends
     @Override
     protected ShardRecoveryResponse shardOperation(ShardRecoveryRequest request) throws ElasticsearchException {
 
-        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard indexShard = indexService.shardSafe(request.shardId().id());
+        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.shardId().getIndex());
+        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId().id());
         ShardRecoveryResponse shardRecoveryResponse = new ShardRecoveryResponse(request.shardId());
 
         RecoveryState state = indexShard.recoveryState();

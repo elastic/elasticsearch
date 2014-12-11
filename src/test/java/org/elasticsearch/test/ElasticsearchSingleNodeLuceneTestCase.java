@@ -20,7 +20,7 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.junit.After;
 import org.junit.Ignore;

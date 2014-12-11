@@ -25,9 +25,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.CloseableIndexComponent;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.*;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotAndRestoreService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -43,7 +45,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
     private final ClusterService clusterService;
 
-    private final IndexShard indexShard;
+    private final InternalIndexShard indexShard;
 
     private final IndexShardGateway shardGateway;
 
@@ -56,7 +58,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                                     IndexShard indexShard, IndexShardGateway shardGateway, IndexShardSnapshotAndRestoreService snapshotService, ClusterService clusterService) {
         super(shardId, indexSettings);
         this.threadPool = threadPool;
-        this.indexShard = indexShard;
+        this.indexShard = (InternalIndexShard) indexShard;
         this.shardGateway = shardGateway;
         this.snapshotService = snapshotService;
         this.recoveryState = new RecoveryState(shardId);

@@ -30,7 +30,7 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 

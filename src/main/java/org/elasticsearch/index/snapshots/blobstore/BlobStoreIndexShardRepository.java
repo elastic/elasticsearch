@@ -46,7 +46,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.*;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;

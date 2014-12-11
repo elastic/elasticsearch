@@ -45,11 +45,12 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.warmer.IndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -93,7 +94,7 @@ public class FixedBitSetFilterCache extends AbstractIndexComponent implements At
         this.indicesWarmer = indicesWarmer;
     }
 
-    public void setIndexService(IndexService indexService) {
+    public void setIndexService(InternalIndexService indexService) {
         this.indexService = indexService;
         // First the indicesWarmer is set and then the indexService is set, because of this there is a small window of
         // time where indexService is null. This is why the warmer should only registered after indexService has been set.

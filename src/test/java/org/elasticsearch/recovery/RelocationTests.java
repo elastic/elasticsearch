@@ -51,7 +51,7 @@ import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
 import org.elasticsearch.indices.recovery.RecoverySettings;

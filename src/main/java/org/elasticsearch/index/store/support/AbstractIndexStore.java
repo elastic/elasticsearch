@@ -25,7 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;

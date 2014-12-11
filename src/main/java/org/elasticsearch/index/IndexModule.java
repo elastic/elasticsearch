@@ -21,6 +21,8 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.service.InternalIndexService;
 
 /**
  *
@@ -35,6 +37,6 @@ public class IndexModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(IndexService.class).asEagerSingleton();
+        bind(IndexService.class).to(InternalIndexService.class).asEagerSingleton();
     }
 }

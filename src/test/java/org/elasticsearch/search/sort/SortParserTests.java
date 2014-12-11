@@ -26,7 +26,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.elasticsearch.test.TestSearchContext;
 import org.junit.Test;

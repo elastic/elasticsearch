@@ -64,7 +64,7 @@ import org.elasticsearch.index.search.geo.GeoDistanceFilter;
 import org.elasticsearch.index.search.geo.GeoPolygonFilter;
 import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxFilter;
 import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.hamcrest.Matchers;

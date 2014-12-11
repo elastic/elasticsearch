@@ -47,6 +47,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexShardAlreadyExistsException;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.aliases.IndexAlias;
@@ -56,17 +57,19 @@ import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -549,7 +552,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 continue;
             }
 
-            IndexShard indexShard = indexService.shard(shardId);
+            InternalIndexShard indexShard = (InternalIndexShard) indexService.shard(shardId);
             if (indexShard != null) {
                 ShardRouting currentRoutingEntry = indexShard.routingEntry();
                 // if the current and global routing are initializing, but are still not the same, its a different "shard" being allocated
@@ -682,7 +685,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 if (logger.isDebugEnabled()) {
                     logger.debug("[{}][{}] creating shard", shardRouting.index(), shardId);
                 }
-                IndexShard indexShard = indexService.createShard(shardId);
+                InternalIndexShard indexShard = (InternalIndexShard) indexService.createShard(shardId);
                 indexShard.routingEntry(shardRouting);
                 indexShard.engine().addFailedEngineListener(failedEngineHandler);
             } catch (IndexShardAlreadyExistsException e) {
@@ -707,7 +710,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 return;
             }
         }
-        final IndexShard indexShard = indexService.shardSafe(shardId);
+        final InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(shardId);
 
         if (indexShard.ignoreRecoveryAttempt()) {
             // we are already recovering (we can get to this state since the cluster event can happen several

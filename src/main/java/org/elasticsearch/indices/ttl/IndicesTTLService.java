@@ -46,9 +46,9 @@ import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 

@@ -40,7 +40,7 @@ import org.elasticsearch.index.percolator.stats.PercolateStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.index.translog.TranslogStats;

@@ -29,9 +29,10 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -40,6 +41,8 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * The source recovery accepts recovery requests from other peer shards and start the recovery process from this
@@ -89,7 +92,7 @@ public class RecoverySource extends AbstractComponent {
 
     private RecoveryResponse recover(final StartRecoveryRequest request) {
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().index().name());
-        final IndexShard shard = indexService.shardSafe(request.shardId().id());
+        final InternalIndexShard shard = (InternalIndexShard) indexService.shardSafe(request.shardId().id());
 
         // starting recovery from that our (the source) shard state is marking the shard to be in recovery mode as well, otherwise
         // the index operations will not be routed to it properly

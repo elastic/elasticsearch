@@ -23,7 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**

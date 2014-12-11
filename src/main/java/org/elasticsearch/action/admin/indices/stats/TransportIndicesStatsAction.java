@@ -38,9 +38,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexShardMissingException;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -134,8 +134,8 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
 
     @Override
     protected ShardStats shardOperation(IndexShardStatsRequest request) throws ElasticsearchException {
-        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard indexShard = indexService.shardSafe(request.shardId().id());
+        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.shardId().getIndex());
+        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId().id());
         // if we don't have the routing entry yet, we need it stats wise, we treat it as if the shard is not ready yet
         if (indexShard.routingEntry() == null) {
             throw new IndexShardMissingException(indexShard.shardId());

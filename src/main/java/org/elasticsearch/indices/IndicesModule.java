@@ -63,7 +63,7 @@ public class IndicesModule extends AbstractModule implements SpawnModules {
     protected void configure() {
         bind(IndicesLifecycle.class).to(InternalIndicesLifecycle.class).asEagerSingleton();
 
-        bind(IndicesService.class).asEagerSingleton();
+        bind(IndicesService.class).to(InternalIndicesService.class).asEagerSingleton();
 
         bind(RecoverySettings.class).asEagerSingleton();
         bind(RecoveryTarget.class).asEagerSingleton();

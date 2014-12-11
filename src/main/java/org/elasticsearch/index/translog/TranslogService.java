@@ -26,6 +26,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
@@ -33,7 +34,7 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ScheduledFuture;

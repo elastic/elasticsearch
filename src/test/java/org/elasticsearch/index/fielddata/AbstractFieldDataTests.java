@@ -33,7 +33,7 @@ import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.After;

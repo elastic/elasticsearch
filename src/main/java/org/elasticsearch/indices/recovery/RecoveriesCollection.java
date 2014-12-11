@@ -25,7 +25,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
 
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -52,7 +53,7 @@ public class RecoveriesCollection {
      *
      * @return the id of the new recovery.
      */
-    public long startRecovery(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryState state, RecoveryTarget.RecoveryListener listener) {
+    public long startRecovery(InternalIndexShard indexShard, DiscoveryNode sourceNode, RecoveryState state, RecoveryTarget.RecoveryListener listener) {
         RecoveryStatus status = new RecoveryStatus(indexShard, sourceNode, state, listener);
         RecoveryStatus existingStatus = onGoingRecoveries.putIfAbsent(status.recoveryId(), status);
         assert existingStatus == null : "found two RecoveryStatus instances with the same id";

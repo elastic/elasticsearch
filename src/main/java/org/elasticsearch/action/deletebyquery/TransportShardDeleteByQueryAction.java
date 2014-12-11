@@ -36,8 +36,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.DefaultSearchContext;
@@ -131,7 +131,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
         IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
 
         SearchContext.setCurrent(new DefaultSearchContext(0, new ShardSearchLocalRequest(request.types(), request.nowInMillis()), null,
-                indexShard.acquireSearcher(DELETE_BY_QUERY_API, true), indexService, indexShard, scriptService,
+                indexShard.acquireSearcher(DELETE_BY_QUERY_API, IndexShard.Mode.WRITE), indexService, indexShard, scriptService,
                 cacheRecycler, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter()));
         try {
             Engine.DeleteByQuery deleteByQuery = indexShard.prepareDeleteByQuery(request.source(), request.filteringAliases(), Engine.Operation.Origin.REPLICA, request.types());

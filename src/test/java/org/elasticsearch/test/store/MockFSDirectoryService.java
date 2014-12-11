@@ -26,6 +26,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.AbstractRandomizedTest;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -36,7 +37,8 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.distributor.Distributor;
@@ -85,7 +87,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
                             // When the the internal engine closes we do a rollback, which removes uncommitted segments
                             // By doing a commit flush we perform a Lucene commit, but don't clear the translog,
                             // so that even in tests where don't flush we can check the integrity of the Lucene index
-                            ((IndexShard)indexShard).engine().flush(Engine.FlushType.COMMIT, false, true); // Keep translog for tests that rely on replaying it
+                            ((InternalIndexShard)indexShard).engine().flush(Engine.FlushType.COMMIT, false, true); // Keep translog for tests that rely on replaying it
                             logger.info("flush finished in beforeIndexShardClosed");
                         }
                     }
@@ -95,7 +97,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
                 public void afterIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard) {
                     if (shardId.equals(sid) && indexShard != null && canRun) {
                         assert indexShard.state() == IndexShardState.CLOSED : "Current state must be closed";
-                        checkIndex(((IndexShard) indexShard).store(), sid);
+                        checkIndex(((InternalIndexShard) indexShard).store(), sid);
                     }
                     service.indicesLifecycle().removeListener(this);
                 }

@@ -21,12 +21,10 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.ElasticsearchException;
 
-import java.io.Closeable;
-
 /**
  *
  */
-public interface CloseableIndexComponent extends Closeable {
+public interface CloseableIndexComponent {
 
     /**
      * Closes the index component. A boolean indicating if its part of an actual index

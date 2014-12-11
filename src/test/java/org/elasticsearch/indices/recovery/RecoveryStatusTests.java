@@ -23,8 +23,8 @@ import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.LocalTransportAddress;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 
@@ -40,7 +40,7 @@ public class RecoveryStatusTests extends ElasticsearchSingleNodeTest {
         IndexService service = createIndex("foo");
         RecoveryState state = new RecoveryState();
 
-        IndexShard indexShard = service.shard(0);
+        InternalIndexShard indexShard = (InternalIndexShard) service.shard(0);
         DiscoveryNode node = new DiscoveryNode("foo", new LocalTransportAddress("bar"), Version.CURRENT);
         RecoveryStatus status = new RecoveryStatus(indexShard, node, state, new RecoveryTarget.RecoveryListener() {
             @Override

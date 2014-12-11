@@ -29,7 +29,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 
@@ -57,7 +57,7 @@ public class RecoveryStatus extends AbstractRefCounted {
 
     private final ShardId shardId;
     private final long recoveryId;
-    private final IndexShard indexShard;
+    private final InternalIndexShard indexShard;
     private final RecoveryState state;
     private final DiscoveryNode sourceNode;
     private final String tempFilePrefix;
@@ -71,7 +71,7 @@ public class RecoveryStatus extends AbstractRefCounted {
     private final ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
     private final Store.LegacyChecksums legacyChecksums = new Store.LegacyChecksums();
 
-    public RecoveryStatus(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryState state, RecoveryTarget.RecoveryListener listener) {
+    public RecoveryStatus(InternalIndexShard indexShard, DiscoveryNode sourceNode, RecoveryState state, RecoveryTarget.RecoveryListener listener) {
         super("recovery_status");
         this.recoveryId = idGenerator.incrementAndGet();
         this.listener = listener;
@@ -97,7 +97,7 @@ public class RecoveryStatus extends AbstractRefCounted {
         return shardId;
     }
 
-    public IndexShard indexShard() {
+    public InternalIndexShard indexShard() {
         ensureRefCount();
         return indexShard;
     }

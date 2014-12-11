@@ -385,7 +385,6 @@ public class ScriptService extends AbstractComponent {
         return client.prepareGet(SCRIPT_INDEX, scriptLang, id)
                 .setVersion(Versions.MATCH_ANY)
                 .setPreference("_local")
-                .setOperationThreaded(false)
                 .setVersionType(VersionType.INTERNAL)
                 .get();
     }
@@ -394,7 +393,7 @@ public class ScriptService extends AbstractComponent {
         String scriptLang = validateScriptLanguage(request.scriptLang());
         GetRequest getRequest = new GetRequest(SCRIPT_INDEX).type(scriptLang).id(request.id())
                 .version(request.version()).versionType(request.versionType())
-                .operationThreaded(false).preference("_local"); //Set preference for no forking
+                .preference("_local"); //Set preference for no forking
         client.get(getRequest, listener);
     }
 
@@ -448,8 +447,6 @@ public class ScriptService extends AbstractComponent {
             validate(scriptBytes, scriptLang);
 
             IndexRequest indexRequest = new IndexRequest(SCRIPT_INDEX, scriptLang, id);
-            indexRequest.listenerThreaded(false);
-            indexRequest.operationThreaded(false);
             indexRequest.version(version);
             indexRequest.versionType(versionType);
             indexRequest.refresh(true); //Always refresh after indexing a template

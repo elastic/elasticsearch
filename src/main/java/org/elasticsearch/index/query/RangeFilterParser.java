@@ -101,7 +101,7 @@ public class RangeFilterParser implements FilterParser {
                             to = parser.objectBytes();
                             includeUpper = true;
                         } else if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
-                            timeZone = DateMathParser.parseZone(parser.text());
+                            timeZone = DateTimeZone.forID(parser.text());
                         } else if ("format".equals(currentFieldName)) {
                             forcedDateParser = new DateMathParser(Joda.forPattern(parser.text()), DateFieldMapper.Defaults.TIME_UNIT);
                         } else {

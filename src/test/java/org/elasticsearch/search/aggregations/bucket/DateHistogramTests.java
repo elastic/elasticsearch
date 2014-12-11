@@ -1047,7 +1047,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                 .setQuery(matchAllQuery())
                 .addAggregation(dateHistogram("date_histo")
                         .field("date")
-                        .preZone("-2:00")
+                        .preZone("-02:00")
                         .interval(DateHistogram.Interval.DAY)
                         .format("yyyy-MM-dd"))
                 .execute().actionGet();
@@ -1082,7 +1082,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                 .setQuery(matchAllQuery())
                 .addAggregation(dateHistogram("date_histo")
                         .field("date")
-                        .preZone("-2:00")
+                        .preZone("-02:00")
                         .interval(DateHistogram.Interval.DAY)
                         .preZoneAdjustLargeInterval(true)
                         .format("yyyy-MM-dd'T'HH:mm:ss"))

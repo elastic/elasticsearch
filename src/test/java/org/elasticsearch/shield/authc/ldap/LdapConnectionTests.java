@@ -5,8 +5,11 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
+import org.elasticsearch.shield.authc.support.ldap.ConnectionFactory;
 import org.elasticsearch.shield.authc.support.ldap.LdapTest;
 import org.junit.Test;
 
@@ -16,6 +19,26 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 
 public class LdapConnectionTests extends LdapTest {
+
+    @Test(expected = LdapException.class, timeout = 2000) //if the LDAP timeout doesn't occur within 2 seconds, fail
+    public void testBindWithTimeout() {
+        String[] ldapUrls = new String[] { "ldap://example.com:1111" };
+        String groupSearchBase = "o=sevenSeas";
+        String[] userTemplates = new String[] {
+                "cn={0},ou=people,o=sevenSeas",
+        };
+        Settings settings = ImmutableSettings.builder()
+                .put(buildLdapSettings(ldapUrls, userTemplates, groupSearchBase, true))
+                .put(ConnectionFactory.TIMEOUT_CONNECTION_SETTING, "1ms") //1 millisecond
+                .build();
+        LdapConnectionFactory connectionFactory = new LdapConnectionFactory(settings);
+        String user = "Horatio Hornblower";
+        SecuredString userPass = SecuredStringTests.build("pass");
+
+        try (LdapConnection ldap = connectionFactory.open(user, userPass)) {
+
+        }
+    }
 
     @Test
     public void testBindWithTemplates() {
@@ -38,6 +61,7 @@ public class LdapConnectionTests extends LdapTest {
             //assertThat( attrs.get("uid"), arrayContaining("hhornblo"));
         }
     }
+
 
     @Test(expected = LdapException.class)
     public void testBindWithBogusTemplates() {
@@ -86,6 +110,25 @@ public class LdapConnectionTests extends LdapTest {
         try (LdapConnection ldap = ldapFac.open(user, SecuredStringTests.build("pass"))) {
             List<String> groups = ldap.getGroupsFromSearch(ldap.authenticatedUserDn());
             assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
+        }
+    }
+
+    @Test(expected = LdapException.class, timeout = 2000) //if the LDAP timeout doesn't occur in 2 seconds, fail
+    public void testGroupLookupWithTimeout() {
+        String groupSearchBase = "o=sevenSeas";
+        String userTemplate = "cn={0},ou=people,o=sevenSeas";
+
+        Settings settings = ImmutableSettings.builder()
+                .put(buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, true))
+                .put(ConnectionFactory.TIMEOUT_READ_SETTING, "1ms") //1 millisecond
+                .build();
+
+        LdapConnectionFactory ldapFac = new LdapConnectionFactory(settings);
+        String user = "Horatio Hornblower";
+        SecuredString userPass = SecuredStringTests.build("pass");
+
+        try (LdapConnection ldap = ldapFac.open(user, userPass)) {
+            List<String> groups = ldap.getGroupsFromSearch(ldap.authenticatedUserDn());
         }
     }
 }

@@ -41,7 +41,8 @@ public class LdapConnectionFactory extends ConnectionFactory {
     protected final boolean groupSubTreeSearch;
     protected final boolean findGroupsByAttribute;
 
-    @Inject
+
+    @Inject()
     public LdapConnectionFactory(Settings settings) {
         super(settings);
         userDnTemplates = settings.getAsArray(USER_DN_TEMPLATES_SETTING);
@@ -56,6 +57,8 @@ public class LdapConnectionFactory extends ConnectionFactory {
         ImmutableMap.Builder<String, Serializable> builder = ImmutableMap.<String, Serializable>builder()
                 .put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory")
                 .put(Context.PROVIDER_URL, Strings.arrayToCommaDelimitedString(ldapUrls))
+                .put(JNDI_LDAP_READ_TIMEOUT, Long.toString(settings.getAsTime(TIMEOUT_READ_SETTING, TIMEOUT_DEFAULT).millis()))
+                .put(JNDI_LDAP_CONNECT_TIMEOUT, Long.toString(settings.getAsTime(TIMEOUT_CONNECTION_SETTING, TIMEOUT_DEFAULT).millis()))
                 .put(Context.REFERRAL, "follow");
 
         LdapSslSocketFactory.configureJndiSSL(ldapUrls, builder);

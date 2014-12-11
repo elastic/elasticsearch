@@ -8,6 +8,7 @@ package org.elasticsearch.shield.authc.support.ldap;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.authc.support.SecuredString;
 
 /**
@@ -25,6 +26,11 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 public abstract class ConnectionFactory {
 
     public static final String URLS_SETTING = "url";
+    public static final String JNDI_LDAP_READ_TIMEOUT = "com.sun.jndi.ldap.read.timeout";
+    public static final String JNDI_LDAP_CONNECT_TIMEOUT = "com.sun.jndi.ldap.connect.timeout";
+    public static final String TIMEOUT_CONNECTION_SETTING = "connect_timeout";
+    public static final String TIMEOUT_READ_SETTING = "read_timeout";
+    public static final TimeValue TIMEOUT_DEFAULT = TimeValue.timeValueSeconds(5);
 
     protected final ESLogger logger = Loggers.getLogger(getClass());
     private final Settings settings;

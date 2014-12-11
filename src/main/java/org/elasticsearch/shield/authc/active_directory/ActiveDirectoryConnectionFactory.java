@@ -53,6 +53,8 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory {
         ImmutableMap.Builder<String, Serializable> builder = ImmutableMap.<String, Serializable>builder()
                 .put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory")
                 .put(Context.PROVIDER_URL, Strings.arrayToCommaDelimitedString(ldapUrls))
+                .put(JNDI_LDAP_CONNECT_TIMEOUT, Long.toString(settings.getAsTime(TIMEOUT_CONNECTION_SETTING, TIMEOUT_DEFAULT).millis()))
+                .put(JNDI_LDAP_READ_TIMEOUT, Long.toString(settings.getAsTime(TIMEOUT_CONNECTION_SETTING, TIMEOUT_DEFAULT).millis()))
                 .put("java.naming.ldap.attributes.binary", "tokenGroups")
                 .put(Context.REFERRAL, "follow");
 

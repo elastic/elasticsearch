@@ -86,6 +86,11 @@ public class LdapSslSocketFactory extends SocketFactory {
     //The following methods are all wrappers around the instance of socketFactory
 
     @Override
+    public Socket createSocket() throws IOException {
+        return socketFactory.createSocket();
+    }
+
+    @Override
     public Socket createSocket(String host, int port) throws IOException {
         return socketFactory.createSocket(host, port);
     }

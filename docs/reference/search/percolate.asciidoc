@@ -17,7 +17,7 @@ in the percolate api.
 =====================================
 
 Field referred to in a percolator query must *already* exist in the mapping
-assocated with the index used for percolation.
+associated with the index used for percolation.
 added[1.4.0.Beta1,Applies to indices created in 1.4.0 or later]
 There are two ways to make sure that a field mapping exist:
 

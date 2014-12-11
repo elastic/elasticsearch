@@ -361,7 +361,7 @@ public class ScriptService extends AbstractComponent {
         String scriptLang = validateScriptLanguage(request.scriptLang());
         GetRequest getRequest = new GetRequest(request, SCRIPT_INDEX).type(scriptLang).id(request.id())
                 .version(request.version()).versionType(request.versionType())
-                .operationThreaded(false).preference("_local"); //Set preference for no forking
+                .preference("_local"); //Set preference for no forking
         client.get(getRequest, listener);
     }
 
@@ -416,7 +416,7 @@ public class ScriptService extends AbstractComponent {
         validate(request.safeSource(), scriptLang);
 
         IndexRequest indexRequest = new IndexRequest(request).index(SCRIPT_INDEX).type(scriptLang).id(request.id())
-                .listenerThreaded(false).operationThreaded(false).version(request.version()).versionType(request.versionType())
+                .version(request.version()).versionType(request.versionType())
                 .source(request.safeSource(), true).opType(request.opType()).refresh(true); //Always refresh after indexing a template
         client.index(indexRequest, listener);
     }

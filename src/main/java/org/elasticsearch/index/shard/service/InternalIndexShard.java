@@ -31,6 +31,8 @@ import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Booleans;
@@ -59,7 +61,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.IgnoreOnRecoveryEngineException;
-import org.elasticsearch.index.engine.OptimizeFailedEngineException;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
@@ -324,7 +325,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             if (newRouting.state() == ShardRoutingState.STARTED || newRouting.state() == ShardRoutingState.RELOCATING) {
                 // we want to refresh *before* we move to internal STARTED state
                 try {
-                    engine.refresh(new Engine.Refresh("cluster_state_started").force(true));
+                    engine.refresh("cluster_state_started", true);
                 } catch (Throwable t) {
                     logger.debug("failed to refresh due to move to cluster wide started", t);
                 }
@@ -515,13 +516,13 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public void refresh(Engine.Refresh refresh) throws ElasticsearchException {
+    public void refresh(String source, boolean force) throws ElasticsearchException {
         verifyNotClosed();
         if (logger.isTraceEnabled()) {
-            logger.trace("refresh with {}", refresh);
+            logger.trace("refresh with soruce: {} force: {}", source, force);
         }
         long time = System.nanoTime();
-        engine.refresh(refresh);
+        engine.refresh(source, force);
         refreshMetric.inc(System.nanoTime() - time);
     }
 
@@ -641,29 +642,29 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public void flush(Engine.Flush flush) throws ElasticsearchException {
+    public void flush(FlushRequest request) throws ElasticsearchException {
         // we allows flush while recovering, since we allow for operations to happen
         // while recovering, and we want to keep the translog at bay (up to deletes, which
         // we don't gc).
         verifyStartedOrRecovering();
         if (logger.isTraceEnabled()) {
-            logger.trace("flush with {}", flush);
+            logger.trace("flush with {}", request);
         }
         long time = System.nanoTime();
-        engine.flush(flush);
+        engine.flush(request.full() ? Engine.FlushType.NEW_WRITER : Engine.FlushType.COMMIT_TRANSLOG, request.force(), request.waitIfOngoing());
         flushMetric.inc(System.nanoTime() - time);
     }
 
     @Override
-    public void optimize(Engine.Optimize optimize) throws ElasticsearchException {
+    public void optimize(OptimizeRequest optimize) throws ElasticsearchException {
         verifyStarted();
         if (logger.isTraceEnabled()) {
             logger.trace("optimize with {}", optimize);
         }
-        engine.optimize(optimize);
+        engine.forceMerge(optimize.flush(), optimize.waitForMerge(), optimize
+                .maxNumSegments(), optimize.onlyExpungeDeletes(), optimize.upgrade());
     }
 
-    @Override
     public SnapshotIndexCommit snapshotIndex() throws EngineException {
         IndexShardState state = this.state; // one time volatile read
         // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
@@ -768,11 +769,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     public void performRecoveryFinalization(boolean withFlush) throws ElasticsearchException {
         if (withFlush) {
-            engine.flush(new Engine.Flush());
+            engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
         }
         // clear unreferenced files
         translog.clearUnreferenced();
-        engine.refresh(new Engine.Refresh("recovery_finalization").force(true));
+        engine.refresh("recovery_finalization", true);
         synchronized (mutex) {
             changeState(IndexShardState.POST_RECOVERY, "post recovery");
         }
@@ -970,7 +971,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 public void run() {
                     try {
                         if (engine.refreshNeeded()) {
-                            refresh(new Engine.Refresh("scheduled").force(false));
+                            refresh("schedule", false);
                         }
                     } catch (EngineClosedException e) {
                         // we are being closed, ignore

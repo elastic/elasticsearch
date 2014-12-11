@@ -50,7 +50,7 @@ import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.percolator.PercolatorService;
 
@@ -262,7 +262,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         private int loadQueries(IndexShard shard) {
             shard.refresh("percolator_load_queries", true);
             // Maybe add a mode load? This isn't really a write. We need write b/c state=post_recovery
-            try (Engine.Searcher searcher = shard.acquireSearcher("percolator_load_queries", IndexShard.Mode.WRITE)) {
+            try (Engine.Searcher searcher = shard.acquireSearcher("percolator_load_queries", true)) {
                 Query query = new XConstantScoreQuery(
                         indexCache.filter().cache(
                                 new TermFilter(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME))

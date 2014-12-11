@@ -29,11 +29,11 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.SegmentReaderUtils;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
-import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
 
 import java.util.ArrayList;

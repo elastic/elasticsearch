@@ -43,7 +43,7 @@ import org.elasticsearch.index.codec.postingsformat.*;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ElasticsearchSingleNodeLuceneTestCase;
 import org.junit.Before;
 import org.junit.Test;

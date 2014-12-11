@@ -21,10 +21,7 @@ package org.elasticsearch.index.mapper.boost;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import java.util.LinkedHashMap;

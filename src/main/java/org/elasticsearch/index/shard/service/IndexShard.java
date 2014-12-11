@@ -20,6 +20,8 @@
 package org.elasticsearch.index.shard.service;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -155,13 +157,11 @@ public interface IndexShard extends IndexShardComponent {
 
     Engine.GetResult get(Engine.Get get) throws ElasticsearchException;
 
-    void refresh(Engine.Refresh refresh) throws ElasticsearchException;
+    void refresh(String source, boolean force) throws ElasticsearchException;
 
-    void flush(Engine.Flush flush) throws ElasticsearchException;
+    void flush(FlushRequest request) throws ElasticsearchException;
 
-    void optimize(Engine.Optimize optimize) throws ElasticsearchException;
-
-    SnapshotIndexCommit snapshotIndex() throws EngineException;
+    void optimize(OptimizeRequest optimize) throws ElasticsearchException;
 
     void recover(Engine.RecoveryHandler recoveryHandler) throws EngineException;
 
@@ -177,8 +177,6 @@ public interface IndexShard extends IndexShardComponent {
     public boolean ignoreRecoveryAttempt();
 
     void readAllowed() throws IllegalIndexShardStateException;
-
-    void readAllowed(Mode mode) throws IllegalIndexShardStateException;
 
     ShardId shardId();
 

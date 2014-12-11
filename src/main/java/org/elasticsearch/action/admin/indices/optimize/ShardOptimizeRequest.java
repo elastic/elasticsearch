@@ -31,63 +31,31 @@ import java.io.IOException;
 /**
  *
  */
-class ShardOptimizeRequest extends BroadcastShardOperationRequest {
+final class ShardOptimizeRequest extends BroadcastShardOperationRequest {
 
-    private boolean waitForMerge = OptimizeRequest.Defaults.WAIT_FOR_MERGE;
-    private int maxNumSegments = OptimizeRequest.Defaults.MAX_NUM_SEGMENTS;
-    private boolean onlyExpungeDeletes = OptimizeRequest.Defaults.ONLY_EXPUNGE_DELETES;
-    private boolean flush = OptimizeRequest.Defaults.FLUSH;
-    private boolean upgrade = OptimizeRequest.Defaults.UPGRADE;
+    private OptimizeRequest request = new OptimizeRequest();
 
     ShardOptimizeRequest() {
     }
 
     ShardOptimizeRequest(ShardId shardId, OptimizeRequest request) {
         super(shardId, request);
-        waitForMerge = request.waitForMerge();
-        maxNumSegments = request.maxNumSegments();
-        onlyExpungeDeletes = request.onlyExpungeDeletes();
-        flush = request.flush();
-        upgrade = request.upgrade();
-    }
-
-    boolean waitForMerge() {
-        return waitForMerge;
-    }
-
-    int maxNumSegments() {
-        return maxNumSegments;
-    }
-
-    public boolean onlyExpungeDeletes() {
-        return onlyExpungeDeletes;
-    }
-
-    public boolean flush() {
-        return flush;
-    }
-
-    public boolean upgrade() {
-        return upgrade;
+        this.request = request;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        waitForMerge = in.readBoolean();
-        maxNumSegments = in.readInt();
-        onlyExpungeDeletes = in.readBoolean();
-        flush = in.readBoolean();
-        upgrade = in.readBoolean();
+        request.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(waitForMerge);
-        out.writeInt(maxNumSegments);
-        out.writeBoolean(onlyExpungeDeletes);
-        out.writeBoolean(flush);
-        out.writeBoolean(upgrade);
+        request.writeTo(out);
+    }
+
+    public OptimizeRequest optimizeRequest() {
+        return this.request;
     }
 }

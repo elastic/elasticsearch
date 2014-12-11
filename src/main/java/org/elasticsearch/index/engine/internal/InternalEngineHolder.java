@@ -284,28 +284,23 @@ public class InternalEngineHolder extends AbstractIndexShardComponent implements
     }
 
     @Override
-    public boolean possibleMergeNeeded() {
-        return engineSafe().possibleMergeNeeded();
+    public void refresh(String source, boolean force) throws EngineException {
+        engineSafe().refresh(source, force);
     }
 
     @Override
-    public void maybeMerge() throws EngineException {
-        engineSafe().maybeMerge();
+    public void flush(FlushType type, boolean force, boolean waitIfOngoing) throws EngineException, FlushNotAllowedEngineException {
+        engineSafe().flush(type, force, waitIfOngoing);
     }
 
     @Override
-    public void refresh(Refresh refresh) throws EngineException {
-        engineSafe().refresh(refresh);
+    public void forceMerge(boolean flush, boolean waitForMerge) {
+        engineSafe().forceMerge(flush, waitForMerge);
     }
 
     @Override
-    public void flush(Flush flush) throws EngineException, FlushNotAllowedEngineException {
-        engineSafe().flush(flush);
-    }
-
-    @Override
-    public void optimize(Optimize optimize) throws EngineException {
-        engineSafe().optimize(optimize);
+    public void forceMerge(boolean flush, boolean waitForMerge, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade) throws EngineException {
+        engineSafe().forceMerge(flush, waitForMerge, maxNumSegments, onlyExpungeDeletes, upgrade);
     }
 
     @Override

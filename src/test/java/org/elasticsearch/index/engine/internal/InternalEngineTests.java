@@ -26,7 +26,6 @@ import org.apache.log4j.Logger;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.spi.LoggingEvent;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
@@ -40,7 +39,6 @@ import org.apache.lucene.store.MockDirectoryWrapper;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
@@ -66,7 +64,6 @@ import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
-import org.elasticsearch.index.settings.IndexDynamicSettings;
 import org.elasticsearch.index.settings.IndexDynamicSettingsModule;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
@@ -256,7 +253,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
         ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_2, false);
         engine.create(new Engine.Create(null, newUid("2"), doc2));
-        engine.refresh(new Engine.Refresh("test").force(false));
+        engine.refresh("test", false);
 
         segments = engine.segments();
         assertThat(segments.size(), equalTo(1));
@@ -273,7 +270,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
         assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
 
-        engine.flush(new Engine.Flush());
+        engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
 
         segments = engine.segments();
         assertThat(segments.size(), equalTo(1));
@@ -288,7 +285,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
         ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_3, false);
         engine.create(new Engine.Create(null, newUid("3"), doc3));
-        engine.refresh(new Engine.Refresh("test").force(false));
+        engine.refresh("test", false);
 
         segments = engine.segments();
         assertThat(segments.size(), equalTo(2));
@@ -314,7 +311,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
 
         engine.delete(new Engine.Delete("test", "1", newUid("1")));
-        engine.refresh(new Engine.Refresh("test").force(false));
+        engine.refresh("test", false);
 
         segments = engine.segments();
         assertThat(segments.size(), equalTo(2));
@@ -335,7 +332,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         engineSettingsService.refreshSettings(ImmutableSettings.builder().put(InternalEngineHolder.INDEX_COMPOUND_ON_FLUSH, true).build());
         ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_3, false);
         engine.create(new Engine.Create(null, newUid("4"), doc4));
-        engine.refresh(new Engine.Refresh("test").force(false));
+        engine.refresh("test", false);
 
         segments = engine.segments();
         assertThat(segments.size(), equalTo(3));
@@ -421,18 +418,18 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), Lucene.STANDARD_ANALYZER, B_1, false);
         Engine.Index index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
-        engine.flush(new Engine.Flush());
+        engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
         assertThat(engine.segments().size(), equalTo(1));
         index = new Engine.Index(null, newUid("2"), doc);
         engine.index(index);
-        engine.flush(new Engine.Flush());
+        engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
         assertThat(engine.segments().size(), equalTo(2));
         for (Segment segment : engine.segments()) {
             assertThat(segment.getMergeId(), nullValue());
         }
         index = new Engine.Index(null, newUid("3"), doc);
         engine.index(index);
-        engine.flush(new Engine.Flush());
+        engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
         assertThat(engine.segments().size(), equalTo(3));
         for (Segment segment : engine.segments()) {
             assertThat(segment.getMergeId(), nullValue());
@@ -440,7 +437,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
         waitTillMerge.set(new CountDownLatch(1));
         waitForMerge.set(new CountDownLatch(1));
-        engine.optimize(new Engine.Optimize().maxNumSegments(1).waitForMerge(false));
+        engine.forceMerge(false, false);
         waitTillMerge.get().await();
 
         for (Segment segment : engine.segments()) {
@@ -451,10 +448,10 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
         index = new Engine.Index(null, newUid("4"), doc);
         engine.index(index);
-        engine.flush(new Engine.Flush());
+        engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
         final long gen1 = store.readLastCommittedSegmentsInfo().getGeneration();
         // now, optimize and wait for merges, see that we have no merge flag
-        engine.optimize(new Engine.Optimize().flush(true).maxNumSegments(1).waitForMerge(true));
+        engine.forceMerge(true, true);
 
         for (Segment segment : engine.segments()) {
             assertThat(segment.getMergeId(), nullValue());
@@ -464,7 +461,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
         final boolean flush = randomBoolean();
         final long gen2 = store.readLastCommittedSegmentsInfo().getGeneration();
-        engine.optimize(new Engine.Optimize().flush(flush).maxNumSegments(1).waitForMerge(false));
+        engine.forceMerge(flush, false);
         waitTillMerge.get().await();
         for (Segment segment : engine.segments()) {
             assertThat(segment.getMergeId(), nullValue());
@@ -519,7 +516,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         assertThat(getResult.exists(), equalTo(false));
         getResult.release();
         // refresh and it should be there
-        engine.refresh(new Engine.Refresh("test").force(false));
+        engine.refresh("test", false);
 
         // now its there...
         searchResult = engine.acquireSearcher("test");
@@ -555,7 +552,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         getResult.release();
 
         // refresh and it should be updated
-        engine.refresh(new Engine.Refresh("test").force(false));
+        engine.refresh("test", false);
 
         searchResult = engine.acquireSearcher("test");
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
@@ -579,7 +576,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         getResult.release();
 
         // refresh and it should be deleted
-        engine.refresh(new Engine.Refresh("test").force(false));
+        engine.refresh("test", false);
 
         searchResult = engine.acquireSearcher("test");
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
@@ -601,7 +598,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         searchResult.close();
 
         // refresh and it should be there
-        engine.refresh(new Engine.Refresh("test").force(false));
+        engine.refresh("test", false);
 
         // now its there...
         searchResult = engine.acquireSearcher("test");
@@ -611,7 +608,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         searchResult.close();
 
         // now flush
-        engine.flush(new Engine.Flush());
+        engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
 
         // and, verify get (in real time)
         getResult = engine.get(new Engine.Get(true, newUid("1")));
@@ -635,7 +632,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         searchResult.close();
 
         // refresh and it should be updated
-        engine.refresh(new Engine.Refresh("test").force(false));
+        engine.refresh("test", false);
 
         searchResult = engine.acquireSearcher("test");
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
@@ -663,7 +660,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         searchResult.close();
 
         // refresh and it should be there
-        engine.refresh(new Engine.Refresh("test").force(false));
+        engine.refresh("test", false);
 
         // now its there...
         searchResult = engine.acquireSearcher("test");
@@ -673,7 +670,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
         // delete, refresh and do a new search, it should not be there
         engine.delete(new Engine.Delete("test", "1", newUid("1")));
-        engine.refresh(new Engine.Refresh("test").force(false));
+        engine.refresh("test", false);
         Engine.Searcher updateSearchResult = engine.acquireSearcher("test");
         MatcherAssert.assertThat(updateSearchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         updateSearchResult.close();
@@ -688,7 +685,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     public void testFailEngineOnCorruption() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(null, newUid("1"), doc));
-        engine.flush(new Engine.Flush());
+        engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
         final boolean failEngine = defaultSettings.getAsBoolean(InternalEngineHolder.INDEX_FAIL_ON_CORRUPTION, false);
         final int failInPhase = randomIntBetween(1, 3);
         try {
@@ -726,7 +723,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
             ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_2, false);
             engine.create(new Engine.Create(null, newUid("2"), doc2));
-            engine.refresh(new Engine.Refresh("foo"));
+            engine.refresh("foo", false);
 
             searchResult = engine.acquireSearcher("test");
             MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 2));
@@ -743,13 +740,13 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     public void testSimpleRecover() throws Exception {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(null, newUid("1"), doc));
-        engine.flush(new Engine.Flush());
+        engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
 
         engine.recover(new Engine.RecoveryHandler() {
             @Override
             public void phase1(SnapshotIndexCommit snapshot) throws EngineException {
                 try {
-                    engine.flush(new Engine.Flush());
+                    engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
                     assertThat("flush is not allowed in phase 3", false, equalTo(true));
                 } catch (FlushNotAllowedEngineException e) {
                     // all is well
@@ -760,7 +757,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             public void phase2(Translog.Snapshot snapshot) throws EngineException {
                 MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
                 try {
-                    engine.flush(new Engine.Flush());
+                    engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
                     assertThat("flush is not allowed in phase 3", false, equalTo(true));
                 } catch (FlushNotAllowedEngineException e) {
                     // all is well
@@ -772,7 +769,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                 MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
                 try {
                     // we can do this here since we are on the same thread
-                    engine.flush(new Engine.Flush());
+                    engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
                     assertThat("flush is not allowed in phase 3", false, equalTo(true));
                 } catch (FlushNotAllowedEngineException e) {
                     // all is well
@@ -780,7 +777,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             }
         });
 
-        engine.flush(new Engine.Flush());
+        engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
         engine.close();
     }
 
@@ -788,7 +785,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     public void testRecoverWithOperationsBetweenPhase1AndPhase2() throws Exception {
         ParsedDocument doc1 = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(null, newUid("1"), doc1));
-        engine.flush(new Engine.Flush());
+        engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
         ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_2, false);
         engine.create(new Engine.Create(null, newUid("2"), doc2));
 
@@ -811,7 +808,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             }
         });
 
-        engine.flush(new Engine.Flush());
+        engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
         engine.close();
     }
 
@@ -819,7 +816,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     public void testRecoverWithOperationsBetweenPhase1AndPhase2AndPhase3() throws Exception {
         ParsedDocument doc1 = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(null, newUid("1"), doc1));
-        engine.flush(new Engine.Flush());
+        engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
         ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_2, false);
         engine.create(new Engine.Create(null, newUid("2"), doc2));
 
@@ -849,7 +846,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             }
         });
 
-        engine.flush(new Engine.Flush());
+        engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
         engine.close();
     }
 
@@ -961,7 +958,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         engine.index(index);
         assertThat(index.version(), equalTo(2l));
 
-        engine.flush(new Engine.Flush());
+        engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
 
         index = new Engine.Index(null, newUid("1"), doc, 1l, VersionType.INTERNAL, PRIMARY, 0);
         try {
@@ -992,7 +989,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         engine.index(index);
         assertThat(index.version(), equalTo(14l));
 
-        engine.flush(new Engine.Flush());
+        engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
 
         index = new Engine.Index(null, newUid("1"), doc, 13, VersionType.EXTERNAL, PRIMARY, 0);
         try {
@@ -1065,7 +1062,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         engine.index(index);
         assertThat(index.version(), equalTo(2l));
 
-        engine.flush(new Engine.Flush());
+        engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
 
         Engine.Delete delete = new Engine.Delete("test", "1", newUid("1"), 1l, VersionType.INTERNAL, PRIMARY, 0, false);
         try {
@@ -1084,14 +1081,14 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             // all is well
         }
 
-        engine.flush(new Engine.Flush());
+        engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
 
         // now actually delete
         delete = new Engine.Delete("test", "1", newUid("1"), 2l, VersionType.INTERNAL, PRIMARY, 0, false);
         engine.delete(delete);
         assertThat(delete.version(), equalTo(3l));
 
-        engine.flush(new Engine.Flush());
+        engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
 
         // now check if we can index to a delete doc with version
         index = new Engine.Index(null, newUid("1"), doc, 2l, VersionType.INTERNAL, PRIMARY, 0);
@@ -1134,7 +1131,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         engine.create(create);
         assertThat(create.version(), equalTo(1l));
 
-        engine.flush(new Engine.Flush());
+        engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
 
         create = new Engine.Create(null, newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, 0);
         try {
@@ -1258,7 +1255,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
         engine.delete(new Engine.Delete(null, "1", newUid("1")));
 
-        engine.flush(new Engine.Flush());
+        engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
 
         index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
@@ -1309,13 +1306,13 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             // First, with DEBUG, which should NOT log IndexWriter output:
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
             engine.create(new Engine.Create(null, newUid("1"), doc));
-            engine.flush(new Engine.Flush());
+            engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
             assertFalse(mockAppender.sawIndexWriterMessage);
 
             // Again, with TRACE, which should log IndexWriter output:
             rootLogger.setLevel(Level.TRACE);
             engine.create(new Engine.Create(null, newUid("2"), doc));
-            engine.flush(new Engine.Flush());
+            engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
             assertTrue(mockAppender.sawIndexWriterMessage);
 
         } finally {
@@ -1344,14 +1341,14 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             // First, with DEBUG, which should NOT log IndexWriter output:
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
             engine.create(new Engine.Create(null, newUid("1"), doc));
-            engine.flush(new Engine.Flush());
+            engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
             assertFalse(mockAppender.sawIndexWriterMessage);
             assertFalse(mockAppender.sawIndexWriterIFDMessage);
 
             // Again, with TRACE, which should only log IndexWriter IFD output:
             iwIFDLogger.setLevel(Level.TRACE);
             engine.create(new Engine.Create(null, newUid("2"), doc));
-            engine.flush(new Engine.Flush());
+            engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
             assertFalse(mockAppender.sawIndexWriterMessage);
             assertTrue(mockAppender.sawIndexWriterIFDMessage);
 
@@ -1400,7 +1397,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         Thread.sleep(1000);
 
         if (randomBoolean()) {
-            engine.refresh(new Engine.Refresh("test"));
+            engine.refresh("test", false);
         }
 
         // Delete non-existent document

@@ -58,7 +58,13 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
             }
             Realm.Factory factory = factories.get(type);
             if (factory == null) {
-                throw new ShieldSettingsException("Unknown reaml type [" + type + "] set for realm [" + name + "]");
+                throw new ShieldSettingsException("Unknown realm type [" + type + "] set for realm [" + name + "]");
+            }
+            if (!realmSettings.getAsBoolean("enabled", true)) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("realm [{}] type [{}] is disabled", name, type);
+                }
+                continue;
             }
             if (factory.internal()) {
                 // this is an internal realm factory, let's make sure we didn't already registered one

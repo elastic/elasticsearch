@@ -47,7 +47,7 @@ public class RealmsTests extends ElasticsearchTestCase {
         for (int i = 0; i < factories.size() - 1; i++) {
             orders.add(i);
         }
-        Collections.shuffle(orders);
+        Collections.shuffle(orders, getRandom());
         Map<Integer, Integer> orderToIndex = new HashMap<>();
         for (int i = 0; i < factories.size() - 1; i++) {
             builder.put("shield.authc.realms.realm_" + i + ".type", "type_" + i);
@@ -85,6 +85,50 @@ public class RealmsTests extends ElasticsearchTestCase {
         assertThat(realm.type(), equalTo(ESUsersRealm.TYPE));
         assertThat(realm.name(), equalTo("default_" + ESUsersRealm.TYPE));
         assertThat(iter.hasNext(), is(false));
+    }
+
+    @Test
+    public void testDisabledRealmsAreNotAdded() throws Exception {
+        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        List<Integer> orders = new ArrayList<>(factories.size() - 1);
+        for (int i = 0; i < factories.size() - 1; i++) {
+            orders.add(i);
+        }
+        Collections.shuffle(orders, getRandom());
+        Map<Integer, Integer> orderToIndex = new HashMap<>();
+        for (int i = 0; i < factories.size() - 1; i++) {
+            builder.put("shield.authc.realms.realm_" + i + ".type", "type_" + i);
+            builder.put("shield.authc.realms.realm_" + i + ".order", orders.get(i));
+            boolean enabled = randomBoolean();
+            builder.put("shield.authc.realms.realm_" + i + ".enabled", enabled);
+            if (enabled) {
+                orderToIndex.put(orders.get(i), i);
+                logger.error("put [{}] -> [{}]", orders.get(i), i);
+            }
+        }
+
+        Settings settings = builder.build();
+        Realms realms = new Realms(settings, factories);
+        Iterator<Realm> iterator = realms.iterator();
+
+        int count = 0;
+        while (iterator.hasNext()) {
+            Realm realm = iterator.next();
+            Integer index = orderToIndex.get(realm.order());
+            if (index == null) {
+                // Default realm is inserted when factories size is 1 and enabled is false
+                assertThat(realm.type(), equalTo(ESUsersRealm.TYPE));
+                assertThat(realm.name(), equalTo("default_" + ESUsersRealm.TYPE));
+                assertThat(iterator.hasNext(), is(false));
+            } else {
+                assertThat(realm.type(), equalTo("type_" + index));
+                assertThat(realm.name(), equalTo("realm_" + index));
+                assertThat(settings.getAsBoolean("shield.authc.realms.realm_" + index + ".enabled", true), equalTo(Boolean.TRUE));
+                count++;
+            }
+        }
+
+        assertThat(count, equalTo(orderToIndex.size()));
     }
 
     static class DummyRealm extends Realm {

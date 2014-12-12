@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
@@ -36,6 +37,10 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -456,5 +461,24 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
 
     private Term newUid(String id) {
         return new Term("_uid", id);
+    }
+
+    @Test
+    public void testVerifyTranslogIsNotDeletedBySnapshotClose() throws IOException {
+        Path path = Paths.get(translogFileDirectory());
+        assertTrue(Files.exists(path.resolve("translog-1")));
+        translog.add(new Translog.Create("test", "1", new byte[]{1}));
+        Translog.Snapshot snapshot = translog.snapshot();
+        MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
+        assertThat(snapshot.estimatedTotalOperations(), equalTo(1));
+        if (randomBoolean()) {
+            translog.close();
+            snapshot.close();
+        } else {
+            snapshot.close();
+            translog.close();
+        }
+
+        assertTrue(Files.exists(path.resolve("translog-1")));
     }
 }

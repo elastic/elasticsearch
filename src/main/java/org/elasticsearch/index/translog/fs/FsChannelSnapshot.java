@@ -146,6 +146,6 @@ public class FsChannelSnapshot implements Translog.Snapshot {
         if (!closed.compareAndSet(false, true)) {
             return;
         }
-        raf.decreaseRefCount(true);
+        raf.decreaseRefCount(false);
     }
 }

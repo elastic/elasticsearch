@@ -1154,20 +1154,20 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     @Override
     public SegmentsStats segmentsStats() {
-        try (InternalLock _ = readLock.acquire()) {
-            ensureOpen();
-            Searcher searcher = acquireSearcher("segments_stats");
-            try {
-                SegmentsStats stats = new SegmentsStats();
-                for (AtomicReaderContext reader : searcher.reader().leaves()) {
-                    stats.add(1, getReaderRamBytesUsed(reader));
-                }
-                stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
-                stats.addIndexWriterMemoryInBytes(indexWriter.ramBytesUsed());
-                return stats;
-            } finally {
-                searcher.close();
+        // Does ensureOpen for us:                                                                                                                                                                               
+        final IndexWriter indexWriter = currentIndexWriter();
+        assert indexWriter != null;
+        Searcher searcher = acquireSearcher("segments_stats");
+        try {
+            SegmentsStats stats = new SegmentsStats();
+            for (AtomicReaderContext reader : searcher.reader().leaves()) {
+                stats.add(1, getReaderRamBytesUsed(reader));
             }
+            stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
+            stats.addIndexWriterMemoryInBytes(indexWriter.ramBytesUsed());
+            return stats;
+        } finally {
+            searcher.close();
         }
     }
 

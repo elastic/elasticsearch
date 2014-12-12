@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.analysis.*;
 
+import java.io.Closeable;
 import java.util.Locale;
 import java.util.Map;
 
@@ -35,7 +36,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_
 /**
  * A node level registry of analyzers, to be reused by different indices which use default analyzers.
  */
-public class IndicesAnalysisService extends AbstractComponent {
+public class IndicesAnalysisService extends AbstractComponent implements Closeable {
 
     private final Map<String, PreBuiltAnalyzerProviderFactory> analyzerProviderFactories = ConcurrentCollections.newConcurrentMap();
     private final Map<String, PreBuiltTokenizerFactoryFactory> tokenizerFactories = ConcurrentCollections.newConcurrentMap();

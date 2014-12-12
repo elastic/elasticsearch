@@ -332,7 +332,7 @@ public class InternalEngine implements Engine {
 
     @Override
     public TimeValue defaultRefreshInterval() {
-        return InternalEngineHolder.DEFAULT_REFRESH_ITERVAL;
+        return InternalEngineHolder.DEFAULT_REFRESH_INTERVAL;
     }
 
     /** return the current indexing buffer size setting * */
@@ -1231,9 +1231,12 @@ public class InternalEngine implements Engine {
 
     @Override
     public SegmentsStats segmentsStats() {
-        try (InternalLock _ = readLock.acquire()) {
-            ensureOpen();
-            try (final Searcher searcher = acquireSearcher("segments_stats")) {
+
+        // Does ensureOpen for us:
+        final IndexWriter indexWriter = currentIndexWriter();
+        assert indexWriter != null;
+
+        try (final Searcher searcher = acquireSearcher("segments_stats")) {
                 SegmentsStats stats = new SegmentsStats();
                 for (LeafReaderContext reader : searcher.reader().leaves()) {
                     final SegmentReader segmentReader = segmentReader(reader.reader());
@@ -1248,7 +1251,6 @@ public class InternalEngine implements Engine {
                 stats.addIndexWriterMemoryInBytes(indexWriter.ramBytesUsed());
                 stats.addIndexWriterMaxMemoryInBytes((long) (indexWriter.getConfig().getRAMBufferSizeMB() * 1024 * 1024));
                 return stats;
-            }
         }
     }
 

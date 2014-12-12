@@ -99,8 +99,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
     private final IndicesAnalysisService indicesAnalysisService;
 
-    private IndicesStore indicesStore;
-
     private final Injector injector;
 
     private final PluginsService pluginsService;
@@ -124,11 +122,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
         this.indicesLifecycle.addListener(oldShardsStats);
         this.nodeEnv = nodeEnv;
-    }
-
-    @Inject
-    void setIndicesStore(IndicesStore store) {
-        this.indicesStore = store;
     }
 
     @Override
@@ -181,9 +174,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
     @Override
     protected void doClose() throws ElasticsearchException {
-        injector.getInstance(RecoverySettings.class).close();
-        indicesStore.close();
-        indicesAnalysisService.close();
+        IOUtils.closeWhileHandlingException(injector.getInstance(RecoverySettings.class),
+            indicesAnalysisService);
     }
 
     public IndicesLifecycle indicesLifecycle() {

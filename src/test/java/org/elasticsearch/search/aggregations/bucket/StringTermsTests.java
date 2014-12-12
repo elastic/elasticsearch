@@ -37,6 +37,7 @@ import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStat
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -71,6 +72,7 @@ import static org.hamcrest.core.IsNull.nullValue;
  *
  */
 @ElasticsearchIntegrationTest.SuiteScopeTest
+@TestLogging("org.elasticsearch.action.search:TRACE,org.elasticsearch.search:TRACE")
 public class StringTermsTests extends AbstractTermsTests {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "s_value";

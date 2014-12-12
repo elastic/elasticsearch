@@ -118,9 +118,8 @@ public class FixedBitSetFilterCache extends AbstractIndexComponent implements At
     }
 
     public void clear(String reason) {
-        logger.debug("Clearing all FixedBitSets because [{}]", reason);
+        logger.debug("clearing all bitsets because [{}]", reason);
         loadedFilters.invalidateAll();
-        loadedFilters.cleanUp();
     }
 
     private FixedBitSet getAndLoadIfNotPresent(final Filter filter, final AtomicReaderContext context) throws IOException, ExecutionException {

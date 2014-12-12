@@ -332,56 +332,6 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void throttleStats() throws Exception {
-        assertAcked(prepareCreate("test")
-                    .setSettings(ImmutableSettings.builder()
-                                 .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
-                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
-                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-                                 .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
-                                 .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
-                                 .put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, "1")
-                                 .put(ConcurrentMergeSchedulerProvider.MAX_MERGE_COUNT, "1")
-                                 .put("index.merge.policy.type", "tiered")
-
-                                 ));
-        ensureGreen();
-        long termUpto = 0;
-        IndicesStatsResponse stats;
-        // make sure we see throttling kicking in:
-        boolean done = false;
-        long start = System.currentTimeMillis();
-        while (!done) {
-            for(int i=0; i<100; i++) {
-                // Provoke slowish merging by making many unique terms:
-                StringBuilder sb = new StringBuilder();
-                for(int j=0; j<100; j++) {
-                    sb.append(' ');
-                    sb.append(termUpto++);
-                }
-                client().prepareIndex("test", "type", ""+termUpto).setSource("field" + (i%10), sb.toString()).get();
-                if (i % 2 == 0) {
-                    refresh();
-                }
-            }
-            refresh();
-            stats = client().admin().indices().prepareStats().execute().actionGet();
-            //nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
-            done = stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis() > 0;
-            if (System.currentTimeMillis() - start > 300*1000) { //Wait 5 minutes for throttling to kick in
-                fail("index throttling didn't kick in after 5 minutes of intense merging");
-            }
-        }
-
-        // Optimize & flush and wait; else we sometimes get a "Delete Index failed - not acked"
-        // when ElasticsearchIntegrationTest.after tries to remove indices created by the test:
-        logger.info("test: now optimize");
-        client().admin().indices().prepareOptimize("test").setWaitForMerge(true).get();
-        flush();
-        logger.info("test: test done");
-    }
-
-    @Test
     public void simpleStats() throws Exception {
         createIndex("test1", "test2");
         ensureGreen();
@@ -483,70 +433,6 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         assertThat(stats.getTotal().getIndexing(), nullValue());
         assertThat(stats.getTotal().getGet(), nullValue());
         assertThat(stats.getTotal().getSearch(), nullValue());
-    }
-
-    @Test
-    public void testMergeStats() {
-        createIndex("test1");
-
-        ensureGreen();
-
-        // clear all
-        IndicesStatsResponse stats = client().admin().indices().prepareStats()
-                .setDocs(false)
-                .setStore(false)
-                .setIndexing(false)
-                .setFlush(true)
-                .setRefresh(true)
-                .setMerge(true)
-                .clear() // reset defaults
-                .execute().actionGet();
-
-        assertThat(stats.getTotal().getDocs(), nullValue());
-        assertThat(stats.getTotal().getStore(), nullValue());
-        assertThat(stats.getTotal().getIndexing(), nullValue());
-        assertThat(stats.getTotal().getGet(), nullValue());
-        assertThat(stats.getTotal().getSearch(), nullValue());
-
-        for (int i = 0; i < 20; i++) {
-            client().prepareIndex("test1", "type1", Integer.toString(i)).setSource("field", "value").execute().actionGet();
-            client().prepareIndex("test1", "type2", Integer.toString(i)).setSource("field", "value").execute().actionGet();
-            client().admin().indices().prepareFlush().execute().actionGet();
-        }
-        client().admin().indices().prepareOptimize().setWaitForMerge(true).setMaxNumSegments(1).execute().actionGet();
-        stats = client().admin().indices().prepareStats()
-                .setMerge(true)
-                .execute().actionGet();
-
-        assertThat(stats.getTotal().getMerge(), notNullValue());
-        assertThat(stats.getTotal().getMerge().getTotal(), greaterThan(0l));
-    }
-
-    @Test
-    public void testSegmentsStats() {
-        assertAcked(prepareCreate("test1", 2, settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
-        ensureGreen();
-
-        NumShards test1 = getNumShards("test1");
-
-        for (int i = 0; i < 100; i++) {
-            index("test1", "type1", Integer.toString(i), "field", "value");
-            index("test1", "type2", Integer.toString(i), "field", "value");
-        }
-
-        IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
-        assertThat(stats.getTotal().getSegments().getIndexWriterMemoryInBytes(), greaterThan(0l));
-        assertThat(stats.getTotal().getSegments().getIndexWriterMaxMemoryInBytes(), greaterThan(0l));
-        assertThat(stats.getTotal().getSegments().getVersionMapMemoryInBytes(), greaterThan(0l));
-
-        client().admin().indices().prepareFlush().get();
-        client().admin().indices().prepareOptimize().setWaitForMerge(true).setMaxNumSegments(1).execute().actionGet();
-        stats = client().admin().indices().prepareStats().setSegments(true).get();
-
-        assertThat(stats.getTotal().getSegments(), notNullValue());
-        assertThat(stats.getTotal().getSegments().getCount(), equalTo((long) test1.totalNumShards));
-        assumeTrue(org.elasticsearch.Version.CURRENT.luceneVersion != Version.LUCENE_4_6_0);
-        assertThat(stats.getTotal().getSegments().getMemoryInBytes(), greaterThan(0l));
     }
 
     @Test

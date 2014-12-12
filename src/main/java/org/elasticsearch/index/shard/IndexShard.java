@@ -609,8 +609,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexShar
         if (logger.isTraceEnabled()) {
             logger.trace("optimize with {}", optimize);
         }
-        engine.forceMerge(optimize.flush(), optimize.waitForMerge(), optimize
-                .maxNumSegments(), optimize.onlyExpungeDeletes(), optimize.upgrade());
+        engine.forceMerge(optimize.flush(), optimize.maxNumSegments(), 
+                          optimize.onlyExpungeDeletes(), optimize.upgrade());
     }
 
     public SnapshotIndexCommit snapshotIndex() throws EngineException {

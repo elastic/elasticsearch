@@ -1389,68 +1389,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("--> done");
     }
 
-    public void testSnapshotMoreThanOnce() throws ExecutionException, InterruptedException {
-        Client client = client();
-
-        logger.info("-->  creating repository");
-        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", newTempDirPath(LifecycleScope.SUITE))
-                        .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000))));
-
-        // only one shard
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)));
-        ensureGreen();
-        logger.info("-->  indexing");
-
-        final int numdocs = randomIntBetween(10, 100);
-        IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
-        for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test", "doc", Integer.toString(i)).setSource("foo", "bar" + i);
-        }
-        indexRandom(true, builders);
-        flushAndRefresh();
-        assertNoFailures(client().admin().indices().prepareOptimize("test").setFlush(true).setWaitForMerge(true).setMaxNumSegments(1).get());
-
-        CreateSnapshotResponse createSnapshotResponseFirst = client.admin().cluster().prepareCreateSnapshot("test-repo", "test").setWaitForCompletion(true).setIndices("test").get();
-        assertThat(createSnapshotResponseFirst.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponseFirst.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponseFirst.getSnapshotInfo().totalShards()));
-        assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
-        {
-            SnapshotStatus snapshotStatus = client.admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test").get().getSnapshots().get(0);
-            List<SnapshotIndexShardStatus> shards = snapshotStatus.getShards();
-            for (SnapshotIndexShardStatus status : shards) {
-                assertThat(status.getStats().getProcessedFiles(), greaterThan(1));
-            }
-        }
-
-        CreateSnapshotResponse createSnapshotResponseSecond = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-1").setWaitForCompletion(true).setIndices("test").get();
-        assertThat(createSnapshotResponseSecond.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponseSecond.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponseSecond.getSnapshotInfo().totalShards()));
-        assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-1").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
-        {
-            SnapshotStatus snapshotStatus = client.admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-1").get().getSnapshots().get(0);
-            List<SnapshotIndexShardStatus> shards = snapshotStatus.getShards();
-            for (SnapshotIndexShardStatus status : shards) {
-                assertThat(status.getStats().getProcessedFiles(), equalTo(1)); // we flush before the snapshot such that we have to process the segments_N files
-            }
-        }
-
-        client().prepareDelete("test", "doc", "1").get();
-        CreateSnapshotResponse createSnapshotResponseThird = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-2").setWaitForCompletion(true).setIndices("test").get();
-        assertThat(createSnapshotResponseThird.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponseThird.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponseThird.getSnapshotInfo().totalShards()));
-        assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-2").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
-        {
-            SnapshotStatus snapshotStatus = client.admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-2").get().getSnapshots().get(0);
-            List<SnapshotIndexShardStatus> shards = snapshotStatus.getShards();
-            for (SnapshotIndexShardStatus status : shards) {
-                assertThat(status.getStats().getProcessedFiles(), equalTo(2)); // we flush before the snapshot such that we have to process the segments_N files plus the .del file
-            }
-        }
-    }
-
     private boolean waitForIndex(final String index, TimeValue timeout) throws InterruptedException {
         return awaitBusy(new Predicate<Object>() {
             @Override

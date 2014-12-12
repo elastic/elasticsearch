@@ -294,13 +294,13 @@ public class InternalEngineHolder extends AbstractIndexShardComponent implements
     }
 
     @Override
-    public void forceMerge(boolean flush, boolean waitForMerge) {
-        engineSafe().forceMerge(flush, waitForMerge);
+    public void forceMerge(boolean flush) {
+        engineSafe().forceMerge(flush);
     }
 
     @Override
-    public void forceMerge(boolean flush, boolean waitForMerge, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade) throws EngineException {
-        engineSafe().forceMerge(flush, waitForMerge, maxNumSegments, onlyExpungeDeletes, upgrade);
+    public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade) throws EngineException {
+        engineSafe().forceMerge(flush, maxNumSegments, onlyExpungeDeletes, upgrade);
     }
 
     @Override

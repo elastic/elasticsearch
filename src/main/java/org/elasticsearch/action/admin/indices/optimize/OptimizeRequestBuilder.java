@@ -40,14 +40,6 @@ public class OptimizeRequestBuilder extends BroadcastOperationRequestBuilder<Opt
     }
 
     /**
-     * Should the call block until the optimize completes. Defaults to <tt>true</tt>.
-     */
-    public OptimizeRequestBuilder setWaitForMerge(boolean waitForMerge) {
-        request.waitForMerge(waitForMerge);
-        return this;
-    }
-
-    /**
      * Will optimize the index down to <= maxNumSegments. By default, will cause the optimize
      * process to optimize down to half the configured number of segments.
      */

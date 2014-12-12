@@ -985,12 +985,6 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
         assertSuggestions("b");
         assertThat(2l, equalTo(client().prepareCount(INDEX).get().getCount()));
-        for (IndexShardSegments seg : client().admin().indices().prepareSegments().get().getIndices().get(INDEX)) {
-            ShardSegments[] shards = seg.getShards();
-            for (ShardSegments shardSegments : shards) {
-                assertThat(shardSegments.getSegments().size(), equalTo(1));
-            }
-        }
     }
 
     @Test

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.optimize;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,14 +42,12 @@ import java.io.IOException;
 public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> {
 
     public static final class Defaults {
-        public static final boolean WAIT_FOR_MERGE = true;
         public static final int MAX_NUM_SEGMENTS = -1;
         public static final boolean ONLY_EXPUNGE_DELETES = false;
         public static final boolean FLUSH = true;
         public static final boolean UPGRADE = false;
     }
 
-    private boolean waitForMerge = Defaults.WAIT_FOR_MERGE;
     private int maxNumSegments = Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = Defaults.FLUSH;
@@ -67,21 +64,6 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
 
     public OptimizeRequest() {
 
-    }
-
-    /**
-     * Should the call block until the optimize completes. Defaults to <tt>true</tt>.
-     */
-    public boolean waitForMerge() {
-        return waitForMerge;
-    }
-
-    /**
-     * Should the call block until the optimize completes. Defaults to <tt>true</tt>.
-     */
-    public OptimizeRequest waitForMerge(boolean waitForMerge) {
-        this.waitForMerge = waitForMerge;
-        return this;
     }
 
     /**
@@ -151,7 +133,8 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
 
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        waitForMerge = in.readBoolean();
+        // nocommit: nuke this
+        in.readBoolean(); // waitForMerge
         maxNumSegments = in.readInt();
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
@@ -160,7 +143,8 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
 
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(waitForMerge);
+        // nocommit: nuke this
+        out.writeBoolean(false); // waitForMerge
         out.writeInt(maxNumSegments);
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
@@ -170,8 +154,7 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
     @Override
     public String toString() {
         return "OptimizeRequest{" +
-                "waitForMerge=" + waitForMerge +
-                ", maxNumSegments=" + maxNumSegments +
+                "maxNumSegments=" + maxNumSegments +
                 ", onlyExpungeDeletes=" + onlyExpungeDeletes +
                 ", flush=" + flush +
                 ", upgrade=" + upgrade +

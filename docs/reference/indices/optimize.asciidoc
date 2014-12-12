@@ -33,10 +33,6 @@ deletes. Defaults to `false`.  Note that this won't override the
 `flush`::  Should a flush be performed after the optimize. Defaults to
 `true`.
 
-`wait_for_merge`:: Should the request wait for the merge to end. Defaults
-to `true`. Note, a merge can potentially be a very heavy operation, so
-it might make sense to run it set to `false`.
-
 [float]
 [[optimize-multi-index]]
 === Multi Index

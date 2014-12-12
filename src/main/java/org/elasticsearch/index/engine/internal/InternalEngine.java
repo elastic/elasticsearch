@@ -131,8 +131,6 @@ public class InternalEngine implements Engine {
     // flag indicating if a dirty operation has occurred since the last refresh
     private volatile boolean dirty = false;
 
-    private volatile boolean possibleMergeNeeded = false;
-
     private final AtomicBoolean optimizeMutex = new AtomicBoolean();
     // we use flushNeeded here, since if there are no changes, then the commit won't write
     // will not really happen, and then the commitUserData and the new translog will not be reflected
@@ -445,7 +443,6 @@ public class InternalEngine implements Engine {
                 innerCreate(create, writer);
             }
             dirty = true;
-            possibleMergeNeeded = true;
             flushNeeded = true;
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine(t, "create");
@@ -539,7 +536,6 @@ public class InternalEngine implements Engine {
                 innerIndex(index, writer);
             }
             dirty = true;
-            possibleMergeNeeded = true;
             flushNeeded = true;
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine(t, "index");
@@ -636,7 +632,6 @@ public class InternalEngine implements Engine {
             }
             innerDelete(delete, writer);
             dirty = true;
-            possibleMergeNeeded = true;
             flushNeeded = true;
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine(t, "delete");
@@ -721,7 +716,6 @@ public class InternalEngine implements Engine {
             writer.deleteDocuments(query);
             translog.add(new Translog.DeleteByQuery(delete));
             dirty = true;
-            possibleMergeNeeded = true;
             flushNeeded = true;
         } catch (Throwable t) {
             maybeFailEngine(t, "delete_by_query");
@@ -804,16 +798,6 @@ public class InternalEngine implements Engine {
             }
         }
         return false;
-    }
-
-    private boolean possibleMergeNeeded() {
-        IndexWriter writer = this.indexWriter;
-        if (writer == null) {
-            return false;
-        }
-        // a merge scheduler might bail without going through all its pending merges
-        // so make sure we also check if there are pending merges
-        return this.possibleMergeNeeded || writer.hasPendingMerges();
     }
 
     @Override
@@ -1040,40 +1024,13 @@ public class InternalEngine implements Engine {
         lastDeleteVersionPruneTimeMSec = timeMSec;
     }
 
-    private void maybeMerge() throws EngineException {
-        if (!possibleMergeNeeded()) {
-            return;
-        }
-        possibleMergeNeeded = false;
-        try (InternalLock _ = readLock.acquire()) {
-            currentIndexWriter().maybeMerge();
-        } catch (Throwable t) {
-            maybeFailEngine(t, "maybe_merge");
-            throw new OptimizeFailedEngineException(shardId, t);
-        }
-    }
-
-    // TODO: can we please remove this method?!
-    private void waitForMerges(boolean flushAfter) {
-        try {
-            Method method = IndexWriter.class.getDeclaredMethod("waitForMerges");
-            method.setAccessible(true);
-            method.invoke(currentIndexWriter());
-        } catch (ReflectiveOperationException e) {
-            throw new OptimizeFailedEngineException(shardId, e);
-        }
-        if (flushAfter) {
-            flush(FlushType.COMMIT_TRANSLOG, true, true);
-        }
+    @Override
+    public void forceMerge(boolean flush) {
+        forceMerge(flush, 1, false, false);
     }
 
     @Override
-    public void forceMerge(boolean flush, boolean waitForMerge) {
-        forceMerge(flush, waitForMerge, 1, false, false);
-    }
-
-    @Override
-    public void forceMerge(boolean flush, boolean waitForMerge, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade) throws EngineException {
+    public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade) throws EngineException {
         if (optimizeMutex.compareAndSet(false, true)) {
             try (InternalLock _ = readLock.acquire()) {
                 final IndexWriter writer = currentIndexWriter();
@@ -1095,7 +1052,6 @@ public class InternalEngine implements Engine {
                     writer.forceMergeDeletes(false);
                 } else if (maxNumSegments <= 0) {
                     writer.maybeMerge();
-                    possibleMergeNeeded = false;
                 } else {
                     writer.forceMerge(maxNumSegments, false);
                 }
@@ -1106,23 +1062,10 @@ public class InternalEngine implements Engine {
                 optimizeMutex.set(false);
             }
         }
-
-        // wait for the merges outside of the read lock
-        if (waitForMerge) {
-            waitForMerges(flush);
-        } else if (flush) {
-            // we only need to monitor merges for async calls if we are going to flush
-            threadPool.executor(ThreadPool.Names.OPTIMIZE).execute(new AbstractRunnable() {
-                @Override
-                public void onFailure(Throwable t) {
-                    logger.error("Exception while waiting for merges asynchronously after optimize", t);
-                }
-
-                @Override
-                protected void doRun() throws Exception {
-                    waitForMerges(true);
-                }
-            });
+        
+        // currently, we don't actually wait until issuing the flush.
+        if (flush) {
+          flush(FlushType.COMMIT_TRANSLOG, true, true);
         }
     }
 

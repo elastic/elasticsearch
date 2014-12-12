@@ -1863,57 +1863,6 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testParentChildCaching() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings(
-                        settingsBuilder()
-                                .put(indexSettings())
-                                .put("index.refresh_interval", -1)
-                )
-                .addMapping("parent")
-                .addMapping("child", "_parent", "type=parent"));
-        ensureGreen();
-
-        // index simple data
-        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
-        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").get();
-        client().prepareIndex("test", "child", "c1").setParent("p1").setSource("c_field", "blue").get();
-        client().prepareIndex("test", "child", "c2").setParent("p1").setSource("c_field", "red").get();
-        client().prepareIndex("test", "child", "c3").setParent("p2").setSource("c_field", "red").get();
-        client().admin().indices().prepareOptimize("test").setFlush(true).setWaitForMerge(true).get();
-        client().prepareIndex("test", "parent", "p3").setSource("p_field", "p_value3").get();
-        client().prepareIndex("test", "parent", "p4").setSource("p_field", "p_value4").get();
-        client().prepareIndex("test", "child", "c4").setParent("p3").setSource("c_field", "green").get();
-        client().prepareIndex("test", "child", "c5").setParent("p3").setSource("c_field", "blue").get();
-        client().prepareIndex("test", "child", "c6").setParent("p4").setSource("c_field", "blue").get();
-        client().admin().indices().prepareFlush("test").get();
-        client().admin().indices().prepareRefresh("test").get();
-
-        for (int i = 0; i < 2; i++) {
-            SearchResponse searchResponse = client().prepareSearch()
-                    .setQuery(filteredQuery(matchAllQuery(), boolFilter()
-                            .must(FilterBuilders.hasChildFilter("child", matchQuery("c_field", "red")))
-                            .must(matchAllFilter())
-                            .cache(true)))
-                    .get();
-            assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
-        }
-
-
-        client().prepareIndex("test", "child", "c3").setParent("p2").setSource("c_field", "blue").get();
-        client().admin().indices().prepareRefresh("test").get();
-
-        SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(), boolFilter()
-                        .must(FilterBuilders.hasChildFilter("child", matchQuery("c_field", "red")))
-                        .must(matchAllFilter())
-                        .cache(true)))
-                .get();
-
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-    }
-
-    @Test
     public void testParentChildQueriesViaScrollApi() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("parent")

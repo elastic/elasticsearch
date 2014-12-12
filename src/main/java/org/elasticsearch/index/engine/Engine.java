@@ -125,9 +125,9 @@ public interface Engine extends CloseableComponent {
     /**
      * Optimizes to 1 segment
      */
-    void forceMerge(boolean flush, boolean waitForMerge);
+    void forceMerge(boolean flush);
 
-    void forceMerge(boolean flush, boolean waitForMerge, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade) throws EngineException;
+    void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade) throws EngineException;
 
     /**
      * Snapshots the index and returns a handle to it. Will always try and "commit" the

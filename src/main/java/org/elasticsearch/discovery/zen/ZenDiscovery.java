@@ -547,6 +547,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         clusterService.submitStateUpdateTask("zen-disco-node_failed(" + node + "), reason " + reason, Priority.IMMEDIATE, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
+                if (currentState.nodes().get(node.id()) == null) {
+                    logger.debug("node [{}] already removed from cluster state. ignoring.", node);
+                    return currentState;
+                }
                 DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes())
                         .remove(node.id());
                 currentState = ClusterState.builder(currentState).nodes(builder).build();

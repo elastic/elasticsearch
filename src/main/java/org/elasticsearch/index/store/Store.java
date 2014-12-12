@@ -294,13 +294,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     /**
-     * Returns <tt>true</tt> by default.
-     */
-    public boolean suggestUseCompoundFile() {
-        return false;
-    }
-
-    /**
      * Increments the refCount of this Store instance.  RefCounts are used to determine when a
      * Store can be closed safely, i.e. as soon as there are no more references. Be sure to always call a
      * corresponding {@link #decRef}, in a finally clause; otherwise the store may never be closed.  Note that

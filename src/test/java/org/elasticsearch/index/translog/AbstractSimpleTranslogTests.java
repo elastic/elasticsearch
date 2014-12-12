@@ -35,6 +35,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -401,4 +404,25 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
     private Term newUid(String id) {
         return new Term("_uid", id);
     }
+
+    @Test
+    public void testVerifyTranslogIsNotDeletedBySnapshotClose() throws IOException {
+        Path path = Paths.get(translogFileDirectory());
+        assertTrue(Files.exists(path.resolve("translog-1")));
+        translog.add(new Translog.Create("test", "1", new byte[]{1}));
+        Translog.Snapshot snapshot = translog.snapshot();
+        MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
+        assertThat(snapshot.estimatedTotalOperations(), equalTo(1));
+        if (randomBoolean()) {
+            translog.close();
+            snapshot.close();
+        } else {
+            snapshot.close();
+            translog.close();
+        }
+
+        assertTrue(Files.exists(path.resolve("translog-1")));
+    }
+
+    protected abstract String translogFileDirectory();
 }

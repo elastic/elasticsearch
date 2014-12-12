@@ -43,6 +43,11 @@ public class FsBufferedTranslogTests extends AbstractSimpleTranslogTests {
         );
     }
 
+    @Override
+    protected String translogFileDirectory() {
+        return "data/fs-buf-translog";
+    }
+
     @AfterClass
     public static void cleanup() {
         FileSystemUtils.deleteRecursively(new File("data/fs-buf-translog"), true);

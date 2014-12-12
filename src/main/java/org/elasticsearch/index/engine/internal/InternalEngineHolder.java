@@ -101,7 +101,7 @@ public class InternalEngineHolder extends AbstractIndexShardComponent implements
     public static final String INDEX_FAIL_ON_MERGE_FAILURE = "index.fail_on_merge_failure";
     public static final String INDEX_FAIL_ON_CORRUPTION = "index.fail_on_corruption";
 
-    public static final TimeValue DEFAULT_REFRESH_ITERVAL = new TimeValue(1, TimeUnit.SECONDS);
+    public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
 
     private final CopyOnWriteArrayList<FailedEngineListener> failedEngineListeners = new CopyOnWriteArrayList<>();
 
@@ -150,7 +150,7 @@ public class InternalEngineHolder extends AbstractIndexShardComponent implements
 
     @Override
     public TimeValue defaultRefreshInterval() {
-        return DEFAULT_REFRESH_ITERVAL;
+        return DEFAULT_REFRESH_INTERVAL;
     }
 
 

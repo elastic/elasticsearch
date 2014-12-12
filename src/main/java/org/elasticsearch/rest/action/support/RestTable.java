@@ -68,7 +68,7 @@ public class RestTable {
 
     public static RestResponse buildTextPlainResponse(Table table, RestChannel channel) throws IOException {
         RestRequest request = channel.request();
-        boolean verbose = request.paramAsBoolean("v", false);
+        boolean verbose = request.paramAsBoolean("v", true);
 
         List<DisplayHeader> headers = buildDisplayHeaders(table, request);
         int[] width = buildWidths(table, request, verbose, headers);

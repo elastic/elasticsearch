@@ -94,9 +94,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
         internalCluster().rollingRestart();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        ensureYellow();
 
         percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")

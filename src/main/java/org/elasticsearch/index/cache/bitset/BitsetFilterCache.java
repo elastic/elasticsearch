@@ -117,9 +117,8 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
     }
 
     public void clear(String reason) {
-        logger.debug("Clearing all Bitsets because [{}]", reason);
+        logger.debug("clearing all bitsets because [{}]", reason);
         loadedFilters.invalidateAll();
-        loadedFilters.cleanUp();
     }
 
     private BitDocIdSet getAndLoadIfNotPresent(final Filter filter, final LeafReaderContext context) throws IOException, ExecutionException {

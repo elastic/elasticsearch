@@ -1,6 +1,10 @@
 [[misc]]
 == Misc
 
+
+* https://github.com/sscarduzio/elasticsearch-readonlyrest-plugin[Readonly REST]:
+  High performance access control for Elasticsearch native REST API.
+  
 * https://github.com/elasticsearch/puppet-elasticsearch[Puppet]:
   Elasticsearch puppet module.
 

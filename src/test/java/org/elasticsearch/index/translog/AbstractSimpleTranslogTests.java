@@ -548,4 +548,24 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
     private Term newUid(String id) {
         return new Term("_uid", id);
     }
+
+
+    @Test
+    public void testVerifyTranslogIsNotDeleted() throws IOException {
+        Path path = translogFileDirectory();
+        assertTrue(Files.exists(path.resolve("translog-1")));
+        translog.add(new Translog.Create("test", "1", new byte[]{1}));
+        Translog.Snapshot snapshot = translog.snapshot();
+        MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
+        assertThat(snapshot.estimatedTotalOperations(), equalTo(1));
+        if (randomBoolean()) {
+            translog.close();
+            snapshot.close();
+        } else {
+            snapshot.close();
+            translog.close();
+        }
+
+        assertTrue(Files.exists(path.resolve("translog-1")));
+    }
 }

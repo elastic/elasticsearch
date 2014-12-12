@@ -32,12 +32,13 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
  */
-public class RecoverySettings extends AbstractComponent {
+public class RecoverySettings extends AbstractComponent implements Closeable {
 
     public static final String INDICES_RECOVERY_FILE_CHUNK_SIZE = "indices.recovery.file_chunk_size";
     public static final String INDICES_RECOVERY_TRANSLOG_OPS = "indices.recovery.translog_ops";

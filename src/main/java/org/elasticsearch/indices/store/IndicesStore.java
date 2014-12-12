@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.store;
 
 import org.apache.lucene.store.StoreRateLimiting;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -28,6 +29,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -46,6 +48,7 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -56,7 +59,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  *
  */
-public class IndicesStore extends AbstractComponent implements ClusterStateListener {
+public class IndicesStore extends AbstractComponent implements ClusterStateListener, Closeable {
 
     public static final String INDICES_STORE_THROTTLE_TYPE = "indices.store.throttle.type";
     public static final String INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC = "indices.store.throttle.max_bytes_per_sec";
@@ -85,7 +88,6 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
             }
         }
     }
-
 
     private final NodeEnvironment nodeEnv;
 
@@ -138,6 +140,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         return this.rateLimiting;
     }
 
+    @Override
     public void close() {
         nodeSettingsService.removeListener(applySettings);
         clusterService.remove(this);

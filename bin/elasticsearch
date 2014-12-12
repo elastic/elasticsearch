@@ -2,6 +2,7 @@
 
 # OPTIONS:
 #    -d            daemonize (run in background)
+#    -w            timeout (seconds) to wait for ES to start when daemonized
 #    -p pidfile    write PID to <pidfile>
 #    -h
 #    --help        print command line options
@@ -66,6 +67,9 @@ or visit http://www.elasticsearch.org/download to get a pre-built package.
 EOF
     exit 1
 fi
+
+# -w command line option default
+BG_STARTUP_TIMEOUT=120
 
 CDPATH=""
 SCRIPT="$0"
@@ -139,6 +143,10 @@ launch_service()
     props=$3
     es_parms="-Delasticsearch"
 
+    # we need a PID file when daemonizing to check for successful start-up
+    [ "x$daemonized" != "x" -a "x$pidpath" = "x" ] \
+        && pidpath=`mktemp -t elasticsearch.pid.XXXXX`
+
     if [ "x$pidpath" != "x" ]; then
         es_parms="$es_parms -Des.pidfile=$pidpath"
     fi
@@ -156,10 +164,27 @@ launch_service()
         # exec without running it in the background, makes it replace this shell, we'll never get here...
         # no need to return something
     else
-        # Startup Elasticsearch, background it, and write the pid.
-        exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS $es_parms -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" $props \
+        # Startup Elasticsearch, background it, and wait for the PID file to
+        #  appear (signalling successful start-up).
+
+        setsid=`which setsid 2>/dev/null`
+        echo "Starting elasticsearch in background, please stand by..."
+        exec $setsid "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS $es_parms -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" $props \
                     org.elasticsearch.bootstrap.Elasticsearch <&- &
-        return $?
+
+        local timeout=$((`date +%s` + $BG_STARTUP_TIMEOUT))
+        while [ `date +%s` -lt $timeout ]; do
+            kill -0 `cat $pidpath 2>&1` >/dev/null 2>&1 && break
+            sleep 1
+        done
+
+        kill -0 `cat $pidpath 2>&1` >/dev/null 2>&1 || {
+            echo ""
+            echo "ERROR: Start-up timed out (no PID file after ${BG_STARTUP_TIMEOUT}s)."
+            return 1; }
+
+        echo "OK"
+        return 0
     fi
 }
 
@@ -168,6 +193,8 @@ usage() {
     echo "Usage: $0 [-vdh] [-p pidfile] [-D prop] [-X prop]"
     echo "Start elasticsearch."
     echo "    -d            daemonize (run in background)"
+    echo "    -w            timeout (seconds) to wait for ES to start when daemonized"
+    echo "                   (default: $BG_STARTUP_TIMEOUT)"
     echo "    -p pidfile    write PID to <pidfile>"
     echo "    -h"
     echo "    --help        print command line options"
@@ -201,7 +228,7 @@ do
 done
 
 # Parse any command line options.
-args=`getopt vdhp:D:X: $ARGV`
+args=`getopt vdhp:D:X:w: $ARGV`
 eval set -- "$args"
 
 while true; do
@@ -218,6 +245,10 @@ while true; do
         -d)
             daemonized="yes"
             shift
+        ;;
+        -w)
+            BG_STARTUP_TIMEOUT="$2"
+            shift 2
         ;;
         -h)
             usage

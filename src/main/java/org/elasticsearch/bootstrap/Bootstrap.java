@@ -147,18 +147,7 @@ public class Bootstrap {
     public static void main(String[] args) {
         System.setProperty("es.logger.prefix", "");
         bootstrap = new Bootstrap();
-        final String pidFile = System.getProperty("es.pidfile", System.getProperty("es-pidfile"));
 
-        if (pidFile != null) {
-            try {
-                PidFile.create(Paths.get(pidFile), true);
-            } catch (Exception e) {
-                String errorMessage = buildErrorMessage("pid", e);
-                System.err.println(errorMessage);
-                System.err.flush();
-                System.exit(3);
-            }
-        }
         boolean foreground = System.getProperty("es.foreground", System.getProperty("es-foreground")) != null;
         // handle the wrapper system property, if its a service, don't run as a service
         if (System.getProperty("wrapper.service", "XXX").equalsIgnoreCase("true")) {
@@ -237,6 +226,20 @@ public class Bootstrap {
             logger.error("Exception", e);
             
             System.exit(3);
+        }
+
+        // Start-up succeeded - write the PID file
+        final String pidFile = System.getProperty("es.pidfile", System.getProperty("es-pidfile"));
+
+        if (pidFile != null) {
+            try {
+                PidFile.create(Paths.get(pidFile), true);
+            } catch (Exception e) {
+                String errorMessage = buildErrorMessage("pid", e);
+                System.err.println(errorMessage);
+                System.err.flush();
+                System.exit(3);
+            }
         }
     }
 

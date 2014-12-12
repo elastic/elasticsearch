@@ -442,6 +442,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
     public void testMinScoreFunctionScoreBasic() throws IOException {
         index(INDEX, TYPE, jsonBuilder().startObject().field("num", 2).endObject());
         refresh();
+        ensureYellow();
         float score = randomFloat();
         float minScore = randomFloat();
         SearchResponse searchResponse = client().search(
@@ -476,6 +477,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
             docs.add(client().prepareIndex(INDEX, TYPE, Integer.toString(i)).setSource("num", i + scoreOffset));
         }
         indexRandom(true, docs);
+        ensureYellow();
         String script = "return (doc['num'].value)";
         int numMatchingDocs = numDocs + scoreOffset - minScore;
         if (numMatchingDocs < 0) {

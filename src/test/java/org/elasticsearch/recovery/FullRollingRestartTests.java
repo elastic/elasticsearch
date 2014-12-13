@@ -24,9 +24,11 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -55,8 +57,11 @@ public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
     @Test
     @Slow
     public void testFullRollingRestart() throws Exception {
-        internalCluster().startNode();
+        Settings settings = ImmutableSettings.builder().put(ZenDiscovery.SETTING_JOIN_TIMEOUT, "30s").build();
+        internalCluster().startNode(settings);
         createIndex("test");
+
+        final String healthTimeout = "1m";
 
         for (int i = 0; i < 1000; i++) {
             client().prepareIndex("test", "type1", Long.toString(i))
@@ -69,19 +74,19 @@ public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
         }
 
         logger.info("--> now start adding nodes");
-        internalCluster().startNodesAsync(2).get();
+        internalCluster().startNodesAsync(2, settings).get();
 
         // make sure the cluster state is green, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("3"));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("3"));
 
         logger.info("--> add two more nodes");
-        internalCluster().startNodesAsync(2).get();
+        internalCluster().startNodesAsync(2, settings).get();
 
         // We now have 5 nodes
         setMinimumMasterNodes(3);
 
         // make sure the cluster state is green, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("5"));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("5"));
 
         logger.info("--> refreshing and checking data");
         refresh();
@@ -92,14 +97,14 @@ public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
         // now start shutting nodes down
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("4"));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("4"));
 
         // going down to 3 nodes. note that the min_master_node may not be in effect when we shutdown the 4th
         // node, but that's OK as it is set to 3 before.
         setMinimumMasterNodes(2);
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("3"));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("3"));
 
         logger.info("--> stopped two nodes, verifying data");
         refresh();
@@ -110,14 +115,14 @@ public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
         // closing the 3rd node
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("2"));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("2"));
 
         // closing the 2nd node
         setMinimumMasterNodes(1);
         internalCluster().stopRandomDataNode();
 
         // make sure the cluster state is green, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForYellowStatus().setWaitForRelocatingShards(0).setWaitForNodes("1"));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForYellowStatus().setWaitForRelocatingShards(0).setWaitForNodes("1"));
 
         logger.info("--> one node left, verifying data");
         refresh();

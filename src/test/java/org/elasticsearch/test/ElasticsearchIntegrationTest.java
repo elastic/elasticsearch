@@ -1350,7 +1350,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 // see https://github.com/elasticsearch/elasticsearch/issues/8706
                 final DeleteResponse deleteResponse = client().prepareDelete(doc.v1(), RANDOM_BOGUS_TYPE, doc.v2()).get();
                 if (deleteResponse.isFound() == false) {
-                    logger.warn("failed to delete a dummy doc [][]", doc.v1(), doc.v2());
+                    logger.warn("failed to delete a dummy doc [{}][{}]", doc.v1(), doc.v2());
                 }
             }
         }

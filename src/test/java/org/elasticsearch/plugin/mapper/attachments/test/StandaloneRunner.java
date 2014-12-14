@@ -56,29 +56,29 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  *  BASE64 encoded binary
  *
  * Example:
- *  StandaloneTest BASE64Text
- *  StandaloneTest -u /tmp/mydoc.pdf
- *  StandaloneTest -u /tmp/mydoc.pdf --size 1000000
+ *  StandaloneRunner BASE64Text
+ *  StandaloneRunner -u /tmp/mydoc.pdf
+ *  StandaloneRunner -u /tmp/mydoc.pdf --size 1000000
  */
-public class StandaloneTest extends CliTool {
+public class StandaloneRunner extends CliTool {
 
-    private static final CliToolConfig CONFIG = CliToolConfig.config("tika", StandaloneTest.class)
-                        .cmds(TikaTest.CMD)
+    private static final CliToolConfig CONFIG = CliToolConfig.config("tika", StandaloneRunner.class)
+                        .cmds(TikaRunner.CMD)
                 .build();
 
-    static class TikaTest extends Command {
+    static class TikaRunner extends Command {
         private static final String NAME = "tika";
         private final String url;
         private final Integer size;
         private final String base64text;
         private final DocumentMapper docMapper;
 
-        private static final CliToolConfig.Cmd CMD = cmd(NAME, TikaTest.class)
+        private static final CliToolConfig.Cmd CMD = cmd(NAME, TikaRunner.class)
                 .options(option("u", "url").required(false).hasArg(false))
                 .options(option("t", "size").required(false).hasArg(false))
                 .build();
 
-        protected TikaTest(Terminal terminal, String url, Integer size, String base64text) throws IOException {
+        protected TikaRunner(Terminal terminal, String url, Integer size, String base64text) throws IOException {
             super(terminal);
             this.size = size;
             this.url = url;
@@ -162,24 +162,24 @@ public class StandaloneTest extends CliTool {
                     return exitCmd(ExitStatus.USAGE, terminal, "url or BASE64 content should be provided. Not both. (type -h for help)");
                 }
             }
-            return new TikaTest(terminal, url, size, base64text);
+            return new TikaRunner(terminal, url, size, base64text);
         }
     }
 
-    public StandaloneTest() {
+    public StandaloneRunner() {
         super(CONFIG);
     }
 
 
     public static void main(String[] args) {
-        StandaloneTest pluginManager = new StandaloneTest();
+        StandaloneRunner pluginManager = new StandaloneRunner();
         pluginManager.execute(args);
     }
 
     @Override
     protected Command parse(String cmdName, CommandLine cli) throws Exception {
         switch (cmdName.toLowerCase(Locale.ROOT)) {
-            case TikaTest.NAME: return TikaTest.parse(terminal, cli);
+            case TikaRunner.NAME: return TikaRunner.parse(terminal, cli);
             default:
                     assert false : "can't get here as cmd name is validated before this method is called";
                     return exitCmd(ExitStatus.CODE_ERROR);

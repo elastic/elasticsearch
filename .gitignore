@@ -8,5 +8,6 @@
 /.project
 /.settings
 /.classpath
-.local-execution-hints.log
 /plugin_tools
+/.local-execution-hints.log
+/.local-*-execution-hints.log

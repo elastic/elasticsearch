@@ -12,7 +12,6 @@
             <useTransitiveFiltering>true</useTransitiveFiltering>
             <excludes>
                 <exclude>org.elasticsearch:elasticsearch</exclude>
-                <exclude>org.slf4j:slf4j-api</exclude>
             </excludes>
         </dependencySet>
         <dependencySet>
@@ -26,9 +25,6 @@
                 <include>org.apache.poi:poi-ooxml-schemas</include>
                 <include>org.apache.poi:poi-scratchpad</include>
             </includes>
-            <excludes>
-                <exclude>org.slf4j:slf4j-api</exclude>
-            </excludes>
         </dependencySet>
     </dependencySets>
 </assembly>

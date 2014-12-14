@@ -680,6 +680,42 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testPlainHighlighterDocumentAnalyzerOverriddenByFieldAnalyzer() throws Exception {
+        client().admin().indices().prepareCreate("test")
+        .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("_analyzer")
+                .field("path", "language_analyzer")
+            .endObject()
+            .startObject("properties")
+                .startObject("language_analyzer")
+                    .field("type", "string")
+                    .field("index", "not_analyzed")
+                .endObject()
+                .startObject("text")
+                    .field("type", "string")
+                .field("analyzer", "standard")
+                .endObject()
+            .endObject()
+            .endObject().endObject()).execute().actionGet();
+        ensureYellow();
+
+        index("test", "type1", "1",
+                "language_analyzer", "english",
+                "text", "Look at me, I'm eating cars.");
+        refresh();
+
+        // Make sure both "text" field and query string are analyzed by standard analyzer.
+        // If english analyzer specified in "language_analyzer" field is used for "text" field, "cars" in the field is analyzed as "car",
+        // which is different from analyzed query, "cars". As a result, there'll be no highlight (See #8943).
+        SearchResponse response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.matchQuery("text", "cars"))
+                .addHighlightedField(
+                        new HighlightBuilder.Field("text").preTags("<1>").postTags("</1>").requireFieldMatch(true))
+                .get();
+        assertHighlight(response, 0, "text", 0, 1, equalTo("Look at me, I'm eating <1>cars</1>."));
+    }
+
+    @Test
     public void testFastVectorHighlighter() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
         ensureGreen();

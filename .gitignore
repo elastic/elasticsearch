@@ -5,5 +5,9 @@
 /target
 .DS_Store
 *.iml
-.local-execution-hints.log
+/.project
+/.settings
+/.classpath
 /plugin_tools
+/.local-execution-hints.log
+/.local-*-execution-hints.log

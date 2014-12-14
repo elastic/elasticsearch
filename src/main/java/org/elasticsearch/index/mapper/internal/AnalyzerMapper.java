@@ -138,16 +138,19 @@ public class AnalyzerMapper implements Mapper, InternalMapper, RootMapper {
             return context.analyzer();
         }
 
-        Analyzer analyzer = null;
-
-        if (path != null) {
-            String analyzerName = (String) context.context.lookup().source().extractValue(path);
-            analyzer = context.context.mapperService().analysisService().analyzer(analyzerName);
-        }
+        Analyzer analyzer = context.mapper.indexAnalyzer();
 
         if (analyzer == null) {
-            analyzer = context.context.mapperService().documentMapper(context.hitContext.hit().type()).mappers().indexAnalyzer();
+            if (path != null) {
+                String analyzerName = (String) context.context.lookup().source().extractValue(path);
+                analyzer = context.context.mapperService().analysisService().analyzer(analyzerName);
+            }
+
+            if (analyzer == null) {
+                analyzer = context.context.mapperService().documentMapper(context.hitContext.hit().type()).mappers().indexAnalyzer();
+            }
         }
+
         context.analyzer(analyzer);
 
         return analyzer;

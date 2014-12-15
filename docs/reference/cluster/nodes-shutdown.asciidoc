@@ -62,8 +62,11 @@ the node configuration.
 A rolling restart allows the ES cluster to be restarted one node at a time, 
 with no observable downtime for end users.  To perform a rolling restart:
 
-* Disable shard allocation (so that Elasticsearch will not attempt to reallocate shards 
-and waste I/O when each node is stopped and started).
+* Disable shard reallocation (optional). This is done to allow for a faster startup after cluster shutdown. 
+If this step is not performed, the nodes will immediately start trying to replicate shards to each other 
+on startup and will spend a lot of time on wasted I/O. With shard reallocation disabled, the nodes will 
+join the cluster with their indices intact, without attempting to rebalance. After startup is complete, 
+reallocation will be turned back on.
 
 [source,js]
 --------------------------------------------------
@@ -75,9 +78,8 @@ curl -XPUT localhost:9200/_cluster/settings -d '{
 --------------------------------------------------
 
 * Shut down a single node within the cluster (if you have dedicated master nodes, start with these before the data nodes). 
-* Start the node back up and confirm that it has rejoined the cluster (using Marvel, cat nodes api, etc..)
-* Repeat the above 2 steps for the remaining nodes, i.e. stop and start each node and confirm that it can rejoin the cluster.
-* When this is done on all nodes, enable shard allocation.
+* Start the node back up and confirm that it has rejoined the cluster
+* Re-enable shard reallocation.
 
 [source,js]
 --------------------------------------------------
@@ -88,4 +90,5 @@ curl -XPUT localhost:9200/_cluster/settings -d '{
         }'
 --------------------------------------------------
 
-* Confirm that the shards are properly allocated on all nodes.
+* Observe that all shards are properly allocated on all nodes. Balancing may take some time.
+* Repeat this process for all remaining nodes.

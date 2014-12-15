@@ -1,0 +1,29 @@
+---
+setup:
+  - do:
+      indices.create:
+          index: test1
+          body:
+              settings:
+                  number_of_shards: 2
+                  number_of_replicas: 0
+
+  - do:
+      index:
+          index: test1
+          type:  bar
+          id:    1
+          body:  { "foo": "bar" }
+
+  - do:
+      search:
+          body:
+              stats:  [ group1 ]
+
+---
+"Groups - shards query total":
+  - do:
+      indices.stats: { groups: _all, level: shards }
+
+  - match:  { indices.test1.shards.0.0.search.groups.group1.query_total: 1 }
+  - match:  { indices.test1.shards.1.0.search.groups.group1.query_total: 1 }

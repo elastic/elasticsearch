@@ -22,12 +22,10 @@ package org.elasticsearch.common.network;
 import com.google.common.collect.Lists;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.os.OsUtils;
 
-import java.lang.reflect.Method;
 import java.net.*;
 import java.util.*;
 
@@ -61,7 +59,7 @@ public abstract class NetworkUtils {
     }
 
     public static Boolean defaultReuseAddress() {
-        return OsUtils.WINDOWS ? null : true;
+        return Constants.WINDOWS ? null : true;
     }
 
     public static boolean isIPv4() {
@@ -108,11 +106,6 @@ public abstract class NetworkUtils {
         else
             return InetAddress.getByName("::1");
     }
-
-    public static boolean canBindToMcastAddress() {
-        return OsUtils.LINUX || OsUtils.SOLARIS || OsUtils.HP;
-    }
-
 
     /**
      * Returns the first non-loopback address on any interface on the current host.

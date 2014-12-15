@@ -31,8 +31,12 @@ import java.util.Map;
  */
 public abstract class NonCollectingAggregator extends Aggregator {
 
+    protected NonCollectingAggregator(String name, AggregationContext context, Aggregator parent, AggregatorFactories subFactories, Map<String, Object> metaData) {
+        super(name, BucketAggregationMode.MULTI_BUCKETS, subFactories, 0, context, parent, metaData);
+    }
+
     protected NonCollectingAggregator(String name, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
-        super(name, BucketAggregationMode.MULTI_BUCKETS, AggregatorFactories.EMPTY, 0, context, parent, metaData);
+        this(name, context, parent, AggregatorFactories.EMPTY, metaData);
     }
 
     private void fail() {

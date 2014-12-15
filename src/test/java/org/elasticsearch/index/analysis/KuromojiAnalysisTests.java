@@ -100,12 +100,12 @@ public class KuromojiAnalysisTests extends ElasticsearchTestCase {
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("kuromoji_rf");
         assertThat(tokenFilter, instanceOf(KuromojiReadingFormFilterFactory.class));
         String source = "今夜はロバート先生と話した";
-        String[] expected_tokens_romanji = new String[]{"kon'ya", "ha", "robato", "sensei", "to", "hanashi", "ta"};
+        String[] expected_tokens_romaji = new String[]{"kon'ya", "ha", "robato", "sensei", "to", "hanashi", "ta"};
 
         Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
         tokenizer.setReader(new StringReader(source));
 
-        assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens_romanji);
+        assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens_romaji);
 
         tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
         tokenizer.setReader(new StringReader(source));

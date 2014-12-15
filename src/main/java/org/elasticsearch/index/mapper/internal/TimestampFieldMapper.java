@@ -30,11 +30,13 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.index.mapper.core.TypeParsers;
 
 import java.io.IOException;
 import java.util.List;
@@ -241,7 +243,8 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         if (!includeDefaults && fieldType.indexed() == Defaults.FIELD_TYPE.indexed() && customFieldDataSettings == null &&
                 fieldType.stored() == Defaults.FIELD_TYPE.stored() && enabledState == Defaults.ENABLED && path == Defaults.PATH
                 && dateTimeFormatter.format().equals(Defaults.DATE_TIME_FORMATTER.format())
-                && Defaults.DEFAULT_TIMESTAMP.equals(defaultTimestamp)) {
+                && Defaults.DEFAULT_TIMESTAMP.equals(defaultTimestamp)
+                && Defaults.DOC_VALUES == hasDocValues()) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
@@ -253,6 +256,9 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         }
         if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType.stored());
+        }
+        if (includeDefaults || hasDocValues() != Defaults.DOC_VALUES) {
+            builder.field(TypeParsers.DOC_VALUES, docValues);
         }
         if (includeDefaults || path != Defaults.PATH) {
             builder.field("path", path);
@@ -267,6 +273,18 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
         } else if (includeDefaults) {
             builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
+        }
+
+        if (docValuesFormat != null) {
+            if (includeDefaults || !docValuesFormat.name().equals(defaultDocValuesFormat())) {
+                builder.field(DOC_VALUES_FORMAT, docValuesFormat.name());
+            }
+        } else if (includeDefaults) {
+            String format = defaultDocValuesFormat();
+            if (format == null) {
+                format = DocValuesFormatService.DEFAULT_FORMAT;
+            }
+            builder.field(DOC_VALUES_FORMAT, format);
         }
 
         builder.endObject();

@@ -262,7 +262,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     protected final Names names;
     protected float boost;
     protected FieldType fieldType;
-    private final boolean docValues;
+    protected final boolean docValues;
     protected final NamedAnalyzer indexAnalyzer;
     protected NamedAnalyzer searchAnalyzer;
     protected PostingsFormatProvider postingsFormat;

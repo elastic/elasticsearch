@@ -25,11 +25,15 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.Modules;
 import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.internal.InternalEngineModule;
 
 /**
  *
  */
 public class EngineModule extends AbstractModule implements SpawnModules {
+
+    public static final String ENGINE_TYPE = "index.engine.type";
+    public static final Class<? extends Module> DEFAULT_ENGINE = InternalEngineModule.class;
 
     private final Settings settings;
 
@@ -39,7 +43,8 @@ public class EngineModule extends AbstractModule implements SpawnModules {
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(Modules.createModule(settings.getAsClass(IndexEngineModule.EngineSettings.ENGINE_TYPE, IndexEngineModule.EngineSettings.DEFAULT_ENGINE, "org.elasticsearch.index.engine.", "EngineModule"), settings));
+        return ImmutableList.of(Modules.createModule(settings.getAsClass(ENGINE_TYPE, DEFAULT_ENGINE,
+                "org.elasticsearch.index.engine.", "EngineModule"), settings));
     }
 
     @Override

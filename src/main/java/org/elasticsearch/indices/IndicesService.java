@@ -43,8 +43,6 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.codec.CodecModule;
-import org.elasticsearch.index.engine.IndexEngine;
-import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.fielddata.IndexFieldDataModule;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.flush.FlushStats;
@@ -59,17 +57,15 @@ import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.IndexPluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 
@@ -313,7 +309,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         modules.add(new IndexSettingsModule(index, indexSettings));
         modules.add(new IndexPluginsModule(indexSettings, pluginsService));
         modules.add(new IndexStoreModule(indexSettings));
-        modules.add(new IndexEngineModule(indexSettings));
         modules.add(new AnalysisModule(indexSettings, indicesAnalysisService));
         modules.add(new SimilarityModule(indexSettings));
         modules.add(new IndexCacheModule(indexSettings));
@@ -434,8 +429,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             indexInjector.getInstance(IndexFieldDataService.class).clear();
             logger.debug("[{}] closing analysis service (reason [{}])", index, reason);
             indexInjector.getInstance(AnalysisService.class).close();
-            logger.debug("[{}] closing index engine (reason [{}])", index, reason);
-            indexInjector.getInstance(IndexEngine.class).close();
 
             logger.debug("[{}] closing index gateway (reason [{}])", index, reason);
             indexInjector.getInstance(IndexGateway.class).close();

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway.local.state.meta;
+package org.elasticsearch.gateway;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
@@ -27,7 +27,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.*;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
@@ -35,34 +34,36 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
  *
  */
-public class TransportNodesListGatewayMetaState extends TransportNodesOperationAction<TransportNodesListGatewayMetaState.Request, TransportNodesListGatewayMetaState.NodesLocalGatewayMetaState, TransportNodesListGatewayMetaState.NodeRequest, TransportNodesListGatewayMetaState.NodeLocalGatewayMetaState> {
+public class TransportNodesListGatewayStartedShards extends TransportNodesOperationAction<TransportNodesListGatewayStartedShards.Request, TransportNodesListGatewayStartedShards.NodesGatewayStartedShards, TransportNodesListGatewayStartedShards.NodeRequest, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
 
-    public static final String ACTION_NAME = "internal:gateway/local/meta_state";
+    public static final String ACTION_NAME = "internal:gateway/local/started_shards";
 
-    private LocalGatewayMetaState metaState;
+    private GatewayShardsState shardsState;
 
     @Inject
-    public TransportNodesListGatewayMetaState(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+    public TransportNodesListGatewayStartedShards(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
         super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
     }
 
-    TransportNodesListGatewayMetaState init(LocalGatewayMetaState metaState) {
-        this.metaState = metaState;
+    TransportNodesListGatewayStartedShards initGateway(GatewayShardsState shardsState) {
+        this.shardsState = shardsState;
         return this;
     }
 
-    public ActionFuture<NodesLocalGatewayMetaState> list(String[] nodesIds, @Nullable TimeValue timeout) {
-        return execute(new Request(nodesIds).timeout(timeout));
+    public ActionFuture<NodesGatewayStartedShards> list(ShardId shardId, String[] nodesIds, @Nullable TimeValue timeout) {
+        return execute(new Request(shardId, nodesIds).timeout(timeout));
     }
 
     @Override
@@ -72,7 +73,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
 
     @Override
     protected boolean transportCompress() {
-        return true; // compress since the metadata can become large
+        return true; // this can become big...
     }
 
     @Override
@@ -91,34 +92,38 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
     }
 
     @Override
-    protected NodeLocalGatewayMetaState newNodeResponse() {
-        return new NodeLocalGatewayMetaState();
+    protected NodeGatewayStartedShards newNodeResponse() {
+        return new NodeGatewayStartedShards();
     }
 
     @Override
-    protected NodesLocalGatewayMetaState newResponse(Request request, AtomicReferenceArray responses) {
-        final List<NodeLocalGatewayMetaState> nodesList = Lists.newArrayList();
+    protected NodesGatewayStartedShards newResponse(Request request, AtomicReferenceArray responses) {
+        final List<NodeGatewayStartedShards> nodesList = Lists.newArrayList();
         final List<FailedNodeException> failures = Lists.newArrayList();
         for (int i = 0; i < responses.length(); i++) {
             Object resp = responses.get(i);
-            if (resp instanceof NodeLocalGatewayMetaState) { // will also filter out null response for unallocated ones
-                nodesList.add((NodeLocalGatewayMetaState) resp);
+            if (resp instanceof NodeGatewayStartedShards) { // will also filter out null response for unallocated ones
+                nodesList.add((NodeGatewayStartedShards) resp);
             } else if (resp instanceof FailedNodeException) {
                 failures.add((FailedNodeException) resp);
             } else {
-                logger.warn("unknown response type [{}], expected NodeLocalGatewayMetaState or FailedNodeException", resp);
+                logger.warn("unknown response type [{}], expected NodeLocalGatewayStartedShards or FailedNodeException", resp);
             }
         }
-        return new NodesLocalGatewayMetaState(clusterName, nodesList.toArray(new NodeLocalGatewayMetaState[nodesList.size()]),
+        return new NodesGatewayStartedShards(clusterName, nodesList.toArray(new NodeGatewayStartedShards[nodesList.size()]),
                 failures.toArray(new FailedNodeException[failures.size()]));
     }
 
     @Override
-    protected NodeLocalGatewayMetaState nodeOperation(NodeRequest request) throws ElasticsearchException {
+    protected NodeGatewayStartedShards nodeOperation(NodeRequest request) throws ElasticsearchException {
         try {
-            return new NodeLocalGatewayMetaState(clusterService.localNode(), metaState.loadMetaState());
+            ShardStateInfo shardStateInfo = shardsState.loadShardInfo(request.shardId);
+            if (shardStateInfo != null) {
+                return new NodeGatewayStartedShards(clusterService.localNode(), shardStateInfo.version);
+            }
+            return new NodeGatewayStartedShards(clusterService.localNode(), -1);
         } catch (Exception e) {
-            throw new ElasticsearchException("failed to load metadata", e);
+            throw new ElasticsearchException("failed to load started shards", e);
         }
     }
 
@@ -129,32 +134,46 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
 
     static class Request extends NodesOperationRequest<Request> {
 
+        private ShardId shardId;
+
         public Request() {
         }
 
-        public Request(String... nodesIds) {
+        public Request(ShardId shardId, Set<String> nodesIds) {
+            super(nodesIds.toArray(new String[nodesIds.size()]));
+            this.shardId = shardId;
+        }
+
+        public Request(ShardId shardId, String... nodesIds) {
             super(nodesIds);
+            this.shardId = shardId;
+        }
+
+        public ShardId shardId() {
+            return this.shardId;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
+            shardId = ShardId.readShardId(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            shardId.writeTo(out);
         }
     }
 
-    public static class NodesLocalGatewayMetaState extends NodesOperationResponse<NodeLocalGatewayMetaState> {
+    public static class NodesGatewayStartedShards extends NodesOperationResponse<NodeGatewayStartedShards> {
 
         private FailedNodeException[] failures;
 
-        NodesLocalGatewayMetaState() {
+        NodesGatewayStartedShards() {
         }
 
-        public NodesLocalGatewayMetaState(ClusterName clusterName, NodeLocalGatewayMetaState[] nodes, FailedNodeException[] failures) {
+        public NodesGatewayStartedShards(ClusterName clusterName, NodeGatewayStartedShards[] nodes, FailedNodeException[] failures) {
             super(clusterName, nodes);
             this.failures = failures;
         }
@@ -166,9 +185,9 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            nodes = new NodeLocalGatewayMetaState[in.readVInt()];
+            nodes = new NodeGatewayStartedShards[in.readVInt()];
             for (int i = 0; i < nodes.length; i++) {
-                nodes[i] = new NodeLocalGatewayMetaState();
+                nodes[i] = new NodeGatewayStartedShards();
                 nodes[i].readFrom(in);
             }
         }
@@ -177,7 +196,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeVInt(nodes.length);
-            for (NodeLocalGatewayMetaState response : nodes) {
+            for (NodeGatewayStartedShards response : nodes) {
                 response.writeTo(out);
             }
         }
@@ -186,57 +205,55 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
 
     static class NodeRequest extends NodeOperationRequest {
 
+        ShardId shardId;
+
         NodeRequest() {
         }
 
-        NodeRequest(String nodeId, TransportNodesListGatewayMetaState.Request request) {
+        NodeRequest(String nodeId, TransportNodesListGatewayStartedShards.Request request) {
             super(request, nodeId);
+            this.shardId = request.shardId();
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
+            shardId = ShardId.readShardId(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            shardId.writeTo(out);
         }
     }
 
-    public static class NodeLocalGatewayMetaState extends NodeOperationResponse {
+    public static class NodeGatewayStartedShards extends NodeOperationResponse {
 
-        private MetaData metaData;
+        private long version = -1;
 
-        NodeLocalGatewayMetaState() {
+        NodeGatewayStartedShards() {
         }
 
-        public NodeLocalGatewayMetaState(DiscoveryNode node, MetaData metaData) {
+        public NodeGatewayStartedShards(DiscoveryNode node, long version) {
             super(node);
-            this.metaData = metaData;
+            this.version = version;
         }
 
-        public MetaData metaData() {
-            return metaData;
+        public long version() {
+            return this.version;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            if (in.readBoolean()) {
-                metaData = MetaData.Builder.readFrom(in);
-            }
+            version = in.readLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (metaData == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                MetaData.Builder.writeTo(metaData, out);
-            }
+            out.writeLong(version);
         }
     }
 }

@@ -40,9 +40,9 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 @ClusterScope(numDataNodes =0, scope= Scope.TEST)
-public class LocalGatewayIndicesWarmerTests extends ElasticsearchIntegrationTest {
+public class GatewayIndicesWarmerTests extends ElasticsearchIntegrationTest {
 
-    private final ESLogger logger = Loggers.getLogger(LocalGatewayIndicesWarmerTests.class);
+    private final ESLogger logger = Loggers.getLogger(GatewayIndicesWarmerTests.class);
 
     @Test
     public void testStatePersistence() throws Exception {

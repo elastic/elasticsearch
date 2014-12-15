@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway.local;
+package org.elasticsearch.gateway;
 
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.client.Client;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway.local.state.shards;
+package org.elasticsearch.gateway;
 
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -34,8 +34,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.gateway.local.state.meta.CorruptStateException;
-import org.elasticsearch.gateway.local.state.meta.MetaDataStateFormat;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.*;
@@ -46,7 +44,7 @@ import java.util.regex.Pattern;
 
 /**
  */
-public class LocalGatewayShardsState extends AbstractComponent implements ClusterStateListener {
+public class GatewayShardsState extends AbstractComponent implements ClusterStateListener {
 
     private static final String SHARD_STATE_FILE_PREFIX = "state-";
     private static final Pattern SHARD_STATE_FILE_PATTERN = Pattern.compile(SHARD_STATE_FILE_PREFIX + "(\\d+)(" + MetaDataStateFormat.STATE_FILE_EXTENSION + ")?");
@@ -58,7 +56,7 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
     private volatile Map<ShardId, ShardStateInfo> currentState = Maps.newHashMap();
 
     @Inject
-    public LocalGatewayShardsState(Settings settings, NodeEnvironment nodeEnv, TransportNodesListGatewayStartedShards listGatewayStartedShards) throws Exception {
+    public GatewayShardsState(Settings settings, NodeEnvironment nodeEnv, TransportNodesListGatewayStartedShards listGatewayStartedShards) throws Exception {
         super(settings);
         this.nodeEnv = nodeEnv;
         if (listGatewayStartedShards != null) { // for testing

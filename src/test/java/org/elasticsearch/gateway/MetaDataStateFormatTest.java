@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gateway.local.state.meta;
+package org.elasticsearch.gateway;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.collect.Iterators;
@@ -49,7 +49,6 @@ import org.junit.Test;
 import java.io.Closeable;
 import java.io.InputStream;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -259,7 +258,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
     // If the latest version doesn't use the legacy format while previous versions do, then fail hard
     public void testLatestVersionDoesNotUseLegacy() throws IOException {
         final ToXContent.Params params = ToXContent.EMPTY_PARAMS;
-        MetaDataStateFormat<MetaData> format = LocalGatewayMetaState.globalStateFormat(randomFrom(XContentType.values()), params, randomBoolean());
+        MetaDataStateFormat<MetaData> format = GatewayMetaState.globalStateFormat(randomFrom(XContentType.values()), params, randomBoolean());
         final Path[] dirs = new Path[2];
         dirs[0] = newTempDirPath(LifecycleScope.TEST);
         dirs[1] = newTempDirPath(LifecycleScope.TEST);
@@ -269,14 +268,14 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         final Path dir1 = randomFrom(dirs);
         final int v1 = randomInt(10);
         // write a first state file in the new format
-        format.write(randomMeta(), LocalGatewayMetaState.GLOBAL_STATE_FILE_PREFIX, v1, dir1);
+        format.write(randomMeta(), GatewayMetaState.GLOBAL_STATE_FILE_PREFIX, v1, dir1);
 
         // write older state files in the old format but with a newer version
         final int numLegacyFiles = randomIntBetween(1, 5);
         for (int i = 0; i < numLegacyFiles; ++i) {
             final Path dir2 = randomFrom(dirs);
             final int v2 = v1 + 1 + randomInt(10);
-            try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(format.format(), Files.newOutputStream(dir2.resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve(LocalGatewayMetaState.GLOBAL_STATE_FILE_PREFIX + v2)))) {
+            try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(format.format(), Files.newOutputStream(dir2.resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve(GatewayMetaState.GLOBAL_STATE_FILE_PREFIX + v2)))) {
                 xcontentBuilder.startObject();
                 MetaData.Builder.toXContent(randomMeta(), xcontentBuilder, params);
                 xcontentBuilder.endObject();
@@ -284,7 +283,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         }
 
         try {
-            MetaDataStateFormat.loadLatestState(logger, format, LocalGatewayMetaState.GLOBAL_STATE_FILE_PATTERN, "foobar", dirs);
+            MetaDataStateFormat.loadLatestState(logger, format, GatewayMetaState.GLOBAL_STATE_FILE_PATTERN, "foobar", dirs);
             fail("latest version can not be read");
         } catch (ElasticsearchIllegalStateException ex) {
             assertThat(ex.getMessage(), startsWith("Could not find a state file to recover from among "));
@@ -294,7 +293,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
     // If both the legacy and the new format are available for the latest version, prefer the new format
     public void testPrefersNewerFormat() throws IOException {
         final ToXContent.Params params = ToXContent.EMPTY_PARAMS;
-        MetaDataStateFormat<MetaData> format = LocalGatewayMetaState.globalStateFormat(randomFrom(XContentType.values()), params, randomBoolean());
+        MetaDataStateFormat<MetaData> format = GatewayMetaState.globalStateFormat(randomFrom(XContentType.values()), params, randomBoolean());
         final Path[] dirs = new Path[2];
         dirs[0] = newTempDirPath(LifecycleScope.TEST);
         dirs[1] = newTempDirPath(LifecycleScope.TEST);
@@ -311,16 +310,16 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         final Path dir2 = randomFrom(dirs);
         MetaData meta2 = randomMeta();
         assertFalse(meta2.uuid().equals(uuid));
-        try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(format.format(), Files.newOutputStream(dir2.resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve(LocalGatewayMetaState.GLOBAL_STATE_FILE_PREFIX + v)))) {
+        try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(format.format(), Files.newOutputStream(dir2.resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve(GatewayMetaState.GLOBAL_STATE_FILE_PREFIX + v)))) {
             xcontentBuilder.startObject();
             MetaData.Builder.toXContent(randomMeta(), xcontentBuilder, params);
             xcontentBuilder.endObject();
         }
 
         // write a second state file in the new format but with the same version
-        format.write(meta, LocalGatewayMetaState.GLOBAL_STATE_FILE_PREFIX, v, dir1);
+        format.write(meta, GatewayMetaState.GLOBAL_STATE_FILE_PREFIX, v, dir1);
 
-        MetaData state = MetaDataStateFormat.loadLatestState(logger, format, LocalGatewayMetaState.GLOBAL_STATE_FILE_PATTERN, "foobar", dirs);
+        MetaData state = MetaDataStateFormat.loadLatestState(logger, format, GatewayMetaState.GLOBAL_STATE_FILE_PATTERN, "foobar", dirs);
         assertThat(state.uuid(), equalTo(uuid));
     }
 
@@ -335,7 +334,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
             meta.add(randomMeta());
         }
         Set<Path> corruptedFiles = new HashSet<>();
-        MetaDataStateFormat<MetaData> format = LocalGatewayMetaState.globalStateFormat(randomFrom(XContentType.values()), params, randomBoolean());
+        MetaDataStateFormat<MetaData> format = GatewayMetaState.globalStateFormat(randomFrom(XContentType.values()), params, randomBoolean());
         for (int i = 0; i < dirs.length; i++) {
             dirs[i] = newTempDirPath(LifecycleScope.TEST);
             Files.createDirectories(dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME));
@@ -353,7 +352,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
                 }
             }
             for (int j = numLegacy; j < numStates; j++) {
-                format.write(meta.get(j), LocalGatewayMetaState.GLOBAL_STATE_FILE_PREFIX, j, dirs[i]);
+                format.write(meta.get(j), GatewayMetaState.GLOBAL_STATE_FILE_PREFIX, j, dirs[i]);
                 if (randomBoolean() && (j < numStates - 1 || dirs.length > 0 && i != 0)) {  // corrupt a file that we do not necessarily need here....
                     Path file = dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + j + ".st");
                     corruptedFiles.add(file);
@@ -364,7 +363,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         }
         List<Path> dirList = Arrays.asList(dirs);
         Collections.shuffle(dirList, getRandom());
-        MetaData loadedMetaData = MetaDataStateFormat.loadLatestState(logger, format, LocalGatewayMetaState.GLOBAL_STATE_FILE_PATTERN, "foobar", dirList.toArray(new Path[0]));
+        MetaData loadedMetaData = MetaDataStateFormat.loadLatestState(logger, format, GatewayMetaState.GLOBAL_STATE_FILE_PATTERN, "foobar", dirList.toArray(new Path[0]));
         MetaData latestMetaData = meta.get(numStates-1);
         assertThat(loadedMetaData.uuid(), not(equalTo("_na_")));
         assertThat(loadedMetaData.uuid(), equalTo(latestMetaData.uuid()));
@@ -388,7 +387,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
                 MetaDataStateFormatTest.corruptFile(file, logger);
             }
             try {
-                MetaDataStateFormat.loadLatestState(logger, format, LocalGatewayMetaState.GLOBAL_STATE_FILE_PATTERN, "foobar", dirList.toArray(new Path[0]));
+                MetaDataStateFormat.loadLatestState(logger, format, GatewayMetaState.GLOBAL_STATE_FILE_PATTERN, "foobar", dirList.toArray(new Path[0]));
                 fail("latest version can not be read");
             } catch (ElasticsearchException ex) {
                 assertThat(ex.getCause(), instanceOf(CorruptStateException.class));

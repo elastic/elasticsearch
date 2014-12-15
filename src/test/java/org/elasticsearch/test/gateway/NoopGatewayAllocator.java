@@ -22,14 +22,19 @@ package org.elasticsearch.test.gateway;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
-import org.elasticsearch.cluster.routing.allocation.allocator.GatewayAllocator;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.gateway.GatewayAllocator;
 
 /**
  * An allocator used for tests that doesn't do anything
  */
-public class NoopGatewayAllocator implements GatewayAllocator {
+public class NoopGatewayAllocator extends GatewayAllocator {
 
     public static final NoopGatewayAllocator INSTANCE = new NoopGatewayAllocator();
+
+    private NoopGatewayAllocator() {
+        super(ImmutableSettings.EMPTY, null, null);
+    }
 
     @Override
     public void applyStartedShards(StartedRerouteAllocation allocation) {

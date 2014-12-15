@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway.local;
+package org.elasticsearch.gateway;
 
 import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase.Slow;
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @ClusterScope(numDataNodes =0, scope= Scope.TEST)
-public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
+public class QuorumGatewayTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected int numberOfReplicas() {

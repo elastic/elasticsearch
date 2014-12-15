@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway.local.state.meta;
+package org.elasticsearch.gateway;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -62,7 +62,7 @@ import java.util.regex.Pattern;
 /**
  *
  */
-public class LocalGatewayMetaState extends AbstractComponent implements ClusterStateListener {
+public class GatewayMetaState extends AbstractComponent implements ClusterStateListener {
 
     static final String GLOBAL_STATE_FILE_PREFIX = "global-";
     private static final String INDEX_STATE_FILE_PREFIX = "state-";
@@ -71,7 +71,11 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
     private static final String GLOBAL_STATE_LOG_TYPE = "[_global]";
     private static final String DEPRECATED_SETTING_ROUTING_HASH_FUNCTION = "cluster.routing.operation.hash.type";
     private static final String DEPRECATED_SETTING_ROUTING_USE_TYPE = "cluster.routing.operation.use_type";
-
+    public static final String GATEWAY_DANGLING_TIMEOUT = "gateway.dangling_timeout";
+    public static final String GATEWAY_AUTO_IMPORT_DANGLED = "gateway.auto_import_dangled";
+    // legacy - this used to be in a different package
+    private static final String GATEWAY_LOCAL_DANGLING_TIMEOUT = "gateway.local.dangling_timeout";
+    private static final String GATEWAY_LOCAL_AUTO_IMPORT_DANGLED = "gateway.local.auto_import_dangled";
     static enum AutoImportDangledState {
         NO() {
             @Override
@@ -127,9 +131,9 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
     private final Object danglingMutex = new Object();
 
     @Inject
-    public LocalGatewayMetaState(Settings settings, ThreadPool threadPool, NodeEnvironment nodeEnv,
-                                 TransportNodesListGatewayMetaState nodesListGatewayMetaState, LocalAllocateDangledIndices allocateDangledIndices,
-                                 NodeIndexDeletedAction nodeIndexDeletedAction) throws Exception {
+    public GatewayMetaState(Settings settings, ThreadPool threadPool, NodeEnvironment nodeEnv,
+                            TransportNodesListGatewayMetaState nodesListGatewayMetaState, LocalAllocateDangledIndices allocateDangledIndices,
+                            NodeIndexDeletedAction nodeIndexDeletedAction) throws Exception {
         super(settings);
         this.nodeEnv = nodeEnv;
         this.threadPool = threadPool;
@@ -153,10 +157,10 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             gatewayModeFormatParams = new ToXContent.MapParams(gatewayModeParams);
         }
 
-        this.autoImportDangled = AutoImportDangledState.fromString(settings.get("gateway.local.auto_import_dangled", AutoImportDangledState.YES.toString()));
-        this.danglingTimeout = settings.getAsTime("gateway.local.dangling_timeout", TimeValue.timeValueHours(2));
+        this.autoImportDangled = AutoImportDangledState.fromString(settings.get(GATEWAY_AUTO_IMPORT_DANGLED, settings.get(GATEWAY_LOCAL_AUTO_IMPORT_DANGLED, AutoImportDangledState.YES.toString())));
+        this.danglingTimeout = settings.getAsTime(GATEWAY_DANGLING_TIMEOUT, settings.getAsTime(GATEWAY_LOCAL_DANGLING_TIMEOUT, TimeValue.timeValueHours(2)));
 
-        logger.debug("using gateway.local.auto_import_dangled [{}], with gateway.local.dangling_timeout [{}]", this.autoImportDangled, this.danglingTimeout);
+        logger.debug("using gateway.local.auto_import_dangled [{}], with gateway.dangling_timeout [{}]", this.autoImportDangled, this.danglingTimeout);
         if (DiscoveryNode.masterNode(settings) || DiscoveryNode.dataNode(settings)) {
             nodeEnv.ensureAtomicMoveSupported();
         }

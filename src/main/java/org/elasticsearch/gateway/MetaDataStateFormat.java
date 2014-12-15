@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gateway.local.state.meta;
+package org.elasticsearch.gateway;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
@@ -29,7 +29,6 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Preconditions;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -293,7 +292,7 @@ public abstract class MetaDataStateFormat<T> {
     }
 
     /**
-     * Filters out all {@link org.elasticsearch.gateway.local.state.meta.MetaDataStateFormat.PathAndVersion} instances with a different version than
+     * Filters out all {@link MetaDataStateFormat.PathAndVersion} instances with a different version than
      * the given one.
      */
     private static final class VersionAndLegacyPredicate implements Predicate<PathAndVersion> {

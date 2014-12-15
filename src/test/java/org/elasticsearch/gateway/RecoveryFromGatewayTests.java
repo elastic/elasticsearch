@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway.local;
+package org.elasticsearch.gateway;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.*;
  */
 @ClusterScope(numDataNodes = 0, scope = Scope.TEST)
 @Slow
-public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTest {
+public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
 
     private ImmutableSettings.Builder settingsBuilder() {
         return ImmutableSettings.settingsBuilder().put("gateway.type", "local");

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gateway.local.state.shards;
+package org.elasticsearch.gateway;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -31,11 +31,11 @@ import java.util.List;
 import java.util.Map;
 
 
-public class LocalGatewayShardStateTests extends ElasticsearchTestCase {
+public class GatewayShardStateTests extends ElasticsearchTestCase {
 
     public void testWriteShardState() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
-            LocalGatewayShardsState state = new LocalGatewayShardsState(ImmutableSettings.EMPTY, env, null);
+            GatewayShardsState state = new GatewayShardsState(ImmutableSettings.EMPTY, env, null);
             ShardId id = new ShardId("foo", 1);
             long version = between(1, Integer.MAX_VALUE / 2);
             boolean primary = randomBoolean();
@@ -59,7 +59,7 @@ public class LocalGatewayShardStateTests extends ElasticsearchTestCase {
 
     public void testPersistRoutingNode() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
-            LocalGatewayShardsState state = new LocalGatewayShardsState(ImmutableSettings.EMPTY, env, null);
+            GatewayShardsState state = new GatewayShardsState(ImmutableSettings.EMPTY, env, null);
             int numShards = between(0, 100);
             List<MutableShardRouting> shards = new ArrayList<>();
             List<MutableShardRouting> active = new ArrayList<>();

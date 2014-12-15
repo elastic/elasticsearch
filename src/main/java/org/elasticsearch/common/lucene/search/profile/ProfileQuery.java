@@ -137,8 +137,6 @@ public class ProfileQuery extends Query implements ProfileComponent {
 
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
-        long threadId = Thread.currentThread().getId();
-        System.out.println(threadId + " >> " + subQuery.getClass());
         stopwatch.start();
         Weight subQueryWeight = subQuery.createWeight(searcher);
         stopwatch.stop();

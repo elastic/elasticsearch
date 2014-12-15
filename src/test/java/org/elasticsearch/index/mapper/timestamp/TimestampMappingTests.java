@@ -32,11 +32,13 @@ import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -111,6 +113,8 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 assertThat(docMapper.timestampFieldMapper().fieldType().indexOptions(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.indexOptions()));
                 assertThat(docMapper.timestampFieldMapper().path(), equalTo(TimestampFieldMapper.Defaults.PATH));
                 assertThat(docMapper.timestampFieldMapper().dateTimeFormatter().format(), equalTo(TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT));
+                assertThat(docMapper.timestampFieldMapper().hasDocValues(), equalTo(false));
+                assertThat(docMapper.timestampFieldMapper().docValuesFormatProvider(), equalTo(null));
                 assertAcked(client().admin().indices().prepareDelete("test").execute().get());
             }
         }
@@ -123,6 +127,8 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject("_timestamp")
                 .field("enabled", "yes").field("store", "no").field("index", "no")
                 .field("path", "timestamp").field("format", "year")
+                .field("doc_values", true)
+                .field("doc_values_format", Lucene.LATEST_DOC_VALUES_FORMAT)
                 .endObject()
                 .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -131,6 +137,8 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         assertEquals(IndexOptions.NONE, docMapper.timestampFieldMapper().fieldType().indexOptions());
         assertThat(docMapper.timestampFieldMapper().path(), equalTo("timestamp"));
         assertThat(docMapper.timestampFieldMapper().dateTimeFormatter().format(), equalTo("year"));
+        assertThat(docMapper.timestampFieldMapper().hasDocValues(), equalTo(true));
+        assertThat(docMapper.timestampFieldMapper().docValuesFormatProvider().name(), equalTo(Lucene.LATEST_DOC_VALUES_FORMAT));
     }
 
     @Test

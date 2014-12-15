@@ -42,7 +42,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.cache.query.parser.QueryParserCache;
-import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
@@ -156,10 +155,6 @@ public class QueryParseContext {
 
     public MapperService mapperService() {
         return indexQueryParser.mapperService;
-    }
-
-    public IndexEngine indexEngine() {
-        return indexQueryParser.indexEngine;
     }
 
     @Nullable

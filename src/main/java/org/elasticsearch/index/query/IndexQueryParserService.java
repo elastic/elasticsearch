@@ -39,7 +39,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
@@ -93,8 +92,6 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     final BitsetFilterCache bitsetFilterCache;
 
-    final IndexEngine indexEngine;
-
     private final Map<String, QueryParser> queryParsers;
 
     private final Map<String, FilterParser> filterParsers;
@@ -109,7 +106,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
                                    IndicesQueriesRegistry indicesQueriesRegistry,
                                    ScriptService scriptService, AnalysisService analysisService,
                                    MapperService mapperService, IndexCache indexCache, IndexFieldDataService fieldDataService,
-                                   IndexEngine indexEngine, BitsetFilterCache bitsetFilterCache,
+                                   BitsetFilterCache bitsetFilterCache,
                                    @Nullable SimilarityService similarityService,
                                    @Nullable Map<String, QueryParserFactory> namedQueryParsers,
                                    @Nullable Map<String, FilterParserFactory> namedFilterParsers) {
@@ -120,7 +117,6 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         this.similarityService = similarityService;
         this.indexCache = indexCache;
         this.fieldDataService = fieldDataService;
-        this.indexEngine = indexEngine;
         this.bitsetFilterCache = bitsetFilterCache;
 
         this.defaultField = indexSettings.get(DEFAULT_FIELD, AllFieldMapper.NAME);

@@ -32,7 +32,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
-import org.elasticsearch.index.*;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
@@ -43,7 +42,6 @@ import org.elasticsearch.index.cache.query.ShardQueryCacheModule;
 import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineModule;
-import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldDataModule;
 import org.elasticsearch.index.gateway.IndexGateway;
@@ -62,10 +60,10 @@ import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.search.stats.ShardSearchModule;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardCreationException;
 import org.elasticsearch.index.shard.IndexShardModule;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotModule;
 import org.elasticsearch.index.store.IndexStore;
@@ -123,8 +121,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
     private final BitsetFilterCache bitsetFilterCache;
 
-    private final IndexEngine indexEngine;
-
     private final IndexGateway indexGateway;
 
     private final IndexStore indexStore;
@@ -142,9 +138,9 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     @Inject
     public IndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv,
                         AnalysisService analysisService, MapperService mapperService, IndexQueryParserService queryParserService,
-                        SimilarityService similarityService, IndexAliasesService aliasesService, IndexCache indexCache, IndexEngine indexEngine,
-                        IndexGateway indexGateway, IndexStore indexStore, IndexSettingsService settingsService, IndexFieldDataService indexFieldData,
-                        BitsetFilterCache bitSetFilterCache) {
+                        SimilarityService similarityService, IndexAliasesService aliasesService, IndexCache indexCache,
+                        IndexGateway indexGateway, IndexStore indexStore, IndexSettingsService settingsService,
+                        IndexFieldDataService indexFieldData, BitsetFilterCache bitSetFilterCache) {
         super(index, indexSettings);
         this.injector = injector;
         this.indexSettings = indexSettings;
@@ -155,7 +151,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         this.aliasesService = aliasesService;
         this.indexCache = indexCache;
         this.indexFieldData = indexFieldData;
-        this.indexEngine = indexEngine;
         this.indexGateway = indexGateway;
         this.indexStore = indexStore;
         this.settingsService = settingsService;
@@ -252,10 +247,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
     public IndexAliasesService aliasesService() {
         return aliasesService;
-    }
-
-    public IndexEngine engine() {
-        return indexEngine;
     }
 
     public synchronized void close(final String reason, final IndicesService.IndexCloseListener listener) {

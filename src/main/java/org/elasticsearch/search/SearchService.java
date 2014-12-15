@@ -139,7 +139,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     private final ImmutableMap<String, SearchParseElement> elementParsers;
 
     @Inject
-    public SearchService(Settings settings, ClusterService clusterService, IndicesService indicesService, IndicesLifecycle indicesLifecycle, IndicesWarmer indicesWarmer, ThreadPool threadPool,
+    public SearchService(Settings settings, ClusterService clusterService, IndicesService indicesService,IndicesWarmer indicesWarmer, ThreadPool threadPool,
                          ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase,
                          IndicesQueryCache indicesQueryCache) {
         super(settings);
@@ -196,6 +196,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     @Override
     protected void doClose() throws ElasticsearchException {
+        doStop();
         FutureUtils.cancel(keepAliveReaper);
     }
 
@@ -772,6 +773,14 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         if (request.scroll() != null && request.scroll().keepAlive() != null) {
             context.keepAlive(request.scroll().keepAlive().millis());
         }
+    }
+
+    /**
+     * Returns the number of active contexts in this
+     * SearchService
+     */
+    public int getActiveContexts() {
+        return this.activeContexts.size();
     }
 
     static class NormsWarmer extends IndicesWarmer.Listener {

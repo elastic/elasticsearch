@@ -5,7 +5,7 @@
     <parent>
         <artifactId>elasticsearch-license</artifactId>
         <groupId>org.elasticsearch</groupId>
-        <version>1.0.0-beta1</version>
+        <version>1.0.0-beta2</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -21,13 +21,13 @@
         <dependency>
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch-license-licensor</artifactId>
-            <version>1.0.0-beta1</version>
+            <version>1.0.0-beta2</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch-license-core</artifactId>
-            <version>1.0.0-beta1</version>
+            <version>1.0.0-beta2</version>
             <scope>compile</scope>
         </dependency>
     </dependencies>

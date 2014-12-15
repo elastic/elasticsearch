@@ -43,6 +43,21 @@ public class LicensesClientServiceTests extends AbstractLicensesServiceTests {
     }
 
     @Test
+    public void testLicenseWithFutureIssueDate() throws Exception {
+        final LicensesClientService clientService = licensesClientService();
+        final TestTrackingClientListener clientListener = new TestTrackingClientListener();
+        String feature = "feature";
+        List<Action> actions = new ArrayList<>();
+        long now = System.currentTimeMillis();
+        long issueDate = dateMath("now+10d/d", now);
+
+        actions.add(registerWithTrialLicense(clientService, clientListener, feature, TimeValue.timeValueSeconds(2)));
+        actions.add(generateAndPutSignedLicenseAction(masterLicensesManagerService(), feature, issueDate, TimeValue.timeValueHours(24 * 20)));
+        actions.add(assertExpiryAction(feature, "trial", TimeValue.timeValueSeconds(2)));
+        assertClientListenerNotificationCount(clientListener, actions);
+    }
+
+    @Test
     public void testMultipleClientSignedLicenseEnforcement() throws Exception {
         // multiple client registration with null trial license and then different expiry signed license
 
@@ -190,19 +205,22 @@ public class LicensesClientServiceTests extends AbstractLicensesServiceTests {
     }
 
     private Action generateAndPutSignedLicenseAction(final LicensesManagerService masterLicensesManagerService, final String feature, final TimeValue expiryDuration) throws Exception {
+        return generateAndPutSignedLicenseAction(masterLicensesManagerService, feature, -1, expiryDuration);
+    }
+    private Action generateAndPutSignedLicenseAction(final LicensesManagerService masterLicensesManagerService, final String feature, final long issueDate, final TimeValue expiryDuration) throws Exception {
         return new Action(new Runnable() {
             @Override
             public void run() {
                 License license;
                 try {
-                    license = generateSignedLicense(feature, expiryDuration);
+                    license = generateSignedLicense(feature, issueDate, expiryDuration);
                 } catch (Exception e) {
                     fail(e.getMessage());
                     return;
                 }
                 registerAndAckSignedLicenses(masterLicensesManagerService, Arrays.asList(license), LicensesStatus.VALID);
             }
-        }, 0, 1, "should trigger onEnable for " + feature + " once [signed license]");
+        }, 0, (issueDate <= System.currentTimeMillis()) ? 1 : 0, "should trigger onEnable for " + feature + " once [signed license]");
     }
 
     private Action registerWithoutTrialLicense(final LicensesClientService clientService, final LicensesClientService.Listener clientListener, final String feature) {

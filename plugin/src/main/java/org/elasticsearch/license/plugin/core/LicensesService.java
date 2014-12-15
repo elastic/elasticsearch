@@ -458,9 +458,11 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         long nextScheduleFrequency = -1l;
         for (ListenerHolder listenerHolder : registeredListeners) {
             long expiryDate = expiryDateForFeature(listenerHolder.feature, currentLicensesMetaData);
-            long expiryDuration = expiryDate - System.currentTimeMillis();
+            long issueDate = issueDateForFeature(listenerHolder.feature, currentLicensesMetaData);
+            long now = System.currentTimeMillis();
+            long expiryDuration = expiryDate - now;
 
-            if (expiryDuration > 0l) {
+            if (expiryDuration > 0l && (now - issueDate) >= 0l) {
                 listenerHolder.enableFeatureIfNeeded();
                 if (nextScheduleFrequency == -1l) {
                     nextScheduleFrequency = expiryDuration;
@@ -595,6 +597,15 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         registeredListeners.add(listenerHolder);
         notifyFeaturesAndScheduleNotification(currentMetaData);
         return true;
+    }
+
+    private long issueDateForFeature(String feature, final LicensesMetaData currentLicensesMetaData) {
+        final Map<String, License> effectiveLicenses = getEffectiveLicenses(currentLicensesMetaData);
+        License featureLicense;
+        if ((featureLicense = effectiveLicenses.get(feature)) != null) {
+            return featureLicense.issueDate();
+        }
+        return -1l;
     }
 
     private long expiryDateForFeature(String feature, final LicensesMetaData currentLicensesMetaData) {

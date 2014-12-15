@@ -191,7 +191,14 @@ public class License implements ToXContent {
         }
         builder.startObject();
         if (restViewMode) {
-            builder.field(XFields.STATUS, ((expiryDate - System.currentTimeMillis()) > 0l) ? "active" : "expired");
+            String status = "active";
+            long now = System.currentTimeMillis();
+            if (issueDate > now) {
+                status = "invalid";
+            } else if (expiryDate < now) {
+                status = "expired";
+            }
+            builder.field(XFields.STATUS, status);
         }
         builder.field(XFields.UID, uid);
         builder.field(XFields.TYPE, type);

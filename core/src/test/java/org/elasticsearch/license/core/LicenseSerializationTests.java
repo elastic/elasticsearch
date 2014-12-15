@@ -77,12 +77,14 @@ public class LicenseSerializationTests extends ElasticsearchTestCase {
         long now = System.currentTimeMillis();
         String expiredLicenseExpiryDate = TestUtils.dateMathString("now-1d/d", now);
         String validLicenseIssueDate = TestUtils.dateMathString("now-10d/d", now);
-        String validLicenseExpiryDate = TestUtils.dateMathString("now+1d/d", now);
+        String invalidLicenseIssueDate = TestUtils.dateMathString("now+1d/d", now);
+        String validLicenseExpiryDate = TestUtils.dateMathString("now+2d/d", now);
 
         Set<License> licenses = TestUtils.generateLicenses(Arrays.asList(new TestUtils.LicenseSpec("expired_feature", validLicenseIssueDate, expiredLicenseExpiryDate)
-                , new TestUtils.LicenseSpec("valid_feature", validLicenseIssueDate, validLicenseExpiryDate)));
+                , new TestUtils.LicenseSpec("valid_feature", validLicenseIssueDate, validLicenseExpiryDate),
+                new TestUtils.LicenseSpec("invalid_feature", invalidLicenseIssueDate, validLicenseExpiryDate)));
 
-        assertThat(licenses.size(), equalTo(2));
+        assertThat(licenses.size(), equalTo(3));
         for (License license : licenses) {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             license.toXContent(builder, new ToXContent.MapParams(ImmutableMap.of(Licenses.REST_VIEW_MODE, "true")));
@@ -95,8 +97,10 @@ public class LicenseSerializationTests extends ElasticsearchTestCase {
             assertThat(map.get("expiry_date"), notNullValue());
             if (license.feature().equals("valid_feature")) {
                 assertThat((String) map.get("status"), equalTo("active"));
-            } else {
+            } else if (license.feature().equals("expired_feature")) {
                 assertThat((String) map.get("status"), equalTo("expired"));
+            } else if (license.feature().equals("invalid_feature")) {
+                assertThat((String) map.get("status"), equalTo("invalid"));
             }
         }
 

@@ -30,8 +30,12 @@ import java.io.IOException;
  */
 public abstract class NonCollectingAggregator extends Aggregator {
 
+    protected NonCollectingAggregator(String name, AggregationContext context, Aggregator parent, AggregatorFactories subFactories) {
+        super(name, BucketAggregationMode.MULTI_BUCKETS, subFactories, 0, context, parent);
+    }
+
     protected NonCollectingAggregator(String name, AggregationContext context, Aggregator parent) {
-        super(name, BucketAggregationMode.MULTI_BUCKETS, AggregatorFactories.EMPTY, 0, context, parent);
+        this(name, context, parent, AggregatorFactories.EMPTY);
     }
 
     private void fail() {

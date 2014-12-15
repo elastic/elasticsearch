@@ -294,13 +294,6 @@ public final class InternalNode implements Node {
         // we close indices first, so operations won't be allowed on it
         injector.getInstance(IndexingMemoryController.class).stop();
         injector.getInstance(IndicesTTLService.class).stop();
-        injector.getInstance(IndicesService.class).stop();
-        // sleep a bit to let operations finish with indices service
-//        try {
-//            Thread.sleep(500);
-//        } catch (InterruptedException e) {
-//            // ignore
-//        }
         injector.getInstance(RoutingService.class).stop();
         injector.getInstance(ClusterService.class).stop();
         injector.getInstance(DiscoveryService.class).stop();
@@ -313,7 +306,9 @@ public final class InternalNode implements Node {
         for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
             injector.getInstance(plugin).stop();
         }
-
+        // we should stop this last since it waits for resources to get released
+        // if we had scroll searchers etc or recovery going on we wait for to finish.
+        injector.getInstance(IndicesService.class).stop();
         logger.info("stopped");
 
         return this;

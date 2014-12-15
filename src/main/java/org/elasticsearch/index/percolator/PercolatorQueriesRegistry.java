@@ -54,6 +54,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.percolator.PercolatorService;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
@@ -66,7 +67,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Once a document type has been created, the real-time percolator will start to listen to write events and update the
  * this registry with queries in real time.
  */
-public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
+public class PercolatorQueriesRegistry extends AbstractIndexShardComponent implements Closeable {
 
     // This is a shard level service, but these below are index level service:
     private final IndexQueryParserService queryParserService;

@@ -24,7 +24,7 @@ import org.elasticsearch.ElasticsearchException;
 /**
  *
  */
-public interface CloseableComponent {
+public interface CloseableComponent extends AutoCloseable {
 
     void close() throws ElasticsearchException;
 }

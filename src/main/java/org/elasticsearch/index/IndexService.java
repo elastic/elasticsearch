@@ -379,61 +379,24 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                     logger.debug("[{}] failed to clean plugin shard service [{}]", e, shardId, closeable);
                 }
             }
-            try {
-                // now we can close the translog service, we need to close it before the we close the shard
-                shardInjector.getInstance(TranslogService.class).close();
-            } catch (Throwable e) {
-                logger.debug("[{}] failed to close translog service", e, shardId);
-                // ignore
-            }
+            // now we can close the translog service, we need to close it before the we close the shard
+            closeSafe(sId, "translog service", TranslogService.class, shardInjector);
+
             // this logic is tricky, we want to close the engine so we rollback the changes done to it
             // and close the shard so no operations are allowed to it
             if (indexShard != null) {
                 try {
-                    ((IndexShard) indexShard).close(reason);
+                    indexShard.close(reason);
                 } catch (Throwable e) {
                     logger.debug("[{}] failed to close index shard", e, shardId);
-                    // ignore
                 }
             }
-            try {
-                shardInjector.getInstance(Engine.class).close();
-            } catch (Throwable e) {
-                logger.debug("[{}] failed to close engine", e, shardId);
-                // ignore
-            }
-            try {
-                shardInjector.getInstance(MergeSchedulerProvider.class).close();
-            } catch (Throwable e) {
-                logger.debug("[{}] failed to close merge policy scheduler", e, shardId);
-                // ignore
-            }
-            try {
-                shardInjector.getInstance(MergePolicyProvider.class).close();
-            } catch (Throwable e) {
-                logger.debug("[{}] failed to close merge policy provider", e, shardId);
-                // ignore
-            }
-            try {
-                shardInjector.getInstance(IndexShardGatewayService.class).close();
-            } catch (Throwable e) {
-                logger.debug("[{}] failed to close index shard gateway", e, shardId);
-                // ignore
-            }
-            try {
-                // now we can close the translog
-                shardInjector.getInstance(Translog.class).close();
-            } catch (Throwable e) {
-                logger.debug("[{}] failed to close translog", e, shardId);
-                // ignore
-            }
-            try {
-                // now we can close the translog
-                shardInjector.getInstance(PercolatorQueriesRegistry.class).close();
-            } catch (Throwable e) {
-                logger.debug("[{}] failed to close PercolatorQueriesRegistry", e, shardId);
-                // ignore
-            }
+            closeSafe(sId, "engine", Engine.class, shardInjector);
+            closeSafe(sId, "merge policy scheduler", MergeSchedulerProvider.class, shardInjector);
+            closeSafe(sId, "merge policy provider", MergePolicyProvider.class, shardInjector);
+            closeSafe(sId, "index shard gateway", IndexShardGatewayService.class, shardInjector);
+            closeSafe(sId, "translog", Translog.class, shardInjector);
+            closeSafe(sId, "percolator query registry", PercolatorQueriesRegistry.class, shardInjector);
 
             // call this before we close the store, so we can release resources for it
             indicesLifecycle.afterIndexShardClosed(sId, indexShard);
@@ -465,6 +428,16 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             throw t;
         }
 
+    }
+
+    private void closeSafe(ShardId id, String component, Class<? extends AutoCloseable> closeable, Injector shardInjector) {
+        try {
+            AutoCloseable instance = shardInjector.getInstance(closeable);
+            instance.close();
+        } catch (Throwable e) {
+            logger.debug("{} failed to close {}", e, id, component);
+            // ignore
+        }
     }
 
     private static final class PerShardIndexCloseListener implements IndicesService.IndexCloseListener {

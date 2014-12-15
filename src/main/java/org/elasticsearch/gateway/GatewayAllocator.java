@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway.local;
+package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import com.carrotsearch.hppc.ObjectOpenHashSet;
@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
-import org.elasticsearch.cluster.routing.allocation.allocator.GatewayAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -44,7 +43,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.gateway.local.state.shards.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
@@ -56,7 +54,7 @@ import java.util.concurrent.ConcurrentMap;
 /**
  *
  */
-public class LocalGatewayAllocator extends AbstractComponent implements GatewayAllocator {
+public class GatewayAllocator extends AbstractComponent {
 
     public static final String INDEX_RECOVERY_INITIAL_SHARDS = "index.recovery.initial_shards";
 
@@ -73,19 +71,18 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
     private final String initialShards;
 
     @Inject
-    public LocalGatewayAllocator(Settings settings,
-                                 TransportNodesListGatewayStartedShards listGatewayStartedShards, TransportNodesListShardStoreMetaData listShardStoreMetaData) {
+    public GatewayAllocator(Settings settings,
+                            TransportNodesListGatewayStartedShards listGatewayStartedShards, TransportNodesListShardStoreMetaData listShardStoreMetaData) {
         super(settings);
         this.listGatewayStartedShards = listGatewayStartedShards;
         this.listShardStoreMetaData = listShardStoreMetaData;
 
-        this.listTimeout = componentSettings.getAsTime("list_timeout", TimeValue.timeValueSeconds(30));
-        this.initialShards = componentSettings.get("initial_shards", "quorum");
+        this.listTimeout = componentSettings.getAsTime("list_timeout", settings.getAsTime("gateway.local.list_timeout", TimeValue.timeValueSeconds(30)));
+        this.initialShards = componentSettings.get("initial_shards", settings.get("gateway.local.initial_shards", "quorum"));
 
         logger.debug("using initial_shards [{}], list_timeout [{}]", initialShards, listTimeout);
     }
 
-    @Override
     public void applyStartedShards(StartedRerouteAllocation allocation) {
         for (ShardRouting shardRouting : allocation.startedShards()) {
             cachedStores.remove(shardRouting.shardId());
@@ -93,7 +90,6 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
         }
     }
 
-    @Override
     public void applyFailedShards(FailedRerouteAllocation allocation) {
         for (ShardRouting failedShard : allocation.failedShards()) {
             cachedStores.remove(failedShard.shardId());
@@ -101,7 +97,6 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
         }
     }
 
-    @Override
     public boolean allocateUnassigned(RoutingAllocation allocation) {
         boolean changed = false;
         DiscoveryNodes nodes = allocation.nodes();
@@ -399,7 +394,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
         }
 
         String[] nodesIdsArray = nodeIds.toArray(String.class);
-        TransportNodesListGatewayStartedShards.NodesLocalGatewayStartedShards response = listGatewayStartedShards.list(shard.shardId(), nodesIdsArray, listTimeout).actionGet();
+        TransportNodesListGatewayStartedShards.NodesGatewayStartedShards response = listGatewayStartedShards.list(shard.shardId(), nodesIdsArray, listTimeout).actionGet();
         if (logger.isDebugEnabled()) {
             if (response.failures().length > 0) {
                 StringBuilder sb = new StringBuilder(shard + ": failures when trying to list shards on nodes:");
@@ -414,7 +409,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
             }
         }
 
-        for (TransportNodesListGatewayStartedShards.NodeLocalGatewayStartedShards nodeShardState : response) {
+        for (TransportNodesListGatewayStartedShards.NodeGatewayStartedShards nodeShardState : response) {
             // -1 version means it does not exists, which is what the API returns, and what we expect to
             shardStates.put(nodeShardState.getNode(), nodeShardState.version());
         }

@@ -188,7 +188,7 @@ public final class InternalNode implements Node {
             modules.add(new SearchModule());
             modules.add(new ActionModule(false));
             modules.add(new MonitorModule(settings));
-            modules.add(new GatewayModule(settings));
+            modules.add(new GatewayModule());
             modules.add(new NodeClientModule());
             modules.add(new ShapeModule());
             modules.add(new PercolatorModule());

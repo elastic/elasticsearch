@@ -46,8 +46,6 @@ import org.elasticsearch.index.codec.CodecModule;
 import org.elasticsearch.index.fielddata.IndexFieldDataModule;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.flush.FlushStats;
-import org.elasticsearch.index.gateway.IndexGateway;
-import org.elasticsearch.index.gateway.IndexGatewayModule;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.mapper.MapperService;
@@ -317,7 +315,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         modules.add(new MapperServiceModule());
         modules.add(new IndexQueryParserModule(indexSettings));
         modules.add(new IndexAliasesServiceModule());
-        modules.add(new IndexGatewayModule(indexSettings, injector.getInstance(Gateway.class)));
         modules.add(new IndexModule(indexSettings));
 
         Injector indexInjector;
@@ -430,8 +427,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             logger.debug("[{}] closing analysis service (reason [{}])", index, reason);
             indexInjector.getInstance(AnalysisService.class).close();
 
-            logger.debug("[{}] closing index gateway (reason [{}])", index, reason);
-            indexInjector.getInstance(IndexGateway.class).close();
             logger.debug("[{}] closing mapper service (reason [{}])", index, reason);
             indexInjector.getInstance(MapperService.class).close();
             logger.debug("[{}] closing index query parser service (reason [{}])", index, reason);

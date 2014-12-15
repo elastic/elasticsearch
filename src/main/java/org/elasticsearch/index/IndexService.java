@@ -44,7 +44,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineModule;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldDataModule;
-import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayModule;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.index.get.ShardGetModule;
@@ -121,8 +120,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
     private final BitsetFilterCache bitsetFilterCache;
 
-    private final IndexGateway indexGateway;
-
     private final IndexStore indexStore;
 
     private final IndexSettingsService settingsService;
@@ -139,7 +136,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     public IndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv,
                         AnalysisService analysisService, MapperService mapperService, IndexQueryParserService queryParserService,
                         SimilarityService similarityService, IndexAliasesService aliasesService, IndexCache indexCache,
-                        IndexGateway indexGateway, IndexStore indexStore, IndexSettingsService settingsService,
+                        IndexStore indexStore, IndexSettingsService settingsService,
                         IndexFieldDataService indexFieldData, BitsetFilterCache bitSetFilterCache) {
         super(index, indexSettings);
         this.injector = injector;
@@ -151,7 +148,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         this.aliasesService = aliasesService;
         this.indexCache = indexCache;
         this.indexFieldData = indexFieldData;
-        this.indexGateway = indexGateway;
         this.indexStore = indexStore;
         this.settingsService = settingsService;
         this.bitsetFilterCache = bitSetFilterCache;
@@ -203,10 +199,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
     public Injector injector() {
         return injector;
-    }
-
-    public IndexGateway gateway() {
-        return indexGateway;
     }
 
     public IndexSettingsService settingsService() {
@@ -325,7 +317,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             modules.add(new ShardFieldDataModule());
             modules.add(new TranslogModule(indexSettings));
             modules.add(new EngineModule(indexSettings));
-            modules.add(new IndexShardGatewayModule(injector.getInstance(IndexGateway.class)));
+            modules.add(new IndexShardGatewayModule());
             modules.add(new PercolatorShardModule());
             modules.add(new ShardTermVectorsModule());
             modules.add(new IndexShardSnapshotModule());

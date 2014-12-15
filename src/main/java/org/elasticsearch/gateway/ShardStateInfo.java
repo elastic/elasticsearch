@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway.local.state.shards;
+package org.elasticsearch.gateway;
 
 import org.elasticsearch.common.Nullable;
 

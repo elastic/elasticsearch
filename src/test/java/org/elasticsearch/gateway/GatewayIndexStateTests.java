@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway.local;
+package org.elasticsearch.gateway;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -32,13 +32,11 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -54,9 +52,9 @@ import static org.hamcrest.Matchers.nullValue;
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 @Slow
-public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
+public class GatewayIndexStateTests extends ElasticsearchIntegrationTest {
 
-    private final ESLogger logger = Loggers.getLogger(LocalGatewayIndexStateTests.class);
+    private final ESLogger logger = Loggers.getLogger(GatewayIndexStateTests.class);
 
     @Test
     public void testMappingMetaDataParsed() throws Exception {
@@ -337,8 +335,8 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
     @Test
     public void testDanglingIndicesAutoImportYes() throws Exception {
         Settings settings = settingsBuilder()
-                .put("gateway.type", "local").put("gateway.local.auto_import_dangled", "yes")
-                .put("gateway.local.dangling_timeout", randomIntBetween(0, 120))
+                .put(GatewayMetaState.GATEWAY_AUTO_IMPORT_DANGLED, "yes")
+                .put(GatewayMetaState.GATEWAY_DANGLING_TIMEOUT, randomIntBetween(0, 120))
                 .build();
         logger.info("--> starting two nodes");
 

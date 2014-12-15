@@ -16,25 +16,32 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.gateway;
 
-package org.elasticsearch.cluster.routing.allocation.allocator;
-
-import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
+import org.elasticsearch.ElasticsearchCorruptionException;
 
 /**
- * The gateway allocator allows for a pluggable control of the gateway to allocate unassigned shards.
+ * This exception is thrown when Elasticsearch detects
+ * an inconsistency in one of it's persistent states.
  */
-public interface GatewayAllocator {
+public class CorruptStateException extends ElasticsearchCorruptionException {
 
     /**
-     * Apply all shards  
-     * @param allocation
+     * Creates a new {@link CorruptStateException}
+     * @param message the exception message.
      */
-    void applyStartedShards(StartedRerouteAllocation allocation);
+    public CorruptStateException(String message) {
+        super(message);
+    }
 
-    void applyFailedShards(FailedRerouteAllocation allocation);
-
-    boolean allocateUnassigned(RoutingAllocation allocation);
+    /**
+     * Creates a new {@link CorruptStateException} with the given exceptions stacktrace.
+     * This constructor copies the stacktrace as well as the message from the given {@link Throwable}
+     * into this exception.
+     *
+     * @param ex the exception cause
+     */
+    public CorruptStateException(Throwable ex) {
+        super(ex);
+    }
 }

@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.gateway.local.LocalGatewayAllocator;
+import org.elasticsearch.gateway.GatewayAllocator;
 
 /**
  */
@@ -37,27 +37,19 @@ public class ShardsAllocatorModule extends AbstractModule {
 
     private Class<? extends ShardsAllocator> shardsAllocator;
 
-    private Class<? extends GatewayAllocator> gatewayAllocator = LocalGatewayAllocator.class;
 
     public ShardsAllocatorModule(Settings settings) {
         this.settings = settings;
         shardsAllocator = loadShardsAllocator(settings);
     }
 
-    public void setGatewayAllocator(Class<? extends GatewayAllocator> gatewayAllocator) {
-        this.gatewayAllocator = gatewayAllocator;
-    }
-
-    public void setShardsAllocator(Class<? extends ShardsAllocator> shardsAllocator) {
-        this.shardsAllocator = shardsAllocator;
-    }
 
     @Override
     protected void configure() {
         if (shardsAllocator == null) {
             shardsAllocator = loadShardsAllocator(settings);
         }
-        bind(GatewayAllocator.class).to(gatewayAllocator).asEagerSingleton();
+        bind(GatewayAllocator.class).asEagerSingleton();
         bind(ShardsAllocator.class).to(shardsAllocator).asEagerSingleton();
     }
 

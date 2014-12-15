@@ -356,4 +356,9 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
             }
         }
     }
+
+    @Override
+    public String toString() {
+        return "shard_gateway";
+    }
 }

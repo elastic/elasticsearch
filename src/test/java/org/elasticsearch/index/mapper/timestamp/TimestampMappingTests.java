@@ -103,6 +103,8 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject("_timestamp")
                 .field("enabled", "yes").field("store", "yes").field("index", "no")
                 .field("path", "timestamp").field("format", "year")
+                .field("doc_values", true)
+                .field("doc_values_format", "Lucene410")
                 .endObject()
                 .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -111,6 +113,8 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(docMapper.timestampFieldMapper().fieldType().indexed(), equalTo(false));
         assertThat(docMapper.timestampFieldMapper().path(), equalTo("timestamp"));
         assertThat(docMapper.timestampFieldMapper().dateTimeFormatter().format(), equalTo("year"));
+        assertThat(docMapper.timestampFieldMapper().hasDocValues(), equalTo(true));
+        assertThat(docMapper.timestampFieldMapper().docValuesFormatProvider().name(), equalTo("Lucene410"));
     }
 
     @Test
@@ -417,10 +421,11 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testParsingNotDefaultTwiceDoesNotChangeMapping() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_timestamp").field("enabled", true)
-                .field("index", randomBoolean() ? "no" : "analyzed") // default is "not_analyzed" which will be omitted when building the source again
-                .field("store", true)
-                .field("path", "foo")
+            .startObject("_timestamp").field("enabled", true)
+            .field("index", randomBoolean() ? "no" : "analyzed") // default is "not_analyzed" which will be omitted when building the source again
+            .field("store", true)
+            .field("doc_values", true)
+            .field("path", "foo")
                 .field("default", "1970-01-01")
                 .startObject("fielddata").field("format", "doc_values").endObject()
                 .endObject()

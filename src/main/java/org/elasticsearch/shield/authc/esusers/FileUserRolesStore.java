@@ -208,7 +208,7 @@ public class FileUserRolesStore {
                     userRoles = parseFile(file.toPath(), logger);
                     logger.info("updated users (users_roles file [{}] changed)", file.getAbsolutePath());
                 } catch (Throwable t) {
-                    logger.error("Failed to parse users_roles file [{}]. Current users_roles remain unmodified", t, file.getAbsolutePath());
+                    logger.error("failed to parse users_roles file [{}]. Current users_roles remain unmodified", t, file.getAbsolutePath());
                     return;
                 }
                 notifyRefresh();

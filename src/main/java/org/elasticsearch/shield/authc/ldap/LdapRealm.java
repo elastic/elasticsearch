@@ -44,7 +44,7 @@ public class LdapRealm extends AbstractLdapRealm {
         @Override
         public LdapRealm create(String name, Settings settings) {
             LdapConnectionFactory connectionFactory = new LdapConnectionFactory(settings);
-            LdapGroupToRoleMapper roleMapper = new LdapGroupToRoleMapper(settings, env, watcherService);
+            LdapGroupToRoleMapper roleMapper = new LdapGroupToRoleMapper(settings, name, env, watcherService);
             return new LdapRealm(name, settings, connectionFactory, roleMapper);
         }
     }

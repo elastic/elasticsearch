@@ -222,7 +222,7 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
                     permissions = parseFile(file.toPath(), logger);
                     logger.info("updated roles (roles file [{}] changed)", file.getAbsolutePath());
                 } catch (Throwable t) {
-                    logger.error("Could not reload roles file [{}]. Current roles remain unmodified", t, file.getAbsolutePath());
+                    logger.error("could not reload roles file [{}]. Current roles remain unmodified", t, file.getAbsolutePath());
                     return;
                 }
                 listener.onRefresh();

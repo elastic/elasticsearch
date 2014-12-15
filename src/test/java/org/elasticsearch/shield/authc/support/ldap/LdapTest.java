@@ -70,7 +70,7 @@ public abstract class LdapTest extends ElasticsearchTestCase {
                 .put(AbstractGroupToRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
                 .build();
 
-        return new LdapGroupToRoleMapper(settings, new Environment(settings), resourceWatcherService);
+        return new LdapGroupToRoleMapper(settings, "ldap1", new Environment(settings), resourceWatcherService);
     }
 
     /**

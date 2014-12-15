@@ -43,18 +43,20 @@ public abstract class AbstractGroupToRoleMapper {
     protected final Settings settings;
     private final Path file;
     private final boolean useUnmappedGroupsAsRoles;
+    private final String realmName;
     private final String realmType;
     private volatile ImmutableMap<LdapName, Set<String>> groupRoles;
 
     private CopyOnWriteArrayList<RefreshListener> listeners;
 
-    protected AbstractGroupToRoleMapper(Settings settings, String realmType, Environment env,
+    protected AbstractGroupToRoleMapper(Settings settings, String realmType, String realmName, Environment env,
                                         ResourceWatcherService watcherService, @Nullable RefreshListener listener) {
         this.settings = settings;
         this.realmType = realmType;
+        this.realmName = realmName;
         useUnmappedGroupsAsRoles = settings.getAsBoolean(USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, false);
         file = resolveFile(settings, env);
-        groupRoles = parseFile(file, logger, realmType);
+        groupRoles = parseFile(file, logger, realmType, realmName);
         FileWatcher watcher = new FileWatcher(file.getParent().toFile());
         watcher.addListener(new FileListener());
         watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
@@ -76,7 +78,7 @@ public abstract class AbstractGroupToRoleMapper {
         return Paths.get(location);
     }
 
-    public static ImmutableMap<LdapName, Set<String>> parseFile(Path path, ESLogger logger, String realmType) {
+    public static ImmutableMap<LdapName, Set<String>> parseFile(Path path, ESLogger logger, String realmType, String realmName) {
         if (!Files.exists(path)) {
             return ImmutableMap.of();
         }
@@ -99,7 +101,7 @@ public abstract class AbstractGroupToRoleMapper {
                         }
                         groupRoles.add(role);
                     } catch (InvalidNameException e) {
-                        logger.error("Invalid group DN [{}] found in [{}] group to role mappings [{}]. Skipping... ", e, ldapDN, realmType, path);
+                        logger.error("Invalid group DN [{}] found in [{}] group to role mappings [{}] for realm [{}]. Skipping... ", e, ldapDN, realmType, path, realmName);
                     }
                 }
 
@@ -107,7 +109,7 @@ public abstract class AbstractGroupToRoleMapper {
             return ImmutableMap.copyOf(groupToRoles);
 
         } catch (IOException e) {
-            throw new ElasticsearchException("unable to load [" + realmType + "] role mapper file [" + path.toAbsolutePath() + "]", e);
+            throw new ElasticsearchException("unable to load [" + realmName + "] role mapper file [" + path.toAbsolutePath() + "]", e);
         }
     }
 
@@ -125,7 +127,7 @@ public abstract class AbstractGroupToRoleMapper {
             }
         }
         if (logger.isDebugEnabled()) {
-            logger.debug("The roles [{}], are mapped from these [{}] groups [{}]", roles, realmType, groupDns);
+            logger.debug("The roles [{}], are mapped from these [{}] groups [{}] for realm [{}]", roles, realmType, groupDns, realmName);
         }
         return roles;
     }
@@ -154,7 +156,13 @@ public abstract class AbstractGroupToRoleMapper {
         @Override
         public void onFileChanged(File file) {
             if (file.equals(AbstractGroupToRoleMapper.this.file.toFile())) {
-                groupRoles = parseFile(file.toPath(), logger, realmType);
+                try {
+                    groupRoles = parseFile(file.toPath(), logger, realmType, realmName);
+                    logger.info("updated role mappings (role mappings file [{}] changed) for realm [{}]", file.getAbsolutePath(), realmName);
+                } catch (Throwable t) {
+                    logger.error("could not reload role mappings file [{}] for realm [{}]. Current role mappings remain unmodified", t, file.getAbsolutePath(), realmName);
+                    return;
+                }
                 notifyRefresh();
             }
         }

@@ -179,7 +179,7 @@ public class FileUserPasswdStore {
                     esUsers = parseFile(file.toPath(), logger);
                     logger.info("updated users (users file [{}] changed)", file.getAbsolutePath());
                 } catch (Throwable t) {
-                    logger.error("Failed to parse users file [{}]. Current users remain unmodified", t, file.getAbsolutePath());
+                    logger.error("failed to parse users file [{}]. Current users remain unmodified", t, file.getAbsolutePath());
                     return;
                 }
                 notifyRefresh();

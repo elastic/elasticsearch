@@ -47,7 +47,7 @@ public class ActiveDirectoryRealm extends AbstractLdapRealm {
         @Override
         public ActiveDirectoryRealm create(String name, Settings settings) {
             ActiveDirectoryConnectionFactory connectionFactory = new ActiveDirectoryConnectionFactory(settings);
-            ActiveDirectoryGroupToRoleMapper roleMapper = new ActiveDirectoryGroupToRoleMapper(settings, env, watcherService);
+            ActiveDirectoryGroupToRoleMapper roleMapper = new ActiveDirectoryGroupToRoleMapper(settings, name, env, watcherService);
             return new ActiveDirectoryRealm(name, settings, connectionFactory, roleMapper);
         }
     }

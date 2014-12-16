@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -611,9 +612,8 @@ public class DocumentMapper implements ToXContent {
 
     private XContentParser transform(XContentParser parser) throws IOException {
         Map<String, Object> transformed = transformSourceAsMap(parser.mapOrderedAndClose());
-        // TODO it'd be nice to have a MapXContent or something that could spit out the parser for this map
-        XContentBuilder builder = XContentFactory.smileBuilder().value(transformed);
-        return SmileXContent.smileXContent.createParser(builder.bytes());
+        XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType()).value(transformed);
+        return parser.contentType().xContent().createParser(builder.bytes());
     }
 
     public void addFieldMappers(List<FieldMapper> fieldMappers) {

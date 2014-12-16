@@ -20,10 +20,15 @@
 package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.search.suggest.SuggestBuilders;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -32,8 +37,15 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestion;
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Tests for transforming the source document before indexing.
@@ -41,7 +53,7 @@ import static org.hamcrest.Matchers.*;
 public class TransformOnIndexMapperIntegrationTest extends ElasticsearchIntegrationTest {
     @Test
     public void searchOnTransformed() throws Exception {
-        setup(false);
+        setup(true);
 
         // Searching by the field created in the transport finds the entry
         SearchResponse response = client().prepareSearch("test").setQuery(termQuery("destination", "findme")).get();
@@ -67,6 +79,35 @@ public class TransformOnIndexMapperIntegrationTest extends ElasticsearchIntegrat
         assertRightTitleSourceTransformed(response.getSource());
     }
 
+    // TODO: the completion suggester currently returns payloads with no reencoding so this test
+    // exists to make sure that _source transformation and completion work well together. If we
+    // ever fix the completion suggester to reencode the payloads then we can remove this test.
+    @Test
+    public void contextSuggestPayloadTransformed() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        builder.startObject("properties");
+        builder.startObject("suggest").field("type", "completion").field("payloads", true).endObject();
+        builder.endObject();
+        builder.startObject("transform");
+        builder.field("script", "ctx._source.suggest = ['input': ctx._source.text];ctx._source.suggest.payload = ['display': ctx._source.text, 'display_detail': 'on the fly']");
+        builder.field("lang", "groovy");
+        builder.endObject();
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("test", builder));
+        // Payload is stored using original source format (json, smile, yaml, whatever)
+        XContentType type = XContentType.values()[between(0, XContentType.values().length - 1)];
+        XContentBuilder source = XContentFactory.contentBuilder(type);
+        source.startObject().field("text", "findme").endObject();
+        indexRandom(true, client().prepareIndex("test", "test", "findme").setSource(source));
+        SuggestResponse response = client().prepareSuggest("test").addSuggestion(
+                SuggestBuilders.completionSuggestion("test").field("suggest").text("findme")).get();
+        assertSuggestion(response.getSuggest(), 0, 0, "test", "findme");
+        CompletionSuggestion.Entry.Option option = (CompletionSuggestion.Entry.Option)response.getSuggest().getSuggestion("test").getEntries().get(0).getOptions().get(0);
+        // And it comes back in exactly that way.
+        XContentBuilder expected = XContentFactory.contentBuilder(type);
+        expected.startObject().field("display", "findme").field("display_detail", "on the fly").endObject();
+        assertEquals(expected.string(), option.getPayloadAsString());
+    }
+
     /**
      * Setup an index with some source transforms. Randomly picks the number of
      * transforms but all but one of the transforms is a noop. The other is a
@@ -74,12 +115,12 @@ public class TransformOnIndexMapperIntegrationTest extends ElasticsearchIntegrat
      * if the 'title' field starts with 't' and then always removes the
      * 'content' field regarless of the contents of 't'. The actual script
      * randomly uses parameters or not.
-     * 
-     * @param flush
+     *
+     * @param forceRefresh
      *            should the data be flushed to disk? Set to false to test real
      *            time fetching
      */
-    private void setup(boolean flush) throws IOException, InterruptedException, ExecutionException {
+    private void setup(boolean forceRefresh) throws IOException, InterruptedException, ExecutionException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         builder.field("transform");
         if (getRandom().nextBoolean()) {
@@ -107,7 +148,7 @@ public class TransformOnIndexMapperIntegrationTest extends ElasticsearchIntegrat
         }
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("test", builder));
 
-        indexRandom(!flush, client().prepareIndex("test", "test", "notitle").setSource("content", "findme"),
+        indexRandom(forceRefresh, client().prepareIndex("test", "test", "notitle").setSource("content", "findme"),
                 client().prepareIndex("test", "test", "badtitle").setSource("content", "findme", "title", "cat"),
                 client().prepareIndex("test", "test", "righttitle").setSource("content", "findme", "title", "table"));
     }

@@ -40,7 +40,7 @@ public class LdapConnectionFactory extends ConnectionFactory {
     protected final String groupSearchDN;
     protected final boolean groupSubTreeSearch;
     protected final boolean findGroupsByAttribute;
-
+    private final int timeoutMilliseconds;
 
     @Inject()
     public LdapConnectionFactory(Settings settings) {
@@ -54,11 +54,13 @@ public class LdapConnectionFactory extends ConnectionFactory {
             throw new ShieldSettingsException("Missing required ldap setting [" + URLS_SETTING + "]");
         }
 
+        timeoutMilliseconds = (int) settings.getAsTime(TIMEOUT_LDAP_SETTING, TIMEOUT_DEFAULT).millis();
+
         ImmutableMap.Builder<String, Serializable> builder = ImmutableMap.<String, Serializable>builder()
                 .put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory")
                 .put(Context.PROVIDER_URL, Strings.arrayToCommaDelimitedString(ldapUrls))
-                .put(JNDI_LDAP_READ_TIMEOUT, Long.toString(settings.getAsTime(TIMEOUT_READ_SETTING, TIMEOUT_DEFAULT).millis()))
-                .put(JNDI_LDAP_CONNECT_TIMEOUT, Long.toString(settings.getAsTime(TIMEOUT_CONNECTION_SETTING, TIMEOUT_DEFAULT).millis()))
+                .put(JNDI_LDAP_READ_TIMEOUT, Long.toString(settings.getAsTime(TIMEOUT_TCP_READ_SETTING, TIMEOUT_DEFAULT).millis()))
+                .put(JNDI_LDAP_CONNECT_TIMEOUT, Long.toString(settings.getAsTime(TIMEOUT_TCP_CONNECTION_SETTING, TIMEOUT_DEFAULT).millis()))
                 .put(Context.REFERRAL, "follow");
 
         LdapSslSocketFactory.configureJndiSSL(ldapUrls, builder);
@@ -90,7 +92,7 @@ public class LdapConnectionFactory extends ConnectionFactory {
                 DirContext ctx = new InitialDirContext(ldapEnv);
 
                 //return the first good connection
-                return new LdapConnection(ctx, dn, findGroupsByAttribute, groupSubTreeSearch, groupSearchDN);
+                return new LdapConnection(ctx, dn, findGroupsByAttribute, groupSubTreeSearch, groupSearchDN, timeoutMilliseconds);
 
             } catch (NamingException e) {
                 logger.warn("Failed ldap authentication with user template [{}], dn [{}]", e, template, dn);

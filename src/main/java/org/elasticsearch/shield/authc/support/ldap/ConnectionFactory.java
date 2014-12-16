@@ -28,8 +28,9 @@ public abstract class ConnectionFactory {
     public static final String URLS_SETTING = "url";
     public static final String JNDI_LDAP_READ_TIMEOUT = "com.sun.jndi.ldap.read.timeout";
     public static final String JNDI_LDAP_CONNECT_TIMEOUT = "com.sun.jndi.ldap.connect.timeout";
-    public static final String TIMEOUT_CONNECTION_SETTING = "connect_timeout";
-    public static final String TIMEOUT_READ_SETTING = "read_timeout";
+    public static final String TIMEOUT_TCP_CONNECTION_SETTING = "timeout.tcp_connect";
+    public static final String TIMEOUT_TCP_READ_SETTING = "timeout.tcp_read";
+    public static final String TIMEOUT_LDAP_SETTING = "timeout.ldap_search";
     public static final TimeValue TIMEOUT_DEFAULT = TimeValue.timeValueSeconds(5);
 
     protected final ESLogger logger = Loggers.getLogger(getClass());

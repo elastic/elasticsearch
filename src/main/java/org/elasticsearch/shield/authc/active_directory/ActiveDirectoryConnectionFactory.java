@@ -38,6 +38,7 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory {
     private final ImmutableMap<String, Serializable> sharedLdapEnv;
     private final String userSearchDN;
     private final String domainName;
+    private final int timeoutMilliseconds;
 
     @Inject
     public ActiveDirectoryConnectionFactory(Settings settings) {
@@ -47,14 +48,14 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory {
             throw new ShieldSettingsException("Missing [" + AD_DOMAIN_NAME_SETTING + "] setting for active directory");
         }
         userSearchDN = settings.get(AD_USER_SEARCH_BASEDN_SETTING, buildDnFromDomain(domainName));
-
+        timeoutMilliseconds = (int) settings.getAsTime(TIMEOUT_LDAP_SETTING, TIMEOUT_DEFAULT).millis();
         String[] ldapUrls = settings.getAsArray(URLS_SETTING, new String[] { "ldaps://" + domainName + ":636" });
 
         ImmutableMap.Builder<String, Serializable> builder = ImmutableMap.<String, Serializable>builder()
                 .put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory")
                 .put(Context.PROVIDER_URL, Strings.arrayToCommaDelimitedString(ldapUrls))
-                .put(JNDI_LDAP_CONNECT_TIMEOUT, Long.toString(settings.getAsTime(TIMEOUT_CONNECTION_SETTING, TIMEOUT_DEFAULT).millis()))
-                .put(JNDI_LDAP_READ_TIMEOUT, Long.toString(settings.getAsTime(TIMEOUT_CONNECTION_SETTING, TIMEOUT_DEFAULT).millis()))
+                .put(JNDI_LDAP_CONNECT_TIMEOUT, Long.toString(settings.getAsTime(TIMEOUT_TCP_CONNECTION_SETTING, TIMEOUT_DEFAULT).millis()))
+                .put(JNDI_LDAP_READ_TIMEOUT, Long.toString(settings.getAsTime(TIMEOUT_TCP_READ_SETTING, TIMEOUT_DEFAULT).millis()))
                 .put("java.naming.ldap.attributes.binary", "tokenGroups")
                 .put(Context.REFERRAL, "follow");
 
@@ -82,7 +83,7 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory {
             SearchControls searchCtls = new SearchControls();
             searchCtls.setSearchScope(SearchControls.SUBTREE_SCOPE);
             searchCtls.setReturningAttributes(Strings.EMPTY_ARRAY);
-
+            searchCtls.setTimeLimit(timeoutMilliseconds);
             String searchFilter = "(&(objectClass=user)(userPrincipalName={0}))";
             NamingEnumeration<SearchResult> results = ctx.search(userSearchDN, searchFilter, new Object[] { userPrincipal }, searchCtls);
 
@@ -91,7 +92,7 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory {
                 String name = entry.getNameInNamespace();
 
                 if (!results.hasMore()) {
-                    return new ActiveDirectoryConnection(ctx, name, userSearchDN);
+                    return new ActiveDirectoryConnection(ctx, name, userSearchDN, timeoutMilliseconds);
                 }
                 throw new ActiveDirectoryException("Search for user [" + userName + "] by principle name yielded multiple results");
             }

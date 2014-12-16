@@ -24,13 +24,15 @@ public class ActiveDirectoryConnection extends AbstractLdapConnection {
     private static final ESLogger logger = Loggers.getLogger(ActiveDirectoryConnection.class);
 
     private final String groupSearchDN;
+    private final int timeoutMilliseconds;
 
     /**
      * This object is intended to be constructed by the LdapConnectionFactory
      */
-    ActiveDirectoryConnection(DirContext ctx, String boundName, String groupSearchDN) {
+    ActiveDirectoryConnection(DirContext ctx, String boundName, String groupSearchDN, int timeoutMilliseconds) {
         super(ctx, boundName);
         this.groupSearchDN = groupSearchDN;
+        this.timeoutMilliseconds = timeoutMilliseconds;
     }
 
     /**
@@ -59,6 +61,7 @@ public class ActiveDirectoryConnection extends AbstractLdapConnection {
         //Specify the search scope
         groupsSearchCtls.setSearchScope(SearchControls.SUBTREE_SCOPE);
         groupsSearchCtls.setReturningAttributes(Strings.EMPTY_ARRAY);  //we only need the entry DN
+        groupsSearchCtls.setTimeLimit(timeoutMilliseconds);
 
         ImmutableList.Builder<String> groups = ImmutableList.builder();
         try {

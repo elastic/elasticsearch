@@ -6,7 +6,9 @@
 package org.elasticsearch.shield.authc.ldap;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
+import org.elasticsearch.shield.authc.support.ldap.ConnectionFactory;
 import org.elasticsearch.shield.authc.support.ldap.LdapSslSocketFactory;
 import org.elasticsearch.shield.ssl.SSLService;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -42,7 +44,7 @@ public class OpenLdapTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void test_standardLdapConnection_uid() {
+    public void testConnect() {
         //openldap does not use cn as naming attributes by default
 
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
@@ -58,4 +60,41 @@ public class OpenLdapTests extends ElasticsearchTestCase {
         }
     }
 
+    @Test
+    public void testTcpTimeout() {
+        String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
+        String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
+        Settings settings = ImmutableSettings.builder()
+                .put(LdapConnectionTests.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, true))
+                .put(ConnectionFactory.TIMEOUT_TCP_READ_SETTING, "1ms") //1 millisecond
+                .build();
+
+        LdapConnectionFactory connectionFactory = new LdapConnectionFactory(settings);
+
+        try (LdapConnection ldap = connectionFactory.open("thor", SecuredStringTests.build(PASSWORD))){
+            ldap.groups();
+            fail("The TCP connection should timeout before getting groups back");
+        } catch (LdapException e) {
+            assertThat(e.getCause().getMessage(), containsString("LDAP response read timed out"));
+        }
+    }
+
+    @Test
+    public void testLdapTimeout() {
+        String groupSearchBase = "dc=elasticsearch,dc=com";
+        String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
+        Settings settings = ImmutableSettings.builder()
+                .put(LdapConnectionTests.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, true))
+                .put(ConnectionFactory.TIMEOUT_LDAP_SETTING, "1ms") //1 millisecond
+                .build();
+
+        LdapConnectionFactory connectionFactory = new LdapConnectionFactory(settings);
+
+        try (LdapConnection ldap = connectionFactory.open("thor", SecuredStringTests.build(PASSWORD))){
+            ldap.groups();
+            fail("The server should timeout the group request");
+        } catch (LdapException e) {
+            assertThat(e.getCause().getMessage(), containsString("error code 32")); //openldap response for timeout
+        }
+    }
 }

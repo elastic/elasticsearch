@@ -20,12 +20,10 @@ import java.net.Socket;
 import java.net.SocketAddress;
 import java.util.List;
 
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.*;
 
 public class LdapConnectionTests extends LdapTest {
 
-    @Test(expected = LdapException.class, timeout = 2000) //if the LDAP timeout doesn't occur within 2 seconds, fail
     public void testBindWithTimeout() throws Exception {
         int randomPort = randomIntBetween(49152, 65525); // ephemeral port
 
@@ -42,14 +40,20 @@ public class LdapConnectionTests extends LdapTest {
             };
             Settings settings = ImmutableSettings.builder()
                     .put(buildLdapSettings(ldapUrls, userTemplates, groupSearchBase, true))
-                    .put(ConnectionFactory.TIMEOUT_CONNECTION_SETTING, "1ms") //1 millisecond
+                    .put(ConnectionFactory.TIMEOUT_TCP_CONNECTION_SETTING, "1ms") //1 millisecond
                     .build();
             LdapConnectionFactory connectionFactory = new LdapConnectionFactory(settings);
             String user = "Horatio Hornblower";
             SecuredString userPass = SecuredStringTests.build("pass");
 
-            try (LdapConnection ldap = connectionFactory.open(user, userPass)) {
+            long start = System.currentTimeMillis();
 
+            try (LdapConnection connection = connectionFactory.open(user, userPass)) {
+                fail("expected connection timeout error here");
+            } catch (Throwable t) {
+                long time = System.currentTimeMillis() - start;
+                assertThat(time, lessThan(1000l));
+                assertThat(t, instanceOf(LdapException.class));
             }
         }
     }
@@ -124,25 +128,6 @@ public class LdapConnectionTests extends LdapTest {
         try (LdapConnection ldap = ldapFac.open(user, SecuredStringTests.build("pass"))) {
             List<String> groups = ldap.getGroupsFromSearch(ldap.authenticatedUserDn());
             assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
-        }
-    }
-
-    @Test(expected = LdapException.class, timeout = 2000) //if the LDAP timeout doesn't occur in 2 seconds, fail
-    public void testGroupLookupWithTimeout() {
-        String groupSearchBase = "o=sevenSeas";
-        String userTemplate = "cn={0},ou=people,o=sevenSeas";
-
-        Settings settings = ImmutableSettings.builder()
-                .put(buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, true))
-                .put(ConnectionFactory.TIMEOUT_READ_SETTING, "1ms") //1 millisecond
-                .build();
-
-        LdapConnectionFactory ldapFac = new LdapConnectionFactory(settings);
-        String user = "Horatio Hornblower";
-        SecuredString userPass = SecuredStringTests.build("pass");
-
-        try (LdapConnection ldap = ldapFac.open(user, userPass)) {
-            List<String> groups = ldap.getGroupsFromSearch(ldap.authenticatedUserDn());
         }
     }
 }

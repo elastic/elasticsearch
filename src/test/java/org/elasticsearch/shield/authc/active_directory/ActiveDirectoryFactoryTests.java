@@ -12,6 +12,7 @@ import org.elasticsearch.shield.authc.ldap.LdapConnectionFactory;
 import org.elasticsearch.shield.authc.ldap.LdapConnectionTests;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.ldap.AbstractLdapConnection;
+import org.elasticsearch.shield.authc.support.ldap.ConnectionFactory;
 import org.elasticsearch.shield.authc.support.ldap.LdapSslSocketFactory;
 import org.elasticsearch.shield.authc.support.ldap.LdapTest;
 import org.elasticsearch.shield.ssl.SSLService;
@@ -67,6 +68,22 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
                     containsString("Users"),
                     containsString("Domain Users"),
                     containsString("Supers")));
+        }
+    }
+
+    @Test
+    public void testTcpReadTimeout() {
+        Settings settings = ImmutableSettings.builder()
+                .put(buildAdSettings(AD_LDAP_URL, AD_DOMAIN))
+                .put(ConnectionFactory.TIMEOUT_TCP_READ_SETTING, "1ms")
+                .build();
+        ActiveDirectoryConnectionFactory connectionFactory = new ActiveDirectoryConnectionFactory(settings);
+
+        try (AbstractLdapConnection ldap = connectionFactory.open("ironman", SecuredStringTests.build(PASSWORD))) {
+            List<String> groups = ldap.groups();
+            fail("The TCP connection should timeout before getting groups back");
+        } catch (ActiveDirectoryException e) {
+            assertThat(e.getCause().getMessage(), containsString("LDAP response read timed out"));
         }
     }
 

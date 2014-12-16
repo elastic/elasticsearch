@@ -34,16 +34,18 @@ public class LdapConnection extends AbstractLdapConnection {
     private final String groupSearchDN;
     private final boolean isGroupSubTreeSearch;
     private final boolean isFindGroupsByAttribute;
-    protected final String groupAttribute = "memberOf";
+    private final String groupAttribute = "memberOf";
+    private final int timeoutMilliseconds;
 
     /**
      * This object is intended to be constructed by the LdapConnectionFactory
      */
-    LdapConnection(DirContext ctx, String boundName, boolean isFindGroupsByAttribute, boolean isGroupSubTreeSearch, String groupSearchDN) {
+    LdapConnection(DirContext ctx, String boundName, boolean isFindGroupsByAttribute, boolean isGroupSubTreeSearch, String groupSearchDN, int timeoutMilliseconds) {
         super(ctx, boundName);
         this.isGroupSubTreeSearch = isGroupSubTreeSearch;
         this.groupSearchDN = groupSearchDN;
         this.isFindGroupsByAttribute = isFindGroupsByAttribute;
+        this.timeoutMilliseconds = timeoutMilliseconds;
     }
 
     /**
@@ -72,6 +74,7 @@ public class LdapConnection extends AbstractLdapConnection {
         SearchControls search = new SearchControls();
         search.setReturningAttributes(Strings.EMPTY_ARRAY);
         search.setSearchScope(this.isGroupSubTreeSearch ? SearchControls.SUBTREE_SCOPE : SearchControls.ONELEVEL_SCOPE);
+        search.setTimeLimit(timeoutMilliseconds);
 
         //This could be made could be made configurable but it should cover all cases
         String filter = "(&" +

@@ -15,7 +15,7 @@ import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.shield.transport.SecuredTransportService;
+import org.elasticsearch.shield.transport.SecuredServerTransportService;
 import org.elasticsearch.shield.transport.netty.NettySecuredTransport;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ShieldIntegrationTest;
@@ -80,7 +80,7 @@ public class ShieldPluginEnabledDisabledTests extends ShieldIntegrationTest {
     @Test
     public void testTransportEnabledDisabled() throws Exception {
         for (TransportService service : internalCluster().getInstances(TransportService.class)) {
-            Matcher<TransportService> matcher = instanceOf(SecuredTransportService.class);
+            Matcher<TransportService> matcher = instanceOf(SecuredServerTransportService.class);
             if (!enabled) {
                 matcher = not(matcher);
             }

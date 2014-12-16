@@ -20,7 +20,6 @@
         <version>7</version>
     </parent>
 
-    <!-- needed for some test features for now, remove with 1.3 release -->
     <repositories>
         <repository>
             <id>es-releases</id>

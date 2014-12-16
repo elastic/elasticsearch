@@ -65,7 +65,7 @@ public class ServerTransportFilterIntegrationTest extends ShieldIntegrationTest 
 
         return settingsBuilder
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("transport.profiles.default.shield.type", "server")
+                .put("transport.profiles.default.shield.type", "node")
                 .put("transport.profiles.client.shield.type", "client")
                 .put("transport.profiles.client.port", randomClientPortRange)
                 .put("transport.profiles.client.bind_host", "localhost") // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent

@@ -10,7 +10,6 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -44,7 +43,7 @@ public class TransportFilterTests extends ElasticsearchIntegrationTest {
         return ImmutableSettings.settingsBuilder()
                 .put("plugins.load_classpath_plugins", false)
                 .put("plugin.types", InternalPlugin.class.getName())
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, SecuredTransportService.class.getName())
+                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, SecuredServerTransportService.class.getName())
                 .build();
     }
 
@@ -68,11 +67,9 @@ public class TransportFilterTests extends ElasticsearchIntegrationTest {
         targetService.sendRequest(sourceNode, "_action", new Request("trgt_to_src"), new ResponseHandler(new Response("src_to_trgt"), latch));
         await(latch);
 
-        ServerTransportFilters sourceFilters = internalCluster().getInstance(ServerTransportFilters.class, source);
-        ServerTransportFilter sourceServerFilter = sourceFilters.getTransportFilterForProfile("default");
+        ServerTransportFilter.NodeProfile sourceServerFilter = internalCluster().getInstance(ServerTransportFilter.NodeProfile.class, source);
         ClientTransportFilter sourceClientFilter = internalCluster().getInstance(ClientTransportFilter.class, source);
-        ServerTransportFilters targetFilters = internalCluster().getInstance(ServerTransportFilters.class, target);
-        ServerTransportFilter targetServerFilter = targetFilters.getTransportFilterForProfile("default");
+        ServerTransportFilter.NodeProfile targetServerFilter = internalCluster().getInstance(ServerTransportFilter.NodeProfile.class, target);
         ClientTransportFilter targetClientFilter = internalCluster().getInstance(ClientTransportFilter.class, target);
         InOrder inOrder = inOrder(sourceServerFilter, sourceClientFilter, targetServerFilter, targetClientFilter);
         inOrder.verify(sourceClientFilter).outbound("_action", new Request("src_to_trgt"));
@@ -103,13 +100,8 @@ public class TransportFilterTests extends ElasticsearchIntegrationTest {
         @Override
         protected void configure() {
             bind(ClientTransportFilter.class).toInstance(mock(ClientTransportFilter.class));
-
-            // bind all to our dummy impls
-            MapBinder<String, ServerTransportFilter> mapBinder = MapBinder.newMapBinder(binder(), String.class, ServerTransportFilter.class);
-            mapBinder.addBinding(ServerTransportFilters.SERVER_TRANSPORT_FILTER_TRANSPORT_CLIENT).toInstance(mock(ServerTransportFilter.class));
-            mapBinder.addBinding(ServerTransportFilters.SERVER_TRANSPORT_FILTER_AUTHENTICATE_ONLY).toInstance(mock(ServerTransportFilter.class));
-            mapBinder.addBinding(ServerTransportFilters.SERVER_TRANSPORT_FILTER_AUTHENTICATE_REJECT_INTERNAL_ACTIONS).toInstance(mock(ServerTransportFilter.class));
-            bind(ServerTransportFilters.class).asEagerSingleton();
+            bind(ServerTransportFilter.NodeProfile.class).toInstance(mock(ServerTransportFilter.NodeProfile.class));
+            bind(ServerTransportFilter.ClientProfile.class).toInstance(mock(ServerTransportFilter.ClientProfile.class));
         }
     }
 

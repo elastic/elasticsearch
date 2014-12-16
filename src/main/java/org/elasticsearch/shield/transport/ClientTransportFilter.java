@@ -11,7 +11,10 @@ import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.transport.TransportRequest;
 
 /**
+ * This interface allows clients, that connect to an elasticsearch cluster, to execute
+ * additional logic before an operation is sent.
  *
+ * This interface only applies to outgoing messages
  */
 public interface ClientTransportFilter {
 
@@ -25,7 +28,7 @@ public interface ClientTransportFilter {
     /**
      * The client transport filter that should be used in transport clients
      */
-    public static class Client implements ClientTransportFilter {
+    public static class TransportClient implements ClientTransportFilter {
 
         @Override
         public void outbound(String action, TransportRequest request) {

@@ -12,6 +12,12 @@ import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.transport.TransportRequest;
 
+/**
+ * This interface allows to intercept messages as they come in and execute logic
+ * This is used in SHIELD to execute the authentication/authorization on incoming
+ * messages.
+ * Note that this filter only applies for nodes, but not for clients.
+ */
 public interface ServerTransportFilter {
 
     /**
@@ -22,25 +28,16 @@ public interface ServerTransportFilter {
     void inbound(String action, TransportRequest request);
 
     /**
-     * The server trasnport filter that should be used in transport clients
+     * The server trasnport filter that should be used in nodes as it ensures that an incoming
+     * request is properly authenticated and authorized
      */
-    public static class TransportClient implements ServerTransportFilter {
-
-        @Override
-        public void inbound(String action, TransportRequest request) {
-        }
-    }
-
-    /**
-     * The server trasnport filter that should be used in nodes
-     */
-    public static class Node implements ServerTransportFilter {
+    public static class NodeProfile implements ServerTransportFilter {
 
         private final AuthenticationService authcService;
         private final AuthorizationService authzService;
 
         @Inject
-        public Node(AuthenticationService authcService, AuthorizationService authzService) {
+        public NodeProfile(AuthenticationService authcService, AuthorizationService authzService) {
             this.authcService = authcService;
             this.authzService = authzService;
         }
@@ -62,12 +59,14 @@ public interface ServerTransportFilter {
 
     /**
      * A server transport filter rejects internal calls, which should be used on connections
-     * where only clients connect to
+     * where only clients connect to. This ensures that no client can send any internal actions
+     * or shard level actions. As it extends the NodeProfile the authentication/authorization is
+     * done as well
      */
-    public static class RejectInternalActionsFilter extends ServerTransportFilter.Node {
+    public static class ClientProfile extends NodeProfile {
 
         @Inject
-        public RejectInternalActionsFilter(AuthenticationService authcService, AuthorizationService authzService) {
+        public ClientProfile(AuthenticationService authcService, AuthorizationService authzService) {
             super(authcService, authzService);
         }
 

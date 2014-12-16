@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.engine.MockInternalEngine;
@@ -178,6 +179,13 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
                 // estimate being either positive or negative.
                 ensureGreen("test");  // make sure all shards are there - there could be shards that are still starting up.
                 assertAllSuccessful(client().admin().indices().prepareClearCache("test").setFieldDataCache(true).execute().actionGet());
+
+                // Since .cleanUp() is no longer called on cache clear, we need to call it on each node manually
+                for (String node : internalCluster().getNodeNames()) {
+                    final IndicesFieldDataCache fdCache = internalCluster().getInstance(IndicesFieldDataCache.class, node);
+                    // Clean up the cache, ensuring that entries' listeners have been called
+                    fdCache.getCache().cleanUp();
+                }
                 NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats()
                     .clear().setBreaker(true).execute().actionGet();
                 for (NodeStats stats : nodeStats.getNodes()) {

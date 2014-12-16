@@ -241,8 +241,9 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
 
     @Test
     public void testDatelineOGC() {
-        // view shape at https://gist.github.com/anonymous/7f1bb6d7e9cd72f5977c
-        // expect 3 polygons, 1 with a hole
+        // tests that the following shape (defined in counterclockwise OGC order)
+        // https://gist.github.com/anonymous/7f1bb6d7e9cd72f5977c crosses the dateline
+        // expected results: 3 polygons, 1 with a hole
 
         // a giant c shape
         PolygonBuilder builder = ShapeBuilder.newPolygon()
@@ -283,8 +284,9 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
 
     @Test
     public void testDateline() {
-        // view shape at https://gist.github.com/anonymous/7f1bb6d7e9cd72f5977c
-        // expect 3 polygons, 1 with a hole
+        // tests that the following shape (defined in clockwise non-OGC order)
+        // https://gist.github.com/anonymous/7f1bb6d7e9cd72f5977c crosses the dateline
+        // expected results: 3 polygons, 1 with a hole
 
         // a giant c shape
         PolygonBuilder builder = ShapeBuilder.newPolygon()

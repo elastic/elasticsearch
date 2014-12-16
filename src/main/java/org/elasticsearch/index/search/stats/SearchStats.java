@@ -61,7 +61,7 @@ public class SearchStats implements Streamable, ToXContent {
         }
 
         public Stats(Stats stats) {
-            this.add(stats);
+            this(stats.queryCount, stats.queryTimeInMillis, stats.queryCurrent, stats.fetchCount, stats.fetchTimeInMillis, stats.fetchCurrent);
         }
 
         public void add(Stats stats) {

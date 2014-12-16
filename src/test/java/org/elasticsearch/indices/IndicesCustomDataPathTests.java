@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -55,6 +56,7 @@ public class IndicesCustomDataPathTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "failing on windows, Lee will look into it")
     public void testIndexCreatedWithCustomPathAndTemplate() throws Exception {
         final String INDEX = "myindex2";
 

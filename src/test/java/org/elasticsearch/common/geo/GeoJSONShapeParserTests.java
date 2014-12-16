@@ -212,7 +212,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
 
     @Test
     public void testParse_OGCPolygonWithoutHoles() throws IOException {
-        // test ccw poly not crossing dateline
+        // test 1: ccw poly not crossing dateline
         String polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
                 .startArray("coordinates")
                 .startArray()
@@ -232,7 +232,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
         
         ElasticsearchGeoAssertions.assertPolygon(shape);
 
-        // test ccw poly crossing dateline
+        // test 2: ccw poly crossing dateline
         polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
                 .startArray("coordinates")
                 .startArray()
@@ -251,11 +251,51 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
         shape = ShapeBuilder.parse(parser).build();
         
         ElasticsearchGeoAssertions.assertMultiPolygon(shape);
+
+        // test 3: cw poly not crossing dateline
+        polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
+                .startArray("coordinates")
+                .startArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .startArray().value(180.0).value(10.0).endArray()
+                .startArray().value(180.0).value(-10.0).endArray()
+                .startArray().value(176.0).value(-15.0).endArray()
+                .startArray().value(172.0).value(0.0).endArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+
+        parser = JsonXContent.jsonXContent.createParser(polygonGeoJson);
+        parser.nextToken();
+        shape = ShapeBuilder.parse(parser).build();
+
+        ElasticsearchGeoAssertions.assertPolygon(shape);
+
+        // test 4: cw poly crossing dateline
+        polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
+                .startArray("coordinates")
+                .startArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .startArray().value(184.0).value(15.0).endArray()
+                .startArray().value(184.0).value(0.0).endArray()
+                .startArray().value(176.0).value(-15.0).endArray()
+                .startArray().value(174.0).value(-10.0).endArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+
+        parser = JsonXContent.jsonXContent.createParser(polygonGeoJson);
+        parser.nextToken();
+        shape = ShapeBuilder.parse(parser).build();
+
+        ElasticsearchGeoAssertions.assertMultiPolygon(shape);
     }
 
     @Test
     public void testParse_OGCPolygonWithHoles() throws IOException {
-        // test ccw poly not crossing dateline
+        // test 1: ccw poly not crossing dateline
         String polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
                 .startArray("coordinates")
                 .startArray()
@@ -281,7 +321,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
 
         ElasticsearchGeoAssertions.assertPolygon(shape);
 
-        // test ccw poly crossing dateline
+        // test 2: ccw poly crossing dateline
         polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
                 .startArray("coordinates")
                 .startArray()
@@ -296,6 +336,58 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                 .startArray().value(178.0).value(8.0).endArray()
                 .startArray().value(-178.0).value(8.0).endArray()
                 .startArray().value(-180.0).value(-8.0).endArray()
+                .startArray().value(178.0).value(8.0).endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+
+        parser = JsonXContent.jsonXContent.createParser(polygonGeoJson);
+        parser.nextToken();
+        shape = ShapeBuilder.parse(parser).build();
+
+        ElasticsearchGeoAssertions.assertMultiPolygon(shape);
+
+        // test 3: cw poly not crossing dateline
+        polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
+                .startArray("coordinates")
+                .startArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .startArray().value(180.0).value(10.0).endArray()
+                .startArray().value(179.0).value(-10.0).endArray()
+                .startArray().value(176.0).value(-15.0).endArray()
+                .startArray().value(172.0).value(0.0).endArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .endArray()
+                .startArray()
+                .startArray().value(177.0).value(8.0).endArray()
+                .startArray().value(179.0).value(10.0).endArray()
+                .startArray().value(179.0).value(-8.0).endArray()
+                .startArray().value(177.0).value(8.0).endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+
+        parser = JsonXContent.jsonXContent.createParser(polygonGeoJson);
+        parser.nextToken();
+        shape = ShapeBuilder.parse(parser).build();
+
+        ElasticsearchGeoAssertions.assertPolygon(shape);
+
+        // test 4: cw poly crossing dateline
+        polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
+                .startArray("coordinates")
+                .startArray()
+                .startArray().value(183.0).value(10.0).endArray()
+                .startArray().value(183.0).value(-10.0).endArray()
+                .startArray().value(176.0).value(-15.0).endArray()
+                .startArray().value(172.0).value(0.0).endArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .startArray().value(183.0).value(10.0).endArray()
+                .endArray()
+                .startArray()
+                .startArray().value(178.0).value(8.0).endArray()
+                .startArray().value(182.0).value(8.0).endArray()
+                .startArray().value(180.0).value(-8.0).endArray()
                 .startArray().value(178.0).value(8.0).endArray()
                 .endArray()
                 .endArray()
@@ -538,7 +630,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
     @Test
     public void testParse_geometryCollection() throws IOException {
         String geometryCollectionGeoJson = XContentFactory.jsonBuilder().startObject()
-                .field("type","GeometryCollection")
+                .field("type", "GeometryCollection")
                 .startArray("geometries")
                     .startObject()
                         .field("type", "LineString")

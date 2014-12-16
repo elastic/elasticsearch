@@ -47,7 +47,7 @@ public class AutoFilterCachingPolicy extends AbstractIndexComponent implements F
     // parameters, then it might be possible to temporarily work around the issue without having
     // to wait for a new release
 
-    // number of times a filter that produces cacheable filters should be seen before the doc id sets are cached
+    // number of times a filter that is expensive to compute should be seen before the doc id sets are cached
     public static final String MIN_FREQUENCY_COSTLY = "index.cache.filter.policy.min_frequency.costly";
     // number of times a filter that produces cacheable filters should be seen before the doc id sets are cached
     public static final String MIN_FREQUENCY_CACHEABLE = "index.cache.filter.policy.min_frequency.cacheable";

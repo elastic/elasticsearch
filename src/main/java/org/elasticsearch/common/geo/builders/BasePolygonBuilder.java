@@ -48,6 +48,10 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
     // List of linear rings defining the holes of the polygon 
     protected final ArrayList<BaseLineStringBuilder<?>> holes = new ArrayList<>();
 
+    public BasePolygonBuilder(Orientation orientation) {
+        super(orientation);
+    }
+
     @SuppressWarnings("unchecked")
     private E thisRef() {
         return (E)this;
@@ -125,9 +129,9 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
 
         Edge[] edges = new Edge[numEdges];
         Edge[] holeComponents = new Edge[holes.size()];
-        int offset = createEdges(0, false, shell, null, edges, 0);
+        int offset = createEdges(0, orientation.getValue(), shell, null, edges, 0);
         for (int i = 0; i < holes.size(); i++) {
-            int length = createEdges(i+1, true, shell, this.holes.get(i), edges, offset);
+            int length = createEdges(i+1, orientation.getValue(), shell, this.holes.get(i), edges, offset);
             holeComponents[i] = edges[offset];
             offset += length;
         }
@@ -453,11 +457,14 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         }
     }
 
-    private static int createEdges(int component, boolean direction, BaseLineStringBuilder<?> shell, BaseLineStringBuilder<?> hole,
+    private static int createEdges(int component, boolean orientation, BaseLineStringBuilder<?> shell,
+                                   BaseLineStringBuilder<?> hole,
                                    Edge[] edges, int offset) {
+        // inner rings (holes) have an opposite direction than the outer rings
+        boolean direction = (component != 0) ? !orientation : orientation;
         // set the points array accordingly (shell or hole)
         Coordinate[] points = (hole != null) ? hole.coordinates(false) : shell.coordinates(false);
-        Edge.ring(component, direction, shell, points, 0, edges, offset, points.length-1);
+        Edge.ring(component, direction, orientation, shell, points, 0, edges, offset, points.length-1);
         return points.length-1;
     }
 

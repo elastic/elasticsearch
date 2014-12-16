@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 
 import java.io.IOException;
 import java.util.*;
@@ -73,8 +74,14 @@ public abstract class ShapeBuilder implements ToXContent {
     /** @see com.spatial4j.core.shape.jts.JtsGeometry#index() */
     protected final boolean autoIndexJtsGeometry = true;//may want to turn off once SpatialStrategy impls do it.
 
+    protected Orientation orientation = Orientation.RIGHT;
+
     protected ShapeBuilder() {
 
+    }
+
+    protected ShapeBuilder(Orientation orientation) {
+        this.orientation = orientation;
     }
 
     protected static Coordinate coordinate(double longitude, double latitude) {
@@ -144,6 +151,14 @@ public abstract class ShapeBuilder implements ToXContent {
     }
 
     /**
+     * Create a new Polygon
+     * @return a new {@link PointBuilder}
+     */
+    public static PolygonBuilder newPolygon(Orientation orientation) {
+        return new PolygonBuilder(orientation);
+    }
+
+    /**
      * Create a new Collection of polygons
      * @return a new {@link MultiPolygonBuilder}
      */
@@ -152,11 +167,27 @@ public abstract class ShapeBuilder implements ToXContent {
     }
 
     /**
+     * Create a new Collection of polygons
+     * @return a new {@link MultiPolygonBuilder}
+     */
+    public static MultiPolygonBuilder newMultiPolygon(Orientation orientation) {
+        return new MultiPolygonBuilder(orientation);
+    }
+
+    /**
      * Create a new GeometryCollection
      * @return a new {@link GeometryCollectionBuilder}
      */
     public static GeometryCollectionBuilder newGeometryCollection() {
         return new GeometryCollectionBuilder();
+    }
+
+    /**
+     * Create a new GeometryCollection
+     * @return a new {@link GeometryCollectionBuilder}
+     */
+    public static GeometryCollectionBuilder newGeometryCollection(Orientation orientation) {
+        return new GeometryCollectionBuilder(orientation);
     }
 
     /**
@@ -171,9 +202,13 @@ public abstract class ShapeBuilder implements ToXContent {
      * create a new rectangle
      * @return a new {@link EnvelopeBuilder}
      */
-    public static EnvelopeBuilder newEnvelope() {
-        return new EnvelopeBuilder();
-    }
+    public static EnvelopeBuilder newEnvelope() { return new EnvelopeBuilder(); }
+
+    /**
+     * create a new rectangle
+     * @return a new {@link EnvelopeBuilder}
+     */
+    public static EnvelopeBuilder newEnvelope(Orientation orientation) { return new EnvelopeBuilder(orientation); }
 
     @Override
     public String toString() {
@@ -237,11 +272,41 @@ public abstract class ShapeBuilder implements ToXContent {
      * @throws IOException if the input could not be read
      */
     public static ShapeBuilder parse(XContentParser parser) throws IOException {
-        return GeoShapeType.parse(parser);
+        return GeoShapeType.parse(parser, null);
+    }
+
+    /**
+     * Create a new {@link ShapeBuilder} from {@link XContent}
+     * @param parser parser to read the GeoShape from
+     * @param geoDocMapper document field mapper reference required for spatial parameters relevant
+     *                     to the shape construction process (e.g., orientation)
+     *                     todo: refactor to place build specific parameters in the SpatialContext
+     * @return {@link ShapeBuilder} read from the parser or null
+     *          if the parsers current token has been <code><null</code>
+     * @throws IOException if the input could not be read
+     */
+    public static ShapeBuilder parse(XContentParser parser, GeoShapeFieldMapper geoDocMapper) throws IOException {
+        return GeoShapeType.parse(parser, geoDocMapper);
     }
 
     protected static XContentBuilder toXContent(XContentBuilder builder, Coordinate coordinate) throws IOException {
         return builder.startArray().value(coordinate.x).value(coordinate.y).endArray();
+    }
+
+    public static Orientation orientationFromString(String orientation) {
+        orientation = orientation.toLowerCase(Locale.ROOT);
+        switch (orientation) {
+            case "right":
+            case "counterclockwise":
+            case "ccw":
+                return Orientation.RIGHT;
+            case "left":
+            case "clockwise":
+            case "cw":
+                return Orientation.LEFT;
+            default:
+                throw new IllegalArgumentException("Unknown orientation [" + orientation + "]");
+        }
     }
 
     protected static Coordinate shift(Coordinate coordinate, double dateline) {
@@ -485,8 +550,8 @@ public abstract class ShapeBuilder implements ToXContent {
          *            number of points
          * @return Array of edges
          */
-        protected static Edge[] ring(int component, boolean direction, BaseLineStringBuilder<?> shell, Coordinate[] points, int offset, 
-                Edge[] edges, int toffset, int length) {
+        protected static Edge[] ring(int component, boolean direction, boolean handedness, BaseLineStringBuilder<?> shell,
+                                     Coordinate[] points, int offset, Edge[] edges, int toffset, int length) {
             // calculate the direction of the points:
             // find the point a the top of the set and check its
             // neighbors orientation. So direction is equivalent
@@ -508,15 +573,15 @@ public abstract class ShapeBuilder implements ToXContent {
             //   1.  shell orientation is cw and range is greater than a hemisphere (180 degrees) but not spanning 2 hemispheres 
             //       (translation would result in a collapsed poly)
             //   2.  the shell of the candidate hole has been translated (to preserve the coordinate system)
-            if (((component == 0 && orientation) && (rng > DATELINE && rng != 2*DATELINE))
-                    || (shell.translated && component != 0)) {
+            boolean incorrectOrientation = component == 0 && handedness != orientation;
+            if ( (incorrectOrientation && (rng > DATELINE && rng != 2*DATELINE)) || (shell.translated && component != 0)) {
                 translate(points);
                 // flip the translation bit if the shell is being translated
                 if (component == 0) {
                     shell.translated = true;
                 }
                 // correct the orientation post translation (ccw for shell, cw for holes)
-                if (component == 0 || (component != 0 && !orientation)) {
+                if (component == 0 || (component != 0 && handedness == orientation)) {
                     orientation = !orientation;
                 }
             }
@@ -574,9 +639,35 @@ public abstract class ShapeBuilder implements ToXContent {
 
     }
 
+    public static enum Orientation {
+        LEFT("left", true),
+        CLOCKWISE("clockwise", true),
+        CW("cw", true),
+        RIGHT("right", false),
+        COUNTERCLOCKWISE("counterclockwise", false),
+        CCW("ccw", false);
+
+        protected String name;
+        protected boolean orientation;
+
+        private Orientation(String name, boolean orientation) {
+            this.orientation = orientation;
+            this.name = name;
+        }
+
+        public static Orientation forName(String name) {
+            return Orientation.valueOf(name.toUpperCase(Locale.ROOT));
+        }
+
+        public boolean getValue() {
+            return orientation;
+        }
+    }
+
     public static final String FIELD_TYPE = "type";
     public static final String FIELD_COORDINATES = "coordinates";
     public static final String FIELD_GEOMETRIES = "geometries";
+    public static final String FIELD_ORIENTATION = "orientation";
 
     protected static final boolean debugEnabled() {
         return LOGGER.isDebugEnabled() || DEBUG;
@@ -613,6 +704,18 @@ public abstract class ShapeBuilder implements ToXContent {
         }
 
         public static ShapeBuilder parse(XContentParser parser) throws IOException {
+            return parse(parser, null);
+        }
+
+        /**
+         * Parse the geometry specified by the source document and return a ShapeBuilder instance used to
+         * build the actual geometry
+         * @param parser - parse utility object including source document
+         * @param shapeMapper - field mapper needed for index specific parameters
+         * @return ShapeBuilder - a builder instance used to create the geometry
+         * @throws IOException
+         */
+        public static ShapeBuilder parse(XContentParser parser, GeoShapeFieldMapper shapeMapper) throws IOException {
             if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                 return null;
             } else if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
@@ -623,6 +726,7 @@ public abstract class ShapeBuilder implements ToXContent {
             Distance radius = null;
             CoordinateNode node = null;
             GeometryCollectionBuilder geometryCollections = null;
+            Orientation requestedOrientation = (shapeMapper == null) ? Orientation.RIGHT : shapeMapper.orientation();
 
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -637,10 +741,13 @@ public abstract class ShapeBuilder implements ToXContent {
                         node = parseCoordinates(parser);
                     } else if (FIELD_GEOMETRIES.equals(fieldName)) {
                         parser.nextToken();
-                        geometryCollections = parseGeometries(parser);
+                        geometryCollections = parseGeometries(parser, requestedOrientation);
                     } else if (CircleBuilder.FIELD_RADIUS.equals(fieldName)) {
                         parser.nextToken();
                         radius = Distance.parseDistance(parser.text());
+                    } else if (FIELD_ORIENTATION.equals(fieldName)) {
+                        parser.nextToken();
+                        requestedOrientation = orientationFromString(parser.text());
                     } else {
                         parser.nextToken();
                         parser.skipChildren();
@@ -664,10 +771,10 @@ public abstract class ShapeBuilder implements ToXContent {
                 case MULTIPOINT: return parseMultiPoint(node);
                 case LINESTRING: return parseLineString(node);
                 case MULTILINESTRING: return parseMultiLine(node);
-                case POLYGON: return parsePolygon(node);
-                case MULTIPOLYGON: return parseMultiPolygon(node);
+                case POLYGON: return parsePolygon(node, requestedOrientation);
+                case MULTIPOLYGON: return parseMultiPolygon(node, requestedOrientation);
                 case CIRCLE: return parseCircle(node, radius);
-                case ENVELOPE: return parseEnvelope(node);
+                case ENVELOPE: return parseEnvelope(node, requestedOrientation);
                 case GEOMETRYCOLLECTION: return geometryCollections;
                 default:
                     throw new ElasticsearchParseException("Shape type [" + shapeType + "] not included");
@@ -694,8 +801,9 @@ public abstract class ShapeBuilder implements ToXContent {
             return newCircleBuilder().center(coordinates.coordinate).radius(radius);
         }
 
-        protected static EnvelopeBuilder parseEnvelope(CoordinateNode coordinates) {
-            return newEnvelope().topLeft(coordinates.children.get(0).coordinate).bottomRight(coordinates.children.get(1).coordinate);
+        protected static EnvelopeBuilder parseEnvelope(CoordinateNode coordinates, Orientation orientation) {
+            return newEnvelope(orientation).
+                    topLeft(coordinates.children.get(0).coordinate).bottomRight(coordinates.children.get(1).coordinate);
         }
 
         protected static void validateMultiPointNode(CoordinateNode coordinates) {
@@ -766,24 +874,24 @@ public abstract class ShapeBuilder implements ToXContent {
             return parseLineString(coordinates);
         }
 
-        protected static PolygonBuilder parsePolygon(CoordinateNode coordinates) {
+        protected static PolygonBuilder parsePolygon(CoordinateNode coordinates, Orientation orientation) {
             if (coordinates.children == null || coordinates.children.isEmpty()) {
                 throw new ElasticsearchParseException("Invalid LinearRing provided for type polygon. Linear ring must be an array of " +
                         "coordinates");
             }
 
             LineStringBuilder shell = parseLinearRing(coordinates.children.get(0));
-            PolygonBuilder polygon = new PolygonBuilder(shell.points);
+            PolygonBuilder polygon = new PolygonBuilder(shell.points, orientation);
             for (int i = 1; i < coordinates.children.size(); i++) {
                 polygon.hole(parseLinearRing(coordinates.children.get(i)));
             }
             return polygon;
         }
 
-        protected static MultiPolygonBuilder parseMultiPolygon(CoordinateNode coordinates) {
-            MultiPolygonBuilder polygons = newMultiPolygon();
+        protected static MultiPolygonBuilder parseMultiPolygon(CoordinateNode coordinates, Orientation orientation) {
+            MultiPolygonBuilder polygons = newMultiPolygon(orientation);
             for (CoordinateNode node : coordinates.children) {
-                polygons.polygon(parsePolygon(node));
+                polygons.polygon(parsePolygon(node, orientation));
             }
             return polygons;
         }
@@ -795,13 +903,13 @@ public abstract class ShapeBuilder implements ToXContent {
          * @return Geometry[] geometries of the GeometryCollection
          * @throws IOException Thrown if an error occurs while reading from the XContentParser
          */
-        protected static GeometryCollectionBuilder parseGeometries(XContentParser parser) throws IOException {
+        protected static GeometryCollectionBuilder parseGeometries(XContentParser parser, Orientation orientation) throws IOException {
             if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
                 throw new ElasticsearchParseException("Geometries must be an array of geojson objects");
             }
         
             XContentParser.Token token = parser.nextToken();
-            GeometryCollectionBuilder geometryCollection = newGeometryCollection();
+            GeometryCollectionBuilder geometryCollection = newGeometryCollection(orientation);
             while (token != XContentParser.Token.END_ARRAY) {
                 ShapeBuilder shapeBuilder = GeoShapeType.parse(parser);
                 geometryCollection.shape(shapeBuilder);

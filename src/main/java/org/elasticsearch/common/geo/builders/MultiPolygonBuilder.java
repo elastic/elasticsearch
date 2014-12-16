@@ -35,13 +35,25 @@ public class MultiPolygonBuilder extends ShapeBuilder {
 
     protected final ArrayList<BasePolygonBuilder<?>> polygons = new ArrayList<>();
 
+    public MultiPolygonBuilder() {
+        this(Orientation.RIGHT);
+    }
+
+    public MultiPolygonBuilder(Orientation orientation) {
+        super(orientation);
+    }
+
     public MultiPolygonBuilder polygon(BasePolygonBuilder<?> polygon) {
         this.polygons.add(polygon);
         return this;
     }
 
     public InternalPolygonBuilder polygon() {
-        InternalPolygonBuilder polygon = new InternalPolygonBuilder(this);
+        return polygon(Orientation.RIGHT);
+    }
+
+    public InternalPolygonBuilder polygon(Orientation orientation) {
+        InternalPolygonBuilder polygon = new InternalPolygonBuilder(this, orientation);
         this.polygon(polygon);
         return polygon;
     }
@@ -92,8 +104,8 @@ public class MultiPolygonBuilder extends ShapeBuilder {
 
         private final MultiPolygonBuilder collection;
 
-        private InternalPolygonBuilder(MultiPolygonBuilder collection) {
-            super();
+        private InternalPolygonBuilder(MultiPolygonBuilder collection, Orientation orientation) {
+            super(orientation);
             this.collection = collection;
             this.shell = new Ring<>(this);
         }

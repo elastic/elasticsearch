@@ -33,6 +33,14 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
 
     protected final ArrayList<ShapeBuilder> shapes = new ArrayList<>();
 
+    public GeometryCollectionBuilder() {
+        this(Orientation.RIGHT);
+    }
+
+    public GeometryCollectionBuilder(Orientation orientation) {
+        super(orientation);
+    }
+
     public GeometryCollectionBuilder shape(ShapeBuilder shape) {
         this.shapes.add(shape);
         return this;

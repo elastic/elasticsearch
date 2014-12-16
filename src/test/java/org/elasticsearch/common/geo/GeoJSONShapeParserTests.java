@@ -681,6 +681,171 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
         assertGeometryEquals(new JtsPoint(expected, SPATIAL_CONTEXT), pointGeoJson);
     }
 
+    @Test
+    public void testParse_orientationOption() throws IOException {
+        // test 1: valid ccw (right handed system) poly not crossing dateline (with 'right' field)
+        String polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
+                .field("orientation", "right")
+                .startArray("coordinates")
+                .startArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .startArray().value(-177.0).value(10.0).endArray()
+                .startArray().value(-177.0).value(-10.0).endArray()
+                .startArray().value(176.0).value(-15.0).endArray()
+                .startArray().value(172.0).value(0.0).endArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .endArray()
+                .startArray()
+                .startArray().value(-172.0).value(8.0).endArray()
+                .startArray().value(174.0).value(10.0).endArray()
+                .startArray().value(-172.0).value(-8.0).endArray()
+                .startArray().value(-172.0).value(8.0).endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+
+        XContentParser parser = JsonXContent.jsonXContent.createParser(polygonGeoJson);
+        parser.nextToken();
+        Shape shape = ShapeBuilder.parse(parser).build();
+
+        ElasticsearchGeoAssertions.assertPolygon(shape);
+
+        // test 2: valid ccw (right handed system) poly not crossing dateline (with 'ccw' field)
+        polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
+                .field("orientation", "ccw")
+                .startArray("coordinates")
+                .startArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .startArray().value(-177.0).value(10.0).endArray()
+                .startArray().value(-177.0).value(-10.0).endArray()
+                .startArray().value(176.0).value(-15.0).endArray()
+                .startArray().value(172.0).value(0.0).endArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .endArray()
+                .startArray()
+                .startArray().value(-172.0).value(8.0).endArray()
+                .startArray().value(174.0).value(10.0).endArray()
+                .startArray().value(-172.0).value(-8.0).endArray()
+                .startArray().value(-172.0).value(8.0).endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+
+        parser = JsonXContent.jsonXContent.createParser(polygonGeoJson);
+        parser.nextToken();
+        shape = ShapeBuilder.parse(parser).build();
+
+        ElasticsearchGeoAssertions.assertPolygon(shape);
+
+        // test 3: valid ccw (right handed system) poly not crossing dateline (with 'counterclockwise' field)
+        polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
+                .field("orientation", "counterclockwise")
+                .startArray("coordinates")
+                .startArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .startArray().value(-177.0).value(10.0).endArray()
+                .startArray().value(-177.0).value(-10.0).endArray()
+                .startArray().value(176.0).value(-15.0).endArray()
+                .startArray().value(172.0).value(0.0).endArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .endArray()
+                .startArray()
+                .startArray().value(-172.0).value(8.0).endArray()
+                .startArray().value(174.0).value(10.0).endArray()
+                .startArray().value(-172.0).value(-8.0).endArray()
+                .startArray().value(-172.0).value(8.0).endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+
+        parser = JsonXContent.jsonXContent.createParser(polygonGeoJson);
+        parser.nextToken();
+        shape = ShapeBuilder.parse(parser).build();
+
+        ElasticsearchGeoAssertions.assertPolygon(shape);
+
+        // test 4: valid cw (left handed system) poly crossing dateline (with 'left' field)
+        polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
+                .field("orientation", "left")
+                .startArray("coordinates")
+                .startArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .startArray().value(-177.0).value(10.0).endArray()
+                .startArray().value(-177.0).value(-10.0).endArray()
+                .startArray().value(176.0).value(-15.0).endArray()
+                .startArray().value(172.0).value(0.0).endArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .endArray()
+                .startArray()
+                .startArray().value(-178.0).value(8.0).endArray()
+                .startArray().value(178.0).value(8.0).endArray()
+                .startArray().value(180.0).value(-8.0).endArray()
+                .startArray().value(-178.0).value(8.0).endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+
+        parser = JsonXContent.jsonXContent.createParser(polygonGeoJson);
+        parser.nextToken();
+        shape = ShapeBuilder.parse(parser).build();
+
+        ElasticsearchGeoAssertions.assertMultiPolygon(shape);
+
+        // test 5: valid cw multipoly (left handed system) poly crossing dateline (with 'cw' field)
+        polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
+                .field("orientation", "cw")
+                .startArray("coordinates")
+                .startArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .startArray().value(-177.0).value(10.0).endArray()
+                .startArray().value(-177.0).value(-10.0).endArray()
+                .startArray().value(176.0).value(-15.0).endArray()
+                .startArray().value(172.0).value(0.0).endArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .endArray()
+                .startArray()
+                .startArray().value(-178.0).value(8.0).endArray()
+                .startArray().value(178.0).value(8.0).endArray()
+                .startArray().value(180.0).value(-8.0).endArray()
+                .startArray().value(-178.0).value(8.0).endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+
+        parser = JsonXContent.jsonXContent.createParser(polygonGeoJson);
+        parser.nextToken();
+        shape = ShapeBuilder.parse(parser).build();
+
+        ElasticsearchGeoAssertions.assertMultiPolygon(shape);
+
+        // test 6: valid cw multipoly (left handed system) poly crossing dateline (with 'clockwise' field)
+        polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
+                .field("orientation", "clockwise")
+                .startArray("coordinates")
+                .startArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .startArray().value(-177.0).value(10.0).endArray()
+                .startArray().value(-177.0).value(-10.0).endArray()
+                .startArray().value(176.0).value(-15.0).endArray()
+                .startArray().value(172.0).value(0.0).endArray()
+                .startArray().value(176.0).value(15.0).endArray()
+                .endArray()
+                .startArray()
+                .startArray().value(-178.0).value(8.0).endArray()
+                .startArray().value(178.0).value(8.0).endArray()
+                .startArray().value(180.0).value(-8.0).endArray()
+                .startArray().value(-178.0).value(8.0).endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+
+        parser = JsonXContent.jsonXContent.createParser(polygonGeoJson);
+        parser.nextToken();
+        shape = ShapeBuilder.parse(parser).build();
+
+        ElasticsearchGeoAssertions.assertMultiPolygon(shape);
+    }
+
     private void assertGeometryEquals(Shape expected, String geoJson) throws IOException {
         XContentParser parser = JsonXContent.jsonXContent.createParser(geoJson);
         parser.nextToken();

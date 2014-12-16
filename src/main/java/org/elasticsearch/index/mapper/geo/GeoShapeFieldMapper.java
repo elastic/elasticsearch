@@ -33,6 +33,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
@@ -78,6 +79,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         public static final String TREE_LEVELS = "tree_levels";
         public static final String TREE_PRESISION = "precision";
         public static final String DISTANCE_ERROR_PCT = "distance_error_pct";
+        public static final String ORIENTATION = "orientation";
         public static final String STRATEGY = "strategy";
     }
 
@@ -87,6 +89,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         public static final int GEOHASH_LEVELS = GeoUtils.geoHashLevelsForPrecision("50m");
         public static final int QUADTREE_LEVELS = GeoUtils.quadTreeLevelsForPrecision("50m");
         public static final double DISTANCE_ERROR_PCT = 0.025d;
+        public static final Orientation ORIENTATION = Orientation.RIGHT;
 
         public static final FieldType FIELD_TYPE = new FieldType();
 
@@ -99,7 +102,6 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
             FIELD_TYPE.setIndexOptions(FieldInfo.IndexOptions.DOCS_ONLY);
             FIELD_TYPE.freeze();
         }
-
     }
 
     public static class Builder extends AbstractFieldMapper.Builder<Builder, GeoShapeFieldMapper> {
@@ -109,6 +111,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         private int treeLevels = 0;
         private double precisionInMeters = -1;
         private double distanceErrorPct = Defaults.DISTANCE_ERROR_PCT;
+        private Orientation orientation = Defaults.ORIENTATION;
 
         private SpatialPrefixTree prefixTree;
 
@@ -141,6 +144,11 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
             return this;
         }
 
+        public Builder orientation(Orientation orientation) {
+            this.orientation = orientation;
+            return this;
+        }
+
         @Override
         public GeoShapeFieldMapper build(BuilderContext context) {
 
@@ -153,7 +161,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
                 throw new ElasticsearchIllegalArgumentException("Unknown prefix tree type [" + tree + "]");
             }
 
-            return new GeoShapeFieldMapper(names, prefixTree, strategyName, distanceErrorPct, fieldType, postingsProvider,
+            return new GeoShapeFieldMapper(names, prefixTree, strategyName, distanceErrorPct, orientation, fieldType, postingsProvider,
                     docValuesProvider, multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -184,6 +192,8 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
                     builder.treeLevelsByDistance(DistanceUnit.parse(fieldNode.toString(), DistanceUnit.DEFAULT, DistanceUnit.DEFAULT));
                 } else if (Names.DISTANCE_ERROR_PCT.equals(fieldName)) {
                     builder.distanceErrorPct(Double.parseDouble(fieldNode.toString()));
+                } else if (Names.ORIENTATION.equals(fieldName)) {
+                    builder.orientation(ShapeBuilder.orientationFromString(fieldNode.toString()));
                 } else if (Names.STRATEGY.equals(fieldName)) {
                     builder.strategy(fieldNode.toString());
                 }
@@ -195,16 +205,18 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     private final PrefixTreeStrategy defaultStrategy;
     private final RecursivePrefixTreeStrategy recursiveStrategy;
     private final TermQueryPrefixTreeStrategy termStrategy;
+    private Orientation shapeOrientation;
 
     public GeoShapeFieldMapper(FieldMapper.Names names, SpatialPrefixTree tree, String defaultStrategyName, double distanceErrorPct,
-                               FieldType fieldType, PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
-                               MultiFields multiFields, CopyTo copyTo) {
+                               Orientation shapeOrientation, FieldType fieldType, PostingsFormatProvider postingsProvider,
+                               DocValuesFormatProvider docValuesProvider, MultiFields multiFields, CopyTo copyTo) {
         super(names, 1, fieldType, null, null, null, postingsProvider, docValuesProvider, null, null, null, null, multiFields, copyTo);
         this.recursiveStrategy = new RecursivePrefixTreeStrategy(tree, names.indexName());
         this.recursiveStrategy.setDistErrPct(distanceErrorPct);
         this.termStrategy = new TermQueryPrefixTreeStrategy(tree, names.indexName());
         this.termStrategy.setDistErrPct(distanceErrorPct);
         this.defaultStrategy = resolveStrategy(defaultStrategyName);
+        this.shapeOrientation = shapeOrientation;
     }
 
     @Override
@@ -227,7 +239,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         try {
             Shape shape = context.parseExternalValue(Shape.class);
             if (shape == null) {
-                ShapeBuilder shapeBuilder = ShapeBuilder.parse(context.parser());
+                ShapeBuilder shapeBuilder = ShapeBuilder.parse(context.parser(), this);
                 if (shapeBuilder == null) {
                     return;
                 }
@@ -298,6 +310,8 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     public PrefixTreeStrategy termStrategy() {
         return this.termStrategy;
     }
+
+    public Orientation orientation() { return this.shapeOrientation; }
 
     public PrefixTreeStrategy resolveStrategy(String strategyName) {
         if (SpatialStrategy.RECURSIVE.getStrategyName().equals(strategyName)) {

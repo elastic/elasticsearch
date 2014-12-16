@@ -13,6 +13,11 @@ import org.elasticsearch.shield.authc.support.ldap.ConnectionFactory;
 import org.elasticsearch.shield.authc.support.ldap.LdapTest;
 import org.junit.Test;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.SocketAddress;
 import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
@@ -21,22 +26,31 @@ import static org.hamcrest.Matchers.containsString;
 public class LdapConnectionTests extends LdapTest {
 
     @Test(expected = LdapException.class, timeout = 2000) //if the LDAP timeout doesn't occur within 2 seconds, fail
-    public void testBindWithTimeout() {
-        String[] ldapUrls = new String[] { "ldap://example.com:1111" };
-        String groupSearchBase = "o=sevenSeas";
-        String[] userTemplates = new String[] {
-                "cn={0},ou=people,o=sevenSeas",
-        };
-        Settings settings = ImmutableSettings.builder()
-                .put(buildLdapSettings(ldapUrls, userTemplates, groupSearchBase, true))
-                .put(ConnectionFactory.TIMEOUT_CONNECTION_SETTING, "1ms") //1 millisecond
-                .build();
-        LdapConnectionFactory connectionFactory = new LdapConnectionFactory(settings);
-        String user = "Horatio Hornblower";
-        SecuredString userPass = SecuredStringTests.build("pass");
+    public void testBindWithTimeout() throws Exception {
+        int randomPort = randomIntBetween(49152, 65525); // ephemeral port
 
-        try (LdapConnection ldap = connectionFactory.open(user, userPass)) {
+        // bind own socket locally to not be dependent on the network
+        try(ServerSocket serverSocket = new ServerSocket()) {
+            SocketAddress sa = new InetSocketAddress("localhost", randomPort);
+            serverSocket.setReuseAddress(true);
+            serverSocket.bind(sa);
 
+            String[] ldapUrls = new String[] { "ldap://localhost:" + randomPort };
+            String groupSearchBase = "o=sevenSeas";
+            String[] userTemplates = new String[] {
+                    "cn={0},ou=people,o=sevenSeas",
+            };
+            Settings settings = ImmutableSettings.builder()
+                    .put(buildLdapSettings(ldapUrls, userTemplates, groupSearchBase, true))
+                    .put(ConnectionFactory.TIMEOUT_CONNECTION_SETTING, "1ms") //1 millisecond
+                    .build();
+            LdapConnectionFactory connectionFactory = new LdapConnectionFactory(settings);
+            String user = "Horatio Hornblower";
+            SecuredString userPass = SecuredStringTests.build("pass");
+
+            try (LdapConnection ldap = connectionFactory.open(user, userPass)) {
+
+            }
         }
     }
 

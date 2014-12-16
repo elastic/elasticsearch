@@ -472,7 +472,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 return true;
             } catch (Throwable t) {
                 Throwable unwrap = ExceptionsHelper.unwrapCause(t);
-                if (unwrap instanceof ElasticsearchIllegalStateException) {
+                // With #8972 we add an explicit exception to indicate we should retry. We can't do this in a bwc manner
+                // so we are forced to check for message text here.
+                if (unwrap instanceof ElasticsearchIllegalStateException && unwrap.getMessage().contains("not master for join request")) {
                     if (++joinAttempt == this.joinRetryAttempts) {
                         logger.info("failed to send join request to master [{}], reason [{}], tried [{}] times", masterNode, ExceptionsHelper.detailedMessage(t), joinAttempt);
                         return false;

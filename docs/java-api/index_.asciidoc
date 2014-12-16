@@ -45,7 +45,7 @@ String json = "{" +
 [[using-map]]
 ==== Using Map
 
-Map is a key:values pair collection. It represents very well a JSON
+Map is a key:values pair collection. Even though poorly typed, it can be used to represent a JSON
 structure:
 
 [source,java]

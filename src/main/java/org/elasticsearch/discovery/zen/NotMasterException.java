@@ -16,21 +16,31 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.discovery.zen;
 
-package org.elasticsearch.discovery.zen.ping;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 
-import org.elasticsearch.discovery.DiscoveryException;
 
 /**
- *
+ * Thrown when a node join request or a master ping reaches a node which is not
+ * currently acting as a master.
  */
-public class ZenPingException extends DiscoveryException {
+public class NotMasterException extends ElasticsearchIllegalStateException {
 
-    public ZenPingException(String message) {
-        super(message);
+    public NotMasterException() {
+        super(null);
     }
 
-    public ZenPingException(String message, Throwable cause) {
-        super(message, cause);
+    public NotMasterException(String msg) {
+        super(msg);
+    }
+
+    public NotMasterException(String msg, Throwable cause) {
+        super(msg, cause);
+    }
+
+    @Override
+    public Throwable fillInStackTrace() {
+        return null;
     }
 }

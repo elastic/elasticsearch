@@ -475,7 +475,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 return true;
             } catch (Throwable t) {
                 Throwable unwrap = ExceptionsHelper.unwrapCause(t);
-                if (unwrap instanceof ElasticsearchIllegalStateException) {
+                if (unwrap instanceof NotMasterException) {
                     if (++joinAttempt == this.joinRetryAttempts) {
                         logger.info("failed to send join request to master [{}], reason [{}], tried [{}] times", masterNode, ExceptionsHelper.detailedMessage(t), joinAttempt);
                         return false;
@@ -917,7 +917,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 public void onNoLongerMaster(String source) {
                     // we are rejected, so drain all pending task (execute never run)
                     processJoinRequests.drainTo(drainedJoinRequests);
-                    Exception e = new ElasticsearchIllegalStateException("Node [" + clusterService.localNode() + "] not master for join request from [" + node + "]");
+                    Exception e = new NotMasterException("Node [" + clusterService.localNode() + "] not master for join request from [" + node + "]");
                     innerOnFailure(e);
                 }
 

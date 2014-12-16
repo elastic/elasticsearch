@@ -365,7 +365,7 @@ If we study the above commands carefully, we can actually see a pattern of how w
 
 [source,sh]
 --------------------------------------------------
-curl -<REST Verb> <Node>:<Port>/<Index>/<Type>/<ID>
+curl -X<REST Verb> <Node>:<Port>/<Index>/<Type>/<ID>
 --------------------------------------------------
 
 This REST access pattern is pervasive throughout all the API commands that if you can simply remember it, you will have a good head start at mastering Elasticsearch.

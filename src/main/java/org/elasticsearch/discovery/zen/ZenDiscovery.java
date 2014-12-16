@@ -474,8 +474,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 membership.sendJoinRequestBlocking(masterNode, clusterService.localNode(), joinTimeout);
                 return true;
             } catch (Throwable t) {
-                Throwable unwrap = ExceptionsHelper.unwrapCause(t);
-                if (unwrap instanceof ElasticsearchIllegalStateException) {
+                boolean retry = t instanceof RemoteTransportException &&
+                        ExceptionsHelper.unwrapCause(t) instanceof ElasticsearchIllegalStateException;
+
+                if (retry) {
                     if (++joinAttempt == this.joinRetryAttempts) {
                         logger.info("failed to send join request to master [{}], reason [{}], tried [{}] times", masterNode, ExceptionsHelper.detailedMessage(t), joinAttempt);
                         return false;

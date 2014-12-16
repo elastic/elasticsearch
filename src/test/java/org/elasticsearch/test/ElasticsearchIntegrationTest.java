@@ -1709,11 +1709,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     /**
-     * Returns a random numeric field data format from the choices of "array",
-     * "compressed", or "doc_values".
+     * Returns a random numeric field data format from the choices of "array" or "doc_values".
      */
     public static String randomNumericFieldDataFormat() {
-        return randomFrom(Arrays.asList("array", "compressed", "doc_values"));
+        return randomFrom(Arrays.asList("array", "doc_values"));
     }
 
     /**

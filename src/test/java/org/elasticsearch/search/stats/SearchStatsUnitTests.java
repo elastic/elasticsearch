@@ -21,16 +21,17 @@ package org.elasticsearch.search.stats;
 
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.SearchStats.Stats;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class SearchStatsUnitTests extends ElasticsearchLuceneTestCase {
+public class SearchStatsUnitTests extends ElasticsearchTestCase {
 
     @Test
-    public void TestShardLevelSearchGroupStatsIssue7144() throws Exception {
+    // https://github.com/elasticsearch/elasticsearch/issues/7644
+    public void testShardLevelSearchGroupStats() throws Exception {
         // let's create two dummy search stats with groups
         Map<String, Stats> groupStats1 = new HashMap<>();
         Map<String, Stats> groupStats2 = new HashMap<>();
@@ -40,21 +41,21 @@ public class SearchStatsUnitTests extends ElasticsearchLuceneTestCase {
 
         // adding these two search stats and checking group stats are correct
         searchStats1.add(searchStats2);
-        checkStats(groupStats1.get("group1"), 1);
+        assertStats(groupStats1.get("group1"), 1);
 
         // another call, adding again ...
         searchStats1.add(searchStats2);
-        checkStats(groupStats1.get("group1"), 2);
+        assertStats(groupStats1.get("group1"), 2);
 
         // making sure stats2 was not affected (this would previously return 2!)
-        checkStats(groupStats2.get("group1"), 1);
+        assertStats(groupStats2.get("group1"), 1);
 
         // adding again would then return wrong search stats (would return 4! instead of 3)
         searchStats1.add(searchStats2);
-        checkStats(groupStats1.get("group1"), 3);
+        assertStats(groupStats1.get("group1"), 3);
     }
 
-    private void checkStats(Stats stats, long equalTo) {
+    private void assertStats(Stats stats, long equalTo) {
         assertEquals(equalTo, stats.getQueryCount());
         assertEquals(equalTo, stats.getQueryTimeInMillis());
         assertEquals(equalTo, stats.getQueryCurrent());

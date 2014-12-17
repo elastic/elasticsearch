@@ -85,7 +85,7 @@ public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData imple
                     }
                     
                     @Override
-                    public Iterable<? extends Accountable> getChildResources() {
+                    public Iterable<Accountable> getChildResources() {
                         return Collections.emptyList();
                     }
 
@@ -99,7 +99,7 @@ public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData imple
                     }
                     
                     @Override
-                    public Iterable<? extends Accountable> getChildResources() {
+                    public Iterable<Accountable> getChildResources() {
                         return Collections.emptyList();
                     }
 

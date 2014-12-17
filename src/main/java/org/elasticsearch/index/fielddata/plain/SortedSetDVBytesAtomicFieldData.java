@@ -63,7 +63,7 @@ public final class SortedSetDVBytesAtomicFieldData extends AbstractAtomicOrdinal
     }
     
     @Override
-    public Iterable<? extends Accountable> getChildResources() {
+    public Iterable<Accountable> getChildResources() {
         return Collections.emptyList();
     }
 

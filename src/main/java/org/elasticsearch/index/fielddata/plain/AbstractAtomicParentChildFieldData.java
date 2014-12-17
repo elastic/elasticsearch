@@ -92,7 +92,7 @@ abstract class AbstractAtomicParentChildFieldData implements AtomicParentChildFi
             }
             
             @Override
-            public Iterable<? extends Accountable> getChildResources() {
+            public Iterable<Accountable> getChildResources() {
                 return Collections.emptyList();
             }
 

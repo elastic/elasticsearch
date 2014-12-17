@@ -54,7 +54,7 @@ public abstract class AbstractAtomicOrdinalsFieldData implements AtomicOrdinalsF
             }
             
             @Override
-            public Iterable<? extends Accountable> getChildResources() {
+            public Iterable<Accountable> getChildResources() {
                 return Collections.emptyList();
             }
 

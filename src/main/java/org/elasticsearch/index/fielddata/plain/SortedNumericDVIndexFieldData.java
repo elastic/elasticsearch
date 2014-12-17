@@ -120,7 +120,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
         }
         
         @Override
-        public Iterable<? extends Accountable> getChildResources() {
+        public Iterable<Accountable> getChildResources() {
             return Collections.emptyList();
         }
     }
@@ -169,7 +169,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
         }
         
         @Override
-        public Iterable<? extends Accountable> getChildResources() {
+        public Iterable<Accountable> getChildResources() {
             return Collections.emptyList();
         }
     }
@@ -254,7 +254,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
         }
         
         @Override
-        public Iterable<? extends Accountable> getChildResources() {
+        public Iterable<Accountable> getChildResources() {
             return Collections.emptyList();
         }
     }

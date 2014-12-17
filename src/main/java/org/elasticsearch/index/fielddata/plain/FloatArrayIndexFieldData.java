@@ -106,7 +106,7 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumer
                     }
                     
                     @Override
-                    public Iterable<? extends Accountable> getChildResources() {
+                    public Iterable<Accountable> getChildResources() {
                         List<Accountable> resources = new ArrayList<>();
                         resources.add(Accountables.namedAccountable("ordinals", build));
                         resources.add(Accountables.namedAccountable("values", finalValues));
@@ -132,7 +132,7 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumer
                         }
                         
                         @Override
-                        public Iterable<? extends Accountable> getChildResources() {
+                        public Iterable<Accountable> getChildResources() {
                             List<Accountable> resources = new ArrayList<>();
                             resources.add(Accountables.namedAccountable("ordinals", build));
                             resources.add(Accountables.namedAccountable("values", finalValues));
@@ -161,7 +161,7 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumer
                     }
                     
                     @Override
-                    public Iterable<? extends Accountable> getChildResources() {
+                    public Iterable<Accountable> getChildResources() {
                         List<Accountable> resources = new ArrayList<>();
                         resources.add(Accountables.namedAccountable("values", sValues));
                         resources.add(Accountables.namedAccountable("missing bitset", set));

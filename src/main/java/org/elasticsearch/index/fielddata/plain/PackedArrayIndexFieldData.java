@@ -130,7 +130,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                     }
 
                     @Override
-                    public Iterable<? extends Accountable> getChildResources() {
+                    public Iterable<Accountable> getChildResources() {
                         List<Accountable> resources = new ArrayList<>();
                         resources.add(Accountables.namedAccountable("ordinals", build));
                         resources.add(Accountables.namedAccountable("values", values));
@@ -213,7 +213,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                             }
                             
                             @Override
-                            public Iterable<? extends Accountable> getChildResources() {
+                            public Iterable<Accountable> getChildResources() {
                                 List<Accountable> resources = new ArrayList<>();
                                 resources.add(Accountables.namedAccountable("values", sValues));
                                 if (docsWithValues != null) {
@@ -249,7 +249,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                             }
 
                             @Override
-                            public Iterable<? extends Accountable> getChildResources() {
+                            public Iterable<Accountable> getChildResources() {
                                 List<Accountable> resources = new ArrayList<>();
                                 resources.add(Accountables.namedAccountable("values", pagedValues));
                                 if (docsWithValues != null) {
@@ -270,7 +270,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                             }
                             
                             @Override
-                            public Iterable<? extends Accountable> getChildResources() {
+                            public Iterable<Accountable> getChildResources() {
                                 List<Accountable> resources = new ArrayList<>();
                                 resources.add(Accountables.namedAccountable("ordinals", build));
                                 resources.add(Accountables.namedAccountable("values", values));

@@ -60,7 +60,7 @@ $ curl -XGET 'http://localhost:9200/_snapshot/_all'
 [float]
 ===== Shared File System Repository
 
-The shared file system repository (`"type": "fs"`) is using shared file system to store snapshot. The path
+The shared file system repository (`"type": "fs"`) uses the shared file system to store snapshots. The path
 specified in the `location` parameter should point to the same location in the shared filesystem and be accessible
 on all data and master nodes. The following settings are supported:
 
@@ -74,8 +74,8 @@ on all data and master nodes. The following settings are supported:
 [float]
 ===== Read-only URL Repository
 
-The URL repository (`"type": "url"`) can be used as an alternative read-only way to access data created by shared file
-system repository  is using shared file system to store snapshot. The URL specified in the `url` parameter should
+The URL repository (`"type": "url"`) can be used as an alternative read-only way to access data created by the shared file
+system repository. The URL specified in the `url` parameter should
 point to the root of the shared filesystem repository. The following settings are supported:
 
 [horizontal]
@@ -297,8 +297,8 @@ The snapshot operation can be also monitored by periodic calls to the snapshot i
 $ curl -XGET "localhost:9200/_snapshot/my_backup/snapshot_1"
 -----------------------------------
 
-Please note that snapshot info operation is using the same resources and thread pool as the snapshot operation. So,
-executing snapshot info operation while large shards are being snapshotted can cause the snapshot info operation to wait
+Please note that snapshot info operation uses the same resources and thread pool as the snapshot operation. So,
+executing a snapshot info operation while large shards are being snapshotted can cause the snapshot info operation to wait
 for available resources before returning the result. On very large shards the wait time can be significant.
 
 To get more immediate and complete information about snapshots the snapshot status command can be used instead:
@@ -331,7 +331,7 @@ running snapshot was executed by mistake or takes unusually long, it can be term
 The snapshot delete operation checks if deleted snapshot is currently running and if it does, the delete operation stops
 such snapshot before deleting the snapshot data from the repository.
 
-The restore operation is using standard shard recovery mechanism. Therefore, any currently running restore operation can
+The restore operation uses the standard shard recovery mechanism. Therefore, any currently running restore operation can
 be canceled by deleting indices that are being restored. Please note that data for all deleted indices will be removed
 from the cluster as a result of this operation.
 

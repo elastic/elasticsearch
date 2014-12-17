@@ -90,7 +90,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         final LeafReader reader = context.reader();
         Terms terms = reader.terms(getFieldNames().indexName());
         AtomicNumericFieldData data = null;
-        PackedArrayEstimator estimator = new PackedArrayEstimator(breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA), getNumericType(), getFieldNames().fullName());
+        PackedArrayEstimator estimator = new PackedArrayEstimator(breakerService.getBreaker(CircuitBreaker.FIELDDATA), getNumericType(), getFieldNames().fullName());
         if (terms == null) {
             data = AtomicLongFieldData.empty(reader.maxDoc());
             estimator.adjustForNoTerms(data.ramBytesUsed());

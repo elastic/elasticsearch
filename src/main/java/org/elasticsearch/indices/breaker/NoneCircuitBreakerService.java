@@ -28,25 +28,25 @@ import org.elasticsearch.common.settings.ImmutableSettings;
  */
 public class NoneCircuitBreakerService extends CircuitBreakerService {
 
-    private final CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.Name.FIELDDATA);
+    private final CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.FIELDDATA);
 
     public NoneCircuitBreakerService() {
         super(ImmutableSettings.EMPTY);
     }
 
     @Override
-    public CircuitBreaker getBreaker(CircuitBreaker.Name name) {
+    public CircuitBreaker getBreaker(String name) {
         return breaker;
     }
 
     @Override
     public AllCircuitBreakerStats stats() {
-        return new AllCircuitBreakerStats(new CircuitBreakerStats[] {stats(CircuitBreaker.Name.FIELDDATA)});
+        return new AllCircuitBreakerStats(new CircuitBreakerStats[] {stats(CircuitBreaker.FIELDDATA)});
     }
 
     @Override
-    public CircuitBreakerStats stats(CircuitBreaker.Name name) {
-        return new CircuitBreakerStats(CircuitBreaker.Name.FIELDDATA, -1, -1, 0, 0);
+    public CircuitBreakerStats stats(String name) {
+        return new CircuitBreakerStats(CircuitBreaker.FIELDDATA, -1, -1, 0, 0);
     }
 
     @Override

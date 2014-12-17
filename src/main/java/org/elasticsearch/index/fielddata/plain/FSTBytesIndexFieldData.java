@@ -64,7 +64,7 @@ public class FSTBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         Terms terms = reader.terms(getFieldNames().indexName());
         AtomicOrdinalsFieldData data = null;
         // TODO: Use an actual estimator to estimate before loading.
-        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA));
+        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker(CircuitBreaker.FIELDDATA));
         if (terms == null) {
             data = AbstractAtomicOrdinalsFieldData.empty();
             estimator.afterLoad(null, data.ramBytesUsed());

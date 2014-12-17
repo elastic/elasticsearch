@@ -38,7 +38,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     private final AtomicLong trippedCount;
     private final ESLogger logger;
     private final HierarchyCircuitBreakerService parent;
-    private final Name name;
+    private final String name;
 
     /**
      * Create a circuit breaker that will break if the number of estimated
@@ -49,7 +49,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      * @param name the name of the breaker
      */
     public ChildMemoryCircuitBreaker(BreakerSettings settings, ESLogger logger,
-                                     HierarchyCircuitBreakerService parent, Name name) {
+                                     HierarchyCircuitBreakerService parent, String name) {
         this(settings, null, logger, parent, name);
     }
 
@@ -64,7 +64,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      * @param oldBreaker the previous circuit breaker to inherit the used value from (starting offset)
      */
     public ChildMemoryCircuitBreaker(BreakerSettings settings, ChildMemoryCircuitBreaker oldBreaker,
-                                     ESLogger logger, HierarchyCircuitBreakerService parent, Name name) {
+                                     ESLogger logger, HierarchyCircuitBreakerService parent, String name) {
         this.name = name;
         this.settings = settings;
         this.memoryBytesLimit = settings.getLimit();
@@ -220,7 +220,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     /**
      * @return the name of the breaker
      */
-    public Name getName() {
+    public String getName() {
         return this.name;
     }
 }

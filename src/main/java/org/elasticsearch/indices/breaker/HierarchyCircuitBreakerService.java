@@ -19,9 +19,6 @@
 
 package org.elasticsearch.indices.breaker;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -32,10 +29,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static com.google.common.collect.Lists.newArrayList;
@@ -46,7 +42,7 @@ import static com.google.common.collect.Lists.newArrayList;
  */
 public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
-    private volatile ImmutableMap<CircuitBreaker.Name, CircuitBreaker> breakers;
+    private final Map<String, CircuitBreaker> breakers = new ConcurrentHashMap();
 
     // Old pre-1.4.0 backwards compatible settings
     public static final String OLD_CIRCUIT_BREAKER_MAX_BYTES_SETTING = "indices.fielddata.breaker.limit";
@@ -68,20 +64,12 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     public static final String DEFAULT_BREAKER_TYPE = "memory";
 
-    private static final Set<CircuitBreaker.Name> BUILT_IN_BREAKER_NAMES = ImmutableSet.<CircuitBreaker.Name>builder()
-            .add(CircuitBreaker.Name.PARENT)
-            .add(CircuitBreaker.Name.FIELDDATA)
-            .add(CircuitBreaker.Name.REQUEST)
-            .build();
-
-
-private volatile BreakerSettings parentSettings;
+    private volatile BreakerSettings parentSettings;
     private volatile BreakerSettings fielddataSettings;
     private volatile BreakerSettings requestSettings;
 
     // Tripped count for when redistribution was attempted but wasn't successful
     private final AtomicLong parentTripCount = new AtomicLong(0);
-    private final Object lock = new Object();
 
     @Inject
     public HierarchyCircuitBreakerService(Settings settings, NodeSettingsService nodeSettingsService) {
@@ -105,48 +93,26 @@ private volatile BreakerSettings parentSettings;
             compatibilityFielddataOverheadDefault = compatibilityFielddataOverhead;
         }
 
-        this.fielddataSettings = new BreakerSettings(CircuitBreaker.Name.FIELDDATA,
+        this.fielddataSettings = new BreakerSettings(CircuitBreaker.FIELDDATA,
                 settings.getAsMemory(FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, compatibilityFielddataLimitDefault).bytes(),
                 settings.getAsDouble(FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING, compatibilityFielddataOverheadDefault),
                 CircuitBreaker.Type.parseValue(settings.get(FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING, DEFAULT_BREAKER_TYPE))
         );
 
-        this.requestSettings = new BreakerSettings(CircuitBreaker.Name.REQUEST,
+        this.requestSettings = new BreakerSettings(CircuitBreaker.REQUEST,
                 settings.getAsMemory(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, DEFAULT_REQUEST_BREAKER_LIMIT).bytes(),
                 settings.getAsDouble(REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING, 1.0),
                 CircuitBreaker.Type.parseValue(settings.get(REQUEST_CIRCUIT_BREAKER_TYPE_SETTING, DEFAULT_BREAKER_TYPE))
         );
 
-        // Validate the configured settings
-        validateSettings(new BreakerSettings[] {this.requestSettings, this.fielddataSettings});
-
-        this.parentSettings = new BreakerSettings(CircuitBreaker.Name.PARENT,
+        this.parentSettings = new BreakerSettings(CircuitBreaker.PARENT,
                 settings.getAsMemory(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING, DEFAULT_TOTAL_CIRCUIT_BREAKER_LIMIT).bytes(), 1.0, CircuitBreaker.Type.PARENT);
         if (logger.isTraceEnabled()) {
             logger.trace("parent circuit breaker with settings {}", this.parentSettings);
         }
 
-        Map<CircuitBreaker.Name, CircuitBreaker> tempBreakers = new HashMap<>();
-
-        CircuitBreaker fielddataBreaker;
-        if (fielddataSettings.getType() == CircuitBreaker.Type.NOOP) {
-            fielddataBreaker = new NoopCircuitBreaker(CircuitBreaker.Name.FIELDDATA);
-        } else {
-            fielddataBreaker = new ChildMemoryCircuitBreaker(fielddataSettings, logger, this, CircuitBreaker.Name.FIELDDATA);
-        }
-
-        CircuitBreaker requestBreaker;
-        if (requestSettings.getType() == CircuitBreaker.Type.NOOP) {
-            requestBreaker = new NoopCircuitBreaker(CircuitBreaker.Name.REQUEST);
-        } else {
-            requestBreaker = new ChildMemoryCircuitBreaker(requestSettings, logger, this, CircuitBreaker.Name.REQUEST);
-        }
-
-        tempBreakers.put(CircuitBreaker.Name.FIELDDATA, fielddataBreaker);
-        tempBreakers.put(CircuitBreaker.Name.REQUEST, requestBreaker);
-        synchronized (lock) {
-            this.breakers = ImmutableMap.copyOf(tempBreakers);
-        }
+        registerBreaker(this.requestSettings);
+        registerBreaker(this.fielddataSettings);
 
         nodeSettingsService.addListener(new ApplySettings());
     }
@@ -155,75 +121,43 @@ private volatile BreakerSettings parentSettings;
 
         @Override
         public void onRefreshSettings(Settings settings) {
-            boolean changed = false;
 
             // Fielddata settings
-            BreakerSettings newFielddataSettings = HierarchyCircuitBreakerService.this.fielddataSettings;
             ByteSizeValue newFielddataMax = settings.getAsMemory(FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, null);
             Double newFielddataOverhead = settings.getAsDouble(FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING, null);
             if (newFielddataMax != null || newFielddataOverhead != null) {
-                changed = true;
                 long newFielddataLimitBytes = newFielddataMax == null ? HierarchyCircuitBreakerService.this.fielddataSettings.getLimit() : newFielddataMax.bytes();
                 newFielddataOverhead = newFielddataOverhead == null ? HierarchyCircuitBreakerService.this.fielddataSettings.getOverhead() : newFielddataOverhead;
 
-                newFielddataSettings = new BreakerSettings(CircuitBreaker.Name.FIELDDATA, newFielddataLimitBytes, newFielddataOverhead,
+                BreakerSettings newFielddataSettings = new BreakerSettings(CircuitBreaker.FIELDDATA, newFielddataLimitBytes, newFielddataOverhead,
                         HierarchyCircuitBreakerService.this.fielddataSettings.getType());
+                registerBreaker(newFielddataSettings);
+                HierarchyCircuitBreakerService.this.fielddataSettings = newFielddataSettings;
+                logger.info("Updated breaker settings fielddata: {}", newFielddataSettings);
             }
 
             // Request settings
-            BreakerSettings newRequestSettings = HierarchyCircuitBreakerService.this.requestSettings;
             ByteSizeValue newRequestMax = settings.getAsMemory(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, null);
             Double newRequestOverhead = settings.getAsDouble(REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING, null);
             if (newRequestMax != null || newRequestOverhead != null) {
-                changed = true;
                 long newRequestLimitBytes = newRequestMax == null ? HierarchyCircuitBreakerService.this.requestSettings.getLimit() : newRequestMax.bytes();
                 newRequestOverhead = newRequestOverhead == null ? HierarchyCircuitBreakerService.this.requestSettings.getOverhead() : newRequestOverhead;
 
-                newRequestSettings = new BreakerSettings(CircuitBreaker.Name.REQUEST, newRequestLimitBytes, newRequestOverhead,
+                BreakerSettings newRequestSettings = new BreakerSettings(CircuitBreaker.REQUEST, newRequestLimitBytes, newRequestOverhead,
                         HierarchyCircuitBreakerService.this.requestSettings.getType());
+                registerBreaker(newRequestSettings);
+                HierarchyCircuitBreakerService.this.requestSettings = newRequestSettings;
+                logger.info("Updated breaker settings request: {}", newRequestSettings);
             }
 
             // Parent settings
-            BreakerSettings newParentSettings = HierarchyCircuitBreakerService.this.parentSettings;
             long oldParentMax = HierarchyCircuitBreakerService.this.parentSettings.getLimit();
             ByteSizeValue newParentMax = settings.getAsMemory(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING, null);
             if (newParentMax != null && (newParentMax.bytes() != oldParentMax)) {
-                changed = true;
-                newParentSettings = new BreakerSettings(CircuitBreaker.Name.PARENT, newParentMax.bytes(), 1.0, CircuitBreaker.Type.PARENT);
-            }
-
-            if (changed) {
-                // change all the things
-                validateSettings(new BreakerSettings[]{newFielddataSettings, newRequestSettings});
-                logger.info("Updating settings parent: {}, fielddata: {}, request: {}", newParentSettings, newFielddataSettings, newRequestSettings);
+                BreakerSettings newParentSettings = new BreakerSettings(CircuitBreaker.PARENT, newParentMax.bytes(), 1.0, CircuitBreaker.Type.PARENT);
+                validateSettings(new BreakerSettings[]{newParentSettings});
                 HierarchyCircuitBreakerService.this.parentSettings = newParentSettings;
-                HierarchyCircuitBreakerService.this.fielddataSettings = newFielddataSettings;
-                HierarchyCircuitBreakerService.this.requestSettings = newRequestSettings;
-
-                Map<CircuitBreaker.Name, CircuitBreaker> tempBreakers = new HashMap<>();
-                CircuitBreaker fielddataBreaker;
-                if (newFielddataSettings.getType() == CircuitBreaker.Type.NOOP) {
-                    fielddataBreaker = new NoopCircuitBreaker(CircuitBreaker.Name.FIELDDATA);
-                } else {
-                    fielddataBreaker = new ChildMemoryCircuitBreaker(newFielddataSettings,
-                            (ChildMemoryCircuitBreaker) HierarchyCircuitBreakerService.this.breakers.get(CircuitBreaker.Name.FIELDDATA),
-                            logger, HierarchyCircuitBreakerService.this, CircuitBreaker.Name.FIELDDATA);
-                }
-
-                CircuitBreaker requestBreaker;
-                if (newRequestSettings.getType() == CircuitBreaker.Type.NOOP) {
-                    requestBreaker = new NoopCircuitBreaker(CircuitBreaker.Name.REQUEST);
-                } else {
-                    requestBreaker = new ChildMemoryCircuitBreaker(newRequestSettings,
-                            (ChildMemoryCircuitBreaker)HierarchyCircuitBreakerService.this.breakers.get(CircuitBreaker.Name.REQUEST),
-                            logger, HierarchyCircuitBreakerService.this, CircuitBreaker.Name.REQUEST);
-                }
-
-                tempBreakers.put(CircuitBreaker.Name.FIELDDATA, fielddataBreaker);
-                tempBreakers.put(CircuitBreaker.Name.REQUEST, requestBreaker);
-                synchronized (lock) {
-                    HierarchyCircuitBreakerService.this.breakers = ImmutableMap.copyOf(tempBreakers);
-                }
+                logger.info("Updated breaker settings parent: {}", newParentSettings);
             }
         }
     }
@@ -246,7 +180,7 @@ private volatile BreakerSettings parentSettings;
     }
 
     @Override
-    public CircuitBreaker getBreaker(CircuitBreaker.Name name) {
+    public CircuitBreaker getBreaker(String name) {
         return this.breakers.get(name);
     }
 
@@ -261,13 +195,13 @@ private volatile BreakerSettings parentSettings;
             parentEstimated += breaker.getUsed();
         }
         // Manually add the parent breaker settings since they aren't part of the breaker map
-        allStats.add(new CircuitBreakerStats(CircuitBreaker.Name.PARENT, parentSettings.getLimit(),
+        allStats.add(new CircuitBreakerStats(CircuitBreaker.PARENT, parentSettings.getLimit(),
                 parentEstimated, 1.0, parentTripCount.get()));
         return new AllCircuitBreakerStats(allStats.toArray(new CircuitBreakerStats[allStats.size()]));
     }
 
     @Override
-    public CircuitBreakerStats stats(CircuitBreaker.Name name) {
+    public CircuitBreakerStats stats(String name) {
         CircuitBreaker breaker = this.breakers.get(name);
         return new CircuitBreakerStats(breaker.getName(), breaker.getLimit(), breaker.getUsed(), breaker.getOverhead(), breaker.getTrippedCount());
     }
@@ -294,36 +228,25 @@ private volatile BreakerSettings parentSettings;
     }
 
     /**
-     * Allows to register of a custom circuit breaker.
-     *
-     * Warning: Will overwrite any existing custom breaker with the same
-     * {@link CircuitBreaker.Name}.
-     * Trying to overwrite a built-in breaker like e.g. {@link CircuitBreaker.Name.REQUEST}
-     * will fail with an {@link ElasticsearchIllegalArgumentException}.
+     * Allows to register a custom circuit breaker.
+     * Warning: Will overwrite any existing custom breaker with the same name.
      *
      * @param breakerSettings
      */
     @Override
     public void registerBreaker(BreakerSettings breakerSettings) {
-        // Validate the configured settings
-        if (BUILT_IN_BREAKER_NAMES.contains(breakerSettings.getName())) {
-            throw new ElasticsearchIllegalArgumentException(
-                    "Overwriting of built-in breaker " + breakerSettings.getName() + " is forbidden");
-        }
+        // Validate the settings
         validateSettings(new BreakerSettings[] {breakerSettings});
 
         CircuitBreaker breaker;
         if (breakerSettings.getType() == CircuitBreaker.Type.NOOP) {
             breaker = new NoopCircuitBreaker(breakerSettings.getName());
         } else {
-            breaker = new ChildMemoryCircuitBreaker(breakerSettings, logger, this, breakerSettings.getName());
+            CircuitBreaker oldBreaker = breakers.get(breakerSettings.getName());
+            breaker = new ChildMemoryCircuitBreaker(breakerSettings,
+                    (ChildMemoryCircuitBreaker)oldBreaker, logger, this, breakerSettings.getName());
         }
 
-        Map<CircuitBreaker.Name, CircuitBreaker> tempBreakers = new HashMap<>();
-        tempBreakers.putAll(this.breakers);
-        tempBreakers.put(breakerSettings.getName(), breaker);
-        synchronized (lock) {
-            this.breakers = ImmutableMap.copyOf(tempBreakers);
-        }
+        breakers.put(breakerSettings.getName(), breaker);
     }
 }

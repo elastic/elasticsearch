@@ -258,11 +258,11 @@ public class RandomQueryGenerator {
         }
 
         if (randomBoolean()) {
-            ((FuzzyQueryBuilder)q).maxExpansions(randomInt());
+            ((FuzzyQueryBuilder)q).maxExpansions(Math.abs(randomInt()));
         }
 
         if (randomBoolean()) {
-            ((FuzzyQueryBuilder)q).prefixLength(randomInt());
+            ((FuzzyQueryBuilder)q).prefixLength(Math.abs(randomInt()));
         }
 
         if (randomBoolean()) {

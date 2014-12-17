@@ -4,9 +4,10 @@
 /.idea
 /target
 .DS_Store
-.local-execution-hints.log
 *.iml
-/.settings
 /.project
+/.settings
 /.classpath
-plugin_tools
+/plugin_tools
+/.local-execution-hints.log
+/.local-*-execution-hints.log

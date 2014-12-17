@@ -3,6 +3,13 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.elasticsearch</groupId>
+        <artifactId>elasticsearch-parent</artifactId>
+        <version>2.0.0-SNAPSHOT</version>
+    </parent>
+
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-cloud-aws</artifactId>
     <version>3.0.0-SNAPSHOT</version>
@@ -20,73 +27,33 @@
     </licenses>
     <scm>
         <connection>scm:git:git@github.com:elasticsearch/elasticsearch-cloud-aws.git</connection>
-        <developerConnection>scm:git:git@github.com:elasticsearch/elasticsearch-cloud-aws.git
-        </developerConnection>
+        <developerConnection>scm:git:git@github.com:elasticsearch/elasticsearch-cloud-aws.git</developerConnection>
         <url>http://github.com/elasticsearch/elasticsearch-cloud-aws</url>
     </scm>
 
-    <parent>
-        <groupId>org.sonatype.oss</groupId>
-        <artifactId>oss-parent</artifactId>
-        <version>7</version>
-    </parent>
-
     <properties>
-        <elasticsearch.version>2.0.0-SNAPSHOT</elasticsearch.version>
-        <lucene.version>5.0.0</lucene.version>
-        <lucene.maven.version>5.0.0-snapshot-1642891</lucene.maven.version>
         <amazonaws.version>1.9.8</amazonaws.version>
-        <tests.output>onerror</tests.output>
-        <tests.shuffle>true</tests.shuffle>
-        <tests.output>onerror</tests.output>
-        <tests.client.ratio></tests.client.ratio>
-        <tests.jvm.argline></tests.jvm.argline>
-        <es.logger.level>INFO</es.logger.level>
     </properties>
-
-    <repositories>
-        <repository>
-            <id>Lucene snapshots</id>
-            <url>https://download.elasticsearch.org/lucenesnapshots/1642891/</url>
-        </repository>
-        <repository>
-            <id>sonatype</id>
-            <url>http://oss.sonatype.org/content/repositories/releases/</url>
-        </repository>
-    </repositories>
 
     <dependencies>
         <dependency>
             <groupId>org.hamcrest</groupId>
-            <artifactId>hamcrest-core</artifactId>
-            <version>1.3.RC2</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.hamcrest</groupId>
-            <artifactId>hamcrest-library</artifactId>
-            <version>1.3.RC2</version>
-            <scope>test</scope>
+            <artifactId>hamcrest-all</artifactId>
         </dependency>
         <dependency>
             <groupId>com.carrotsearch.randomizedtesting</groupId>
             <artifactId>randomizedtesting-runner</artifactId>
-            <version>2.1.10</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-test-framework</artifactId>
-            <version>${lucene.maven.version}</version>
-            <scope>test</scope>
         </dependency>
-
         <dependency>
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch</artifactId>
-            <version>${elasticsearch.version}</version>
             <scope>provided</scope>
         </dependency>
+
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-core</artifactId>
@@ -94,17 +61,16 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- AWS SDK -->
         <dependency>
             <groupId>com.amazonaws</groupId>
             <artifactId>aws-java-sdk-ec2</artifactId>
             <version>${amazonaws.version}</version>
-            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>com.amazonaws</groupId>
             <artifactId>aws-java-sdk-s3</artifactId>
             <version>${amazonaws.version}</version>
-            <scope>compile</scope>
         </dependency>
 
         <!-- We need to explicitly set the common codec version since aws-java-sdk pulls the wrong version -->
@@ -118,19 +84,14 @@
         <dependency>
             <groupId>log4j</groupId>
             <artifactId>log4j</artifactId>
-            <version>1.2.17</version>
             <scope>test</scope>
-            <optional>true</optional>
         </dependency>
 
         <dependency>
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch</artifactId>
-            <version>${elasticsearch.version}</version>
             <type>test-jar</type>
-            <scope>test</scope>
         </dependency>
-
     </dependencies>
 
     <build>
@@ -144,16 +105,10 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.0</version>
-                <configuration>
-                    <source>1.7</source>
-                    <target>1.7</target>
-                </configuration>
             </plugin>
             <plugin>
                 <groupId>com.carrotsearch.randomizedtesting</groupId>
                 <artifactId>junit4-maven-plugin</artifactId>
-                <version>2.0.14</version>
                 <executions>
                     <execution>
                         <id>tests</id>
@@ -241,27 +196,14 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.13</version>
-                <configuration>
-                    <skip>true</skip>
-                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
-                <version>2.2.1</version>
-                <executions>
-                    <execution>
-                        <id>attach-sources</id>
-                        <goals>
-                            <goal>jar</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
-                <version>2.4</version>
                 <configuration>
                     <appendAssemblyId>false</appendAssemblyId>
                     <outputDirectory>${project.build.directory}/releases/</outputDirectory>

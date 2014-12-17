@@ -15,7 +15,9 @@ public class RandomQueryGenerator {
         assertTrue("Must supply at least one string field", stringFields.size() > 0);
         assertTrue("Must supply at least one numeric field", numericFields.size() > 0);
 
-        if (depth == 0) {
+        // If depth is exhausted, or 50% of the time return a terminal
+        // Helps limit ridiculously large compound queries
+        if (depth == 0 || randomBoolean()) {
             return randomTerminalQuery(stringFields, numericFields, numDocs);
         }
 
@@ -38,7 +40,7 @@ public class RandomQueryGenerator {
     }
 
     private static QueryBuilder randomTerminalQuery(List<String> stringFields, List<String> numericFields, int numDocs) {
-        switch (randomIntBetween(0,4)) {
+        switch (randomIntBetween(0,6)) {
             case 0:
                 return randomTermQuery(stringFields, numDocs);
             case 1:
@@ -50,7 +52,9 @@ public class RandomQueryGenerator {
             case 4:
                 return randomCommonTermsQuery(stringFields, numDocs);
             case 5:
-                return randomFuzzyQuery(stringFields, numDocs);
+                return randomFuzzyQuery(stringFields);
+            case 6:
+                return randomIDsQuery();
             default:
                 return randomTermQuery(stringFields, numDocs);
         }
@@ -122,7 +126,7 @@ public class RandomQueryGenerator {
             qsBuilder.append(" ");
         }
 
-        return qsBuilder.toString();
+        return qsBuilder.toString().trim();
     }
 
     private static String randomField(List<String> fields) {
@@ -219,7 +223,7 @@ public class RandomQueryGenerator {
         return q;
     }
 
-    private static QueryBuilder randomFuzzyQuery(List<String> fields, int numDocs) {
+    private static QueryBuilder randomFuzzyQuery(List<String> fields) {
 
         QueryBuilder q = QueryBuilders.fuzzyQuery(randomField(fields), randomQueryString(1));
 
@@ -282,6 +286,21 @@ public class RandomQueryGenerator {
 
         if (randomBoolean()) {
             ((DisMaxQueryBuilder)q).tieBreaker(randomFloat());
+        }
+
+        return q;
+    }
+
+    private static QueryBuilder randomIDsQuery() {
+        QueryBuilder q =  QueryBuilders.idsQuery();
+
+        int numIDs = randomInt(100);
+        for (int i = 0; i < numIDs; i++) {
+            ((IdsQueryBuilder)q).addIds(English.longToEnglish(randomLong()));
+        }
+
+        if (randomBoolean()) {
+            ((IdsQueryBuilder)q).boost(randomFloat());
         }
 
         return q;

@@ -324,7 +324,7 @@ running snapshot was executed by mistake or takes unusually long, it can be term
 The snapshot delete operation checks if deleted snapshot is currently running and if it does, the delete operation stops
 such snapshot before deleting the snapshot data from the repository.
 
-The restore operation is using standard shard recovery mechanism. Therefore, any currently running restore operation can
+The restore operation is using the standard shard recovery mechanism. Therefore, any currently running restore operation can
 be canceled by deleting indices that are being restored. Please note that data for all deleted indices will be removed
 from the cluster as a result of this operation.
 

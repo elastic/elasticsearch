@@ -91,7 +91,7 @@ public class MultiOrdinals extends Ordinals {
     }
 
     @Override
-    public Iterable<? extends Accountable> getChildResources() {
+    public Iterable<Accountable> getChildResources() {
         List<Accountable> resources = new ArrayList<>();
         resources.add(Accountables.namedAccountable("offsets", endOffsets));
         resources.add(Accountables.namedAccountable("ordinals", ords));

@@ -57,7 +57,7 @@ public class NumericDVIndexFieldData extends DocValuesIndexFieldData implements 
             }
             
             @Override
-            public Iterable<? extends Accountable> getChildResources() {
+            public Iterable<Accountable> getChildResources() {
                 return Collections.emptyList();
             }
         };

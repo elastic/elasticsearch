@@ -218,7 +218,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
         }
 
         @Override
-        public Iterable<? extends Accountable> getChildResources() {
+        public Iterable<Accountable> getChildResources() {
             List<Accountable> resources = new ArrayList<>();
             if (lookupFactory != null) {
                 resources.add(Accountables.namedAccountable("lookup", lookupFactory));

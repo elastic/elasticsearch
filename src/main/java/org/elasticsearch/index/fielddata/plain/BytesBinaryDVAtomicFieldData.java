@@ -48,7 +48,7 @@ final class BytesBinaryDVAtomicFieldData implements AtomicFieldData {
     }
 
     @Override
-    public Iterable<? extends Accountable> getChildResources() {
+    public Iterable<Accountable> getChildResources() {
         return Collections.emptyList();
     }
 

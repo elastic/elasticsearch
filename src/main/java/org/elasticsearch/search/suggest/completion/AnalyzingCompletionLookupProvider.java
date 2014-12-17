@@ -300,7 +300,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
             }
 
             @Override
-            public Iterable<? extends Accountable> getChildResources() {
+            public Iterable<Accountable> getChildResources() {
                 return Accountables.namedAccountables("field", lookupMap);
             }
         };
@@ -360,7 +360,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
         }
 
         @Override
-        public Iterable<? extends Accountable> getChildResources() {
+        public Iterable<Accountable> getChildResources() {
             if (fst != null) {
                 return Collections.singleton(Accountables.namedAccountable("fst", fst));
             } else {

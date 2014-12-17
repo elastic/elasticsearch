@@ -59,7 +59,7 @@ public class PagedBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
     }
 
     @Override
-    public Iterable<? extends Accountable> getChildResources() {
+    public Iterable<Accountable> getChildResources() {
         List<Accountable> resources = new ArrayList<>();
         resources.add(Accountables.namedAccountable("ordinals", ordinals));
         resources.add(Accountables.namedAccountable("term bytes", bytes));

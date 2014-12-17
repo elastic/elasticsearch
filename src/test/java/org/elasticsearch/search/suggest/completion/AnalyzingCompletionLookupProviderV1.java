@@ -289,7 +289,7 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
             }
 
             @Override
-            public Iterable<? extends Accountable> getChildResources() {
+            public Iterable<Accountable> getChildResources() {
                 return Accountables.namedAccountables("field", lookupMap);
             }
         };

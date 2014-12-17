@@ -108,7 +108,7 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                     }
                     
                     @Override
-                    public Iterable<? extends Accountable> getChildResources() {
+                    public Iterable<Accountable> getChildResources() {
                         List<Accountable> resources = new ArrayList<>();
                         resources.add(Accountables.namedAccountable("ordinals", build));
                         resources.add(Accountables.namedAccountable("values", finalValues));
@@ -134,7 +134,7 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                         }
                         
                         @Override
-                        public Iterable<? extends Accountable> getChildResources() {
+                        public Iterable<Accountable> getChildResources() {
                             List<Accountable> resources = new ArrayList<>();
                             resources.add(Accountables.namedAccountable("ordinals", build));
                             resources.add(Accountables.namedAccountable("values", finalValues));
@@ -163,7 +163,7 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                     }
                     
                     @Override
-                    public Iterable<? extends Accountable> getChildResources() {
+                    public Iterable<Accountable> getChildResources() {
                         List<Accountable> resources = new ArrayList<>();
                         resources.add(Accountables.namedAccountable("values", sValues));
                         resources.add(Accountables.namedAccountable("missing bitset", set));

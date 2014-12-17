@@ -46,7 +46,7 @@ abstract class AbstractArray implements BigArray {
     protected abstract void doClose();
 
     @Override
-    public Iterable<? extends Accountable> getChildResources() {
+    public Iterable<Accountable> getChildResources() {
         return Collections.emptyList();
     }
 }

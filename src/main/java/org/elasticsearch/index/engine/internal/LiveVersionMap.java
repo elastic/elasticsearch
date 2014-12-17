@@ -251,7 +251,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
     }
 
     @Override
-    public Iterable<? extends Accountable> getChildResources() {
+    public Iterable<Accountable> getChildResources() {
         // TODO: useful to break down RAM usage here?
         return Collections.emptyList();
     }

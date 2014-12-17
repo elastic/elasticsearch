@@ -68,7 +68,7 @@ public abstract class GeoPointCompressedAtomicFieldData extends AbstractAtomicGe
         }
 
         @Override
-        public Iterable<? extends Accountable> getChildResources() {
+        public Iterable<Accountable> getChildResources() {
             List<Accountable> resources = new ArrayList<>();
             resources.add(Accountables.namedAccountable("latitude", lat));
             resources.add(Accountables.namedAccountable("longitude", lon));
@@ -142,7 +142,7 @@ public abstract class GeoPointCompressedAtomicFieldData extends AbstractAtomicGe
         }
         
         @Override
-        public Iterable<? extends Accountable> getChildResources() {
+        public Iterable<Accountable> getChildResources() {
             List<Accountable> resources = new ArrayList<>();
             resources.add(Accountables.namedAccountable("latitude", lat));
             resources.add(Accountables.namedAccountable("longitude", lon));

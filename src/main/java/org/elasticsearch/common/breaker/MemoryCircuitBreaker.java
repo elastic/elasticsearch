@@ -186,7 +186,7 @@ public class MemoryCircuitBreaker implements CircuitBreaker {
     /**
      * @return the name of the breaker
      */
-    public Name getName() {
-        return Name.FIELDDATA;
+    public String getName() {
+        return FIELDDATA;
     }
 }

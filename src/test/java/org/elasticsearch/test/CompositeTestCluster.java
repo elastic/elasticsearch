@@ -242,7 +242,7 @@ public class CompositeTestCluster extends TestCluster {
                     .clear().setBreaker(true).execute().actionGet();
             for (NodeStats stats : nodeStats.getNodes()) {
                 assertThat("Fielddata breaker not reset to 0 on node: " + stats.getNode(),
-                        stats.getBreaker().getStats(CircuitBreaker.Name.FIELDDATA).getEstimated(), equalTo(0L));
+                        stats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(), equalTo(0L));
             }
             // CompositeTestCluster does not check the request breaker,
             // because checking it requires a network request, which in

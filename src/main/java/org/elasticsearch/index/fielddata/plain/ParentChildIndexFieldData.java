@@ -102,7 +102,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
                 new ParentChildIntersectTermsEnum(reader, UidFieldMapper.NAME, ParentFieldMapper.NAME),
                 parentTypes
         );
-        ParentChildEstimator estimator = new ParentChildEstimator(breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA), termsEnum);
+        ParentChildEstimator estimator = new ParentChildEstimator(breakerService.getBreaker(CircuitBreaker.FIELDDATA), termsEnum);
         TermsEnum estimatedTermsEnum = estimator.beforeLoad(null);
         ObjectObjectOpenHashMap<String, TypeBuilder> typeBuilders = ObjectObjectOpenHashMap.newInstance();
         try {
@@ -338,7 +338,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
             }
         }
 
-        breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA).addWithoutBreaking(ramBytesUsed);
+        breakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(ramBytesUsed);
         if (logger.isDebugEnabled()) {
             logger.debug(
                     "Global-ordinals[_parent] took {}",

@@ -94,10 +94,10 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
     private boolean noopBreakerUsed() {
         NodesStatsResponse stats = client().admin().cluster().prepareNodesStats().setBreaker(true).get();
         for (NodeStats nodeStats : stats) {
-            if (nodeStats.getBreaker().getStats(CircuitBreaker.Name.REQUEST).getLimit() == 0) {
+            if (nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST).getLimit() == 0) {
                 return true;
             }
-            if (nodeStats.getBreaker().getStats(CircuitBreaker.Name.FIELDDATA).getLimit() == 0) {
+            if (nodeStats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getLimit() == 0) {
                 return true;
             }
         }
@@ -144,7 +144,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
         NodesStatsResponse stats = client.admin().cluster().prepareNodesStats().setBreaker(true).get();
         int breaks = 0;
         for (NodeStats stat : stats.getNodes()) {
-            CircuitBreakerStats breakerStats = stat.getBreaker().getStats(CircuitBreaker.Name.FIELDDATA);
+            CircuitBreakerStats breakerStats = stat.getBreaker().getStats(CircuitBreaker.FIELDDATA);
             breaks += breakerStats.getTrippedCount();
         }
         assertThat(breaks, greaterThanOrEqualTo(1));
@@ -194,7 +194,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
         NodesStatsResponse stats = client.admin().cluster().prepareNodesStats().setBreaker(true).get();
         int breaks = 0;
         for (NodeStats stat : stats.getNodes()) {
-            CircuitBreakerStats breakerStats = stat.getBreaker().getStats(CircuitBreaker.Name.FIELDDATA);
+            CircuitBreakerStats breakerStats = stat.getBreaker().getStats(CircuitBreaker.FIELDDATA);
             breaks += breakerStats.getTrippedCount();
         }
         assertThat(breaks, greaterThanOrEqualTo(1));
@@ -223,7 +223,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
 
         // We need the request limit beforehand, just from a single node because the limit should always be the same
         long beforeReqLimit = client.admin().cluster().prepareNodesStats().setBreaker(true).get()
-                .getNodes()[0].getBreaker().getStats(CircuitBreaker.Name.REQUEST).getLimit();
+                .getNodes()[0].getBreaker().getStats(CircuitBreaker.REQUEST).getLimit();
 
         Settings resetSettings = settingsBuilder()
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, "10b")
@@ -308,7 +308,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
                         .clear().setBreaker(true).get(new TimeValue(15, TimeUnit.SECONDS));
                 for (NodeStats nStats : resp.getNodes()) {
                     assertThat("fielddata breaker never reset back to 0",
-                            nStats.getBreaker().getStats(CircuitBreaker.Name.FIELDDATA).getEstimated(),
+                            nStats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(),
                             equalTo(0L));
                 }
             }

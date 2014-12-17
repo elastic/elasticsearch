@@ -83,7 +83,7 @@ public class GeoPointCompressedIndexFieldData extends AbstractIndexGeoPointField
         Terms terms = reader.terms(getFieldNames().indexName());
         AtomicGeoPointFieldData data = null;
         // TODO: Use an actual estimator to estimate before loading.
-        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA));
+        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker(CircuitBreaker.FIELDDATA));
         if (terms == null) {
             data = AbstractAtomicGeoPointFieldData.empty(reader.maxDoc());
             estimator.afterLoad(null, data.ramBytesUsed());

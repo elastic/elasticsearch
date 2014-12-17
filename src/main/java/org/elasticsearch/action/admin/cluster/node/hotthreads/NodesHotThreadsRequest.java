@@ -96,7 +96,8 @@ public class NodesHotThreadsRequest extends NodesOperationRequest<NodesHotThread
         super.readFrom(in);
         threads = in.readInt();
         if (in.getVersion().before(Version.V_1_5_0)) {
-            ignoreIdleThreads = true;
+            // Pre-1.5.0 did not filter hot threads, so we shouldn't:
+            ignoreIdleThreads = false;
         } else {
             ignoreIdleThreads = in.readBoolean();
         }

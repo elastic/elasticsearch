@@ -53,7 +53,7 @@ public class ParentChildAtomicFieldData extends AbstractAtomicParentChildFieldDa
     }
 
     @Override
-    public Iterable<? extends Accountable> getChildResources() {
+    public Iterable<Accountable> getChildResources() {
         // TODO: should we break down by type?
         // the current 'map' does not impl java.util.Map so we cant use Accountables.namedAccountables...
         return Collections.emptyList();

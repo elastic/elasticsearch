@@ -333,7 +333,7 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public Iterable<? extends Accountable> getChildResources() {
+        public Iterable<Accountable> getChildResources() {
             return Collections.singleton(Accountables.namedAccountable("delegate", in));
         }
     }
@@ -378,7 +378,7 @@ public class MockBigArrays extends BigArrays {
         }
         
         @Override
-        public Iterable<? extends Accountable> getChildResources() {
+        public Iterable<Accountable> getChildResources() {
             return Collections.singleton(Accountables.namedAccountable("delegate", in));
         }
     }
@@ -423,7 +423,7 @@ public class MockBigArrays extends BigArrays {
         }
         
         @Override
-        public Iterable<? extends Accountable> getChildResources() {
+        public Iterable<Accountable> getChildResources() {
             return Collections.singleton(Accountables.namedAccountable("delegate", in));
         }
 
@@ -469,7 +469,7 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public Iterable<? extends Accountable> getChildResources() {
+        public Iterable<Accountable> getChildResources() {
             return Collections.singleton(Accountables.namedAccountable("delegate", in));
         }
     }
@@ -514,7 +514,7 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public Iterable<? extends Accountable> getChildResources() {
+        public Iterable<Accountable> getChildResources() {
             return Collections.singleton(Accountables.namedAccountable("delegate", in));
         }
     }
@@ -549,7 +549,7 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public Iterable<? extends Accountable> getChildResources() {
+        public Iterable<Accountable> getChildResources() {
             return Collections.singleton(Accountables.namedAccountable("delegate", in));
         }
     }

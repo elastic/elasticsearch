@@ -284,7 +284,7 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
         }
 
         @Override
-        public Iterable<? extends Accountable> getChildResources() {
+        public Iterable<Accountable> getChildResources() {
             // TODO: more detailed ram usage?
             return Collections.emptyList();
         }

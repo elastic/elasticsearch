@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.NodesOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,6 +36,7 @@ public class NodesHotThreadsRequest extends NodesOperationRequest<NodesHotThread
     String type = "cpu";
     TimeValue interval = new TimeValue(500, TimeUnit.MILLISECONDS);
     int snapshots = 10;
+    boolean ignoreIdleThreads = true;
 
     /**
      * Get hot threads from nodes based on the nodes ids specified. If none are passed, hot
@@ -50,6 +52,15 @@ public class NodesHotThreadsRequest extends NodesOperationRequest<NodesHotThread
 
     public NodesHotThreadsRequest threads(int threads) {
         this.threads = threads;
+        return this;
+    }
+
+    public boolean ignoreIdleThreads() {
+        return this.ignoreIdleThreads;
+    }
+
+    public NodesHotThreadsRequest ignoreIdleThreads(boolean ignoreIdleThreads) {
+        this.ignoreIdleThreads = ignoreIdleThreads;
         return this;
     }
 
@@ -84,6 +95,12 @@ public class NodesHotThreadsRequest extends NodesOperationRequest<NodesHotThread
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         threads = in.readInt();
+        if (in.getVersion().before(Version.V_1_5_0)) {
+            // Pre-1.5.0 did not filter hot threads, so we shouldn't:
+            ignoreIdleThreads = false;
+        } else {
+            ignoreIdleThreads = in.readBoolean();
+        }
         type = in.readString();
         interval = TimeValue.readTimeValue(in);
         snapshots = in.readInt();
@@ -93,6 +110,9 @@ public class NodesHotThreadsRequest extends NodesOperationRequest<NodesHotThread
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeInt(threads);
+        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+            out.writeBoolean(ignoreIdleThreads);
+        }
         out.writeString(type);
         interval.writeTo(out);
         out.writeInt(snapshots);

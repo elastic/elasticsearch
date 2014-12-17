@@ -277,7 +277,6 @@ public final class InternalTestCluster extends TestCluster {
         builder.put("script.disable_dynamic", false);
         builder.put("http.pipelining", enableHttpPipelining);
         builder.put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false);
-        builder.put(NodeEnvironment.SETTING_CUSTOM_DATA_PATH_ENABLED, true);
         if (Strings.hasLength(System.getProperty("es.logger.level"))) {
             builder.put("logger.level", System.getProperty("es.logger.level"));
         }

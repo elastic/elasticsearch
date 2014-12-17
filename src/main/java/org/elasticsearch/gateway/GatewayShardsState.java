@@ -26,28 +26,18 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.*;
+import java.nio.file.*;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -66,8 +56,7 @@ public class GatewayShardsState extends AbstractComponent implements ClusterStat
     private volatile Map<ShardId, ShardStateInfo> currentState = Maps.newHashMap();
 
     @Inject
-    public GatewayShardsState(Settings settings, NodeEnvironment nodeEnv,
-                              TransportNodesListGatewayStartedShards listGatewayStartedShards) throws Exception {
+    public GatewayShardsState(Settings settings, NodeEnvironment nodeEnv, TransportNodesListGatewayStartedShards listGatewayStartedShards) throws Exception {
         super(settings);
         this.nodeEnv = nodeEnv;
         if (listGatewayStartedShards != null) { // for testing
@@ -77,7 +66,7 @@ public class GatewayShardsState extends AbstractComponent implements ClusterStat
             try {
                 ensureNoPre019State();
                 long start = System.currentTimeMillis();
-                currentState = loadShardsStateInfo(ImmutableSettings.EMPTY);
+                currentState = loadShardsStateInfo();
                 logger.debug("took {} to load started shards state", TimeValue.timeValueMillis(System.currentTimeMillis() - start));
             } catch (Exception e) {
                 logger.error("failed to read local state (started shards), exiting...", e);
@@ -86,8 +75,8 @@ public class GatewayShardsState extends AbstractComponent implements ClusterStat
         }
     }
 
-    public ShardStateInfo loadShardInfo(ShardId shardId, @IndexSettings Settings indexSettings) throws Exception {
-        return loadShardStateInfo(shardId, indexSettings);
+    public ShardStateInfo loadShardInfo(ShardId shardId) throws Exception {
+        return loadShardStateInfo(shardId);
     }
 
     @Override
@@ -100,7 +89,7 @@ public class GatewayShardsState extends AbstractComponent implements ClusterStat
             RoutingNode routingNode = state.readOnlyRoutingNodes().node(state.nodes().localNodeId());
             final Map<ShardId, ShardStateInfo> newState;
             if (routingNode != null) {
-               newState = persistRoutingNodeState(routingNode, event.state());
+               newState = persistRoutingNodeState(routingNode);
             } else {
                newState = Maps.newHashMap();
             }
@@ -129,15 +118,14 @@ public class GatewayShardsState extends AbstractComponent implements ClusterStat
         }
     }
 
-    Map<ShardId, ShardStateInfo> persistRoutingNodeState(RoutingNode routingNode, ClusterState clusterState) {
+    Map<ShardId, ShardStateInfo> persistRoutingNodeState(RoutingNode routingNode) {
         final Map<ShardId, ShardStateInfo> newState = Maps.newHashMap();
         for (MutableShardRouting shardRouting : routingNode) {
             if (shardRouting.active()) {
                 ShardId shardId = shardRouting.shardId();
                 ShardStateInfo shardStateInfo = new ShardStateInfo(shardRouting.version(), shardRouting.primary());
                 final ShardStateInfo previous = currentState.get(shardId);
-                Settings indexSettings = clusterState.getMetaData().indices().get(shardId.getIndex()).settings();
-                if (maybeWriteShardState(shardId, shardStateInfo, previous, indexSettings)) {
+                if(maybeWriteShardState(shardId, shardStateInfo, previous) ) {
                     newState.put(shardId, shardStateInfo);
                 } else if (previous != null) {
                     currentState.put(shardId, previous);
@@ -151,23 +139,20 @@ public class GatewayShardsState extends AbstractComponent implements ClusterStat
         return currentState;
     }
 
-    boolean maybeWriteShardState(ShardId shardId, ShardStateInfo shardStateInfo, ShardStateInfo previousState,
-                                 @IndexSettings Settings indexSettings) {
+    boolean maybeWriteShardState(ShardId shardId, ShardStateInfo shardStateInfo, ShardStateInfo previousState) {
         final String writeReason;
         if (previousState == null) {
             writeReason = "freshly started, version [" + shardStateInfo.version + "]";
         } else if (previousState.version < shardStateInfo.version) {
             writeReason = "version changed from [" + previousState.version + "] to [" + shardStateInfo.version + "]";
         } else {
-            logger.trace("skip writing shard state - has been written before shardID: " + shardId + " previous version:  [" +
-                    previousState.version + "] current version [" + shardStateInfo.version + "]");
-            assert previousState.version <= shardStateInfo.version : "version should not go backwards for shardID: " + shardId +
-                    " previous version:  [" + previousState.version + "] current version [" + shardStateInfo.version + "]";
+            logger.trace("skip writing shard state - has been written before shardID: " + shardId + " previous version:  [" + previousState.version + "] current version [" + shardStateInfo.version + "]");
+            assert previousState.version <= shardStateInfo.version : "version should not go backwards for shardID: " + shardId + " previous version:  [" + previousState.version + "] current version [" + shardStateInfo.version + "]";
             return previousState.version == shardStateInfo.version;
         }
 
         try {
-            writeShardState(writeReason, shardId, shardStateInfo, previousState, indexSettings);
+            writeShardState(writeReason, shardId, shardStateInfo, previousState);
         } catch (Exception e) {
             logger.warn("failed to write shard state for shard " + shardId, e);
             // we failed to write the shard state, we will try and write
@@ -177,12 +162,12 @@ public class GatewayShardsState extends AbstractComponent implements ClusterStat
     }
 
 
-    private Map<ShardId, ShardStateInfo> loadShardsStateInfo(@IndexSettings Settings indexSettings) throws Exception {
+    private Map<ShardId, ShardStateInfo> loadShardsStateInfo() throws Exception {
         Set<ShardId> shardIds = nodeEnv.findAllShardIds();
         long highestVersion = -1;
         Map<ShardId, ShardStateInfo> shardsState = Maps.newHashMap();
         for (ShardId shardId : shardIds) {
-            ShardStateInfo shardStateInfo = loadShardStateInfo(shardId, indexSettings);
+            ShardStateInfo shardStateInfo = loadShardStateInfo(shardId);
             if (shardStateInfo == null) {
                 continue;
             }
@@ -196,18 +181,14 @@ public class GatewayShardsState extends AbstractComponent implements ClusterStat
         return shardsState;
     }
 
-    private ShardStateInfo loadShardStateInfo(ShardId shardId, @IndexSettings Settings indexSettings) throws IOException {
-        return MetaDataStateFormat.loadLatestState(logger, newShardStateInfoFormat(false), SHARD_STATE_FILE_PATTERN,
-                shardId.toString(), nodeEnv.shardPaths(shardId, indexSettings));
+    private ShardStateInfo loadShardStateInfo(ShardId shardId) throws IOException {
+        return MetaDataStateFormat.loadLatestState(logger, newShardStateInfoFormat(false), SHARD_STATE_FILE_PATTERN, shardId.toString(), nodeEnv.shardPaths(shardId));
     }
 
-    private void writeShardState(String reason, ShardId shardId, ShardStateInfo shardStateInfo,
-                                 @Nullable ShardStateInfo previousStateInfo, @IndexSettings Settings indexSettings) throws Exception {
+    private void writeShardState(String reason, ShardId shardId, ShardStateInfo shardStateInfo, @Nullable ShardStateInfo previousStateInfo) throws Exception {
         logger.trace("{} writing shard state, reason [{}]", shardId, reason);
         final boolean deleteOldFiles = previousStateInfo != null && previousStateInfo.version != shardStateInfo.version;
-        MetaDataStateFormat<ShardStateInfo> stateFormat = newShardStateInfoFormat(deleteOldFiles);
-        stateFormat.write(shardStateInfo, SHARD_STATE_FILE_PREFIX, shardStateInfo.version,
-                nodeEnv.shardPaths(shardId, indexSettings));
+        newShardStateInfoFormat(deleteOldFiles).write(shardStateInfo, SHARD_STATE_FILE_PREFIX, shardStateInfo.version, nodeEnv.shardPaths(shardId));
     }
 
     private MetaDataStateFormat<ShardStateInfo> newShardStateInfoFormat(boolean deleteOldFiles) {

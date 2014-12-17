@@ -296,7 +296,7 @@ public class RandomQueryGenerator {
 
         int numIDs = randomInt(100);
         for (int i = 0; i < numIDs; i++) {
-            ((IdsQueryBuilder)q).addIds(English.longToEnglish(randomLong()));
+            ((IdsQueryBuilder)q).addIds(String.valueOf(randomInt()));
         }
 
         if (randomBoolean()) {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.profile;
 
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 
@@ -75,6 +76,52 @@ public class ProfileQueryTests extends ElasticsearchIntegrationTest {
 
             SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
             assertNotNull("Profile response element should not be null", resp.getProfile());
+
+        }
+    }
+
+    @Test
+    /**
+     * This test simply checks to make sure nothing crashes.  Unsure how best to validate the Profile response...
+     */
+    public void testProfileMatchesRegular() throws Exception {
+        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder().put(indexSettings());
+        createIndex("test");
+        ensureGreen();
+
+        int numDocs = randomIntBetween(100, 150);
+        IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
+                    "field1", English.intToEnglish(i),
+                    "field2", i
+            );
+        }
+
+        List<String> stringFields = Arrays.asList("field1");
+        List<String> numericFields = Arrays.asList("field2");
+
+        indexRandom(true, docs);
+
+        refresh();
+        int iters = between(1, 10);
+        for (int i = 0; i < iters; i++) {
+            QueryBuilder q = randomQueryBuilder(stringFields, numericFields, numDocs, 3);
+            logger.info(q.toString());
+
+            SearchResponse vanilla = client().prepareSearch().setQuery(q).setProfile(false).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
+            SearchResponse profile = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
+
+            assertTrue("Profile maxScore of [" + profile.getHits().getMaxScore() + "] does not match Vanilla maxScore [" + vanilla.getHits().getMaxScore() + "]", vanilla.getHits().getMaxScore() == profile.getHits().getMaxScore());
+            assertTrue("Profile totalHits of [" + profile.getHits().totalHits() + "] does not match Vanilla totalHist [" + vanilla.getHits().totalHits() + "]", Float.compare(vanilla.getHits().getTotalHits(), profile.getHits().getTotalHits()) == 0);
+
+            SearchHit[] vanillaHits = vanilla.getHits().getHits();
+            SearchHit[] profileHits = profile.getHits().getHits();
+
+            for (int j = 0; j < vanillaHits.length; j++) {
+                assertTrue("Profile hit #" + j + " has a different ID from Vanilla", vanillaHits[j].getId().equals(profileHits[j].getId()));
+                assertTrue("Profile hit #" + j + " has a different score from Vanilla", Float.compare(vanillaHits[j].getScore(),profileHits[j].getScore()) == 0);
+            }
 
         }
     }
@@ -214,6 +261,35 @@ public class ProfileQueryTests extends ElasticsearchIntegrationTest {
         SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
         assertNotNull("Profile response element should not be null", resp.getProfile());
 
+
+    }
+
+    @Test
+    public void testDisMaxRange() throws Exception {
+        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder().put(indexSettings());
+        createIndex("test");
+        ensureGreen();
+
+        int numDocs = randomIntBetween(100, 150);
+        IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
+                    "field1", English.intToEnglish(i),
+                    "field2", i
+            );
+        }
+
+        indexRandom(true, docs);
+
+        refresh();
+
+        QueryBuilder q = QueryBuilders.disMaxQuery()
+                .boost(0.33703882f)
+                .add(QueryBuilders.rangeQuery("field2").from(null).to(73).includeLower(true).includeUpper(true));
+        logger.info(q.toString());
+
+        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
+        assertNotNull("Profile response element should not be null", resp.getProfile());
 
     }
 

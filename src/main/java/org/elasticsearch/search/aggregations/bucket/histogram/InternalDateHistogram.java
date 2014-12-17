@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;

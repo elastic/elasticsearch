@@ -76,6 +76,8 @@ import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsBuilder;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountBuilder;
+import org.elasticsearch.search.aggregations.transformer.derivative.Derivative;
+import org.elasticsearch.search.aggregations.transformer.derivative.DerivativeBuilder;
 
 /**
  * Utility class to create aggregations.
@@ -286,5 +288,12 @@ public class AggregationBuilders {
      */
     public static ScriptedMetricBuilder scriptedMetric(String name) {
         return new ScriptedMetricBuilder(name);
+    }
+
+    /**
+     * Create a new {@link Derivative} transformer with the given name.
+     */
+    public static DerivativeBuilder derivative(String name) {
+        return new DerivativeBuilder(name);
     }
 }

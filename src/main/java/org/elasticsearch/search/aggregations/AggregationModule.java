@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.SpawnModules;
@@ -54,6 +55,7 @@ import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStat
 import org.elasticsearch.search.aggregations.metrics.sum.SumParser;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsParser;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountParser;
+import org.elasticsearch.search.aggregations.transformer.derivative.DerivativeParser;
 
 import java.util.List;
 
@@ -95,6 +97,8 @@ public class AggregationModule extends AbstractModule implements SpawnModules{
         parsers.add(GeoBoundsParser.class);
         parsers.add(ScriptedMetricParser.class);
         parsers.add(ChildrenParser.class);
+
+        parsers.add(DerivativeParser.class);
     }
 
     /**

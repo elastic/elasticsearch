@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.ImmutableList;
+
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.SpawnModules;
@@ -57,6 +58,7 @@ import org.elasticsearch.search.aggregations.metrics.stats.extended.InternalExte
 import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.tophits.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.valuecount.InternalValueCount;
+import org.elasticsearch.search.aggregations.transformer.derivative.InternalDerivative;
 
 /**
  * A module that registers all the transport streams for the addAggregation
@@ -89,7 +91,7 @@ public class TransportAggregationModule extends AbstractModule implements SpawnM
         SignificantStringTerms.registerStreams();
         SignificantLongTerms.registerStreams();
         UnmappedSignificantTerms.registerStreams();
-        InternalGeoHashGrid.registerStreams();                
+        InternalGeoHashGrid.registerStreams();
         DoubleTerms.registerStreams();
         UnmappedTerms.registerStreams();
         InternalRange.registerStream();
@@ -103,6 +105,9 @@ public class TransportAggregationModule extends AbstractModule implements SpawnM
         InternalTopHits.registerStreams();
         InternalGeoBounds.registerStream();
         InternalChildren.registerStream();
+
+        // transformers
+        InternalDerivative.registerStream();
     }
 
     @Override

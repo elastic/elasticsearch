@@ -93,15 +93,6 @@ public class ProfileQuery extends Query implements ProfileComponent {
         this.details = details;
     }
 
-    @Override
-    public void setBoost(float b) {
-        this.subQuery.setBoost(b);
-    }
-
-    public float getBoost() {
-        return this.subQuery.getBoost();
-    }
-
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
@@ -122,6 +113,7 @@ public class ProfileQuery extends Query implements ProfileComponent {
 
         ProfileQuery newProfile = new ProfileQuery(rewrittenQuery);
         newProfile.setTime(this.time());
+        newProfile.setBoost(getBoost());
         return newProfile;
     }
 
@@ -130,10 +122,16 @@ public class ProfileQuery extends Query implements ProfileComponent {
         subQuery.extractTerms(terms);
     }
 
+    /** Create a shallow copy of us -- used in rewriting if necessary
+     * @return a copy of us (but reuse, don't copy, our subqueries) */
     @Override
     public Query clone() {
-        return new ProfileQuery(subQuery.clone());
+        ProfileQuery p = (ProfileQuery)super.clone();
+        p.subQuery = this.subQuery;
+        p.setTime(time());
+        return p;
     }
+
 
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
@@ -290,7 +288,8 @@ public class ProfileQuery extends Query implements ProfileComponent {
         ProfileQuery other = (ProfileQuery) o;
         return this.className.equals(other.className)
                 && this.details.equals(other.details)
-                && this.subQuery.equals(other.subQuery);
+                && this.subQuery.equals(other.subQuery)
+                && Float.floatToIntBits(this.getBoost()) == Float.floatToIntBits(other.getBoost());
     }
 
     public int hashCode() {
@@ -298,8 +297,7 @@ public class ProfileQuery extends Query implements ProfileComponent {
         int result = prime * 19 + this.className.hashCode();
         result = prime * result + this.details.hashCode();
         result = prime * result + this.subQuery.hashCode();
+        result = prime * result + Float.floatToIntBits(getBoost());
         return result;
-
-        //return subQuery.hashCode() + 31 *  Float.floatToIntBits(getBoost());
     }
 }

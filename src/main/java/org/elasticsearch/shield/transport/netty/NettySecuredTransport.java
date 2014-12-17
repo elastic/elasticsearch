@@ -123,6 +123,7 @@ public class NettySecuredTransport extends NettyTransport {
 
                 sslEngine.setUseClientMode(true);
                 ctx.getPipeline().replace(this, "ssl", new SslHandler(sslEngine));
+                ctx.getPipeline().addAfter("ssl", "handshake", new HandshakeWaitingHandler());
 
                 ctx.sendDownstream(e);
             }

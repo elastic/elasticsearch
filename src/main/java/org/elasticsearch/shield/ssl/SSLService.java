@@ -6,11 +6,11 @@
 package org.elasticsearch.shield.ssl;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.shield.ShieldSettingsException;
 
 import javax.net.ssl.*;
@@ -27,7 +27,7 @@ public class SSLService extends AbstractComponent {
 
     static final String[] DEFAULT_CIPHERS = new String[]{ "TLS_RSA_WITH_AES_128_CBC_SHA256", "TLS_RSA_WITH_AES_128_CBC_SHA", "TLS_DHE_RSA_WITH_AES_128_CBC_SHA", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA" };
 
-    private Map<String, SSLContext> sslContexts = Maps.newHashMapWithExpectedSize(3);
+    private Map<String, SSLContext> sslContexts = ConcurrentCollections.newConcurrentMap();
 
     @Inject
     public SSLService(Settings settings) {

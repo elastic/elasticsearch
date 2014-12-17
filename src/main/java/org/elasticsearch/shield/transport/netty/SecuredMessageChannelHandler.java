@@ -10,7 +10,6 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.netty.channel.*;
-import org.elasticsearch.common.netty.handler.ssl.SslHandler;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,36 +30,6 @@ public class SecuredMessageChannelHandler extends MessageChannelHandler {
     public SecuredMessageChannelHandler(NettyTransport nettyTransport, String profileName, ESLogger logger) {
         super(nettyTransport, logger);
         this.profileName = profileName;
-    }
-
-    @Override
-    public void channelConnected(final ChannelHandlerContext ctx, final ChannelStateEvent e) throws Exception {
-        SslHandler sslHandler = ctx.getPipeline().get(SslHandler.class);
-
-        // Make sure handler is present and we are the client
-        if (sslHandler == null || !sslHandler.getEngine().getUseClientMode()) {
-            return;
-        }
-
-        final ChannelFuture handshakeFuture = sslHandler.handshake();
-
-        // Get notified when SSL handshake is done.
-        handshakeFuture.addListener(new ChannelFutureListener() {
-            @Override
-            public void operationComplete(ChannelFuture future) throws Exception {
-                if (future.isSuccess()) {
-                    logger.debug("SSL / TLS handshake completed for channel");
-                    ctx.sendUpstream(e);
-                } else {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("SSL / TLS handshake failed, closing channel: {}", future.getCause(), future.getCause().getMessage());
-                    } else {
-                        logger.error("SSL / TLS handshake failed, closing channel: {}", future.getCause().getMessage());
-                    }
-                    future.getChannel().close();
-                }
-            }
-        });
     }
 
     // TODO ADD PREPROCESSING

@@ -51,10 +51,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -168,7 +165,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         if (!storeType.contains("fs")) {
             return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
         }
-        Path[] shardLocations = nodeEnv.shardPaths(shardId, metaData.settings());
+        Path[] shardLocations = nodeEnv.shardPaths(shardId);
         Path[] shardIndexLocations = new Path[shardLocations.length];
         for (int i = 0; i < shardLocations.length; i++) {
             shardIndexLocations[i] = shardLocations[i].resolve("index");

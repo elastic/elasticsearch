@@ -26,7 +26,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -58,7 +57,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -66,7 +64,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
-import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.river.RiverIndexName;
@@ -104,13 +101,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final String riverIndexName;
     private final AliasValidator aliasValidator;
     private final IndexTemplateFilter indexTemplateFilter;
-    private final NodeEnvironment nodeEnv;
 
     @Inject
-    public MetaDataCreateIndexService(Settings settings, Environment environment, ThreadPool threadPool, ClusterService clusterService,
-                                      IndicesService indicesService, AllocationService allocationService, MetaDataService metaDataService,
-                                      Version version, @RiverIndexName String riverIndexName, AliasValidator aliasValidator,
-                                      Set<IndexTemplateFilter> indexTemplateFilters, NodeEnvironment nodeEnv) {
+    public MetaDataCreateIndexService(Settings settings, Environment environment, ThreadPool threadPool, ClusterService clusterService, IndicesService indicesService,
+                                      AllocationService allocationService, MetaDataService metaDataService, Version version, @RiverIndexName String riverIndexName,
+                                      AliasValidator aliasValidator, Set<IndexTemplateFilter> indexTemplateFilters) {
         super(settings);
         this.environment = environment;
         this.threadPool = threadPool;
@@ -121,7 +116,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.version = version;
         this.riverIndexName = riverIndexName;
         this.aliasValidator = aliasValidator;
-        this.nodeEnv = nodeEnv;
 
         if (indexTemplateFilters.isEmpty()) {
             this.indexTemplateFilter = DEFAULT_INDEX_TEMPLATE_FILTER;
@@ -560,11 +554,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws ElasticsearchException {
         validateIndexName(request.index(), state);
-        String customPath = request.settings().get(IndexMetaData.SETTING_DATA_PATH, null);
-        if (customPath != null && nodeEnv.isCustomPathsEnabled() == false) {
-            throw new IndexCreationException(new Index(request.index()),
-                    new ElasticsearchIllegalArgumentException("custom data_paths for indices is disabled"));
-        }
     }
 
     private static class DefaultIndexTemplateFilter implements IndexTemplateFilter {

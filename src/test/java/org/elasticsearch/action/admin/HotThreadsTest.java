@@ -40,6 +40,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  */
@@ -63,6 +64,7 @@ public class HotThreadsTest extends ElasticsearchIntegrationTest {
             if (randomBoolean()) {
                 nodesHotThreadsRequestBuilder.setThreads(rarely() ? randomIntBetween(500, 5000) : randomIntBetween(1, 500));
             }
+            nodesHotThreadsRequestBuilder.setIgnoreIdleThreads(randomBoolean());
             if (randomBoolean()) {
                 switch (randomIntBetween(0, 2)) {
                     case 2:
@@ -130,5 +132,35 @@ public class HotThreadsTest extends ElasticsearchIntegrationTest {
             latch.await();
             assertThat(hasErrors.get(), is(false));
         }
+    }
+
+    public void testIgnoreIdleThreads() throws ExecutionException, InterruptedException {
+
+        // First time, don't ignore idle threads:
+        NodesHotThreadsRequestBuilder builder = client().admin().cluster().prepareNodesHotThreads();
+        builder.setIgnoreIdleThreads(false);
+        builder.setThreads(Integer.MAX_VALUE);
+        NodesHotThreadsResponse response = builder.execute().get();
+
+        int totSizeAll = 0;
+        for (NodeHotThreads node : response.getNodesMap().values()) {
+            totSizeAll += node.getHotThreads().length();
+        }
+
+        // Second time, do ignore idle threads:
+        builder = client().admin().cluster().prepareNodesHotThreads();
+        builder.setThreads(Integer.MAX_VALUE);
+
+        // Make sure default is true:
+        assertEquals(true, builder.request().ignoreIdleThreads());
+        response = builder.execute().get();
+
+        int totSizeIgnoreIdle = 0;
+        for (NodeHotThreads node : response.getNodesMap().values()) {
+            totSizeIgnoreIdle += node.getHotThreads().length();
+        }
+
+        // The filtered stacks should be smaller than unfiltered ones:
+        assertThat(totSizeIgnoreIdle, lessThan(totSizeAll));
     }
 }

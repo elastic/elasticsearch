@@ -6,7 +6,8 @@
 .DS_Store
 *.iml
 /.project
-/.classpath
 /.settings
-.local-execution-hints.log
+/.classpath
 /plugin_tools
+/.local-execution-hints.log
+/.local-*-execution-hints.log

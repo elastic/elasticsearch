@@ -19,7 +19,7 @@ public class RandomQueryGenerator {
             return randomTerminalQuery(stringFields, numericFields, numDocs);
         }
 
-        switch (randomIntBetween(0,4)) {
+        switch (randomIntBetween(0,5)) {
             case 0:
                 return randomTerminalQuery(stringFields, numericFields, numDocs);
             case 1:
@@ -30,6 +30,8 @@ public class RandomQueryGenerator {
                 return randomBoostingQuery(stringFields, numericFields, numDocs, depth);
             case 4:
                 return randomConstantScoreQuery(stringFields, numericFields, numDocs, depth);
+            case 5:
+                return randomDisMaxQuery(stringFields, numericFields, numDocs, depth);
             default:
                 return randomTerminalQuery(stringFields, numericFields, numDocs);
         }
@@ -261,6 +263,25 @@ public class RandomQueryGenerator {
 
         if (randomBoolean()) {
             ((FuzzyQueryBuilder)q).transpositions(randomBoolean());
+        }
+
+        return q;
+    }
+
+    private static QueryBuilder randomDisMaxQuery(List<String> stringFields, List<String> numericFields, int numDocs, int depth) {
+        QueryBuilder q =  QueryBuilders.disMaxQuery();
+
+        int numClauses = randomIntBetween(1, 10);
+        for (int i = 0; i < numClauses; i++) {
+            ((DisMaxQueryBuilder)q).add(randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1));
+        }
+
+        if (randomBoolean()) {
+            ((DisMaxQueryBuilder)q).boost(randomFloat());
+        }
+
+        if (randomBoolean()) {
+            ((DisMaxQueryBuilder)q).tieBreaker(randomFloat());
         }
 
         return q;

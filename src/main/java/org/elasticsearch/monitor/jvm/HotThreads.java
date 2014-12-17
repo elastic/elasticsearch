@@ -40,6 +40,7 @@ public class HotThreads {
     private TimeValue threadElementsSnapshotDelay = new TimeValue(10);
     private int threadElementsSnapshotCount = 10;
     private String type = "cpu";
+    private boolean ignoreIdleThreads = true;
 
     public HotThreads interval(TimeValue interval) {
         this.interval = interval;
@@ -48,6 +49,11 @@ public class HotThreads {
 
     public HotThreads busiestThreads(int busiestThreads) {
         this.busiestThreads = busiestThreads;
+        return this;
+    }
+
+    public HotThreads ignoreIdleThreads(boolean ignoreIdleThreads) {
+        this.ignoreIdleThreads = ignoreIdleThreads;
         return this;
     }
 
@@ -74,6 +80,44 @@ public class HotThreads {
         synchronized (mutex) {
             return innerDetect();
         }
+    }
+
+    private static boolean isIdleThread(ThreadInfo threadInfo) {
+        String threadName = threadInfo.getThreadName();
+
+        // NOTE: these are likely JVM dependent
+        if (threadName.equals("Signal Dispatcher") ||
+            threadName.equals("Finalizer") ||
+            threadName.equals("Reference Handler")) {
+            return true;
+        }
+            
+        for (StackTraceElement frame : threadInfo.getStackTrace()) {
+            String className = frame.getClassName();
+            String methodName = frame.getMethodName();
+            if (className.equals("java.util.concurrent.ThreadPoolExecutor") &&
+                methodName.equals("getTask")) {
+                return true;
+            }
+            if (className.equals("sun.nio.ch.SelectorImpl") &&
+                methodName.equals("select")) {
+                return true;
+            }
+            if (className.equals("org.elasticsearch.threadpool.ThreadPool$EstimatedTimeThread") &&
+                methodName.equals("run")) {
+                return true;
+            }
+            if (className.equals("org.elasticsearch.indices.ttl.IndicesTTLService$Notifier") &&
+                methodName.equals("await")) {
+                return true;
+            }
+            if (className.equals("java.util.concurrent.LinkedTransferQueue") &&
+                methodName.equals("poll")) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private String innerDetect() throws Exception {
@@ -168,18 +212,18 @@ public class HotThreads {
                     time = hotties.get(t).blockedTime;
                 }
                 String threadName = null;
-                if (allInfos[0][t] == null) {
-                    for (ThreadInfo[] info : allInfos) {
-                        if (info != null && info[t] != null) {
-                            threadName = info[t].getThreadName();
-                            break;
+                for (ThreadInfo[] info : allInfos) {
+                    if (info != null && info[t] != null) {
+                        if (ignoreIdleThreads && isIdleThread(info[t])) {
+                            info[t] = null;
+                            continue;
                         }
+                        threadName = info[t].getThreadName();
+                        break;
                     }
-                    if (threadName == null) {
-                        continue; // thread is not alive yet or died before the first snapshot - ignore it!
-                    }
-                } else {
-                    threadName = allInfos[0][t].getThreadName();
+                }
+                if (threadName == null) {
+                    continue; // thread is not alive yet or died before the first snapshot - ignore it!
                 }
                 double percent = (((double) time) / interval.nanos()) * 100;
                 sb.append(String.format(Locale.ROOT, "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n", percent, TimeValue.timeValueNanos(time), interval, type, threadName));

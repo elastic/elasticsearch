@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.ldap.ConnectionFactory;
-import org.elasticsearch.shield.authc.support.ldap.LdapSslSocketFactory;
+import org.elasticsearch.shield.authc.support.ldap.AbstractLdapSslSocketFactory;
 
 import javax.naming.Context;
 import javax.naming.NamingException;
@@ -63,7 +63,7 @@ public class LdapConnectionFactory extends ConnectionFactory {
                 .put(JNDI_LDAP_CONNECT_TIMEOUT, Long.toString(settings.getAsTime(TIMEOUT_TCP_CONNECTION_SETTING, TIMEOUT_DEFAULT).millis()))
                 .put(Context.REFERRAL, "follow");
 
-        LdapSslSocketFactory.configureJndiSSL(ldapUrls, builder);
+        configureJndiSSL(ldapUrls, builder);
 
         sharedLdapEnv = builder.build();
         groupSearchDN = settings.get(GROUP_SEARCH_BASEDN_SETTING);

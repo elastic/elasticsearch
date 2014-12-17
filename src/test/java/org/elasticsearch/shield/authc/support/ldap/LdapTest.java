@@ -46,12 +46,21 @@ public abstract class LdapTest extends ElasticsearchTestCase {
         return buildLdapSettings( new String[]{ldapUrl}, new String[]{userTemplate}, groupSearchBase, isSubTreeSearch );
     }
 
+    public static Settings buildLdapSettings(String ldapUrl, String userTemplate, String groupSearchBase, boolean isSubTreeSearch, boolean hostnameVerification) {
+        return buildLdapSettings( new String[]{ldapUrl}, new String[]{userTemplate}, groupSearchBase, isSubTreeSearch, hostnameVerification );
+    }
+
     public static Settings buildLdapSettings(String[] ldapUrl, String[] userTemplate, String groupSearchBase, boolean isSubTreeSearch) {
+        return buildLdapSettings(ldapUrl, userTemplate, groupSearchBase, isSubTreeSearch, true);
+    }
+
+    public static Settings buildLdapSettings(String[] ldapUrl, String[] userTemplate, String groupSearchBase, boolean isSubTreeSearch, boolean hostnameVerification) {
         return ImmutableSettings.builder()
                 .putArray(LdapConnectionFactory.URLS_SETTING, ldapUrl)
                 .putArray(LdapConnectionFactory.USER_DN_TEMPLATES_SETTING, userTemplate)
                 .put(LdapConnectionFactory.GROUP_SEARCH_BASEDN_SETTING, groupSearchBase)
-                .put(LdapConnectionFactory.GROUP_SEARCH_SUBTREE_SETTING, isSubTreeSearch).build();
+                .put(LdapConnectionFactory.GROUP_SEARCH_SUBTREE_SETTING, isSubTreeSearch)
+                .put(LdapConnectionFactory.HOSTNAME_VERIFICATION_SETTING, hostnameVerification).build();
     }
 
     protected Settings buildNonCachingSettings() {

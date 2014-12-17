@@ -46,8 +46,12 @@ public class SSLService extends AbstractComponent {
     }
 
     public SSLEngine createSSLEngine(Settings settings) {
+        return createSSLEngine(settings, null, -1);
+    }
+
+    public SSLEngine createSSLEngine(Settings settings, String host, int port) {
         String[] ciphers = settings.getAsArray("ciphers", componentSettings.getAsArray("ciphers", DEFAULT_CIPHERS));
-        return createSSLEngine(getSslContext(settings), ciphers);
+        return createSSLEngine(getSslContext(settings), ciphers, host, port);
     }
 
     public SSLContext getSslContext() {
@@ -99,8 +103,8 @@ public class SSLService extends AbstractComponent {
         return sslContext;
     }
 
-    private SSLEngine createSSLEngine(SSLContext sslContext, String[] ciphers) {
-        SSLEngine sslEngine = sslContext.createSSLEngine();
+    private SSLEngine createSSLEngine(SSLContext sslContext, String[] ciphers, String host, int port) {
+        SSLEngine sslEngine = sslContext.createSSLEngine(host, port);
         try {
             sslEngine.setEnabledCipherSuites(ciphers);
         } catch (Throwable t) {

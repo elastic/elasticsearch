@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.ldap.ConnectionFactory;
-import org.elasticsearch.shield.authc.support.ldap.LdapSslSocketFactory;
+import org.elasticsearch.shield.authc.support.ldap.AbstractLdapSslSocketFactory;
 
 import javax.naming.Context;
 import javax.naming.NamingEnumeration;
@@ -59,7 +59,7 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory {
                 .put("java.naming.ldap.attributes.binary", "tokenGroups")
                 .put(Context.REFERRAL, "follow");
 
-        LdapSslSocketFactory.configureJndiSSL(ldapUrls, builder);
+        configureJndiSSL(ldapUrls, builder);
 
         sharedLdapEnv = builder.build();
     }

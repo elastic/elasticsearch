@@ -21,6 +21,7 @@ import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.signature.InternalSignatureService;
+import org.elasticsearch.shield.transport.netty.NettySecuredTransport;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 
 import java.io.File;
@@ -239,7 +240,8 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
 
         if (sslTransportEnabled) {
             builder.put("shield.ssl.keystore.path", store.getPath())
-                    .put("shield.ssl.keystore.password", password);
+                    .put("shield.ssl.keystore.password", password)
+                    .put(NettySecuredTransport.HOSTNAME_VERIFICATION_SETTING, RandomizedTest.randomBoolean());
         }
 
         if (sslTransportEnabled && RandomizedTest.randomBoolean()) {

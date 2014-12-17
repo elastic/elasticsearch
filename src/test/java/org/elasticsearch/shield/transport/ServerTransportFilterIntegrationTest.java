@@ -89,6 +89,7 @@ public class ServerTransportFilterIntegrationTest extends ShieldIntegrationTest 
                 .put(ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode"))
                 .put("node.mode", "network")
                 .put("node.name", "my-test-node")
+                .put("network.host", "localhost")
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("discovery.zen.ping.multicast.enabled", false)
                 .put("discovery.zen.ping.unicast.hosts", unicastHost)

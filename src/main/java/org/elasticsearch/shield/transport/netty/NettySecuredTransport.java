@@ -8,10 +8,10 @@ package org.elasticsearch.shield.transport.netty;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
-import org.elasticsearch.common.netty.channel.ChannelPipeline;
-import org.elasticsearch.common.netty.channel.ChannelPipelineFactory;
+import org.elasticsearch.common.netty.channel.*;
 import org.elasticsearch.common.netty.handler.ssl.SslHandler;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.shield.ssl.SSLService;
@@ -20,11 +20,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty.NettyTransport;
 
 import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLParameters;
+import java.net.InetSocketAddress;
 
 /**
  *
  */
 public class NettySecuredTransport extends NettyTransport {
+    public static final String HOSTNAME_VERIFICATION_SETTING = "shield.ssl.hostname_verification";
 
     private final SSLService sslService;
     private final @Nullable IPFilter authenticator;
@@ -91,13 +94,38 @@ public class NettySecuredTransport extends NettyTransport {
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = super.getPipeline();
             if (ssl) {
-                SSLEngine clientEngine = sslService.createSSLEngine();
-                clientEngine.setUseClientMode(true);
-
-                pipeline.addFirst("ssl", new SslHandler(clientEngine));
+                pipeline.addFirst("sslInitializer", new ClientSslHandlerInitializer());
             }
             pipeline.replace("dispatcher", "dispatcher", new SecuredMessageChannelHandler(nettyTransport, "default", logger));
             return pipeline;
+        }
+
+        /**
+         * Handler that waits until connect is called to create a SSLEngine with the proper parameters in order to
+         * perform hostname verification
+         */
+        private class ClientSslHandlerInitializer extends SimpleChannelHandler {
+
+            @Override
+            public void connectRequested(ChannelHandlerContext ctx, ChannelStateEvent e) {
+                SSLEngine sslEngine;
+                if (settings.getAsBoolean(HOSTNAME_VERIFICATION_SETTING, true)) {
+                    InetSocketAddress inetSocketAddress = (InetSocketAddress) e.getValue();
+                    String hostname = inetSocketAddress.getHostName();
+                    int port = inetSocketAddress.getPort();
+                    sslEngine = sslService.createSSLEngine(ImmutableSettings.EMPTY, hostname, port);
+                    SSLParameters parameters = new SSLParameters();
+                    parameters.setEndpointIdentificationAlgorithm("HTTPS");
+                    sslEngine.setSSLParameters(parameters);
+                } else {
+                    sslEngine = sslService.createSSLEngine();
+                }
+
+                sslEngine.setUseClientMode(true);
+                ctx.getPipeline().replace(this, "ssl", new SslHandler(sslEngine));
+
+                ctx.sendDownstream(e);
+            }
         }
     }
 }

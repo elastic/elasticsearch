@@ -37,12 +37,14 @@ public class SecuredMessageChannelHandler extends MessageChannelHandler {
     public void channelConnected(final ChannelHandlerContext ctx, final ChannelStateEvent e) throws Exception {
         SslHandler sslHandler = ctx.getPipeline().get(SslHandler.class);
 
-        // Get notified when SSL handshake is done.
-        if (sslHandler == null) {
+        // Make sure handler is present and we are the client
+        if (sslHandler == null || !sslHandler.getEngine().getUseClientMode()) {
             return;
         }
 
         final ChannelFuture handshakeFuture = sslHandler.handshake();
+
+        // Get notified when SSL handshake is done.
         handshakeFuture.addListener(new ChannelFutureListener() {
             @Override
             public void operationComplete(ChannelFuture future) throws Exception {

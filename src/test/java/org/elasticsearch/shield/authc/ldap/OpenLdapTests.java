@@ -10,16 +10,17 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.ldap.ConnectionFactory;
+import org.elasticsearch.shield.authc.support.ldap.AbstractLdapSslSocketFactory;
+import org.elasticsearch.shield.authc.support.ldap.HostnameVerifyingLdapSslSocketFactory;
 import org.elasticsearch.shield.authc.support.ldap.LdapSslSocketFactory;
 import org.elasticsearch.shield.ssl.SSLService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.*;
 
-import java.io.File;
 import java.net.URISyntaxException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
@@ -32,16 +33,18 @@ public class OpenLdapTests extends ElasticsearchTestCase {
 
     @BeforeClass
     public static void setTrustStore() throws URISyntaxException {
-        File filename = new File(LdapConnectionTests.class.getResource("../support/ldap/ldaptrust.jks").toURI()).getAbsoluteFile();
-        LdapSslSocketFactory.init(new SSLService(ImmutableSettings.builder()
-                .put("shield.ssl.keystore.path", filename)
+        Path keystore = Paths.get(LdapConnectionTests.class.getResource("../support/ldap/ldaptrust.jks").toURI()).toAbsolutePath();
+        SSLService sslService = new SSLService(ImmutableSettings.builder()
+                .put("shield.ssl.keystore.path", keystore)
                 .put("shield.ssl.keystore.password", "changeit")
-                .build()));
+                .build());
+        AbstractLdapSslSocketFactory.init(sslService);
     }
 
     @AfterClass
     public static void clearTrustStore() {
         LdapSslSocketFactory.clear();
+        HostnameVerifyingLdapSslSocketFactory.clear();
     }
 
     @Test
@@ -51,7 +54,7 @@ public class OpenLdapTests extends ElasticsearchTestCase {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         LdapConnectionFactory connectionFactory = new LdapConnectionFactory(
-                LdapConnectionTests.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, true));
+                LdapConnectionTests.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, true, false));
 
         String[] users = new String[] { "blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor" };
         for (String user : users) {
@@ -67,6 +70,7 @@ public class OpenLdapTests extends ElasticsearchTestCase {
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         Settings settings = ImmutableSettings.builder()
                 .put(LdapConnectionTests.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, true))
+                .put(ConnectionFactory.HOSTNAME_VERIFICATION_SETTING, false)
                 .put(ConnectionFactory.TIMEOUT_TCP_READ_SETTING, "1ms") //1 millisecond
                 .build();
 
@@ -86,16 +90,32 @@ public class OpenLdapTests extends ElasticsearchTestCase {
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         Settings settings = ImmutableSettings.builder()
                 .put(LdapConnectionTests.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, true))
+                .put(ConnectionFactory.HOSTNAME_VERIFICATION_SETTING, false)
                 .put(ConnectionFactory.TIMEOUT_LDAP_SETTING, "1ms") //1 millisecond
                 .build();
 
         LdapConnectionFactory connectionFactory = new LdapConnectionFactory(settings);
 
-        try (LdapConnection ldap = connectionFactory.open("thor", SecuredStringTests.build(PASSWORD))){
+        try (LdapConnection ldap = connectionFactory.open("thor", SecuredStringTests.build(PASSWORD))) {
             ldap.groups();
             fail("The server should timeout the group request");
         } catch (LdapException e) {
             assertThat(e.getCause().getMessage(), containsString("error code 32")); //openldap response for timeout
+        }
+    }
+
+    @Test(expected = LdapException.class)
+    public void testStandardLdapConnectionHostnameVerification() {
+        //openldap does not use cn as naming attributes by default
+
+        String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
+        String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
+        LdapConnectionFactory connectionFactory = new LdapConnectionFactory(
+                LdapConnectionTests.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, true));
+
+        String user = "blackwidow";
+        try (LdapConnection ldap = connectionFactory.open(user, SecuredStringTests.build(PASSWORD))) {
+            fail("OpenLDAP certificate does not contain the correct hostname/ip so hostname verification should fail on open");
         }
     }
 }

@@ -38,6 +38,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.filter.AutoFilterCachingPolicy;
+import org.elasticsearch.index.cache.filter.FilterCacheModule;
+import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.query.FilterBuilders;
@@ -76,6 +78,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
                 .put("indices.cache.filter.clean_interval", "1ms")
                 .put(IndicesQueryCache.INDICES_CACHE_QUERY_CLEAN_INTERVAL, "1ms")
                 .put(AutoFilterCachingPolicy.AGGRESSIVE_CACHING_SETTINGS)
+                .put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, WeightedFilterCache.class)
                 .build();
     }
 

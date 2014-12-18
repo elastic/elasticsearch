@@ -254,11 +254,11 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
             expectedScore = Float.MAX_VALUE;
         }
 
-        float weightsSum = 0;
+        float weightSum = 0;
 
         for (int i = 0; i < weights.length; i++) {
             double functionScore = (double) weights[i] * scores[i];
-            weightsSum+=weights[i];
+            weightSum+=weights[i];
 
             if ("avg".equals(scoreMode)) {
                 expectedScore += functionScore;
@@ -274,7 +274,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
 
         }
         if ("avg".equals(scoreMode)) {
-            expectedScore /= weightsSum;
+            expectedScore /= weightSum;
         }
         return expectedScore;
     }

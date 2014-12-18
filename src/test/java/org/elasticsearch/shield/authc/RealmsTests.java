@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
@@ -19,9 +18,7 @@ import org.junit.Test;
 
 import java.util.*;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -55,6 +52,7 @@ public class RealmsTests extends ElasticsearchTestCase {
             orderToIndex.put(orders.get(i), i);
         }
         Realms realms = new Realms(builder.build(), factories);
+        realms.start();
         int i = 0;
         for (Realm realm : realms) {
             assertThat(realm.order(), equalTo(i));
@@ -72,12 +70,13 @@ public class RealmsTests extends ElasticsearchTestCase {
         builder.put("shield.authc.realms.realm_1.order", 0);
         builder.put("shield.authc.realms.realm_2.type", ESUsersRealm.TYPE);
         builder.put("shield.authc.realms.realm_2.order", 1);
-        new Realms(builder.build(), factories);
+        new Realms(builder.build(), factories).start();
     }
 
     @Test
     public void testWithEmptySettings() throws Exception {
         Realms realms = new Realms(ImmutableSettings.EMPTY, factories);
+        realms.start();
         Iterator<Realm> iter = realms.iterator();
         assertThat(iter.hasNext(), is(true));
         Realm realm = iter.next();
@@ -109,6 +108,7 @@ public class RealmsTests extends ElasticsearchTestCase {
 
         Settings settings = builder.build();
         Realms realms = new Realms(settings, factories);
+        realms.start();
         Iterator<Realm> iterator = realms.iterator();
 
         int count = 0;

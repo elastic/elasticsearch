@@ -8,13 +8,11 @@ package org.elasticsearch.shield.authz.store;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.jackson.dataformat.yaml.snakeyaml.error.YAMLException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
@@ -30,20 +28,18 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
  *
  */
-public class FileRolesStore extends AbstractComponent implements RolesStore {
+public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> implements RolesStore {
 
     private static final Pattern COMMA_DELIM = Pattern.compile("\\s*,\\s*");
 
@@ -59,12 +55,26 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
 
     public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, Listener listener) {
         super(settings);
-        file = resolveFile(settings, env);
-        permissions = parseFile(file, logger);
+        this.file = resolveFile(settings, env);
+        this.listener = listener;
+        permissions = ImmutableMap.of();
+
         FileWatcher watcher = new FileWatcher(file.getParent().toFile());
         watcher.addListener(new FileListener());
         watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
-        this.listener = listener;
+    }
+
+    @Override
+    protected void doStart() throws ElasticsearchException {
+        permissions = parseFile(file, logger);
+    }
+
+    @Override
+    protected void doStop() throws ElasticsearchException {
+    }
+
+    @Override
+    protected void doClose() throws ElasticsearchException {
     }
 
     @Override

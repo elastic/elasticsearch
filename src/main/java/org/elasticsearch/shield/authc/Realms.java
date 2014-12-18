@@ -6,36 +6,44 @@
 package org.elasticsearch.shield.authc;
 
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Serves as a realms registry (also responsible for ordering the realms appropriately)
  */
-public class Realms extends AbstractComponent implements Iterable<Realm> {
+public class Realms extends AbstractLifecycleComponent<Realms> implements Iterable<Realm> {
 
     private final Map<String, Realm.Factory> factories;
-
-    private final List<Realm> realms;
+    private List<Realm> realms = Collections.EMPTY_LIST;
 
     @Inject
     public Realms(Settings settings, Map<String, Realm.Factory> factories) {
         super(settings);
         this.factories = factories;
+    }
+
+    @Override
+    protected void doStart() throws ElasticsearchException {
         realms = new CopyOnWriteArrayList<>(initRealms());
     }
+
+    @Override
+    protected void doStop() throws ElasticsearchException {}
+
+    @Override
+    protected void doClose() throws ElasticsearchException {}
 
     @Override
     public Iterator<Realm> iterator() {
@@ -112,4 +120,5 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
         }
         return result != null ? result : ImmutableSettings.EMPTY;
     }
+
 }

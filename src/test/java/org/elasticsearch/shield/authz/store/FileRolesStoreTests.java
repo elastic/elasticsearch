@@ -151,6 +151,7 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
                     latch.countDown();
                 }
             });
+            store.start();
 
             Permission.Global.Role role = store.role("role1");
             assertThat(role, notNullValue());

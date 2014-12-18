@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.aliases.IndexAliasesService;
@@ -74,17 +73,14 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogModule;
 import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndicesLifecycle;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ShardsPluginsModule;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -241,14 +237,12 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         return aliasesService;
     }
 
-    public synchronized void close(final String reason, final IndicesService.IndexCloseListener listener) {
+    public synchronized void close(final String reason) {
         if (closed.compareAndSet(false, true)) {
             final Set<Integer> shardIds = shardIds();
-            final IndicesService.IndexCloseListener innerListener = listener == null ? null :
-                    new PerShardIndexCloseListener(shardIds, listener);
             for (final int shardId : shardIds) {
                 try {
-                    removeShard(shardId, reason, innerListener);
+                    removeShard(shardId, reason);
                 } catch (Throwable t) {
                     logger.warn("failed to close shard", t);
                 }
@@ -350,12 +344,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         }
     }
 
-    public void removeShard(int shardId, String reason) throws ElasticsearchException {
-        removeShard(shardId, reason, null);
-    }
-
-    public synchronized void removeShard(int shardId, String reason, @Nullable final IndicesService.IndexCloseListener listener) throws ElasticsearchException {
-        boolean listenerPassed = false;
+    public synchronized void removeShard(int shardId, String reason) throws ElasticsearchException {
         final ShardId sId = new ShardId(index, shardId);
         try {
             final Injector shardInjector;
@@ -441,17 +430,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             final Store store = shardInjector.getInstance(Store.class);
             // and close it
             try {
-                listenerPassed = true;
-                if (listener == null) {
                     store.close();
-                } else {
-                    store.close(new Store.OnCloseListener() {
-                        @Override
-                        public void onClose(ShardId shardId) {
-                            listener.onShardClosed(shardId);
-                        }
-                    });
-                }
             } catch (Throwable e) {
                 logger.warn("[{}] failed to close store on shard deletion", e, shardId);
             }
@@ -459,51 +438,8 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
             logger.debug("[{}] closed (reason: [{}])", shardId, reason);
         } catch (Throwable t) {
-            if (listenerPassed == false && listener != null) { // only notify if the listener wasn't passed to the store
-                listener.onShardCloseFailed(sId, t);
-            }
             throw t;
         }
 
-    }
-
-    private static final class PerShardIndexCloseListener implements IndicesService.IndexCloseListener {
-        final CountDown countDown;
-        final List<Throwable> failures;
-        private final Set<Integer> shardIds;
-        private final IndicesService.IndexCloseListener listener;
-
-        public PerShardIndexCloseListener(Set<Integer> shardIds, IndicesService.IndexCloseListener listener) {
-            this.shardIds = shardIds;
-            this.listener = listener;
-            countDown = new CountDown(shardIds.size());
-            failures = new CopyOnWriteArrayList<>();
-        }
-
-        @Override
-        public void onAllShardsClosed(Index index, List<Throwable> failures) {
-            assert false : "nobody should call this";
-        }
-
-        @Override
-        public void onShardClosed(ShardId shardId) {
-            assert countDown.isCountedDown() == false;
-            assert shardIds.contains(shardId.getId()) : "Unknown shard id";
-            listener.onShardClosed(shardId);
-            if (countDown.countDown()) {
-                listener.onAllShardsClosed(shardId.index(), failures);
-            }
-        }
-
-        @Override
-        public void onShardCloseFailed(ShardId shardId, Throwable t) {
-            assert countDown.isCountedDown() == false;
-            assert shardIds.contains(shardId.getId()) : "Unknown shard id";
-            listener.onShardCloseFailed(shardId, t);
-            failures.add(t);
-            if (countDown.countDown()) {
-                listener.onAllShardsClosed(shardId.index(), failures);
-            }
-        }
     }
 }

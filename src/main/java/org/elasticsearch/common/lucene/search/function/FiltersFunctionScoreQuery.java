@@ -175,7 +175,15 @@ public class FiltersFunctionScoreQuery extends Query {
             }
             // First: Gather explanations for all filters
             List<ComplexExplanation> filterExplanations = new ArrayList<>();
+            float weightSum = 0;
             for (FilterFunction filterFunction : filterFunctions) {
+
+                if (filterFunction.function instanceof WeightFactorFunction) {
+                    weightSum += ((WeightFactorFunction) filterFunction.function).getWeight();
+                } else {
+                    weightSum++;
+                }
+
                 Bits docSet = DocIdSets.toSafeBits(context.reader(),
                         filterFunction.filter.getDocIdSet(context, context.reader().getLiveDocs()));
                 if (docSet.get(doc)) {
@@ -224,15 +232,13 @@ public class FiltersFunctionScoreQuery extends Query {
                 break;
             default: // Avg / Total
                 double totalFactor = 0.0f;
-                int count = 0;
                 for (int i = 0; i < filterExplanations.size(); i++) {
                     totalFactor += filterExplanations.get(i).getValue();
-                    count++;
                 }
-                if (count != 0) {
+                if (weightSum != 0) {
                     factor = totalFactor;
                     if (scoreMode == ScoreMode.Avg) {
-                        factor /= count;
+                        factor /= weightSum;
                     }
                 }
             }
@@ -322,17 +328,21 @@ public class FiltersFunctionScoreQuery extends Query {
                 }
             } else { // Avg / Total
                 double totalFactor = 0.0f;
-                int count = 0;
+                float weightSum = 0;
                 for (int i = 0; i < filterFunctions.length; i++) {
                     if (docSets[i].get(docId)) {
                         totalFactor += filterFunctions[i].function.score(docId, subQueryScore);
-                        count++;
+                        if (filterFunctions[i].function instanceof WeightFactorFunction) {
+                            weightSum+= ((WeightFactorFunction)filterFunctions[i].function).getWeight();
+                        } else {
+                            weightSum++;
+                        }
                     }
                 }
-                if (count != 0) {
+                if (weightSum != 0) {
                     factor = totalFactor;
                     if (scoreMode == ScoreMode.Avg) {
-                        factor /= count;
+                        factor /= weightSum;
                     }
                 }
             }

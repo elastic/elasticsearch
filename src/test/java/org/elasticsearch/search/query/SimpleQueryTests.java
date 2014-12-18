@@ -47,7 +47,9 @@ import org.joda.time.format.ISODateTimeFormat;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.HashSet;
+import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -62,6 +64,16 @@ import static org.hamcrest.Matchers.*;
 
 
 public class SimpleQueryTests extends ElasticsearchIntegrationTest {
+
+    @Override
+    protected int maximumNumberOfShards() {
+        return 7;
+    }
+
+    @Override
+    protected int maximumNumberOfReplicas() {
+        return Math.min(2, cluster().numDataNodes() - 1);
+    }
 
     @Test
     public void testOmitNormsOnAll() throws ExecutionException, InterruptedException, IOException {

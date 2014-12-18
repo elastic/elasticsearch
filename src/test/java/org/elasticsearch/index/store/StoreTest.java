@@ -19,14 +19,16 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.analysis.MockAnalyzer;
-import org.apache.lucene.codecs.*;
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.codecs.SegmentInfoFormat;
+import org.apache.lucene.codecs.SegmentInfoReader;
+import org.apache.lucene.codecs.SegmentInfoWriter;
 import org.apache.lucene.codecs.lucene45.Lucene45RWCodec;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.*;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.distributor.Distributor;
@@ -34,6 +36,7 @@ import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
 import org.elasticsearch.index.store.distributor.RandomWeightedDistributor;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -82,13 +85,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
 
         store.incRef();
         final AtomicBoolean called = new AtomicBoolean(false);
-        Store.OnCloseListener listener = new Store.OnCloseListener() {
-            @Override
-            public void onClose(ShardId shardId) {
-                assertTrue(called.compareAndSet(false, true));
-            }
-        };
-        store.close(listener);
+        store.close();
         for (int i = 0; i < incs; i++) {
             if (randomBoolean()) {
                 store.incRef();
@@ -103,9 +100,8 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             store.ensureOpen();
         }
 
-        assertFalse(called.get());
         store.decRef();
-        assertTrue(called.get());
+        assertThat(store.refCount(), Matchers.equalTo(0));
         assertFalse(store.tryIncRef());
         try {
             store.incRef();
@@ -119,27 +115,6 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         } catch (AlreadyClosedException ex) {
 
         }
-    }
-
-    @Test
-    public void testListenerCanThrowException() throws IOException {
-        final ShardId shardId = new ShardId(new Index("index"), 1);
-        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        final ShardLock shardLock = new DummyShardLock(shardId);
-        Store store = new Store(shardId, ImmutableSettings.EMPTY, null, directoryService, randomDistributor(directoryService), shardLock);
-        final AtomicBoolean called = new AtomicBoolean(false);
-        Store.OnCloseListener listener = new Store.OnCloseListener() {
-            @Override
-            public void onClose(ShardId shardId) {
-                assertTrue(called.compareAndSet(false, true));
-                throw new RuntimeException("foobar");
-            }
-        };
-        assertTrue(shardLock.isOpen());
-        store.close(listener);
-        assertTrue(called.get());
-        assertFalse(shardLock.isOpen());
-        // test will barf if the directory is not closed
     }
 
     @Test

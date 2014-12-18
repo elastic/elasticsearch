@@ -65,7 +65,6 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
     static final Pattern GLOBAL_STATE_FILE_PATTERN = Pattern.compile(GLOBAL_STATE_FILE_PREFIX + "(\\d+)(" + MetaDataStateFormat.STATE_FILE_EXTENSION + ")?");
     static final Pattern INDEX_STATE_FILE_PATTERN = Pattern.compile(INDEX_STATE_FILE_PREFIX + "(\\d+)(" + MetaDataStateFormat.STATE_FILE_EXTENSION + ")?");
     private static final String GLOBAL_STATE_LOG_TYPE = "[_global]";
-
     static enum AutoImportDangledState {
         NO() {
             @Override
@@ -117,6 +116,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
     private final AutoImportDangledState autoImportDangled;
     private final TimeValue danglingTimeout;
+    private final TimeValue deleteTimeout;
     private final Map<String, DanglingIndex> danglingIndices = ConcurrentCollections.newConcurrentMap();
     private final Object danglingMutex = new Object();
 
@@ -149,8 +149,10 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
         this.autoImportDangled = AutoImportDangledState.fromString(settings.get("gateway.local.auto_import_dangled", AutoImportDangledState.YES.toString()));
         this.danglingTimeout = settings.getAsTime("gateway.local.dangling_timeout", TimeValue.timeValueHours(2));
+        this.deleteTimeout = settings.getAsTime("gateway.local.delete_timeout", TimeValue.timeValueSeconds(30));
 
-        logger.debug("using gateway.local.auto_import_dangled [{}], with gateway.local.dangling_timeout [{}]", this.autoImportDangled, this.danglingTimeout);
+        logger.debug("using gateway.local.auto_import_dangled [{}], gateway.local.delete_timeout [{}], with gateway.local.dangling_timeout [{}]",
+                this.autoImportDangled, this.deleteTimeout, this.danglingTimeout);
         if (DiscoveryNode.masterNode(settings) || DiscoveryNode.dataNode(settings)) {
             nodeEnv.ensureAtomicMoveSupported();
         }
@@ -243,7 +245,10 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                         try {
                             final Index idx = new Index(current.index());
                             MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(idx));
-                            nodeEnv.deleteIndexDirectorySafe(idx);
+                            // it may take a couple of seconds for outstanding shard reference
+                            // to release their refs (for example, on going recoveries)
+                            // we are working on a better solution see: https://github.com/elasticsearch/elasticsearch/pull/8608
+                            nodeEnv.deleteIndexDirectorySafe(idx, deleteTimeout.millis());
                         } catch (LockObtainFailedException ex) {
                             logger.debug("[{}] failed to delete index - at least one shards is still locked", ex, current.index());
                         } catch (Exception ex) {
@@ -287,14 +292,14 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                                 try {
                                     // the index deletion might not have worked due to shards still being locked
                                     // we have three cases here:
-                                    //  - we acquired all shards locks here --> we can import the dangeling index
+                                    //  - we acquired all shards locks here --> we can import the dangling index
                                     //  - we failed to acquire the lock --> somebody else uses it - DON'T IMPORT
                                     //  - we acquired successfully but the lock list is empty --> no shards present - DON'T IMPORT
                                     // in the last case we should in-fact try to delete the directory since it might be a leftover...
-                                    final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index);
+                                    final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, 0);
                                     if (shardLocks.isEmpty()) {
                                         // no shards - try to remove the directory
-                                        nodeEnv.deleteIndexDirectorySafe(index);
+                                        nodeEnv.deleteIndexDirectorySafe(index, 0);
                                         continue;
                                     }
                                     IOUtils.closeWhileHandlingException(shardLocks);
@@ -308,7 +313,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                                 } else if (danglingTimeout.millis() == 0) {
                                     logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, timeout set to 0, deleting now", indexName);
                                     try {
-                                        nodeEnv.deleteIndexDirectorySafe(index);
+                                        nodeEnv.deleteIndexDirectorySafe(index, 0);
                                     } catch (LockObtainFailedException ex) {
                                         logger.debug("[{}] failed to delete index - at least one shards is still locked", ex, indexName);
                                     } catch (Exception ex) {
@@ -577,7 +582,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
                 try {
                     MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(index));
-                    nodeEnv.deleteIndexDirectorySafe(index);
+                    nodeEnv.deleteIndexDirectorySafe(index, 0);
                 } catch (Exception ex) {
                     logger.debug("failed to delete dangling index", ex);
                 }

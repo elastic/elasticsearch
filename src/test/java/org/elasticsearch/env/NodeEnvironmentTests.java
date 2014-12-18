@@ -23,6 +23,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -37,6 +38,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class NodeEnvironmentTests extends ElasticsearchTestCase {
 
@@ -102,7 +104,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
         }
 
         try {
-            env.lockAllForIndex(new Index("foo"));
+            env.lockAllForIndex(new Index("foo"), randomIntBetween(0, 10));
             fail("shard 1 is locked");
         } catch (LockObtainFailedException ex) {
             // expected
@@ -112,7 +114,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
         // can lock again?
         env.shardLock(new ShardId("foo", 1)).close();
 
-        List<ShardLock> locks = env.lockAllForIndex(new Index("foo"));
+        List<ShardLock> locks = env.lockAllForIndex(new Index("foo"), randomIntBetween(0, 10));
         try {
             env.shardLock(new ShardId("foo", randomBoolean() ? 1 : 2));
             fail("shard is locked");
@@ -146,7 +148,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
     @Test
     public void testDeleteSafe() throws IOException {
         Settings settings = nodeEnvSettings(tmpPaths());
-        NodeEnvironment env = new NodeEnvironment(settings, new Environment(settings));
+        final NodeEnvironment env = new NodeEnvironment(settings, new Environment(settings));
 
         ShardLock fooLock = env.shardLock(new ShardId("foo", 1));
         assertEquals(new ShardId("foo", 1), fooLock.getShardId());
@@ -178,7 +180,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
         }
 
         try {
-            env.deleteIndexDirectorySafe(new Index("foo"));
+            env.deleteIndexDirectorySafe(new Index("foo"), randomIntBetween(0, 10));
             fail("shard is locked");
         } catch (LockObtainFailedException ex) {
             // expected
@@ -189,7 +191,27 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
             assertTrue(Files.exists(path));
         }
 
-        env.deleteIndexDirectorySafe(new Index("foo"));
+        final AtomicReference<Throwable> threadException = new AtomicReference<>();
+        if (randomBoolean()) {
+            Thread t = new Thread(new AbstractRunnable() {
+                @Override
+                public void onFailure(Throwable t) {
+                    threadException.set(t);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    try (ShardLock fooLock = env.shardLock(new ShardId("foo", 1))) {
+                        Thread.sleep(100);
+                    }
+                }
+            });
+            t.start();
+        }
+
+        env.deleteIndexDirectorySafe(new Index("foo"), 5000);
+
+        assertNull(threadException.get());
 
         for (Path path : env.indexPaths(new Index("foo"))) {
             assertFalse(Files.exists(path));
@@ -247,7 +269,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
             flipFlop[i] = new AtomicInteger();
         }
 
-        Thread[] threads = new Thread[randomIntBetween(2,5)];
+        Thread[] threads = new Thread[randomIntBetween(2, 5)];
         final CountDownLatch latch = new CountDownLatch(1);
         final int iters = scaledRandomIntBetween(10000, 100000);
         for (int i = 0; i < threads.length; i++) {
@@ -260,7 +282,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
                         fail(e.getMessage());
                     }
                     for (int i = 0; i < iters; i++) {
-                        int shard = randomIntBetween(0, counts.length-1);
+                        int shard = randomIntBetween(0, counts.length - 1);
                         try {
                             try (ShardLock _ = env.shardLock(new ShardId("foo", shard), scaledRandomIntBetween(0, 10))) {
                                 counts[shard].value++;

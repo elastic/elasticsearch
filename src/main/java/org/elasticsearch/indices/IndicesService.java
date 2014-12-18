@@ -22,7 +22,6 @@ package org.elasticsearch.indices;
 import com.google.common.base.Function;
 import com.google.common.collect.*;
 import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -60,17 +59,15 @@ import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.IndexPluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 
@@ -140,23 +137,11 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                 @Override
                 public void run() {
                     try {
-                        removeIndex(index, "shutdown", false, new IndexCloseListener() {
-                            @Override
-                            public void onAllShardsClosed(Index index, List<Throwable> failures) {
-                                latch.countDown();
-                            }
-
-                            @Override
-                            public void onShardClosed(ShardId shardId) {
-                            }
-
-                            @Override
-                            public void onShardCloseFailed(ShardId shardId, Throwable t) {
-                            }
-                        });
+                        removeIndex(index, "shutdown", false);
                     } catch (Throwable e) {
-                        latch.countDown();
                         logger.warn("failed to delete index on stop [" + index + "]", e);
+                    } finally {
+                        latch.countDown();
                     }
                 }
             });
@@ -353,7 +338,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @param reason  the high level reason causing this removal
      */
     public void removeIndex(String index, String reason) throws ElasticsearchException {
-        removeIndex(index, reason, false, null);
+        removeIndex(index, reason, false);
     }
 
     /**
@@ -366,40 +351,10 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @param reason the high level reason causing this delete
      */
     public void deleteIndex(String index, String reason) throws ElasticsearchException {
-        removeIndex(index, reason, true, new IndexCloseListener() {
-
-            @Override
-            public void onAllShardsClosed(Index index, List<Throwable> failures) {
-                try {
-                    nodeEnv.deleteIndexDirectorySafe(index);
-                    logger.debug("deleted index [{}] from filesystem - failures {}", index, failures);
-                } catch (Exception e) {
-                    for (Throwable t : failures) {
-                        e.addSuppressed(t);
-                    }
-                    logger.debug("failed to deleted index [{}] from filesystem", e, index);
-                    // ignore - still some shards locked here
-                }
-            }
-
-            @Override
-            public void onShardClosed(ShardId shardId) {
-                try {
-                    // this is called under the shard lock - we can safely delete it
-                    XIOUtils.rm(nodeEnv.shardPaths(shardId));
-                    logger.debug("deleted shard [{}] from filesystem", shardId);
-                } catch (IOException e) {
-                    logger.warn("Can't delete shard {} ", e, shardId);
-                }
-            }
-
-            @Override
-            public void onShardCloseFailed(ShardId shardId, Throwable t) {
-            }
-        });
+        removeIndex(index, reason, true);
     }
 
-    private void removeIndex(String index, String reason, boolean delete, @Nullable  IndexCloseListener listener) throws ElasticsearchException {
+    private void removeIndex(String index, String reason, boolean delete) throws ElasticsearchException {
         try {
             final IndexService indexService;
             final Injector indexInjector;
@@ -427,7 +382,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             }));
 
             logger.debug("[{}] closing index service (reason [{}])", index, reason);
-            ((IndexService) indexService).close(reason, listener);
+            indexService.close(reason);
 
             logger.debug("[{}] closing index cache (reason [{}])", index, reason);
             indexInjector.getInstance(IndexCache.class).close();
@@ -480,34 +435,5 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                 flushStats.add(indexShard.flushStats());
             }
         }
-    }
-
-    /**
-     * A listener interface that can be used to get notification once a shard or all shards
-     * of an certain index that are allocated on a node are actually closed. The listener methods
-     * are invoked once the actual low level instance modifying or reading a shard are closed in contrast to
-     * removal methods that might return earlier.
-     */
-    public static interface IndexCloseListener {
-
-        /**
-         * Invoked once all shards are closed or their closing failed.
-         * @param index the index that got closed
-         * @param failures the recorded shard closing failures
-         */
-        public void onAllShardsClosed(Index index, List<Throwable> failures);
-
-        /**
-         * Invoked once the last resource using the given shard ID is released.
-         * Yet, this method is called while still holding the shards lock such that
-         * operations on the shards data can safely be executed in this callback.
-         */
-        public void onShardClosed(ShardId shardId);
-
-        /**
-         * Invoked if closing the given shard failed.
-         */
-        public void onShardCloseFailed(ShardId shardId, Throwable t);
-
     }
 }

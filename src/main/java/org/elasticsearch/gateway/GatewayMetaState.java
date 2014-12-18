@@ -43,7 +43,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
@@ -72,6 +75,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
     private static final String DEPRECATED_SETTING_ROUTING_HASH_FUNCTION = "cluster.routing.operation.hash.type";
     private static final String DEPRECATED_SETTING_ROUTING_USE_TYPE = "cluster.routing.operation.use_type";
     public static final String GATEWAY_DANGLING_TIMEOUT = "gateway.dangling_timeout";
+    public static final String GATEWAY_DELETE_TIMEOUT = "gateway.delete_timeout";
     public static final String GATEWAY_AUTO_IMPORT_DANGLED = "gateway.auto_import_dangled";
     // legacy - this used to be in a different package
     private static final String GATEWAY_LOCAL_DANGLING_TIMEOUT = "gateway.local.dangling_timeout";
@@ -127,6 +131,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
     private final AutoImportDangledState autoImportDangled;
     private final TimeValue danglingTimeout;
+    private final TimeValue deleteTimeout;
     private final Map<String, DanglingIndex> danglingIndices = ConcurrentCollections.newConcurrentMap();
     private final Object danglingMutex = new Object();
 
@@ -159,8 +164,12 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
         this.autoImportDangled = AutoImportDangledState.fromString(settings.get(GATEWAY_AUTO_IMPORT_DANGLED, settings.get(GATEWAY_LOCAL_AUTO_IMPORT_DANGLED, AutoImportDangledState.YES.toString())));
         this.danglingTimeout = settings.getAsTime(GATEWAY_DANGLING_TIMEOUT, settings.getAsTime(GATEWAY_LOCAL_DANGLING_TIMEOUT, TimeValue.timeValueHours(2)));
+        this.deleteTimeout = settings.getAsTime(GATEWAY_DELETE_TIMEOUT, TimeValue.timeValueSeconds(30));
 
-        logger.debug("using gateway.local.auto_import_dangled [{}], with gateway.dangling_timeout [{}]", this.autoImportDangled, this.danglingTimeout);
+        logger.debug("using {} [{}],  {} [{}], with {} [{}]",
+                GATEWAY_AUTO_IMPORT_DANGLED, this.autoImportDangled,
+                GATEWAY_DELETE_TIMEOUT, this.deleteTimeout,
+                GATEWAY_DANGLING_TIMEOUT, this.danglingTimeout);
         if (DiscoveryNode.masterNode(settings) || DiscoveryNode.dataNode(settings)) {
             nodeEnv.ensureAtomicMoveSupported();
         }
@@ -258,7 +267,10 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                         try {
                             final Index idx = new Index(current.index());
                             MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(idx));
-                            nodeEnv.deleteIndexDirectorySafe(idx);
+                            // it may take a couple of seconds for outstanding shard reference
+                            // to release their refs (for example, on going recoveries)
+                            // we are working on a better solution see: https://github.com/elasticsearch/elasticsearch/pull/8608
+                            nodeEnv.deleteIndexDirectorySafe(idx, deleteTimeout.millis());
                         } catch (LockObtainFailedException ex) {
                             logger.debug("[{}] failed to delete index - at least one shards is still locked", ex, current.index());
                         } catch (Exception ex) {
@@ -302,14 +314,14 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                                 try {
                                     // the index deletion might not have worked due to shards still being locked
                                     // we have three cases here:
-                                    //  - we acquired all shards locks here --> we can import the dangeling index
+                                    //  - we acquired all shards locks here --> we can import the dangling index
                                     //  - we failed to acquire the lock --> somebody else uses it - DON'T IMPORT
                                     //  - we acquired successfully but the lock list is empty --> no shards present - DON'T IMPORT
                                     // in the last case we should in-fact try to delete the directory since it might be a leftover...
-                                    final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index);
+                                    final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, 0);
                                     if (shardLocks.isEmpty()) {
                                         // no shards - try to remove the directory
-                                        nodeEnv.deleteIndexDirectorySafe(index);
+                                        nodeEnv.deleteIndexDirectorySafe(index, 0);
                                         continue;
                                     }
                                     IOUtils.closeWhileHandlingException(shardLocks);
@@ -323,7 +335,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                                 } else if (danglingTimeout.millis() == 0) {
                                     logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, timeout set to 0, deleting now", indexName);
                                     try {
-                                        nodeEnv.deleteIndexDirectorySafe(index);
+                                        nodeEnv.deleteIndexDirectorySafe(index, 0);
                                     } catch (LockObtainFailedException ex) {
                                         logger.debug("[{}] failed to delete index - at least one shards is still locked", ex, indexName);
                                     } catch (Exception ex) {
@@ -558,7 +570,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
                 try {
                     MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(index));
-                    nodeEnv.deleteIndexDirectorySafe(index);
+                    nodeEnv.deleteIndexDirectorySafe(index, 0);
                 } catch (Exception ex) {
                     logger.debug("failed to delete dangling index", ex);
                 }

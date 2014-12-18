@@ -26,36 +26,36 @@ import java.util.Set;
 
 /**
  * A utility class for multi threaded operation that needs to be cancelable via interrupts. Every cancelable operation should be
- * executed via {@link #run(Interruptable)}, which will capture the executing thread and make sure it is interrupted in the case
+ * executed via {@link #execute(Interruptable)}, which will capture the executing thread and make sure it is interrupted in the case
  * cancellation.
  */
-public class CancelableThreads {
+public class CancellableThreads {
     private final Set<Thread> threads = new HashSet<>();
-    private boolean canceled = false;
+    private boolean cancelled = false;
     private String reason;
 
-    public synchronized boolean isCanceled() {
-        return canceled;
+    public synchronized boolean isCancelled() {
+        return cancelled;
     }
 
 
-    /** call this will throw an exception if operation was cancelled. Override {@link #fail(String, java.lang.Throwable)} for custom failure logic */
-    public synchronized void failIfCanceled() {
-        if (isCanceled()) {
-            fail(reason, null);
+    /** call this will throw an exception if operation was cancelled. Override {@link #onCancel(String, java.lang.Throwable)} for custom failure logic */
+    public synchronized void checkForCancel() {
+        if (isCancelled()) {
+            onCancel(reason, null);
         }
     }
 
     /**
-     * called if {@link #failIfCanceled()} was invoked after the operation was cancelled.
+     * called if {@link #checkForCancel()} was invoked after the operation was cancelled.
      * the default implementation always throws an {@link ExecutionCancelledException}, suppressing
      * any other exception that occurred before cancellation
      *
      * @param reason              reason for failure supplied by the caller of {@link @cancel}
      * @param suppressedException any error that was encountered during the execution before the operation was cancelled.
      */
-    protected void fail(String reason, @Nullable Throwable suppressedException) {
-        RuntimeException e = new ExecutionCancelledException("operation was canceled reason [" + reason + "]");
+    protected void onCancel(String reason, @Nullable Throwable suppressedException) {
+        RuntimeException e = new ExecutionCancelledException("operation was cancelled reason [" + reason + "]");
         if (suppressedException != null) {
             e.addSuppressed(suppressedException);
         }
@@ -63,7 +63,7 @@ public class CancelableThreads {
     }
 
     private synchronized boolean add() {
-        failIfCanceled();
+        checkForCancel();
         threads.add(Thread.currentThread());
         // capture and clean the interrupted thread before we start, so we can identify
         // our own interrupt. we do so under lock so we know we don't clear our own.
@@ -76,7 +76,7 @@ public class CancelableThreads {
      *
      * @param interruptable code to run
      */
-    public void run(Interruptable interruptable) {
+    public void execute(Interruptable interruptable) {
         boolean wasInterrupted = add();
         RuntimeException throwable = null;
         try {
@@ -97,8 +97,8 @@ public class CancelableThreads {
             Thread.interrupted();
         }
         synchronized (this) {
-            if (isCanceled()) {
-                fail(reason, throwable);
+            if (isCancelled()) {
+                onCancel(reason, throwable);
             } else if (throwable != null) {
                 // if we're not canceling, we throw the original exception
                 throw throwable;
@@ -111,15 +111,15 @@ public class CancelableThreads {
         threads.remove(Thread.currentThread());
     }
 
-    /** cancel all current running operations. Future calls to {@link #failIfCanceled()} will be failed with the given reason */
+    /** cancel all current running operations. Future calls to {@link #checkForCancel()} will be failed with the given reason */
     public synchronized void cancel(String reason) {
-        if (canceled) {
-            // we were already canceled, make sure we don't interrupt threads twice
+        if (cancelled) {
+            // we were already cancelled, make sure we don't interrupt threads twice
             // this is important in order to make sure that we don't mark
             // Thread.interrupted without handling it
             return;
         }
-        canceled = true;
+        cancelled = true;
         this.reason = reason;
         for (Thread thread : threads) {
             thread.interrupt();

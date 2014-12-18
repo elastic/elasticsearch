@@ -25,7 +25,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.util.CancelableThreads;
+import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.IndexShard;
@@ -68,7 +68,7 @@ public class RecoveryStatus extends AbstractRefCounted {
     private final ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
     private final Store.LegacyChecksums legacyChecksums = new Store.LegacyChecksums();
 
-    private final CancelableThreads cancelableThreads = new CancelableThreads();
+    private final CancellableThreads cancellableThreads = new CancellableThreads();
 
     public RecoveryStatus(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryState state, RecoveryTarget.RecoveryListener listener) {
         super("recovery_status");
@@ -109,8 +109,8 @@ public class RecoveryStatus extends AbstractRefCounted {
         return state;
     }
 
-    public CancelableThreads cancelableThreads() {
-        return cancelableThreads;
+    public CancellableThreads cancelableThreads() {
+        return cancellableThreads;
     }
 
     public Store store() {
@@ -147,7 +147,7 @@ public class RecoveryStatus extends AbstractRefCounted {
         if (finished.compareAndSet(false, true)) {
             try {
                 logger.debug("recovery canceled (reason: [{}])", reason);
-                cancelableThreads.cancel(reason);
+                cancellableThreads.cancel(reason);
             } finally {
                 // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
                 decRef();
@@ -166,9 +166,12 @@ public class RecoveryStatus extends AbstractRefCounted {
             try {
                 listener.onRecoveryFailure(state, e, sendShardFailure);
             } finally {
-                // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
-                decRef();
-                cancelableThreads.cancel("failed recovery [" + e.getMessage() + "]");
+                try {
+                    cancellableThreads.cancel("failed recovery [" + e.getMessage() + "]");
+                } finally {
+                    // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
+                    decRef();
+                }
             }
         }
     }

@@ -18,14 +18,14 @@
  */
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.common.util.CancelableThreads.Interruptable;
+import org.elasticsearch.common.util.CancellableThreads.Interruptable;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
 
-public class CancelableThreadsTest extends ElasticsearchTestCase {
+public class CancellableThreadsTest extends ElasticsearchTestCase {
 
     private static class CustomException extends RuntimeException {
 
@@ -59,7 +59,7 @@ public class CancelableThreadsTest extends ElasticsearchTestCase {
         final TestPlan[] plans = new TestPlan[threads.length];
         final Throwable[] throwables = new Throwable[threads.length];
         final boolean[] interrupted = new boolean[threads.length];
-        final CancelableThreads cancelableThreads = new CancelableThreads();
+        final CancellableThreads cancellableThreads = new CancellableThreads();
         final CountDownLatch readyForCancel = new CountDownLatch(threads.length);
         for (int i = 0; i < threads.length; i++) {
             final TestPlan plan = new TestPlan(i);
@@ -71,7 +71,7 @@ public class CancelableThreadsTest extends ElasticsearchTestCase {
                         if (plan.presetInterrupt) {
                             Thread.currentThread().interrupt();
                         }
-                        cancelableThreads.run(new Interruptable() {
+                        cancellableThreads.execute(new Interruptable() {
                             @Override
                             public void run() throws InterruptedException {
                                 assertFalse("interrupt thread should have been clear", Thread.currentThread().isInterrupted());
@@ -111,7 +111,7 @@ public class CancelableThreadsTest extends ElasticsearchTestCase {
         }
 
         readyForCancel.await();
-        cancelableThreads.cancel("test");
+        cancellableThreads.cancel("test");
         for (Thread thread : threads) {
             thread.join(20000);
             assertFalse(thread.isAlive());
@@ -124,7 +124,7 @@ public class CancelableThreadsTest extends ElasticsearchTestCase {
                 assertNull(throwables[i]);
             } else {
                 // in all other cases, we expect a cancellation exception.
-                assertThat(throwables[i], Matchers.instanceOf(CancelableThreads.ExecutionCancelledException.class));
+                assertThat(throwables[i], Matchers.instanceOf(CancellableThreads.ExecutionCancelledException.class));
                 if (plan.exceptAfterCancel) {
                     assertThat(throwables[i].getSuppressed(),
                             Matchers.arrayContaining(

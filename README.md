@@ -28,6 +28,6 @@ see [Licensing REST APIs] (https://github.com/elasticsearch/elasticsearch-licens
 to use the license plugin from an elasticsearch deployment.
 
 see [wiki] (https://github.com/elasticsearch/elasticsearch-license/wiki) for documentation on
- - **Licensing Consumer Plugin Interface**
- - **License Plugin Design**
- - **Licensing Test plan**
+ - [License Plugin Consumer Interface] (https://github.com/elasticsearch/elasticsearch-license/wiki/License---Consumer-Interface)
+ - [License Plugin Release Process] (https://github.com/elasticsearch/elasticsearch-license/wiki/Plugin-Release-Process)
+ - [License Plugin Design] (https://github.com/elasticsearch/elasticsearch-license/wiki/License-Plugin--Design)

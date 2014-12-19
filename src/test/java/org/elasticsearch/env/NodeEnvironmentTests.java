@@ -190,6 +190,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
             Thread t = new Thread(new AbstractRunnable() {
                 @Override
                 public void onFailure(Throwable t) {
+                    logger.error("unexpected error", t);
                     threadException.set(t);
                 }
 

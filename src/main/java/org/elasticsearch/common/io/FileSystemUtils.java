@@ -20,7 +20,6 @@
 package org.elasticsearch.common.io;
 
 import com.google.common.collect.Iterators;
-import com.google.common.collect.Sets;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.logging.ESLogger;
 
@@ -33,7 +32,6 @@ import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.nio.file.FileVisitResult.CONTINUE;
@@ -185,7 +183,7 @@ public final class FileSystemUtils {
                     if (!Files.exists(path)) {
                         // We just move the structure to new dir
                         // we can't do atomic move here since src / dest might be on different mounts?
-                        Files.move(dir, path);
+                        move(dir, path);
                         // We just ignore sub files from here
                         return FileVisitResult.SKIP_SUBTREE;
                     }
@@ -224,16 +222,34 @@ public final class FileSystemUtils {
      * @param destination destination dir
      */
     public static void copyDirectoryRecursively(Path source, Path destination) throws IOException {
-        Files.walkFileTree(source, new TreeCopier(source, destination));
+        Files.walkFileTree(source, new TreeCopier(source, destination, false));
+    }
+
+    /**
+     * Move or rename a file to a target file. This method supports moving a file from
+     * different filesystems (not supported by Files.move()).
+     *
+     * @param source source file
+     * @param destination destination file
+     */
+    public static void move(Path source, Path destination) throws IOException {
+        try {
+            // We can't use atomic move here since source & target can be on different filesystems.
+            Files.move(source, destination);
+        } catch (DirectoryNotEmptyException e) {
+            Files.walkFileTree(source, new TreeCopier(source, destination, true));
+        }
     }
 
     static class TreeCopier extends SimpleFileVisitor<Path> {
         private final Path source;
         private final Path target;
+        private final boolean delete;
 
-        TreeCopier(Path source, Path target) {
+        TreeCopier(Path source, Path target, boolean delete) {
             this.source = source;
             this.target = target;
+            this.delete = delete;
         }
 
         @Override
@@ -250,10 +266,21 @@ public final class FileSystemUtils {
         }
 
         @Override
+        public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+            if (delete) {
+                IOUtils.rm(dir);
+            }
+            return CONTINUE;
+        }
+
+        @Override
         public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
             Path newFile = target.resolve(source.relativize(file));
             try {
                 Files.copy(file, newFile);
+                if ((delete) && (Files.exists(newFile))) {
+                    Files.delete(file);
+                }
             } catch (IOException x) {
                 // We ignore this
             }

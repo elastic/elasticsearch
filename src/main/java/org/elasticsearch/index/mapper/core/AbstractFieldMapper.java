@@ -39,6 +39,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.MatchNoDocsFilter;
 import org.elasticsearch.common.lucene.search.RegexpFilter;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -496,11 +497,23 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     @Override
     public Filter termsFilter(List values, @Nullable QueryParseContext context) {
-        BytesRef[] bytesRefs = new BytesRef[values.size()];
-        for (int i = 0; i < bytesRefs.length; i++) {
-            bytesRefs[i] = indexedValueForSearch(values.get(i));
+        switch (values.size()) {
+        case 0:
+            return new MatchNoDocsFilter();
+        case 1:
+            // When there is a single term, it's important to return a term filter so that
+            // it can return a DocIdSet that is directly backed by a postings list, instead
+            // of loading everything into a bit set and returning an iterator based on the
+            // bit set
+            return termFilter(values.get(0), context);
+        default:
+            BytesRef[] bytesRefs = new BytesRef[values.size()];
+            for (int i = 0; i < bytesRefs.length; i++) {
+                bytesRefs[i] = indexedValueForSearch(values.get(i));
+            }
+            return new TermsFilter(names.indexName(), bytesRefs);
+            
         }
-        return new TermsFilter(names.indexName(), bytesRefs);
     }
 
     /**

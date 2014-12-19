@@ -22,9 +22,15 @@ package org.elasticsearch.action.admin.indices.segments;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 public class IndicesSegmentsRequest extends BroadcastOperationRequest<IndicesSegmentsRequest> {
 
+    protected boolean verbose = false;
+    
     public IndicesSegmentsRequest() {
         this(Strings.EMPTY_ARRAY);
     }
@@ -33,4 +39,34 @@ public class IndicesSegmentsRequest extends BroadcastOperationRequest<IndicesSeg
         super(indices);
         indicesOptions(IndicesOptions.fromOptions(false, false, true, false));
     }
+
+    /**
+     * <code>true</code> if detailed information about each segment should be returned,
+     * <code>false</code> otherwise.
+     */
+    public boolean verbose() {
+        return verbose;
+    }
+
+    /**
+     * Sets the <code>verbose</code> option.
+     * @see #verbose()
+     */
+    public void verbose(boolean v) {
+        verbose = v;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeBoolean(verbose);
+        
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        verbose = in.readBoolean();
+    }
+    
 }

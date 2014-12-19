@@ -27,6 +27,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -1266,7 +1267,7 @@ public class InternalEngine implements Engine {
     }
 
     @Override
-    public List<Segment> segments() {
+    public List<Segment> segments(boolean verbose) {
         try (InternalLock _ = readLock.acquire()) {
             ensureOpen();
             Map<String, Segment> segments = new HashMap<>();
@@ -1290,6 +1291,9 @@ public class InternalEngine implements Engine {
                     }
                     final SegmentReader segmentReader = segmentReader(reader.reader());
                     segment.memoryInBytes = segmentReader.ramBytesUsed();
+                    if (verbose) {
+                        segment.ramTree = Accountables.namedAccountable("root", segmentReader);
+                    }
                     // TODO: add more fine grained mem stats values to per segment info here
                     segments.put(info.info.name, segment);
                 }

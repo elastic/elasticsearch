@@ -131,16 +131,19 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
     protected ShardSegments shardOperation(IndexShardSegmentRequest request) throws ElasticsearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.shardSafe(request.shardId().id());
-        return new ShardSegments(indexShard.routingEntry(), indexShard.engine().segments());
+        return new ShardSegments(indexShard.routingEntry(), indexShard.engine().segments(request.verbose));
     }
 
     static class IndexShardSegmentRequest extends BroadcastShardOperationRequest {
-
+        final boolean verbose;
+        
         IndexShardSegmentRequest() {
+            verbose = false;
         }
 
         IndexShardSegmentRequest(ShardId shardId, IndicesSegmentsRequest request) {
             super(shardId, request);
+            verbose = request.verbose();
         }
     }
 }

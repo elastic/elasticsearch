@@ -103,7 +103,7 @@ public interface Engine extends CloseableComponent {
     /**
      * The list of segments in the engine.
      */
-    List<Segment> segments();
+    List<Segment> segments(boolean verbose);
 
     /**
      * Returns <tt>true</tt> if a refresh is really needed.

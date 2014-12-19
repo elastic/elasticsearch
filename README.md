@@ -127,32 +127,45 @@ User Dictionary file is placed `ES_HOME/config` directory.
 
 ### example
 
+_Example Settings:_
+
 ```sh
 curl -XPUT 'http://localhost:9200/kuromoji_sample/' -d'
 {
-    "index":{
-        "analysis":{
-            "tokenizer" : {
-                "kuromoji_user_dict" : {
-                   "type" : "kuromoji_tokenizer",
-                   "mode" : "extended",
-                   "discard_punctuation" : "false",
-                   "user_dictionary" : "userdict_ja.txt"
+    "settings": {
+        "index":{
+            "analysis":{
+                "tokenizer" : {
+                    "kuromoji_user_dict" : {
+                       "type" : "kuromoji_tokenizer",
+                       "mode" : "extended",
+                       "discard_punctuation" : "false",
+                       "user_dictionary" : "userdict_ja.txt"
+                    }
+                },
+                "analyzer" : {
+                    "my_analyzer" : {
+                        "type" : "custom",
+                        "tokenizer" : "kuromoji_user_dict"
+                    }
                 }
-            },
-            "analyzer" : {
-                "my_analyzer" : {
-                    "type" : "custom",
-                    "tokenizer" : "kuromoji_user_dict"
-                }
-            }
 
+            }
         }
     }
 }
 '
+```
 
+_Example Request using `_analyze` API :_
+
+```sh
 curl -XPOST 'http://localhost:9200/kuromoji_sample/_analyze?analyzer=my_analyzer&pretty' -d '東京スカイツリー'
+```
+
+_Response :_
+
+```json
 {
   "tokens" : [ {
     "token" : "東京",
@@ -177,23 +190,36 @@ This acts as a lemmatizer for verbs and adjectives.
 
 ### example
 
+_Example Settings:_
+
 ```sh
 curl -XPUT 'http://localhost:9200/kuromoji_sample/' -d'
 {
-    "index":{
-        "analysis":{
-            "analyzer" : {
-                "my_analyzer" : {
-                    "tokenizer" : "kuromoji_tokenizer",
-                    "filter" : ["kuromoji_baseform"]
+    "settings": {
+        "index":{
+            "analysis":{
+                "analyzer" : {
+                    "my_analyzer" : {
+                        "tokenizer" : "kuromoji_tokenizer",
+                        "filter" : ["kuromoji_baseform"]
+                    }
                 }
             }
         }
     }
 }
 '
+```
 
+_Example Request using `_analyze` API :_
+
+```sh
 curl -XPOST 'http://localhost:9200/kuromoji_sample/_analyze?analyzer=my_analyzer&pretty' -d '飲み'
+```
+
+_Response :_
+
+```json
 {
   "tokens" : [ {
     "token" : "飲む",
@@ -219,32 +245,45 @@ Note that default setting is stoptags.txt include lucene-analyzer-kuromoji.jar.
 
 ### example
 
+_Example Settings:_
+
 ```sh
 curl -XPUT 'http://localhost:9200/kuromoji_sample/' -d'
 {
-    "index":{
-        "analysis":{
-            "analyzer" : {
-                "my_analyzer" : {
-                    "tokenizer" : "kuromoji_tokenizer",
-                    "filter" : ["my_posfilter"]
-                }
-            },
-            "filter" : {
-                "my_posfilter" : {
-                    "type" : "kuromoji_part_of_speech",
-                    "stoptags" : [
-                        "助詞-格助詞-一般",
-                        "助詞-終助詞"
-                    ]
+    "settings": {
+        "index":{
+            "analysis":{
+                "analyzer" : {
+                    "my_analyzer" : {
+                        "tokenizer" : "kuromoji_tokenizer",
+                        "filter" : ["my_posfilter"]
+                    }
+                },
+                "filter" : {
+                    "my_posfilter" : {
+                        "type" : "kuromoji_part_of_speech",
+                        "stoptags" : [
+                            "助詞-格助詞-一般",
+                            "助詞-終助詞"
+                        ]
+                    }
                 }
             }
         }
     }
 }
 '
+```
 
+_Example Request using `_analyze` API :_
+
+```sh
 curl -XPOST 'http://localhost:9200/kuromoji_sample/_analyze?analyzer=my_analyzer&pretty' -d '寿司がおいしいね'
+```
+
+_Response :_
+
+```json
 {
   "tokens" : [ {
     "token" : "寿司",
@@ -277,37 +316,50 @@ Note that elasticsearch-analysis-kuromoji built-in `kuromoji_readingform` set de
 
 ### example
 
+_Example Settings:_
+
 ```sh
 curl -XPUT 'http://localhost:9200/kuromoji_sample/' -d'
 {
-    "index":{
-        "analysis":{
-            "analyzer" : {
-                "romaji_analyzer" : {
-                    "tokenizer" : "kuromoji_tokenizer",
-                    "filter" : ["romaji_readingform"]
+    "settings": {
+        "index":{
+            "analysis":{
+                "analyzer" : {
+                    "romaji_analyzer" : {
+                        "tokenizer" : "kuromoji_tokenizer",
+                        "filter" : ["romaji_readingform"]
+                    },
+                    "katakana_analyzer" : {
+                        "tokenizer" : "kuromoji_tokenizer",
+                        "filter" : ["katakana_readingform"]
+                    }
                 },
-                "katakana_analyzer" : {
-                    "tokenizer" : "kuromoji_tokenizer",
-                    "filter" : ["katakana_readingform"]
-                }
-            },
-            "filter" : {
-                "romaji_readingform" : {
-                    "type" : "kuromoji_readingform",
-                    "use_romaji" : true
-                },
-                "katakana_readingform" : {
-                    "type" : "kuromoji_readingform",
-                    "use_romaji" : false
+                "filter" : {
+                    "romaji_readingform" : {
+                        "type" : "kuromoji_readingform",
+                        "use_romaji" : true
+                    },
+                    "katakana_readingform" : {
+                        "type" : "kuromoji_readingform",
+                        "use_romaji" : false
+                    }
                 }
             }
         }
     }
 }
 '
+```
 
+_Example Request using `_analyze` API :_
+
+```sh
 curl -XPOST 'http://localhost:9200/kuromoji_sample/_analyze?analyzer=katakana_analyzer&pretty' -d '寿司'
+```
+
+_Response :_
+
+```json
 {
   "tokens" : [ {
     "token" : "スシ",
@@ -317,8 +369,17 @@ curl -XPOST 'http://localhost:9200/kuromoji_sample/_analyze?analyzer=katakana_an
     "position" : 1
   } ]
 }
+```
 
+_Example Request using `_analyze` API :_
+
+```sh
 curl -XPOST 'http://localhost:9200/kuromoji_sample/_analyze?analyzer=romaji_analyzer&pretty' -d '寿司'
+```
+
+_Response :_
+
+```json
 {
   "tokens" : [ {
     "token" : "sushi",
@@ -345,29 +406,42 @@ The following are settings that can be set for a `kuromoji_stemmer` token filter
 
 ### example
 
+_Example Settings:_
+
 ```sh
 curl -XPUT 'http://localhost:9200/kuromoji_sample/' -d'
 {
-    "index":{
-        "analysis":{
-            "analyzer" : {
-                "my_analyzer" : {
-                    "tokenizer" : "kuromoji_tokenizer",
-                    "filter" : ["my_katakana_stemmer"]
-                }
-            },
-            "filter" : {
-                "my_katakana_stemmer" : {
-                    "type" : "kuromoji_stemmer",
-                    "minimum_length" : 4
+    "settings": {
+        "index":{
+            "analysis":{
+                "analyzer" : {
+                    "my_analyzer" : {
+                        "tokenizer" : "kuromoji_tokenizer",
+                        "filter" : ["my_katakana_stemmer"]
+                    }
+                },
+                "filter" : {
+                    "my_katakana_stemmer" : {
+                        "type" : "kuromoji_stemmer",
+                        "minimum_length" : 4
+                    }
                 }
             }
         }
     }
 }
 '
+```
 
+_Example Request using `_analyze` API :_
+
+```sh
 curl -XPOST 'http://localhost:9200/kuromoji_sample/_analyze?analyzer=my_analyzer&pretty' -d 'コピー'
+```
+
+_Response :_
+
+```json
 {
   "tokens" : [ {
     "token" : "コピー",
@@ -377,8 +451,17 @@ curl -XPOST 'http://localhost:9200/kuromoji_sample/_analyze?analyzer=my_analyzer
     "position" : 1
   } ]
 }
+```
 
+_Example Request using `_analyze` API :_
+
+```sh
 curl -XPOST 'http://localhost:9200/kuromoji_sample/_analyze?analyzer=my_analyzer&pretty' -d 'サーバー'
+```
+
+_Response :_
+
+```json
 {
   "tokens" : [ {
     "token" : "サーバ",

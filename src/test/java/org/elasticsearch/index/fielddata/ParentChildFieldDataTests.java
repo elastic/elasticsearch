@@ -22,12 +22,20 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.search.*;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -35,7 +43,14 @@ import org.elasticsearch.search.MultiValueMode;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.hamcrest.Matchers.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
@@ -182,6 +197,62 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTests {
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[6]).fields[0]).utf8ToString(), equalTo("1"));
         assertThat(topDocs.scoreDocs[7].doc, equalTo(7));
         assertThat(((FieldDoc) topDocs.scoreDocs[7]).fields[0], nullValue());
+    }
+
+    public void testThreads() throws Exception {
+        final ParentChildIndexFieldData indexFieldData = getForField(childType);
+        final DirectoryReader reader = DirectoryReader.open(writer, true);
+        final IndexParentChildFieldData global = indexFieldData.loadGlobal(reader);
+        final AtomicReference<Exception> error = new AtomicReference<>();
+        final int numThreads = scaledRandomIntBetween(3, 8);
+        final Thread[] threads = new Thread[numThreads];
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        final Map<Object, BytesRef[]> expected = new HashMap<>();
+        for (AtomicReaderContext context : reader.leaves()) {
+            AtomicParentChildFieldData leafData = global.load(context);
+            SortedDocValues parentIds = leafData.getOrdinalsValues(parentType);
+            final BytesRef[] ids = new BytesRef[parentIds.getValueCount()];
+            for (int j = 0; j < parentIds.getValueCount(); ++j) {
+                final BytesRef id = parentIds.lookupOrd(j);
+                if (id != null) {
+                    ids[j] = BytesRef.deepCopyOf(id);
+                }
+            }
+            expected.put(context.reader().getCoreCacheKey(), ids);
+        }
+
+        for (int i = 0; i < numThreads; ++i) {
+            threads[i] = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        latch.await();
+                        for (int i = 0; i < 100000; ++i) {
+                            for (AtomicReaderContext context : reader.leaves()) {
+                                AtomicParentChildFieldData leafData = global.load(context);
+                                SortedDocValues parentIds = leafData.getOrdinalsValues(parentType);
+                                final BytesRef[] expectedIds = expected.get(context.reader().getCoreCacheKey());
+                                for (int j = 0; j < parentIds.getValueCount(); ++j) {
+                                    final BytesRef id = parentIds.lookupOrd(j);
+                                    assertEquals(expectedIds[j], id);
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        error.compareAndSet(null, e);
+                    }
+                }
+            };
+            threads[i].start();
+        }
+        latch.countDown();
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        if (error.get() != null) {
+            throw error.get();
+        }
     }
 
     @Override

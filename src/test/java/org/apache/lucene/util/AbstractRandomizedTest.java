@@ -31,7 +31,7 @@ import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.test.CurrentTestFailedMarker;
+import org.elasticsearch.test.AfterTestRule;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
@@ -44,7 +44,6 @@ import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 
 import java.io.Closeable;
-import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.*;
 import java.lang.reflect.Method;
@@ -61,8 +60,7 @@ import java.util.logging.Logger;
 })
 @Listeners({
         ReproduceInfoPrinter.class,
-        FailureMarker.class,
-        CurrentTestFailedMarker.class
+        FailureMarker.class
 })
 @RunWith(value = com.carrotsearch.randomizedtesting.RandomizedRunner.class)
 @SuppressCodecs(value = "Lucene3x")
@@ -256,6 +254,8 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     private static final AtomicReference<TestRuleIgnoreAfterMaxFailures> ignoreAfterMaxFailuresDelegate;
     private static final TestRule ignoreAfterMaxFailures;
 
+    private static final AfterTestRule.Task noOpAfterRuleTask = new AfterTestRule.Task();
+
     static {
         int maxFailures = systemPropertyAsInt(SYSPROP_MAXFAILURES, Integer.MAX_VALUE);
         boolean failFast = systemPropertyAsBoolean(SYSPROP_FAILFAST, false);
@@ -360,6 +360,8 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
      */
     private TestRuleMarkFailure testFailureMarker = new TestRuleMarkFailure(suiteFailureMarker);
 
+    protected AfterTestRule afterTestRule = new AfterTestRule(afterTestTask());
+
     /**
      * This controls how individual test rules are nested. It is important that
      * _all_ rules declared in {@link LuceneTestCase} are executed in proper order
@@ -372,7 +374,8 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
             .around(threadAndTestNameRule)
             .around(new SystemPropertiesInvariantRule(IGNORED_INVARIANT_PROPERTIES))
             .around(new TestRuleSetupAndRestoreInstanceEnv())
-            .around(parentChainCallRule);
+            .around(parentChainCallRule)
+            .around(afterTestRule);
 
     // -----------------------------------------------------------------
     // Suite and test case setup/ cleanup.
@@ -437,5 +440,9 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
      */
     public String getTestName() {
         return threadAndTestNameRule.testMethodName;
+    }
+
+    protected AfterTestRule.Task afterTestTask() {
+        return noOpAfterRuleTask;
     }
 }

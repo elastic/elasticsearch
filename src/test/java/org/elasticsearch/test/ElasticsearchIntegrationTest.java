@@ -623,20 +623,56 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             logger.info("[{}#{}]: cleaned up after test", getTestClass().getSimpleName(), getTestName());
             success = true;
         } finally {
-            // TODO: it looks like CurrentTestFailedMarker is never set at this point, so testFailed() will always be false?
-            if (!success || CurrentTestFailedMarker.testFailed()) {
-                // if we failed that means that something broke horribly so we should
-                // clear all clusters. we also reset everything in the case we had a failure
-                // in the suite to make sure subsequent tests get a new / clean cluster
-                clearClusters();
-                currentCluster = null;
-            }
-            if (currentCluster != null) {
-                // this can be null if the test fails due to static initialization ie. missing parameter on the cmd
-                currentCluster.afterTest();
-                currentCluster = null;
+            if (!success) {
+                // if we failed here that means that something broke horribly so we should clear all clusters
+                afterTestRule.forceFailure();
             }
         }
+    }
+
+    @Override
+    protected final AfterTestRule.Task afterTestTask() {
+        return new AfterTestRule.Task() {
+            @Override
+            public void onTestFailed () {
+                //we can't clear clusters after failure when using suite scoped tests, as we would need to call again
+                //initializeSuiteScope but that is static and can only be called from beforeClass
+                if (runTestScopeLifecycle()) {
+                    // If there was a problem during the afterTest, we clear all clusters.
+                    // We do the same in case we just had a test failure to make sure subsequent
+                    // tests get a new / clean cluster
+                    try {
+                        clearClusters();
+                    } catch (IOException e) {
+                        throw new RuntimeException("unable to clear clusters", e);
+                    }
+                    afterTestFailed();
+                    currentCluster = null;
+                }
+            }
+
+            @Override
+            public void onTestFinished () {
+                if (runTestScopeLifecycle()) {
+                    if (currentCluster != null) {
+                        // this can be null if the test fails due to static initialization ie. missing parameter on the cmd
+                        try {
+                            currentCluster.afterTest();
+                        } catch (IOException e) {
+                            throw new RuntimeException("error during afterTest", e);
+                        }
+                        currentCluster = null;
+                    }
+                }
+            }
+        };
+    }
+
+    /**
+     * Allows to execute some additional task after a test is failed, right after we cleared the clusters
+     */
+    protected void afterTestFailed() {
+
     }
 
     public static TestCluster cluster() {

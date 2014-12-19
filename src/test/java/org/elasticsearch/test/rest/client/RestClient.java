@@ -221,10 +221,6 @@ public class RestClient implements Closeable {
         return HttpClients.createDefault();
     }
 
-    public InetSocketAddress[] httpAddresses() {
-        return addresses;
-    }
-
     /**
      * Closes the REST client and the underlying http client
      */

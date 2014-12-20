@@ -451,7 +451,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         if (token.isValue() && !allowValue()) {
             // if we are parsing an object but it is just a value, its only allowed on root level parsers with there
             // is a field name with the same name as the type
-            throw new MapperParsingException("object mapping for [" + name + "] tried to parse as object, but found a concrete value");
+            throw new MapperParsingException("object mapping for [" + name + "] tried to parse field [" + currentFieldName + "] as object, but found a concrete value");
         }
 
         Document restoreDoc = null;
@@ -496,7 +496,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 serializeNullValue(context, currentFieldName);
             } else if (token == null) {
-                throw new MapperParsingException("object mapping for [" + name + "] tried to parse as object, but got EOF, has a concrete value been provided to it?");
+                throw new MapperParsingException("object mapping for [" + name + "] tried to parse field [" + currentFieldName + "] as object, but got EOF, has a concrete value been provided to it?");
             } else if (token.isValue()) {
                 serializeValue(context, currentFieldName, token);
             }

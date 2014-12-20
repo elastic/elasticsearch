@@ -40,6 +40,8 @@ import org.elasticsearch.discovery.*;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
@@ -74,6 +76,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     private final CopyOnWriteArrayList<InitialStateDiscoveryListener> initialStateListeners = new CopyOnWriteArrayList<>();
 
     private static final ConcurrentMap<ClusterName, ClusterGroup> clusterGroups = ConcurrentCollections.newConcurrentMap();
+
+    private volatile ClusterState lastProcessedClusterState;
 
     @Inject
     public LocalDiscovery(Settings settings, ClusterName clusterName, TransportService transportService, ClusterService clusterService,
@@ -294,14 +298,26 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     private void publish(LocalDiscovery[] members, ClusterState clusterState, final ClusterStatePublishResponseHandler publishResponseHandler) {
 
         try {
-            // we do the marshaling intentionally, to check it works well...
-            final byte[] clusterStateBytes = Builder.toBytes(clusterState);
+            byte[] clusterStateBytes = null;
+            byte[] clusterStateDiffBytes = null;
 
             for (final LocalDiscovery discovery : members) {
                 if (discovery.master) {
                     continue;
                 }
-                final ClusterState nodeSpecificClusterState = ClusterState.Builder.fromBytes(clusterStateBytes, discovery.localNode, clusterName);
+                final ClusterState nodeSpecificClusterState;
+                // we do the marshaling intentionally, to check it works well...
+                if (lastProcessedClusterState != null && lastProcessedClusterState.nodes().nodeExists(discovery.localNode.id())) {
+                    if (clusterStateDiffBytes == null) {
+                        clusterStateDiffBytes = Builder.toDiffBytes(lastProcessedClusterState, clusterState);
+                    }
+                    nodeSpecificClusterState = ClusterState.Builder.fromDiffBytes(lastProcessedClusterState, clusterStateDiffBytes, discovery.localNode, clusterName );
+                } else {
+                    if (clusterStateBytes == null) {
+                        clusterStateBytes = Builder.toBytes(clusterState);
+                    }
+                    nodeSpecificClusterState = ClusterState.Builder.fromBytes(clusterStateBytes, discovery.localNode, clusterName);
+                }
                 nodeSpecificClusterState.status(ClusterState.ClusterStateStatus.RECEIVED);
                 // ignore cluster state messages that do not include "me", not in the game yet...
                 if (nodeSpecificClusterState.nodes().localNode() != null) {
@@ -362,7 +378,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                     Thread.currentThread().interrupt();
                 }
             }
-
+            lastProcessedClusterState = clusterState;
 
         } catch (Exception e) {
             // failure to marshal or un-marshal

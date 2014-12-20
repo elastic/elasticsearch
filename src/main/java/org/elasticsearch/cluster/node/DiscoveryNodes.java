@@ -26,6 +26,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.AbstractClusterStatePart;
+import org.elasticsearch.cluster.ClusterStatePart;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -33,8 +35,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,7 +51,11 @@ import static com.google.common.collect.Lists.newArrayList;
  * This class holds all {@link DiscoveryNode} in the cluster and provides convenience methods to
  * access, modify merge / diff discovery nodes.
  */
-public class DiscoveryNodes implements Iterable<DiscoveryNode> {
+public class DiscoveryNodes extends AbstractClusterStatePart implements Iterable<DiscoveryNode> {
+
+    public static final String TYPE = "nodes";
+
+    public static final Factory FACTORY = new Factory();
 
     public static final DiscoveryNodes EMPTY_NODES = builder().build();
 
@@ -57,6 +67,24 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
     private final String localNodeId;
     private final Version minNodeVersion;
     private final Version minNonClientNodeVersion;
+
+    public static class Factory extends AbstractFactory<DiscoveryNodes> {
+
+        @Override
+        public String type() {
+            return TYPE;
+        }
+
+        @Override
+        public DiscoveryNodes readFrom(StreamInput in) throws IOException {
+            return Builder.readFrom(in, null);
+        }
+
+        @Override
+        public DiscoveryNodes fromXContent(XContentParser parser) throws IOException {
+            throw new UnsupportedOperationException("Not implemented yet");
+        }
+    }
 
     private DiscoveryNodes(ImmutableOpenMap<String, DiscoveryNode> nodes, ImmutableOpenMap<String, DiscoveryNode> dataNodes, ImmutableOpenMap<String, DiscoveryNode> masterNodes, String masterNodeId, String localNodeId, Version minNodeVersion, Version minNonClientNodeVersion) {
         this.nodes = nodes;
@@ -465,6 +493,34 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
 
     public Delta emptyDelta() {
         return new Delta(null, null, localNodeId, DiscoveryNode.EMPTY_LIST, DiscoveryNode.EMPTY_LIST);
+    }
+
+    @Override
+    public String type() {
+        return DiscoveryNodes.TYPE;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        DiscoveryNodes.Builder.writeTo(this, out);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        for (DiscoveryNode node : this) {
+            builder.startObject(node.id(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.field("name", node.name());
+            builder.field("transport_address", node.address().toString());
+
+            builder.startObject("attributes");
+            for (Map.Entry<String, String> attr : node.attributes().entrySet()) {
+                builder.field(attr.getKey(), attr.getValue());
+            }
+            builder.endObject();
+
+            builder.endObject();
+        }
+        return builder;
     }
 
     public static class Delta {

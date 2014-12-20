@@ -27,17 +27,21 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.AbstractClusterStatePart;
+import org.elasticsearch.cluster.ClusterStatePart;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.Index;
@@ -56,9 +60,125 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
 /**
  *
  */
-public class MetaData implements Iterable<IndexMetaData> {
+public class MetaData extends AbstractClusterStatePart implements Iterable<IndexMetaData> {
+
+    public static final String TYPE = "metadata";
+
+    public static final Factory FACTORY = new Factory();
 
     public static final String ALL = "_all";
+
+
+    public static class Factory extends AbstractFactory<MetaData> {
+
+        @Override
+        public String type() {
+            return TYPE;
+        }
+
+        @Override
+        public MetaData readFrom(StreamInput in) throws IOException {
+            return Builder.readFrom(in);
+        }
+
+        @Override
+        public MetaData fromXContent(XContentParser parser) throws IOException {
+            throw new UnsupportedOperationException("Not implemented yet");
+        }
+    }
+
+    @Override
+    public String type() {
+        return TYPE;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Builder.writeTo(this, out);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject("templates");
+        for (ObjectCursor<IndexTemplateMetaData> cursor : templates().values()) {
+            IndexTemplateMetaData templateMetaData = cursor.value;
+            builder.startObject(templateMetaData.name(), XContentBuilder.FieldCaseConversion.NONE);
+
+            builder.field("template", templateMetaData.template());
+            builder.field("order", templateMetaData.order());
+
+            builder.startObject("settings");
+            Settings settings = templateMetaData.settings();
+            if (settingsFilter != null) {
+                settings = settingsFilter.filterSettings(settings);
+            }
+            settings.toXContent(builder, params);
+            builder.endObject();
+
+            builder.startObject("mappings");
+            for (ObjectObjectCursor<String, CompressedString> cursor1 : templateMetaData.mappings()) {
+                byte[] mappingSource = cursor1.value.uncompressed();
+                XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
+                Map<String, Object> mapping = parser.map();
+                if (mapping.size() == 1 && mapping.containsKey(cursor1.key)) {
+                    // the type name is the root value, reduce it
+                    mapping = (Map<String, Object>) mapping.get(cursor1.key);
+                }
+                builder.field(cursor1.key);
+                builder.map(mapping);
+            }
+            builder.endObject();
+
+
+            builder.endObject();
+        }
+        builder.endObject();
+
+        builder.startObject("indices");
+        for (IndexMetaData indexMetaData : this) {
+            builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
+
+            builder.field("state", indexMetaData.state().toString().toLowerCase(Locale.ENGLISH));
+
+            builder.startObject("settings");
+            Settings settings = indexMetaData.settings();
+            if (settingsFilter != null) {
+                settings = settingsFilter.filterSettings(settings);
+            }
+            settings.toXContent(builder, params);
+            builder.endObject();
+
+            builder.startObject("mappings");
+            for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
+                byte[] mappingSource = cursor.value.source().uncompressed();
+                XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
+                Map<String, Object> mapping = parser.map();
+                if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
+                    // the type name is the root value, reduce it
+                    mapping = (Map<String, Object>) mapping.get(cursor.key);
+                }
+                builder.field(cursor.key);
+                builder.map(mapping);
+            }
+            builder.endObject();
+
+            builder.startArray("aliases");
+            for (ObjectCursor<String> cursor : indexMetaData.aliases().keys()) {
+                builder.value(cursor.value);
+            }
+            builder.endArray();
+
+            builder.endObject();
+        }
+        builder.endObject();
+
+        for (ObjectObjectCursor<String, MetaData.Custom> cursor : customs()) {
+            builder.startObject(cursor.key);
+            MetaData.lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
+            builder.endObject();
+        }
+        return builder;
+    }
 
     public enum XContentContext {
         /* Custom metadata should be returns as part of API call */
@@ -159,6 +279,9 @@ public class MetaData implements Iterable<IndexMetaData> {
     private final ImmutableOpenMap<String, ImmutableOpenMap<String, AliasMetaData>> aliases;
     private final ImmutableOpenMap<String, String[]> aliasAndIndexToIndexMap;
 
+    //TODO: This is a hack - needed for plugins. We should refactor it using params
+    private SettingsFilter settingsFilter;
+
     @SuppressWarnings("unchecked")
     MetaData(String uuid, long version, Settings transientSettings, Settings persistentSettings, ImmutableOpenMap<String, IndexMetaData> indices, ImmutableOpenMap<String, IndexTemplateMetaData> templates, ImmutableOpenMap<String, Custom> customs) {
         this.uuid = uuid;
@@ -252,6 +375,11 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
 
         this.aliasAndIndexToIndexMap = aliasAndIndexToIndexMap.<String, String[]>cast().build();
+    }
+
+    public MetaData settingsFilter(SettingsFilter settingsFilter) {
+        this.settingsFilter = settingsFilter;
+        return this;
     }
 
     public long version() {

@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
@@ -367,7 +368,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 Discovery.AckListener ackListener = new NoOpAckListener();
                 if (newClusterState.nodes().localNodeMaster()) {
                     // only the master controls the version numbers
-                    Builder builder = ClusterState.builder(newClusterState).version(newClusterState.version() + 1);
+                    Builder builder = ClusterState.builder(newClusterState).incrementVersion();
+                    builder.uuid(Strings.randomBase64UUID());
                     if (previousClusterState.routingTable() != newClusterState.routingTable()) {
                         builder.routingTable(RoutingTable.builder(newClusterState.routingTable()).version(newClusterState.routingTable().version() + 1));
                     }

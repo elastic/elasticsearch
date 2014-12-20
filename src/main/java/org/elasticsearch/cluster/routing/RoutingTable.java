@@ -21,11 +21,16 @@ package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.hppc.IntSet;
 import com.google.common.collect.*;
+import org.elasticsearch.cluster.AbstractClusterStatePart;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStatePart;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexMissingException;
@@ -44,7 +49,11 @@ import static com.google.common.collect.Maps.newHashMap;
  *
  * @see IndexRoutingTable
  */
-public class RoutingTable implements Iterable<IndexRoutingTable> {
+public class RoutingTable extends AbstractClusterStatePart implements Iterable<IndexRoutingTable>  {
+
+    public static final String TYPE = "routing_table";
+
+    public static final Factory FACTORY = new Factory();
 
     public static final RoutingTable EMPTY_ROUTING_TABLE = builder().build();
 
@@ -58,6 +67,24 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
         this.indicesRouting = ImmutableMap.copyOf(indicesRouting);
     }
 
+
+    public static class Factory extends AbstractFactory<RoutingTable> {
+
+        @Override
+        public String type() {
+            return TYPE;
+        }
+
+        @Override
+        public RoutingTable readFrom(StreamInput in) throws IOException {
+            return Builder.readFrom(in);
+        }
+
+        @Override
+        public RoutingTable fromXContent(XContentParser parser) throws IOException {
+            throw new UnsupportedOperationException("Not implemented yet");
+        }
+    }
     /**
      * Returns the version of the {@link RoutingTable}.
      *
@@ -293,6 +320,36 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
 
     public static Builder builder(RoutingTable routingTable) {
         return new Builder(routingTable);
+    }
+
+    @Override
+    public String type() {
+        return TYPE;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Builder.writeTo(this, out);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject("indices");
+        for (IndexRoutingTable indexRoutingTable : this) {
+            builder.startObject(indexRoutingTable.index(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject("shards");
+            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
+                for (ShardRouting shardRouting : indexShardRoutingTable) {
+                    shardRouting.toXContent(builder, params);
+                }
+                builder.endArray();
+            }
+            builder.endObject();
+            builder.endObject();
+        }
+        builder.endObject();
+        return builder;
     }
 
     public static class Builder {

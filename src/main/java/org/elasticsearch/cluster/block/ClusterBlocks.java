@@ -23,10 +23,15 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import org.elasticsearch.cluster.AbstractClusterStatePart;
+import org.elasticsearch.cluster.ClusterStatePart;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -36,7 +41,11 @@ import java.util.Set;
 /**
  * Represents current cluster level blocks to block dirty operations done against the cluster.
  */
-public class ClusterBlocks {
+public class ClusterBlocks extends AbstractClusterStatePart {
+
+    public static final String TYPE = "blocks";
+
+    public static final Factory FACTORY = new Factory();
 
     public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(ImmutableSet.<ClusterBlock>of(), ImmutableMap.<String, ImmutableSet<ClusterBlock>>of());
 
@@ -73,6 +82,24 @@ public class ClusterBlocks {
             }
 
             levelHolders[level.id()] = new ImmutableLevelHolder(globalBuilder.build(), indicesBuilder.build());
+        }
+    }
+
+    public static class Factory extends AbstractFactory<ClusterBlocks> {
+
+        @Override
+        public String type() {
+            return TYPE;
+        }
+
+        @Override
+        public ClusterBlocks readFrom(StreamInput in) throws IOException {
+            return Builder.readClusterBlocks(in);
+        }
+
+        @Override
+        public ClusterBlocks fromXContent(XContentParser parser) throws IOException {
+            throw new UnsupportedOperationException("Not implemented yet");
         }
     }
 
@@ -201,6 +228,41 @@ public class ClusterBlocks {
             }
         }
         return new ClusterBlockException(builder.build());
+    }
+
+    @Override
+    public String type() {
+        return TYPE;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Builder.writeClusterBlocks(this, out);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (!global().isEmpty()) {
+            builder.startObject("global");
+            for (ClusterBlock block : global()) {
+                block.toXContent(builder, params);
+            }
+            builder.endObject();
+        }
+
+        if (!indices().isEmpty()) {
+            builder.startObject("indices");
+            for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : indices().entrySet()) {
+                builder.startObject(entry.getKey());
+                for (ClusterBlock block : entry.getValue()) {
+                    block.toXContent(builder, params);
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+
+        return builder;
     }
 
     static class ImmutableLevelHolder {

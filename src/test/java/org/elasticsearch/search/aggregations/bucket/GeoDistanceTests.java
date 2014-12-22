@@ -18,11 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
-
 import com.google.common.collect.Sets;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -37,6 +32,11 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
+
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geoDistance;
@@ -47,6 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.IsNull.notNullValue;
+import static org.hamcrest.core.IsNull.nullValue;
 
 /**
  *
@@ -146,6 +147,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("*-500.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(0.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(500.0));
+        assertThat(bucket.getFromAsString(), equalTo("0.0"));
+        assertThat(bucket.getToAsString(), equalTo("500.0"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
         bucket = geoDist.getBucketByKey("500.0-1000.0");
@@ -153,6 +156,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("500.0-1000.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(500.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(1000.0));
+        assertThat(bucket.getFromAsString(), equalTo("500.0"));
+        assertThat(bucket.getToAsString(), equalTo("1000.0"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
         bucket = geoDist.getBucketByKey("1000.0-*");
@@ -160,6 +165,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("1000.0-*"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(1000.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), equalTo("1000.0"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(1l));
     }
 
@@ -188,6 +195,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("ring1"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(0.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(500.0));
+        assertThat(bucket.getFromAsString(), equalTo("0.0"));
+        assertThat(bucket.getToAsString(), equalTo("500.0"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
         bucket = geoDist.getBucketByKey("ring2");
@@ -195,6 +204,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("ring2"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(500.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(1000.0));
+        assertThat(bucket.getFromAsString(), equalTo("500.0"));
+        assertThat(bucket.getToAsString(), equalTo("1000.0"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
         bucket = geoDist.getBucketByKey("ring3");
@@ -202,6 +213,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("ring3"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(1000.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), equalTo("1000.0"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(1l));
     }
 
@@ -232,6 +245,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("*-500.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(0.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(500.0));
+        assertThat(bucket.getFromAsString(), equalTo("0.0"));
+        assertThat(bucket.getToAsString(), equalTo("500.0"));
         assertThat(bucket.getDocCount(), equalTo(0l));
 
         bucket = geoDist.getBucketByKey("500.0-1000.0");
@@ -239,6 +254,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("500.0-1000.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(500.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(1000.0));
+        assertThat(bucket.getFromAsString(), equalTo("500.0"));
+        assertThat(bucket.getToAsString(), equalTo("1000.0"));
         assertThat(bucket.getDocCount(), equalTo(0l));
 
         bucket = geoDist.getBucketByKey("1000.0-*");
@@ -246,6 +263,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("1000.0-*"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(1000.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), equalTo("1000.0"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(0l));
     }
 
@@ -274,6 +293,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("*-500.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(0.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(500.0));
+        assertThat(bucket.getFromAsString(), equalTo("0.0"));
+        assertThat(bucket.getToAsString(), equalTo("500.0"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
         bucket = geoDist.getBucketByKey("500.0-1000.0");
@@ -281,6 +302,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("500.0-1000.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(500.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(1000.0));
+        assertThat(bucket.getFromAsString(), equalTo("500.0"));
+        assertThat(bucket.getToAsString(), equalTo("1000.0"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
         bucket = geoDist.getBucketByKey("1000.0-*");
@@ -288,6 +311,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("1000.0-*"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(1000.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), equalTo("1000.0"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(1l));
     }
 
@@ -322,6 +347,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("*-500.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(0.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(500.0));
+        assertThat(bucket.getFromAsString(), equalTo("0.0"));
+        assertThat(bucket.getToAsString(), equalTo("500.0"));
         assertThat(bucket.getDocCount(), equalTo(2l));
         assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
         Terms cities = bucket.getAggregations().get("cities");
@@ -340,6 +367,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("500.0-1000.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(500.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(1000.0));
+        assertThat(bucket.getFromAsString(), equalTo("500.0"));
+        assertThat(bucket.getToAsString(), equalTo("1000.0"));
         assertThat(bucket.getDocCount(), equalTo(2l));
         assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
         cities = bucket.getAggregations().get("cities");
@@ -358,6 +387,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("1000.0-*"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(1000.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), equalTo("1000.0"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(1l));
         assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
         cities = bucket.getAggregations().get("cities");
@@ -394,6 +425,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(buckets.get(0).getKey(), equalTo("0-100"));
         assertThat(buckets.get(0).getFrom().doubleValue(), equalTo(0.0));
         assertThat(buckets.get(0).getTo().doubleValue(), equalTo(100.0));
+        assertThat(buckets.get(0).getFromAsString(), equalTo("0.0"));
+        assertThat(buckets.get(0).getToAsString(), equalTo("100.0"));
         assertThat(buckets.get(0).getDocCount(), equalTo(0l));
     }
 
@@ -422,6 +455,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("*-500.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(0.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(500.0));
+        assertThat(bucket.getFromAsString(), equalTo("0.0"));
+        assertThat(bucket.getToAsString(), equalTo("500.0"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
         bucket = geoDist.getBucketByKey("500.0-1000.0");
@@ -429,6 +464,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("500.0-1000.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(500.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(1000.0));
+        assertThat(bucket.getFromAsString(), equalTo("500.0"));
+        assertThat(bucket.getToAsString(), equalTo("1000.0"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
         bucket = geoDist.getBucketByKey("1000.0-*");
@@ -436,6 +473,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("1000.0-*"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(1000.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), equalTo("1000.0"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(1l));
     }
 

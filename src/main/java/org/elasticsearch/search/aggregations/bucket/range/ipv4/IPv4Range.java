@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.range.ipv4;
 
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 
-import java.util.Collection;
 import java.util.List;
 
 /**
@@ -29,10 +28,6 @@ import java.util.List;
 public interface IPv4Range extends Range {
 
     static interface Bucket extends Range.Bucket {
-
-        String getFromAsString();
-
-        String getToAsString();
 
     }
 

@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
-import java.util.Collection;
 import java.util.List;
 
 /**
@@ -40,9 +39,19 @@ public interface Range extends MultiBucketsAggregation {
         Number getFrom();
 
         /**
-         * @return  The upper bound of the range (excluding)
+         * @return The string value for the lower bound of the range
+         */
+        String getFromAsString();
+
+        /**
+         * @return The upper bound of the range (excluding)
          */
         Number getTo();
+
+        /**
+         * @return The string value for the upper bound of the range (excluding)
+         */
+        String getToAsString();
     }
 
     /**

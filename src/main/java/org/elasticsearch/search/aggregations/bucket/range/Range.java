@@ -20,6 +20,8 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
+import java.util.Collection;
+
 
 /**
  * A {@code range} aggregation. Defines multiple buckets, each associated with a pre-defined value range of a field,
@@ -56,7 +58,7 @@ public interface Range extends MultiBucketsAggregation {
     /**
      * Return the buckets of this range aggregation.
      */
-    List<? extends Bucket> getBuckets();
+    Collection<? extends Bucket> getBuckets();
 
     @Override
     Bucket getBucketByKey(String key);

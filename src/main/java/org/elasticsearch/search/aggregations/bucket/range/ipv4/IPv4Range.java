@@ -20,6 +20,8 @@ package org.elasticsearch.search.aggregations.bucket.range.ipv4;
 
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 
+import java.util.Collection;
+
 
 /**
  * A range aggregation on ipv4 values.
@@ -31,7 +33,7 @@ public interface IPv4Range extends Range {
     }
 
     @Override
-    List<? extends Bucket> getBuckets();
+    Collection<? extends Bucket> getBuckets();
 
     @Override
     IPv4Range.Bucket getBucketByKey(String key);

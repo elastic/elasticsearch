@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import com.google.common.collect.Lists;
-
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,7 +33,11 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  *

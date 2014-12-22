@@ -20,14 +20,11 @@
 package org.elasticsearch.indices.cache.filter.terms;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 
 /**
  */
 public class TermsLookup {
-
-    private final FieldMapper fieldMapper;
 
     private final String index;
     private final String type;
@@ -38,18 +35,13 @@ public class TermsLookup {
     @Nullable
     private final QueryParseContext queryParseContext;
 
-    public TermsLookup(FieldMapper fieldMapper, String index, String type, String id, String routing, String path, @Nullable QueryParseContext queryParseContext) {
-        this.fieldMapper = fieldMapper;
+    public TermsLookup(String index, String type, String id, String routing, String path, @Nullable QueryParseContext queryParseContext) {
         this.index = index;
         this.type = type;
         this.id = id;
         this.routing = routing;
         this.path = path;
         this.queryParseContext = queryParseContext;
-    }
-
-    public FieldMapper getFieldMapper() {
-        return fieldMapper;
     }
 
     public String getIndex() {
@@ -78,6 +70,6 @@ public class TermsLookup {
     }
 
     public String toString() {
-        return fieldMapper.names().fullName() + ":" + index + "/" + type + "/" + id + "/" + path;
+        return index + "/" + type + "/" + id + "/" + path;
     }
 }

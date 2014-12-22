@@ -54,7 +54,7 @@ public class ShieldPluginEnabledDisabledTests extends ShieldIntegrationTest {
         logger.info("******* shield is " + (enabled ? "enabled" : "disabled"));
         return ImmutableSettings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("shield.enabled", enabled)
+                .put(ShieldPlugin.ENABLED_SETTING_NAME, enabled)
                 .put(InternalNode.HTTP_ENABLED, true)
                 .build();
     }
@@ -63,7 +63,7 @@ public class ShieldPluginEnabledDisabledTests extends ShieldIntegrationTest {
     protected Settings transportClientSettings() {
         return ImmutableSettings.settingsBuilder()
                 .put(super.transportClientSettings())
-                .put("shield.enabled", enabled)
+                .put(ShieldPlugin.ENABLED_SETTING_NAME, enabled)
                 .build();
     }
 

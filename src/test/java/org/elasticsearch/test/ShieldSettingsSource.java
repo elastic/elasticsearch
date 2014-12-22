@@ -37,6 +37,11 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
  */
 public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZen {
 
+    public static final Settings DEFAULT_SETTINGS = ImmutableSettings.builder()
+            .put("node.mode", "network")
+            .put("plugins.load_classpath_plugins", false)
+            .build();
+
     public static final String DEFAULT_USER_NAME = "test_user";
     public static final String DEFAULT_PASSWORD = "changeme";
     public static final String DEFAULT_ROLE = "user";
@@ -73,16 +78,26 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
      * Creates a new {@link org.elasticsearch.test.SettingsSource} for the shield configuration.
      *
      * @param numOfNodes the number of nodes for proper unicast configuration (can be more than actually available)
+     * @param sslTransportEnabled whether ssl should be enabled on the transport layer or not
      * @param parentFolder the parent folder that will contain all of the configuration files that need to be created
      * @param scope the scope of the test that is requiring an instance of ShieldSettingsSource
      */
     public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, File parentFolder, ElasticsearchIntegrationTest.Scope scope) {
-        super(numOfNodes, ImmutableSettings.builder()
-                .put("node.mode", "network")
-                .put("plugins.load_classpath_plugins", false)
-                .build(),
-                scope);
-        this.systemKey = generateKey();
+        this(numOfNodes, sslTransportEnabled, generateKey(), parentFolder, scope);
+    }
+
+    /**
+     * Creates a new {@link org.elasticsearch.test.SettingsSource} for the shield configuration.
+     *
+     * @param numOfNodes the number of nodes for proper unicast configuration (can be more than actually available)
+     * @param sslTransportEnabled whether ssl should be enabled on the transport layer or not
+     * @param systemKey the system key that all of the nodes will use to sign messages
+     * @param parentFolder the parent folder that will contain all of the configuration files that need to be created
+     * @param scope the scope of the test that is requiring an instance of ShieldSettingsSource
+     */
+    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, byte[] systemKey, File parentFolder, ElasticsearchIntegrationTest.Scope scope) {
+        super(numOfNodes, DEFAULT_SETTINGS, scope);
+        this.systemKey = systemKey;
         this.parentFolder = parentFolder;
         this.subfolderPrefix = scope.name();
         this.sslTransportEnabled = sslTransportEnabled;

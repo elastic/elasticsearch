@@ -46,5 +46,12 @@ public class VersionCompatibilityTests extends ElasticsearchTestCase {
          * see https://github.com/elasticsearch/elasticsearch/pull/9273 {@link org.elasticsearch.action.admin.indices.create.CreateIndexRequestHelper}
          */
         assertThat("Remove CreateIndexRequestHelper class, fixed in es core 1.5", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
+
+        /**
+         * see https://github.com/elasticsearch/elasticsearch/issues/9372 {@link org.elasticsearch.shield.license.LicenseService}
+         * Once es core supports merging cluster level custom metadata (licenses in our case), the tribe node will see some license coming from the tribe and everything will be ok.
+         *
+         */
+        assertThat("Remove workaround in LicenseService class when es core supports merging cluster level custom metadata", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
     }
 }

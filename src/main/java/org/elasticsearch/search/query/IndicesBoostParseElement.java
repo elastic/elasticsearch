@@ -45,15 +45,20 @@ public class IndicesBoostParseElement implements SearchParseElement {
         XContentParser.Token token;
         ClusterService clusterService = context.clusterService();
 
+        float boost = Float.MIN_VALUE;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 String indexName = parser.currentName();
                 if (matchesIndex(clusterService, context.shardTarget().index(), indexName)) {
                     parser.nextToken(); // move to the value
                     // we found our query boost
-                    context.queryBoost(parser.floatValue());
+                    boost = Math.max(parser.floatValue(), boost);
                 }
             }
+        }
+
+        if (boost > Float.MIN_VALUE) {
+            context.queryBoost(boost);
         }
     }
 

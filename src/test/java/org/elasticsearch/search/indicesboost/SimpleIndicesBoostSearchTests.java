@@ -234,4 +234,73 @@ public class SimpleIndicesBoostSearchTests extends ElasticsearchIntegrationTest 
         assertThat(response.getHits().getAt(0).index(), equalTo("wildcard_test2"));
         assertThat(response.getHits().getAt(1).index(), equalTo("wildcard_test1"));
     }
+
+    @Test
+    public void testMultipleIndicesBoost() throws Exception {
+        createIndex("multi_test1", "multi_test2");
+        ensureGreen();
+        client().admin().indices().prepareAliases().addAlias("multi_test1", "alias1").get();
+
+        client().index(indexRequest("multi_test1").type("type1").id("1")
+                .source(jsonBuilder().startObject().field("test", "value check").endObject())).actionGet();
+        client().index(indexRequest("multi_test2").type("type1").id("1")
+                .source(jsonBuilder().startObject().field("test", "value beck").endObject())).actionGet();
+        refresh();
+
+        // Higher boost value is used.
+        float indexBoost1 = 1.1f;
+        float indexBoost2 = 0.9f;
+
+        logger.info("--- QUERY_THEN_FETCH");
+
+        logger.info("Query with multi_test1 boosted");
+        SearchResponse response = client().search(searchRequest()
+                        .searchType(SearchType.QUERY_THEN_FETCH)
+                        .source(searchSource().explain(true).indexBoost("alias1", indexBoost1).indexBoost("multi_test1", indexBoost2).query(termQuery("test", "value")))
+        ).actionGet();
+
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).index(), response.getHits().getAt(0).explanation());
+        logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).index(), response.getHits().getAt(1).explanation());
+        assertThat(response.getHits().getAt(0).index(), equalTo("multi_test1"));
+        assertThat(response.getHits().getAt(1).index(), equalTo("multi_test2"));
+
+        logger.info("Query with multi_test1 boosted");
+        response = client().search(searchRequest()
+                        .searchType(SearchType.QUERY_THEN_FETCH)
+                        .source(searchSource().explain(true).indexBoost("alias1", indexBoost2).indexBoost("multi_test1", indexBoost1).query(termQuery("test", "value")))
+        ).actionGet();
+
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).index(), response.getHits().getAt(0).explanation());
+        logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).index(), response.getHits().getAt(1).explanation());
+        assertThat(response.getHits().getAt(0).index(), equalTo("multi_test1"));
+        assertThat(response.getHits().getAt(1).index(), equalTo("multi_test2"));
+
+        logger.info("--- DFS_QUERY_THEN_FETCH");
+
+        logger.info("Query with multi_test1 boosted");
+        response = client().search(searchRequest()
+                        .searchType(SearchType.DFS_QUERY_THEN_FETCH)
+                        .source(searchSource().explain(true).indexBoost("alias1", indexBoost1).indexBoost("multi_test1", indexBoost2).query(termQuery("test", "value")))
+        ).actionGet();
+
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).index(), response.getHits().getAt(0).explanation());
+        logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).index(), response.getHits().getAt(1).explanation());
+        assertThat(response.getHits().getAt(0).index(), equalTo("multi_test1"));
+        assertThat(response.getHits().getAt(1).index(), equalTo("multi_test2"));
+
+        logger.info("Query with multi_test1 boosted");
+        response = client().search(searchRequest()
+                        .searchType(SearchType.DFS_QUERY_THEN_FETCH)
+                        .source(searchSource().explain(true).indexBoost("alias1", indexBoost2).indexBoost("multi_test1", indexBoost1).query(termQuery("test", "value")))
+        ).actionGet();
+
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).index(), response.getHits().getAt(0).explanation());
+        logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).index(), response.getHits().getAt(1).explanation());
+        assertThat(response.getHits().getAt(0).index(), equalTo("multi_test1"));
+        assertThat(response.getHits().getAt(1).index(), equalTo("multi_test2"));
+    }
 }

@@ -129,9 +129,9 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
 
         Edge[] edges = new Edge[numEdges];
         Edge[] holeComponents = new Edge[holes.size()];
-        int offset = createEdges(0, orientation.getValue(), shell, null, edges, 0);
+        int offset = createEdges(0, orientation, shell, null, edges, 0);
         for (int i = 0; i < holes.size(); i++) {
-            int length = createEdges(i+1, orientation.getValue(), shell, this.holes.get(i), edges, offset);
+            int length = createEdges(i+1, orientation, shell, this.holes.get(i), edges, offset);
             holeComponents[i] = edges[offset];
             offset += length;
         }
@@ -457,14 +457,15 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         }
     }
 
-    private static int createEdges(int component, boolean orientation, BaseLineStringBuilder<?> shell,
+    private static int createEdges(int component, Orientation orientation, BaseLineStringBuilder<?> shell,
                                    BaseLineStringBuilder<?> hole,
                                    Edge[] edges, int offset) {
         // inner rings (holes) have an opposite direction than the outer rings
-        boolean direction = (component != 0) ? !orientation : orientation;
+        // XOR will invert the orientation for outer ring cases (Truth Table:, T/T = F, T/F = T, F/T = T, F/F = F)
+        boolean direction = (component != 0 ^ orientation == Orientation.RIGHT);
         // set the points array accordingly (shell or hole)
         Coordinate[] points = (hole != null) ? hole.coordinates(false) : shell.coordinates(false);
-        Edge.ring(component, direction, orientation, shell, points, 0, edges, offset, points.length-1);
+        Edge.ring(component, direction, orientation == Orientation.LEFT, shell, points, 0, edges, offset, points.length-1);
         return points.length-1;
     }
 

@@ -72,6 +72,8 @@ public class Natives {
                 } else {
                     logger.warn("unknown error " + Native.getLastError() + " when adding console ctrl handler:");
                 }
+            } catch (NoClassDefFoundError e) {
+                logger.warn("JNA not found: native methods and handlers will be disabled.");
             } catch (UnsatisfiedLinkError e) {
                 // this will have already been logged by Kernel32Library, no need to repeat it
             }

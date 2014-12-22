@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -95,6 +96,28 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
         }
 
         @Override
+        public String getFromAsString() {
+            if (Double.isInfinite(from)) {
+                return null;
+            } else if (formatter == null) {
+                return ValueFormatter.RAW.format(from);
+            } else {
+                return formatter.format(from);
+            }
+        }
+
+        @Override
+        public String getToAsString() {
+            if (Double.isInfinite(to)) {
+                return null;
+            } else if (formatter == null) {
+                return ValueFormatter.RAW.format(to);
+            } else {
+                return formatter.format(to);
+            }
+        }
+
+        @Override
         public long getDocCount() {
             return docCount;
         }
@@ -151,7 +174,7 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
             return sb.toString();
         }
 
-    }
+        }
 
     public static class Factory<B extends Bucket, R extends InternalRange<B>> {
 

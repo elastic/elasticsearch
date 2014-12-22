@@ -9,7 +9,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.shield.authc.ldap.LdapException;
 import org.elasticsearch.shield.authc.support.ldap.AbstractLdapConnection;
+import org.elasticsearch.shield.authc.support.ldap.ClosableNamingEnumeration;
 
 import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
@@ -64,16 +66,15 @@ public class ActiveDirectoryConnection extends AbstractLdapConnection {
         groupsSearchCtls.setTimeLimit(timeoutMilliseconds);
 
         ImmutableList.Builder<String> groups = ImmutableList.builder();
-        try {
-            //Search for objects using the filter
-            NamingEnumeration groupsAnswer = jndiContext.search(groupSearchDN, groupsSearchFilter, groupsSearchCtls);
+        try (ClosableNamingEnumeration groupsAnswer = new ClosableNamingEnumeration(
+                jndiContext.search(groupSearchDN, groupsSearchFilter, groupsSearchCtls))) {
 
             //Loop through the search results
             while (groupsAnswer.hasMoreElements()) {
                 SearchResult sr = (SearchResult) groupsAnswer.next();
                 groups.add(sr.getNameInNamespace());
             }
-        } catch (NamingException ne) {
+        } catch (NamingException | LdapException ne) {
             throw new ActiveDirectoryException("Exception occurred fetching AD groups", bindDn, ne);
         }
         List<String> groupList = groups.build();
@@ -93,29 +94,33 @@ public class ActiveDirectoryConnection extends AbstractLdapConnection {
             String userSearchFilter = "(objectClass=user)";
             String userReturnedAtts[] = { "tokenGroups" };
             userSearchCtls.setReturningAttributes(userReturnedAtts);
-            NamingEnumeration userAnswer = jndiContext.search(authenticatedUserDn(), userSearchFilter, userSearchCtls);
+            try (ClosableNamingEnumeration userAnswer = new ClosableNamingEnumeration(
+                    jndiContext.search(authenticatedUserDn(), userSearchFilter, userSearchCtls))) {
 
-            //Loop through the search results
-            while (userAnswer.hasMoreElements()) {
+                //Loop through the search results
+                while (userAnswer.hasMoreElements()) {
 
-                SearchResult sr = (SearchResult) userAnswer.next();
-                Attributes attrs = sr.getAttributes();
+                    SearchResult sr = (SearchResult) userAnswer.next();
+                    Attributes attrs = sr.getAttributes();
 
-                if (attrs != null) {
-                    for (NamingEnumeration ae = attrs.getAll(); ae.hasMore(); ) {
-                        Attribute attr = (Attribute) ae.next();
-                        for (NamingEnumeration e = attr.getAll(); e.hasMore(); ) {
-                            byte[] sid = (byte[]) e.next();
-                            groupsSearchFilter.append("(objectSid=");
-                            groupsSearchFilter.append(binarySidToStringSid(sid));
-                            groupsSearchFilter.append(")");
+                    if (attrs != null) {
+                        try (ClosableNamingEnumeration<? extends Attribute> ae = new ClosableNamingEnumeration<>(attrs.getAll())) {
+                            while (ae.hasMore() ) {
+                                Attribute attr = (Attribute) ae.next();
+                                for (NamingEnumeration e = attr.getAll(); e.hasMore(); ) {
+                                    byte[] sid = (byte[]) e.next();
+                                    groupsSearchFilter.append("(objectSid=");
+                                    groupsSearchFilter.append(binarySidToStringSid(sid));
+                                    groupsSearchFilter.append(")");
+                                }
+                                groupsSearchFilter.append(")");
+                            }
                         }
-                        groupsSearchFilter.append(")");
                     }
                 }
             }
 
-        } catch (NamingException ne) {
+        } catch (NamingException | LdapException ne) {
             throw new ActiveDirectoryException("Exception occurred fetching AD groups", bindDn, ne);
         }
         return groupsSearchFilter.toString();

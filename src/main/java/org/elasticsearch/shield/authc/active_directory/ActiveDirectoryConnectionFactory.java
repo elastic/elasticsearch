@@ -10,12 +10,12 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldSettingsException;
+import org.elasticsearch.shield.authc.ldap.LdapException;
 import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.authc.support.ldap.ClosableNamingEnumeration;
 import org.elasticsearch.shield.authc.support.ldap.ConnectionFactory;
-import org.elasticsearch.shield.authc.support.ldap.AbstractLdapSslSocketFactory;
 
 import javax.naming.Context;
-import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
 import javax.naming.directory.DirContext;
 import javax.naming.directory.InitialDirContext;
@@ -86,24 +86,23 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory {
             searchCtls.setReturningAttributes(Strings.EMPTY_ARRAY);
             searchCtls.setTimeLimit(timeoutMilliseconds);
             String searchFilter = "(&(objectClass=user)(userPrincipalName={0}))";
-            NamingEnumeration<SearchResult> results = ctx.search(userSearchDN, searchFilter, new Object[] { userPrincipal }, searchCtls);
+            try (ClosableNamingEnumeration<SearchResult> results = new ClosableNamingEnumeration(
+                    ctx.search(userSearchDN, searchFilter, new Object[] { userPrincipal }, searchCtls))) {
 
-            if (results.hasMore()) {
-                SearchResult entry = results.next();
-                String name = entry.getNameInNamespace();
+                if(results.hasMore()){
+                    SearchResult entry = results.next();
+                    String name = entry.getNameInNamespace();
 
-                if (!results.hasMore()) {
-                    return new ActiveDirectoryConnection(ctx, name, userSearchDN, timeoutMilliseconds);
+                    if (!results.hasMore()) {
+                        return new ActiveDirectoryConnection(ctx, name, userSearchDN, timeoutMilliseconds);
+                    }
+                    throw new ActiveDirectoryException("Search for user [" + userName + "] by principle name yielded multiple results");
                 }
-                results.close();
+
                 ctx.close();
                 throw new ActiveDirectoryException("Search for user [" + userName + "] by principle name yielded multiple results");
             }
-            results.close();
-            ctx.close();
-            throw new ActiveDirectoryException("Search for user [" + userName + "], search root [" + userSearchDN + "] yielded no results");
-
-        } catch (NamingException e) {
+        } catch (NamingException | LdapException e) {
             if (ctx != null) {
                 try {
                     ctx.close();

@@ -9,6 +9,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.shield.authc.support.ldap.AbstractLdapConnection;
+import org.elasticsearch.shield.authc.support.ldap.ClosableNamingEnumeration;
 
 import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
@@ -81,12 +82,12 @@ public class LdapConnection extends AbstractLdapConnection {
                 "(|(objectclass=groupOfNames)(objectclass=groupOfUniqueNames)(objectclass=group)) " +
                 "(|(uniqueMember={0})(member={0})))";
 
-        try {
-            NamingEnumeration<SearchResult> results = jndiContext.search(groupSearchDN, filter, new Object[] { userDn }, search);
+        try (ClosableNamingEnumeration<SearchResult> results = new ClosableNamingEnumeration<>(
+                jndiContext.search(groupSearchDN, filter, new Object[] { userDn }, search))) {
             while (results.hasMoreElements()) {
                 groups.add(results.next().getNameInNamespace());
             }
-        } catch (NamingException e) {
+        } catch (NamingException | LdapException e ) {
             throw new LdapException("Could not search for an LDAP group for user [" + userDn + "]", e);
         }
         return groups;
@@ -103,17 +104,19 @@ public class LdapConnection extends AbstractLdapConnection {
         List<String> groupDns = new LinkedList<>();
         try {
             Attributes results = jndiContext.getAttributes(userDn, new String[] { groupAttribute });
-            for (NamingEnumeration ae = results.getAll(); ae.hasMore(); ) {
-                Attribute attr = (Attribute) ae.next();
-                for (NamingEnumeration attrEnum = attr.getAll(); attrEnum.hasMore(); ) {
-                    Object val = attrEnum.next();
-                    if (val instanceof String) {
-                        String stringVal = (String) val;
-                        groupDns.add(stringVal);
+            try (ClosableNamingEnumeration<? extends Attribute> ae = new ClosableNamingEnumeration<>(results.getAll())) {
+                while (ae.hasMore()) {
+                    Attribute attr = (Attribute) ae.next();
+                    for (NamingEnumeration attrEnum = attr.getAll(); attrEnum.hasMore(); ) {
+                        Object val = attrEnum.next();
+                        if (val instanceof String) {
+                            String stringVal = (String) val;
+                            groupDns.add(stringVal);
+                        }
                     }
                 }
             }
-        } catch (NamingException e) {
+        } catch (NamingException | LdapException e) {
             throw new LdapException("Could not look up group attributes for user [" + userDn + "]", e);
         }
         return groupDns;

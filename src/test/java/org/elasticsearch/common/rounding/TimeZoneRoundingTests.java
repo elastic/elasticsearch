@@ -37,6 +37,10 @@ public class TimeZoneRoundingTests extends ElasticsearchTestCase {
         assertThat(tzRounding.round(utc("2009-02-03T01:01:01")), equalTo(utc("2009-02-01T00:00:00.000Z")));
         assertThat(tzRounding.nextRoundingValue(utc("2009-02-01T00:00:00.000Z")), equalTo(utc("2009-03-01T00:00:00.000Z")));
 
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.MONTH_OF_YEAR).preZone(DateTimeZone.forOffsetHours(-2)).postZone(DateTimeZone.forOffsetHours(-2)).build();
+        assertThat(tzRounding.round(utc("2009-02-03T01:01:01")), equalTo(utc("2009-01-31T22:00:00.000Z")));
+        assertThat(tzRounding.nextRoundingValue(utc("2009-09-30T22:00:00.000Z")), equalTo(utc("2009-10-31T22:00:00.000Z")));
+        
         tzRounding = TimeZoneRounding.builder(DateTimeUnit.WEEK_OF_WEEKYEAR).build();
         assertThat(tzRounding.round(utc("2012-01-10T01:01:01")), equalTo(utc("2012-01-09T00:00:00.000Z")));
         assertThat(tzRounding.nextRoundingValue(utc("2012-01-09T00:00:00.000Z")), equalTo(utc("2012-01-16T00:00:00.000Z")));
@@ -63,6 +67,7 @@ public class TimeZoneRoundingTests extends ElasticsearchTestCase {
         tzRounding = TimeZoneRounding.builder(DateTimeUnit.DAY_OF_MONTH).preZone(DateTimeZone.forOffsetHours(-2)).postZone(DateTimeZone.forOffsetHours(-2)).build();
         assertThat(tzRounding.round(utc("2009-02-03T01:01:01")), equalTo(time("2009-02-02T00:00:00", DateTimeZone.forOffsetHours(+2))));
         assertThat(tzRounding.nextRoundingValue(time("2009-02-02T00:00:00", DateTimeZone.forOffsetHours(+2))), equalTo(time("2009-02-03T00:00:00", DateTimeZone.forOffsetHours(+2))));
+        
     }
 
     @Test
@@ -82,6 +87,7 @@ public class TimeZoneRoundingTests extends ElasticsearchTestCase {
         tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).preZone(DateTimeZone.forOffsetHours(-2)).postZone(DateTimeZone.forOffsetHours(-2)).build();
         assertThat(tzRounding.round(utc("2009-02-03T01:01:01")), equalTo(time("2009-02-03T01:00:00", DateTimeZone.forOffsetHours(+2))));
         assertThat(tzRounding.nextRoundingValue(time("2009-02-03T01:00:00", DateTimeZone.forOffsetHours(+2))), equalTo(time("2009-02-03T02:00:00", DateTimeZone.forOffsetHours(+2))));
+
     }
     
     @Test

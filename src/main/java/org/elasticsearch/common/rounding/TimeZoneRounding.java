@@ -279,7 +279,14 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long nextRoundingValue(long value) {
-            return durationField.add(value, 1);
+            long nextRoundingValue = durationField.add(value, 1);
+            long postTzOffsetVal = postTz.getOffset(value);
+            
+            if (postTzOffsetVal < 0) {                
+                return field.roundCeiling(nextRoundingValue) + postTzOffsetVal;
+            } else {
+                return nextRoundingValue;
+            }
         }
 
         @Override

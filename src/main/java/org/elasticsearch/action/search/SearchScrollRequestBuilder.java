@@ -22,6 +22,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.Scroll;
 
@@ -30,12 +31,25 @@ import org.elasticsearch.search.Scroll;
  */
 public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrollRequest, SearchResponse, SearchScrollRequestBuilder, Client> {
 
+    private SearchScrollSourceBuilder sourceBuilder;
+
     public SearchScrollRequestBuilder(Client client) {
         super(client, new SearchScrollRequest());
     }
 
     public SearchScrollRequestBuilder(Client client, String scrollId) {
-        super(client, new SearchScrollRequest(scrollId));
+        super(client, new SearchScrollRequest());
+        if (sourceBuilder == null) {
+            sourceBuilder = new SearchScrollSourceBuilder();
+        }
+        sourceBuilder.scrollId(scrollId);
+    }
+
+    private SearchScrollSourceBuilder sourceBuilder() {
+        if (sourceBuilder == null) {
+            sourceBuilder = new SearchScrollSourceBuilder();
+        }
+        return sourceBuilder;
     }
 
     /**
@@ -50,7 +64,7 @@ public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrol
      * The scroll id to use to continue scrolling.
      */
     public SearchScrollRequestBuilder setScrollId(String scrollId) {
-        request.scrollId(scrollId);
+        sourceBuilder().scrollId(scrollId);
         return this;
     }
 
@@ -58,7 +72,7 @@ public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrol
      * If set, will enable scrolling of the search request.
      */
     public SearchScrollRequestBuilder setScroll(Scroll scroll) {
-        request.scroll(scroll);
+        sourceBuilder().scroll(scroll);
         return this;
     }
 
@@ -66,7 +80,7 @@ public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrol
      * If set, will enable scrolling of the search request for the specified timeout.
      */
     public SearchScrollRequestBuilder setScroll(TimeValue keepAlive) {
-        request.scroll(keepAlive);
+        sourceBuilder().scroll(keepAlive);
         return this;
     }
 
@@ -74,12 +88,26 @@ public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrol
      * If set, will enable scrolling of the search request for the specified timeout.
      */
     public SearchScrollRequestBuilder setScroll(String keepAlive) {
-        request.scroll(keepAlive);
+        sourceBuilder().scroll(keepAlive);
+        return this;
+    }
+
+
+    public SearchScrollRequestBuilder setSource(String source) {
+        request.source(source);
+        return this;
+    }
+
+    public SearchScrollRequestBuilder setSource(BytesReference source) {
+        request.source(source);
         return this;
     }
 
     @Override
     protected void doExecute(ActionListener<SearchResponse> listener) {
+        if (sourceBuilder != null) {
+            request.source(sourceBuilder);
+        }
         client.searchScroll(request, listener);
     }
 }

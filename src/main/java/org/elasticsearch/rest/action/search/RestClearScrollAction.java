@@ -25,13 +25,14 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 
-import java.util.Arrays;
-
-import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestRequest.Method.*;
 
 /**
  */
@@ -47,17 +48,16 @@ public class RestClearScrollAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
-        String scrollIds = request.param("scroll_id");
-        if (scrollIds == null) {
-            scrollIds = RestActions.getRestContent(request).toUtf8();
-        }
 
         ClearScrollRequest clearRequest = new ClearScrollRequest();
-        clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));
+        clearRequest.setScrollIds(splitScrollIds(request.param("scroll_id")));
+        if (request.hasContent()) {
+            clearRequest.source(RestActions.getRestContent(request));
+        }
         client.clearScroll(clearRequest, new RestStatusToXContentListener<ClearScrollResponse>(channel));
     }
 
-    public static String[] splitScrollIds(String scrollIds) {
+    private static String[] splitScrollIds(String scrollIds) {
         if (scrollIds == null) {
             return Strings.EMPTY_ARRAY;
         }

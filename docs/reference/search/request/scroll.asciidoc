@@ -69,6 +69,18 @@ curl -XGET <1> 'localhost:9200/_search/scroll?scroll=1m' <2> <3> \
 Each call to the `scroll` API returns the next batch of results until there
 are no more results left to return, ie the `hits` array is empty.
 
+And you can use JSON in the request body.
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_search/scroll' -d'
+{
+    "scroll_id" : "c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1",
+    "scroll" : "1m"
+}
+'
+--------------------------------------------------
+
 IMPORTANT: The initial search request and each subsequent scroll request
 returns a new `scroll_id` -- only the most recent `scroll_id` should be
 used.
@@ -184,3 +196,12 @@ All search contexts can be cleared with the `_all` parameter:
 curl -XDELETE localhost:9200/_search/scroll/_all
 ---------------------------------------
 
+And you can use JSON in the request body.
+
+[source,js]
+---------------------------------------
+curl -XDELETE localhost:9200/_search/scroll -d '
+{
+    "scroll_id" : ["c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1", "aGVuRmV0Y2g7NTsxOnkxaDZ"]
+}
+---------------------------------------

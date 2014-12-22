@@ -21,18 +21,22 @@ package org.elasticsearch.action.admin.indices.analyze;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.common.bytes.BytesReference;
 
 /**
  *
  */
 public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<AnalyzeRequest, AnalyzeResponse, AnalyzeRequestBuilder> {
 
+    private AnalyzeSourceBuilder builder;
+
     public AnalyzeRequestBuilder(IndicesAdminClient indicesClient) {
         super(indicesClient, new AnalyzeRequest());
     }
 
     public AnalyzeRequestBuilder(IndicesAdminClient indicesClient, String index, String text) {
-        super(indicesClient, new AnalyzeRequest(index, text));
+        super(indicesClient, new AnalyzeRequest(index));
+        sourceBuilder().setText(text);
     }
 
     /**
@@ -50,7 +54,7 @@ public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<A
      * @param analyzer The analyzer name.
      */
     public AnalyzeRequestBuilder setAnalyzer(String analyzer) {
-        request.analyzer(analyzer);
+        sourceBuilder().setAnalyzer(analyzer);
         return this;
     }
 
@@ -59,7 +63,7 @@ public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<A
      * to be set.
      */
     public AnalyzeRequestBuilder setField(String field) {
-        request.field(field);
+        sourceBuilder().setField(field);
         return this;
     }
 
@@ -68,7 +72,7 @@ public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<A
      * analyzer.
      */
     public AnalyzeRequestBuilder setTokenizer(String tokenizer) {
-        request.tokenizer(tokenizer);
+        sourceBuilder().setTokenizer(tokenizer);
         return this;
     }
 
@@ -76,7 +80,7 @@ public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<A
      * Sets token filters that will be used on top of a tokenizer provided.
      */
     public AnalyzeRequestBuilder setTokenFilters(String... tokenFilters) {
-        request.tokenFilters(tokenFilters);
+        sourceBuilder().setTokenFilters(tokenFilters);
         return this;
     }
 
@@ -84,12 +88,42 @@ public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<A
      * Sets char filters that will be used before the tokenizer.
      */
     public AnalyzeRequestBuilder setCharFilters(String... charFilters) {
-        request.charFilters(charFilters);
+        sourceBuilder().setCharFilters(charFilters);
         return this;
+    }
+
+    public AnalyzeRequestBuilder setSource(String source) {
+        request.source(source);
+        return this;
+    }
+
+    public AnalyzeRequestBuilder setSource(BytesReference source, boolean unsafe) {
+        request.source(source, unsafe);
+        return this;
+    }
+
+    public AnalyzeRequestBuilder setSource(AnalyzeSourceBuilder sourceBuilder) {
+        request.source(sourceBuilder);
+        return this;
+    }
+
+    public AnalyzeRequestBuilder setText(String text) {
+        sourceBuilder().setText(text);
+        return this;
+    }
+
+    private AnalyzeSourceBuilder sourceBuilder() {
+        if (builder == null) {
+            builder = new AnalyzeSourceBuilder();
+        }
+        return builder;
     }
 
     @Override
     protected void doExecute(ActionListener<AnalyzeResponse> listener) {
+        if (builder != null && request.source() == null) {
+            request.source(builder);
+        }
         client.analyze(request, listener);
     }
 }

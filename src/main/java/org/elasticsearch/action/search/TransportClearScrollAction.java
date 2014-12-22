@@ -19,30 +19,32 @@
 
 package org.elasticsearch.action.search;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.action.search.type.TransportSearchHelper.parseScrollId;
+import static org.elasticsearch.action.search.type.TransportSearchHelper.*;
 
 /**
  */
@@ -63,6 +65,27 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
         new Async(request, listener, clusterService.state()).run();
     }
 
+    private List<String> parseSource(ClearScrollRequest request) {
+        List<String> scrollIds = Lists.newArrayList();
+        if (request.source() != null) {
+            XContentType contentType = XContentFactory.xContentType(request.source());
+            if (contentType == null) {
+                // For backward compatibility
+                scrollIds = (Arrays.asList(splitScrollIds(request.source().toUtf8())));
+            } else {
+                scrollIds = parseScrollIdListFromSource(request.source());
+            }
+        }
+        return scrollIds;
+    }
+
+    private static String[] splitScrollIds(String scrollIds) {
+        if (scrollIds == null) {
+            return Strings.EMPTY_ARRAY;
+        }
+        return Strings.splitStringByCommaToArray(scrollIds);
+    }
+
     @Override
     public ClearScrollRequest newRequestInstance() {
         return new ClearScrollRequest();
@@ -81,10 +104,11 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
         private Async(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener, ClusterState clusterState) {
             int expectedOps = 0;
             this.nodes = clusterState.nodes();
-            if (request.getScrollIds().size() == 1 && "_all".equals(request.getScrollIds().get(0))) {
+            List<String> scrollIds = parseSource(request);
+            if (scrollIds.size() == 1 && "_all".equals(scrollIds.get(0))) {
                 expectedOps = nodes.size();
             } else {
-                for (String parsedScrollId : request.getScrollIds()) {
+                for (String parsedScrollId : scrollIds) {
                     Tuple<String, Long>[] context = parseScrollId(parsedScrollId).getContext();
                     expectedOps += context.length;
                     this.contexts.add(context);

@@ -27,16 +27,15 @@ import org.elasticsearch.action.search.type.TransportSearchScrollQueryThenFetchA
 import org.elasticsearch.action.search.type.TransportSearchScrollScanAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import static org.elasticsearch.action.search.type.ParsedScrollId.*;
-import static org.elasticsearch.action.search.type.TransportSearchHelper.parseScrollId;
+import static org.elasticsearch.action.search.type.TransportSearchHelper.*;
 
 /**
  *
@@ -63,6 +62,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     @Override
     protected void doExecute(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         try {
+            parseSource(request);
             ParsedScrollId scrollId = parseScrollId(request.scrollId());
             if (scrollId.getType().equals(QUERY_THEN_FETCH_TYPE)) {
                 queryThenFetchAction.execute(request, scrollId, listener);
@@ -75,6 +75,22 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
             }
         } catch (Throwable e) {
             listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Note: do the parsing here before we delegate to any of the actions
+     */
+    private void parseSource(SearchScrollRequest request) {
+        if (request.source() != null) {
+            XContentType contentType = XContentFactory.xContentType(request.source());
+            if (contentType == null) {
+                // For backward compatibility
+                request.setScrollId(request.source().toUtf8());
+            } else {
+                request.setScrollId(parseScrollIdFromSource(request.source()));
+                request.scroll(parseScrollFromSource(request.source()));
+            }
         }
     }
 

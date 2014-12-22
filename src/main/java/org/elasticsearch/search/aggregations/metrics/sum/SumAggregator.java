@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.metrics.sum;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -29,6 +30,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.Map;
@@ -42,10 +44,13 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
     private SortedNumericDoubleValues values;
 
     private DoubleArray sums;
+    private ValueFormatter formatter;
 
-    public SumAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
+    public SumAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
+            AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
         super(name, estimatedBucketsCount, context, parent, metaData);
         this.valuesSource = valuesSource;
+        this.formatter = formatter;
         if (valuesSource != null) {
             final long initialSize = estimatedBucketsCount < 2 ? 1 : estimatedBucketsCount;
             sums = bigArrays.newDoubleArray(initialSize, true);
@@ -82,14 +87,14 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
-            return new InternalSum(name, 0, getMetaData());
+            return new InternalSum(name, 0, formatter, getMetaData());
         }
-        return new InternalSum(name, sums.get(owningBucketOrdinal), getMetaData());
+        return new InternalSum(name, sums.get(owningBucketOrdinal), formatter, getMetaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalSum(name, 0.0, getMetaData());
+        return new InternalSum(name, 0.0, formatter, getMetaData());
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, Map<String, Object>> {
@@ -100,12 +105,12 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
 
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new SumAggregator(name, 0, null, aggregationContext, parent, metaData);
+            return new SumAggregator(name, 0, null, config.formatter(), aggregationContext, parent, metaData);
         }
 
         @Override
         protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new SumAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent, metaData);
+            return new SumAggregator(name, expectedBucketsCount, valuesSource, config.formatter(), aggregationContext, parent, metaData);
         }
     }
 

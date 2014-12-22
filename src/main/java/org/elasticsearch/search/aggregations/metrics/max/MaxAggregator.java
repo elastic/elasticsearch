@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.metrics.max;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
@@ -31,6 +32,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.Map;
@@ -44,10 +46,13 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     private NumericDoubleValues values;
 
     private DoubleArray maxes;
+    private ValueFormatter formatter;
 
-    public MaxAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
+    public MaxAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
+            AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
         super(name, estimatedBucketsCount, context, parent, metaData);
         this.valuesSource = valuesSource;
+        this.formatter = formatter;
         if (valuesSource != null) {
             final long initialSize = estimatedBucketsCount < 2 ? 1 : estimatedBucketsCount;
             maxes = bigArrays.newDoubleArray(initialSize, false);
@@ -87,15 +92,15 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
-            return new InternalMax(name, Double.NEGATIVE_INFINITY, getMetaData());
+            return new InternalMax(name, Double.NEGATIVE_INFINITY, formatter, getMetaData());
         }
         assert owningBucketOrdinal < maxes.size();
-        return new InternalMax(name, maxes.get(owningBucketOrdinal), getMetaData());
+        return new InternalMax(name, maxes.get(owningBucketOrdinal), formatter, getMetaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMax(name, Double.NEGATIVE_INFINITY, getMetaData());
+        return new InternalMax(name, Double.NEGATIVE_INFINITY, formatter, getMetaData());
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, Map<String, Object>> {
@@ -106,12 +111,12 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new MaxAggregator(name, 0, null, aggregationContext, parent, metaData);
+            return new MaxAggregator(name, 0, null, config.formatter(), aggregationContext, parent, metaData);
         }
 
         @Override
         protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new MaxAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent, metaData);
+            return new MaxAggregator(name, expectedBucketsCount, valuesSource, config.formatter(), aggregationContext, parent, metaData);
         }
     }
 

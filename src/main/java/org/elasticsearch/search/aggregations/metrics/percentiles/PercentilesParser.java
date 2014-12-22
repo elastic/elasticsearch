@@ -28,6 +28,10 @@ import org.elasticsearch.search.internal.SearchContext;
  */
 public class PercentilesParser extends AbstractPercentilesParser {
 
+    public PercentilesParser() {
+        super(true);
+    }
+
     private final static double[] DEFAULT_PERCENTS = new double[] { 1, 5, 25, 50, 75, 95, 99 };
 
     @Override

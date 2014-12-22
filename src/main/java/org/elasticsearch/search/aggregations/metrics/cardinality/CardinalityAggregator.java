@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.metrics.cardinality;
 
 import com.carrotsearch.hppc.hash.MurmurHash3;
 import com.google.common.base.Preconditions;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -42,6 +43,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.Map;
@@ -60,14 +62,17 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     private HyperLogLogPlusPlus counts;
 
     private Collector collector;
+    private ValueFormatter formatter;
 
     public CardinalityAggregator(String name, long estimatedBucketsCount, ValuesSource valuesSource, boolean rehash,
-                                 int precision, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
+ int precision,
+            @Nullable ValueFormatter formatter, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
         super(name, estimatedBucketsCount, context, parent, metaData);
         this.valuesSource = valuesSource;
         this.rehash = rehash;
         this.precision = precision;
         this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, bigArrays, estimatedBucketsCount);
+        this.formatter = formatter;
     }
 
     @Override
@@ -152,12 +157,12 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         // this Aggregator (and its HLL++ counters) is released.
         HyperLogLogPlusPlus copy = new HyperLogLogPlusPlus(precision, BigArrays.NON_RECYCLING_INSTANCE, 1);
         copy.merge(0, counts, owningBucketOrdinal);
-        return new InternalCardinality(name, copy, getMetaData());
+        return new InternalCardinality(name, copy, formatter, getMetaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalCardinality(name, null, getMetaData());
+        return new InternalCardinality(name, null, formatter, getMetaData());
     }
 
     @Override

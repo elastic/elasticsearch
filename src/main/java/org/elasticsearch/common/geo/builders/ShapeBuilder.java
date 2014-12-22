@@ -640,28 +640,13 @@ public abstract class ShapeBuilder implements ToXContent {
     }
 
     public static enum Orientation {
-        LEFT("left", true),
-        CLOCKWISE("clockwise", true),
-        CW("cw", true),
-        RIGHT("right", false),
-        COUNTERCLOCKWISE("counterclockwise", false),
-        CCW("ccw", false);
+        LEFT,
+        RIGHT;
 
-        protected String name;
-        protected boolean orientation;
-
-        private Orientation(String name, boolean orientation) {
-            this.orientation = orientation;
-            this.name = name;
-        }
-
-        public static Orientation forName(String name) {
-            return Orientation.valueOf(name.toUpperCase(Locale.ROOT));
-        }
-
-        public boolean getValue() {
-            return orientation;
-        }
+        public static final Orientation CLOCKWISE = Orientation.LEFT;
+        public static final Orientation COUNTER_CLOCKWISE = Orientation.RIGHT;
+        public static final Orientation CW = Orientation.LEFT;
+        public static final Orientation CCW = Orientation.RIGHT;
     }
 
     public static final String FIELD_TYPE = "type";

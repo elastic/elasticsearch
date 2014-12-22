@@ -44,6 +44,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
+import static org.hamcrest.core.IsNull.nullValue;
 
 /**
  *
@@ -104,6 +105,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
             Range range = bucket.getAggregations().get("range");
             Range.Bucket rangeBucket = range.getBucketByKey("*-3.0");
             assertThat(rangeBucket, notNullValue());
+            assertThat(rangeBucket.getFromAsString(), nullValue());
+            assertThat(rangeBucket.getToAsString(), equalTo("3.0"));
             if (i == 1 || i == 3) {
                 assertThat(rangeBucket.getDocCount(), equalTo(1L));
             } else if (i == 2) {
@@ -113,6 +116,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
             }
             rangeBucket = range.getBucketByKey("3.0-6.0");
             assertThat(rangeBucket, notNullValue());
+            assertThat(rangeBucket.getFromAsString(), equalTo("3.0"));
+            assertThat(rangeBucket.getToAsString(), equalTo("6.0"));
             if (i == 3 || i == 6) {
                 assertThat(rangeBucket.getDocCount(), equalTo(1L));
             } else if (i == 4 || i == 5) {
@@ -122,6 +127,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
             }
             rangeBucket = range.getBucketByKey("6.0-*");
             assertThat(rangeBucket, notNullValue());
+            assertThat(rangeBucket.getFromAsString(), equalTo("6.0"));
+            assertThat(rangeBucket.getToAsString(), nullValue());
             if (i == 6 || i == numDocs + 1) {
                 assertThat(rangeBucket.getDocCount(), equalTo(1L));
             } else if (i < 6) {
@@ -155,6 +162,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("*-3.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getTo().doubleValue(), equalTo(3.0));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("3.0"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
         bucket = range.getBucketByKey("3.0-6.0");
@@ -162,6 +171,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("3.0-6.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(3.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(6.0));
+        assertThat(bucket.getFromAsString(), equalTo("3.0"));
+        assertThat(bucket.getToAsString(), equalTo("6.0"));
         assertThat(bucket.getDocCount(), equalTo(3l));
 
         bucket = range.getBucketByKey("6.0-*");
@@ -169,6 +180,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("6.0-*"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(6.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), equalTo("6.0"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 5L));
     }
 
@@ -197,6 +210,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("*-3"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getTo().doubleValue(), equalTo(3.0));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("3"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
         bucket = range.getBucketByKey("3-6");
@@ -204,6 +219,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("3-6"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(3.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(6.0));
+        assertThat(bucket.getFromAsString(), equalTo("3"));
+        assertThat(bucket.getToAsString(), equalTo("6"));
         assertThat(bucket.getDocCount(), equalTo(3l));
 
         bucket = range.getBucketByKey("6-*");
@@ -211,6 +228,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("6-*"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(6.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), equalTo("6"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 5L));
     }
 
@@ -237,6 +256,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("r1"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getTo().doubleValue(), equalTo(3.0));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("3.0"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
         bucket = range.getBucketByKey("r2");
@@ -244,6 +265,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("r2"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(3.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(6.0));
+        assertThat(bucket.getFromAsString(), equalTo("3.0"));
+        assertThat(bucket.getToAsString(), equalTo("6.0"));
         assertThat(bucket.getDocCount(), equalTo(3l));
 
         bucket = range.getBucketByKey("r3");
@@ -251,6 +274,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("r3"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(6.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), equalTo("6.0"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 5L));
     }
 
@@ -281,6 +306,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("*-3.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getTo().doubleValue(), equalTo(3.0));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("3.0"));
         assertThat(bucket.getDocCount(), equalTo(2l));
         Sum sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -294,6 +321,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("3.0-6.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(3.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(6.0));
+        assertThat(bucket.getFromAsString(), equalTo("3.0"));
+        assertThat(bucket.getToAsString(), equalTo("6.0"));
         assertThat(bucket.getDocCount(), equalTo(3l));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -307,6 +336,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("6.0-*"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(6.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), equalTo("6.0"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 5l));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -344,6 +375,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("*-3.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getTo().doubleValue(), equalTo(3.0));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("3.0"));
         assertThat(bucket.getDocCount(), equalTo(2l));
         Avg avg = bucket.getAggregations().get("avg");
         assertThat(avg, notNullValue());
@@ -354,6 +387,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("3.0-6.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(3.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(6.0));
+        assertThat(bucket.getFromAsString(), equalTo("3.0"));
+        assertThat(bucket.getToAsString(), equalTo("6.0"));
         assertThat(bucket.getDocCount(), equalTo(3l));
         avg = bucket.getAggregations().get("avg");
         assertThat(avg, notNullValue());
@@ -364,6 +399,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("6.0-*"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(6.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), equalTo("6.0"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 5l));
         avg = bucket.getAggregations().get("avg");
         assertThat(avg, notNullValue());
@@ -398,6 +435,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("*-3.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getTo().doubleValue(), equalTo(3.0));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("3.0"));
         assertThat(bucket.getDocCount(), equalTo(1l)); // 2
 
         bucket = range.getBucketByKey("3.0-6.0");
@@ -405,6 +444,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("3.0-6.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(3.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(6.0));
+        assertThat(bucket.getFromAsString(), equalTo("3.0"));
+        assertThat(bucket.getToAsString(), equalTo("6.0"));
         assertThat(bucket.getDocCount(), equalTo(3l)); // 3, 4, 5
 
         bucket = range.getBucketByKey("6.0-*");
@@ -412,6 +453,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("6.0-*"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(6.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), equalTo("6.0"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
     }
 
@@ -451,6 +494,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("*-3.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getTo().doubleValue(), equalTo(3.0));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("3.0"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
         bucket = range.getBucketByKey("3.0-6.0");
@@ -458,6 +503,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("3.0-6.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(3.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(6.0));
+        assertThat(bucket.getFromAsString(), equalTo("3.0"));
+        assertThat(bucket.getToAsString(), equalTo("6.0"));
         assertThat(bucket.getDocCount(), equalTo(4l));
 
         bucket = range.getBucketByKey("6.0-*");
@@ -465,6 +512,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("6.0-*"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(6.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), equalTo("6.0"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
     }
 
@@ -505,6 +554,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("*-3.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getTo().doubleValue(), equalTo(3.0));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("3.0"));
         assertThat(bucket.getDocCount(), equalTo(1l));
 
         bucket = range.getBucketByKey("3.0-6.0");
@@ -512,6 +563,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("3.0-6.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(3.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(6.0));
+        assertThat(bucket.getFromAsString(), equalTo("3.0"));
+        assertThat(bucket.getToAsString(), equalTo("6.0"));
         assertThat(bucket.getDocCount(), equalTo(4l));
 
         bucket = range.getBucketByKey("6.0-*");
@@ -519,6 +572,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("6.0-*"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(6.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), equalTo("6.0"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 3l));
     }
 
@@ -564,6 +619,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("*-3.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getTo().doubleValue(), equalTo(3.0));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("3.0"));
         assertThat(bucket.getDocCount(), equalTo(1l));
         Sum sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -575,6 +632,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("3.0-6.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(3.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(6.0));
+        assertThat(bucket.getFromAsString(), equalTo("3.0"));
+        assertThat(bucket.getToAsString(), equalTo("6.0"));
         assertThat(bucket.getDocCount(), equalTo(4l));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -586,6 +645,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("6.0-*"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(6.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), equalTo("6.0"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 3L));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -620,6 +681,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("*-3.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getTo().doubleValue(), equalTo(3.0));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("3.0"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
         bucket = range.getBucketByKey("3.0-6.0");
@@ -627,6 +690,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("3.0-6.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(3.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(6.0));
+        assertThat(bucket.getFromAsString(), equalTo("3.0"));
+        assertThat(bucket.getToAsString(), equalTo("6.0"));
         assertThat(bucket.getDocCount(), equalTo(3l));
 
         bucket = range.getBucketByKey("6.0-*");
@@ -634,6 +699,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("6.0-*"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(6.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), equalTo("6.0"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 5l));
     }
 
@@ -661,6 +728,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("*-3.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getTo().doubleValue(), equalTo(3.0));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("3.0"));
         assertThat(bucket.getDocCount(), equalTo(2l));
         Avg avg = bucket.getAggregations().get("avg");
         assertThat(avg, notNullValue());
@@ -671,6 +740,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("3.0-6.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(3.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(6.0));
+        assertThat(bucket.getFromAsString(), equalTo("3.0"));
+        assertThat(bucket.getToAsString(), equalTo("6.0"));
         assertThat(bucket.getDocCount(), equalTo(3l));
         avg = bucket.getAggregations().get("avg");
         assertThat(avg, notNullValue());
@@ -681,6 +752,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("6.0-*"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(6.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), equalTo("6.0"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 5l));
         avg = bucket.getAggregations().get("avg");
         assertThat(avg, notNullValue());
@@ -713,6 +786,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("*--1.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getTo().doubleValue(), equalTo(-1.0));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("-1.0"));
         assertThat(bucket.getDocCount(), equalTo(0l));
 
         bucket = range.getBucketByKey("1000.0-*");
@@ -720,6 +795,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("1000.0-*"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(1000d));
         assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), equalTo("1000.0"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(0l));
     }
 
@@ -746,6 +823,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("*-3.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getTo().doubleValue(), equalTo(3.0));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("3.0"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
         bucket = range.getBucketByKey("3.0-6.0");
@@ -753,6 +832,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("3.0-6.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(3.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(6.0));
+        assertThat(bucket.getFromAsString(), equalTo("3.0"));
+        assertThat(bucket.getToAsString(), equalTo("6.0"));
         assertThat(bucket.getDocCount(), equalTo(4l));
 
         bucket = range.getBucketByKey("6.0-*");
@@ -760,6 +841,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("6.0-*"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(6.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), equalTo("6.0"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
     }
     
@@ -804,6 +887,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("r1"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getTo().doubleValue(), equalTo(3.0));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("3.0"));
         assertThat(bucket.getDocCount(), equalTo(2l));
         Sum sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -815,6 +900,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("r2"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(3.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(6.0));
+        assertThat(bucket.getFromAsString(), equalTo("3.0"));
+        assertThat(bucket.getToAsString(), equalTo("6.0"));
         assertThat(bucket.getDocCount(), equalTo(4l));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -826,6 +913,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("r3"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(6.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), equalTo("6.0"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -860,6 +949,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("*-3.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getTo().doubleValue(), equalTo(3.0));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("3.0"));
         assertThat(bucket.getDocCount(), equalTo(0l));
 
         bucket = range.getBucketByKey("3.0-6.0");
@@ -867,6 +958,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("3.0-6.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(3.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(6.0));
+        assertThat(bucket.getFromAsString(), equalTo("3.0"));
+        assertThat(bucket.getToAsString(), equalTo("6.0"));
         assertThat(bucket.getDocCount(), equalTo(0l));
 
         bucket = range.getBucketByKey("6.0-*");
@@ -874,6 +967,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("6.0-*"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(6.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), equalTo("6.0"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(0l));
     }
 
@@ -902,6 +997,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("*-3.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getTo().doubleValue(), equalTo(3.0));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("3.0"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
         bucket = range.getBucketByKey("3.0-6.0");
@@ -909,6 +1006,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("3.0-6.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(3.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(6.0));
+        assertThat(bucket.getFromAsString(), equalTo("3.0"));
+        assertThat(bucket.getToAsString(), equalTo("6.0"));
         assertThat(bucket.getDocCount(), equalTo(3l));
 
         bucket = range.getBucketByKey("6.0-*");
@@ -916,6 +1015,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("6.0-*"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(6.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), equalTo("6.0"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 5l));
     }
 
@@ -943,6 +1044,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("*-5.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getTo().doubleValue(), equalTo(5.0));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("5.0"));
         assertThat(bucket.getDocCount(), equalTo(4l));
 
         bucket = range.getBucketByKey("3.0-6.0");
@@ -950,6 +1053,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("3.0-6.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(3.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(6.0));
+        assertThat(bucket.getFromAsString(), equalTo("3.0"));
+        assertThat(bucket.getToAsString(), equalTo("6.0"));
         assertThat(bucket.getDocCount(), equalTo(4l));
 
         bucket = range.getBucketByKey("4.0-5.0");
@@ -957,6 +1062,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("4.0-5.0"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(4.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(5.0));
+        assertThat(bucket.getFromAsString(), equalTo("4.0"));
+        assertThat(bucket.getToAsString(), equalTo("5.0"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
         bucket = range.getBucketByKey("4.0-*");
@@ -964,6 +1071,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getKey(), equalTo("4.0-*"));
         assertThat(bucket.getFrom().doubleValue(), equalTo(4.0));
         assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), equalTo("4.0"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 2l));
     }
 
@@ -989,6 +1098,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(buckets.get(0).getKey(), equalTo("0-2"));
         assertThat(buckets.get(0).getFrom().doubleValue(), equalTo(0.0));
         assertThat(buckets.get(0).getTo().doubleValue(), equalTo(2.0));
+        assertThat(buckets.get(0).getFromAsString(), equalTo("0.0"));
+        assertThat(buckets.get(0).getToAsString(), equalTo("2.0"));
         assertThat(buckets.get(0).getDocCount(), equalTo(0l));
 
     }

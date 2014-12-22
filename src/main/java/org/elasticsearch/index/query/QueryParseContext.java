@@ -389,7 +389,7 @@ public class QueryParseContext {
             return fieldMapping;
         } else {
             Version indexCreatedVersion = indexQueryParser.getIndexCreatedVersion();
-            if (fieldMapping == null && indexCreatedVersion.onOrAfter(Version.V_1_4_0_Beta1)) {
+            if (fieldMapping == null) {
                 throw new QueryParsingException(index, "Strict field resolution and no field mapping can be found for the field with name [" + name + "]");
             } else {
                 return fieldMapping;

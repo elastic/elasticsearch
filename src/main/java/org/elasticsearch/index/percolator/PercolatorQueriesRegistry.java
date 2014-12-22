@@ -106,7 +106,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         this.indexCache = indexCache;
         this.indexFieldDataService = indexFieldDataService;
         this.shardPercolateService = shardPercolateService;
-        this.allowUnmappedFields = indexSettings.getAsBoolean(ALLOW_UNMAPPED_FIELDS, false);
+        this.allowUnmappedFields = indexSettings.getAsBoolean(ALLOW_UNMAPPED_FIELDS, true);
 
         indicesLifecycle.addListener(shardLifecycleListener);
         mapperService.addTypeListener(percolateTypeListener);

@@ -6,12 +6,15 @@ across more than one indices. This is very handy when hits coming from
 one index matter more than hits coming from another index (think social
 graph where each user has an index).
 
+Index name, alias or wildcard expression can be specified.
+
 [source,js]
 --------------------------------------------------
 {
     "indices_boost" : {
         "index1" : 1.4,
-        "index2" : 1.3
+        "alias1" : 1.3,
+        "other_index*" : 1.2
     }
 }
 --------------------------------------------------

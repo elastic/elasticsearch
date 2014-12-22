@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.metrics.valuecount;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -29,6 +30,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.Map;
@@ -46,10 +48,13 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
     // a count per bucket
     LongArray counts;
+    private ValueFormatter formatter;
 
-    public ValueCountAggregator(String name, long expectedBucketsCount, ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+    public ValueCountAggregator(String name, long expectedBucketsCount, ValuesSource valuesSource, @Nullable ValueFormatter formatter,
+            AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
         super(name, 0, aggregationContext, parent, metaData);
         this.valuesSource = valuesSource;
+        this.formatter = formatter;
         if (valuesSource != null) {
             // expectedBucketsCount == 0 means it's a top level bucket
             final long initialSize = expectedBucketsCount < 2 ? 1 : expectedBucketsCount;
@@ -82,15 +87,15 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
-            return new InternalValueCount(name, 0, getMetaData());
+            return new InternalValueCount(name, 0, formatter, getMetaData());
         }
         assert owningBucketOrdinal < counts.size();
-        return new InternalValueCount(name, counts.get(owningBucketOrdinal), getMetaData());
+        return new InternalValueCount(name, counts.get(owningBucketOrdinal), formatter, getMetaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalValueCount(name, 0l, getMetaData());
+        return new InternalValueCount(name, 0l, formatter, getMetaData());
     }
 
     @Override
@@ -106,12 +111,13 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new ValueCountAggregator(name, 0, null, aggregationContext, parent, metaData);
+            return new ValueCountAggregator(name, 0, null, config.formatter(), aggregationContext, parent, metaData);
         }
 
         @Override
         protected Aggregator create(VS valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new ValueCountAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent, metaData);
+            return new ValueCountAggregator(name, expectedBucketsCount, valuesSource, config.formatter(), aggregationContext, parent,
+                    metaData);
         }
 
     }

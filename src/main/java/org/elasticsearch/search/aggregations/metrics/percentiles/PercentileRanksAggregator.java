@@ -18,11 +18,16 @@
  */
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
-import org.elasticsearch.search.aggregations.support.*;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.util.Map;
 
@@ -32,8 +37,9 @@ import java.util.Map;
 public class PercentileRanksAggregator extends AbstractPercentilesAggregator {
 
     public PercentileRanksAggregator(String name, long estimatedBucketsCount, Numeric valuesSource, AggregationContext context,
-            Aggregator parent, double[] percents, double compression, boolean keyed, Map<String, Object> metaData) {
-        super(name, estimatedBucketsCount, valuesSource, context, parent, percents, compression, keyed, metaData);
+            Aggregator parent, double[] percents, double compression, boolean keyed, @Nullable ValueFormatter formatter,
+            Map<String, Object> metaData) {
+        super(name, estimatedBucketsCount, valuesSource, context, parent, percents, compression, keyed, formatter, metaData);
     }
 
     @Override
@@ -42,13 +48,13 @@ public class PercentileRanksAggregator extends AbstractPercentilesAggregator {
         if (state == null) {
             return buildEmptyAggregation();
         } else {
-            return new InternalPercentileRanks(name, keys, state, keyed, getMetaData());
+            return new InternalPercentileRanks(name, keys, state, keyed, formatter, getMetaData());
         }
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalPercentileRanks(name, keys, new TDigestState(compression), keyed, getMetaData());
+        return new InternalPercentileRanks(name, keys, new TDigestState(compression), keyed, formatter, getMetaData());
     }
 
     @Override
@@ -77,12 +83,14 @@ public class PercentileRanksAggregator extends AbstractPercentilesAggregator {
 
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new PercentileRanksAggregator(name, 0, null, aggregationContext, parent, values, compression, keyed, metaData);
+            return new PercentileRanksAggregator(name, 0, null, aggregationContext, parent, values, compression, keyed, config.formatter(),
+                    metaData);
         }
 
         @Override
         protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new PercentileRanksAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent, values, compression, keyed, metaData);
+            return new PercentileRanksAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent, values, compression,
+                    keyed, config.formatter(), metaData);
         }
     }
 }

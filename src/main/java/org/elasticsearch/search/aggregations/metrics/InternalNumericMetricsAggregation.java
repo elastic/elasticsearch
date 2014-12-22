@@ -31,7 +31,7 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
 
     protected ValueFormatter valueFormatter;
 
-    public static abstract class SingleValue extends InternalNumericMetricsAggregation {
+    public static abstract class SingleValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.SingleValue {
 
         protected SingleValue() {}
 
@@ -39,7 +39,13 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
             super(name, metaData);
         }
 
-        public abstract double value();
+        public String getValueAsString() {
+            if (valueFormatter == null) {
+                return ValueFormatter.RAW.format(value());
+            } else {
+                return valueFormatter.format(value());
+            }
+        }
 
         @Override
         public Object getProperty(List<String> path) {
@@ -54,7 +60,7 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
 
     }
 
-    public static abstract class MultiValue extends InternalNumericMetricsAggregation {
+    public static abstract class MultiValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.MultiValue {
 
         protected MultiValue() {}
 
@@ -63,6 +69,14 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
         }
 
         public abstract double value(String name);
+
+        public String valueAsString(String name) {
+            if (valueFormatter == null) {
+                return ValueFormatter.RAW.format(value(name));
+            } else {
+                return valueFormatter.format(value(name));
+            }
+        }
 
         @Override
         public Object getProperty(List<String> path) {

@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.metrics.stats;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
@@ -32,6 +33,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.Map;
@@ -48,8 +50,10 @@ public class StatsAggegator extends NumericMetricsAggregator.MultiValue {
     private DoubleArray sums;
     private DoubleArray mins;
     private DoubleArray maxes;
+    private ValueFormatter formatter;
 
-    public StatsAggegator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
+    public StatsAggegator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
+            AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
         super(name, estimatedBucketsCount, context, parent, metaData);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
@@ -61,6 +65,7 @@ public class StatsAggegator extends NumericMetricsAggregator.MultiValue {
             maxes = bigArrays.newDoubleArray(initialSize, false);
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         }
+        this.formatter = formatter;
     }
 
     @Override
@@ -129,15 +134,16 @@ public class StatsAggegator extends NumericMetricsAggregator.MultiValue {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
-            return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, getMetaData());
+            return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, formatter, getMetaData());
         }
         assert owningBucketOrdinal < counts.size();
-        return new InternalStats(name, counts.get(owningBucketOrdinal), sums.get(owningBucketOrdinal), mins.get(owningBucketOrdinal), maxes.get(owningBucketOrdinal), getMetaData());
+        return new InternalStats(name, counts.get(owningBucketOrdinal), sums.get(owningBucketOrdinal), mins.get(owningBucketOrdinal),
+                maxes.get(owningBucketOrdinal), formatter, getMetaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, getMetaData());
+        return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, formatter, getMetaData());
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, Map<String, Object>> {
@@ -148,12 +154,12 @@ public class StatsAggegator extends NumericMetricsAggregator.MultiValue {
 
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new StatsAggegator(name, 0, null, aggregationContext, parent, metaData);
+            return new StatsAggegator(name, 0, null, config.formatter(), aggregationContext, parent, metaData);
         }
 
         @Override
         protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new StatsAggegator(name, expectedBucketsCount, valuesSource, aggregationContext, parent, metaData);
+            return new StatsAggegator(name, expectedBucketsCount, valuesSource, config.formatter(), aggregationContext, parent, metaData);
         }
     }
 

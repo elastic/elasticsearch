@@ -78,8 +78,9 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory {
         ldapEnv.put(Context.SECURITY_PRINCIPAL, userPrincipal);
         ldapEnv.put(Context.SECURITY_CREDENTIALS, password.internalChars());
 
+        DirContext ctx = null;
         try {
-            DirContext ctx = new InitialDirContext(ldapEnv);
+            ctx = new InitialDirContext(ldapEnv);
             SearchControls searchCtls = new SearchControls();
             searchCtls.setSearchScope(SearchControls.SUBTREE_SCOPE);
             searchCtls.setReturningAttributes(Strings.EMPTY_ARRAY);
@@ -94,12 +95,22 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory {
                 if (!results.hasMore()) {
                     return new ActiveDirectoryConnection(ctx, name, userSearchDN, timeoutMilliseconds);
                 }
+                results.close();
+                ctx.close();
                 throw new ActiveDirectoryException("Search for user [" + userName + "] by principle name yielded multiple results");
             }
-
+            results.close();
+            ctx.close();
             throw new ActiveDirectoryException("Search for user [" + userName + "], search root [" + userSearchDN + "] yielded no results");
 
         } catch (NamingException e) {
+            if (ctx != null) {
+                try {
+                    ctx.close();
+                } catch (NamingException closeException) {
+                    logger.error("An unexpected error occurred closing an LDAP exception", closeException);
+                }
+            }
             throw new ActiveDirectoryException("Unable to authenticate user [" + userName + "] to active directory domain [" + domainName + "]", e);
         }
     }

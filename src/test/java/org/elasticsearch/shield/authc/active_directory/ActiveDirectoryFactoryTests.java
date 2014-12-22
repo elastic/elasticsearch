@@ -80,7 +80,6 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
         ActiveDirectoryConnectionFactory connectionFactory = new ActiveDirectoryConnectionFactory(settings);
 
         try (AbstractLdapConnection ldap = connectionFactory.open("ironman", SecuredStringTests.build(PASSWORD))) {
-            List<String> groups = ldap.groups();
             fail("The TCP connection should timeout before getting groups back");
         } catch (ActiveDirectoryException e) {
             assertThat(e.getCause().getMessage(), containsString("LDAP response read timed out"));

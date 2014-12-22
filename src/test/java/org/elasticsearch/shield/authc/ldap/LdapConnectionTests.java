@@ -13,10 +13,8 @@ import org.elasticsearch.shield.authc.support.ldap.ConnectionFactory;
 import org.elasticsearch.shield.authc.support.ldap.LdapTest;
 import org.junit.Test;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
-import java.net.Socket;
 import java.net.SocketAddress;
 import java.util.List;
 

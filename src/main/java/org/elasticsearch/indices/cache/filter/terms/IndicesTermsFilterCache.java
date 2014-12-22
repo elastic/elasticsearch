@@ -22,8 +22,10 @@ package org.elasticsearch.indices.cache.filter.terms;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.Weigher;
-import org.apache.lucene.search.Filter;
+import com.google.common.collect.ImmutableList;
+
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -31,7 +33,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -48,7 +50,9 @@ import java.util.concurrent.TimeUnit;
  */
 public class IndicesTermsFilterCache extends AbstractComponent {
 
-    private static TermsFilterValue NO_TERMS = new TermsFilterValue(0, Queries.MATCH_NO_FILTER);
+    private static final long BASE_RAM_BYTES_STRING = RamUsageEstimator.shallowSizeOfInstance(String.class) + RamUsageEstimator.NUM_BYTES_OBJECT_HEADER;
+    private static final long BASE_RAM_BYTES_BYTES_REF = RamUsageEstimator.shallowSizeOfInstance(BytesRef.class) + RamUsageEstimator.NUM_BYTES_OBJECT_HEADER;
+    private static final TermsFilterValue NO_TERMS = new TermsFilterValue(0, ImmutableList.of());
 
     private final Client client;
 
@@ -77,10 +81,9 @@ public class IndicesTermsFilterCache extends AbstractComponent {
         this.cache = builder.build();
     }
 
-    @Nullable
-    public Filter termsFilter(final TermsLookup lookup, boolean cacheLookup, @Nullable CacheKeyFilter.Key cacheKey) throws RuntimeException {
+    public List<Object> terms(final TermsLookup lookup, boolean cacheLookup, @Nullable CacheKeyFilter.Key cacheKey) throws RuntimeException {
         if (!cacheLookup) {
-            return buildTermsFilterValue(lookup).filter;
+            return buildTermsFilterValue(lookup).values;
         }
 
         BytesRef key;
@@ -95,7 +98,7 @@ public class IndicesTermsFilterCache extends AbstractComponent {
                 public TermsFilterValue call() throws Exception {
                     return buildTermsFilterValue(lookup);
                 }
-            }).filter;
+            }).values;
         } catch (ExecutionException e) {
             if (e.getCause() instanceof RuntimeException) {
                 throw (RuntimeException) e.getCause();
@@ -113,17 +116,16 @@ public class IndicesTermsFilterCache extends AbstractComponent {
         if (values.isEmpty()) {
             return NO_TERMS;
         }
-        Filter filter = lookup.getFieldMapper().termsFilter(values, lookup.getQueryParseContext());
-        return new TermsFilterValue(estimateSizeInBytes(values), filter);
+        return new TermsFilterValue(estimateSizeInBytes(values), ImmutableList.copyOf(values));
     }
 
     long estimateSizeInBytes(List<Object> terms) {
-        long size = 8;
+        long size = 8 + terms.size() * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
         for (Object term : terms) {
             if (term instanceof BytesRef) {
-                size += ((BytesRef) term).length;
+                size += BASE_RAM_BYTES_BYTES_REF + ((BytesRef) term).length;
             } else if (term instanceof String) {
-                size += ((String) term).length() / 2;
+                size += BASE_RAM_BYTES_STRING + ((String) term).length() * RamUsageEstimator.NUM_BYTES_CHAR;
             } else {
                 size += 4;
             }
@@ -149,14 +151,13 @@ public class IndicesTermsFilterCache extends AbstractComponent {
         }
     }
 
-    // TODO: if TermsFilter exposed sizeInBytes, we won't need this wrapper
     static class TermsFilterValue {
         public final long sizeInBytes;
-        public final Filter filter;
+        public final ImmutableList<Object> values;
 
-        TermsFilterValue(long sizeInBytes, Filter filter) {
+        TermsFilterValue(long sizeInBytes, ImmutableList<Object> values) {
             this.sizeInBytes = sizeInBytes;
-            this.filter = filter;
+            this.values = values;
         }
     }
 }

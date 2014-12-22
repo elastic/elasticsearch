@@ -40,11 +40,13 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.nio.file.Paths;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 import static com.google.common.collect.Sets.newHashSet;
+import static org.elasticsearch.common.jna.Kernel32Library.ConsoleCtrlHandler;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 
 /**
@@ -60,11 +62,9 @@ public class Bootstrap {
     private static Bootstrap bootstrap;
 
     private void setup(boolean addShutdownHook, Tuple<Settings, Environment> tuple) throws Exception {
-//        Loggers.getLogger(Bootstrap.class, tuple.v1().get("name")).info("heap_size {}/{}", JvmStats.jvmStats().mem().heapCommitted(), JvmInfo.jvmInfo().mem().heapMax());
         if (tuple.v1().getAsBoolean("bootstrap.mlockall", false)) {
             Natives.tryMlockall();
         }
-        tuple = setupJmx(tuple);
 
         NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(tuple.v1()).loadConfigSettings(false);
         node = nodeBuilder.build();
@@ -76,16 +76,22 @@ public class Bootstrap {
                 }
             });
         }
-    }
 
-    private static Tuple<Settings, Environment> setupJmx(Tuple<Settings, Environment> tuple) {
-        // We disable JMX on by default, since we don't really want the overhead of RMI (and RMI GC...)
-//        if (tuple.v1().get(JmxService.SettingsConstants.CREATE_CONNECTOR) == null) {
-//            // automatically create the connector if we are bootstrapping
-//            Settings updated = settingsBuilder().put(tuple.v1()).put(JmxService.SettingsConstants.CREATE_CONNECTOR, true).build();
-//            tuple = new Tuple<Settings, Environment>(updated, tuple.v2());
-//        }
-        return tuple;
+        if (tuple.v1().getAsBoolean("bootstrap.ctrlhandler", true)) {
+            Natives.addConsoleCtrlHandler(new ConsoleCtrlHandler() {
+                @Override
+                public boolean handle(int code) {
+                    if (CTRL_CLOSE_EVENT == code) {
+                        ESLogger logger = Loggers.getLogger(Bootstrap.class);
+                        logger.info("running graceful exit on windows");
+
+                        System.exit(0);
+                        return true;
+                    }
+                    return false;
+                }
+            });
+        }
     }
 
     private static void setupLogging(Tuple<Settings, Environment> tuple) {

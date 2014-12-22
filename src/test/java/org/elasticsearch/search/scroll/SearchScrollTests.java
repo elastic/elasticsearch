@@ -20,10 +20,7 @@
 package org.elasticsearch.search.scroll;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.action.search.ClearScrollResponse;
-import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -460,8 +457,8 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
     @Test
     public void testStringSortMissingAscTerminates() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("test", "no_field", "type=string", "some_field", "type=string"));
+            .setSettings(ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
+            .addMapping("test", "no_field", "type=string", "some_field", "type=string"));
         client().prepareIndex("test", "test", "1").setSource("some_field", "test").get();
         refresh();
 
@@ -490,4 +487,40 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
         assertHitCount(response, 1);
         assertThat(response.getHits().getHits().length, equalTo(0));
     }
+
+    @Test
+    public void testParseClearScrollRequestThrowsException() throws Exception {
+        client().prepareIndex("index", "type", "1").setSource("field", "value").execute().get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("index").setSize(1).setScroll("1m").get();
+        assertThat(searchResponse.getScrollId(), is(notNullValue()));
+
+        ClearScrollRequestBuilder builder = new ClearScrollRequestBuilder(client());
+        builder.setSource("{\"scroll_id\" : [ \"json_scroll_id\" ] ");
+
+        try {
+            builder.get();
+            fail("expected parseContent failure");
+        } catch (Exception e) {
+            assertThat(e, instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(e.getMessage(), equalTo("Failed to parse request body"));
+        }
+    }
+    @Test
+    public void testParseSearchScrollRequestThrowsException() throws Exception {
+        client().prepareIndex("index", "type", "1").setSource("field", "value").execute().get();
+        refresh();
+
+        SearchScrollRequestBuilder builder = new SearchScrollRequestBuilder(client());
+        builder.setSource("{\"scroll_id\" : [ \"json_scroll_id\" ] ");
+        try {
+            builder.get();
+            fail("expected parseContent failure");
+        } catch (Exception e) {
+            assertThat(e, instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(e.getMessage(), equalTo("Failed to parse request body"));
+        }
+    }
+
 }

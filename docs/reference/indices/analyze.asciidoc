@@ -52,3 +52,16 @@ mapping for `obj1.field1` (and if not, the default index analyzer).
 
 Also, the text can be provided as part of the request body, and not as a
 parameter.
+
+And all parameter can be provided as JSON of the request body.
+[source,js]
+--------------------------------------------------
+curl -XGET 'localhost:9200/test/_analyze' -d '
+{
+    "text" : "this is a <b>test</b>",
+    "tokenizer" : "keyword",
+    "token_filters" : [ "lowercase" ],
+    "char_filters" : [ "html_strip" ]
+}
+'
+--------------------------------------------------

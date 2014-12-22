@@ -18,17 +18,20 @@
  */
 package org.elasticsearch.rest.action.admin.indices.analyze;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeSourceBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.*;
 
 /**
  *
@@ -46,22 +49,24 @@ public class RestAnalyzeAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
-        String text = request.param("text");
-        if (text == null && request.hasContent()) {
-            text = request.content().toUtf8();
-        }
-        if (text == null) {
-            throw new ElasticsearchIllegalArgumentException("text is missing");
+        AnalyzeRequest analyzeRequest = new AnalyzeRequest(request.param("index"));
+        analyzeRequest.listenerThreaded(false);
+
+        AnalyzeSourceBuilder sourceBuilder = new AnalyzeSourceBuilder();
+        sourceBuilder.setAnalyzer(request.param("analyzer"));
+        sourceBuilder.setTokenizer(request.param("tokenizer"));
+        sourceBuilder.setText(request.param("text"));
+        sourceBuilder.setCharFilters(request.paramAsStringArray("char_filters", null));
+        sourceBuilder.setTokenFilters(request.paramAsStringArray("token_filters", request.paramAsStringArray("filters", null)));
+        sourceBuilder.setField(request.param("field"));
+        sourceBuilder.setPreferLocal(request.paramAsBoolean("prefer_local", analyzeRequest.preferLocalShard()));
+
+        if (request.hasContent()) {
+            analyzeRequest.source(RestActions.getRestContent(request), request.contentUnsafe());
+        } else {
+            analyzeRequest.source(sourceBuilder);
         }
 
-        AnalyzeRequest analyzeRequest = new AnalyzeRequest(request.param("index"), text);
-        analyzeRequest.listenerThreaded(false);
-        analyzeRequest.preferLocal(request.paramAsBoolean("prefer_local", analyzeRequest.preferLocalShard()));
-        analyzeRequest.analyzer(request.param("analyzer"));
-        analyzeRequest.field(request.param("field"));
-        analyzeRequest.tokenizer(request.param("tokenizer"));
-        analyzeRequest.tokenFilters(request.paramAsStringArray("token_filters", request.paramAsStringArray("filters", analyzeRequest.tokenFilters())));
-        analyzeRequest.charFilters(request.paramAsStringArray("char_filters", analyzeRequest.charFilters()));
         client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<AnalyzeResponse>(channel));
     }
 }

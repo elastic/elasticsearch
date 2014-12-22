@@ -21,17 +21,18 @@ package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.SearchScrollSourceBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
-import org.elasticsearch.search.Scroll;
 
-import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.*;
 
 /**
  *
@@ -50,15 +51,16 @@ public class RestSearchScrollAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
-        String scrollId = request.param("scroll_id");
-        if (scrollId == null) {
-            scrollId = RestActions.getRestContent(request).toUtf8();
-        }
-        SearchScrollRequest searchScrollRequest = new SearchScrollRequest(scrollId);
+        SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
         searchScrollRequest.listenerThreaded(false);
-        String scroll = request.param("scroll");
-        if (scroll != null) {
-            searchScrollRequest.scroll(new Scroll(parseTimeValue(scroll, null)));
+        SearchScrollSourceBuilder sourceBuilder = new SearchScrollSourceBuilder();
+        sourceBuilder.scrollId(request.param("scroll_id"));
+        sourceBuilder.scroll(request.param("scroll"));
+
+        if (request.hasContent()) {
+            searchScrollRequest.source(RestActions.getRestContent(request));
+        } else {
+            searchScrollRequest.source(sourceBuilder);
         }
 
         client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<SearchResponse>(channel));

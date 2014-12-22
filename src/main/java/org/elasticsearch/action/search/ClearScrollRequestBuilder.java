@@ -19,9 +19,11 @@
 
 package org.elasticsearch.action.search;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesReference;
 
 import java.util.List;
 
@@ -29,22 +31,40 @@ import java.util.List;
  */
 public class ClearScrollRequestBuilder extends ActionRequestBuilder<ClearScrollRequest, ClearScrollResponse, ClearScrollRequestBuilder, Client> {
 
+    private List<String> scrollIds;
+
     public ClearScrollRequestBuilder(Client client) {
         super(client, new ClearScrollRequest());
     }
 
     public ClearScrollRequestBuilder setScrollIds(List<String> cursorIds) {
-        request.setScrollIds(cursorIds);
+        scrollIds = cursorIds;
         return this;
     }
 
     public ClearScrollRequestBuilder addScrollId(String cursorId) {
-        request.addScrollId(cursorId);
+        if (this.scrollIds == null) {
+            this.scrollIds = Lists.newArrayList();
+        }
+        this.scrollIds.add(cursorId);
+        return this;
+    }
+
+    public ClearScrollRequestBuilder setSource(String source) {
+        request.source(source);
+        return this;
+    }
+
+    public ClearScrollRequestBuilder setSource(BytesReference source, boolean unsafe) {
+        request.source(source);
         return this;
     }
 
     @Override
     protected void doExecute(ActionListener<ClearScrollResponse> listener) {
+        if (scrollIds != null && scrollIds.isEmpty() == false) {
+            request.setScrollIds(this.scrollIds);
+        }
         client.clearScroll(request, listener);
     }
 }

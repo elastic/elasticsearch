@@ -19,51 +19,74 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
-import static com.google.common.collect.Lists.newArrayList;
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.action.ValidateActions.*;
 
 /**
  */
 public class ClearScrollRequest extends ActionRequest<ClearScrollRequest> {
 
-    private List<String> scrollIds;
+    private BytesReference source;
 
-    public List<String> getScrollIds() {
-        return scrollIds;
+    public void setScrollIds(String... scrollIds) {
+        if (scrollIds != null) {
+            this.setScrollIds(Arrays.asList(scrollIds));
+        }
     }
 
     public void setScrollIds(List<String> scrollIds) {
-        this.scrollIds = scrollIds;
-    }
-
-    public void addScrollId(String scrollId) {
-        if (scrollIds == null) {
-            scrollIds = newArrayList();
+        if (scrollIds != null && scrollIds.isEmpty() == false) {
+            try {
+                XContentBuilder builder = XContentFactory.jsonBuilder();
+                builder.startObject();
+                builder.startArray("scroll_id");
+                for (String scrollId : scrollIds) {
+                    builder.value(scrollId);
+                }
+                builder.endArray();
+                builder.endObject();
+                this.source(builder.string());
+            } catch (Exception e) {
+                throw new ElasticsearchIllegalArgumentException("Failed to build source");
+            }
         }
-        scrollIds.add(scrollId);
-    }
-
-    public List<String> scrollIds() {
-        return scrollIds;
     }
 
     public void scrollIds(List<String> scrollIds) {
-        this.scrollIds = scrollIds;
+        setScrollIds(scrollIds);
+    }
+
+    public ClearScrollRequest source(String source) {
+        this.source = new BytesArray(source);
+        return this;
+    }
+
+    public ClearScrollRequest source(BytesReference source) {
+        this.source = source;
+        return this;
+    }
+
+    public BytesReference source() {
+        return source;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (scrollIds == null || scrollIds.isEmpty()) {
+        if (source == null) {
             validationException = addValidationError("no scroll ids specified", validationException);
         }
         return validationException;
@@ -72,17 +95,13 @@ public class ClearScrollRequest extends ActionRequest<ClearScrollRequest> {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        scrollIds = Arrays.asList(in.readStringArray());
+        source = in.readBytesReference();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (scrollIds == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeStringArray(scrollIds.toArray(new String[scrollIds.size()]));
-        }
+        out.writeBytesReference(source);
     }
 
 }

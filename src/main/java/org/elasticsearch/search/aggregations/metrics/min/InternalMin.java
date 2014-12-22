@@ -18,12 +18,14 @@
  */
 package org.elasticsearch.search.aggregations.metrics.min;
 
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
@@ -53,9 +55,10 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
 
     InternalMin() {} // for serialization
 
-    public InternalMin(String name, double min) {
+    public InternalMin(String name, double min, @Nullable ValueFormatter formatter) {
         super(name);
         this.min = min;
+        this.valueFormatter = formatter;
     }
 
     @Override
@@ -78,7 +81,7 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
         for (InternalAggregation aggregation : reduceContext.aggregations()) {
             min = Math.min(min, ((InternalMin) aggregation).min);
         }
-        return new InternalMin(getName(), min);
+        return new InternalMin(getName(), min, this.valueFormatter);
     }
 
     @Override

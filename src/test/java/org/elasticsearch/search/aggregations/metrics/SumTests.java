@@ -84,6 +84,20 @@ public class SumTests extends AbstractNumericTests {
         assertThat(sum.getValue(), equalTo((double) 1+2+3+4+5+6+7+8+9+10));
     }
 
+    @Test
+    public void testSingleValuedField_WithFormatter() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(sum("sum").format("0000.0").field("value")).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Sum sum = searchResponse.getAggregations().get("sum");
+        assertThat(sum, notNullValue());
+        assertThat(sum.getName(), equalTo("sum"));
+        assertThat(sum.getValue(), equalTo((double) 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10));
+        assertThat(sum.getValueAsString(), equalTo("0055.0"));
+    }
+
     @Override
     public void testSingleValuedField_PartiallyUnmapped() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")

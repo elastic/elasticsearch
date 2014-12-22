@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
@@ -50,9 +52,10 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
 
     private HyperLogLogPlusPlus counts;
 
-    InternalCardinality(String name, HyperLogLogPlusPlus counts) {
+    InternalCardinality(String name, HyperLogLogPlusPlus counts, @Nullable ValueFormatter formatter) {
         super(name);
         this.counts = counts;
+        this.valueFormatter = formatter;
     }
 
     private InternalCardinality() {
@@ -104,7 +107,8 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
             final InternalCardinality cardinality = (InternalCardinality) aggregation;
             if (cardinality.counts != null) {
                 if (reduced == null) {
-                    reduced = new InternalCardinality(name, new HyperLogLogPlusPlus(cardinality.counts.precision(), BigArrays.NON_RECYCLING_INSTANCE, 1));
+                    reduced = new InternalCardinality(name, new HyperLogLogPlusPlus(cardinality.counts.precision(),
+                            BigArrays.NON_RECYCLING_INSTANCE, 1), this.valueFormatter);
                 }
                 reduced.merge(cardinality);
             }

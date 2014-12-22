@@ -118,6 +118,33 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         assertThat(stats.getStdDeviation(), equalTo(stdDev(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10)));
     }
 
+    public void testSingleValuedField_WithFormatter() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(extendedStats("stats").format("0000.0").field("value")).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        ExtendedStats stats = searchResponse.getAggregations().get("stats");
+        assertThat(stats, notNullValue());
+        assertThat(stats.getName(), equalTo("stats"));
+        assertThat(stats.getAvg(), equalTo((double) (1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10) / 10));
+        assertThat(stats.getAvgAsString(), equalTo("0005.5"));
+        assertThat(stats.getMin(), equalTo(1.0));
+        assertThat(stats.getMinAsString(), equalTo("0001.0"));
+        assertThat(stats.getMax(), equalTo(10.0));
+        assertThat(stats.getMaxAsString(), equalTo("0010.0"));
+        assertThat(stats.getSum(), equalTo((double) 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10));
+        assertThat(stats.getSumAsString(), equalTo("0055.0"));
+        assertThat(stats.getCount(), equalTo(10l));
+        assertThat(stats.getCountAsString(), equalTo("0010.0"));
+        assertThat(stats.getSumOfSquares(), equalTo((double) 1 + 4 + 9 + 16 + 25 + 36 + 49 + 64 + 81 + 100));
+        assertThat(stats.getSumOfSquaresAsString(), equalTo("0385.0"));
+        assertThat(stats.getVariance(), equalTo(variance(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+        assertThat(stats.getVarianceAsString(), equalTo("0008.2"));
+        assertThat(stats.getStdDeviation(), equalTo(stdDev(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+        assertThat(stats.getStdDeviationAsString(), equalTo("0002.9"));
+    }
+
     @Test
     public void testSingleValuedField_PartiallyUnmapped() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")

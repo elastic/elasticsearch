@@ -16,17 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.metrics.min;
 
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+package org.elasticsearch.search.aggregations.metrics;
 
-/**
- * An aggregation that computes the minimum of the values in the current bucket.
- */
-public interface Min extends NumericMetricsAggregation.SingleValue {
+import org.elasticsearch.search.aggregations.Aggregation;
 
-    /**
-     * The minimum.
-     */
-    double getValue();
+public interface NumericMetricsAggregation extends Aggregation {
+
+    public static interface SingleValue extends NumericMetricsAggregation {
+
+        double value();
+
+        String getValueAsString();
+
+    }
+
+    public static interface MultiValue extends NumericMetricsAggregation {
+    }
 }

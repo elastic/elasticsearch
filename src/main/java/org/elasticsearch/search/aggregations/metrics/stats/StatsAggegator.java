@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.metrics.stats;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
@@ -32,6 +33,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 
@@ -47,8 +49,10 @@ public class StatsAggegator extends NumericMetricsAggregator.MultiValue {
     private DoubleArray sums;
     private DoubleArray mins;
     private DoubleArray maxes;
+    private ValueFormatter formatter;
 
-    public StatsAggegator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context, Aggregator parent) {
+    public StatsAggegator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
+            AggregationContext context, Aggregator parent) {
         super(name, estimatedBucketsCount, context, parent);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
@@ -60,6 +64,7 @@ public class StatsAggegator extends NumericMetricsAggregator.MultiValue {
             maxes = bigArrays.newDoubleArray(initialSize, false);
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         }
+        this.formatter = formatter;
     }
 
     @Override
@@ -128,15 +133,16 @@ public class StatsAggegator extends NumericMetricsAggregator.MultiValue {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
-            return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
+            return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, formatter);
         }
         assert owningBucketOrdinal < counts.size();
-        return new InternalStats(name, counts.get(owningBucketOrdinal), sums.get(owningBucketOrdinal), mins.get(owningBucketOrdinal), maxes.get(owningBucketOrdinal));
+        return new InternalStats(name, counts.get(owningBucketOrdinal), sums.get(owningBucketOrdinal), mins.get(owningBucketOrdinal),
+                maxes.get(owningBucketOrdinal), formatter);
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
+        return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, formatter);
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
@@ -147,12 +153,13 @@ public class StatsAggegator extends NumericMetricsAggregator.MultiValue {
 
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-            return new StatsAggegator(name, 0, null, aggregationContext, parent);
+            return new StatsAggegator(name, 0, null, config.formatter(), aggregationContext, parent);
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
-            return new StatsAggegator(name, expectedBucketsCount, valuesSource, aggregationContext, parent);
+        protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext,
+                Aggregator parent) {
+            return new StatsAggegator(name, expectedBucketsCount, valuesSource, config.formatter(), aggregationContext, parent);
         }
     }
 

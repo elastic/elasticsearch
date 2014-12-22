@@ -18,12 +18,14 @@
  */
 package org.elasticsearch.search.aggregations.metrics.max;
 
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
@@ -52,8 +54,9 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
 
     InternalMax() {} // for serialization
 
-    public InternalMax(String name, double max) {
+    public InternalMax(String name, double max, @Nullable ValueFormatter formatter) {
         super(name);
+        this.valueFormatter = formatter;
         this.max = max;
     }
 
@@ -77,7 +80,7 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
         for (InternalAggregation aggregation : reduceContext.aggregations()) {
             max = Math.max(max, ((InternalMax) aggregation).max);
         }
-        return new InternalMax(name, max);
+        return new InternalMax(name, max, valueFormatter);
     }
 
     @Override

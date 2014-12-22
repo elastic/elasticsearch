@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.ObjectArray;
@@ -29,6 +30,7 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 
@@ -44,12 +46,15 @@ public abstract class AbstractPercentilesAggregator extends NumericMetricsAggreg
     protected ObjectArray<TDigestState> states;
     protected final double compression;
     protected final boolean keyed;
+    protected ValueFormatter formatter;
 
     public AbstractPercentilesAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context,
-                                 Aggregator parent, double[] keys, double compression, boolean keyed) {
+ Aggregator parent, double[] keys, double compression, boolean keyed,
+            @Nullable ValueFormatter formatter) {
         super(name, estimatedBucketsCount, context, parent);
         this.valuesSource = valuesSource;
         this.keyed = keyed;
+        this.formatter = formatter;
         this.states = bigArrays.newObjectArray(estimatedBucketsCount);
         this.keys = keys;
         this.compression = compression;

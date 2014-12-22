@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -129,6 +128,18 @@ public class AvgTests extends AbstractNumericTests {
         assertThat(avg.getValue(), equalTo((double) (2+3+4+5+6+7+8+9+10+11) / 10));
     }
 
+    public void testSingleValuedField_WithFormatter() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(avg("avg").format("#").field("value")).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Avg avg = searchResponse.getAggregations().get("avg");
+        assertThat(avg, notNullValue());
+        assertThat(avg.getName(), equalTo("avg"));
+        assertThat(avg.getValue(), equalTo((double) (1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10) / 10));
+        assertThat(avg.getValueAsString(), equalTo("6"));
+    }
 
     @Test
     public void testMultiValuedField() throws Exception {

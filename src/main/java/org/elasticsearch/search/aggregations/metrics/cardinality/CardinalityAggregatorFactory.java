@@ -44,7 +44,8 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<V
 
     @Override
     protected Aggregator createUnmapped(AggregationContext context, Aggregator parent) {
-        return new CardinalityAggregator(name, parent == null ? 1 : parent.estimatedBucketCount(), null, true, precision(parent), context, parent);
+        return new CardinalityAggregator(name, parent == null ? 1 : parent.estimatedBucketCount(), null, true, precision(parent),
+                config.formatter(), context, parent);
     }
 
     @Override
@@ -52,7 +53,8 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<V
         if (!(valuesSource instanceof ValuesSource.Numeric) && !rehash) {
             throw new AggregationExecutionException("Turning off rehashing for cardinality aggregation [" + name + "] on non-numeric values in not allowed");
         }
-        return new CardinalityAggregator(name, parent == null ? 1 : parent.estimatedBucketCount(), valuesSource, rehash, precision(parent), context, parent);
+        return new CardinalityAggregator(name, parent == null ? 1 : parent.estimatedBucketCount(), valuesSource, rehash, precision(parent),
+                config.formatter(), context, parent);
     }
 
     /*

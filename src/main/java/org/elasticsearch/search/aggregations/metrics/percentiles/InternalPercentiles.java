@@ -19,9 +19,11 @@
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
 import com.google.common.collect.UnmodifiableIterator;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -48,8 +50,8 @@ public class InternalPercentiles extends AbstractInternalPercentiles implements 
 
     InternalPercentiles() {} // for serialization
 
-    public InternalPercentiles(String name, double[] percents, TDigestState state, boolean keyed) {
-        super(name, percents, state, keyed);
+    public InternalPercentiles(String name, double[] percents, TDigestState state, boolean keyed, @Nullable ValueFormatter formatter) {
+        super(name, percents, state, keyed, formatter);
     }
 
     @Override
@@ -63,12 +65,17 @@ public class InternalPercentiles extends AbstractInternalPercentiles implements 
     }
 
     @Override
+    public String percentileAsString(double percent) {
+        return valueAsString(String.valueOf(percent));
+    }
+
+    @Override
     public double value(double key) {
         return percentile(key);
     }
 
     protected AbstractInternalPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed) {
-        return new InternalPercentiles(name, keys, merged, keyed);
+        return new InternalPercentiles(name, keys, merged, keyed, valueFormatter);
     }
 
     @Override

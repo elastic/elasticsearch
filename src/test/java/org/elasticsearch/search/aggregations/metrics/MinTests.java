@@ -85,6 +85,20 @@ public class MinTests extends AbstractNumericTests {
     }
 
     @Test
+    public void testSingleValuedField_WithFormatter() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(min("min").format("0000.0").field("value")).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Min min = searchResponse.getAggregations().get("min");
+        assertThat(min, notNullValue());
+        assertThat(min.getName(), equalTo("min"));
+        assertThat(min.getValue(), equalTo(1.0));
+        assertThat(min.getValueAsString(), equalTo("0001.0"));
+    }
+
+    @Test
     public void testSingleValuedField_PartiallyUnmapped() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
                 .setQuery(matchAllQuery())

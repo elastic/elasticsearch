@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.search.aggregations.metrics.max;
 
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 
 /**
  * An aggregation that computes the maximum of the values in the current bucket.
  */
-public interface Max extends Aggregation {
+public interface Max extends NumericMetricsAggregation.SingleValue {
 
     /**
      * The maximum.

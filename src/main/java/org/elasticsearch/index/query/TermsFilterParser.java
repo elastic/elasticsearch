@@ -186,18 +186,8 @@ public class TermsFilterParser implements FilterParser {
             }
 
             // external lookup, use it
-            TermsLookup termsLookup = new TermsLookup(fieldMapper, lookupIndex, lookupType, lookupId, lookupRouting, lookupPath, parseContext);
-
-            Filter filter = termsFilterCache.termsFilter(termsLookup, lookupCache, cacheKey);
-            if (filter == null) {
-                return null;
-            }
-
-            // cache the whole filter by default, or if explicitly told to
-            if (cache == null || cache) {
-                filter = parseContext.cacheFilter(filter, cacheKey);
-            }
-            return filter;
+            TermsLookup termsLookup = new TermsLookup(lookupIndex, lookupType, lookupId, lookupRouting, lookupPath, parseContext);
+            terms.addAll(termsFilterCache.terms(termsLookup, lookupCache, cacheKey));
         }
 
         if (terms.isEmpty()) {

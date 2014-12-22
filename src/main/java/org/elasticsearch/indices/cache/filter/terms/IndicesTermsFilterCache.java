@@ -22,8 +22,8 @@ package org.elasticsearch.indices.cache.filter.terms;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.Weigher;
+import com.google.common.collect.ImmutableList;
 
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetRequest;
@@ -33,7 +33,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -49,7 +48,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class IndicesTermsFilterCache extends AbstractComponent {
 
-    private static TermsFilterValue NO_TERMS = new TermsFilterValue(0, Queries.MATCH_NO_FILTER);
+    private static TermsFilterValue NO_TERMS = new TermsFilterValue(0, ImmutableList.of());
 
     private final Client client;
 
@@ -78,10 +77,9 @@ public class IndicesTermsFilterCache extends AbstractComponent {
         this.cache = builder.build();
     }
 
-    @Nullable
-    public Filter termsFilter(final TermsLookup lookup, boolean cacheLookup, @Nullable HashedBytesRef cacheKey) throws RuntimeException {
+    public List<Object> terms(final TermsLookup lookup, boolean cacheLookup, @Nullable HashedBytesRef cacheKey) throws RuntimeException {
         if (!cacheLookup) {
-            return buildTermsFilterValue(lookup).filter;
+            return buildTermsFilterValue(lookup).values;
         }
 
         HashedBytesRef key;
@@ -96,7 +94,7 @@ public class IndicesTermsFilterCache extends AbstractComponent {
                 public TermsFilterValue call() throws Exception {
                     return buildTermsFilterValue(lookup);
                 }
-            }).filter;
+            }).values;
         } catch (ExecutionException e) {
             if (e.getCause() instanceof RuntimeException) {
                 throw (RuntimeException) e.getCause();
@@ -114,8 +112,7 @@ public class IndicesTermsFilterCache extends AbstractComponent {
         if (values.isEmpty()) {
             return NO_TERMS;
         }
-        Filter filter = lookup.getFieldMapper().termsFilter(values, lookup.getQueryParseContext());
-        return new TermsFilterValue(estimateSizeInBytes(values), filter);
+        return new TermsFilterValue(estimateSizeInBytes(values), ImmutableList.copyOf(values));
     }
 
     long estimateSizeInBytes(List<Object> terms) {
@@ -150,14 +147,13 @@ public class IndicesTermsFilterCache extends AbstractComponent {
         }
     }
 
-    // TODO: if TermsFilter exposed sizeInBytes, we won't need this wrapper
     static class TermsFilterValue {
         public final long sizeInBytes;
-        public final Filter filter;
+        public final ImmutableList<Object> values;
 
-        TermsFilterValue(long sizeInBytes, Filter filter) {
+        TermsFilterValue(long sizeInBytes, ImmutableList<Object> values) {
             this.sizeInBytes = sizeInBytes;
-            this.filter = filter;
+            this.values = values;
         }
     }
 }

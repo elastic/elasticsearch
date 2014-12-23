@@ -69,7 +69,7 @@ import static org.hamcrest.Matchers.*;
 public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Test
-    public void testSpecifiedIndexUnavailable() throws Exception {
+    public void testSpecifiedIndexUnavailable_multipleIndices() throws Exception {
         createIndex("test1");
         ensureYellow();
 
@@ -170,6 +170,158 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(getMapping("test1", "test2").setIndicesOptions(options), false);
         verify(getWarmer("test1", "test2").setIndicesOptions(options), false);
         verify(getSettings("test1", "test2").setIndicesOptions(options), false);
+    }
+
+    @Test
+    public void testSpecifiedIndexUnavailable_singleIndexThatIsClosed() throws Exception {
+        assertAcked(prepareCreate("test1"));
+        ensureYellow();
+
+        assertAcked(client().admin().indices().prepareClose("test1"));
+
+        IndicesOptions options = IndicesOptions.strictExpandOpenAndForbidClosed();
+        verify(search("test1").setIndicesOptions(options), true);
+        verify(msearch(options, "test1"), true);
+        verify(count("test1").setIndicesOptions(options), true);
+        verify(clearCache("test1").setIndicesOptions(options), true);
+        verify(_flush("test1").setIndicesOptions(options),true);
+        verify(segments("test1").setIndicesOptions(options), true);
+        verify(stats("test1").setIndicesOptions(options), true);
+        verify(optimize("test1").setIndicesOptions(options), true);
+        verify(refresh("test1").setIndicesOptions(options), true);
+        verify(validateQuery("test1").setIndicesOptions(options), true);
+        verify(aliasExists("test1").setIndicesOptions(options), true);
+        verify(typesExists("test1").setIndicesOptions(options), true);
+        verify(deleteByQuery("test1").setIndicesOptions(options), true);
+        verify(percolate("test1").setIndicesOptions(options), true);
+        verify(mpercolate(options, "test1").setIndicesOptions(options), true);
+        verify(suggest("test1").setIndicesOptions(options), true);
+        verify(getAliases("test1").setIndicesOptions(options), true);
+        verify(getFieldMapping("test1").setIndicesOptions(options), true);
+        verify(getMapping("test1").setIndicesOptions(options), true);
+        verify(getWarmer("test1").setIndicesOptions(options), true);
+        verify(getSettings("test1").setIndicesOptions(options), true);
+
+        options = IndicesOptions.fromOptions(true, options.allowNoIndices(), options.expandWildcardsOpen(), options.expandWildcardsClosed(), options);
+        verify(search("test1").setIndicesOptions(options), false);
+        verify(msearch(options, "test1"), false);
+        verify(count("test1").setIndicesOptions(options), false);
+        verify(clearCache("test1").setIndicesOptions(options), false);
+        verify(_flush("test1").setIndicesOptions(options),false);
+        verify(segments("test1").setIndicesOptions(options), false);
+        verify(stats("test1").setIndicesOptions(options), false);
+        verify(optimize("test1").setIndicesOptions(options), false);
+        verify(refresh("test1").setIndicesOptions(options), false);
+        verify(validateQuery("test1").setIndicesOptions(options), false);
+        verify(aliasExists("test1").setIndicesOptions(options), false);
+        verify(typesExists("test1").setIndicesOptions(options), false);
+        verify(deleteByQuery("test1").setIndicesOptions(options), false);
+        verify(percolate("test1").setIndicesOptions(options), false);
+        verify(mpercolate(options, "test1").setIndicesOptions(options), false);
+        verify(suggest("test1").setIndicesOptions(options), false);
+        verify(getAliases("test1").setIndicesOptions(options), false);
+        verify(getFieldMapping("test1").setIndicesOptions(options), false);
+        verify(getMapping("test1").setIndicesOptions(options), false);
+        verify(getWarmer("test1").setIndicesOptions(options), false);
+        verify(getSettings("test1").setIndicesOptions(options), false);
+
+        assertAcked(client().admin().indices().prepareOpen("test1"));
+        ensureYellow();
+
+        options = IndicesOptions.strictExpandOpenAndForbidClosed();
+        verify(search("test1").setIndicesOptions(options), false);
+        verify(msearch(options, "test1"), false);
+        verify(count("test1").setIndicesOptions(options), false);
+        verify(clearCache("test1").setIndicesOptions(options), false);
+        verify(_flush("test1").setIndicesOptions(options),false);
+        verify(segments("test1").setIndicesOptions(options), false);
+        verify(stats("test1").setIndicesOptions(options), false);
+        verify(optimize("test1").setIndicesOptions(options), false);
+        verify(refresh("test1").setIndicesOptions(options), false);
+        verify(validateQuery("test1").setIndicesOptions(options), false);
+        verify(aliasExists("test1").setIndicesOptions(options), false);
+        verify(typesExists("test1").setIndicesOptions(options), false);
+        verify(deleteByQuery("test1").setIndicesOptions(options), false);
+        verify(percolate("test1").setIndicesOptions(options), false);
+        verify(mpercolate(options, "test1").setIndicesOptions(options), false);
+        verify(suggest("test1").setIndicesOptions(options), false);
+        verify(getAliases("test1").setIndicesOptions(options), false);
+        verify(getFieldMapping("test1").setIndicesOptions(options), false);
+        verify(getMapping("test1").setIndicesOptions(options), false);
+        verify(getWarmer("test1").setIndicesOptions(options), false);
+        verify(getSettings("test1").setIndicesOptions(options), false);
+    }
+
+    @Test
+    public void testSpecifiedIndexUnavailable_singleIndex() throws Exception {
+        IndicesOptions options = IndicesOptions.strictExpandOpenAndForbidClosed();
+        verify(search("test1").setIndicesOptions(options), true);
+        verify(msearch(options, "test1"), true);
+        verify(count("test1").setIndicesOptions(options), true);
+        verify(clearCache("test1").setIndicesOptions(options), true);
+        verify(_flush("test1").setIndicesOptions(options),true);
+        verify(segments("test1").setIndicesOptions(options), true);
+        verify(stats("test1").setIndicesOptions(options), true);
+        verify(optimize("test1").setIndicesOptions(options), true);
+        verify(refresh("test1").setIndicesOptions(options), true);
+        verify(validateQuery("test1").setIndicesOptions(options), true);
+        verify(aliasExists("test1").setIndicesOptions(options), true);
+        verify(typesExists("test1").setIndicesOptions(options), true);
+        verify(deleteByQuery("test1").setIndicesOptions(options), true);
+        verify(percolate("test1").setIndicesOptions(options), true);
+        verify(suggest("test1").setIndicesOptions(options), true);
+        verify(getAliases("test1").setIndicesOptions(options), true);
+        verify(getFieldMapping("test1").setIndicesOptions(options), true);
+        verify(getMapping("test1").setIndicesOptions(options), true);
+        verify(getWarmer("test1").setIndicesOptions(options), true);
+        verify(getSettings("test1").setIndicesOptions(options), true);
+
+        options = IndicesOptions.fromOptions(true, options.allowNoIndices(), options.expandWildcardsOpen(), options.expandWildcardsClosed(), options);
+        verify(search("test1").setIndicesOptions(options), false);
+        verify(msearch(options, "test1"), false);
+        verify(count("test1").setIndicesOptions(options), false);
+        verify(clearCache("test1").setIndicesOptions(options), false);
+        verify(_flush("test1").setIndicesOptions(options),false);
+        verify(segments("test1").setIndicesOptions(options), false);
+        verify(stats("test1").setIndicesOptions(options), false);
+        verify(optimize("test1").setIndicesOptions(options), false);
+        verify(refresh("test1").setIndicesOptions(options), false);
+        verify(validateQuery("test1").setIndicesOptions(options), false);
+        verify(aliasExists("test1").setIndicesOptions(options), false);
+        verify(typesExists("test1").setIndicesOptions(options), false);
+        verify(deleteByQuery("test1").setIndicesOptions(options), false);
+        verify(percolate("test1").setIndicesOptions(options), false);
+        verify(suggest("test1").setIndicesOptions(options), false);
+        verify(getAliases("test1").setIndicesOptions(options), false);
+        verify(getFieldMapping("test1").setIndicesOptions(options), false);
+        verify(getMapping("test1").setIndicesOptions(options), false);
+        verify(getWarmer("test1").setIndicesOptions(options), false);
+        verify(getSettings("test1").setIndicesOptions(options), false);
+
+        assertAcked(prepareCreate("test1"));
+        ensureYellow();
+
+        options = IndicesOptions.strictExpandOpenAndForbidClosed();
+        verify(search("test1").setIndicesOptions(options), false);
+        verify(msearch(options, "test1"), false);
+        verify(count("test1").setIndicesOptions(options), false);
+        verify(clearCache("test1").setIndicesOptions(options), false);
+        verify(_flush("test1").setIndicesOptions(options),false);
+        verify(segments("test1").setIndicesOptions(options), false);
+        verify(stats("test1").setIndicesOptions(options), false);
+        verify(optimize("test1").setIndicesOptions(options), false);
+        verify(refresh("test1").setIndicesOptions(options), false);
+        verify(validateQuery("test1").setIndicesOptions(options), false);
+        verify(aliasExists("test1").setIndicesOptions(options), false);
+        verify(typesExists("test1").setIndicesOptions(options), false);
+        verify(deleteByQuery("test1").setIndicesOptions(options), false);
+        verify(percolate("test1").setIndicesOptions(options), false);
+        verify(suggest("test1").setIndicesOptions(options), false);
+        verify(getAliases("test1").setIndicesOptions(options), false);
+        verify(getFieldMapping("test1").setIndicesOptions(options), false);
+        verify(getMapping("test1").setIndicesOptions(options), false);
+        verify(getWarmer("test1").setIndicesOptions(options), false);
+        verify(getSettings("test1").setIndicesOptions(options), false);
     }
 
     @Test

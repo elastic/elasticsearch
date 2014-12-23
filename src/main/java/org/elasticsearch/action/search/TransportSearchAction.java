@@ -23,15 +23,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.type.*;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
@@ -89,9 +87,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     // if we only have one group, then we always want Q_A_F, no need for DFS, and no need to do THEN since we hit one shard
                     searchRequest.searchType(QUERY_AND_FETCH);
                 }
-            } catch (IndexMissingException e) {
-                // ignore this, we will notify the search response if its really the case
-                // from the actual action
+            } catch (IndexMissingException|IndexClosedException e) {
+                // ignore these failures, we will notify the search response if its really the case from the actual action
             } catch (Exception e) {
                 logger.debug("failed to optimize search type, continue as normal", e);
             }

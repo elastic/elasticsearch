@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
@@ -60,7 +61,7 @@ public class OpenLdapTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
+    @Test @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-shield/issues/499")
     public void testTcpTimeout() {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";

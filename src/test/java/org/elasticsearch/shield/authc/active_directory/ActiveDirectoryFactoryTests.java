@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.authc.active_directory;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.ldap.LdapConnection;
@@ -71,7 +72,7 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
+    @Test @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-shield/issues/499")
     public void testTcpReadTimeout() {
         Settings settings = ImmutableSettings.builder()
                 .put(buildAdSettings(AD_LDAP_URL, AD_DOMAIN))

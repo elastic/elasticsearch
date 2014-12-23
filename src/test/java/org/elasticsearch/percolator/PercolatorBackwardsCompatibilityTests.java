@@ -59,16 +59,13 @@ public class PercolatorBackwardsCompatibilityTests extends ElasticsearchIntegrat
         client().prepareIndex("test", PercolatorService.TYPE_NAME)
                 .setSource(jsonBuilder().startObject().field("query", termQuery("field2", "value")).endObject()).get();
 
-        // However on new indices, the field resolution is strict, no queries with unmapped fields are allowed
-        createIndex("test2");
-        try {
-            client().prepareIndex("test2", PercolatorService.TYPE_NAME)
-                    .setSource(jsonBuilder().startObject().field("query", termQuery("field1", "value")).endObject()).get();
-            fail();
-        } catch (PercolatorException e) {
-            e.printStackTrace();
-            assertThat(e.getRootCause(), instanceOf(QueryParsingException.class));
-        }
+        // Similarly on new indices, queries refer to fields not available in mapping should be allowed.
+        createIndex("test1");
+        client().prepareIndex("test1", PercolatorService.TYPE_NAME)
+                .setSource(jsonBuilder().startObject().field("query", termQuery("field1", "value")).endObject()).get();
+        response = client().preparePercolate().setIndices("test1").setDocumentType("type")
+                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("field1", "value"))
+                .get();
+        assertMatchCount(response, 1);
     }
-
 }

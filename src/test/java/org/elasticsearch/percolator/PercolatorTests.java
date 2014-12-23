@@ -1731,7 +1731,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("idx", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", QueryBuilders.queryStringQuery("color:red")).endObject())
                 .get();
-            fail();
         } catch (PercolatorException e) {
 
         }
@@ -1823,19 +1822,15 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
             client().prepareIndex("test", PercolatorService.TYPE_NAME)
                     .setSource(jsonBuilder().startObject().field("query", termQuery("field1", "value")).endObject())
                     .get();
-            fail();
         } catch (PercolatorException e) {
-            assertThat(e.getRootCause(), instanceOf(QueryParsingException.class));
         }
 
-        try {
-            client().prepareIndex("test", PercolatorService.TYPE_NAME)
-                    .setSource(jsonBuilder().startObject().field("query", rangeQuery("field1").from(0).to(1)).endObject())
-                    .get();
-            fail();
-        } catch (PercolatorException e) {
-            assertThat(e.getRootCause(), instanceOf(QueryParsingException.class));
-        }
+        PercolateResponse response = client().preparePercolate()
+                .setIndices("test").setDocumentType("type")
+                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "value").endObject()))
+                .setPercolateFilter(FilterBuilders.matchAllFilter())
+                .get();
+        assertNoFailures(response);
     }
 
     @Test

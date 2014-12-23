@@ -119,7 +119,7 @@ public class AlertActionManager extends AbstractComponent {
             IndexMetaData indexMetaData = state.getMetaData().index(index);
             if (indexMetaData != null) {
                 if (!state.routingTable().index(index).allPrimaryShardsActive()) {
-                    logger.info("Not all primary shards of the [{}] index are started", index);
+                    logger.warn("Not all primary shards of the [{}] index are started. Schedule to retry alert action loading..", index);
                     return false;
                 }
             }
@@ -128,7 +128,7 @@ public class AlertActionManager extends AbstractComponent {
         try {
             loadQueue();
         } catch (Exception e) {
-            logger.error("Unable to load unfinished jobs into the job queue", e);
+            logger.warn("Failed to load unfinished alert actions. Schedule to retry alert action loading...", e);
             actionsToBeProcessed.clear();
             return false;
         }

@@ -158,7 +158,7 @@ public class AlertsStore extends AbstractComponent {
                 try {
                     loadAlerts();
                 } catch (Exception e) {
-                    logger.warn("Failed to load alerts", e);
+                    logger.warn("Failed to load previously stored alerts. Schedule to retry alert loading...", e);
                     alertMap.clear();
                     return false;
                 }
@@ -166,7 +166,7 @@ public class AlertsStore extends AbstractComponent {
                 started.set(true);
                 return true;
             } else {
-                logger.info("Not all primary shards of the .alerts index are started");
+                logger.warn("Not all primary shards of the .alerts index are started. Schedule to retry alert loading...");
                 return false;
             }
         } else {

@@ -7,6 +7,7 @@ package org.elasticsearch.shield.authz.indicesresolver;
 
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -69,7 +70,7 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
                 //indices resulted in no indices. This is important as we always need to replace wildcards for security reason,
                 //to make sure that the operation is executed on the indices that we authorized it to execute on.
                 //If we can't replace because we got an empty set, we can only throw exception.
-                //Downside of this is that a single item exception is going to its composite requests fail as a whole.
+                //Downside of this is that a single item exception is going to make fail the composite request that holds it as a whole.
                 if (indices == null || indices.isEmpty()) {
                     if (MetaData.isAllIndices(indicesRequest.indices())) {
                         throw new IndexMissingException(new Index(MetaData.ALL));
@@ -79,11 +80,25 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
                 ((IndicesRequest.Replaceable) indicesRequest).indices(indices.toArray(new String[indices.size()]));
                 return Sets.newHashSet(indices);
             }
-            return Sets.newHashSet(explodeWildcards(indicesRequest, metaData));
+
+            if (containsWildcards(indicesRequest)) {
+                //used for requests that support wildcards but don't allow to replace their indices (e.g. IndicesAliasesRequest)
+                //potentially insecure as cluster state may change hence we may end up resolving to different indices on different nodes
+                assert indicesRequest instanceof IndicesAliasesRequest
+                        : "IndicesAliasesRequest is the only request known to support wildcards that doesn't support replacing its indices";
+                return Sets.newHashSet(explodeWildcards(indicesRequest, metaData));
+            }
+            //NOTE: shard level requests do support wildcards (as they hold the original indices options) but don't support replacing their indices.
+            //That is fine though because they never contain wildcards, as they get replaced as part of the authorization of their
+            //corresponding parent request on the coordinating node. Hence wildcards don't get replaced nor exploded for shard level requests.
         }
         return Sets.newHashSet(indicesRequest.indices());
     }
 
+    /*
+     * Explodes wildcards based on default core behaviour. Used for IndicesAliasesRequest only as it doesn't support
+     * replacing its indices. It will go away once that gets fixed.
+     */
     private String[] explodeWildcards(IndicesRequest indicesRequest, MetaData metaData) {
         //note that "_all" will map to concrete indices only, as the same happens in core
         //which is different from "*" as the latter expands to all indices and aliases
@@ -98,6 +113,18 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
 
         }
         return metaData.convertFromWildcards(indicesRequest.indices(), indicesRequest.indicesOptions());
+    }
+
+    private boolean containsWildcards(IndicesRequest indicesRequest) {
+        if (MetaData.isAllIndices(indicesRequest.indices())) {
+            return true;
+        }
+        for (String index : indicesRequest.indices()) {
+            if (index.startsWith("+") || index.startsWith("-") || Regex.isSimpleMatchPattern(index)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private List<String> replaceWildcardsWithAuthorizedIndices(IndicesRequest indicesRequest, MetaData metaData, List<String> authorizedIndices) {

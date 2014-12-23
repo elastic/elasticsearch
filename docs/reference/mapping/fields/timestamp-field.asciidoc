@@ -90,8 +90,10 @@ You can define a default value for when timestamp is not provided
 within the index request or in the `_source` document.
 
 By default, the default value is `now` which means the date the document was processed by the indexing chain.
+But if you are using `path`, there is no default value which means that indexing will fail if your document does
+not provide the date.
 
-You can disable that default value by setting `default` to `null`. It means that `timestamp` is mandatory:
+You force also the default value for path by setting `default` to `now`:
 
 [source,js]
 --------------------------------------------------
@@ -99,13 +101,12 @@ You can disable that default value by setting `default` to `null`. It means that
     "tweet" : {
         "_timestamp" : {
             "enabled" : true,
-            "default" : null
+            "path" : "post_date",
+            "default" : "now"
         }
     }
 }
 --------------------------------------------------
-
-If you don't provide any timestamp value, indexation will fail.
 
 You can also set the default value to any date respecting <<mapping-timestamp-field-format,timestamp format>>:
 

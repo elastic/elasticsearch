@@ -168,7 +168,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(timestampConfiguration.get("index").toString(), is("no"));
     }
 
-    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    @Test(expected = TimestampParsingException.class) // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
     public void testPathMissingDefaultValue() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
@@ -188,11 +188,6 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
 
         IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
         request.process(metaData, mappingMetaData, true, "test");
-        assertThat(request.timestamp(), notNullValue());
-
-        // We should have less than one minute (probably some ms)
-        long delay = System.currentTimeMillis() - Long.parseLong(request.timestamp());
-        assertThat(delay, lessThanOrEqualTo(60000L));
     }
 
     @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
@@ -330,7 +325,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test(expected = TimestampParsingException.class) // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
-    public void testPathMissingShouldFail() throws Exception {
+    public void testPathMissingWithForcedNullDefaultShouldFail() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
                     .field("enabled", "yes")
@@ -353,7 +348,29 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test(expected = TimestampParsingException.class) // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
-    public void testTimestampMissingShouldFail() throws Exception {
+    public void testPathMissingShouldFail() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp")
+                    .field("enabled", "yes")
+                    .field("path", "timestamp")
+                .endObject()
+                .endObject().endObject();
+        XContentBuilder doc = XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("foo", "bar")
+                .endObject();
+
+        MetaData metaData = MetaData.builder().build();
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping.string());
+
+        MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
+
+        IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
+        request.process(metaData, mappingMetaData, true, "test");
+    }
+
+    @Test(expected = TimestampParsingException.class) // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    public void testTimestampMissingWithForcedNullDefaultShouldFail() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
                     .field("enabled", "yes")
@@ -372,6 +389,33 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
 
         IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
         request.process(metaData, mappingMetaData, true, "test");
+    }
+
+    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    public void testTimestampMissingShouldNotFail() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp")
+                    .field("enabled", "yes")
+                .endObject()
+                .endObject().endObject();
+        XContentBuilder doc = XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("foo", "bar")
+                .endObject();
+
+        MetaData metaData = MetaData.builder().build();
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping.string());
+
+        MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
+
+        IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
+        request.process(metaData, mappingMetaData, true, "test");
+
+        assertThat(request.timestamp(), notNullValue());
+
+        // We should have less than one minute (probably some ms)
+        long delay = System.currentTimeMillis() - Long.parseLong(request.timestamp());
+        assertThat(delay, lessThanOrEqualTo(60000L));
     }
 
     @Test

@@ -74,7 +74,8 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         public static final EnabledAttributeMapper ENABLED = EnabledAttributeMapper.UNSET_DISABLED;
         public static final String PATH = null;
         public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern(DEFAULT_DATE_TIME_FORMAT);
-        public static final String DEFAULT_TIMESTAMP = "now";
+        public static final String NOW_TIMESTAMP = "now";
+        public static final String DEFAULT_TIMESTAMP = NOW_TIMESTAMP;
     }
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, TimestampFieldMapper> {
@@ -129,6 +130,8 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            boolean pathSet = false;
+            boolean defaultSet = false;
             TimestampFieldMapper.Builder builder = timestamp();
             parseField(builder, builder.name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -141,15 +144,23 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
                     iterator.remove();
                 } else if (fieldName.equals("path")) {
                     builder.path(fieldNode.toString());
+                    pathSet = true;
                     iterator.remove();
                 } else if (fieldName.equals("format")) {
                     builder.dateTimeFormatter(parseDateTimeFormatter(fieldNode.toString()));
                     iterator.remove();
                 } else if (fieldName.equals("default")) {
                     builder.defaultTimestamp(fieldNode == null ? null : fieldNode.toString());
+                    defaultSet = true;
                     iterator.remove();
                 }
             }
+
+            // When path is used and no default value is not explicitly set, we force it to null.
+            if (pathSet && defaultSet == false) {
+                builder.defaultTimestamp(null);
+            }
+
             return builder;
         }
     }
@@ -283,7 +294,10 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         if (includeDefaults || !dateTimeFormatter.format().equals(Defaults.DATE_TIME_FORMATTER.format())) {
             builder.field("format", dateTimeFormatter.format());
         }
-        if (includeDefaults || !Defaults.DEFAULT_TIMESTAMP.equals(defaultTimestamp)) {
+        // We print `default` if explicitly required or if not using path with default != now
+        // or if using using path with default != null
+        if (includeDefaults || (path == Defaults.PATH && !Defaults.DEFAULT_TIMESTAMP.equals(defaultTimestamp)) ||
+                (path != Defaults.PATH && defaultTimestamp != null)) {
             builder.field("default", defaultTimestamp);
         }
         if (customFieldDataSettings != null) {
@@ -305,7 +319,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
                 this.enabledState = timestampFieldMapperMergeWith.enabledState;
             }
         } else {
-            if (!timestampFieldMapperMergeWith.defaultTimestamp().equals(defaultTimestamp)) {
+            if (timestampFieldMapperMergeWith.defaultTimestamp() != null && !timestampFieldMapperMergeWith.defaultTimestamp().equals(defaultTimestamp)) {
                 mergeContext.addConflict("Cannot update default in _timestamp value. Value is " + defaultTimestamp.toString() + " now encountering " + timestampFieldMapperMergeWith.defaultTimestamp());
             }
             if (this.path != null) {

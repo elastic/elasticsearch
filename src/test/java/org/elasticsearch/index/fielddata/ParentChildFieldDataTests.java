@@ -199,11 +199,11 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTests {
         assertThat(((FieldDoc) topDocs.scoreDocs[7]).fields[0], nullValue());
     }
 
-    public void testThreads() throws Throwable {
+    public void testThreads() throws Exception {
         final ParentChildIndexFieldData indexFieldData = getForField(childType);
         final DirectoryReader reader = DirectoryReader.open(writer, true);
         final IndexParentChildFieldData global = indexFieldData.loadGlobal(reader);
-        final AtomicReference<Throwable> error = new AtomicReference<>();
+        final AtomicReference<Exception> error = new AtomicReference<>();
         final int numThreads = scaledRandomIntBetween(3, 8);
         final Thread[] threads = new Thread[numThreads];
         final CountDownLatch latch = new CountDownLatch(1);
@@ -239,8 +239,8 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTests {
                                 }
                             }
                         }
-                    } catch (Throwable t) {
-                        error.compareAndSet(null, t);
+                    } catch (Exception e) {
+                        error.compareAndSet(null, e);
                     }
                 }
             };

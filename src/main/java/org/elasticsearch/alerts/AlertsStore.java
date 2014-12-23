@@ -198,7 +198,7 @@ public class AlertsStore extends AbstractComponent {
     private void loadAlerts() {
         assert alertMap.isEmpty() : "No alerts should reside, but there are " + alertMap.size() + " alerts.";
         RefreshResponse refreshResponse = client.admin().indices().refresh(new RefreshRequest(ALERT_INDEX)).actionGet();
-        if (refreshResponse.getSuccessfulShards() != refreshResponse.getSuccessfulShards()) {
+        if (refreshResponse.getTotalShards() != refreshResponse.getSuccessfulShards()) {
             throw new ElasticsearchException("Not all shards have been refreshed");
         }
 

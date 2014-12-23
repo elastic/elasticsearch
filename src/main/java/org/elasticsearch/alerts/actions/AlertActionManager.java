@@ -165,10 +165,10 @@ public class AlertActionManager extends AbstractComponent {
         return ALERT_HISTORY_INDEX_PREFIX + alertHistoryIndexTimeFormat.print(time);
     }
 
-    public void loadQueue() {
+    private void loadQueue() {
         assert actionsToBeProcessed.isEmpty() : "Queue should be empty, but contains " + actionsToBeProcessed.size() + " elements.";
         RefreshResponse refreshResponse = client.admin().indices().refresh(new RefreshRequest(ALERT_HISTORY_INDEX_PREFIX + "*")).actionGet();
-        if (refreshResponse.getSuccessfulShards() != refreshResponse.getSuccessfulShards()) {
+        if (refreshResponse.getTotalShards() != refreshResponse.getSuccessfulShards()) {
             throw new ElasticsearchException("Not all shards have been refreshed");
         }
 

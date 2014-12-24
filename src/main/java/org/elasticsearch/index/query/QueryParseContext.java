@@ -37,6 +37,7 @@ import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.common.lucene.search.NoCacheQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.ResolvableFilter;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -47,7 +48,11 @@ import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperBuilders;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -102,6 +107,8 @@ public class QueryParseContext {
     private final boolean disableFilterCaching;
 
     private boolean allowUnmappedFields;
+
+    private boolean mapUnmappedFieldAsString;
 
     public QueryParseContext(Index index, IndexQueryParserService indexQueryParser) {
         this(index, indexQueryParser, false);
@@ -386,10 +393,6 @@ public class QueryParseContext {
         return failIfFieldMappingNotFound(name, indexQueryParser.mapperService.smartName(name, getTypes()));
     }
 
-    public FieldMapper smartNameFieldMapper(String name) {
-        return failIfFieldMappingNotFound(name, indexQueryParser.mapperService.smartNameFieldMapper(name, getTypes()));
-    }
-
     public MapperService.SmartNameObjectMapper smartObjectMapper(String name) {
         return indexQueryParser.mapperService.smartNameObjectMapper(name, getTypes());
     }
@@ -398,9 +401,17 @@ public class QueryParseContext {
         this.allowUnmappedFields = allowUnmappedFields;
     }
 
-    private <T> T failIfFieldMappingNotFound(String name, T fieldMapping) {
+    public void setMapUnmappedFieldAsString(boolean mapUnmappedFieldAsString) {
+        this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
+    }
+
+    private MapperService.SmartNameFieldMappers failIfFieldMappingNotFound(String name, MapperService.SmartNameFieldMappers fieldMapping) {
         if (allowUnmappedFields) {
             return fieldMapping;
+        } else if (mapUnmappedFieldAsString){
+            StringFieldMapper.Builder builder = MapperBuilders.stringField(name);
+            StringFieldMapper stringFieldMapper = builder.build(new Mapper.BuilderContext(ImmutableSettings.EMPTY, new ContentPath(1)));
+            return new MapperService.SmartNameFieldMappers(mapperService(), new FieldMappers(stringFieldMapper), null, false);
         } else {
             Version indexCreatedVersion = indexQueryParser.getIndexCreatedVersion();
             if (fieldMapping == null && indexCreatedVersion.onOrAfter(Version.V_1_4_0_Beta1)) {

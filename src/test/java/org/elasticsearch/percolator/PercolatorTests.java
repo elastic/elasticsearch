@@ -33,6 +33,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -2000,6 +2001,26 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setPercolateDoc(docBuilder().setDoc(doc))
                 .get();
         assertMatchCount(response, 3l);
+    }
+
+    @Test
+    public void testMapUnmappedFieldAsString() throws IOException{
+        // If index.percolator.map_unmapped_fields_as_string is set to true, unmapped field is mapped as an analyzed string.
+        ImmutableSettings.Builder settings = ImmutableSettings.settingsBuilder()
+                .put(indexSettings())
+                .put("index.percolator.map_unmapped_fields_as_string", true);
+        assertAcked(prepareCreate("test")
+                .setSettings(settings));
+        client().prepareIndex("test", PercolatorService.TYPE_NAME)
+                .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "value")).endObject()).get();
+        logger.info("--> Percolate doc with field1=value");
+        PercolateResponse response1 = client().preparePercolate()
+                .setIndices("test").setDocumentType("type")
+                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "value").endObject()))
+                .execute().actionGet();
+        assertMatchCount(response1, 1l);
+        assertThat(response1.getMatches(), arrayWithSize(1));
+
     }
 }
 

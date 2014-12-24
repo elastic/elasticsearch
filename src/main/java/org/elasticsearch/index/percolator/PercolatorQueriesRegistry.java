@@ -69,6 +69,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class PercolatorQueriesRegistry extends AbstractIndexShardComponent implements Closeable{
 
+    public final String MAP_UNMAPPED_FIELDS_AS_STRING = "index.percolator.map_unmapped_fields_as_string";
+
     // This is a shard level service, but these below are index level service:
     private final IndexQueryParserService queryParserService;
     private final MapperService mapperService;
@@ -84,6 +86,8 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
     private final RealTimePercolatorOperationListener realTimePercolatorOperationListener = new RealTimePercolatorOperationListener();
     private final PercolateTypeListener percolateTypeListener = new PercolateTypeListener();
     private final AtomicBoolean realTimePercolatorEnabled = new AtomicBoolean(false);
+
+    private boolean mapUnmappedFieldsAsString;
 
     private CloseableThreadLocal<QueryParseContext> cache = new CloseableThreadLocal<QueryParseContext>() {
         @Override
@@ -104,6 +108,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
         this.indexCache = indexCache;
         this.indexFieldDataService = indexFieldDataService;
         this.shardPercolateService = shardPercolateService;
+        this.mapUnmappedFieldsAsString = indexSettings.getAsBoolean(MAP_UNMAPPED_FIELDS_AS_STRING, false);
 
         indicesLifecycle.addListener(shardLifecycleListener);
         mapperService.addTypeListener(percolateTypeListener);
@@ -209,7 +214,11 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
             // Query parsing can't introduce new fields in mappings (which happens when registering a percolator query),
             // because field type can't be inferred from queries (like document do) so the best option here is to disallow
             // the usage of unmapped fields in percolator queries to avoid unexpected behaviour
+            //
+            // if index.percolator.map_unmapped_fields_as_string is set to true, query can contain unmapped fields which will be mapped
+            // as an analyzed string.
             context.setAllowUnmappedFields(false);
+            context.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString ? true : false);
             return queryParserService.parseInnerQuery(context);
         } catch (IOException e) {
             throw new QueryParsingException(queryParserService.index(), "Failed to parse", e);

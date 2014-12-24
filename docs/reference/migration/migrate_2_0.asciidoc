@@ -102,4 +102,11 @@ Some query builders have been removed or renamed:
 * `filtered(...)` removed. Use `filteredQuery(...)` instead.
 * `inQuery(...)` removed.
 
+=== Terms filter lookup caching
+
+The terms filter lookup mechanism does not support the `cache` option anymore
+and relies on the filesystem cache instead. If the lookup index is not too
+large, it is recommended to make it replicated to all nodes by setting
+`index.auto_expand_replicas: 0-all` in order to remove the network overhead as
+well.
 

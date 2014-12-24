@@ -28,6 +28,9 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilterCachingPolicy;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.HashedBytesRef;
@@ -36,9 +39,9 @@ import org.elasticsearch.common.lucene.search.OrFilter;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.indices.cache.filter.terms.IndicesTermsFilterCache;
 import org.elasticsearch.indices.cache.filter.terms.TermsLookup;
 
 import java.io.IOException;
@@ -52,7 +55,7 @@ import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFi
 public class TermsFilterParser implements FilterParser {
 
     public static final String NAME = "terms";
-    private IndicesTermsFilterCache termsFilterCache;
+    private Client client;
 
     public static final String EXECUTION_KEY = "execution";
     public static final String EXECUTION_VALUE_PLAIN = "plain";
@@ -74,8 +77,8 @@ public class TermsFilterParser implements FilterParser {
     }
 
     @Inject(optional = true)
-    public void setIndicesTermsFilterCache(IndicesTermsFilterCache termsFilterCache) {
-        this.termsFilterCache = termsFilterCache;
+    public void setClient(Client client) {
+        this.client = client;
     }
 
     @Override
@@ -92,7 +95,6 @@ public class TermsFilterParser implements FilterParser {
         String lookupId = null;
         String lookupPath = null;
         String lookupRouting = null;
-        boolean lookupCache = true;
 
         HashedBytesRef cacheKey = null;
         XContentParser.Token token;
@@ -131,8 +133,6 @@ public class TermsFilterParser implements FilterParser {
                             lookupPath = parser.text();
                         } else if ("routing".equals(currentFieldName)) {
                             lookupRouting = parser.textOrNull();
-                        } else if ("cache".equals(currentFieldName)) {
-                            lookupCache = parser.booleanValue();
                         } else {
                             throw new QueryParsingException(parseContext.index(), "[terms] filter does not support [" + currentFieldName + "] within lookup element");
                         }
@@ -166,7 +166,7 @@ public class TermsFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "terms filter requires a field name, followed by array of terms");
         }
 
-        FieldMapper fieldMapper = null;
+        FieldMapper<?> fieldMapper = null;
         smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         String[] previousTypes = null;
         if (smartNameFieldMappers != null) {
@@ -181,15 +181,12 @@ public class TermsFilterParser implements FilterParser {
         }
 
         if (lookupId != null) {
-            // if there are no mappings, then nothing has been indexing yet against this shard, so we can return
-            // no match (but not cached!), since the Terms Lookup relies on the fact that there are mappings...
-            if (fieldMapper == null) {
-                return Queries.MATCH_NO_FILTER;
+            final TermsLookup lookup = new TermsLookup(lookupIndex, lookupType, lookupId, lookupRouting, lookupPath, parseContext);
+            final GetResponse getResponse = client.get(new GetRequest(lookup.getIndex(), lookup.getType(), lookup.getId()).preference("_local").routing(lookup.getRouting())).actionGet();
+            if (getResponse.isExists()) {
+                List<Object> values = XContentMapValues.extractRawValues(lookup.getPath(), getResponse.getSourceAsMap());
+                terms.addAll(values);
             }
-
-            // external lookup, use it
-            TermsLookup termsLookup = new TermsLookup(lookupIndex, lookupType, lookupId, lookupRouting, lookupPath, parseContext);
-            terms.addAll(termsFilterCache.terms(termsLookup, lookupCache, cacheKey));
         }
 
         if (terms.isEmpty()) {

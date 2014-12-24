@@ -718,6 +718,65 @@ public class MetaDataTests extends ElasticsearchTestCase {
         assertThat(metaData.isPatternMatchingAllIndices(indicesOrAliases, concreteIndices), equalTo(false));
     }
 
+    @Test
+    public void testIndexOptions_failClosedIndicesAndAliases() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder("foo1-closed").state(IndexMetaData.State.CLOSE).putAlias(AliasMetaData.builder("foobar1-closed")).putAlias(AliasMetaData.builder("foobar2-closed")))
+                .put(indexBuilder("foo2-closed").state(IndexMetaData.State.CLOSE).putAlias(AliasMetaData.builder("foobar2-closed")))
+                .put(indexBuilder("foo3").putAlias(AliasMetaData.builder("foobar2-closed")));
+        MetaData md = mdBuilder.build();
+
+        IndicesOptions options = IndicesOptions.strictExpandOpenAndForbidClosed();
+        try {
+            md.concreteIndices(options, "foo1-closed");
+            fail("foo1-closed should be closed, but it is open");
+        } catch (IndexClosedException e) {
+            // expected
+        }
+
+        try {
+            md.concreteIndices(options, "foobar1-closed");
+            fail("foo1-closed should be closed, but it is open");
+        } catch (IndexClosedException e) {
+            // expected
+        }
+
+        options = IndicesOptions.fromOptions(true, options.allowNoIndices(), options.expandWildcardsOpen(), options.expandWildcardsClosed(), options);
+        String[] results = md.concreteIndices(options, "foo1-closed");
+        assertThat(results, emptyArray());
+
+        results = md.concreteIndices(options, "foobar1-closed");
+        assertThat(results, emptyArray());
+
+        options = IndicesOptions.lenientExpandOpen();
+        results = md.concreteIndices(options, "foo1-closed");
+        assertThat(results, arrayWithSize(1));
+        assertThat(results, arrayContaining("foo1-closed"));
+
+        results = md.concreteIndices(options, "foobar1-closed");
+        assertThat(results, arrayWithSize(1));
+        assertThat(results, arrayContaining("foo1-closed"));
+
+        // testing an alias pointing to three indices:
+        options = IndicesOptions.strictExpandOpenAndForbidClosed();
+        try {
+            md.concreteIndices(options, "foobar2-closed");
+            fail("foo2-closed should be closed, but it is open");
+        } catch (IndexClosedException e) {
+            // expected
+        }
+
+        options = IndicesOptions.fromOptions(true, options.allowNoIndices(), options.expandWildcardsOpen(), options.expandWildcardsClosed(), options);
+        results = md.concreteIndices(options, "foobar2-closed");
+        assertThat(results, arrayWithSize(1));
+        assertThat(results, arrayContaining("foo3"));
+
+        options = IndicesOptions.lenientExpandOpen();
+        results = md.concreteIndices(options, "foobar2-closed");
+        assertThat(results, arrayWithSize(3));
+        assertThat(results, arrayContainingInAnyOrder("foo1-closed", "foo2-closed", "foo3"));
+    }
+
     private MetaData metaDataBuilder(String... indices) {
         MetaData.Builder mdBuilder = MetaData.builder();
         for (String concreteIndex : indices) {

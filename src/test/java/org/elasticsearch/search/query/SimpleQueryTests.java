@@ -1999,6 +1999,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     public void testIndicesFilterMissingIndices() throws IOException, ExecutionException, InterruptedException {
         createIndex("index1");
         createIndex("index2");
+        createIndex("index3");
         ensureGreen();
         indexRandom(true,
                 client().prepareIndex("index1", "type1", "1").setSource("field", "match"),

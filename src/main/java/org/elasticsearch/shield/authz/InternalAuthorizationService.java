@@ -136,11 +136,6 @@ public class InternalAuthorizationService extends AbstractComponent implements A
             throw denial(user, action, request);
         }
 
-        Permission.Indices indices = permission.indices();
-        if (indices == null || indices.isEmpty()) {
-            throw denial(user, action, request);
-        }
-
         Set<String> indexNames = resolveIndices(user, action, request);
         if (indexNames == null) {
             // the only time this will be null, is for those requests that are
@@ -148,6 +143,11 @@ public class InternalAuthorizationService extends AbstractComponent implements A
             // in these cases, we only grant/deny based on the action name (performed above)
             grant(user, action, request);
             return;
+        }
+
+        Permission.Indices indices = permission.indices();
+        if (indices == null || indices.isEmpty()) {
+            throw denial(user, action, request);
         }
 
         // now... every index that is associated with the request, must be granted

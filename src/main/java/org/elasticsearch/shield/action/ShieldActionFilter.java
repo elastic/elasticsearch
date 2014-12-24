@@ -38,6 +38,8 @@ import java.util.List;
  */
 public class ShieldActionFilter implements ActionFilter {
 
+    public static final String CLUSTER_PERMISSION_SCROLL_CLEAR_ALL_NAME = "cluster:admin/indices/scroll/clear_all";
+
     private static final ESLogger logger = Loggers.getLogger(ShieldActionFilter.class);
 
     private static final Predicate<String> READ_ACTION_MATCHER = Privilege.Index.READ.predicate();
@@ -123,12 +125,17 @@ public class ShieldActionFilter implements ActionFilter {
 
             if (request instanceof ClearScrollRequest) {
                 ClearScrollRequest clearScrollRequest = (ClearScrollRequest) request;
-                List<String> signedIds = clearScrollRequest.scrollIds();
-                List<String> unsignedIds = new ArrayList<>(signedIds.size());
-                for (String signedId : signedIds) {
-                    unsignedIds.add(signatureService.unsignAndVerify(signedId));
+                boolean isClearAllScrollRequest = clearScrollRequest.scrollIds().contains("_all");
+                if (isClearAllScrollRequest) {
+                    authzService.authorize(user, CLUSTER_PERMISSION_SCROLL_CLEAR_ALL_NAME, request);
+                } else {
+                    List<String> signedIds = clearScrollRequest.scrollIds();
+                    List<String> unsignedIds = new ArrayList<>(signedIds.size());
+                    for (String signedId : signedIds) {
+                        unsignedIds.add(signatureService.unsignAndVerify(signedId));
+                    }
+                    clearScrollRequest.scrollIds(unsignedIds);
                 }
-                clearScrollRequest.scrollIds(unsignedIds);
                 return request;
             }
 

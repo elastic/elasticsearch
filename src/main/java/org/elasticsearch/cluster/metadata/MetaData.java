@@ -679,7 +679,7 @@ public class MetaData implements Iterable<IndexMetaData> {
 
         // optimize for single element index (common case)
         if (aliasesOrIndices.length == 1) {
-            return concreteIndices(aliasesOrIndices[0], indicesOptions.allowNoIndices(), indicesOptions);
+            return concreteIndices(aliasesOrIndices[0], indicesOptions, indicesOptions.allowNoIndices());
         }
 
         // check if its a possible aliased index, if not, just return the passed array
@@ -712,7 +712,7 @@ public class MetaData implements Iterable<IndexMetaData> {
 
         Set<String> actualIndices = new HashSet<>();
         for (String aliasOrIndex : aliasesOrIndices) {
-            String[] indices = concreteIndices(aliasOrIndex, indicesOptions.ignoreUnavailable(), indicesOptions);
+            String[] indices = concreteIndices(aliasOrIndex, indicesOptions, indicesOptions.ignoreUnavailable());
             Collections.addAll(actualIndices, indices);
         }
 
@@ -742,7 +742,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         return indices[0];
     }
 
-    private String[] concreteIndices(String aliasOrIndex, boolean allowNoIndices, IndicesOptions options) throws IndexMissingException, ElasticsearchIllegalArgumentException {
+    private String[] concreteIndices(String aliasOrIndex, IndicesOptions options, boolean failNoIndices) throws IndexMissingException, ElasticsearchIllegalArgumentException {
         boolean failClosed = options.forbidClosedIndices() && !options.ignoreUnavailable();
 
         // a quick check, if this is an actual index, if so, return it
@@ -760,7 +760,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
         // not an actual index, fetch from an alias
         String[] indices = aliasAndIndexToIndexMap.getOrDefault(aliasOrIndex, Strings.EMPTY_ARRAY);
-        if (indices.length == 0 && !allowNoIndices) {
+        if (indices.length == 0 && !failNoIndices) {
             throw new IndexMissingException(new Index(aliasOrIndex));
         }
         if (indices.length > 1 && !options.allowAliasesToMultipleIndices()) {

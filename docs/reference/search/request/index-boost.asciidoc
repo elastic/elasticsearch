@@ -18,6 +18,3 @@ Index name, alias or wildcard expression can be specified.
     }
 }
 --------------------------------------------------
-
-If an index matches multiple boost entries (for example, alias1 includes index1),
-highest boost value is used.

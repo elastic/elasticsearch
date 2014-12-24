@@ -19,18 +19,23 @@
 package org.elasticsearch.percolator;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.percolator.PercolatorException;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertMatchCount;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -60,15 +65,30 @@ public class PercolatorBackwardsCompatibilityTests extends ElasticsearchIntegrat
                 .setSource(jsonBuilder().startObject().field("query", termQuery("field2", "value")).endObject()).get();
 
         // However on new indices, the field resolution is strict, no queries with unmapped fields are allowed
-        createIndex("test2");
+        createIndex("test1");
         try {
-            client().prepareIndex("test2", PercolatorService.TYPE_NAME)
+            client().prepareIndex("test1", PercolatorService.TYPE_NAME)
                     .setSource(jsonBuilder().startObject().field("query", termQuery("field1", "value")).endObject()).get();
             fail();
         } catch (PercolatorException e) {
             e.printStackTrace();
             assertThat(e.getRootCause(), instanceOf(QueryParsingException.class));
         }
-    }
 
+        // If and only if index.percolator.map_unmapped_fields_as_string is set to true, unmapped field in query is allowed.
+        ImmutableSettings.Builder settings = ImmutableSettings.settingsBuilder()
+                .put(indexSettings())
+                .put("index.percolator.map_unmapped_fields_as_string", true);
+        assertAcked(prepareCreate("test2")
+                .setSettings(settings));
+        client().prepareIndex("test2", PercolatorService.TYPE_NAME)
+                .setSource(jsonBuilder().startObject().field("query", termQuery("field1", "value")).endObject()).get();
+        logger.info("--> Percolate doc with field1=value");
+        PercolateResponse response1 = client().preparePercolate()
+                .setIndices("test2").setDocumentType("type")
+                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "value").endObject()))
+                .execute().actionGet();
+        assertMatchCount(response1, 1l);
+        assertThat(response1.getMatches(), arrayWithSize(1));
+    }
 }

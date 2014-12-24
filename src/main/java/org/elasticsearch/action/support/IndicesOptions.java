@@ -72,6 +72,8 @@ public class IndicesOptions {
     /**
      * @return Whether to ignore if a wildcard expression resolves to no concrete indices.
      *         The `_all` string or empty list of indices count as wildcard expressions too.
+     *         Also when an alias points to a closed index this option decides if no concrete indices
+     *         are allowed.
      */
     public boolean allowNoIndices() {
         return (id & ALLOW_NO_INDICES) != 0;

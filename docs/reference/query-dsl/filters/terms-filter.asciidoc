@@ -121,11 +121,6 @@ The terms lookup mechanism supports the following options:
     A custom routing value to be used when retrieving the
     external terms doc.
 
-`cache`:: 
-    Whether to cache the filter built from the retrieved document
-    (`true` - default) or whether to fetch and rebuild the filter on every
-    request (`false`). See "<<query-dsl-terms-filter-lookup-caching,Terms lookup caching>>" below
-
 The values for the `terms` filter will be fetched from a field in a
 document with the specified id in the specified type and index.
 Internally a get request is executed to fetch the values from the
@@ -136,28 +131,6 @@ Also, consider using an index with a single shard and fully replicated
 across all nodes if the "reference" terms data is not large. The lookup
 terms filter will prefer to execute the get request on a local node if
 possible, reducing the need for networking.
-
-["float",id="query-dsl-terms-filter-lookup-caching"]
-==== Terms lookup caching
-
-There is an additional cache involved, which caches the lookup of the
-lookup document to the actual terms. This lookup cache is a LRU cache.
-This cache has the following options:
-
-`indices.cache.filter.terms.size`:: 
-    The size of the lookup cache. The default is `10mb`.
-
-`indices.cache.filter.terms.expire_after_access`:: 
-    The time after the last read an entry should expire. Disabled by default.
-
-`indices.cache.filter.terms.expire_after_write`:: 
-    The time after the last write an entry should expire. Disabled by default.
-
-All options for the lookup of the documents cache can only be configured
-via the `elasticsearch.yml` file.
-
-When using the terms lookup the `execution` option isn't taken into
-account and behaves as if the execution mode was set to `plain`.
 
 [float]
 ==== Terms lookup twitter example
@@ -194,19 +167,9 @@ curl -XGET localhost:9200/tweets/_search -d '{
 }'
 --------------------------------------------------
 
-The above is highly optimized, both in a sense that the list of
-followers will not be fetched if the filter is already cached in the
-filter cache, and with internal LRU cache for fetching external values
-for the terms filter. Also, the entry in the filter cache will not hold
-`all` the terms reducing the memory required for it.
-
-`_cache_key` is recommended to be set, so its simple to clear the cache
-associated with it using the clear cache API. For example:
-
-[source,js]
---------------------------------------------------
-curl -XPOST 'localhost:9200/tweets/_cache/clear?filter_keys=user_2_friends'
---------------------------------------------------
+If there are lots of matching values, then `_cache_key` is recommended to be set,
+so that the filter cache will not store a reference to the potentially heavy
+terms filter.
 
 The structure of the external terms document can also include array of
 inner objects, for example:

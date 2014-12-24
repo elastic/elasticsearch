@@ -679,7 +679,7 @@ public class MetaData implements Iterable<IndexMetaData> {
 
         // optimize for single element index (common case)
         if (aliasesOrIndices.length == 1) {
-            return concreteIndices(aliasesOrIndices[0], indicesOptions, indicesOptions.allowNoIndices());
+            return concreteIndices(aliasesOrIndices[0], indicesOptions, !indicesOptions.allowNoIndices());
         }
 
         // check if its a possible aliased index, if not, just return the passed array
@@ -712,7 +712,7 @@ public class MetaData implements Iterable<IndexMetaData> {
 
         Set<String> actualIndices = new HashSet<>();
         for (String aliasOrIndex : aliasesOrIndices) {
-            String[] indices = concreteIndices(aliasOrIndex, indicesOptions, indicesOptions.ignoreUnavailable());
+            String[] indices = concreteIndices(aliasOrIndex, indicesOptions, !indicesOptions.ignoreUnavailable());
             Collections.addAll(actualIndices, indices);
         }
 
@@ -760,24 +760,53 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
         // not an actual index, fetch from an alias
         String[] indices = aliasAndIndexToIndexMap.getOrDefault(aliasOrIndex, Strings.EMPTY_ARRAY);
-        if (indices.length == 0 && !failNoIndices) {
+        if (indices.length == 0 && failNoIndices) {
             throw new IndexMissingException(new Index(aliasOrIndex));
         }
         if (indices.length > 1 && !options.allowAliasesToMultipleIndices()) {
             throw new ElasticsearchIllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one indices associated with it [" + Arrays.toString(indices) + "], can't execute a single index op");
         }
 
-        indexMetaData = this.indices.get(aliasOrIndex);
-        if (indexMetaData != null && indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-            if (failClosed) {
-                throw new IndexClosedException(new Index(aliasOrIndex));
-            } else {
-                if (options.forbidClosedIndices()) {
-                    return Strings.EMPTY_ARRAY;
-                }
-            }
+        // No need to check whether indices referred by aliases are closed, because there are no closed indices.
+        if (allClosedIndices.length == 0) {
+            return indices;
         }
-        return indices;
+
+        switch (indices.length) {
+            case 0:
+                return indices;
+            case 1:
+                indexMetaData = this.indices.get(indices[0]);
+                if (indexMetaData != null && indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                    if (failClosed) {
+                        throw new IndexClosedException(new Index(indexMetaData.getIndex()));
+                    } else {
+                        if (options.forbidClosedIndices()) {
+                            return Strings.EMPTY_ARRAY;
+                        }
+                    }
+                }
+                return indices;
+            default:
+                ObjectArrayList<String> concreteIndices = new ObjectArrayList<>();
+                for (String index : indices) {
+                    indexMetaData = this.indices.get(index);
+                    if (indexMetaData != null) {
+                        if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                            if (failClosed) {
+                                throw new IndexClosedException(new Index(indexMetaData.getIndex()));
+                            } else if (!options.forbidClosedIndices()) {
+                                concreteIndices.add(index);
+                            }
+                        } else if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
+                            concreteIndices.add(index);
+                        } else {
+                            throw new IllegalStateException("index state [" + indexMetaData.getState() + "] not supported");
+                        }
+                    }
+                }
+                return concreteIndices.toArray(String.class);
+        }
     }
 
     /**

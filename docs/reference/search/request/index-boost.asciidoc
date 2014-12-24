@@ -18,3 +18,7 @@ Index name, alias or wildcard expression can be specified.
     }
 }
 --------------------------------------------------
+
+If multiple boosts resolve to the same index, the last boost value is used.
+(For example, if alias1 includes index1 and other_index1, boost value 1.3 is
+used for index1 and 1.2 is used for other_index1)

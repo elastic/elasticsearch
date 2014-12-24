@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.builder;
 
-import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -49,10 +48,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * A search source builder allowing to easily build search source. Simple construction
@@ -119,7 +115,7 @@ public class SearchSourceBuilder implements ToXContent {
     private List<RescoreBuilder> rescoreBuilders;
     private Integer defaultRescoreWindowSize;
 
-    private ObjectFloatOpenHashMap<String> indexBoost = null;
+    private Map<String, Float> indexBoost = null;
 
     private String[] stats;
 
@@ -609,7 +605,7 @@ public class SearchSourceBuilder implements ToXContent {
      */
     public SearchSourceBuilder indexBoost(String index, float indexBoost) {
         if (this.indexBoost == null) {
-            this.indexBoost = new ObjectFloatOpenHashMap<>();
+            this.indexBoost = new LinkedHashMap<>();
         }
         this.indexBoost.put(index, indexBoost);
         return this;
@@ -775,13 +771,8 @@ public class SearchSourceBuilder implements ToXContent {
 
         if (indexBoost != null) {
             builder.startObject("indices_boost");
-            final boolean[] states = indexBoost.allocated;
-            final Object[] keys = indexBoost.keys;
-            final float[] values = indexBoost.values;
-            for (int i = 0; i < states.length; i++) {
-                if (states[i]) {
-                    builder.field((String) keys[i], values[i]);
-                }
+            for (Map.Entry<String, Float> entry : indexBoost.entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
             }
             builder.endObject();
         }

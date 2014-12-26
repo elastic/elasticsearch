@@ -47,7 +47,7 @@ import static com.google.common.collect.Sets.newHashSet;
 /**
  *
  */
-public class ClusterState implements ToXContent {
+public class ClusterState extends CompositeClusterStatePart<ClusterState> {
 
     public static enum ClusterStateStatus {
         UNKNOWN((byte) 0),
@@ -68,30 +68,31 @@ public class ClusterState implements ToXContent {
 
     public static final long UNKNOWN_VERSION = -1;
 
-    private final long version;
+    private final RoutingTable routingTable;
 
-    private final String uuid;
+    private final DiscoveryNodes nodes;
+
+    private final MetaData metaData;
+
+    private final ClusterBlocks blocks;
 
     private final ClusterName clusterName;
     
-    private final ClusterStateParts parts;
-
     // built on demand
     private volatile RoutingNodes routingNodes;
 
     private volatile ClusterStateStatus status;
 
-    public ClusterState(ClusterName clusterName, long version, String uuid, ClusterStateParts parts) {
-        this.version = version;
-        this.clusterName = clusterName;
-        this.parts = parts;
+    public ClusterState(long version, String uuid, ImmutableOpenMap<String, ClusterStatePart> parts) {
+        super(version, uuid, parts);
+        this.clusterName = get(ClusterName.TYPE);
+        this.routingTable = get(RoutingTable.TYPE);
+        this.metaData = get(MetaData.TYPE);
+        this.nodes = get(DiscoveryNodes.TYPE);
+        this.blocks = get(ClusterBlocks.TYPE);
         this.status = ClusterStateStatus.UNKNOWN;
-        this.uuid = uuid;
     }
 
-    public ClusterState(long version, String uuid, ClusterState state) {
-        this(state.clusterName, version, uuid, state.parts);
-    }
 
     public ClusterStateStatus status() {
         return status;
@@ -111,7 +112,7 @@ public class ClusterState implements ToXContent {
     }
 
     public DiscoveryNodes nodes() {
-        return (DiscoveryNodes)parts.get(DiscoveryNodes.TYPE);
+        return this.nodes;
     }
 
     public DiscoveryNodes getNodes() {
@@ -119,7 +120,7 @@ public class ClusterState implements ToXContent {
     }
 
     public MetaData metaData() {
-        return (MetaData)parts.get(MetaData.TYPE);
+        return this.metaData;
     }
 
     public MetaData getMetaData() {
@@ -127,7 +128,7 @@ public class ClusterState implements ToXContent {
     }
 
     public RoutingTable routingTable() {
-        return (RoutingTable)parts.get(RoutingTable.TYPE);
+        return routingTable;
     }
 
     public RoutingTable getRoutingTable() {
@@ -135,7 +136,7 @@ public class ClusterState implements ToXContent {
     }
 
     public RoutingNodes routingNodes() {
-        return routingTable().routingNodes(this);
+        return routingTable.routingNodes(this);
     }
 
     public RoutingNodes getRoutingNodes() {
@@ -143,7 +144,7 @@ public class ClusterState implements ToXContent {
     }
 
     public ClusterBlocks blocks() {
-        return (ClusterBlocks)parts.get(ClusterBlocks.TYPE);
+        return this.blocks;
     }
 
     public ClusterBlocks getBlocks() {
@@ -151,6 +152,9 @@ public class ClusterState implements ToXContent {
     }
 
     public ClusterName getClusterName() {
+        return clusterName();
+    }
+    public ClusterName clusterName() {
         return this.clusterName;
     }
 
@@ -162,7 +166,7 @@ public class ClusterState implements ToXContent {
         if (routingNodes != null) {
             return routingNodes;
         }
-        routingNodes = routingTable().routingNodes(this);
+        routingNodes = routingTable.routingNodes(this);
         return routingNodes;
     }
 
@@ -174,7 +178,7 @@ public class ClusterState implements ToXContent {
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder();
         sb.append("version: ").append(version).append("\n");
-        sb.append("meta data version: ").append(metaData().version()).append("\n");
+        sb.append("meta data version: ").append(metaData.version()).append("\n");
         sb.append(nodes().prettyPrint());
         sb.append(routingTable().prettyPrint());
         sb.append(readOnlyRoutingNodes().prettyPrint());
@@ -262,7 +266,7 @@ public class ClusterState implements ToXContent {
             builder.field("master_node", nodes().masterNodeId());
         }
 
-        for(ObjectObjectCursor<String, ClusterStatePart> partIter : parts.parts()) {
+        for(ObjectObjectCursor<String, ClusterStatePart> partIter : parts) {
             if (metricStrings.contains(partIter.key)) {
                 builder.startObject(partIter.key);
                 partIter.value.toXContent(builder, params);
@@ -304,17 +308,15 @@ public class ClusterState implements ToXContent {
     }
 
     public static class Builder {
-
-        private final ClusterName clusterName;
         private long version = 0;
         private String uuid = null;
         private final ImmutableOpenMap.Builder<String, ClusterStatePart> parts;
 
 
         public Builder(ClusterState state) {
-            this.clusterName = state.clusterName;
             this.version = state.version();
-            this.parts = ImmutableOpenMap.builder(state.parts.parts);
+            this.parts = ImmutableOpenMap.builder(state.parts);
+            putPart(ClusterName.TYPE, state.getClusterName());
             putPart(MetaData.TYPE, state.metaData());
             putPart(RoutingTable.TYPE, state.routingTable());
             putPart(DiscoveryNodes.TYPE, state.nodes());
@@ -322,8 +324,8 @@ public class ClusterState implements ToXContent {
         }
 
         public Builder(ClusterName clusterName) {
-            this.clusterName = clusterName;
             parts = ImmutableOpenMap.builder();
+            putPart(ClusterName.TYPE, clusterName);
             putPart(MetaData.TYPE, MetaData.EMPTY_META_DATA);
             putPart(RoutingTable.TYPE, RoutingTable.EMPTY_ROUTING_TABLE);
             putPart(DiscoveryNodes.TYPE, DiscoveryNodes.EMPTY_NODES);
@@ -406,7 +408,7 @@ public class ClusterState implements ToXContent {
             if (uuid == null) {
                 uuid = Strings.randomBase64UUID();
             }
-            return new ClusterState(clusterName, version, uuid, new ClusterStateParts(parts.build()));
+            return new ClusterState(version, uuid, parts.build());
         }
 
         public static byte[] toBytes(ClusterState state) throws IOException {
@@ -418,61 +420,38 @@ public class ClusterState implements ToXContent {
         /**
          * @param data               input bytes
          * @param localNode          used to set the local node in the cluster state.
-         * @param defaultClusterName this cluster name will be used of if the deserialized cluster state does not have a name set
-         *                           (which is only introduced in version 1.1.1)
          */
-        public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode, ClusterName defaultClusterName) throws IOException {
-            return readFrom(new BytesStreamInput(data, false), localNode, defaultClusterName);
+        public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode) throws IOException {
+            return readFrom(new BytesStreamInput(data, false), localNode);
         }
 
         public static void writeTo(ClusterState state, StreamOutput out) throws IOException {
-            out.writeBoolean(state.clusterName != null);
-            if (state.clusterName != null) {
-                state.clusterName.writeTo(out);
-            }
-            out.writeLong(state.version);
-            out.writeString(state.uuid);
-            state.parts.writeTo(out);
+            state.writeTo(out);
         }
 
         /**
          * @param in                 input stream
          * @param localNode          used to set the local node in the cluster state. can be null.
-         * @param defaultClusterName this cluster name will be used of receiving a cluster state from a node on version older than 1.1.1
-         *                           or if the sending node did not set a cluster name
          */
-        public static ClusterState readFrom(StreamInput in, @Nullable DiscoveryNode localNode, @Nullable ClusterName defaultClusterName) throws IOException {
-            ClusterName clusterName = defaultClusterName;
-            if (in.readBoolean()) {
-                clusterName = ClusterName.readClusterName(in);
-            }
-            Builder builder = new Builder(clusterName);
-            builder.version = in.readLong();
-            builder.uuid = in.readString();
-            builder.parts.putAll(ClusterStateParts.FACTORY.readFrom(in).parts());
+        public static ClusterState readFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
+            ClusterState clusterState = FACTORY.readFrom(in);
             //TODO: Hack!!!! Need to find a better way to handle localNode
-            DiscoveryNodes discoveryNodes = builder.getPart(DiscoveryNodes.TYPE);
             if (localNode != null) {
+                Builder builder = new Builder(clusterState);
+                DiscoveryNodes discoveryNodes = builder.getPart(DiscoveryNodes.TYPE);
                 builder.nodes(DiscoveryNodes.builder(discoveryNodes).localNodeId(localNode.id()));
+                return builder.build();
             }
-            return builder.build();
+            return clusterState;
         }
 
-        public static ClusterStateDiff readDiffFrom(StreamInput in, @Nullable DiscoveryNode localNode, @Nullable ClusterName defaultClusterName) throws IOException {
-            ClusterName clusterName = defaultClusterName;
-            if (in.readBoolean()) {
-                clusterName = ClusterName.readClusterName(in);
-            }
-            long version = in.readLong();
-            String previousUuid = in.readString();
-            String newUuid = in.readString();
-            ClusterStatePart.Diff<ClusterStateParts> diff = ClusterStateParts.FACTORY.readDiffFrom(in);
-            return new ClusterStateDiff(clusterName, version, previousUuid, newUuid, localNode, diff);
-
+        public static ClusterStateDiff readDiffFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
+            long version = in.readVLong();
+            return new ClusterStateDiff(version, localNode, FACTORY.readDiffFrom(in));
         }
 
         public static ClusterStateDiff diff(ClusterState before, ClusterState after) {
-            return new ClusterStateDiff(after.clusterName, after.version, before.uuid, after.uuid, after.nodes().localNode(), ClusterStateParts.FACTORY.diff(before.parts, after.parts) );
+            return new ClusterStateDiff(after.version(), null, ClusterState.FACTORY.diff(before, after) );
         }
 
         public static byte[] toDiffBytes(ClusterState before, ClusterState after) throws IOException {
@@ -481,60 +460,67 @@ public class ClusterState implements ToXContent {
             return os.bytes().toBytes();
         }
 
-        public static ClusterState fromDiffBytes(ClusterState before, byte[] data, DiscoveryNode localNode, ClusterName defaultClusterName) throws IOException {
-            ClusterStateDiff diff = readDiffFrom(new BytesStreamInput(data, false), localNode, defaultClusterName);
+        public static ClusterState fromDiffBytes(ClusterState before, byte[] data, DiscoveryNode localNode) throws IOException {
+            ClusterStateDiff diff = readDiffFrom(new BytesStreamInput(data, false), localNode);
             return diff.apply(before);
         }
+    }
 
+    public static final String TYPE = "cluster";
 
+    public static final Factory FACTORY = new Factory();
 
+    public static class Factory extends AbstractCompositeClusterStatePartFactory<ClusterState> {
+
+        @Override
+        public String type() {
+            return TYPE;
+        }
+
+        @Override
+        public ClusterState fromParts(long version, String uuid, ImmutableOpenMap.Builder<String, ClusterStatePart> parts) {
+            return new ClusterState(version, uuid, parts.build());
+        }
+    }
+
+    static {
+        registerFactory(ClusterName.TYPE, ClusterName.FACTORY);
+        registerFactory(DiscoveryNodes.TYPE, DiscoveryNodes.FACTORY);
+        registerFactory(ClusterBlocks.TYPE, ClusterBlocks.FACTORY);
+        registerFactory(RoutingTable.TYPE, RoutingTable.FACTORY);
+        registerFactory(MetaData.TYPE, MetaData.FACTORY);
+    }
+
+    @Override
+    public String type() {
+        return TYPE;
     }
 
     public static class ClusterStateDiff {
-        private ClusterName clusterName;
-        private long version;
-        private String previousUuid;
-        private String newUuid;
         private DiscoveryNode localNode;
-        private ClusterStatePart.Diff<ClusterStateParts> diff;
+        private long version;
+        private ClusterState.Diff<ClusterState> diff;
 
-        public ClusterStateDiff(ClusterName clusterName, long version, String previousUuid, String newUuid, @Nullable DiscoveryNode localNode, ClusterStatePart.Diff<ClusterStateParts> diff) {
-            this.clusterName = clusterName;
+        public ClusterStateDiff(long version, @Nullable DiscoveryNode localNode, ClusterState.Diff<ClusterState> diff) {
             this.version = version;
-            this.previousUuid = previousUuid;
-            this.newUuid = newUuid;
             this.localNode = localNode;
             this.diff = diff;
         }
 
         public ClusterState apply(ClusterState previous) throws IncompatibleClusterStateVersionException {
-            if (!previousUuid.equals(previous.uuid)) {
-                throw new IncompatibleClusterStateVersionException("Expected version " + (previous.version + 1) +"/" + previous.uuid + " got version " + version + "/" + previousUuid);
-            }
-            Builder builder = new Builder(clusterName);
-            builder.version = version;
-            builder.uuid = newUuid;
-            builder.parts.putAll(diff.apply(previous.parts).parts);
-            //TODO: Is there a better way to handle it?
-            DiscoveryNodes discoveryNodes = builder.getPart(DiscoveryNodes.TYPE);
-            if (localNode != null) {
+            ClusterState newState = diff.apply(previous);
+            if (!newState.equals(previous) && localNode != null) {
+                Builder builder = new Builder(newState);
+                DiscoveryNodes discoveryNodes = builder.getPart(DiscoveryNodes.TYPE);
                 builder.nodes(DiscoveryNodes.builder(discoveryNodes).localNodeId(localNode.id()));
+                return builder.build();
             }
-            return  builder.build();
+            return newState;
         }
 
         public void writeTo(StreamOutput out) throws IOException {
-            if (clusterName != null) {
-                out.writeBoolean(true);
-                clusterName.writeTo(out);
-            } else {
-                out.writeBoolean(false);
-            }
-            out.writeLong(version);
-            out.writeString(previousUuid);
-            out.writeString(newUuid);
+            out.writeVLong(version);
             diff.writeTo(out);
-
         }
 
         public long version() {

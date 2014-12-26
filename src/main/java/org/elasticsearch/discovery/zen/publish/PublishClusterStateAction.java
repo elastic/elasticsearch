@@ -319,14 +319,14 @@ public class PublishClusterStateAction extends AbstractComponent {
             in.setVersion(request.version());
             final ClusterState clusterState;
             if (in.readBoolean()) {
-                clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode(), clusterName);
+                clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
                 logger.debug("received full cluster state version {}", clusterState.version());
             } else {
                 if(lastProcessedClusterState == null) {
                     logger.debug("received diff cluster state version but don't have any local cluster state - requesting full state");
                     throw new IncompatibleClusterStateVersionException("have no local cluster state");
                 }
-                ClusterState.ClusterStateDiff diff = ClusterState.Builder.readDiffFrom(in, nodesProvider.nodes().localNode(), clusterName);
+                ClusterState.ClusterStateDiff diff = ClusterState.Builder.readDiffFrom(in, nodesProvider.nodes().localNode());
                 if (lastProcessedClusterState.version() >= diff.version()) {
                     logger.debug("got diffs for obsolete version {}, current version {}, ignoring the diff", diff.version(), lastProcessedClusterState.version());
                     return;

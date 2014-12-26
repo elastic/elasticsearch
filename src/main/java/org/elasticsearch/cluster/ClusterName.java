@@ -23,13 +23,19 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
 /**
  *
  */
-public class ClusterName implements Streamable {
+public class ClusterName extends AbstractClusterStatePart implements Streamable {
+
+    public static final String TYPE = "cluster_name";
+
+    public static final Factory FACTORY = new Factory();
 
     public static final String SETTING = "cluster.name";
 
@@ -65,6 +71,11 @@ public class ClusterName implements Streamable {
     }
 
     @Override
+    public String type() {
+        return TYPE;
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(value);
     }
@@ -89,5 +100,29 @@ public class ClusterName implements Streamable {
     @Override
     public String toString() {
         return "Cluster [" + value + "]";
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("cluster_name", value);
+        return builder;
+    }
+
+    public static class Factory extends AbstractFactory<ClusterName> {
+
+        @Override
+        public String type() {
+            return TYPE;
+        }
+
+        @Override
+        public ClusterName readFrom(StreamInput in) throws IOException {
+            return readClusterName(in);
+        }
+
+        @Override
+        public ClusterName fromXContent(XContentParser parser) throws IOException {
+            throw new UnsupportedOperationException("Not implemented yet");
+        }
     }
 }

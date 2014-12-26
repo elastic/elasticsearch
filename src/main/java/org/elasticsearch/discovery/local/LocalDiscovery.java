@@ -311,12 +311,12 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                     if (clusterStateDiffBytes == null) {
                         clusterStateDiffBytes = Builder.toDiffBytes(lastProcessedClusterState, clusterState);
                     }
-                    nodeSpecificClusterState = ClusterState.Builder.fromDiffBytes(lastProcessedClusterState, clusterStateDiffBytes, discovery.localNode, clusterName );
+                    nodeSpecificClusterState = ClusterState.Builder.fromDiffBytes(lastProcessedClusterState, clusterStateDiffBytes, discovery.localNode);
                 } else {
                     if (clusterStateBytes == null) {
                         clusterStateBytes = Builder.toBytes(clusterState);
                     }
-                    nodeSpecificClusterState = ClusterState.Builder.fromBytes(clusterStateBytes, discovery.localNode, clusterName);
+                    nodeSpecificClusterState = ClusterState.Builder.fromBytes(clusterStateBytes, discovery.localNode);
                 }
                 nodeSpecificClusterState.status(ClusterState.ClusterStateStatus.RECEIVED);
                 // ignore cluster state messages that do not include "me", not in the game yet...

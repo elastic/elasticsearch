@@ -18,7 +18,6 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.*;
 
-import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -31,18 +30,23 @@ public class OpenLdapTests extends ElasticsearchTestCase {
     public static final String OPEN_LDAP_URL = "ldaps://54.200.235.244:636";
     public static final String PASSWORD = "NickFuryHeartsES";
 
-    @BeforeClass
-    public static void setTrustStore() throws URISyntaxException {
+    @Before
+    public void initializeSslSocketFactory() throws Exception {
         Path keystore = Paths.get(LdapConnectionTests.class.getResource("../support/ldap/ldaptrust.jks").toURI()).toAbsolutePath();
-        SSLService sslService = new SSLService(ImmutableSettings.builder()
+
+        /*
+         * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
+         * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
+         * verification tests since a re-established connection does not perform hostname verification.
+         */
+        AbstractLdapSslSocketFactory.init(new SSLService(ImmutableSettings.builder()
                 .put("shield.ssl.keystore.path", keystore)
                 .put("shield.ssl.keystore.password", "changeit")
-                .build());
-        AbstractLdapSslSocketFactory.init(sslService);
+                .build()));
     }
 
-    @AfterClass
-    public static void clearTrustStore() {
+    @After
+    public void clearSocketFactories() {
         LdapSslSocketFactory.clear();
         HostnameVerifyingLdapSslSocketFactory.clear();
     }
@@ -107,7 +111,6 @@ public class OpenLdapTests extends ElasticsearchTestCase {
     @Test(expected = LdapException.class)
     public void testStandardLdapConnectionHostnameVerification() {
         //openldap does not use cn as naming attributes by default
-
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         LdapConnectionFactory connectionFactory = new LdapConnectionFactory(

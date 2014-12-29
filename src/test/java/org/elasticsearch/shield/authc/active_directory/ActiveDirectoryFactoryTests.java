@@ -18,12 +18,10 @@ import org.elasticsearch.shield.ssl.SSLService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.hamcrest.Matchers;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.*;
 
-import java.io.File;
-import java.net.URISyntaxException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 
 import static org.hamcrest.Matchers.*;
@@ -35,17 +33,23 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
     public static final String PASSWORD = "NickFuryHeartsES";
     public static final String AD_DOMAIN = "ad.test.elasticsearch.com";
 
-    @BeforeClass
-    public static void setTrustStore() throws URISyntaxException {
-        File filename = new File(LdapConnectionTests.class.getResource("../support/ldap/ldaptrust.jks").toURI()).getAbsoluteFile();
+    @Before
+    public void initializeSslSocketFactory() throws Exception {
+        Path keystore = Paths.get(LdapConnectionTests.class.getResource("../support/ldap/ldaptrust.jks").toURI()).toAbsolutePath();
+
+        /*
+         * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
+         * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
+         * verification tests since a re-established connection does not perform hostname verification.
+         */
         AbstractLdapSslSocketFactory.init(new SSLService(ImmutableSettings.builder()
-                .put("shield.ssl.keystore.path", filename)
+                .put("shield.ssl.keystore.path", keystore)
                 .put("shield.ssl.keystore.password", "changeit")
                 .build()));
     }
 
-    @AfterClass
-    public static void clearTrustStore() {
+    @After
+    public void clearSocketFactories() {
         LdapSslSocketFactory.clear();
         HostnameVerifyingLdapSslSocketFactory.clear();
     }

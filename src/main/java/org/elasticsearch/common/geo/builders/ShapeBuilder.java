@@ -787,8 +787,20 @@ public abstract class ShapeBuilder implements ToXContent {
         }
 
         protected static EnvelopeBuilder parseEnvelope(CoordinateNode coordinates, Orientation orientation) {
-            return newEnvelope(orientation).
-                    topLeft(coordinates.children.get(0).coordinate).bottomRight(coordinates.children.get(1).coordinate);
+            // validate the coordinate array for envelope type
+            if (coordinates.children.size() != 2) {
+                throw new ElasticsearchParseException("Invalid number of points (" + coordinates.children.size() + ") provided for " +
+                        "geo_shape ('envelope') when expecting an array of 2 coordinates");
+            }
+            // verify coordinate bounds, correct if necessary
+            Coordinate uL = coordinates.children.get(0).coordinate;
+            Coordinate lR = coordinates.children.get(1).coordinate;
+            if (((lR.x < uL.x) || (uL.y < lR.y))) {
+                Coordinate uLtmp = uL;
+                uL = new Coordinate(Math.min(uL.x, lR.x), Math.max(uL.y, lR.y));
+                lR = new Coordinate(Math.max(uLtmp.x, lR.x), Math.min(uLtmp.y, lR.y));
+            }
+            return newEnvelope(orientation).topLeft(uL).bottomRight(lR);
         }
 
         protected static void validateMultiPointNode(CoordinateNode coordinates) {

@@ -121,6 +121,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
 
     @Test
     public void testParse_envelope() throws IOException {
+        // test #1: envelope with expected coordinate order (TopLeft, BottomRight)
         String multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "envelope")
                 .startArray("coordinates")
                 .startArray().value(-50).value(30).endArray()
@@ -130,6 +131,38 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
 
         Rectangle expected = SPATIAL_CONTEXT.makeRectangle(-50, 50, -30, 30);
         assertGeometryEquals(expected, multilinesGeoJson);
+
+        // test #2: envelope with agnostic coordinate order (TopRight, BottomLeft)
+        multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "envelope")
+                .startArray("coordinates")
+                .startArray().value(50).value(30).endArray()
+                .startArray().value(-50).value(-30).endArray()
+                .endArray()
+                .endObject().string();
+
+        expected = SPATIAL_CONTEXT.makeRectangle(-50, 50, -30, 30);
+        assertGeometryEquals(expected, multilinesGeoJson);
+
+        // test #3: "envelope" (actually a triangle) with invalid number of coordinates (TopRight, BottomLeft, BottomRight)
+        multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "envelope")
+                .startArray("coordinates")
+                .startArray().value(50).value(30).endArray()
+                .startArray().value(-50).value(-30).endArray()
+                .startArray().value(50).value(-39).endArray()
+                .endArray()
+                .endObject().string();
+        XContentParser parser = JsonXContent.jsonXContent.createParser(multilinesGeoJson);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+
+        // test #4: "envelope" with empty coordinates
+        multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "envelope")
+                .startArray("coordinates")
+                .endArray()
+                .endObject().string();
+        parser = JsonXContent.jsonXContent.createParser(multilinesGeoJson);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
     }
 
     @Test

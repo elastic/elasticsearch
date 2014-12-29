@@ -460,7 +460,7 @@ public class IndexTemplateMetaData extends AbstractClusterStatePart implements M
 
     @Override
     public String key() {
-        return template;
+        return name;
     }
 
     @Override

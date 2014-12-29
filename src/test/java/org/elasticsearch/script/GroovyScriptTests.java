@@ -113,20 +113,33 @@ public class GroovyScriptTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "doc", "3").setSource("foo", "dog spiders that can eat a dog", "bar", 3).get();
         refresh();
 
-        // _score access
-        SearchResponse resp = client().prepareSearch("test").setQuery(functionScoreQuery(matchQuery("foo", "dog"))
-                .add(scriptFunction("_score", "groovy"))
-                .boostMode(CombineFunction.REPLACE)).get();
-
-        assertNoFailures(resp);
-        assertOrderedSearchHits(resp, "3", "1");
-
         // doc[] access
-        resp = client().prepareSearch("test").setQuery(functionScoreQuery(matchAllQuery())
-                .add(scriptFunction("doc['bar'].value", "groovy"))
-                .boostMode(CombineFunction.REPLACE)).get();
+        SearchResponse resp = client().prepareSearch("test").setQuery(functionScoreQuery(matchAllQuery())
+            .add(scriptFunction("doc['bar'].value", "groovy"))
+            .boostMode(CombineFunction.REPLACE)).get();
 
         assertNoFailures(resp);
         assertOrderedSearchHits(resp, "3", "2", "1");
+    }
+    
+    public void testScoreAccess() {
+        client().prepareIndex("test", "doc", "1").setSource("foo", "quick brow fox jumped over the lazy dog", "bar", 1).get();
+        client().prepareIndex("test", "doc", "2").setSource("foo", "fast jumping spiders", "bar", 2).get();
+        client().prepareIndex("test", "doc", "3").setSource("foo", "dog spiders that can eat a dog", "bar", 3).get();
+        refresh();
+
+        // _score can be accessed
+        SearchResponse resp = client().prepareSearch("test").setQuery(functionScoreQuery(matchQuery("foo", "dog"))
+            .add(scriptFunction("_score", "groovy"))
+            .boostMode(CombineFunction.REPLACE)).get();
+        assertNoFailures(resp);
+        assertOrderedSearchHits(resp, "3", "1");
+
+        // _score is comparable
+        resp = client().prepareSearch("test").setQuery(functionScoreQuery(matchQuery("foo", "dog"))
+            .add(scriptFunction("_score > 0 ? _score : 0", "groovy"))
+            .boostMode(CombineFunction.REPLACE)).get();
+        assertNoFailures(resp);
+        assertOrderedSearchHits(resp, "3", "1");
     }
 }

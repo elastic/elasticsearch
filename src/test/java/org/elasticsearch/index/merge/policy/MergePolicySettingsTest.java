@@ -175,7 +175,7 @@ public class MergePolicySettingsTest extends ElasticsearchTestCase {
 
     protected Store createStore(Settings settings) throws IOException {
         DirectoryService directoryService = new RamDirectoryService(shardId, EMPTY_SETTINGS);
-        return new Store(shardId, settings, null, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
+        return new Store(shardId, settings, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
     }
 
 }

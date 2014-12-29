@@ -31,13 +31,14 @@ import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  *
  */
-public abstract class MergeSchedulerProvider extends AbstractIndexShardComponent implements IndexShardComponent {
+public abstract class MergeSchedulerProvider extends AbstractIndexShardComponent implements IndexShardComponent, Closeable {
 
     public static final String FORCE_ASYNC_MERGE = "index.merge.force_async_merge";
 

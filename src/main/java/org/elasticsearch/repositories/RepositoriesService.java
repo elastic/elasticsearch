@@ -21,6 +21,7 @@ package org.elasticsearch.repositories;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.*;
@@ -42,6 +43,7 @@ import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -104,7 +106,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
             }
 
             @Override
-            public ClusterState execute(ClusterState currentState) {
+            public ClusterState execute(ClusterState currentState) throws IOException {
                 ensureRepositoryNotInUse(currentState, request.name);
                 // Trying to create the new repository on master to make sure it works
                 if (!registerRepository(newRepositoryMetaData)) {
@@ -345,7 +347,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
      * @param repositoryMetaData new repository metadata
      * @return {@code true} if new repository was added or {@code false} if it was ignored
      */
-    private boolean registerRepository(RepositoryMetaData repositoryMetaData) {
+    private boolean registerRepository(RepositoryMetaData repositoryMetaData) throws IOException {
         RepositoryHolder previous = repositories.get(repositoryMetaData.name());
         if (previous != null) {
             if (!previous.type.equals(repositoryMetaData.type()) && previous.settings.equals(repositoryMetaData.settings())) {
@@ -370,11 +372,8 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
      * @param name   repository name
      * @param holder repository holder
      */
-    private void closeRepository(String name, RepositoryHolder holder) {
+    private void closeRepository(String name, RepositoryHolder holder) throws IOException {
         logger.debug("closing repository [{}][{}]", holder.type, name);
-        if (holder.injector != null) {
-            Injectors.close(holder.injector);
-        }
         if (holder.repository != null) {
             holder.repository.close();
         }
@@ -398,9 +397,6 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
             repository.start();
             return new RepositoryHolder(repositoryMetaData.type(), repositoryMetaData.settings(), repositoryInjector, repository, indexShardRepository);
         } catch (Throwable t) {
-            if (repositoryInjector != null) {
-                Injectors.close(repositoryInjector);
-            }
             logger.warn("failed to create repository [{}][{}]", t, repositoryMetaData.type(), repositoryMetaData.name());
             throw new RepositoryException(repositoryMetaData.name(), "failed to create repository", t);
         }
@@ -460,7 +456,6 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
         private final String type;
         private final Settings settings;
-        private final Injector injector;
         private final Repository repository;
         private final IndexShardRepository indexShardRepository;
 
@@ -469,7 +464,6 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
             this.settings = settings;
             this.repository = repository;
             this.indexShardRepository = indexShardRepository;
-            this.injector = injector;
         }
     }
 

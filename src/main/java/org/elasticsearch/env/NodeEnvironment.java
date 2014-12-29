@@ -186,15 +186,38 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
         assert indexSettings != ImmutableSettings.EMPTY;
         final Path[] paths = shardPaths(shardId);
         logger.trace("deleting shard {} directory, paths: [{}]", shardId, paths);
-        try (Closeable lock = shardLock(shardId)) {
-            XIOUtils.rm(paths);
-            if (hasCustomDataPath(indexSettings)) {
-                Path customLocation = resolveCustomLocation(indexSettings, shardId);
-                logger.trace("deleting custom shard {} directory [{}]", shardId, customLocation);
-                XIOUtils.rm(customLocation);
-            }
-            logger.trace("deleted shard {} directory, paths: [{}]", shardId, paths);
-            assert FileSystemUtils.exists(toFiles(paths)) == false;
+        try (ShardLock lock = shardLock(shardId)) {
+            deleteShardDirectoryUnderLock(lock, indexSettings);
+        }
+    }
+
+    /**
+     * Deletes a shard data directory. Note: this method assumes that the shard lock is acquired
+     *
+     * @param lock the shards lock
+     * @throws IOException if an IOException occurs
+     */
+    public void deleteShardDirectoryUnderLock(ShardLock lock, @IndexSettings Settings indexSettings) throws IOException {
+        assert indexSettings != ImmutableSettings.EMPTY;
+        final ShardId shardId = lock.getShardId();
+        assert isShardLocked(shardId) : "shard " + shardId + " is not locked";
+        final Path[] paths = shardPaths(shardId);
+        XIOUtils.rm(paths);
+        if (hasCustomDataPath(indexSettings)) {
+            Path customLocation = resolveCustomLocation(indexSettings, shardId);
+            logger.trace("deleting custom shard {} directory [{}]", shardId, customLocation);
+            XIOUtils.rm(customLocation);
+        }
+        logger.trace("deleted shard {} directory, paths: [{}]", shardId, paths);
+        assert FileSystemUtils.exists(paths) == false;
+    }
+
+    private boolean isShardLocked(ShardId id) {
+        try {
+            shardLock(id, 0).close();
+            return false;
+        } catch (IOException ex) {
+            return true;
         }
     }
 

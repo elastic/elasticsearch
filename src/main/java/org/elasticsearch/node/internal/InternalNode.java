@@ -404,8 +404,6 @@ public final class InternalNode implements Node {
         injector.getInstance(NodeEnvironment.class).close();
         injector.getInstance(CacheRecycler.class).close();
         injector.getInstance(PageCacheRecycler.class).close();
-        Injectors.close(injector);
-
         CachedStreams.clear();
 
         logger.info("closed");

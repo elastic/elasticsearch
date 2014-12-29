@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.cache;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -35,10 +35,13 @@ import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
 import org.elasticsearch.index.cache.query.parser.QueryParserCache;
 import org.elasticsearch.index.settings.IndexSettings;
 
+import java.io.Closeable;
+import java.io.IOException;
+
 /**
  *
  */
-public class IndexCache extends AbstractIndexComponent implements CloseableComponent, ClusterStateListener {
+public class IndexCache extends AbstractIndexComponent implements Closeable, ClusterStateListener {
 
     private final FilterCache filterCache;
     private final QueryParserCache queryParserCache;
@@ -84,11 +87,9 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
     }
 
     @Override
-    public void close() throws ElasticsearchException {
-        filterCache.close();
-        queryParserCache.close();
+    public void close() throws IOException {
         docSetCache.clear("close");
-        fixedBitSetFilterCache.close();
+        IOUtils.close(filterCache, queryParserCache, fixedBitSetFilterCache);
         if (clusterService != null) {
             clusterService.remove(this);
         }

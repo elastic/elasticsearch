@@ -211,7 +211,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                         peerRecoveryState.getIndex().recoveredByteCount(), peerRecoveryState.getTranslog().currentTranslogOperations());
             }
 
-            IndexShardGatewayService gatewayService = indexService.shardInjector(request.shardId().id()).getInstance(IndexShardGatewayService.class);
+            IndexShardGatewayService gatewayService = indexService.shardInjectorSafe(request.shardId().id()).getInstance(IndexShardGatewayService.class);
             RecoveryState gatewayRecoveryState = gatewayService.recoveryState();
             if (gatewayRecoveryState != null) {
                 GatewayRecoveryStatus.Stage stage;

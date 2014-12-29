@@ -44,6 +44,7 @@ import org.elasticsearch.common.lucene.Directories;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.env.ShardLock;
@@ -92,12 +93,12 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     private static final String CORRUPTED = "corrupted_";
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
-    private final CodecService codecService;
     private final DirectoryService directoryService;
     private final StoreDirectory directory;
     private final DistributorDirectory distributorDirectory;
     private final ReentrantReadWriteLock metadataLock = new ReentrantReadWriteLock();
     private final ShardLock shardLock;
+    private final OnClose onClose;
 
     private final AbstractRefCounted refCounter = new AbstractRefCounted("store") {
         @Override
@@ -107,16 +108,21 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         }
     };
 
+    public Store(ShardId shardId, @IndexSettings Settings indexSettings, DirectoryService directoryService, Distributor distributor, ShardLock shardLock) throws IOException {
+        this(shardId, indexSettings, directoryService, distributor, shardLock, OnClose.EMPTY);
+    }
+
     @Inject
-    public Store(ShardId shardId, @IndexSettings Settings indexSettings, CodecService codecService, DirectoryService directoryService, Distributor distributor, ShardLock shardLock) throws IOException {
+    public Store(ShardId shardId, @IndexSettings Settings indexSettings, DirectoryService directoryService, Distributor distributor, ShardLock shardLock, OnClose onClose) throws IOException {
         super(shardId, indexSettings);
-        this.codecService = codecService;
         this.directoryService = directoryService;
         this.directory = new StoreDirectory(directoryService.newFromDistributor(distributor));
 
         distributorDirectory = DirectoryUtils.getLeaf(directory, DistributorDirectory.class);
         assert distributorDirectory != null;
         this.shardLock = shardLock;
+        this.onClose = onClose;
+        assert onClose != null;
         assert shardLock != null;
         assert shardLock.getShardId().equals(shardId);
     }
@@ -351,7 +357,11 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
     private void closeInternal() {
         try {
-            directory.innerClose(); // this closes the distributorDirectory as well
+            try {
+                directory.innerClose(); // this closes the distributorDirectory as well
+            } finally {
+                onClose.handle(shardLock);
+            }
         } catch (IOException e) {
             logger.debug("failed to close directory", e);
         } finally {
@@ -1355,5 +1365,20 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             }
             directory().sync(Collections.singleton(uuid));
         }
+    }
+
+    /**
+     * A listener that is executed once the store is closed and all references to it are released
+     */
+    public static interface OnClose extends Callback<ShardLock> {
+        static final OnClose EMPTY = new OnClose() {
+            /**
+             * This method is called while the provided {@link org.elasticsearch.env.ShardLock} is held.
+             * This method is only called once after all resources for a store are released.
+             */
+            @Override
+            public void handle(ShardLock Lock) {
+            }
+        };
     }
 }

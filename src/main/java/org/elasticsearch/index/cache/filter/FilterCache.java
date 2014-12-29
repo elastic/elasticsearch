@@ -20,14 +20,15 @@
 package org.elasticsearch.index.cache.filter;
 
 import org.apache.lucene.search.Filter;
-import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexService;
+
+import java.io.Closeable;
 
 /**
  *
  */
-public interface FilterCache extends IndexComponent, CloseableComponent {
+public interface FilterCache extends IndexComponent, Closeable {
 
     static class EntriesStats {
         public final long sizeInBytes;

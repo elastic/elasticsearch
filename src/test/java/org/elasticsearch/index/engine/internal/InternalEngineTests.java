@@ -210,7 +210,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                 return 0;
             }
         };
-        return new Store(shardId, EMPTY_SETTINGS, null, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
+        return new Store(shardId, EMPTY_SETTINGS, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
     }
 
     protected Translog createTranslog() {

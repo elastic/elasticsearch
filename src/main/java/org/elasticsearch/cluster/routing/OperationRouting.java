@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.operation.plain;
+package org.elasticsearch.cluster.routing;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -25,14 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
-import org.elasticsearch.cluster.routing.operation.OperationRouting;
-import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
-import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -52,44 +45,38 @@ import java.util.Set;
 /**
  *
  */
-public class PlainOperationRouting extends AbstractComponent implements OperationRouting {
+public class OperationRouting extends AbstractComponent {
 
 
 
     private final AwarenessAllocationDecider awarenessAllocationDecider;
 
     @Inject
-    public PlainOperationRouting(Settings settings, AwarenessAllocationDecider awarenessAllocationDecider) {
+    public OperationRouting(Settings settings, AwarenessAllocationDecider awarenessAllocationDecider) {
         super(settings);
         this.awarenessAllocationDecider = awarenessAllocationDecider;
     }
 
-    @Override
     public ShardIterator indexShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) throws IndexMissingException, IndexShardMissingException {
         return shards(clusterState, index, type, id, routing).shardsIt();
     }
 
-    @Override
     public ShardIterator deleteShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) throws IndexMissingException, IndexShardMissingException {
         return shards(clusterState, index, type, id, routing).shardsIt();
     }
 
-    @Override
     public ShardIterator getShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing, @Nullable String preference) throws IndexMissingException, IndexShardMissingException {
         return preferenceActiveShardIterator(shards(clusterState, index, type, id, routing), clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
     }
 
-    @Override
     public ShardIterator getShards(ClusterState clusterState, String index, int shardId, @Nullable String preference) throws IndexMissingException, IndexShardMissingException {
         return preferenceActiveShardIterator(shards(clusterState, index, shardId), clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
     }
 
-    @Override
     public GroupShardsIterator broadcastDeleteShards(ClusterState clusterState, String index) throws IndexMissingException {
         return indexRoutingTable(clusterState, index).groupByShardsIt();
     }
 
-    @Override
     public GroupShardsIterator deleteByQueryShards(ClusterState clusterState, String index, @Nullable Set<String> routing) throws IndexMissingException {
         if (routing == null || routing.isEmpty()) {
             return indexRoutingTable(clusterState, index).groupByShardsIt();
@@ -109,13 +96,11 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
         return new GroupShardsIterator(Lists.newArrayList(set));
     }
 
-    @Override
     public int searchShardsCount(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable Map<String, Set<String>> routing, @Nullable String preference) throws IndexMissingException {
         final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
         return shards.size();
     }
 
-    @Override
     public GroupShardsIterator searchShards(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable Map<String, Set<String>> routing, @Nullable String preference) throws IndexMissingException {
         final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
         final Set<ShardIterator> set = new HashSet<>(shards.size());

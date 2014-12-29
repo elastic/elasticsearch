@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.operation.hash.djb;
+package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
+import org.elasticsearch.cluster.routing.HashFunction;
 
 /**
  * This class implements the efficient hash function

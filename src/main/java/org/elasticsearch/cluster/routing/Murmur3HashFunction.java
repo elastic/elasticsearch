@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.operation.hash.murmur3;
+package org.elasticsearch.cluster.routing;
 
 import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
+import org.elasticsearch.cluster.routing.HashFunction;
 
 /**
  * Hash function based on the Murmur3 algorithm, which is the default as of Elasticsearch 2.0.

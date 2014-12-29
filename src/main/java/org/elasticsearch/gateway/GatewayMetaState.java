@@ -33,8 +33,9 @@ import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
-import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
+import org.elasticsearch.cluster.routing.HashFunction;
+import org.elasticsearch.cluster.routing.DjbHashFunction;
+import org.elasticsearch.cluster.routing.SimpleHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -79,6 +80,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
     // legacy - this used to be in a different package
     private static final String GATEWAY_LOCAL_DANGLING_TIMEOUT = "gateway.local.dangling_timeout";
     private static final String GATEWAY_LOCAL_AUTO_IMPORT_DANGLED = "gateway.local.auto_import_dangled";
+
     static enum AutoImportDangledState {
         NO() {
             @Override
@@ -525,7 +527,24 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
      * move this old & deprecated node setting to an index setting so that we can keep things backward compatible.
      */
     private void pre20Upgrade() throws Exception {
-        final Class<? extends HashFunction> pre20HashFunction = settings.getAsClass(DEPRECATED_SETTING_ROUTING_HASH_FUNCTION, null, "org.elasticsearch.cluster.routing.operation.hash.", "HashFunction");
+        final Class<? extends HashFunction> pre20HashFunction;
+        final String pre20HashFunctionName = settings.get(DEPRECATED_SETTING_ROUTING_HASH_FUNCTION, null);
+        final boolean hasCustomPre20HashFunction = pre20HashFunctionName != null;
+        // the hash function package has changed we replace the two hash functions if their fully qualified name is used.
+        if (hasCustomPre20HashFunction) {
+            switch (pre20HashFunctionName) {
+                case "org.elasticsearch.cluster.routing.operation.hash.simple.SimpleHashFunction":
+                    pre20HashFunction = SimpleHashFunction.class;
+                    break;
+                case "org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction":
+                    pre20HashFunction = DjbHashFunction.class;
+                    break;
+                default:
+                    pre20HashFunction = settings.getAsClass(DEPRECATED_SETTING_ROUTING_HASH_FUNCTION, DjbHashFunction.class, "org.elasticsearch.cluster.routing.", "HashFunction");
+            }
+        } else {
+            pre20HashFunction = DjbHashFunction.class;
+        }
         final Boolean pre20UseType = settings.getAsBoolean(DEPRECATED_SETTING_ROUTING_USE_TYPE, null);
         MetaData metaData = loadMetaState();
         for (IndexMetaData indexMetaData : metaData) {
@@ -533,7 +552,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                     && indexMetaData.getCreationVersion().before(Version.V_2_0_0)) {
                 // these settings need an upgrade
                 Settings indexSettings = ImmutableSettings.builder().put(indexMetaData.settings())
-                        .put(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION, pre20HashFunction == null ? DjbHashFunction.class : pre20HashFunction)
+                        .put(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION, pre20HashFunction)
                         .put(IndexMetaData.SETTING_LEGACY_ROUTING_USE_TYPE, pre20UseType == null ? false : pre20UseType)
                         .build();
                 IndexMetaData newMetaData = IndexMetaData.builder(indexMetaData)
@@ -549,7 +568,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                 }
             }
         }
-        if (pre20HashFunction != null || pre20UseType != null) {
+        if (hasCustomPre20HashFunction|| pre20UseType != null) {
             logger.warn("Settings [{}] and [{}] are deprecated. Index settings from your old indices have been updated to record the fact that they "
                     + "used some custom routing logic, you can now remove these settings from your `elasticsearch.yml` file", DEPRECATED_SETTING_ROUTING_HASH_FUNCTION, DEPRECATED_SETTING_ROUTING_USE_TYPE);
         }

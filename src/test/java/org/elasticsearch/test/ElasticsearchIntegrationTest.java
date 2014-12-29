@@ -308,6 +308,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * per index basis. Allows to enable/disable the randomization for number of shards and replicas
      */
     private void randomIndexTemplate() throws IOException {
+
         // TODO move settings for random directory etc here into the index based randomized settings.
         if (cluster().size() > 0) {
             ImmutableSettings.Builder randomSettingsBuilder =

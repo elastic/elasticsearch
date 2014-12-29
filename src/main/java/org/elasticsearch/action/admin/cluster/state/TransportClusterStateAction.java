@@ -28,11 +28,11 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationA
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStatePart;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -127,10 +127,9 @@ public class TransportClusterStateAction extends TransportMasterNodeReadOperatio
             }
 
             // Filter our metadata that shouldn't be returned by API
-            for(ObjectCursor<String> type :  currentState.metaData().customs().keys()) {
-                Custom.Factory factory = lookupFactorySafe(type.value);
-                if(!factory.context().contains(MetaData.XContentContext.API)) {
-                    mdBuilder.removeCustom(type.value);
+            for(ObjectObjectCursor<String, ClusterStatePart> cursor :  currentState.metaData().customs()) {
+                if(!cursor.value.context().contains(MetaData.XContentContext.API)) {
+                    mdBuilder.removeCustom(cursor.key);
                 }
             }
 

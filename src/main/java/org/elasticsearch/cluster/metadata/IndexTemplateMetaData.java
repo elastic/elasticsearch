@@ -22,6 +22,9 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.Sets;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.AbstractClusterStatePart;
+import org.elasticsearch.cluster.LocalContext;
+import org.elasticsearch.cluster.MapItemClusterStatePart;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedString;
@@ -42,7 +45,11 @@ import java.util.Set;
 /**
  *
  */
-public class IndexTemplateMetaData {
+public class IndexTemplateMetaData extends AbstractClusterStatePart implements MapItemClusterStatePart {
+
+    public static String TYPE = "index_template";
+
+    public static Factory FACTORY = new Factory();
 
     private final String name;
 
@@ -450,5 +457,35 @@ public class IndexTemplateMetaData {
             }
         }
     }
+
+    @Override
+    public String key() {
+        return template;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Builder.writeTo(this, out);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        Builder.toXContent(this, builder, params);
+        return builder;
+    }
+
+    public static class Factory extends AbstractClusterStatePart.AbstractFactory<IndexTemplateMetaData> {
+
+        @Override
+        public IndexTemplateMetaData readFrom(StreamInput in, LocalContext context) throws IOException {
+            return Builder.readFrom(in);
+        }
+
+        @Override
+        public IndexTemplateMetaData fromXContent(XContentParser parser, LocalContext context) throws IOException {
+            return Builder.fromXContent(parser, parser.currentName());
+        }
+    }
+
 
 }

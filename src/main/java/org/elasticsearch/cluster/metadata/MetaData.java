@@ -27,8 +27,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.AbstractClusterStatePart;
-import org.elasticsearch.cluster.LocalContext;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.Nullable;
@@ -60,20 +59,29 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
 /**
  *
  */
-public class MetaData extends AbstractClusterStatePart implements Iterable<IndexMetaData> {
+public class MetaData extends CompositeClusterStatePart<MetaData> implements Iterable<IndexMetaData> {
 
     public static final String TYPE = "metadata";
+
+    public static final String PERSISTENT_SETTINGS_TYPE = "persistent_settings";
+
+    public static final String TRANSIENT_SETTINGS_TYPE = "transient_settings";
 
     public static final Factory FACTORY = new Factory();
 
     public static final String ALL = "_all";
 
 
-    public static class Factory extends AbstractFactory<MetaData> {
+    public static class Factory extends AbstractCompositeClusterStatePartFactory<MetaData> {
 
         @Override
         public MetaData readFrom(StreamInput in, LocalContext context) throws IOException {
             return Builder.readFrom(in);
+        }
+
+        @Override
+        public MetaData fromParts(long version, String uuid, ImmutableOpenMap.Builder<String, ClusterStatePart> parts) {
+            return new MetaData(version, uuid, parts.build());
         }
 
         @Override
@@ -162,79 +170,26 @@ public class MetaData extends AbstractClusterStatePart implements Iterable<Index
         }
         builder.endObject();
 
-        for (ObjectObjectCursor<String, MetaData.Custom> cursor : customs()) {
+        for (ObjectObjectCursor<String, ClusterStatePart> cursor : customs()) {
             builder.startObject(cursor.key);
-            MetaData.lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
+            cursor.value.toXContent(builder, params);
             builder.endObject();
         }
         return builder;
     }
 
-    public enum XContentContext {
-        /* Custom metadata should be returns as part of API call */
-        API,
-
-        /* Custom metadata should be stored as part of the persistent cluster state */
-        GATEWAY,
-
-        /* Custom metadata should be stored as part of a snapshot */
-        SNAPSHOT;
-    }
-
-    public static EnumSet<XContentContext> API_ONLY = EnumSet.of(XContentContext.API);
-    public static EnumSet<XContentContext> API_AND_GATEWAY = EnumSet.of(XContentContext.API, XContentContext.GATEWAY);
-    public static EnumSet<XContentContext> API_AND_SNAPSHOT = EnumSet.of(XContentContext.API, XContentContext.SNAPSHOT);
-
-    public interface Custom {
-
-        abstract class Factory<T extends Custom> {
-
-            public abstract String type();
-
-            public abstract T readFrom(StreamInput in) throws IOException;
-
-            public abstract void writeTo(T customIndexMetaData, StreamOutput out) throws IOException;
-
-            public abstract T fromXContent(XContentParser parser) throws IOException;
-
-            public abstract void toXContent(T customIndexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException;
-
-            public EnumSet<XContentContext> context() {
-                return API_ONLY;
-            }
-        }
-    }
-
-    public static Map<String, Custom.Factory> customFactories = new HashMap<>();
-
     static {
+        registerFactory(TRANSIENT_SETTINGS_TYPE, new ClusterStateSettingsPart.Factory());
+        registerFactory(PERSISTENT_SETTINGS_TYPE, new ClusterStateSettingsPart.Factory());
+        registerFactory(IndexMetaData.TYPE, new MapClusterStatePart.Factory<>(IndexMetaData.FACTORY));
+        registerFactory(IndexTemplateMetaData.TYPE, new MapClusterStatePart.Factory<>(IndexTemplateMetaData.FACTORY));
+
         // register non plugin custom metadata
         registerFactory(RepositoriesMetaData.TYPE, RepositoriesMetaData.FACTORY);
         registerFactory(SnapshotMetaData.TYPE, SnapshotMetaData.FACTORY);
         registerFactory(RestoreMetaData.TYPE, RestoreMetaData.FACTORY);
         registerFactory(BenchmarkMetaData.TYPE, BenchmarkMetaData.FACTORY);
     }
-
-    /**
-     * Register a custom index meta data factory. Make sure to call it from a static block.
-     */
-    public static void registerFactory(String type, Custom.Factory factory) {
-        customFactories.put(type, factory);
-    }
-
-    @Nullable
-    public static <T extends Custom> Custom.Factory<T> lookupFactory(String type) {
-        return customFactories.get(type);
-    }
-
-    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) throws ElasticsearchIllegalArgumentException {
-        Custom.Factory<T> factory = customFactories.get(type);
-        if (factory == null) {
-            throw new ElasticsearchIllegalArgumentException("No custom index metadata factory registered for type [" + type + "]");
-        }
-        return factory;
-    }
-
 
     public static final String SETTING_READ_ONLY = "cluster.blocks.read_only";
 
@@ -256,7 +211,7 @@ public class MetaData extends AbstractClusterStatePart implements Iterable<Index
     private final Settings settings;  // Generated on the fly from transientSettings and persistentSettings
     private final ImmutableOpenMap<String, IndexMetaData> indices;
     private final ImmutableOpenMap<String, IndexTemplateMetaData> templates;
-    private final ImmutableOpenMap<String, Custom> customs;
+    private final ImmutableOpenMap<String, ClusterStatePart> customs;
 
     private final transient int totalNumberOfShards; // Transient ? not serializable anyway?
     private final int numberOfShards;
@@ -272,16 +227,27 @@ public class MetaData extends AbstractClusterStatePart implements Iterable<Index
     //TODO: This is a hack - needed for plugins. We should refactor it using params
     private SettingsFilter settingsFilter;
 
+    // Parts: Settings transientSettings, Settings persistentSettings, ImmutableOpenMap<String, IndexMetaData> indices, ImmutableOpenMap<String, IndexTemplateMetaData> templates, ImmutableOpenMap<String, Custom> customs
+
     @SuppressWarnings("unchecked")
-    MetaData(String uuid, long version, Settings transientSettings, Settings persistentSettings, ImmutableOpenMap<String, IndexMetaData> indices, ImmutableOpenMap<String, IndexTemplateMetaData> templates, ImmutableOpenMap<String, Custom> customs) {
+    MetaData(long version, String uuid, ImmutableOpenMap<String, ClusterStatePart> parts) {
+        super(version, uuid, parts);
         this.uuid = uuid;
         this.version = version;
-        this.transientSettings = transientSettings;
-        this.persistentSettings = persistentSettings;
+        this.transientSettings = ((ClusterStateSettingsPart)get(TRANSIENT_SETTINGS_TYPE)).getSettings();
+        this.persistentSettings = ((ClusterStateSettingsPart)get(PERSISTENT_SETTINGS_TYPE)).getSettings();
         this.settings = ImmutableSettings.settingsBuilder().put(persistentSettings).put(transientSettings).build();
-        this.indices = indices;
-        this.customs = customs;
-        this.templates = templates;
+        this.indices = ((MapClusterStatePart<IndexMetaData>)get(IndexMetaData.TYPE)).getParts();
+        this.templates = ((MapClusterStatePart<IndexTemplateMetaData>)get(IndexTemplateMetaData.TYPE)).getParts();
+        //TODO: Hack, for now to make things running
+        ImmutableOpenMap.Builder<String, ClusterStatePart> customsBuilder = ImmutableOpenMap.builder();
+        customsBuilder.putAll(parts);
+        customsBuilder.remove(TRANSIENT_SETTINGS_TYPE);
+        customsBuilder.remove(PERSISTENT_SETTINGS_TYPE);
+        customsBuilder.remove(IndexMetaData.TYPE);
+        customsBuilder.remove(IndexTemplateMetaData.TYPE);
+        this.customs = customsBuilder.build();
+
         int totalNumberOfShards = 0;
         int numberOfShards = 0;
         int numAliases = 0;
@@ -1066,15 +1032,15 @@ public class MetaData extends AbstractClusterStatePart implements Iterable<Index
         return this.templates;
     }
 
-    public ImmutableOpenMap<String, Custom> customs() {
+    public ImmutableOpenMap<String, ClusterStatePart> customs() {
         return this.customs;
     }
 
-    public ImmutableOpenMap<String, Custom> getCustoms() {
+    public ImmutableOpenMap<String, ClusterStatePart> getCustoms() {
         return this.customs;
     }
 
-    public <T extends Custom> T custom(String type) {
+    public <T extends ClusterStatePart> T custom(String type) {
         return (T) customs.get(type);
     }
 
@@ -1249,15 +1215,15 @@ public class MetaData extends AbstractClusterStatePart implements Iterable<Index
         }
         // Check if any persistent metadata needs to be saved
         int customCount1 = 0;
-        for (ObjectObjectCursor<String, Custom> cursor : metaData1.customs) {
-            if (customFactories.get(cursor.key).context().contains(XContentContext.GATEWAY)) {
+        for (ObjectObjectCursor<String, ClusterStatePart> cursor : metaData1.customs) {
+            if (cursor.value.context().contains(XContentContext.GATEWAY)) {
                 if (!cursor.value.equals(metaData2.custom(cursor.key))) return false;
                 customCount1++;
             }
         }
         int customCount2 = 0;
-        for (ObjectObjectCursor<String, Custom> cursor : metaData2.customs) {
-            if (customFactories.get(cursor.key).context().contains(XContentContext.GATEWAY)) {
+        for (ObjectObjectCursor<String, ClusterStatePart> cursor : metaData2.customs) {
+            if (cursor.value.context().contains(XContentContext.GATEWAY)) {
                 customCount2++;
             }
         }
@@ -1283,7 +1249,7 @@ public class MetaData extends AbstractClusterStatePart implements Iterable<Index
 
         private final ImmutableOpenMap.Builder<String, IndexMetaData> indices;
         private final ImmutableOpenMap.Builder<String, IndexTemplateMetaData> templates;
-        private final ImmutableOpenMap.Builder<String, Custom> customs;
+        private final ImmutableOpenMap.Builder<String, ClusterStatePart> customs;
 
         public Builder() {
             uuid = "_na_";
@@ -1350,11 +1316,11 @@ public class MetaData extends AbstractClusterStatePart implements Iterable<Index
             return this;
         }
 
-        public Custom getCustom(String type) {
+        public ClusterStatePart getCustom(String type) {
             return customs.get(type);
         }
 
-        public Builder putCustom(String type, Custom custom) {
+        public Builder putCustom(String type, ClusterStatePart custom) {
             customs.put(type, custom);
             return this;
         }
@@ -1423,8 +1389,19 @@ public class MetaData extends AbstractClusterStatePart implements Iterable<Index
             return this;
         }
 
+
+        private static ImmutableOpenMap<String, ClusterStatePart> buildParts(Settings transientSettings, Settings persistentSettings, ImmutableOpenMap<String, IndexMetaData> indices, ImmutableOpenMap<String, IndexTemplateMetaData> templates, ImmutableOpenMap<String, ClusterStatePart> customs) {
+            ImmutableOpenMap.Builder<String, ClusterStatePart> builder = ImmutableOpenMap.builder();
+            builder.put(TRANSIENT_SETTINGS_TYPE, new ClusterStateSettingsPart(transientSettings));
+            builder.put(PERSISTENT_SETTINGS_TYPE, new ClusterStateSettingsPart(persistentSettings));
+            builder.put(IndexMetaData.TYPE, new MapClusterStatePart<>(indices));
+            builder.put(IndexTemplateMetaData.TYPE, new MapClusterStatePart<>(templates));
+            builder.putAll(customs);
+            return builder.build();
+        }
+
         public MetaData build() {
-            return new MetaData(uuid, version, transientSettings, persistentSettings, indices.build(), templates.build(), customs.build());
+            return new MetaData(version, uuid, buildParts(transientSettings, persistentSettings, indices.build(), templates.build(), customs.build()));
         }
 
         public static String toXContent(MetaData metaData) throws IOException {
@@ -1473,11 +1450,10 @@ public class MetaData extends AbstractClusterStatePart implements Iterable<Index
                 builder.endObject();
             }
 
-            for (ObjectObjectCursor<String, Custom> cursor : metaData.customs()) {
-                Custom.Factory factory = lookupFactorySafe(cursor.key);
-                if (factory.context().contains(context)) {
+            for (ObjectObjectCursor<String, ClusterStatePart> cursor : metaData.customs()) {
+                if (cursor.value.context().contains(context)) {
                     builder.startObject(cursor.key);
-                    factory.toXContent(cursor.value, builder, params);
+                    cursor.value.toXContent(builder, params);
                     builder.endObject();
                 }
             }
@@ -1521,12 +1497,13 @@ public class MetaData extends AbstractClusterStatePart implements Iterable<Index
                         }
                     } else {
                         // check if its a custom index metadata
-                        Custom.Factory<Custom> factory = lookupFactory(currentFieldName);
+                        ClusterStatePart.Factory<ClusterStatePart> factory = lookupFactory(currentFieldName);
                         if (factory == null) {
                             //TODO warn
                             parser.skipChildren();
                         } else {
-                            builder.putCustom(factory.type(), factory.fromXContent(parser));
+                            // TODO: context
+                            builder.putCustom(currentFieldName, factory.fromXContent(parser, null));
                         }
                     }
                 } else if (token.isValue()) {
@@ -1557,7 +1534,8 @@ public class MetaData extends AbstractClusterStatePart implements Iterable<Index
             int customSize = in.readVInt();
             for (int i = 0; i < customSize; i++) {
                 String type = in.readString();
-                Custom customIndexMetaData = lookupFactorySafe(type).readFrom(in);
+                // TODO: context
+                ClusterStatePart customIndexMetaData = lookupFactorySafe(type).readFrom(in, null);
                 builder.putCustom(type, customIndexMetaData);
             }
             return builder.build();
@@ -1577,9 +1555,9 @@ public class MetaData extends AbstractClusterStatePart implements Iterable<Index
                 IndexTemplateMetaData.Builder.writeTo(cursor.value, out);
             }
             out.writeVInt(metaData.customs().size());
-            for (ObjectObjectCursor<String, Custom> cursor : metaData.customs()) {
+            for (ObjectObjectCursor<String, ClusterStatePart> cursor : metaData.customs()) {
                 out.writeString(cursor.key);
-                lookupFactorySafe(cursor.key).writeTo(cursor.value, out);
+                cursor.value.writeTo(out);
             }
         }
     }

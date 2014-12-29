@@ -44,7 +44,6 @@ public class MapClusterStatePart<T extends MapItemClusterStatePart> extends Abst
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(parts.size());
         for (ObjectObjectCursor<String, T> part : parts) {
-            out.writeString(part.key);
             part.value.writeTo(out);
         }
     }
@@ -55,6 +54,10 @@ public class MapClusterStatePart<T extends MapItemClusterStatePart> extends Abst
             part.value.toXContent(builder, params);
         }
         return builder;
+    }
+
+    public ImmutableOpenMap<String, T> getParts() {
+        return parts;
     }
 
     public static class Factory<T extends MapItemClusterStatePart> extends AbstractFactory<MapClusterStatePart<T>> {

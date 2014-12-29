@@ -58,7 +58,7 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
             public RestResponse buildResponse(GetRepositoriesResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 for (RepositoryMetaData repositoryMetaData : response.repositories()) {
-                    RepositoriesMetaData.FACTORY.toXContent(repositoryMetaData, builder, request);
+                    RepositoriesMetaData.toXContent(repositoryMetaData, builder, request);
                 }
                 builder.endObject();
 

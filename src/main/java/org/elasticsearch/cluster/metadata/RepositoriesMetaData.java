@@ -21,6 +21,9 @@ package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.AbstractClusterStatePart;
+import org.elasticsearch.cluster.ClusterStatePart;
+import org.elasticsearch.cluster.LocalContext;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -39,7 +42,7 @@ import java.util.Map;
 /**
  * Contains metadata about registered snapshot repositories
  */
-public class RepositoriesMetaData implements MetaData.Custom {
+public class RepositoriesMetaData extends AbstractClusterStatePart {
 
     public static final String TYPE = "repositories";
 
@@ -80,24 +83,57 @@ public class RepositoriesMetaData implements MetaData.Custom {
         return null;
     }
 
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(repositories.size());
+        for (RepositoryMetaData repository : repositories) {
+            repository.writeTo(out);
+        }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        for (RepositoryMetaData repository : repositories()) {
+            toXContent(repository, builder, params);
+        }
+        return builder;
+    }
+
+    /**
+     * Serializes information about a single repository
+     *
+     * @param repository repository metadata
+     * @param builder    XContent builder
+     * @param params     serialization parameters
+     * @throws IOException
+     */
+    public static void toXContent(RepositoryMetaData repository, XContentBuilder builder, ToXContent.Params params) throws IOException {
+        builder.startObject(repository.name(), XContentBuilder.FieldCaseConversion.NONE);
+        builder.field("type", repository.type());
+        builder.startObject("settings");
+        for (Map.Entry<String, String> settingEntry : repository.settings().getAsMap().entrySet()) {
+            builder.field(settingEntry.getKey(), settingEntry.getValue());
+        }
+        builder.endObject();
+
+        builder.endObject();
+    }
+
+    @Override
+    public EnumSet<MetaData.XContentContext> context() {
+        return ClusterStatePart.API_GATEWAY;
+    }
+
     /**
      * Repository metadata factory
      */
-    public static class Factory extends MetaData.Custom.Factory<RepositoriesMetaData> {
+    public static class Factory extends AbstractClusterStatePart.AbstractFactory<RepositoriesMetaData> {
 
         /**
          * {@inheritDoc}
          */
         @Override
-        public String type() {
-            return TYPE;
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public RepositoriesMetaData readFrom(StreamInput in) throws IOException {
+        public RepositoriesMetaData readFrom(StreamInput in, LocalContext context) throws IOException {
             RepositoryMetaData[] repository = new RepositoryMetaData[in.readVInt()];
             for (int i = 0; i < repository.length; i++) {
                 repository[i] = RepositoryMetaData.readFrom(in);
@@ -109,18 +145,7 @@ public class RepositoriesMetaData implements MetaData.Custom {
          * {@inheritDoc}
          */
         @Override
-        public void writeTo(RepositoriesMetaData repositories, StreamOutput out) throws IOException {
-            out.writeVInt(repositories.repositories().size());
-            for (RepositoryMetaData repository : repositories.repositories()) {
-                repository.writeTo(out);
-            }
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public RepositoriesMetaData fromXContent(XContentParser parser) throws IOException {
+        public RepositoriesMetaData fromXContent(XContentParser parser, LocalContext context) throws IOException {
             XContentParser.Token token;
             List<RepositoryMetaData> repository = new ArrayList<>();
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -160,41 +185,6 @@ public class RepositoriesMetaData implements MetaData.Custom {
                 }
             }
             return new RepositoriesMetaData(repository.toArray(new RepositoryMetaData[repository.size()]));
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public void toXContent(RepositoriesMetaData customIndexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            for (RepositoryMetaData repository : customIndexMetaData.repositories()) {
-                toXContent(repository, builder, params);
-            }
-        }
-
-        @Override
-        public EnumSet<MetaData.XContentContext> context() {
-            return MetaData.API_AND_GATEWAY;
-        }
-
-        /**
-         * Serializes information about a single repository
-         *
-         * @param repository repository metadata
-         * @param builder    XContent builder
-         * @param params     serialization parameters
-         * @throws IOException
-         */
-        public void toXContent(RepositoryMetaData repository, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject(repository.name(), XContentBuilder.FieldCaseConversion.NONE);
-            builder.field("type", repository.type());
-            builder.startObject("settings");
-            for (Map.Entry<String, String> settingEntry : repository.settings().getAsMap().entrySet()) {
-                builder.field(settingEntry.getKey(), settingEntry.getValue());
-            }
-            builder.endObject();
-
-            builder.endObject();
         }
     }
 

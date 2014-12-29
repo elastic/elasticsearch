@@ -292,7 +292,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                             }
                         }
                         if (metaData.customs() != null) {
-                            for (ObjectObjectCursor<String, MetaData.Custom> cursor : metaData.customs()) {
+                            for (ObjectObjectCursor<String, ClusterStatePart> cursor : metaData.customs()) {
                                 if (!RepositoriesMetaData.TYPE.equals(cursor.key)) {
                                     // Don't restore repositories while we are working with them
                                     // TODO: Should we restore them at the end?

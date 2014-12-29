@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster;
 
+import com.carrotsearch.hppc.ObjectLookupContainer;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
@@ -157,25 +159,35 @@ public abstract class CompositeClusterStatePart<T extends CompositeClusterStateP
         public abstract T fromParts(long version, String uuid, ImmutableOpenMap.Builder<String, ClusterStatePart> parts);
 
         @Override
-        public Diff<T> diff(T before, T after) {
-            ImmutableOpenMap<String, ClusterStatePart> beforeParts = before.parts();
-            ImmutableOpenMap<String, ClusterStatePart> afterParts = after.parts();
-            if (before.equals(after)) {
-                return new NoDiff<T>();
-            } else {
-                Map<String, Diff<ClusterStatePart>> diffs = newHashMap();
-                List<String> deletes = newArrayList();
-                for (ObjectObjectCursor<String, ClusterStatePart> partIter : beforeParts) {
-                    if (!afterParts.containsKey(partIter.key)) {
-                        deletes.add(partIter.key);
+        public Diff<T> diff(@Nullable T before, T after) {
+            assert after != null;
+            Map<String, Diff<ClusterStatePart>> diffs = newHashMap();
+            List<String> deletes = newArrayList();
+            if (before != null) {
+                ImmutableOpenMap<String, ClusterStatePart> beforeParts = before.parts();
+                ImmutableOpenMap<String, ClusterStatePart> afterParts = after.parts();
+                if (before.equals(after)) {
+                    return new NoDiff<T>();
+                } else {
+                    for (ObjectObjectCursor<String, ClusterStatePart> partIter : beforeParts) {
+                        if (!afterParts.containsKey(partIter.key)) {
+                            deletes.add(partIter.key);
+                        }
+                    }
+                    for (ObjectObjectCursor<String, ClusterStatePart> partIter : afterParts) {
+                        ClusterStatePart.Factory<ClusterStatePart> factory = lookupFactorySafe(partIter.key);
+                        ClusterStatePart beforePart = beforeParts.get(partIter.key);
+                        diffs.put(partIter.key, factory.diff(beforePart, partIter.value));
                     }
                 }
+            } else {
+                ImmutableOpenMap<String, ClusterStatePart> afterParts = after.parts();
                 for (ObjectObjectCursor<String, ClusterStatePart> partIter : afterParts) {
                     ClusterStatePart.Factory<ClusterStatePart> factory = lookupFactorySafe(partIter.key);
-                    diffs.put(partIter.key, factory.diff(beforeParts.get(partIter.key), partIter.value));
+                    diffs.put(partIter.key, factory.diff(null, partIter.value));
                 }
-                return new CompositeDiff<>(this, after.version(), before.uuid(), after.uuid(), deletes, diffs);
             }
+            return new CompositeDiff<>(this, after.version(), before.uuid(), after.uuid(), deletes, diffs);
         }
 
         @Override

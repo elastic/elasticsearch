@@ -22,6 +22,8 @@ package org.elasticsearch.cluster.metadata;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.cluster.AbstractClusterStatePart;
+import org.elasticsearch.cluster.LocalContext;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -35,7 +37,7 @@ import java.util.Map;
 /**
  * Meta data about restore processes that are currently executing
  */
-public class RestoreMetaData implements MetaData.Custom {
+public class RestoreMetaData extends AbstractClusterStatePart {
 
     public static final String TYPE = "restore";
 
@@ -395,23 +397,86 @@ public class RestoreMetaData implements MetaData.Custom {
     }
 
     /**
-     * Restore metadata factory
+     * {@inheritDoc}
      */
-    public static class Factory extends MetaData.Custom.Factory<RestoreMetaData> {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(entries.size());
+        for (Entry entry : entries) {
+            entry.snapshotId().writeTo(out);
+            out.writeByte(entry.state().value());
+            out.writeVInt(entry.indices().size());
+            for (String index : entry.indices()) {
+                out.writeString(index);
+            }
+            out.writeVInt(entry.shards().size());
+            for (Map.Entry<ShardId, ShardRestoreStatus> shardEntry : entry.shards().entrySet()) {
+                shardEntry.getKey().writeTo(out);
+                shardEntry.getValue().writeTo(out);
+            }
+        }
+    }
 
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public String type() {
-            return TYPE;
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        builder.startArray("snapshots");
+        for (Entry entry : entries) {
+            toXContent(entry, builder, params);
+        }
+        builder.endArray();
+        return builder;
+    }
+
+    /**
+     * Serializes single restore operation
+     *
+     * @param entry   restore operation metadata
+     * @param builder XContent builder
+     * @param params  serialization parameters
+     * @throws IOException
+     */
+    public void toXContent(Entry entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
+        builder.startObject();
+        builder.field("snapshot", entry.snapshotId().getSnapshot());
+        builder.field("repository", entry.snapshotId().getRepository());
+        builder.field("state", entry.state());
+        builder.startArray("indices");
+        {
+            for (String index : entry.indices()) {
+                builder.value(index);
+            }
+        }
+        builder.endArray();
+        builder.startArray("shards");
+        {
+            for (Map.Entry<ShardId, ShardRestoreStatus> shardEntry : entry.shards.entrySet()) {
+                ShardId shardId = shardEntry.getKey();
+                ShardRestoreStatus status = shardEntry.getValue();
+                builder.startObject();
+                {
+                    builder.field("index", shardId.getIndex());
+                    builder.field("shard", shardId.getId());
+                    builder.field("state", status.state());
+                }
+                builder.endObject();
+            }
         }
 
+        builder.endArray();
+        builder.endObject();
+    }
+    /**
+     * Restore metadata factory
+     */
+    public static class Factory extends AbstractClusterStatePart.AbstractFactory<RestoreMetaData>  {
         /**
          * {@inheritDoc}
          */
         @Override
-        public RestoreMetaData readFrom(StreamInput in) throws IOException {
+        public RestoreMetaData readFrom(StreamInput in, LocalContext context) throws IOException {
             Entry[] entries = new Entry[in.readVInt()];
             for (int i = 0; i < entries.length; i++) {
                 SnapshotId snapshotId = SnapshotId.readSnapshotId(in);
@@ -431,86 +496,6 @@ public class RestoreMetaData implements MetaData.Custom {
                 entries[i] = new Entry(snapshotId, state, indexBuilder.build(), builder.build());
             }
             return new RestoreMetaData(entries);
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public void writeTo(RestoreMetaData repositories, StreamOutput out) throws IOException {
-            out.writeVInt(repositories.entries().size());
-            for (Entry entry : repositories.entries()) {
-                entry.snapshotId().writeTo(out);
-                out.writeByte(entry.state().value());
-                out.writeVInt(entry.indices().size());
-                for (String index : entry.indices()) {
-                    out.writeString(index);
-                }
-                out.writeVInt(entry.shards().size());
-                for (Map.Entry<ShardId, ShardRestoreStatus> shardEntry : entry.shards().entrySet()) {
-                    shardEntry.getKey().writeTo(out);
-                    shardEntry.getValue().writeTo(out);
-                }
-            }
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public RestoreMetaData fromXContent(XContentParser parser) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public void toXContent(RestoreMetaData customIndexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startArray("snapshots");
-            for (Entry entry : customIndexMetaData.entries()) {
-                toXContent(entry, builder, params);
-            }
-            builder.endArray();
-        }
-
-        /**
-         * Serializes single restore operation
-         *
-         * @param entry   restore operation metadata
-         * @param builder XContent builder
-         * @param params  serialization parameters
-         * @throws IOException
-         */
-        public void toXContent(Entry entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject();
-            builder.field("snapshot", entry.snapshotId().getSnapshot());
-            builder.field("repository", entry.snapshotId().getRepository());
-            builder.field("state", entry.state());
-            builder.startArray("indices");
-            {
-                for (String index : entry.indices()) {
-                    builder.value(index);
-                }
-            }
-            builder.endArray();
-            builder.startArray("shards");
-            {
-                for (Map.Entry<ShardId, ShardRestoreStatus> shardEntry : entry.shards.entrySet()) {
-                    ShardId shardId = shardEntry.getKey();
-                    ShardRestoreStatus status = shardEntry.getValue();
-                    builder.startObject();
-                    {
-                        builder.field("index", shardId.getIndex());
-                        builder.field("shard", shardId.getId());
-                        builder.field("state", status.state());
-                    }
-                    builder.endObject();
-                }
-            }
-
-            builder.endArray();
-            builder.endObject();
         }
     }
 

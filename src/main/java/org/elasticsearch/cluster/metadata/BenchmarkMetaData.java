@@ -20,6 +20,8 @@ package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.cluster.AbstractClusterStatePart;
+import org.elasticsearch.cluster.LocalContext;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -31,7 +33,7 @@ import java.io.IOException;
 /**
  * Meta data about benchmarks that are currently executing
  */
-public class BenchmarkMetaData implements MetaData.Custom {
+public class BenchmarkMetaData extends AbstractClusterStatePart {
     public static final String TYPE = "benchmark";
 
     public static final Factory FACTORY = new Factory();
@@ -154,16 +156,41 @@ public class BenchmarkMetaData implements MetaData.Custom {
         return this.entries;
     }
 
-
-    public static class Factory extends MetaData.Custom.Factory<BenchmarkMetaData> {
-
-        @Override
-        public String type() {
-            return TYPE;
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(entries.size());
+        for (Entry entry : entries) {
+            out.writeString(entry.benchmarkId());
+            out.writeByte(entry.state().id());
+            out.writeStringArray(entry.nodes());
         }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        builder.startArray("benchmarks");
+        for (Entry entry : entries) {
+            toXContent(entry, builder, params);
+        }
+        builder.endArray();
+        return builder;
+    }
+
+    public void toXContent(Entry entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
+        builder.startObject();
+        builder.field("id", entry.benchmarkId());
+        builder.field("state", entry.state());
+        builder.startArray("on_nodes");
+        for (String nodeid : entry.nodes()) {
+            builder.value(nodeid);
+        }
+        builder.endArray();
+        builder.endObject();
+    }
+    public static class Factory extends AbstractClusterStatePart.AbstractFactory<BenchmarkMetaData> {
 
         @Override
-        public BenchmarkMetaData readFrom(StreamInput in) throws IOException {
+        public BenchmarkMetaData readFrom(StreamInput in, LocalContext context) throws IOException {
             Entry[] entries = new Entry[in.readVInt()];
             for (int i = 0; i < entries.length; i++) {
                 String benchmarkId = in.readString();
@@ -172,42 +199,6 @@ public class BenchmarkMetaData implements MetaData.Custom {
                 entries[i] = new Entry(benchmarkId, state, nodes);
             }
             return new BenchmarkMetaData(entries);
-        }
-
-        @Override
-        public void writeTo(BenchmarkMetaData repositories, StreamOutput out) throws IOException {
-            out.writeVInt(repositories.entries().size());
-            for (Entry entry : repositories.entries()) {
-                out.writeString(entry.benchmarkId());
-                out.writeByte(entry.state().id());
-                out.writeStringArray(entry.nodes());
-            }
-        }
-
-        @Override
-        public BenchmarkMetaData fromXContent(XContentParser parser) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void toXContent(BenchmarkMetaData customIndexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startArray("benchmarks");
-            for (Entry entry : customIndexMetaData.entries()) {
-                toXContent(entry, builder, params);
-            }
-            builder.endArray();
-        }
-
-        public void toXContent(Entry entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject();
-            builder.field("id", entry.benchmarkId());
-            builder.field("state", entry.state());
-            builder.startArray("on_nodes");
-            for (String nodeid : entry.nodes()) {
-                builder.value(nodeid);
-            }
-            builder.endArray();
-            builder.endObject();
         }
     }
 

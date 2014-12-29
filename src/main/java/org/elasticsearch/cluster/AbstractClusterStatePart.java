@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -50,12 +51,7 @@ public abstract class AbstractClusterStatePart implements ClusterStatePart {
 
         public void writeTo(StreamOutput out) throws IOException{
             out.writeBoolean(true);
-            if (part != null) {
-                out.writeBoolean(true);
-                part.writeTo(out);
-            } else {
-                out.writeBoolean(false);
-            }
+            part.writeTo(out);
         }
     }
 
@@ -78,23 +74,20 @@ public abstract class AbstractClusterStatePart implements ClusterStatePart {
     protected static abstract class AbstractFactory<T extends ClusterStatePart> implements ClusterStatePart.Factory<T> {
 
         @Override
-        public Diff<T> diff(T before, T after) {
-            if (before.equals(after)) {
-                return new NoDiff<T>();
+        public Diff<T> diff(@Nullable T before, T after) {
+            assert after != null;
+            if (after.equals(before)) {
+                return new NoDiff<>();
             } else {
-                return new CompleteDiff<T>(after);
+                return new CompleteDiff<>(after);
             }
         }
 
         @Override
         public Diff<T> readDiffFrom(StreamInput in, LocalContext context) throws IOException {
             if(in.readBoolean()) {
-                if (in.readBoolean()) {
-                    T part = readFrom(in, context);
-                    return new CompleteDiff<T>(part);
-                } else {
-                    return new CompleteDiff<T>(null);
-                }
+                T part = readFrom(in, context);
+                return new CompleteDiff<T>(part);
             } else {
                 return new NoDiff<T>();
             }

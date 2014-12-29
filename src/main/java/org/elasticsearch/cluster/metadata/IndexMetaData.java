@@ -25,6 +25,9 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.AbstractClusterStatePart;
+import org.elasticsearch.cluster.LocalContext;
+import org.elasticsearch.cluster.MapItemClusterStatePart;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
@@ -44,6 +47,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
@@ -61,8 +65,11 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
 /**
  *
  */
-public class IndexMetaData {
+public class IndexMetaData extends AbstractClusterStatePart implements MapItemClusterStatePart {
 
+    public static String TYPE = "index_metadata";
+
+    public static Factory FACTORY = new Factory();
 
     public interface Custom {
 
@@ -784,4 +791,34 @@ public class IndexMetaData {
             }
         }
     }
+
+    @Override
+    public String key() {
+        return index;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Builder.writeTo(this, out);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        Builder.toXContent(this, builder, params);
+        return builder;
+    }
+
+    public static class Factory extends AbstractClusterStatePart.AbstractFactory<IndexMetaData> {
+
+        @Override
+        public IndexMetaData readFrom(StreamInput in, LocalContext context) throws IOException {
+            return Builder.readFrom(in);
+        }
+
+        @Override
+        public IndexMetaData fromXContent(XContentParser parser, LocalContext context) throws IOException {
+            return Builder.fromXContent(parser);
+        }
+    }
+
 }

@@ -56,6 +56,10 @@ public class ClusterStateSettingsPart extends AbstractClusterStatePart {
         return builder;
     }
 
+    public Settings getSettings() {
+        return settings;
+    }
+
     public static class Factory extends AbstractClusterStatePart.AbstractFactory<ClusterStateSettingsPart> {
 
         @Override

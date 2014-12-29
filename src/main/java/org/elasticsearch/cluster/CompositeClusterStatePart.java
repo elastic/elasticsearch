@@ -167,7 +167,7 @@ public abstract class CompositeClusterStatePart<T extends CompositeClusterStateP
                 ImmutableOpenMap<String, ClusterStatePart> beforeParts = before.parts();
                 ImmutableOpenMap<String, ClusterStatePart> afterParts = after.parts();
                 if (before.equals(after)) {
-                    return new NoDiff<T>();
+                    return new NoDiff<>();
                 } else {
                     for (ObjectObjectCursor<String, ClusterStatePart> partIter : beforeParts) {
                         if (!afterParts.containsKey(partIter.key)) {
@@ -218,12 +218,12 @@ public abstract class CompositeClusterStatePart<T extends CompositeClusterStateP
 
     private static class CompositeDiff<T extends CompositeClusterStatePart> implements Diff<T> {
 
-        private long version;
-        private String previousUuid;
-        private String uuid;
-        private Map<String, Diff<ClusterStatePart>> diffs;
-        private List<String> deletes;
-        private AbstractCompositeClusterStatePartFactory<T> factory;
+        private final long version;
+        private final String previousUuid;
+        private final String uuid;
+        private final Map<String, Diff<ClusterStatePart>> diffs;
+        private final List<String> deletes;
+        private final AbstractCompositeClusterStatePartFactory<T> factory;
 
         private CompositeDiff(AbstractCompositeClusterStatePartFactory<T> factory, long version, String previousUuid, String uuid, List<String> deletes, Map<String, Diff<ClusterStatePart>> diffs) {
             this.version = version;

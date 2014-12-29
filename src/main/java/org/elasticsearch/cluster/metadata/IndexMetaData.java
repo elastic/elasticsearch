@@ -459,6 +459,10 @@ public class IndexMetaData extends AbstractClusterStatePart implements MapItemCl
             return false;
         }
 
+        if (!customs.equals(that.customs)) {
+            return false;
+        }
+
         return true;
     }
 
@@ -469,6 +473,7 @@ public class IndexMetaData extends AbstractClusterStatePart implements MapItemCl
         result = 31 * result + aliases.hashCode();
         result = 31 * result + settings.hashCode();
         result = 31 * result + mappings.hashCode();
+        result = 31 * result + customs.hashCode();
         return result;
     }
 

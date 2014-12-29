@@ -24,4 +24,5 @@ package org.elasticsearch.cluster;
  */
 public interface MapItemClusterStatePart extends ClusterStatePart {
     String key();
+
 }

@@ -237,8 +237,8 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
         this.transientSettings = ((ClusterStateSettingsPart)get(TRANSIENT_SETTINGS_TYPE)).getSettings();
         this.persistentSettings = ((ClusterStateSettingsPart)get(PERSISTENT_SETTINGS_TYPE)).getSettings();
         this.settings = ImmutableSettings.settingsBuilder().put(persistentSettings).put(transientSettings).build();
-        this.indices = ((MapClusterStatePart<IndexMetaData>)get(IndexMetaData.TYPE)).getParts();
-        this.templates = ((MapClusterStatePart<IndexTemplateMetaData>)get(IndexTemplateMetaData.TYPE)).getParts();
+        this.indices = ((MapClusterStatePart<IndexMetaData>)get(IndexMetaData.TYPE)).parts();
+        this.templates = ((MapClusterStatePart<IndexTemplateMetaData>)get(IndexTemplateMetaData.TYPE)).parts();
         //TODO: Hack, for now to make things running
         ImmutableOpenMap.Builder<String, ClusterStatePart> customsBuilder = ImmutableOpenMap.builder();
         customsBuilder.putAll(parts);

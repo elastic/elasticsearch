@@ -21,6 +21,7 @@ package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,6 +29,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Maps.newHashMap;
 
 /**
  * Represents a map of cluster state parts with the same type.
@@ -56,9 +63,14 @@ public class MapClusterStatePart<T extends MapItemClusterStatePart> extends Abst
         return builder;
     }
 
-    public ImmutableOpenMap<String, T> getParts() {
+    public ImmutableOpenMap<String, T> parts() {
         return parts;
     }
+
+    public T get(String type) {
+        return parts.get(type);
+    }
+
 
     public static class Factory<T extends MapItemClusterStatePart> extends AbstractFactory<MapClusterStatePart<T>> {
 
@@ -87,6 +99,99 @@ public class MapClusterStatePart<T extends MapItemClusterStatePart> extends Abst
                 builder.put(part.key(), part);
             }
             return new MapClusterStatePart<>(builder.build());
+        }
+
+        @Override
+        public Diff<MapClusterStatePart<T>> diff(@Nullable MapClusterStatePart<T> before, MapClusterStatePart<T> after) {
+            assert after != null;
+            Map<String, Diff<T>> diffs = newHashMap();
+            List<String> deletes = newArrayList();
+            if (before != null) {
+                ImmutableOpenMap<String, T> beforeParts = before.parts();
+                ImmutableOpenMap<String, T> afterParts = after.parts();
+                if (before.equals(after)) {
+                    return new NoDiff<>();
+                } else {
+                    for (ObjectObjectCursor<String, T> partIter : beforeParts) {
+                        if (!afterParts.containsKey(partIter.key)) {
+                            deletes.add(partIter.key);
+                        }
+                    }
+                    for (ObjectObjectCursor<String, T> partIter : afterParts) {
+                        T beforePart = beforeParts.get(partIter.key);
+                        diffs.put(partIter.key, factory.diff(beforePart, partIter.value));
+                    }
+                }
+            } else {
+                ImmutableOpenMap<String, T> afterParts = after.parts();
+                for (ObjectObjectCursor<String, T> partIter : afterParts) {
+                    diffs.put(partIter.key, factory.diff(null, partIter.value));
+                }
+            }
+            return new MapDiff<>(deletes, diffs);
+        }
+
+        @Override
+        public Diff<MapClusterStatePart<T>> readDiffFrom(StreamInput in, LocalContext context) throws IOException {
+            if (in.readBoolean()) {
+                int deletesSize = in.readVInt();
+                List<String> deletes = new ArrayList<>();
+                for (int i = 0; i < deletesSize; i++) {
+                    deletes.add(in.readString());
+                }
+
+                int diffsSize = in.readVInt();
+                Map<String, Diff<T>> diffs = newHashMap();
+                for (int i = 0; i < diffsSize; i++) {
+                    String key = in.readString();
+                    diffs.put(key, factory.readDiffFrom(in, context));
+                }
+                return new MapDiff<>(deletes, diffs);
+
+            } else {
+                return new NoDiff<>();
+            }
+        }
+
+    }
+
+    private static class MapDiff<T extends MapItemClusterStatePart> implements Diff<MapClusterStatePart<T>> {
+
+        private final Map<String, Diff<T>> diffs;
+        private final List<String> deletes;
+
+        private MapDiff(List<String> deletes, Map<String, Diff<T>> diffs) {
+            this.diffs = diffs;
+            this.deletes = deletes;
+        }
+
+        @Override
+        public MapClusterStatePart<T> apply(MapClusterStatePart<T> part) {
+            ImmutableOpenMap.Builder<String, T> parts = ImmutableOpenMap.builder();
+            parts.putAll(part.parts);
+            for (String delete : deletes) {
+                parts.remove(delete);
+            }
+
+            for (Map.Entry<String, Diff<T>> entry : diffs.entrySet()) {
+                parts.put(entry.getKey(), entry.getValue().apply(part.get(entry.getKey())));
+            }
+            return new MapClusterStatePart(parts.build());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(true); // We have diffs
+            out.writeVInt(deletes.size());
+            for (String delete : deletes) {
+                out.writeString(delete);
+            }
+
+            out.writeVInt(diffs.size());
+            for (Map.Entry<String, Diff<T>> entry : diffs.entrySet()) {
+                out.writeString(entry.getKey());
+                entry.getValue().writeTo(out);
+            }
         }
     }
 

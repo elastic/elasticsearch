@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -71,11 +70,6 @@ public class ClusterName extends AbstractClusterStatePart implements Streamable 
     }
 
     @Override
-    public String type() {
-        return TYPE;
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(value);
     }
@@ -109,11 +103,6 @@ public class ClusterName extends AbstractClusterStatePart implements Streamable 
     }
 
     public static class Factory extends AbstractFactory<ClusterName> {
-
-        @Override
-        public String type() {
-            return TYPE;
-        }
 
         @Override
         public ClusterName readFrom(StreamInput in, LocalContext context) throws IOException {

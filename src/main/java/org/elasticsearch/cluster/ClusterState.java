@@ -35,7 +35,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
@@ -467,11 +466,6 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> {
     public static class Factory extends AbstractCompositeClusterStatePartFactory<ClusterState> {
 
         @Override
-        public String type() {
-            return TYPE;
-        }
-
-        @Override
         public ClusterState fromParts(long version, String uuid, ImmutableOpenMap.Builder<String, ClusterStatePart> parts) {
             return new ClusterState(version, uuid, parts.build());
         }
@@ -483,11 +477,6 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> {
         registerFactory(ClusterBlocks.TYPE, ClusterBlocks.FACTORY);
         registerFactory(RoutingTable.TYPE, RoutingTable.FACTORY);
         registerFactory(MetaData.TYPE, MetaData.FACTORY);
-    }
-
-    @Override
-    public String type() {
-        return TYPE;
     }
 
     public static class ClusterStateDiff {

@@ -28,7 +28,6 @@ import com.google.common.collect.*;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.AbstractClusterStatePart;
-import org.elasticsearch.cluster.ClusterStatePart;
 import org.elasticsearch.cluster.LocalContext;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -73,11 +72,6 @@ public class MetaData extends AbstractClusterStatePart implements Iterable<Index
     public static class Factory extends AbstractFactory<MetaData> {
 
         @Override
-        public String type() {
-            return TYPE;
-        }
-
-        @Override
         public MetaData readFrom(StreamInput in, LocalContext context) throws IOException {
             return Builder.readFrom(in);
         }
@@ -86,11 +80,6 @@ public class MetaData extends AbstractClusterStatePart implements Iterable<Index
         public MetaData fromXContent(XContentParser parser, LocalContext context) throws IOException {
             throw new UnsupportedOperationException("Not implemented yet");
         }
-    }
-
-    @Override
-    public String type() {
-        return TYPE;
     }
 
     @Override
@@ -264,7 +253,7 @@ public class MetaData extends AbstractClusterStatePart implements Iterable<Index
 
     private final Settings transientSettings;
     private final Settings persistentSettings;
-    private final Settings settings;
+    private final Settings settings;  // Generated on the fly from transientSettings and persistentSettings
     private final ImmutableOpenMap<String, IndexMetaData> indices;
     private final ImmutableOpenMap<String, IndexTemplateMetaData> templates;
     private final ImmutableOpenMap<String, Custom> customs;

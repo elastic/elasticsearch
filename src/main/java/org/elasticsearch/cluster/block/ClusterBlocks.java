@@ -24,15 +24,12 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.cluster.AbstractClusterStatePart;
-import org.elasticsearch.cluster.ClusterStatePart;
 import org.elasticsearch.cluster.LocalContext;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -87,11 +84,6 @@ public class ClusterBlocks extends AbstractClusterStatePart {
     }
 
     public static class Factory extends AbstractFactory<ClusterBlocks> {
-
-        @Override
-        public String type() {
-            return TYPE;
-        }
 
         @Override
         public ClusterBlocks readFrom(StreamInput in, LocalContext context) throws IOException {
@@ -224,11 +216,6 @@ public class ClusterBlocks extends AbstractClusterStatePart {
             }
         }
         return new ClusterBlockException(builder.build());
-    }
-
-    @Override
-    public String type() {
-        return TYPE;
     }
 
     @Override

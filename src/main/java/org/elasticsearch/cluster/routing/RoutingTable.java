@@ -23,13 +23,11 @@ import com.carrotsearch.hppc.IntSet;
 import com.google.common.collect.*;
 import org.elasticsearch.cluster.AbstractClusterStatePart;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStatePart;
 import org.elasticsearch.cluster.LocalContext;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
@@ -70,11 +68,6 @@ public class RoutingTable extends AbstractClusterStatePart implements Iterable<I
 
 
     public static class Factory extends AbstractFactory<RoutingTable> {
-
-        @Override
-        public String type() {
-            return TYPE;
-        }
 
         @Override
         public RoutingTable readFrom(StreamInput in, LocalContext context) throws IOException {
@@ -321,11 +314,6 @@ public class RoutingTable extends AbstractClusterStatePart implements Iterable<I
 
     public static Builder builder(RoutingTable routingTable) {
         return new Builder(routingTable);
-    }
-
-    @Override
-    public String type() {
-        return TYPE;
     }
 
     @Override

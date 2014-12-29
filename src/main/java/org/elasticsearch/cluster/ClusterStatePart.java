@@ -51,15 +51,11 @@ public interface ClusterStatePart extends ToXContent {
     public static EnumSet<XContentContext> API_SNAPSHOT = EnumSet.of(XContentContext.API, XContentContext.SNAPSHOT);
     public static EnumSet<XContentContext> API_GATEWAY_SNAPSHOT = EnumSet.of(XContentContext.API, XContentContext.GATEWAY, XContentContext.SNAPSHOT);
 
-    String type();
-
     void writeTo(StreamOutput out) throws IOException;
 
     EnumSet<XContentContext> context();
 
     interface Factory<T extends ClusterStatePart> {
-
-        String type();
 
         Diff<T> diff(T before, T after);
 

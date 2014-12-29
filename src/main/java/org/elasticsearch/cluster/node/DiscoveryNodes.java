@@ -27,7 +27,6 @@ import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractClusterStatePart;
-import org.elasticsearch.cluster.ClusterStatePart;
 import org.elasticsearch.cluster.LocalContext;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
@@ -36,12 +35,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -70,11 +66,6 @@ public class DiscoveryNodes extends AbstractClusterStatePart implements Iterable
     private final Version minNonClientNodeVersion;
 
     public static class Factory extends AbstractFactory<DiscoveryNodes> {
-
-        @Override
-        public String type() {
-            return TYPE;
-        }
 
         @Override
         public DiscoveryNodes readFrom(StreamInput in, LocalContext context) throws IOException {
@@ -489,11 +480,6 @@ public class DiscoveryNodes extends AbstractClusterStatePart implements Iterable
 
     public Delta emptyDelta() {
         return new Delta(null, null, localNodeId, DiscoveryNode.EMPTY_LIST, DiscoveryNode.EMPTY_LIST);
-    }
-
-    @Override
-    public String type() {
-        return DiscoveryNodes.TYPE;
     }
 
     @Override

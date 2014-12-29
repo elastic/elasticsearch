@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.operation.hash;
+package org.elasticsearch.cluster.routing;
 
 /**
  * Simple hash function interface used for shard routing.

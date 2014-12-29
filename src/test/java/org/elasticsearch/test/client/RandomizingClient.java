@@ -25,7 +25,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
-import org.elasticsearch.cluster.routing.operation.plain.Preference;
+import org.elasticsearch.cluster.routing.Preference;
 
 import java.util.Arrays;
 import java.util.EnumSet;

@@ -17,18 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.operation.plain;
-
-import org.elasticsearch.cluster.routing.operation.OperationRouting;
-import org.elasticsearch.common.inject.AbstractModule;
+package org.elasticsearch.cluster.routing;
 
 /**
- *
+ * This class implements a simple hash function based on Java Build-In {@link Object#hashCode()}
  */
-public class PlainOperationRoutingModule extends AbstractModule {
+public class SimpleHashFunction implements HashFunction {
 
     @Override
-    protected void configure() {
-        bind(OperationRouting.class).to(PlainOperationRouting.class).asEagerSingleton();
+    public int hash(String routing) {
+        return routing.hashCode();
+    }
+
+    @Override
+    public int hash(String type, String id) {
+        return type.hashCode() + 31 * id.hashCode();
     }
 }

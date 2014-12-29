@@ -26,7 +26,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +34,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
+import java.io.Closeable;
 import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
@@ -42,7 +42,7 @@ import static com.google.common.collect.Maps.newHashMap;
 /**
  *
  */
-public class AnalysisService extends AbstractIndexComponent implements CloseableComponent {
+public class AnalysisService extends AbstractIndexComponent implements Closeable {
 
     private final ImmutableMap<String, NamedAnalyzer> analyzers;
     private final ImmutableMap<String, TokenizerFactory> tokenizers;

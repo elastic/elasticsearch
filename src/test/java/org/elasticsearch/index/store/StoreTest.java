@@ -32,6 +32,7 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.distributor.Distributor;
@@ -47,6 +48,7 @@ import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.Adler32;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
@@ -1023,5 +1025,29 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         store.verifyAfterCleanup(snapshot, snapshot);
         store.deleteContent();
         IOUtils.close(store);
+    }
+
+    public void testOnCloseCallback() throws IOException {
+        final ShardId shardId = new ShardId(new Index(randomRealisticUnicodeOfCodepointLengthBetween(1, 10)), randomIntBetween(0, 100));
+        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
+        final AtomicInteger count = new AtomicInteger(0);
+        final ShardLock lock = new DummyShardLock(shardId);
+
+        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, randomDistributor(directoryService), lock , new Store.OnClose() {
+            @Override
+            public void handle(ShardLock theLock) {
+                assertEquals(shardId, theLock.getShardId());
+                assertEquals(lock, theLock);
+                count.incrementAndGet();
+            }
+        });
+        assertEquals(count.get(), 0);
+
+        final int iters = randomIntBetween(1, 10);
+        for (int i = 0; i < iters; i++) {
+            store.close();
+        }
+
+        assertEquals(count.get(), 1);
     }
 }

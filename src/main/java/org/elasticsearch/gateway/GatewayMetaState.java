@@ -192,10 +192,6 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         return loadState();
     }
 
-    public boolean isDangling(String index) {
-        return danglingIndices.containsKey(index);
-    }
-
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.state().blocks().disableStatePersistence()) {

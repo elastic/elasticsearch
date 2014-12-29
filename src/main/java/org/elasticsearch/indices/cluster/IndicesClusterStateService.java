@@ -161,9 +161,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             // are going to recover them again once state persistence is disabled (no master / not recovered)
             // TODO: this feels a bit hacky here, a block disables state persistence, and then we clean the allocated shards, maybe another flag in blocks?
             if (event.state().blocks().disableStatePersistence()) {
-                for (Map.Entry<String, IndexService> entry : indicesService.indices().entrySet()) {
-                    String index = entry.getKey();
-                    IndexService indexService = entry.getValue();
+                for (IndexService indexService : indicesService) {
+                    String index = indexService.index().getName();
                     for (Integer shardId : indexService.shardIds()) {
                         logger.debug("[{}][{}] removing shard (disabled block persistence)", index, shardId);
                         try {
@@ -220,11 +219,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private void applyCleanedIndices(final ClusterChangedEvent event) {
         // handle closed indices, since they are not allocated on a node once they are closed
         // so applyDeletedIndices might not take them into account
-        for (Map.Entry<String, IndexService> entry : indicesService.indices().entrySet()) {
-            String index = entry.getKey();
+        for (IndexService indexService : indicesService) {
+            String index = indexService.index().getName();
             IndexMetaData indexMetaData = event.state().metaData().index(index);
             if (indexMetaData != null && indexMetaData.state() == IndexMetaData.State.CLOSE) {
-                IndexService indexService = entry.getValue();
                 for (Integer shardId : indexService.shardIds()) {
                     logger.debug("[{}][{}] removing shard (index is closed)", index, shardId);
                     try {
@@ -235,9 +233,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
             }
         }
-        for (Map.Entry<String, IndexService> entry : indicesService.indices().entrySet()) {
-            String index = entry.getKey();
-            IndexService indexService = entry.getValue();
+        for (IndexService indexService : indicesService) {
+            String index = indexService.index().getName();
             if (indexService.shardIds().isEmpty()) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("[{}] cleaning index (no shards allocated)", index);
@@ -249,7 +246,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     private void applyDeletedIndices(final ClusterChangedEvent event) {
-        for (final String index : indicesService.indices().keySet()) {
+        for (IndexService indexService : indicesService) {
+            final String index = indexService.index().name();
             if (!event.state().metaData().hasIndex(index)) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("[{}] cleaning index, no longer part of the metadata", index);

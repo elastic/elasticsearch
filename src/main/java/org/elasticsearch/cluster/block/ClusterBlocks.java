@@ -25,6 +25,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.cluster.AbstractClusterStatePart;
 import org.elasticsearch.cluster.ClusterStatePart;
+import org.elasticsearch.cluster.LocalContext;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -93,13 +94,8 @@ public class ClusterBlocks extends AbstractClusterStatePart {
         }
 
         @Override
-        public ClusterBlocks readFrom(StreamInput in) throws IOException {
+        public ClusterBlocks readFrom(StreamInput in, LocalContext context) throws IOException {
             return Builder.readClusterBlocks(in);
-        }
-
-        @Override
-        public ClusterBlocks fromXContent(XContentParser parser) throws IOException {
-            throw new UnsupportedOperationException("Not implemented yet");
         }
     }
 

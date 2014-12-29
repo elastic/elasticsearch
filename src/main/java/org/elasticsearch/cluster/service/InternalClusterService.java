@@ -481,7 +481,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
                 logger.debug("processing [{}]: done applying updated cluster_state (version: {})", source, newClusterState.version());
             } catch (Throwable t) {
-                StringBuilder sb = new StringBuilder("failed to apply updated cluster state:\nversion [").append(newClusterState.version()).append("], source [").append(source).append("]\n");
+                StringBuilder sb = new StringBuilder("failed to apply updated cluster state:\nversion [").append(newClusterState.version()).append("], uuid [").append(newClusterState.uuid()).append("], source [").append(source).append("]\n");
                 sb.append(newClusterState.nodes().prettyPrint());
                 sb.append(newClusterState.routingTable().prettyPrint());
                 sb.append(newClusterState.readOnlyRoutingNodes().prettyPrint());

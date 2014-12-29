@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -40,8 +41,6 @@ import org.elasticsearch.discovery.*;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
-import java.util.Arrays;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
@@ -305,19 +304,28 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 if (discovery.master) {
                     continue;
                 }
-                final ClusterState nodeSpecificClusterState;
+                ClusterState newNodeSpecificClusterState = null;
                 // we do the marshaling intentionally, to check it works well...
                 if (lastProcessedClusterState != null && lastProcessedClusterState.nodes().nodeExists(discovery.localNode.id())) {
                     if (clusterStateDiffBytes == null) {
                         clusterStateDiffBytes = Builder.toDiffBytes(lastProcessedClusterState, clusterState);
                     }
-                    nodeSpecificClusterState = ClusterState.Builder.fromDiffBytes(lastProcessedClusterState, clusterStateDiffBytes, discovery.localNode);
-                } else {
+//                    nodeSpecificClusterState = ClusterState.Builder.fromDiffBytes(lastProcessedClusterState, clusterStateDiffBytes, discovery.localNode);
+                    ClusterState.ClusterStateDiff diff = ClusterState.Builder.readDiffFrom(new BytesStreamInput(clusterStateDiffBytes, false), discovery.localNode);
+                    try {
+                        newNodeSpecificClusterState = diff.apply(discovery.clusterService.state());
+                    } catch (IncompatibleClusterStateVersionException ex) {
+                        logger.debug("incompatible cluster state version - resending complete cluster state", ex);
+                    }
+                }
+                if (newNodeSpecificClusterState == null) {
                     if (clusterStateBytes == null) {
                         clusterStateBytes = Builder.toBytes(clusterState);
                     }
-                    nodeSpecificClusterState = ClusterState.Builder.fromBytes(clusterStateBytes, discovery.localNode);
+                    newNodeSpecificClusterState = ClusterState.Builder.fromBytes(clusterStateBytes, discovery.localNode);
                 }
+                final ClusterState nodeSpecificClusterState = newNodeSpecificClusterState;
+
                 nodeSpecificClusterState.status(ClusterState.ClusterStateStatus.RECEIVED);
                 // ignore cluster state messages that do not include "me", not in the game yet...
                 if (nodeSpecificClusterState.nodes().localNode() != null) {

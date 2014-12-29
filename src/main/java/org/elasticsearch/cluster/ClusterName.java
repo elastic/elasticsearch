@@ -116,13 +116,9 @@ public class ClusterName extends AbstractClusterStatePart implements Streamable 
         }
 
         @Override
-        public ClusterName readFrom(StreamInput in) throws IOException {
+        public ClusterName readFrom(StreamInput in, LocalContext context) throws IOException {
             return readClusterName(in);
         }
 
-        @Override
-        public ClusterName fromXContent(XContentParser parser) throws IOException {
-            throw new UnsupportedOperationException("Not implemented yet");
-        }
     }
 }

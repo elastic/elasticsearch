@@ -29,6 +29,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.AbstractClusterStatePart;
 import org.elasticsearch.cluster.ClusterStatePart;
+import org.elasticsearch.cluster.LocalContext;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.Nullable;
@@ -77,12 +78,12 @@ public class MetaData extends AbstractClusterStatePart implements Iterable<Index
         }
 
         @Override
-        public MetaData readFrom(StreamInput in) throws IOException {
+        public MetaData readFrom(StreamInput in, LocalContext context) throws IOException {
             return Builder.readFrom(in);
         }
 
         @Override
-        public MetaData fromXContent(XContentParser parser) throws IOException {
+        public MetaData fromXContent(XContentParser parser, LocalContext context) throws IOException {
             throw new UnsupportedOperationException("Not implemented yet");
         }
     }

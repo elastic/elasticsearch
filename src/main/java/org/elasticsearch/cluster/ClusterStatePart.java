@@ -63,11 +63,11 @@ public interface ClusterStatePart extends ToXContent {
 
         Diff<T> diff(T before, T after);
 
-        Diff<T> readDiffFrom(StreamInput in) throws IOException;
+        Diff<T> readDiffFrom(StreamInput in, LocalContext context) throws IOException;
 
-        T readFrom(StreamInput in) throws IOException;
+        T readFrom(StreamInput in, LocalContext context) throws IOException;
 
-        T fromXContent(XContentParser parser) throws IOException;
+        T fromXContent(XContentParser parser, LocalContext context) throws IOException;
 
         Version addedIn();
 

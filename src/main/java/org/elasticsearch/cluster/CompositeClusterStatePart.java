@@ -141,22 +141,17 @@ public abstract class CompositeClusterStatePart<T extends CompositeClusterStateP
     public static abstract class AbstractCompositeClusterStatePartFactory<T extends CompositeClusterStatePart> extends AbstractClusterStatePart.AbstractFactory<T> {
 
         @Override
-        public T readFrom(StreamInput in) throws IOException {
+        public T readFrom(StreamInput in, LocalContext context) throws IOException {
             long version = in.readVLong();
             String uuid = in.readString();
             ImmutableOpenMap.Builder<String, ClusterStatePart> builder = ImmutableOpenMap.builder();
             int partsSize = in.readVInt();
             for (int i = 0; i < partsSize; i++) {
                 String type = in.readString();
-                ClusterStatePart part = lookupFactorySafe(type).readFrom(in);
+                ClusterStatePart part = lookupFactorySafe(type).readFrom(in, context);
                 builder.put(type, part);
             }
             return fromParts(version, uuid, builder);
-        }
-
-        @Override
-        public T fromXContent(XContentParser parser) throws IOException {
-            return null;
         }
 
         public abstract T fromParts(long version, String uuid, ImmutableOpenMap.Builder<String, ClusterStatePart> parts);
@@ -184,7 +179,7 @@ public abstract class CompositeClusterStatePart<T extends CompositeClusterStateP
         }
 
         @Override
-        public Diff<T> readDiffFrom(StreamInput in) throws IOException {
+        public Diff<T> readDiffFrom(StreamInput in, LocalContext context) throws IOException {
             if (in.readBoolean()) {
                 long version = in.readVLong();
                 String previousUuid = in.readString();
@@ -199,7 +194,7 @@ public abstract class CompositeClusterStatePart<T extends CompositeClusterStateP
                 Map<String, Diff<ClusterStatePart>> diffs = newHashMap();
                 for (int i = 0; i < diffsSize; i++) {
                     String key = in.readString();
-                    diffs.put(key, lookupFactorySafe(key).readDiffFrom(in));
+                    diffs.put(key, lookupFactorySafe(key).readDiffFrom(in, context));
                 }
                 return new CompositeDiff<>(this, version, previousUuid, uuid, deletes, diffs);
 

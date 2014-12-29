@@ -24,6 +24,7 @@ import com.google.common.collect.*;
 import org.elasticsearch.cluster.AbstractClusterStatePart;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStatePart;
+import org.elasticsearch.cluster.LocalContext;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -76,12 +77,12 @@ public class RoutingTable extends AbstractClusterStatePart implements Iterable<I
         }
 
         @Override
-        public RoutingTable readFrom(StreamInput in) throws IOException {
+        public RoutingTable readFrom(StreamInput in, LocalContext context) throws IOException {
             return Builder.readFrom(in);
         }
 
         @Override
-        public RoutingTable fromXContent(XContentParser parser) throws IOException {
+        public RoutingTable fromXContent(XContentParser parser, LocalContext context) throws IOException {
             throw new UnsupportedOperationException("Not implemented yet");
         }
     }

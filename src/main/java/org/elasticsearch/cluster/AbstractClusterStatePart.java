@@ -22,6 +22,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -86,10 +87,10 @@ public abstract class AbstractClusterStatePart implements ClusterStatePart {
         }
 
         @Override
-        public Diff<T> readDiffFrom(StreamInput in) throws IOException {
+        public Diff<T> readDiffFrom(StreamInput in, LocalContext context) throws IOException {
             if(in.readBoolean()) {
                 if (in.readBoolean()) {
-                    T part = readFrom(in);
+                    T part = readFrom(in, context);
                     return new CompleteDiff<T>(part);
                 } else {
                     return new CompleteDiff<T>(null);
@@ -102,6 +103,11 @@ public abstract class AbstractClusterStatePart implements ClusterStatePart {
         @Override
         public Version addedIn() {
             return null;
+        }
+
+        @Override
+        public T fromXContent(XContentParser parser, LocalContext context) throws IOException {
+            throw new UnsupportedOperationException("Not implemented yet");
         }
     }
 

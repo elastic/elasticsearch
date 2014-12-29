@@ -315,6 +315,7 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> {
 
         public Builder(ClusterState state) {
             this.version = state.version();
+            this.uuid = state.uuid();
             this.parts = ImmutableOpenMap.builder(state.parts);
             putPart(ClusterName.TYPE, state.getClusterName());
             putPart(MetaData.TYPE, state.metaData());
@@ -434,24 +435,17 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> {
          * @param localNode          used to set the local node in the cluster state. can be null.
          */
         public static ClusterState readFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
-            ClusterState clusterState = FACTORY.readFrom(in);
-            //TODO: Hack!!!! Need to find a better way to handle localNode
-            if (localNode != null) {
-                Builder builder = new Builder(clusterState);
-                DiscoveryNodes discoveryNodes = builder.getPart(DiscoveryNodes.TYPE);
-                builder.nodes(DiscoveryNodes.builder(discoveryNodes).localNodeId(localNode.id()));
-                return builder.build();
-            }
-            return clusterState;
+            return FACTORY.readFrom(in, new LocalContext(localNode));
         }
 
         public static ClusterStateDiff readDiffFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
             long version = in.readVLong();
-            return new ClusterStateDiff(version, localNode, FACTORY.readDiffFrom(in));
+            LocalContext localContext = new LocalContext(localNode);
+            return new ClusterStateDiff(version, FACTORY.readDiffFrom(in, localContext));
         }
 
         public static ClusterStateDiff diff(ClusterState before, ClusterState after) {
-            return new ClusterStateDiff(after.version(), null, ClusterState.FACTORY.diff(before, after) );
+            return new ClusterStateDiff(after.version(), ClusterState.FACTORY.diff(before, after) );
         }
 
         public static byte[] toDiffBytes(ClusterState before, ClusterState after) throws IOException {
@@ -497,24 +491,16 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> {
     }
 
     public static class ClusterStateDiff {
-        private DiscoveryNode localNode;
         private long version;
         private ClusterState.Diff<ClusterState> diff;
 
-        public ClusterStateDiff(long version, @Nullable DiscoveryNode localNode, ClusterState.Diff<ClusterState> diff) {
+        public ClusterStateDiff(long version, ClusterState.Diff<ClusterState> diff) {
             this.version = version;
-            this.localNode = localNode;
             this.diff = diff;
         }
 
         public ClusterState apply(ClusterState previous) throws IncompatibleClusterStateVersionException {
             ClusterState newState = diff.apply(previous);
-            if (!newState.equals(previous) && localNode != null) {
-                Builder builder = new Builder(newState);
-                DiscoveryNodes discoveryNodes = builder.getPart(DiscoveryNodes.TYPE);
-                builder.nodes(DiscoveryNodes.builder(discoveryNodes).localNodeId(localNode.id()));
-                return builder.build();
-            }
             return newState;
         }
 

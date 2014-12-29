@@ -28,6 +28,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractClusterStatePart;
 import org.elasticsearch.cluster.ClusterStatePart;
+import org.elasticsearch.cluster.LocalContext;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -76,13 +77,8 @@ public class DiscoveryNodes extends AbstractClusterStatePart implements Iterable
         }
 
         @Override
-        public DiscoveryNodes readFrom(StreamInput in) throws IOException {
-            return Builder.readFrom(in, null);
-        }
-
-        @Override
-        public DiscoveryNodes fromXContent(XContentParser parser) throws IOException {
-            throw new UnsupportedOperationException("Not implemented yet");
+        public DiscoveryNodes readFrom(StreamInput in, LocalContext context) throws IOException {
+            return Builder.readFrom(in, context.getLocalNode());
         }
     }
 

@@ -41,7 +41,7 @@ associated with it):
 
 [source,js]
 --------------------------------------------------
-curl -XDELETE 'localhost:9200/_river/my_river/'
+curl -XDELETE 'localhost:9200/_river/my_river/' -d '{"type": "dummy"}'
 --------------------------------------------------
 
 

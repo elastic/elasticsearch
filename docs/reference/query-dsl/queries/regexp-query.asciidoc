@@ -50,7 +50,7 @@ You can also use special flags
 }
 --------------------------------------------------
 
-Possible flags are `ALL`, `ANYSTRING`, `AUTOMATON`, `COMPLEMENT`,
+Possible flags are `ALL` (default), `ANYSTRING`, `COMPLEMENT`,
 `EMPTY`, `INTERSECTION`, `INTERVAL`, or `NONE`. Please check the
 http://lucene.apache.org/core/4_9_0/core/org/apache/lucene/util/automaton/RegExp.html[Lucene
 documentation] for their meaning

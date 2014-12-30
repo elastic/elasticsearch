@@ -79,8 +79,6 @@ public class ValuesSourceParser<VS extends ValuesSource> {
     private boolean scriptable = true;
     private boolean formattable = false;
     private ValueType targetValueType = null;
-    private boolean requiresSortedValues = false;
-    private boolean requiresUniqueValues = false;
     private ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
 
     private Input input = new Input();

@@ -361,8 +361,11 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
             // will get the correct position in the edge list and therefore the correct component to add the hole
             current.intersect = current.coordinate;
             final int intersections = intersections(current.coordinate.x, edges);
-            final int pos = Arrays.binarySearch(edges, 0, intersections, current, INTERSECTION_ORDER);
-            if (pos >= 0) {
+            // if no intersection is found then the hole is not within the polygon, so
+            // don't waste time calling a binary search
+            final int pos;
+            if (intersections == 0 ||
+               (pos = Arrays.binarySearch(edges, 0, intersections, current, INTERSECTION_ORDER)) >= 0) {
                 throw new ElasticsearchParseException("Invaild shape: Hole is not within polygon");
             }
             final int index = -(pos+2);

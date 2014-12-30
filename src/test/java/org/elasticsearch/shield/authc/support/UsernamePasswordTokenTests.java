@@ -135,4 +135,8 @@ public class UsernamePasswordTokenTests extends ElasticsearchTestCase {
         UsernamePasswordToken token2 = new UsernamePasswordToken("username", new SecuredString("password".toCharArray()));
         assertThat(token1, equalTo(token2));
     }
+
+    public static String basicAuthHeaderValue(String username, String passwd) {
+        return UsernamePasswordToken.basicAuthHeaderValue(username, new SecuredString(passwd.toCharArray()));
+    }
 }

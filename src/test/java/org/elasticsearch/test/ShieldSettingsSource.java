@@ -6,11 +6,9 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.os.OsUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -25,12 +23,11 @@ import org.elasticsearch.shield.transport.netty.NettySecuredTransport;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 
 import java.io.File;
-import java.io.IOException;
 import java.net.URISyntaxException;
-import java.nio.file.Path;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.shield.test.ShieldTestUtils.writeFile;
 
 /**
  * {@link org.elasticsearch.test.SettingsSource} subclass that allows to set all needed settings for shield.
@@ -97,6 +94,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
                 .put("shield.audit.enabled", RandomizedTest.randomBoolean())
                 .put(InternalSignatureService.FILE_SETTING, writeFile(folder, "system_key", systemKey))
                 .put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE)
+                .put("shield.authc.realms.esusers.order", 0)
                 .put("shield.authc.realms.esusers.files.users", writeFile(folder, "users", configUsers()))
                 .put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
                 .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRoles()))
@@ -179,20 +177,6 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
             throw new RuntimeException("Could not create temporary folder: " + createdFolder.getAbsolutePath());
         }
         return createdFolder;
-    }
-
-    private static String writeFile(File folder, String name, byte[] content) {
-        Path file = folder.toPath().resolve(name);
-        try {
-            Streams.copy(content, file.toFile());
-        } catch (IOException e) {
-            throw new ElasticsearchException("Error writing file in test", e);
-        }
-        return file.toFile().getAbsolutePath();
-    }
-
-    private static String writeFile(File folder, String name, String content) {
-        return writeFile(folder, name, content.getBytes(Charsets.UTF_8));
     }
 
     private static byte[] generateKey() {

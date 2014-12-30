@@ -43,11 +43,11 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
     protected final SignificantTermsAggregatorFactory termsAggFactory;
 
     public SignificantStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
-            long estimatedBucketCount, BucketCountThresholds bucketCountThresholds,
+            BucketCountThresholds bucketCountThresholds,
             IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent,
-            SignificantTermsAggregatorFactory termsAggFactory, Map<String, Object> metaData) {
+            SignificantTermsAggregatorFactory termsAggFactory, Map<String, Object> metaData) throws IOException {
 
-        super(name, factories, valuesSource, estimatedBucketCount, null, bucketCountThresholds, includeExclude, aggregationContext, parent, SubAggCollectionMode.DEPTH_FIRST, false, metaData);
+        super(name, factories, valuesSource, null, bucketCountThresholds, includeExclude, aggregationContext, parent, SubAggCollectionMode.DEPTH_FIRST, false, metaData);
         this.termsAggFactory = termsAggFactory;
     }
 
@@ -58,7 +58,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
     }
 
     @Override
-    public SignificantStringTerms buildAggregation(long owningBucketOrdinal) {
+    public SignificantStringTerms buildAggregation(long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
 
         final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
@@ -98,7 +98,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
             list[i] = bucket;
         }
 
-        return new SignificantStringTerms(subsetSize, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Arrays.asList(list), getMetaData());
+        return new SignificantStringTerms(subsetSize, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Arrays.asList(list), metaData());
     }
 
     @Override
@@ -107,7 +107,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         ContextIndexSearcher searcher = context.searchContext().searcher();
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
-        return new SignificantStringTerms(0, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Collections.<InternalSignificantTerms.Bucket>emptyList(), getMetaData());
+        return new SignificantStringTerms(0, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Collections.<InternalSignificantTerms.Bucket>emptyList(), metaData());
     }
 
     @Override

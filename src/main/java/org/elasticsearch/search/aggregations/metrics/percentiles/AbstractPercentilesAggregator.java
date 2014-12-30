@@ -49,14 +49,14 @@ public abstract class AbstractPercentilesAggregator extends NumericMetricsAggreg
     protected final boolean keyed;
     protected ValueFormatter formatter;
 
-    public AbstractPercentilesAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context,
- Aggregator parent, double[] keys, double compression, boolean keyed,
-            @Nullable ValueFormatter formatter, Map<String, Object> metaData) {
-        super(name, estimatedBucketsCount, context, parent, metaData);
+    public AbstractPercentilesAggregator(String name, ValuesSource.Numeric valuesSource, AggregationContext context,
+                                 Aggregator parent, double[] keys, double compression, boolean keyed,
+                                 @Nullable ValueFormatter formatter, Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, metaData);
         this.valuesSource = valuesSource;
         this.keyed = keyed;
         this.formatter = formatter;
-        this.states = bigArrays.newObjectArray(estimatedBucketsCount);
+        this.states = bigArrays.newObjectArray(1);
         this.keys = keys;
         this.compression = compression;
     }

@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticsearchParseException;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -34,9 +36,27 @@ import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public abstract class Aggregator extends BucketCollector implements Releasable {
+
+    /**
+     * Returns whether one of the parents is a {@link BucketsAggregator}.
+     */
+    public static boolean descendsFromBucketAggregator(Aggregator parent) {
+        while (parent != null) {
+            if (parent instanceof BucketsAggregator) {
+                return true;
+            }
+            parent = parent.parent;
+        }
+        return false;
+    }
 
     private static final Predicate<Aggregator> COLLECTABLE_AGGREGATOR = new Predicate<Aggregator>() {
         @Override
@@ -44,42 +64,8 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
             return aggregator.shouldCollect();
         }
     };
-    private final Map<String, Object> metaData;
-
-    /**
-     * Returns whether any of the parent aggregators has {@link BucketAggregationMode#PER_BUCKET} as a bucket aggregation mode.
-     */
-    public static boolean hasParentBucketAggregator(Aggregator parent) {
-        if (parent == null) {
-            return false;
-        } else if (parent.bucketAggregationMode() == BucketAggregationMode.PER_BUCKET) {
-            return true;
-        } else {
-            return hasParentBucketAggregator(parent.parent());
-        }
-    }
 
     public static final ParseField COLLECT_MODE = new ParseField("collect_mode");
-
-    public Map<String, Object> getMetaData() {
-        return this.metaData;
-    }
-
-    /**
-     * Defines the nature of the aggregator's aggregation execution when nested in other aggregators and the buckets they create.
-     */
-    public static enum BucketAggregationMode {
-
-        /**
-         * In this mode, a new aggregator instance will be created per bucket (created by the parent aggregator)
-         */
-        PER_BUCKET,
-
-        /**
-         * In this mode, a single aggregator instance will be created per parent aggregator, that will handle the aggregations of all its buckets.
-         */
-        MULTI_BUCKETS
-    }
     
     public enum SubAggCollectionMode {
 
@@ -163,9 +149,8 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     protected final AggregationContext context;
     protected final BigArrays bigArrays;
     protected final int depth;
-    protected final long estimatedBucketCount;
+    private final Map<String, Object> metaData;
 
-    protected final BucketAggregationMode bucketAggregationMode;
     protected final AggregatorFactories factories;
     protected final Aggregator[] subAggregators;
     protected BucketCollector collectableSubAggregators;
@@ -177,25 +162,21 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * Constructs a new Aggregator.
      *
      * @param name                  The name of the aggregation
-     * @param bucketAggregationMode The nature of execution as a sub-aggregator (see {@link BucketAggregationMode})
      * @param factories             The factories for all the sub-aggregators under this aggregator
-     * @param estimatedBucketsCount When served as a sub-aggregator, indicate how many buckets the parent aggregator will generate.
      * @param context               The aggregation context
      * @param parent                The parent aggregator (may be {@code null} for top level aggregators)
      * @param metaData              The metaData associated with this aggregator
      */
-    protected Aggregator(String name, BucketAggregationMode bucketAggregationMode, AggregatorFactories factories, long estimatedBucketsCount, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
+    protected Aggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
         this.name = name;
         this.metaData = metaData;
         this.parent = parent;
-        this.estimatedBucketCount = estimatedBucketsCount;
         this.context = context;
         this.bigArrays = context.bigArrays();
         this.depth = parent == null ? 0 : 1 + parent.depth();
-        this.bucketAggregationMode = bucketAggregationMode;
         assert factories != null : "sub-factories provided to BucketAggregator must not be null, use AggragatorFactories.EMPTY instead";
         this.factories = factories;
-        this.subAggregators = factories.createSubAggregators(this, estimatedBucketsCount);
+        this.subAggregators = factories.createSubAggregators(this);
         context.searchContext().addReleasable(this, Lifetime.PHASE);
         // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent preCollection call)
         collectableSubAggregators = new BucketCollector() {
@@ -205,6 +186,11 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
             }
             @Override
             public void setNextReader(LeafReaderContext reader) {
+                badState();
+            }
+
+            @Override
+            public void preCollection() throws IOException {
                 badState();
             }
 
@@ -225,7 +211,17 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         };
     }
 
-    protected void preCollection() {
+    public Map<String, Object> metaData() {
+        return this.metaData;
+    }
+
+    /**
+     * Can be overriden by aggregator implementation to be called back when the collection phase starts.
+     */
+    protected void doPreCollection() throws IOException {
+    }
+
+    public final void preCollection() throws IOException {
         Iterable<Aggregator> collectables = Iterables.filter(Arrays.asList(subAggregators), COLLECTABLE_AGGREGATOR);
         List<BucketCollector> nextPassCollectors = new ArrayList<>();
         List<BucketCollector> thisPassCollectors = new ArrayList<>();
@@ -247,6 +243,8 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
             thisPassCollectors.add(recordingWrapper);            
         }
         collectableSubAggregators = BucketCollector.wrap(thisPassCollectors);
+        collectableSubAggregators.preCollection();
+        doPreCollection();
     }
     
     /**
@@ -277,11 +275,6 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      */
     public String name() {
         return name;
-    }
-
-    /** Return the estimated number of buckets. */
-    public final long estimatedBucketCount() {
-        return estimatedBucketCount;
     }
 
     /** Return the depth of this aggregator in the aggregation tree. */
@@ -321,14 +314,6 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     }
 
     /**
-     * @return  The bucket aggregation mode of this aggregator. This mode defines the nature in which the aggregation is executed
-     * @see     BucketAggregationMode
-     */
-    public BucketAggregationMode bucketAggregationMode() {
-        return bucketAggregationMode;
-    }
-
-    /**
      * @return  Whether this aggregator is in the state where it can collect documents. Some aggregators can do their aggregations without
      *          actually collecting documents, for example, an aggregator that computes stats over unmapped fields doesn't need to collect
      *          anything as it knows to just return "empty" stats as the aggregation result.
@@ -363,10 +348,10 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     /**
      * @return  The aggregated & built aggregation
      */
-    public abstract InternalAggregation buildAggregation(long owningBucketOrdinal);
+    public abstract InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException;
     
     @Override
-    public void gatherAnalysis(BucketAnalysisCollector results, long bucketOrdinal) {
+    public void gatherAnalysis(BucketAnalysisCollector results, long bucketOrdinal) throws IOException {
         results.add(buildAggregation(bucketOrdinal));
     }
     

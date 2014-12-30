@@ -64,14 +64,13 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     private Collector collector;
     private ValueFormatter formatter;
 
-    public CardinalityAggregator(String name, long estimatedBucketsCount, ValuesSource valuesSource, boolean rehash,
- int precision,
-            @Nullable ValueFormatter formatter, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
-        super(name, estimatedBucketsCount, context, parent, metaData);
+    public CardinalityAggregator(String name, ValuesSource valuesSource, boolean rehash, int precision, @Nullable ValueFormatter formatter,
+                                 AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, metaData);
         this.valuesSource = valuesSource;
         this.rehash = rehash;
         this.precision = precision;
-        this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, bigArrays, estimatedBucketsCount);
+        this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, bigArrays, 1);
         this.formatter = formatter;
     }
 
@@ -157,12 +156,12 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         // this Aggregator (and its HLL++ counters) is released.
         HyperLogLogPlusPlus copy = new HyperLogLogPlusPlus(precision, BigArrays.NON_RECYCLING_INSTANCE, 1);
         copy.merge(0, counts, owningBucketOrdinal);
-        return new InternalCardinality(name, copy, formatter, getMetaData());
+        return new InternalCardinality(name, copy, formatter, metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalCardinality(name, null, formatter, getMetaData());
+        return new InternalCardinality(name, null, formatter, metaData());
     }
 
     @Override

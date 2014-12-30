@@ -48,15 +48,14 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     private DoubleArray sums;
     private ValueFormatter formatter;
 
-    public AvgAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
-            AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
-        super(name, estimatedBucketsCount, context, parent, metaData);
+    public AvgAggregator(String name, ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
+            AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
+        super(name,context, parent, metaData);
         this.valuesSource = valuesSource;
         this.formatter = formatter;
         if (valuesSource != null) {
-            final long initialSize = estimatedBucketsCount < 2 ? 1 : estimatedBucketsCount;
-            counts = bigArrays.newLongArray(initialSize, true);
-            sums = bigArrays.newDoubleArray(initialSize, true);
+            counts = bigArrays.newLongArray(1, true);
+            sums = bigArrays.newDoubleArray(1, true);
         }
     }
 
@@ -93,30 +92,30 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null || owningBucketOrdinal >= counts.size()) {
-            return new InternalAvg(name, 0l, 0, formatter, getMetaData());
+            return new InternalAvg(name, 0l, 0, formatter, metaData());
         }
-        return new InternalAvg(name, sums.get(owningBucketOrdinal), counts.get(owningBucketOrdinal), formatter, getMetaData());
+        return new InternalAvg(name, sums.get(owningBucketOrdinal), counts.get(owningBucketOrdinal), formatter, metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalAvg(name, 0.0, 0l, formatter, getMetaData());
+        return new InternalAvg(name, 0.0, 0l, formatter, metaData());
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, Map<String, Object>> {
+    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
 
         public Factory(String name, String type, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig) {
             super(name, type, valuesSourceConfig);
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new AvgAggregator(name, 0, null, config.formatter(), aggregationContext, parent, metaData);
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
+            return new AvgAggregator(name, null, config.formatter(), aggregationContext, parent, metaData);
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new AvgAggregator(name, expectedBucketsCount, valuesSource, config.formatter(), aggregationContext, parent, metaData);
+        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
+            return new AvgAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, metaData);
         }
     }
 

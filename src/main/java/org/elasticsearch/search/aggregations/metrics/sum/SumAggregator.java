@@ -46,14 +46,13 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
     private DoubleArray sums;
     private ValueFormatter formatter;
 
-    public SumAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
-            AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
-        super(name, estimatedBucketsCount, context, parent, metaData);
+    public SumAggregator(String name, ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
+            AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, metaData);
         this.valuesSource = valuesSource;
         this.formatter = formatter;
         if (valuesSource != null) {
-            final long initialSize = estimatedBucketsCount < 2 ? 1 : estimatedBucketsCount;
-            sums = bigArrays.newDoubleArray(initialSize, true);
+            sums = bigArrays.newDoubleArray(1, true);
         }
     }
 
@@ -87,30 +86,30 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
-            return new InternalSum(name, 0, formatter, getMetaData());
+            return new InternalSum(name, 0, formatter, metaData());
         }
-        return new InternalSum(name, sums.get(owningBucketOrdinal), formatter, getMetaData());
+        return new InternalSum(name, sums.get(owningBucketOrdinal), formatter, metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalSum(name, 0.0, formatter, getMetaData());
+        return new InternalSum(name, 0.0, formatter, metaData());
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, Map<String, Object>> {
+    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
 
         public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig) {
             super(name, InternalSum.TYPE.name(), valuesSourceConfig);
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new SumAggregator(name, 0, null, config.formatter(), aggregationContext, parent, metaData);
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
+            return new SumAggregator(name, null, config.formatter(), aggregationContext, parent, metaData);
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new SumAggregator(name, expectedBucketsCount, valuesSource, config.formatter(), aggregationContext, parent, metaData);
+        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
+            return new SumAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, metaData);
         }
     }
 

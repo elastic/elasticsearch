@@ -18,8 +18,13 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -72,20 +77,20 @@ public abstract class AggregatorFactory {
         return parent;
     }
 
+    protected abstract Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException;
+
     /**
      * Creates the aggregator
      *
      * @param context               The aggregation context
      * @param parent                The parent aggregator (if this is a top level factory, the parent will be {@code null})
-     * @param expectedBucketsCount  If this is a sub-factory of another factory, this will indicate the number of bucket the parent aggregator
-     *                              may generate (this is an estimation only). For top level factories, this will always be 0
+     * @param collectsFromSingleBucket  If true then the created aggregator will only be collected with <tt>0</tt> as a bucket ordinal.
+     *                              Some factories can take advantage of this in order to return more optimized implementations.
      *
      * @return                      The created aggregator
      */
-    protected abstract Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData);
-
-    public Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
-        Aggregator aggregator = createInternal(context, parent, expectedBucketsCount, this.metaData);
+    public final Aggregator create(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
+        Aggregator aggregator = createInternal(context, parent, collectsFromSingleBucket, this.metaData);
         return aggregator;
     }
 
@@ -95,4 +100,98 @@ public abstract class AggregatorFactory {
     public void setMetaData(Map<String, Object> metaData) {
         this.metaData = metaData;
     }
+
+    /**
+     * Utility method. Given an {@link AggregatorFactory} that creates {@link Aggregator}s that only know how
+     * to collect bucket <tt>0</tt>, this returns an aggregator that can collect any bucket.
+     */
+    protected static Aggregator asMultiBucketAggregator(final AggregatorFactory factory, final AggregationContext context, Aggregator parent) throws IOException {
+        final Aggregator first = factory.create(context, parent, true);
+        return new Aggregator(first.name(), AggregatorFactories.EMPTY, first.context(), first.parent(), first.metaData()) {
+
+            ObjectArray<Aggregator> aggregators;
+            LeafReaderContext readerContext;
+
+            {
+                aggregators = bigArrays.newObjectArray(1);
+                aggregators.set(0, first);
+            }
+
+            @Override
+            public boolean shouldCollect() {
+                return first.shouldCollect();
+            }
+
+            @Override
+            protected void doPreCollection() throws IOException {
+                for (long i = 0; i < aggregators.size(); ++i) {
+                    final Aggregator aggregator = aggregators.get(i);
+                    if (aggregator != null) {
+                        aggregator.preCollection();
+                    }
+                }
+            }
+
+            @Override
+            protected void doPostCollection() throws IOException {
+                for (long i = 0; i < aggregators.size(); ++i) {
+                    final Aggregator aggregator = aggregators.get(i);
+                    if (aggregator != null) {
+                        aggregator.postCollection();
+                    }
+                }
+            }
+
+            @Override
+            public void collect(int doc, long owningBucketOrdinal) throws IOException {
+                aggregators = bigArrays.grow(aggregators, owningBucketOrdinal + 1);
+                Aggregator aggregator = aggregators.get(owningBucketOrdinal);
+                if (aggregator == null) {
+                    aggregator = factory.create(context, parent, true);
+                    aggregator.preCollection();
+                    aggregator.setNextReader(readerContext);
+                    aggregators.set(owningBucketOrdinal, aggregator);
+                }
+                aggregator.collect(doc, 0);
+            }
+
+            @Override
+            public void setNextReader(LeafReaderContext context) throws IOException {
+                this.readerContext = context;
+                for (long i = 0; i < aggregators.size(); ++i) {
+                    final Aggregator aggregator = aggregators.get(i);
+                    if (aggregator != null) {
+                        aggregator.setNextReader(context);
+                    }
+                }
+            }
+
+            @Override
+            public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+                throw new ElasticsearchIllegalStateException("Invalid context - aggregation must use addResults() to collect child results");
+            }
+
+            @Override
+            public InternalAggregation buildEmptyAggregation() {
+                return first.buildEmptyAggregation();
+            }
+
+            @Override
+            public void doClose() {
+                Releasables.close(aggregators);
+            }
+
+            @Override
+            public void gatherAnalysis(BucketAnalysisCollector results, long owningBucketOrdinal) throws IOException {
+                // The bucket ordinal may be out of range in case of eg. a terms/filter/terms where
+                // the filter matches no document in the highest buckets of the first terms agg
+                if (owningBucketOrdinal >= aggregators.size() || aggregators.get(owningBucketOrdinal) == null) {
+                    results.add(first.buildEmptyAggregation());
+                } else {
+                    aggregators.get(owningBucketOrdinal).gatherAnalysis(results,0);
+                }
+            }
+        };
+    }
+
 }

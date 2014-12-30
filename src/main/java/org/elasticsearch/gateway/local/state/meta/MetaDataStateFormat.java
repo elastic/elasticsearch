@@ -282,6 +282,7 @@ public abstract class MetaDataStateFormat<T> {
                     }
                 } else {
                     state = format.read(stateFile, version);
+                    logger.trace("state version [{}] read from [{}]", version, stateFile.getName());
                 }
                 return state;
             } catch (Throwable e) {
@@ -330,6 +331,10 @@ public abstract class MetaDataStateFormat<T> {
             this.file = file;
             this.version = version;
             this.legacy = legacy;
+        }
+
+        public String toString() {
+            return "[version:" + version + ", legacy:" + legacy + ", file:" + file.getAbsolutePath() + "]";
         }
     }
 

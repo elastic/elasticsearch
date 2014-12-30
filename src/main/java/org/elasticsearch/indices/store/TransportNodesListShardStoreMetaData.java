@@ -164,7 +164,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         if (!storeType.contains("fs")) {
             return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
         }
-        File[] shardLocations = nodeEnv.shardLocations(shardId);
+        File[] shardLocations = nodeEnv.shardDataLocations(shardId, metaData.settings());
         File[] shardIndexLocations = new File[shardLocations.length];
         for (int i = 0; i < shardLocations.length; i++) {
             shardIndexLocations[i] = new File(shardLocations[i], "index");

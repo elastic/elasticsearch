@@ -335,6 +335,8 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
                                         sizeMatched += storeFileMetaData.length();
                                     }
                                 }
+                                logger.trace("{}: node [{}] has [{}/{}] bytes of re-usable data",
+                                        shard, discoNode.name(), new ByteSizeValue(sizeMatched), sizeMatched);
                                 if (sizeMatched > lastSizeMatched) {
                                     lastSizeMatched = sizeMatched;
                                     lastDiscoNodeMatched = discoNode;
@@ -350,7 +352,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
                 // we only check on THROTTLE since we checked before before on NO
                 Decision decision = allocation.deciders().canAllocate(shard, lastNodeMatched, allocation);
                 if (decision.type() == Decision.Type.THROTTLE) {
-                    if (logger.isTraceEnabled()) {
+                    if (logger.isDebugEnabled()) {
                         logger.debug("[{}][{}]: throttling allocation [{}] to [{}] in order to reuse its unallocated persistent store with total_size [{}]", shard.index(), shard.id(), shard, lastDiscoNodeMatched, new ByteSizeValue(lastSizeMatched));
                     }
                     // we are throttling this, but we have enough to allocate to this node, ignore it for now
@@ -416,6 +418,8 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
 
         for (TransportNodesListGatewayStartedShards.NodeLocalGatewayStartedShards nodeShardState : response) {
             // -1 version means it does not exists, which is what the API returns, and what we expect to
+            logger.trace("[{}] on node [{}] has version [{}] of shard",
+                    shard, nodeShardState.getNode(), nodeShardState.version());
             shardStates.put(nodeShardState.getNode(), nodeShardState.version());
         }
         return shardStates;

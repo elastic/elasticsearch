@@ -429,6 +429,15 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
     }
 
     /**
+     * Returns all data paths for the given shards ID
+     * @deprecated use {@code shardDataPaths} instead
+     */
+    @Deprecated
+    public File[] shardDataLocations(ShardId shardId, @IndexSettings Settings settings) {
+        return toFiles(shardDataPaths(shardId, settings));
+    }
+
+    /**
      * Returns all data paths excluding custom index paths.
      */
     public Path[] indexPaths(Index index) {

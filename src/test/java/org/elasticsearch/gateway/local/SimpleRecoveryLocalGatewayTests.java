@@ -366,7 +366,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
         logger.info("Running Cluster Health");
         ensureGreen();
         client().admin().indices().prepareOptimize("test").setWaitForMerge(true).setMaxNumSegments(100).get(); // just wait for merges
-        client().admin().indices().prepareFlush().setWaitIfOngoing(true).setForce(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setWaitIfOngoing(true).setForce(true).get();
 
         logger.info("--> shutting down the nodes");
         // prevent any rebalance actions during the peer recovery
@@ -379,9 +379,10 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
                 .setTransientSettings(settingsBuilder()
                         .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE))
                 .get();
+        logger.info("--> full cluster restart");
         internalCluster().fullRestart();
 
-        logger.info("Running Cluster Health");
+        logger.info("--> waiting for cluster to return to green after first shutdown");
         ensureGreen();
 
         logger.info("--> shutting down the nodes");
@@ -390,25 +391,27 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
                 .setTransientSettings(settingsBuilder()
                         .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE))
                 .get();
+        logger.info("--> full cluster restart");
         internalCluster().fullRestart();
 
-
-        logger.info("Running Cluster Health");
+        logger.info("--> waiting for cluster to return to green after second shutdown");
         ensureGreen();
 
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
-
         for (ShardRecoveryResponse response : recoveryResponse.shardResponses().get("test")) {
             RecoveryState recoveryState = response.recoveryState();
             if (!recoveryState.getPrimary()) {
-                logger.info("--> shard {}, recovered {}, reuse {}", response.getShardId(), recoveryState.getIndex().recoveredTotalSize(), recoveryState.getIndex().reusedByteCount());
-                assertThat(recoveryState.getIndex().recoveredByteCount(), equalTo(0l));
-                assertThat(recoveryState.getIndex().reusedByteCount(), greaterThan(0l));
-                assertThat(recoveryState.getIndex().reusedByteCount(), equalTo(recoveryState.getIndex().totalByteCount()));
-                assertThat(recoveryState.getIndex().recoveredFileCount(), equalTo(0));
-                assertThat(recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount()));
-                assertThat(recoveryState.getIndex().reusedFileCount(), greaterThan(0));
-                assertThat(recoveryState.getIndex().reusedByteCount(), greaterThan(recoveryState.getIndex().numberOfRecoveredBytes()));
+                logger.info("--> replica shard {} recovered from {} to {}, recovered {}, reuse {}",
+                        response.getShardId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
+                        recoveryState.getIndex().recoveredTotalSize(), recoveryState.getIndex().reusedByteCount());
+                assertThat("no bytes should be recovered", recoveryState.getIndex().recoveredByteCount(), equalTo(0l));
+                assertThat("data should have been reused", recoveryState.getIndex().reusedByteCount(), greaterThan(0l));
+                assertThat("all bytes should be reused", recoveryState.getIndex().reusedByteCount(), equalTo(recoveryState.getIndex().totalByteCount()));
+                assertThat("no files should be recovered", recoveryState.getIndex().recoveredFileCount(), equalTo(0));
+                assertThat("all files should be reused", recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount()));
+                assertThat("> 0 files should be reused", recoveryState.getIndex().reusedFileCount(), greaterThan(0));
+                assertThat("all bytes should be reused bytes",
+                        recoveryState.getIndex().reusedByteCount(), greaterThan(recoveryState.getIndex().numberOfRecoveredBytes()));
             } else {
                 assertThat(recoveryState.getIndex().recoveredByteCount(), equalTo(recoveryState.getIndex().reusedByteCount()));
                 assertThat(recoveryState.getIndex().recoveredFileCount(), equalTo(recoveryState.getIndex().reusedFileCount()));

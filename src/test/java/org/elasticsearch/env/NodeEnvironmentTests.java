@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -152,7 +153,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testDeleteSafe() throws IOException {
+    public void testDeleteSafe() throws IOException, InterruptedException {
         Settings settings = nodeEnvSettings(tmpPaths());
         final NodeEnvironment env = new NodeEnvironment(settings, new Environment(settings));
 
@@ -198,12 +199,14 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
         }
 
         final AtomicReference<Throwable> threadException = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
         if (randomBoolean()) {
             Thread t = new Thread(new AbstractRunnable() {
                 @Override
                 public void onFailure(Throwable t) {
                     logger.error("unexpected error", t);
                     threadException.set(t);
+                    latch.countDown();
                 }
 
                 @Override
@@ -211,9 +214,12 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
                     try (ShardLock fooLock = env.shardLock(new ShardId("foo", 1))) {
                         Thread.sleep(100);
                     }
+                    latch.countDown();
                 }
             });
             t.start();
+        } else {
+            latch.countDown();
         }
 
         env.deleteIndexDirectorySafe(new Index("foo"), 5000, idxSettings);
@@ -223,6 +229,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
         for (Path path : env.indexPaths(new Index("foo"))) {
             assertFalse(Files.exists(path));
         }
+        latch.await();
         assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
         env.close();
     }

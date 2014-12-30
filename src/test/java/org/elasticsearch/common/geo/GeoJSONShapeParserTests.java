@@ -244,6 +244,42 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testParse_invalidMultiPolygon() throws IOException {
+        // test invalid multipolygon (an "accidental" polygon with inner rings outside outer ring)
+        String multiPolygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "MultiPolygon")
+                .startArray("coordinates")
+                .startArray()//one poly (with two holes)
+                .startArray()
+                .startArray().value(102.0).value(2.0).endArray()
+                .startArray().value(103.0).value(2.0).endArray()
+                .startArray().value(103.0).value(3.0).endArray()
+                .startArray().value(102.0).value(3.0).endArray()
+                .startArray().value(102.0).value(2.0).endArray()
+                .endArray()
+                .startArray()// first hole
+                .startArray().value(100.0).value(0.0).endArray()
+                .startArray().value(101.0).value(0.0).endArray()
+                .startArray().value(101.0).value(1.0).endArray()
+                .startArray().value(100.0).value(1.0).endArray()
+                .startArray().value(100.0).value(0.0).endArray()
+                .endArray()
+                .startArray()//second hole
+                .startArray().value(100.2).value(0.8).endArray()
+                .startArray().value(100.2).value(0.2).endArray()
+                .startArray().value(100.8).value(0.2).endArray()
+                .startArray().value(100.8).value(0.8).endArray()
+                .startArray().value(100.2).value(0.8).endArray()
+                .endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+
+        XContentParser parser = JsonXContent.jsonXContent.createParser(multiPolygonGeoJson);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+    }
+
+    @Test
     public void testParse_OGCPolygonWithoutHoles() throws IOException {
         // test 1: ccw poly not crossing dateline
         String polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
@@ -595,6 +631,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
 
     @Test
     public void testParse_multiPolygon() throws IOException {
+        // test #1: two polygons; one without hole, one with hole
         String multiPolygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "MultiPolygon")
                 .startArray("coordinates")
                 .startArray()//first poly (without holes)
@@ -658,6 +695,51 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
         Shape expected = shapeCollection(withoutHoles, withHoles);
 
         assertGeometryEquals(expected, multiPolygonGeoJson);
+
+        // test #2: multipolygon; one polygon with one hole
+        // this test converting the multipolygon from a ShapeCollection type
+        // to a simple polygon (jtsGeom)
+        multiPolygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "MultiPolygon")
+                .startArray("coordinates")
+                .startArray()
+                .startArray()
+                .startArray().value(100.0).value(1.0).endArray()
+                .startArray().value(101.0).value(1.0).endArray()
+                .startArray().value(101.0).value(0.0).endArray()
+                .startArray().value(100.0).value(0.0).endArray()
+                .startArray().value(100.0).value(1.0).endArray()
+                .endArray()
+                .startArray()// hole
+                .startArray().value(100.2).value(0.8).endArray()
+                .startArray().value(100.2).value(0.2).endArray()
+                .startArray().value(100.8).value(0.2).endArray()
+                .startArray().value(100.8).value(0.8).endArray()
+                .startArray().value(100.2).value(0.8).endArray()
+                .endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+
+        shellCoordinates = new ArrayList<>();
+        shellCoordinates.add(new Coordinate(100, 1));
+        shellCoordinates.add(new Coordinate(101, 1));
+        shellCoordinates.add(new Coordinate(101, 0));
+        shellCoordinates.add(new Coordinate(100, 0));
+        shellCoordinates.add(new Coordinate(100, 1));
+
+        holeCoordinates = new ArrayList<>();
+        holeCoordinates.add(new Coordinate(100.2, 0.8));
+        holeCoordinates.add(new Coordinate(100.2, 0.2));
+        holeCoordinates.add(new Coordinate(100.8, 0.2));
+        holeCoordinates.add(new Coordinate(100.8, 0.8));
+        holeCoordinates.add(new Coordinate(100.2, 0.8));
+
+        shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
+        holes = new LinearRing[1];
+        holes[0] = GEOMETRY_FACTORY.createLinearRing(holeCoordinates.toArray(new Coordinate[holeCoordinates.size()]));
+        withHoles = GEOMETRY_FACTORY.createPolygon(shell, holes);
+
+        assertGeometryEquals(jtsGeom(withHoles), multiPolygonGeoJson);
     }
 
     @Test

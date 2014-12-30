@@ -46,10 +46,6 @@ public abstract class NumericValuesSourceMetricsAggregatorParser<S extends Inter
         return aggType.name();
     }
 
-    protected boolean requiresSortedValues() {
-        return false;
-    }
-
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 

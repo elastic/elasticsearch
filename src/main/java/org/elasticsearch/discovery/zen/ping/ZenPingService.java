@@ -68,6 +68,22 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
         return this.zenPings;
     }
 
+    /**
+     * This method could be used by discovery plugins
+     */
+    public void zenPings(ImmutableList<? extends ZenPing> pings) {
+        this.zenPings = pings;
+        if (lifecycle.started()) {
+            for (ZenPing zenPing : zenPings) {
+                zenPing.start();
+            }
+        } else if (lifecycle.stopped()) {
+            for (ZenPing zenPing : zenPings) {
+                zenPing.stop();
+            }
+        }
+    }
+
     @Override
     public void setPingContextProvider(PingContextProvider contextProvider) {
         if (lifecycle.started()) {

@@ -135,8 +135,8 @@ public abstract class TermsAggregator extends BucketsAggregator {
     protected Set<Aggregator> aggsUsedForSorting = new HashSet<>();
     protected SubAggCollectionMode subAggCollectMode;
 
-    public TermsAggregator(String name, BucketAggregationMode bucketAggregationMode, AggregatorFactories factories, long estimatedBucketsCount, AggregationContext context, Aggregator parent, BucketCountThresholds bucketCountThresholds, Terms.Order order, SubAggCollectionMode subAggCollectMode, Map<String, Object> metaData) {
-        super(name, bucketAggregationMode, factories, estimatedBucketsCount, context, parent, metaData);
+    public TermsAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent, BucketCountThresholds bucketCountThresholds, Terms.Order order, SubAggCollectionMode subAggCollectMode, Map<String, Object> metaData) throws IOException {
+        super(name, factories, context, parent, metaData);
         this.bucketCountThresholds = bucketCountThresholds;
         this.order = InternalOrder.validate(order, this);
         this.subAggCollectMode = subAggCollectMode;

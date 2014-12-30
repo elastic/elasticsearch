@@ -49,20 +49,25 @@ public class DeferringBucketCollector extends BucketCollector implements Releasa
     private FilteringBucketCollector filteredCollector;
 
 
-    public DeferringBucketCollector (BucketCollector deferred, AggregationContext context) {
+    public DeferringBucketCollector(BucketCollector deferred, AggregationContext context) {
         this.deferred = deferred;
         this.recording = new RecordingPerReaderBucketCollector(context);
         this.context = context;
     }
 
     @Override
-    public void setNextReader(LeafReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) throws IOException {
         recording.setNextReader(reader);
     }
 
     @Override
     public void collect(int docId, long bucketOrdinal) throws IOException {
         recording.collect(docId, bucketOrdinal);
+    }
+
+    @Override
+    public void preCollection() throws IOException {
+        recording.preCollection();
     }
 
     @Override
@@ -82,7 +87,7 @@ public class DeferringBucketCollector extends BucketCollector implements Releasa
         
         BucketCollector subs = new BucketCollector() {
             @Override
-            public void setNextReader(LeafReaderContext reader) {
+            public void setNextReader(LeafReaderContext reader) throws IOException {
                 // Need to set AggregationContext otherwise ValueSources in aggs
                 // don't read any values
               context.setNextReader(reader);
@@ -95,12 +100,17 @@ public class DeferringBucketCollector extends BucketCollector implements Releasa
             }
 
             @Override
+            public void preCollection() throws IOException {
+                deferred.preCollection();
+            }
+
+            @Override
             public void postCollection() throws IOException {
                 deferred.postCollection();
             }
 
             @Override
-            public void gatherAnalysis(BucketAnalysisCollector results, long bucketOrdinal) {
+            public void gatherAnalysis(BucketAnalysisCollector results, long bucketOrdinal) throws IOException {
                 deferred.gatherAnalysis(results, bucketOrdinal);
             }
         };
@@ -121,7 +131,7 @@ public class DeferringBucketCollector extends BucketCollector implements Releasa
     }
 
     @Override
-    public void gatherAnalysis(BucketAnalysisCollector analysisCollector, long bucketOrdinal)  {
+    public void gatherAnalysis(BucketAnalysisCollector analysisCollector, long bucketOrdinal) throws IOException  {
         filteredCollector.gatherAnalysis(analysisCollector, bucketOrdinal);
     }
 

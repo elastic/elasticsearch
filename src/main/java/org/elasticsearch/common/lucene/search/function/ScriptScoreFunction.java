@@ -88,7 +88,7 @@ public class ScriptScoreFunction extends ScoreFunction {
     }
 
     @Override
-    public void setNextReader(LeafReaderContext ctx) {
+    public void setNextReader(LeafReaderContext ctx) throws IOException {
         script.setNextReader(ctx);
     }
 

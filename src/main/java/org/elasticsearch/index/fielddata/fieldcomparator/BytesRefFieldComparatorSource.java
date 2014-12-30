@@ -58,7 +58,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         return SortField.Type.STRING;
     }
 
-    protected SortedBinaryDocValues getValues(LeafReaderContext context) {
+    protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
         return indexFieldData.load(context).getBytesValues();
     }
 

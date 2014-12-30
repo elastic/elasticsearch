@@ -59,10 +59,10 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
     private Scorer currentScorer;
     private LeafReaderContext currentContext;
 
-    public TopHitsAggregator(FetchPhase fetchPhase, SubSearchContext subSearchContext, String name, long estimatedBucketsCount, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
-        super(name, estimatedBucketsCount, context, parent, metaData);
+    public TopHitsAggregator(FetchPhase fetchPhase, SubSearchContext subSearchContext, String name, AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, metaData);
         this.fetchPhase = fetchPhase;
-        topDocsCollectors = new LongObjectPagedHashMap<>(estimatedBucketsCount, context.bigArrays());
+        topDocsCollectors = new LongObjectPagedHashMap<>(1, context.bigArrays());
         this.subSearchContext = subSearchContext;
         context.registerScorerAware(this);
     }
@@ -167,8 +167,8 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext aggregationContext, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData) {
-            return new TopHitsAggregator(fetchPhase, subSearchContext, name, expectedBucketsCount, aggregationContext, parent, metaData);
+        public Aggregator createInternal(AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
+            return new TopHitsAggregator(fetchPhase, subSearchContext, name, aggregationContext, parent, metaData);
         }
 
         @Override

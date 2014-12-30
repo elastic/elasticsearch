@@ -49,7 +49,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
     // TODO: Add LongIntPagedHashMap?
     private final LongIntOpenHashMap bucketOrdToLastCollectedParentDoc;
 
-    public ReverseNestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+    public ReverseNestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, metaData);
         if (objectMapper == null) {
             parentFilter = SearchContext.current().bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE);
@@ -117,13 +117,13 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        return new InternalReverseNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), getMetaData());
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
+        return new InternalReverseNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalReverseNested(name, 0, buildEmptySubAggregations(), getMetaData());
+        return new InternalReverseNested(name, 0, buildEmptySubAggregations(), metaData());
     }
 
     Filter getParentFilter() {
@@ -140,7 +140,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData) {
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
             // Early validation
             NestedAggregator closestNestedAggregator = findClosestNestedAggregator(parent);
             if (closestNestedAggregator == null) {
@@ -168,13 +168,13 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
 
         private final static class Unmapped extends NonCollectingAggregator {
 
-            public Unmapped(String name, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
+            public Unmapped(String name, AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
                 super(name, context, parent, metaData);
             }
 
             @Override
             public InternalAggregation buildEmptyAggregation() {
-                return new InternalReverseNested(name, 0, buildEmptySubAggregations(), getMetaData());
+                return new InternalReverseNested(name, 0, buildEmptySubAggregations(), metaData());
             }
         }
     }

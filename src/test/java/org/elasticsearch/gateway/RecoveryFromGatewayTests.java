@@ -354,7 +354,8 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
         // prevent any rebalance actions during the peer recovery
         // if we run into a relocation the reuse count will be 0 and this fails the test. We are testing here if
         // we reuse the files on disk after full restarts for replicas.
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put(indexSettings()).put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)));
+        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put(indexSettings())));
+        ensureGreen();
         logger.info("--> indexing docs");
         for (int i = 0; i < 1000; i++) {
             client().prepareIndex("test", "type").setSource("field", "value").execute().actionGet();
@@ -368,44 +369,48 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
         logger.info("Running Cluster Health");
         ensureGreen();
         client().admin().indices().prepareOptimize("test").setWaitForMerge(true).setMaxNumSegments(100).get(); // just wait for merges
-        client().admin().indices().prepareFlush().setWaitIfOngoing(true).setForce(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setWaitIfOngoing(true).setForce(true).get();
 
-        logger.info("--> shutting down the nodes");
+        logger.info("--> disabling allocation while the cluster is shut down");
 
         // Disable allocations while we are closing nodes
         client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(settingsBuilder()
                         .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE))
                 .get();
+        logger.info("--> full cluster restart");
         internalCluster().fullRestart();
 
-        logger.info("Running Cluster Health");
+        logger.info("--> waiting for cluster to return to green after first shutdown");
         ensureGreen();
-        logger.info("--> shutting down the nodes");
+
+        logger.info("--> disabling allocation while the cluster is shut down second time");
         // Disable allocations while we are closing nodes
         client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(settingsBuilder()
                         .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE))
                 .get();
+        logger.info("--> full cluster restart");
         internalCluster().fullRestart();
 
-
-        logger.info("Running Cluster Health");
+        logger.info("--> waiting for cluster to return to green after second shutdown");
         ensureGreen();
 
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
-
         for (ShardRecoveryResponse response : recoveryResponse.shardResponses().get("test")) {
             RecoveryState recoveryState = response.recoveryState();
             if (!recoveryState.getPrimary()) {
-                logger.info("--> shard {}, recovered {}, reuse {}", response.getShardId(), recoveryState.getIndex().recoveredTotalSize(), recoveryState.getIndex().reusedByteCount());
-                assertThat(recoveryState.getIndex().recoveredByteCount(), equalTo(0l));
-                assertThat(recoveryState.getIndex().reusedByteCount(), greaterThan(0l));
-                assertThat(recoveryState.getIndex().reusedByteCount(), equalTo(recoveryState.getIndex().totalByteCount()));
-                assertThat(recoveryState.getIndex().recoveredFileCount(), equalTo(0));
-                assertThat(recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount()));
-                assertThat(recoveryState.getIndex().reusedFileCount(), greaterThan(0));
-                assertThat(recoveryState.getIndex().reusedByteCount(), greaterThan(recoveryState.getIndex().numberOfRecoveredBytes()));
+                logger.info("--> replica shard {} recovered from {} to {}, recovered {}, reuse {}",
+                        response.getShardId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
+                        recoveryState.getIndex().recoveredTotalSize(), recoveryState.getIndex().reusedByteCount());
+                assertThat("no bytes should be recovered", recoveryState.getIndex().recoveredByteCount(), equalTo(0l));
+                assertThat("data should have been reused", recoveryState.getIndex().reusedByteCount(), greaterThan(0l));
+                assertThat("all bytes should be reused", recoveryState.getIndex().reusedByteCount(), equalTo(recoveryState.getIndex().totalByteCount()));
+                assertThat("no files should be recovered", recoveryState.getIndex().recoveredFileCount(), equalTo(0));
+                assertThat("all files should be reused", recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount()));
+                assertThat("> 0 files should be reused", recoveryState.getIndex().reusedFileCount(), greaterThan(0));
+                assertThat("all bytes should be reused bytes",
+                        recoveryState.getIndex().reusedByteCount(), greaterThan(recoveryState.getIndex().numberOfRecoveredBytes()));
             } else {
                 assertThat(recoveryState.getIndex().recoveredByteCount(), equalTo(recoveryState.getIndex().reusedByteCount()));
                 assertThat(recoveryState.getIndex().recoveredFileCount(), equalTo(recoveryState.getIndex().reusedFileCount()));

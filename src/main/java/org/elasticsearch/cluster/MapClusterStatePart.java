@@ -119,7 +119,9 @@ public class MapClusterStatePart<T extends MapItemClusterStatePart> extends Abst
                     }
                     for (ObjectObjectCursor<String, T> partIter : afterParts) {
                         T beforePart = beforeParts.get(partIter.key);
-                        diffs.put(partIter.key, factory.diff(beforePart, partIter.value));
+                        if (!partIter.value.equals(beforePart)) {
+                            diffs.put(partIter.key, factory.diff(beforePart, partIter.value));
+                        }
                     }
                 }
             } else {

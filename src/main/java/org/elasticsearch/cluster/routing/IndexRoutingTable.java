@@ -22,24 +22,27 @@ package org.elasticsearch.cluster.routing;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.IntCursor;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.cluster.AbstractClusterStatePart;
+import org.elasticsearch.cluster.LocalContext;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static com.google.common.collect.Lists.newArrayList;
+import static org.apache.lucene.util.CollectionUtil.timSort;
 
 /**
  * The {@link IndexRoutingTable} represents routing information for a single
@@ -56,7 +59,12 @@ import static com.google.common.collect.Lists.newArrayList;
  * represented as {@link ShardRouting}.
  * </p>
  */
-public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
+public class IndexRoutingTable extends AbstractClusterStatePart implements Iterable<IndexShardRoutingTable> {
+
+    public static final String TYPE = "routing_table";
+
+    public static final Factory FACTORY = new Factory();
+
 
     private final String index;
     private final ShardShuffler shuffler;
@@ -86,7 +94,51 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
         this.allActiveShards = allActiveShards.build();
     }
 
-    /**
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(index(), XContentBuilder.FieldCaseConversion.NONE);
+        builder.startObject("shards");
+        for (ObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : shards.values()) {
+            builder.startArray(Integer.toString(indexShardRoutingTable.value.shardId().id()));
+            for (ShardRouting shardRouting : indexShardRoutingTable.value) {
+                shardRouting.toXContent(builder, params);
+            }
+            builder.endArray();
+        }
+        builder.endObject();
+        builder.endObject();
+        return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        IndexRoutingTable that = (IndexRoutingTable) o;
+
+        if (!index.equals(that.index)) return false;
+        if (!shards.equals(that.shards)) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = index.hashCode();
+        result = 31 * result + shards.hashCode();
+        return result;
+    }
+
+    public static class Factory extends AbstractClusterStatePart.AbstractFactory<IndexRoutingTable> {
+
+        @Override
+        public IndexRoutingTable readFrom(StreamInput in, LocalContext context) throws IOException {
+            return Builder.readFrom(in);
+        }
+
+    }
+        /**
      * Return the index id
      *
      * @return id of the index
@@ -111,11 +163,20 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
      * @return new {@link IndexRoutingTable}
      */
     public IndexRoutingTable normalizeVersions() {
+        boolean changed = false;
         IndexRoutingTable.Builder builder = new Builder(this.index);
         for (IntObjectCursor<IndexShardRoutingTable> cursor : shards) {
-            builder.addIndexShard(cursor.value.normalizeVersions());
+            IndexShardRoutingTable normalizedShard = cursor.value.normalizeVersions();
+            if (cursor.value != normalizedShard) {
+                changed = true;
+            }
+            builder.addIndexShard(normalizedShard);
         }
-        return builder.build();
+        if(changed) {
+            return builder.build();
+        } else {
+            return this;
+        }
     }
 
     public void validate(RoutingTableValidation validation, MetaData metaData) {
@@ -322,6 +383,11 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
         return new Builder(index);
     }
 
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Builder.writeTo(this, out);
+    }
+
     public static class Builder {
 
         private final String index;
@@ -519,7 +585,14 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
 
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder("-- index [" + index + "]\n");
-        for (IndexShardRoutingTable indexShard : this) {
+        List<IndexShardRoutingTable> indexShards = newArrayList(this);
+        timSort(indexShards, new Comparator<IndexShardRoutingTable>() {
+            @Override
+            public int compare(IndexShardRoutingTable o1, IndexShardRoutingTable o2) {
+                return o1.getShardId().compareTo(o2.getShardId());
+            }
+        });
+        for (IndexShardRoutingTable indexShard : indexShards) {
             sb.append("----shard_id [").append(indexShard.shardId().index().name()).append("][").append(indexShard.shardId().id()).append("]\n");
             for (ShardRouting shard : indexShard) {
                 sb.append("--------").append(shard.shortSummary()).append("\n");

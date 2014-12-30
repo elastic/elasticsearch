@@ -177,7 +177,9 @@ public abstract class CompositeClusterStatePart<T extends CompositeClusterStateP
                     for (ObjectObjectCursor<String, ClusterStatePart> partIter : afterParts) {
                         ClusterStatePart.Factory<ClusterStatePart> factory = lookupFactorySafe(partIter.key);
                         ClusterStatePart beforePart = beforeParts.get(partIter.key);
-                        diffs.put(partIter.key, factory.diff(beforePart, partIter.value));
+                        if (!partIter.value.equals(beforePart)) {
+                            diffs.put(partIter.key, factory.diff(beforePart, partIter.value));
+                        }
                     }
                 }
             } else {

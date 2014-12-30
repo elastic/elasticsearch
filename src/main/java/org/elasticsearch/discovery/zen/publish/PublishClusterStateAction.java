@@ -274,7 +274,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                 publishResponseHandler.onFailure(node, t);
             }
         } else {
-            logger.debug("skipping sending version {} to node {}, node already recieved version {}", clusterStateToSend.version(), node, lastVersionSent);
+            logger.debug("skipping sending version {} to node {}, node already received version {}", clusterStateToSend.version(), node, lastVersionSent);
             // TODO: Should this be a failure since we are not really sure if this node got the cluster state or not at this moment
             publishResponseHandler.onResponse(node);
         }
@@ -320,10 +320,10 @@ public class PublishClusterStateAction extends AbstractComponent {
             final ClusterState clusterState;
             if (in.readBoolean()) {
                 clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
-                logger.debug("received full cluster state version {}", clusterState.version());
+                logger.debug("received full cluster state version {} with size {}", clusterState.version(), request.bytes().length());
             } else {
                 if(lastProcessedClusterState == null) {
-                    logger.debug("received diff cluster state version but don't have any local cluster state - requesting full state");
+                    logger.debug("received diff cluster state version {} but don't have any local cluster state - requesting full state");
                     throw new IncompatibleClusterStateVersionException("have no local cluster state");
                 }
                 ClusterState.ClusterStateDiff diff = ClusterState.Builder.readDiffFrom(in, nodesProvider.nodes().localNode());
@@ -332,7 +332,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                     return;
                 }
                 clusterState = diff.apply(lastProcessedClusterState);
-                logger.debug("received diff cluster state version {}", clusterState.version());
+                logger.debug("received diff cluster state version {} with size {}", clusterState.version(), request.bytes().length());
             }
             lastProcessedClusterState = clusterState;
 

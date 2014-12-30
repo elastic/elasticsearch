@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
@@ -27,6 +28,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SimpleCollector;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XCollector;
@@ -77,7 +79,12 @@ public class AggregationPhase implements SearchPhase {
             context.aggregations().aggregationContext(aggregationContext);
 
             List<Aggregator> collectors = new ArrayList<>();
-            Aggregator[] aggregators = context.aggregations().factories().createTopLevelAggregators(aggregationContext);
+            Aggregator[] aggregators;
+            try {
+                aggregators = context.aggregations().factories().createTopLevelAggregators(aggregationContext);
+            } catch (IOException e) {
+                throw ExceptionsHelper.convertToElastic(e);
+            }
             for (int i = 0; i < aggregators.length; i++) {
                 if (!(aggregators[i] instanceof GlobalAggregator)) {
                     Aggregator aggregator = aggregators[i];
@@ -132,7 +139,11 @@ public class AggregationPhase implements SearchPhase {
 
         List<InternalAggregation> aggregations = new ArrayList<>(aggregators.length);
         for (Aggregator aggregator : context.aggregations().aggregators()) {
-            aggregations.add(aggregator.buildAggregation(0));
+            try {
+                aggregations.add(aggregator.buildAggregation(0));
+            } catch (IOException e) {
+                throw new QueryPhaseExecutionException(context, "Failed to build aggregation", e);
+            }
         }
         context.queryResult().aggregations(new InternalAggregations(aggregations));
 

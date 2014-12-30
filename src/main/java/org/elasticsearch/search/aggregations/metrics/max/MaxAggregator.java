@@ -45,12 +45,11 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
     private DoubleArray maxes;
 
-    public MaxAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
-        super(name, estimatedBucketsCount, context, parent, metaData);
+    public MaxAggregator(String name, ValuesSource.Numeric valuesSource, AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, metaData);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
-            final long initialSize = estimatedBucketsCount < 2 ? 1 : estimatedBucketsCount;
-            maxes = bigArrays.newDoubleArray(initialSize, false);
+            maxes = bigArrays.newDoubleArray(1, false);
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         }
     }
@@ -98,20 +97,20 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
         return new InternalMax(name, Double.NEGATIVE_INFINITY, getMetaData());
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, Map<String, Object>> {
+    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
 
         public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig) {
             super(name, InternalMax.TYPE.name(), valuesSourceConfig);
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new MaxAggregator(name, 0, null, aggregationContext, parent, metaData);
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
+            return new MaxAggregator(name, null, aggregationContext, parent, metaData);
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new MaxAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent, metaData);
+        protected Aggregator create(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+            return new MaxAggregator(name, valuesSource, aggregationContext, parent, metaData);
         }
     }
 

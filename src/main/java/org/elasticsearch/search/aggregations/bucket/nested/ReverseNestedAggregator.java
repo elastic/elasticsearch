@@ -49,7 +49,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
     // TODO: Add LongIntPagedHashMap?
     private final LongIntOpenHashMap bucketOrdToLastCollectedParentDoc;
 
-    public ReverseNestedAggregator(String name, AggregatorFactories factories, String nestedPath, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+    public ReverseNestedAggregator(String name, AggregatorFactories factories, String nestedPath, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, metaData);
 
         // Early validation
@@ -134,7 +134,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         return new InternalReverseNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), getMetaData());
     }
 
@@ -157,7 +157,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData) {
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
             return new ReverseNestedAggregator(name, factories, path, context, parent, metaData);
         }
     }

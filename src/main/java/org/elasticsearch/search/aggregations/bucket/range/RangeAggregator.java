@@ -98,9 +98,9 @@ public class RangeAggregator extends BucketsAggregator {
                            boolean keyed,
                            AggregationContext aggregationContext,
                            Aggregator parent,
-                           Map<String, Object> metaData) {
+                           Map<String, Object> metaData) throws IOException {
 
-        super(name, BucketAggregationMode.MULTI_BUCKETS, factories, ranges.size() * (parent == null ? 1 : parent.estimatedBucketCount()), aggregationContext, parent, metaData);
+        super(name, factories, aggregationContext, parent, metaData);
         assert valuesSource != null;
         this.valuesSource = valuesSource;
         this.formatter = format != null ? format.formatter() : null;
@@ -196,13 +196,13 @@ public class RangeAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = Lists.newArrayListWithCapacity(ranges.length);
         for (int i = 0; i < ranges.length; i++) {
             Range range = ranges[i];
             final long bucketOrd = subBucketOrdinal(owningBucketOrdinal, i);
             org.elasticsearch.search.aggregations.bucket.range.Range.Bucket bucket =
-                    rangeFactory.createBucket(range.key, range.from, range.to, bucketDocCount(bucketOrd),bucketAggregations(bucketOrd), keyed, formatter);
+                    rangeFactory.createBucket(range.key, range.from, range.to, bucketDocCount(bucketOrd), bucketAggregations(bucketOrd), keyed, formatter);
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
@@ -258,7 +258,7 @@ public class RangeAggregator extends BucketsAggregator {
                         AggregationContext context,
                         Aggregator parent,
                         InternalRange.Factory factory,
-                        Map<String, Object> metaData) {
+                        Map<String, Object> metaData) throws IOException {
 
             super(name, context, parent, metaData);
             this.ranges = ranges;
@@ -282,7 +282,7 @@ public class RangeAggregator extends BucketsAggregator {
         }
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, Map<String, Object>> {
+    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
 
         private final InternalRange.Factory rangeFactory;
         private final List<Range> ranges;
@@ -296,12 +296,12 @@ public class RangeAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
             return new Unmapped(name, ranges, keyed, config.format(), aggregationContext, parent, rangeFactory, metaData);
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+        protected Aggregator create(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
             return new RangeAggregator(name, factories, valuesSource, config.format(), rangeFactory, ranges, keyed, aggregationContext, parent, metaData);
         }
     }

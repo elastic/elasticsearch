@@ -50,18 +50,17 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
     private DoubleArray maxes;
     private DoubleArray sumOfSqrs;
 
-    public ExtendedStatsAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
-        super(name, estimatedBucketsCount, context, parent, metaData);
+    public ExtendedStatsAggregator(String name, ValuesSource.Numeric valuesSource, AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, metaData);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
-            final long initialSize = estimatedBucketsCount < 2 ? 1 : estimatedBucketsCount;
-            counts = bigArrays.newLongArray(initialSize, true);
-            sums = bigArrays.newDoubleArray(initialSize, true);
-            mins = bigArrays.newDoubleArray(initialSize, false);
+            counts = bigArrays.newLongArray(1, true);
+            sums = bigArrays.newDoubleArray(1, true);
+            mins = bigArrays.newDoubleArray(1, false);
             mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
-            maxes = bigArrays.newDoubleArray(initialSize, false);
+            maxes = bigArrays.newDoubleArray(1, false);
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
-            sumOfSqrs = bigArrays.newDoubleArray(initialSize, true);
+            sumOfSqrs = bigArrays.newDoubleArray(1, true);
         }
     }
 
@@ -161,20 +160,20 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
         Releasables.close(counts, maxes, mins, sumOfSqrs, sums);
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, Map<String, Object>> {
+    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
 
         public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig) {
             super(name, InternalExtendedStats.TYPE.name(), valuesSourceConfig);
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new ExtendedStatsAggregator(name, 0, null, aggregationContext, parent, metaData);
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
+            return new ExtendedStatsAggregator(name, null, aggregationContext, parent, metaData);
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new ExtendedStatsAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent, metaData);
+        protected Aggregator create(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+            return new ExtendedStatsAggregator(name, valuesSource, aggregationContext, parent, metaData);
         }
     }
 }

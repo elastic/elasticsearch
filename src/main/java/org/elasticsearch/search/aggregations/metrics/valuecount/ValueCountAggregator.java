@@ -47,13 +47,11 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
     // a count per bucket
     LongArray counts;
 
-    public ValueCountAggregator(String name, long expectedBucketsCount, ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-        super(name, 0, aggregationContext, parent, metaData);
+    public ValueCountAggregator(String name, ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
+        super(name, aggregationContext, parent, metaData);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
-            // expectedBucketsCount == 0 means it's a top level bucket
-            final long initialSize = expectedBucketsCount < 2 ? 1 : expectedBucketsCount;
-            counts = bigArrays.newLongArray(initialSize, true);
+            counts = bigArrays.newLongArray(1, true);
         }
     }
 
@@ -98,20 +96,20 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         Releasables.close(counts);
     }
 
-    public static class Factory<VS extends ValuesSource> extends ValuesSourceAggregatorFactory.LeafOnly<VS, Map<String, Object>> {
+    public static class Factory<VS extends ValuesSource> extends ValuesSourceAggregatorFactory.LeafOnly<VS> {
 
         public Factory(String name, ValuesSourceConfig<VS> config) {
             super(name, InternalValueCount.TYPE.name(), config);
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new ValueCountAggregator(name, 0, null, aggregationContext, parent, metaData);
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
+            return new ValueCountAggregator(name, null, aggregationContext, parent, metaData);
         }
 
         @Override
-        protected Aggregator create(VS valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new ValueCountAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent, metaData);
+        protected Aggregator create(VS valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+            return new ValueCountAggregator(name, valuesSource, aggregationContext, parent, metaData);
         }
 
     }

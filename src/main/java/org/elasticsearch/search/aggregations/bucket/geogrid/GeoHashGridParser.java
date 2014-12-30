@@ -103,7 +103,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
     }
 
 
-    private static class GeoGridFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, Map<String, Object>> {
+    private static class GeoGridFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
 
         private int precision;
         private int requiredSize;
@@ -117,7 +117,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
             final InternalAggregation aggregation = new InternalGeoHashGrid(name, requiredSize, Collections.<InternalGeoHashGrid.Bucket>emptyList(), metaData);
             return new NonCollectingAggregator(name, aggregationContext, parent, metaData) {
                 public InternalAggregation buildEmptyAggregation() {
@@ -127,7 +127,10 @@ public class GeoHashGridParser implements Aggregator.Parser {
         }
 
         @Override
-        protected Aggregator create(final ValuesSource.GeoPoint valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+        protected Aggregator create(final ValuesSource.GeoPoint valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+            if (collectsOnly0 == false) {
+                return asMultiBucketAggregator(this, aggregationContext, parent);
+            }
             final CellValues cellIdValues = new CellValues(valuesSource, precision);
             ValuesSource.Numeric cellIdSource = new CellIdSource(cellIdValues, valuesSource.metaData());
             return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, aggregationContext, parent, metaData);

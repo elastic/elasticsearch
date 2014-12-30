@@ -150,6 +150,11 @@ public class RecordingPerReaderBucketCollector extends RecordingBucketCollector 
     }
 
     @Override
+    public void preCollection() throws IOException {
+        // nothing to do
+    }
+
+    @Override
     public void postCollection() throws IOException {
         recordingComplete = true;
         stowLastSegmentCollection();

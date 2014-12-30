@@ -53,9 +53,8 @@ public class FiltersAggregator extends BucketsAggregator {
     private boolean keyed;
 
     public FiltersAggregator(String name, AggregatorFactories factories, List<KeyedFilter> filters, boolean keyed, AggregationContext aggregationContext,
-            Aggregator parent, Map<String, Object> metaData) {
-        super(name, BucketAggregationMode.MULTI_BUCKETS, factories, filters.size() * (parent == null ? 1 : parent.estimatedBucketCount()),
-                aggregationContext, parent, metaData);
+            Aggregator parent, Map<String, Object> metaData) throws IOException {
+        super(name, factories, aggregationContext, parent, metaData);
         this.keyed = keyed;
         this.filters = filters.toArray(new KeyedFilter[filters.size()]);
         this.bits = new Bits[this.filters.length];
@@ -87,7 +86,7 @@ public class FiltersAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         List<InternalFilters.Bucket> buckets = Lists.newArrayListWithCapacity(filters.length);
         for (int i = 0; i < filters.length; i++) {
             KeyedFilter filter = filters[i];
@@ -125,7 +124,7 @@ public class FiltersAggregator extends BucketsAggregator {
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData) {
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
             return new FiltersAggregator(name, factories, filters, keyed, context, parent, metaData);
         }
     }

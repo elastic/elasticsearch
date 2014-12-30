@@ -72,7 +72,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
 
     public ParentToChildrenAggregator(String name, AggregatorFactories factories, AggregationContext aggregationContext,
                                       Aggregator parent, String parentType, Filter childFilter, Filter parentFilter,
-                                      ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource, long maxOrd, Map<String, Object> metaData) {
+                                      ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource, long maxOrd, Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, metaData);
         this.parentType = parentType;
         // these two filters are cached in the parser
@@ -85,7 +85,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         return new InternalChildren(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), getMetaData());
     }
 
@@ -185,7 +185,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
         Releasables.close(parentOrdToBuckets, parentOrdToOtherBuckets);
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.Bytes.WithOrdinals.ParentChild, Map<String, Object>> {
+    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.Bytes.WithOrdinals.ParentChild> {
 
         private final String parentType;
         private final Filter parentFilter;
@@ -204,7 +204,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+        protected Aggregator create(ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
             long maxOrd = valuesSource.globalMaxOrd(aggregationContext.searchContext().searcher(), parentType);
             return new ParentToChildrenAggregator(name, factories, aggregationContext, parent, parentType, childFilter, parentFilter, valuesSource, maxOrd, metaData);
         }

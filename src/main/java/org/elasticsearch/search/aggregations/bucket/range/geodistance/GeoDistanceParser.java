@@ -153,7 +153,7 @@ public class GeoDistanceParser implements Aggregator.Parser {
         return new GeoDistanceFactory(aggregationName, vsParser.config(), InternalGeoDistance.FACTORY, origin, unit, distanceType, ranges, keyed);
     }
 
-    private static class GeoDistanceFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, Map<String, Object>> {
+    private static class GeoDistanceFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
 
         private final GeoPoint origin;
         private final DistanceUnit unit;
@@ -175,12 +175,12 @@ public class GeoDistanceParser implements Aggregator.Parser {
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
             return new Unmapped(name, ranges, keyed, null, aggregationContext, parent, rangeFactory, metaData);
         }
 
         @Override
-        protected Aggregator create(final ValuesSource.GeoPoint valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+        protected Aggregator create(final ValuesSource.GeoPoint valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
             DistanceSource distanceSource = new DistanceSource(valuesSource, distanceType, origin, unit);
             aggregationContext.registerReaderContextAware(distanceSource);
             return new RangeAggregator(name, factories, distanceSource, null, rangeFactory, ranges, keyed, aggregationContext, parent, metaData);

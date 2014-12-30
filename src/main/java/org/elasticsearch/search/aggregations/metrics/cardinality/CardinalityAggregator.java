@@ -61,13 +61,13 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     private Collector collector;
 
-    public CardinalityAggregator(String name, long estimatedBucketsCount, ValuesSource valuesSource, boolean rehash,
-                                 int precision, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
-        super(name, estimatedBucketsCount, context, parent, metaData);
+    public CardinalityAggregator(String name, ValuesSource valuesSource, boolean rehash,
+                                 int precision, AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, metaData);
         this.valuesSource = valuesSource;
         this.rehash = rehash;
         this.precision = precision;
-        this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, bigArrays, estimatedBucketsCount);
+        this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, bigArrays, 1);
     }
 
     @Override

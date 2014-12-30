@@ -35,10 +35,10 @@ public abstract class BucketsAggregator extends Aggregator {
 
     private IntArray docCounts;
 
-    public BucketsAggregator(String name, BucketAggregationMode bucketAggregationMode, AggregatorFactories factories,
-                             long estimatedBucketsCount, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
-        super(name, bucketAggregationMode, factories, estimatedBucketsCount, context, parent, metaData);
-        docCounts = bigArrays.newIntArray(estimatedBucketsCount, true);
+    public BucketsAggregator(String name, AggregatorFactories factories,
+                             AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
+        super(name, factories, context, parent, metaData);
+        docCounts = bigArrays.newIntArray(1, true);
     }
 
     /**
@@ -49,10 +49,17 @@ public abstract class BucketsAggregator extends Aggregator {
     }
 
     /**
+     * Ensure there are at least <code>maxBucketOrd</code> buckets available.
+     */
+    protected final void grow(long maxBucketOrd) {
+        docCounts = bigArrays.grow(docCounts, maxBucketOrd);
+    }
+
+    /**
      * Utility method to collect the given doc in the given bucket (identified by the bucket ordinal)
      */
     protected final void collectBucket(int doc, long bucketOrd) throws IOException {
-        docCounts = bigArrays.grow(docCounts, bucketOrd + 1);
+        grow(bucketOrd + 1);
         collectExistingBucket(doc, bucketOrd);
     }
 
@@ -101,7 +108,7 @@ public abstract class BucketsAggregator extends Aggregator {
     /**
      * Required method to build the child aggregations of the given bucket (identified by the bucket ordinal).
      */
-    protected final InternalAggregations bucketAggregations(long bucketOrd) {
+    protected final InternalAggregations bucketAggregations(long bucketOrd) throws IOException {
         final ArrayList<InternalAggregation> childAggs = new ArrayList<>();
         final long bucketDocCount = bucketDocCount(bucketOrd);
         if (bucketDocCount == 0L) {

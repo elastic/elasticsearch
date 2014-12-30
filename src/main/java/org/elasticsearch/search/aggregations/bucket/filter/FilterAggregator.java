@@ -43,7 +43,7 @@ public class FilterAggregator extends SingleBucketAggregator {
                             AggregatorFactories factories,
                             AggregationContext aggregationContext,
                             Aggregator parent,
-                            Map<String, Object> metaData) {
+                            Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, metaData);
         this.filter = filter;
     }
@@ -65,7 +65,7 @@ public class FilterAggregator extends SingleBucketAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         return new InternalFilter(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), getMetaData());
     }
 
@@ -84,7 +84,7 @@ public class FilterAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData) {
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
             return new FilterAggregator(name, filter, factories, context, parent, metaData);
         }
 

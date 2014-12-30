@@ -46,12 +46,12 @@ public abstract class AbstractPercentilesAggregator extends NumericMetricsAggreg
     protected final double compression;
     protected final boolean keyed;
 
-    public AbstractPercentilesAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context,
-                                 Aggregator parent, double[] keys, double compression, boolean keyed, Map<String, Object> metaData) {
-        super(name, estimatedBucketsCount, context, parent, metaData);
+    public AbstractPercentilesAggregator(String name, ValuesSource.Numeric valuesSource, AggregationContext context,
+                                 Aggregator parent, double[] keys, double compression, boolean keyed, Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, metaData);
         this.valuesSource = valuesSource;
         this.keyed = keyed;
-        this.states = bigArrays.newObjectArray(estimatedBucketsCount);
+        this.states = bigArrays.newObjectArray(1);
         this.keys = keys;
         this.compression = compression;
     }

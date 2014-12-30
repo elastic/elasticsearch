@@ -59,10 +59,10 @@ public class HistogramAggregator extends BucketsAggregator {
     public HistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, InternalOrder order,
                                boolean keyed, long minDocCount, @Nullable ExtendedBounds extendedBounds,
                                @Nullable ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
-                               long initialCapacity, InternalHistogram.Factory<?> histogramFactory,
-                               AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+                               InternalHistogram.Factory<?> histogramFactory,
+                               AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
 
-        super(name, BucketAggregationMode.PER_BUCKET, factories, initialCapacity, aggregationContext, parent, metaData);
+        super(name, factories, aggregationContext, parent, metaData);
         this.rounding = rounding;
         this.order = order;
         this.keyed = keyed;
@@ -72,7 +72,7 @@ public class HistogramAggregator extends BucketsAggregator {
         this.formatter = formatter;
         this.histogramFactory = histogramFactory;
 
-        bucketOrds = new LongHash(initialCapacity, aggregationContext.bigArrays());
+        bucketOrds = new LongHash(1, aggregationContext.bigArrays());
     }
 
     @Override
@@ -111,7 +111,7 @@ public class HistogramAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
         List<InternalHistogram.Bucket> buckets = new ArrayList<>((int) bucketOrds.size());
         for (long i = 0; i < bucketOrds.size(); i++) {
@@ -137,7 +137,7 @@ public class HistogramAggregator extends BucketsAggregator {
         Releasables.close(bucketOrds);
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, Map<String, Object>> {
+    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
 
         private final Rounding rounding;
         private final InternalOrder order;
@@ -160,18 +160,15 @@ public class HistogramAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, null, null, config.formatter(), 0, histogramFactory, aggregationContext, parent, metaData);
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
+            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, null, null, config.formatter(), histogramFactory, aggregationContext, parent, metaData);
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            // todo if we'll keep track of min/max values in IndexFieldData, we could use the max here to come up with a better estimation for the buckets count
-            long estimatedBucketCount = 50;
-            if (hasParentBucketAggregator(parent)) {
-                estimatedBucketCount = 8;
+        protected Aggregator create(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+            if (collectsOnly0 == false) {
+                return asMultiBucketAggregator(this, aggregationContext, parent);
             }
-
             // we need to round the bounds given by the user and we have to do it for every aggregator we crate
             // as the rounding is not necessarily an idempotent operation.
             // todo we need to think of a better structure to the factory/agtor code so we won't need to do that
@@ -181,7 +178,7 @@ public class HistogramAggregator extends BucketsAggregator {
                 extendedBounds.processAndValidate(name, aggregationContext.searchContext(), config.parser());
                 roundedBounds = extendedBounds.round(rounding);
             }
-            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, roundedBounds, valuesSource, config.formatter(), estimatedBucketCount, histogramFactory, aggregationContext, parent, metaData);
+            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, roundedBounds, valuesSource, config.formatter(), histogramFactory, aggregationContext, parent, metaData);
         }
 
     }

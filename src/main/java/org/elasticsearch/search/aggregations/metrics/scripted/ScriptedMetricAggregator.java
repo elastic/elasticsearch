@@ -52,8 +52,8 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
 
     protected ScriptedMetricAggregator(String name, String scriptLang, ScriptType initScriptType, String initScript,
             ScriptType mapScriptType, String mapScript, ScriptType combineScriptType, String combineScript, ScriptType reduceScriptType,
-            String reduceScript, Map<String, Object> params, Map<String, Object> reduceParams, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
-        super(name, 1, BucketAggregationMode.PER_BUCKET, context, parent, metaData);
+            String reduceScript, Map<String, Object> params, Map<String, Object> reduceParams, AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, metaData);
         this.scriptService = context.searchContext().scriptService();
         this.scriptLang = scriptLang;
         this.reduceScriptType = reduceScriptType;
@@ -86,12 +86,13 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
     }
 
     @Override
-    public void setNextReader(LeafReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) throws IOException {
         mapScript.setNextReader(reader);
     }
 
     @Override
     public void collect(int docId, long bucketOrdinal) throws IOException {
+        assert bucketOrdinal == 0 : bucketOrdinal;
         mapScript.setNextDocId(docId);
         mapScript.run();
     }
@@ -143,7 +144,10 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData) {
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+            if (collectsOnly0 == false) {
+                return asMultiBucketAggregator(this, context, parent);
+            }
             Map<String, Object> params = null;
             if (this.params != null) {
                 params = deepCopyParams(this.params, context.searchContext());

@@ -136,8 +136,10 @@ public class GroovyScriptTests extends ElasticsearchIntegrationTest {
         assertOrderedSearchHits(resp, "3", "1");
 
         // _score is comparable
+        // NOTE: it is important to use 0.0 instead of 0 instead Groovy will do an integer comparison
+        // and if the score if between 0 and 1 it will be considered equal to 0 due to the cast
         resp = client().prepareSearch("test").setQuery(functionScoreQuery(matchQuery("foo", "dog"))
-            .add(scriptFunction("_score > 0 ? _score : 0", "groovy"))
+            .add(scriptFunction("_score > 0.0 ? _score : 0", "groovy"))
             .boostMode(CombineFunction.REPLACE)).get();
         assertNoFailures(resp);
         assertOrderedSearchHits(resp, "3", "1");

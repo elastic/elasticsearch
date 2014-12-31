@@ -30,7 +30,7 @@ import java.io.IOException;
  * The provided {@link DocLookup} is used to retrieve the score
  * for the current document.
  */
-public final class ScoreAccessor extends Number implements Comparable<Number> {
+public final class ScoreAccessor extends Number {
 
     Scorer scorer;
 
@@ -64,10 +64,5 @@ public final class ScoreAccessor extends Number implements Comparable<Number> {
     @Override
     public double doubleValue() {
         return score();
-    }
-
-    @Override
-    public int compareTo(Number o) {
-        return Float.compare(this.score(), o.floatValue());
     }
 }

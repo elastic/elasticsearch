@@ -220,6 +220,36 @@ public abstract class CompositeClusterStatePart<T extends CompositeClusterStateP
                 return new NoDiff<T>();
             }
         }
+
+        @Override
+        public T fromXContent(XContentParser parser, LocalContext context) throws IOException {
+            XContentParser.Token token;
+            long version = -1;
+            String uuid = "_na_";
+            ImmutableOpenMap.Builder<String, ClusterStatePart> parts = ImmutableOpenMap.builder();
+            String currentFieldName = parser.currentName();
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    // check if its a custom index metadata
+                    ClusterStatePart.Factory<ClusterStatePart> factory = lookupFactory(currentFieldName);
+                    if (factory == null) {
+                        //TODO warn?
+                        parser.skipChildren();
+                    } else {
+                        parts.put(currentFieldName, factory.fromXContent(parser, context));
+                    }
+                } else if (token.isValue()) {
+                    if ("version".equals(currentFieldName)) {
+                        version = parser.longValue();
+                    } else if ("uuid".equals(currentFieldName)) {
+                        uuid = parser.text();
+                    }
+                }
+            }
+            return fromParts(version, uuid, parts);
+        }
     }
 
     private static class CompositeDiff<T extends CompositeClusterStatePart> implements Diff<T> {

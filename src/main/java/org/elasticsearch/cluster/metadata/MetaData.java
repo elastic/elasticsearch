@@ -79,11 +79,6 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
         public MetaData fromParts(long version, String uuid, ImmutableOpenMap.Builder<String, ClusterStatePart> parts) {
             return new MetaData(version, uuid, parts.build());
         }
-
-        @Override
-        public MetaData fromXContent(XContentParser parser, LocalContext context) throws IOException {
-            throw new UnsupportedOperationException("Not implemented yet");
-        }
     }
 
     @Override
@@ -162,11 +157,11 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
         super(version, uuid, parts);
         this.uuid = uuid;
         this.version = version;
-        this.transientSettings = ((ClusterStateSettingsPart)get(TRANSIENT_SETTINGS_TYPE)).getSettings();
-        this.persistentSettings = ((ClusterStateSettingsPart)get(PERSISTENT_SETTINGS_TYPE)).getSettings();
+        this.transientSettings = parts.containsKey(TRANSIENT_SETTINGS_TYPE) ? ((ClusterStateSettingsPart)get(TRANSIENT_SETTINGS_TYPE)).getSettings() : ImmutableSettings.EMPTY;
+        this.persistentSettings = parts.containsKey(PERSISTENT_SETTINGS_TYPE) ? ((ClusterStateSettingsPart)get(PERSISTENT_SETTINGS_TYPE)).getSettings() :  ImmutableSettings.EMPTY;
         this.settings = ImmutableSettings.settingsBuilder().put(persistentSettings).put(transientSettings).build();
-        this.indices = ((MapClusterStatePart<IndexMetaData>)get(INDICES_TYPE)).parts();
-        this.templates = ((MapClusterStatePart<IndexTemplateMetaData>)get(TEMPLATES_TYPE)).parts();
+        this.indices = parts.containsKey(INDICES_TYPE) ? ((MapClusterStatePart<IndexMetaData>)get(INDICES_TYPE)).parts() : ImmutableOpenMap.<String, IndexMetaData>of();
+        this.templates = parts.containsKey(TEMPLATES_TYPE) ? ((MapClusterStatePart<IndexTemplateMetaData>)get(TEMPLATES_TYPE)).parts() : ImmutableOpenMap.<String, IndexTemplateMetaData>of();
 
         int totalNumberOfShards = 0;
         int numberOfShards = 0;
@@ -1363,40 +1358,7 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
                 }
             }
 
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    if ("settings".equals(currentFieldName)) {
-                        builder.persistentSettings(ImmutableSettings.settingsBuilder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())).build());
-                    } else if ("indices".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(IndexMetaData.Builder.fromXContent(parser), false);
-                        }
-                    } else if ("templates".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(IndexTemplateMetaData.Builder.fromXContent(parser, parser.currentName()));
-                        }
-                    } else {
-                        // check if its a custom index metadata
-                        ClusterStatePart.Factory<ClusterStatePart> factory = lookupFactory(currentFieldName);
-                        if (factory == null) {
-                            //TODO warn
-                            parser.skipChildren();
-                        } else {
-                            // TODO: context
-                            builder.putCustom(currentFieldName, factory.fromXContent(parser, null));
-                        }
-                    }
-                } else if (token.isValue()) {
-                    if ("version".equals(currentFieldName)) {
-                        builder.version = parser.longValue();
-                    } else if ("uuid".equals(currentFieldName)) {
-                        builder.uuid = parser.text();
-                    }
-                }
-            }
-            return builder.build();
+            return FACTORY.fromXContent(parser, new LocalContext(null));
         }
 
         public static MetaData readFrom(StreamInput in) throws IOException {

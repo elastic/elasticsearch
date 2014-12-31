@@ -23,36 +23,36 @@ of `indices`, `os`, `process`, `jvm`, `network`, `transport`, `http`,
 `fs`, `breaker` and `thread_pool`. For example:
 
 [horizontal]
-`indices`:: 
+`indices`::
 	Indices stats about size, document count, indexing and
 	deletion times, search times, field cache size , merges and flushes
 
-`fs`:: 
+`fs`::
 	File system information, data path, free disk space, read/write
 	stats
 
-`http`:: 
+`http`::
 	HTTP connection information
 
-`jvm`:: 
+`jvm`::
 	JVM stats, memory pool information, garbage collection, buffer
 	pools
 
-`network`:: 
+`network`::
 	TCP information
 
-`os`:: 
+`os`::
 	Operating system stats, load average, cpu, mem, swap
 
-`process`:: 
+`process`::
 	Process statistics, memory consumption, cpu usage, open
 	file descriptors
 
-`thread_pool`:: 
+`thread_pool`::
 	Statistics about each thread pool, including current
 	size, queue and rejected tasks
 
-`transport`:: 
+`transport`::
 	Transport statistics about sent and received bytes in
 	cluster communication
 
@@ -82,12 +82,28 @@ level or on index level.
 [source,js]
 --------------------------------------------------
 # Node Stats
-curl localhost:9200/_nodes/stats/indices/?fields=field1,field2&pretty
+curl -XGET 'http://localhost:9200/_nodes/stats/indices/?fields=field1,field2&pretty'
 
 # Indices Stat
-curl localhost:9200/_stats/fielddata/?fields=field1,field2&pretty
+curl -XGET 'http://localhost:9200/_stats/fielddata/?fields=field1,field2&pretty'
 
 # You can use wildcards for field names
-curl localhost:9200/_stats/fielddata/?fields=field*&pretty
-curl localhost:9200/_nodes/stats/indices/?fields=field*&pretty
+curl -XGET 'http://localhost:9200/_stats/fielddata/?fields=field*&pretty'
+curl -XGET 'http://localhost:9200/_nodes/stats/indices/?fields=field*&pretty'
+--------------------------------------------------
+
+[float]
+[[search-groups]]
+=== Search groups
+
+You can get statistics about search groups for searches executed
+on this node.
+
+[source,js]
+--------------------------------------------------
+# All groups with all stats
+curl -XGET 'http://localhost:9200/_nodes/stats?pretty&groups=_all'
+
+# Some groups from just the indices stats
+curl -XGET 'http://localhost:9200/_nodes/stats/indices?pretty&groups=foo,bar'
 --------------------------------------------------

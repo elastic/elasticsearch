@@ -732,6 +732,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
     }
 
+    /** overridable method to turn custom data paths on or off */
+    public boolean useCustomDataPath() {
+        return true;
+    }
+
     /**
      * Returns a settings object used in {@link #createIndex(String...)} and {@link #prepareCreate(String)} and friends.
      * This method can be overwritten by subclasses to set defaults for the indices that are created by the test.
@@ -751,7 +756,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             }
         }
         // 30% of the time
-        if (randomInt(9) < 3) {
+        if (useCustomDataPath() && (randomInt(9) < 3)) {
             String dataPath = "data/custom-" + CHILD_JVM_ID + "/" + UUID.randomUUID().toString();
             logger.info("using custom data_path for index: [{}]", dataPath);
             builder.put(IndexMetaData.SETTING_DATA_PATH, dataPath);

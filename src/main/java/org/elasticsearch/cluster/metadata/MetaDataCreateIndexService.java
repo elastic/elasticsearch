@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -558,9 +559,22 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws ElasticsearchException {
         validateIndexName(request.index(), state);
         String customPath = request.settings().get(IndexMetaData.SETTING_DATA_PATH, null);
-        if (customPath != null && nodeEnv.isCustomPathsEnabled() == false) {
-            throw new IndexCreationException(new Index(request.index()),
-                    new ElasticsearchIllegalArgumentException("custom data_paths for indices is disabled"));
+        if (customPath != null) {
+            if (nodeEnv.isCustomPathsEnabled() == false) {
+                throw new IndexCreationException(new Index(request.index()),
+                        new ElasticsearchIllegalArgumentException("custom data_path for indices is disabled"));
+            }
+            // This checks for all nodes to be at least 1.5.0+ when creating an
+            // index with a custom data_path. It will only work if the 1.5.0
+            // node is the master in the cluster, but it is better protection
+            // than nothing.
+            for (ObjectObjectCursor<String, DiscoveryNode> entry : state.nodes().dataNodes()) {
+                if (entry.value.version().onOrAfter(Version.V_1_5_0) == false) {
+                    throw new IndexCreationException(new Index(request.index()),
+                            new ElasticsearchIllegalArgumentException("custom data_path is disabled unless all nodes are at least version "
+                                    + Version.V_1_5_0));
+                }
+            }
         }
     }
 

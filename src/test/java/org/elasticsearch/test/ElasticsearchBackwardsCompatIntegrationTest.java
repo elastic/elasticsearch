@@ -84,6 +84,14 @@ import static org.hamcrest.Matchers.is;
 @Ignore
 public abstract class ElasticsearchBackwardsCompatIntegrationTest extends ElasticsearchIntegrationTest {
 
+    @Override
+    public boolean useCustomDataPath() {
+        // Backwards compatibility tests cannot use custom data paths, because
+        // some nodes in the cluster may not support the setting, so this is
+        // set to false for all backwards integration tests
+        return false;
+    }
+
     private static File backwardsCompatibilityPath() {
         String path = System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_PATH);
         if (path == null || path.isEmpty()) {

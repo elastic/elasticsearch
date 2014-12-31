@@ -32,7 +32,8 @@ import java.util.EnumSet;
  */
 public interface ClusterStatePart extends ToXContent {
 
-    public static final String ALL = "_all";
+    public static final String CONTEXT_MODE_PARAM = "context_mode";
+
 
     public enum XContentContext {
         /* Custom metadata should be returns as part of API call */
@@ -45,11 +46,13 @@ public interface ClusterStatePart extends ToXContent {
         SNAPSHOT;
     }
 
-    public static EnumSet<XContentContext> API_ONLY = EnumSet.of(XContentContext.API);
-    public static EnumSet<XContentContext> GATEWAY_ONLY = EnumSet.of(XContentContext.GATEWAY);
+    public static EnumSet<XContentContext> NONE = EnumSet.noneOf(XContentContext.class);
+    public static EnumSet<XContentContext> API = EnumSet.of(XContentContext.API);
     public static EnumSet<XContentContext> API_GATEWAY = EnumSet.of(XContentContext.API, XContentContext.GATEWAY);
     public static EnumSet<XContentContext> API_SNAPSHOT = EnumSet.of(XContentContext.API, XContentContext.SNAPSHOT);
     public static EnumSet<XContentContext> API_GATEWAY_SNAPSHOT = EnumSet.of(XContentContext.API, XContentContext.GATEWAY, XContentContext.SNAPSHOT);
+    public static EnumSet<XContentContext> GATEWAY = EnumSet.of(XContentContext.GATEWAY);
+    public static EnumSet<XContentContext> GATEWAY_SNAPSHOT = EnumSet.of(XContentContext.GATEWAY, XContentContext.SNAPSHOT);
 
     void writeTo(StreamOutput out) throws IOException;
 

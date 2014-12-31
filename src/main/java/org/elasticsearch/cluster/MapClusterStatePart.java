@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
@@ -42,9 +43,11 @@ import static com.google.common.collect.Maps.newHashMap;
 public class MapClusterStatePart<T extends MapItemClusterStatePart> extends AbstractClusterStatePart {
 
     private final ImmutableOpenMap<String, T> parts;
+    private final EnumSet<XContentContext> xContentContext;
 
-    public MapClusterStatePart(ImmutableOpenMap<String, T> parts) {
+    public MapClusterStatePart(ImmutableOpenMap<String, T> parts, EnumSet<XContentContext> xContentContext) {
         this.parts = parts;
+        this.xContentContext = xContentContext;
     }
 
     @Override
@@ -71,13 +74,25 @@ public class MapClusterStatePart<T extends MapItemClusterStatePart> extends Abst
         return parts.get(type);
     }
 
+    @Override
+    public EnumSet<XContentContext> context() {
+        return xContentContext;
+    }
+
 
     public static class Factory<T extends MapItemClusterStatePart> extends AbstractFactory<MapClusterStatePart<T>> {
+
+        private final EnumSet<XContentContext> xContentContext;
 
         private final ClusterStatePart.Factory<T> factory;
 
         public Factory(ClusterStatePart.Factory<T> factory) {
+            this(factory, API);
+        }
+
+        public Factory(ClusterStatePart.Factory<T> factory, EnumSet<XContentContext> xContentContext) {
             this.factory = factory;
+            this.xContentContext = xContentContext;
         }
 
         @Override
@@ -88,7 +103,7 @@ public class MapClusterStatePart<T extends MapItemClusterStatePart> extends Abst
                 T part = factory.readFrom(in, context);
                 builder.put(part.key(), part);
             }
-            return new MapClusterStatePart<>(builder.build());
+            return new MapClusterStatePart<>(builder.build(), xContentContext);
         }
 
         @Override
@@ -98,7 +113,7 @@ public class MapClusterStatePart<T extends MapItemClusterStatePart> extends Abst
                 T part = factory.fromXContent(parser, context);
                 builder.put(part.key(), part);
             }
-            return new MapClusterStatePart<>(builder.build());
+            return new MapClusterStatePart<>(builder.build(), xContentContext);
         }
 
         @Override
@@ -130,7 +145,7 @@ public class MapClusterStatePart<T extends MapItemClusterStatePart> extends Abst
                     diffs.put(partIter.key, factory.diff(null, partIter.value));
                 }
             }
-            return new MapDiff<>(deletes, diffs);
+            return new MapDiff<>(deletes, diffs, xContentContext);
         }
 
         @Override
@@ -148,23 +163,29 @@ public class MapClusterStatePart<T extends MapItemClusterStatePart> extends Abst
                     String key = in.readString();
                     diffs.put(key, factory.readDiffFrom(in, context));
                 }
-                return new MapDiff<>(deletes, diffs);
+                return new MapDiff<>(deletes, diffs, xContentContext);
 
             } else {
                 return new NoDiff<>();
             }
         }
 
+        public MapClusterStatePart<T> fromMap(ImmutableOpenMap<String, T> map) {
+            return new MapClusterStatePart<>(map, xContentContext);
+        }
+
     }
 
     private static class MapDiff<T extends MapItemClusterStatePart> implements Diff<MapClusterStatePart<T>> {
 
+        private final EnumSet<XContentContext> xContentContext;
         private final Map<String, Diff<T>> diffs;
         private final List<String> deletes;
 
-        private MapDiff(List<String> deletes, Map<String, Diff<T>> diffs) {
+        private MapDiff(List<String> deletes, Map<String, Diff<T>> diffs, EnumSet<XContentContext> xContentContext) {
             this.diffs = diffs;
             this.deletes = deletes;
+            this.xContentContext = xContentContext;
         }
 
         @Override
@@ -178,7 +199,7 @@ public class MapClusterStatePart<T extends MapItemClusterStatePart> extends Abst
             for (Map.Entry<String, Diff<T>> entry : diffs.entrySet()) {
                 parts.put(entry.getKey(), entry.getValue().apply(part.get(entry.getKey())));
             }
-            return new MapClusterStatePart(parts.build());
+            return new MapClusterStatePart(parts.build(), xContentContext);
         }
 
         @Override

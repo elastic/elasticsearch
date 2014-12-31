@@ -146,5 +146,96 @@ public interface ToXContent {
         }
     }
 
+    public static class DelegatingStringParams implements Params {
+
+        private final String key;
+        private final String value;
+        private final Params delegate;
+
+        public DelegatingStringParams(String key, String value, Params delegate) {
+            this.key = key;
+            this.value = value;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public String param(String key) {
+            if (this.key.equals(key)) {
+                return value;
+            }
+            return delegate.param(key);
+        }
+
+        @Override
+        public String param(String key, String defaultValue) {
+            if (this.key.equals(key)) {
+                return value;
+            }
+            return delegate.param(key, defaultValue);
+        }
+
+        @Override
+        public boolean paramAsBoolean(String key, boolean defaultValue) {
+            return delegate.paramAsBoolean(key, defaultValue);
+        }
+
+        @Override
+        public Boolean paramAsBoolean(String key, Boolean defaultValue) {
+            return delegate.paramAsBoolean(key, defaultValue);
+        }
+
+        @Override
+        public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
+            return delegate.paramAsBooleanOptional(key, defaultValue);
+        }
+    }
+
+    public static class DelegatingBooleanParams implements Params {
+
+        private final String key;
+        private final boolean value;
+        private final Params delegate;
+
+        public DelegatingBooleanParams(String key, boolean value, Params delegate) {
+            this.key = key;
+            this.value = value;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public String param(String key) {
+            return delegate.param(key);
+        }
+
+        @Override
+        public String param(String key, String defaultValue) {
+            return delegate.param(key, defaultValue);
+        }
+
+        @Override
+        public boolean paramAsBoolean(String key, boolean defaultValue) {
+            if (this.key.equals(key)) {
+                return value;
+            }
+            return delegate.paramAsBoolean(key, defaultValue);
+        }
+
+        @Override
+        public Boolean paramAsBoolean(String key, Boolean defaultValue) {
+            if (this.key.equals(key)) {
+                return value;
+            }
+            return delegate.paramAsBoolean(key, defaultValue);
+        }
+
+        @Override
+        public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
+            if (this.key.equals(key)) {
+                return value;
+            }
+            return delegate.paramAsBooleanOptional(key, defaultValue);
+        }
+    }
+
     XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException;
 }

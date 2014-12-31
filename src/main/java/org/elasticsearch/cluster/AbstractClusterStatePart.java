@@ -34,7 +34,7 @@ public abstract class AbstractClusterStatePart implements ClusterStatePart {
 
     @Override
     public EnumSet<XContentContext> context() {
-        return API_ONLY;
+        return API;
     }
 
     public static class CompleteDiff<T extends ClusterStatePart> implements Diff<T> {

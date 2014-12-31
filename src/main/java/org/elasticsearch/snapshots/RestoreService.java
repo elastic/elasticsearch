@@ -229,7 +229,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                 shards.size(), shards.size() - failedShards(shards));
                     }
 
-                    ClusterState updatedState = ClusterState.builder(currentState).metaData(mdBuilder).blocks(blocks).routingTable(rtBuilder).build();
+                    ClusterState updatedState = ClusterState.builder(currentState).metaData(mdBuilder).blocks(blocks).build();
                     RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(rtBuilder).build());
                     return ClusterState.builder(updatedState).routingResult(routingResult).build();
                 }
@@ -282,20 +282,14 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
                 private void restoreGlobalStateIfRequested(MetaData.Builder mdBuilder) {
                     if (request.includeGlobalState()) {
-                        if (metaData.persistentSettings() != null) {
-                            mdBuilder.persistentSettings(metaData.persistentSettings());
-                        }
-                        if (metaData.templates() != null) {
-                            // TODO: Should all existing templates be deleted first?
-                            for (ObjectCursor<IndexTemplateMetaData> cursor : metaData.templates().values()) {
-                                mdBuilder.put(cursor.value);
-                            }
-                        }
-                        if (metaData.customs() != null) {
-                            for (ObjectObjectCursor<String, ClusterStatePart> cursor : metaData.customs()) {
-                                if (!RepositoriesMetaData.TYPE.equals(cursor.key)) {
-                                    // Don't restore repositories while we are working with them
-                                    // TODO: Should we restore them at the end?
+                        for (ObjectObjectCursor<String, ClusterStatePart> cursor : metaData.parts()) {
+                            if (cursor.value.context().contains(ClusterStatePart.XContentContext.SNAPSHOT)) {
+                                if (cursor.key.equals(IndexTemplateMetaData.TYPE)) {
+                                    // Merge templates instead of replacing them
+                                    for (ObjectCursor<IndexTemplateMetaData> cursor2 : metaData.templates().values()) {
+                                        mdBuilder.put(cursor2.value);
+                                    }
+                                } else {
                                     mdBuilder.putCustom(cursor.key, cursor.value);
                                 }
                             }

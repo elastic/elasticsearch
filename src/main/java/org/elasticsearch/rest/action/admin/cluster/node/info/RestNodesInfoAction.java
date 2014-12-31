@@ -103,9 +103,8 @@ public class RestNodesInfoAction extends BaseRestHandler {
 
             @Override
             public RestResponse buildResponse(NodesInfoResponse response, XContentBuilder builder) throws Exception {
-                response.settingsFilter(settingsFilter);
                 builder.startObject();
-                response.toXContent(builder, request);
+                response.toXContent(builder, settingsFilter.withFilterSettingParams(request));
                 builder.endObject();
                 return new BytesRestResponse(RestStatus.OK, builder);
             }

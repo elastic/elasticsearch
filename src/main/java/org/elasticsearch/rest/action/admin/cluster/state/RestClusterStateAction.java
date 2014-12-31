@@ -80,7 +80,7 @@ public class RestClusterStateAction extends BaseRestHandler {
             public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
-                response.getState().settingsFilter(settingsFilter).toXContent(builder, request);
+                response.getState().toXContent(builder, settingsFilter.withFilterSettingParams(request));
                 builder.endObject();
                 return new BytesRestResponse(RestStatus.OK, builder);
             }

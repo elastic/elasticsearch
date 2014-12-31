@@ -18,40 +18,95 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
  *
  */
 public class SettingsFilter extends AbstractComponent {
+    /**
+     * Can be used to specify settings filter that will be used to filter out matching settings in toXContent method
+     */
+    public static String SETTINGS_FILTER_PARAM = "settings_filter";
+
 
     public static interface Filter {
 
         void filter(ImmutableSettings.Builder settings);
     }
 
-    private final CopyOnWriteArrayList<Filter> filters = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<String> pattens = new CopyOnWriteArrayList<>();
 
     @Inject
     public SettingsFilter(Settings settings) {
         super(settings);
     }
 
-    public void addFilter(Filter filter) {
-        filters.add(filter);
+    /**
+     * Adds a new simple pattern to the list of filters
+     * @param pattern
+     */
+    public void addFilter(String pattern) {
+        pattens.add(pattern);
     }
 
-    public void removeFilter(Filter filter) {
-        filters.remove(filter);
+    /**
+     * Removes a simple pattern from the list of filters
+     * @param pattern
+     */
+    public void removeFilter(String pattern) {
+        pattens.remove(pattern);
     }
 
-    public Settings filterSettings(Settings settings) {
+    public String getPatterns() {
+        return Strings.collectionToDelimitedString(pattens, ",");
+    }
+
+    public ToXContent.Params withFilterSettingParams(Params delegate) {
+        return new ToXContent.DelegatingStringParams(SETTINGS_FILTER_PARAM, getPatterns(), delegate);
+    }
+
+    public static Settings filterSettings(Params params, Settings settings) {
+        String patterns = params.param(SETTINGS_FILTER_PARAM);
+        Settings filteredSettings = settings;
+        if (patterns != null) {
+            filteredSettings = SettingsFilter.filterSettings(patterns, filteredSettings);
+        }
+        return filteredSettings;
+    }
+
+    public static Settings filterSettings(String patterns, Settings settings) {
+        String[] patternArray = Strings.delimitedListToStringArray(patterns, ",");
         ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder().put(settings);
-        for (Filter filter : filters) {
-            filter.filter(builder);
+        ArrayList<String> simpleMatchPatternList = newArrayList();
+        for (String pattern : patternArray) {
+            if (Regex.isSimpleMatchPattern(pattern)) {
+                simpleMatchPatternList.add(pattern);
+            } else {
+                builder.remove(pattern);
+            }
+        }
+        if (!simpleMatchPatternList.isEmpty()) {
+            String[] simpleMatchPatterns = simpleMatchPatternList.toArray(new String[simpleMatchPatternList.size()]);
+            Iterator<Map.Entry<String, String>> iterator = builder.internalMap().entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<String, String> current = iterator.next();
+                if (Regex.simpleMatch(simpleMatchPatterns, current.getKey())) {
+                    iterator.remove();
+                }
+            }
         }
         return builder.build();
     }

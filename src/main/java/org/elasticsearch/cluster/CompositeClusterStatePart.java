@@ -111,11 +111,15 @@ public abstract class CompositeClusterStatePart<T extends CompositeClusterStateP
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, XContentContext.API.toString()));
         builder.field("version", version);
         builder.field("uuid", uuid);
         for (ObjectObjectCursor<String, ClusterStatePart> partIter : parts) {
-            builder.startObject(partIter.key);
-            partIter.value.toXContent(builder, params);
+            if (partIter.value.context().contains(context)) {
+                builder.startObject(partIter.key);
+                partIter.value.toXContent(builder, params);
+                builder.endObject();
+            }
         }
         return builder;
     }

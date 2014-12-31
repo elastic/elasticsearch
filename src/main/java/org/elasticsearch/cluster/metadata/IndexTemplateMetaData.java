@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.Sets;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractClusterStatePart;
+import org.elasticsearch.cluster.ClusterStatePart;
 import org.elasticsearch.cluster.LocalContext;
 import org.elasticsearch.cluster.MapItemClusterStatePart;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -39,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -47,7 +49,7 @@ import java.util.Set;
  */
 public class IndexTemplateMetaData extends AbstractClusterStatePart implements MapItemClusterStatePart {
 
-    public static String TYPE = "index_template";
+    public static String TYPE = "template";
 
     public static Factory FACTORY = new Factory();
 
@@ -166,6 +168,11 @@ public class IndexTemplateMetaData extends AbstractClusterStatePart implements M
         result = 31 * result + settings.hashCode();
         result = 31 * result + mappings.hashCode();
         return result;
+    }
+
+    @Override
+    public EnumSet<XContentContext> context() {
+        return API_GATEWAY_SNAPSHOT;
     }
 
     public static class Builder {

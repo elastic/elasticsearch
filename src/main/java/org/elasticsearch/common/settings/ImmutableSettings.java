@@ -648,12 +648,13 @@ public class ImmutableSettings implements Settings {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        Settings settings = SettingsFilter.filterSettings(params, this);
         if (!params.paramAsBoolean("flat_settings", false)) {
-            for (Map.Entry<String, Object> entry : getAsStructuredMap().entrySet()) {
+            for (Map.Entry<String, Object> entry : settings.getAsStructuredMap().entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
             }
         } else {
-            for (Map.Entry<String, String> entry : getAsMap().entrySet()) {
+            for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
                 builder.field(entry.getKey(), entry.getValue(), XContentBuilder.FieldCaseConversion.NONE);
             }
         }

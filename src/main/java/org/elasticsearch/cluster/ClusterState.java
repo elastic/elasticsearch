@@ -169,11 +169,6 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> {
         return routingNodes;
     }
 
-    public ClusterState settingsFilter(SettingsFilter settingsFilter) {
-        metaData().settingsFilter(settingsFilter);
-        return this;
-    }
-
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder();
         sb.append("version: ").append(version).append("\n");

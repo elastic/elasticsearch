@@ -651,24 +651,42 @@ public class IndexMetaData extends AbstractClusterStatePart implements MapItemCl
             boolean binary = params.paramAsBoolean("binary", false);
 
             builder.startObject("settings");
+            Settings settings = indexMetaData.settings();
+            settings.toXContent(builder, params);
             for (Map.Entry<String, String> entry : indexMetaData.settings().getAsMap().entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
             }
             builder.endObject();
 
-            builder.startArray("mappings");
-            for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
-                if (binary) {
-                    builder.value(cursor.value.source().compressed());
-                } else {
-                    byte[] data = cursor.value.source().uncompressed();
-                    XContentParser parser = XContentFactory.xContent(data).createParser(data);
-                    Map<String, Object> mapping = parser.mapOrdered();
-                    parser.close();
+            if (params.paramAsBoolean("reduce_mappings", false)) {
+                builder.startObject("mappings");
+                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
+                    byte[] mappingSource = cursor.value.source().uncompressed();
+                    XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
+                    Map<String, Object> mapping = parser.map();
+                    if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
+                        // the type name is the root value, reduce it
+                        mapping = (Map<String, Object>) mapping.get(cursor.key);
+                    }
+                    builder.field(cursor.key);
                     builder.map(mapping);
                 }
+                builder.endObject();
+            } else {
+                builder.startArray("mappings");
+                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
+                    if (binary) {
+                        builder.value(cursor.value.source().compressed());
+                    } else {
+                        byte[] data = cursor.value.source().uncompressed();
+                        XContentParser parser = XContentFactory.xContent(data).createParser(data);
+                        Map<String, Object> mapping = parser.mapOrdered();
+                        parser.close();
+                        builder.map(mapping);
+                    }
+                }
+                builder.endArray();
             }
-            builder.endArray();
 
             for (ObjectObjectCursor<String, Custom> cursor : indexMetaData.customs()) {
                 builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);

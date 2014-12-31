@@ -63,10 +63,6 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
 
     public static final String TYPE = "metadata";
 
-    public static final String PERSISTENT_SETTINGS_TYPE = "persistent_settings";
-
-    public static final String TRANSIENT_SETTINGS_TYPE = "transient_settings";
-
     public static final Factory FACTORY = new Factory();
 
     public static final String ALL = "_all";
@@ -97,92 +93,30 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("templates");
-        for (ObjectCursor<IndexTemplateMetaData> cursor : templates().values()) {
-            IndexTemplateMetaData templateMetaData = cursor.value;
-            builder.startObject(templateMetaData.name(), XContentBuilder.FieldCaseConversion.NONE);
-
-            builder.field("template", templateMetaData.template());
-            builder.field("order", templateMetaData.order());
-
-            builder.startObject("settings");
-            Settings settings = templateMetaData.settings();
-            if (settingsFilter != null) {
-                settings = settingsFilter.filterSettings(settings);
-            }
-            settings.toXContent(builder, params);
-            builder.endObject();
-
-            builder.startObject("mappings");
-            for (ObjectObjectCursor<String, CompressedString> cursor1 : templateMetaData.mappings()) {
-                byte[] mappingSource = cursor1.value.uncompressed();
-                XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
-                Map<String, Object> mapping = parser.map();
-                if (mapping.size() == 1 && mapping.containsKey(cursor1.key)) {
-                    // the type name is the root value, reduce it
-                    mapping = (Map<String, Object>) mapping.get(cursor1.key);
-                }
-                builder.field(cursor1.key);
-                builder.map(mapping);
-            }
-            builder.endObject();
-
-
-            builder.endObject();
-        }
-        builder.endObject();
-
-        builder.startObject("indices");
-        for (IndexMetaData indexMetaData : this) {
-            builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
-
-            builder.field("state", indexMetaData.state().toString().toLowerCase(Locale.ENGLISH));
-
-            builder.startObject("settings");
-            Settings settings = indexMetaData.settings();
-            if (settingsFilter != null) {
-                settings = settingsFilter.filterSettings(settings);
-            }
-            settings.toXContent(builder, params);
-            builder.endObject();
-
-            builder.startObject("mappings");
-            for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
-                byte[] mappingSource = cursor.value.source().uncompressed();
-                XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
-                Map<String, Object> mapping = parser.map();
-                if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
-                    // the type name is the root value, reduce it
-                    mapping = (Map<String, Object>) mapping.get(cursor.key);
-                }
-                builder.field(cursor.key);
-                builder.map(mapping);
-            }
-            builder.endObject();
-
-            builder.startArray("aliases");
-            for (ObjectCursor<String> cursor : indexMetaData.aliases().keys()) {
-                builder.value(cursor.value);
-            }
-            builder.endArray();
-
-            builder.endObject();
-        }
-        builder.endObject();
-
-        for (ObjectObjectCursor<String, ClusterStatePart> cursor : customs()) {
-            builder.startObject(cursor.key);
-            cursor.value.toXContent(builder, params);
-            builder.endObject();
-        }
-        return builder;
+        return super.toXContent(builder, new DelegatingBooleanParams("reduce_mappings", true, params));
     }
 
+    public static final String PERSISTENT_SETTINGS_TYPE = "settings";
+
+    public static final ClusterStateSettingsPart.Factory PERSISTENT_SETTINGS_FACTORY = new ClusterStateSettingsPart.Factory(API_GATEWAY_SNAPSHOT);
+
+    public static final String TRANSIENT_SETTINGS_TYPE = "transient_settings";
+
+    public static final ClusterStateSettingsPart.Factory TRANSIENT_SETTINGS_FACTORY = new ClusterStateSettingsPart.Factory(API);
+
+    public static final String INDICES_TYPE = "indices";
+
+    public static final MapClusterStatePart.Factory<IndexMetaData> INDICES_FACTORY = new MapClusterStatePart.Factory<>(IndexMetaData.FACTORY);
+
+    public static final String TEMPLATES_TYPE = "templates";
+
+    public static final MapClusterStatePart.Factory<IndexTemplateMetaData> TEMPLATES_FACTORY = new MapClusterStatePart.Factory<>(IndexTemplateMetaData.FACTORY, API_GATEWAY_SNAPSHOT);
+
     static {
-        registerFactory(TRANSIENT_SETTINGS_TYPE, new ClusterStateSettingsPart.Factory());
-        registerFactory(PERSISTENT_SETTINGS_TYPE, new ClusterStateSettingsPart.Factory());
-        registerFactory(IndexMetaData.TYPE, new MapClusterStatePart.Factory<>(IndexMetaData.FACTORY));
-        registerFactory(IndexTemplateMetaData.TYPE, new MapClusterStatePart.Factory<>(IndexTemplateMetaData.FACTORY));
+        registerFactory(TRANSIENT_SETTINGS_TYPE, TRANSIENT_SETTINGS_FACTORY);
+        registerFactory(PERSISTENT_SETTINGS_TYPE, PERSISTENT_SETTINGS_FACTORY);
+        registerFactory(INDICES_TYPE, INDICES_FACTORY);
+        registerFactory(TEMPLATES_TYPE, TEMPLATES_FACTORY);
 
         // register non plugin custom metadata
         registerFactory(RepositoriesMetaData.TYPE, RepositoriesMetaData.FACTORY);
@@ -197,8 +131,6 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
 
     public static final MetaData EMPTY_META_DATA = builder().build();
 
-    public static final String CONTEXT_MODE_PARAM = "context_mode";
-
     public static final String CONTEXT_MODE_SNAPSHOT = XContentContext.SNAPSHOT.toString();
 
     public static final String CONTEXT_MODE_GATEWAY = XContentContext.GATEWAY.toString();
@@ -211,7 +143,6 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
     private final Settings settings;  // Generated on the fly from transientSettings and persistentSettings
     private final ImmutableOpenMap<String, IndexMetaData> indices;
     private final ImmutableOpenMap<String, IndexTemplateMetaData> templates;
-    private final ImmutableOpenMap<String, ClusterStatePart> customs;
 
     private final transient int totalNumberOfShards; // Transient ? not serializable anyway?
     private final int numberOfShards;
@@ -224,9 +155,6 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
     private final ImmutableOpenMap<String, ImmutableOpenMap<String, AliasMetaData>> aliases;
     private final ImmutableOpenMap<String, String[]> aliasAndIndexToIndexMap;
 
-    //TODO: This is a hack - needed for plugins. We should refactor it using params
-    private SettingsFilter settingsFilter;
-
     // Parts: Settings transientSettings, Settings persistentSettings, ImmutableOpenMap<String, IndexMetaData> indices, ImmutableOpenMap<String, IndexTemplateMetaData> templates, ImmutableOpenMap<String, Custom> customs
 
     @SuppressWarnings("unchecked")
@@ -237,16 +165,8 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
         this.transientSettings = ((ClusterStateSettingsPart)get(TRANSIENT_SETTINGS_TYPE)).getSettings();
         this.persistentSettings = ((ClusterStateSettingsPart)get(PERSISTENT_SETTINGS_TYPE)).getSettings();
         this.settings = ImmutableSettings.settingsBuilder().put(persistentSettings).put(transientSettings).build();
-        this.indices = ((MapClusterStatePart<IndexMetaData>)get(IndexMetaData.TYPE)).parts();
-        this.templates = ((MapClusterStatePart<IndexTemplateMetaData>)get(IndexTemplateMetaData.TYPE)).parts();
-        //TODO: Hack, for now to make things running
-        ImmutableOpenMap.Builder<String, ClusterStatePart> customsBuilder = ImmutableOpenMap.builder();
-        customsBuilder.putAll(parts);
-        customsBuilder.remove(TRANSIENT_SETTINGS_TYPE);
-        customsBuilder.remove(PERSISTENT_SETTINGS_TYPE);
-        customsBuilder.remove(IndexMetaData.TYPE);
-        customsBuilder.remove(IndexTemplateMetaData.TYPE);
-        this.customs = customsBuilder.build();
+        this.indices = ((MapClusterStatePart<IndexMetaData>)get(INDICES_TYPE)).parts();
+        this.templates = ((MapClusterStatePart<IndexTemplateMetaData>)get(TEMPLATES_TYPE)).parts();
 
         int totalNumberOfShards = 0;
         int numberOfShards = 0;
@@ -331,11 +251,6 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
         }
 
         this.aliasAndIndexToIndexMap = aliasAndIndexToIndexMap.<String, String[]>cast().build();
-    }
-
-    public MetaData settingsFilter(SettingsFilter settingsFilter) {
-        this.settingsFilter = settingsFilter;
-        return this;
     }
 
     public long version() {
@@ -1032,16 +947,20 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
         return this.templates;
     }
 
+    /**
+     * Use parts() instead
+     */
+    @Deprecated
     public ImmutableOpenMap<String, ClusterStatePart> customs() {
-        return this.customs;
+        return this.parts;
     }
 
-    public ImmutableOpenMap<String, ClusterStatePart> getCustoms() {
-        return this.customs;
-    }
-
+    /**
+     * Use get(String type) instead
+     */
+    @Deprecated
     public <T extends ClusterStatePart> T custom(String type) {
-        return (T) customs.get(type);
+        return (T) parts.get(type);
     }
 
     public int totalNumberOfShards() {
@@ -1215,14 +1134,14 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
         }
         // Check if any persistent metadata needs to be saved
         int customCount1 = 0;
-        for (ObjectObjectCursor<String, ClusterStatePart> cursor : metaData1.customs) {
+        for (ObjectObjectCursor<String, ClusterStatePart> cursor : metaData1.parts()) {
             if (cursor.value.context().contains(XContentContext.GATEWAY)) {
-                if (!cursor.value.equals(metaData2.custom(cursor.key))) return false;
+                if (!cursor.value.equals(metaData2.get(cursor.key))) return false;
                 customCount1++;
             }
         }
         int customCount2 = 0;
-        for (ObjectObjectCursor<String, ClusterStatePart> cursor : metaData2.customs) {
+        for (ObjectObjectCursor<String, ClusterStatePart> cursor : metaData2.parts()) {
             if (cursor.value.context().contains(XContentContext.GATEWAY)) {
                 customCount2++;
             }
@@ -1265,7 +1184,11 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
             this.version = metaData.version;
             this.indices = ImmutableOpenMap.builder(metaData.indices);
             this.templates = ImmutableOpenMap.builder(metaData.templates);
-            this.customs = ImmutableOpenMap.builder(metaData.customs);
+            this.customs = ImmutableOpenMap.builder(metaData.parts);
+            customs.remove(TRANSIENT_SETTINGS_TYPE);
+            customs.remove(PERSISTENT_SETTINGS_TYPE);
+            customs.remove(INDICES_TYPE);
+            customs.remove(TEMPLATES_TYPE);
         }
 
         public Builder put(IndexMetaData.Builder indexMetaDataBuilder) {
@@ -1392,10 +1315,10 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
 
         private static ImmutableOpenMap<String, ClusterStatePart> buildParts(Settings transientSettings, Settings persistentSettings, ImmutableOpenMap<String, IndexMetaData> indices, ImmutableOpenMap<String, IndexTemplateMetaData> templates, ImmutableOpenMap<String, ClusterStatePart> customs) {
             ImmutableOpenMap.Builder<String, ClusterStatePart> builder = ImmutableOpenMap.builder();
-            builder.put(TRANSIENT_SETTINGS_TYPE, new ClusterStateSettingsPart(transientSettings));
-            builder.put(PERSISTENT_SETTINGS_TYPE, new ClusterStateSettingsPart(persistentSettings));
-            builder.put(IndexMetaData.TYPE, new MapClusterStatePart<>(indices));
-            builder.put(IndexTemplateMetaData.TYPE, new MapClusterStatePart<>(templates));
+            builder.put(TRANSIENT_SETTINGS_TYPE, TRANSIENT_SETTINGS_FACTORY.fromSettings(transientSettings));
+            builder.put(PERSISTENT_SETTINGS_TYPE, PERSISTENT_SETTINGS_FACTORY.fromSettings(persistentSettings));
+            builder.put(INDICES_TYPE, INDICES_FACTORY.fromMap(indices));
+            builder.put(TEMPLATES_TYPE, TEMPLATES_FACTORY.fromMap(templates));
             builder.putAll(customs);
             return builder.build();
         }
@@ -1407,56 +1330,15 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
         public static String toXContent(MetaData metaData) throws IOException {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.startObject();
+            metaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
             toXContent(metaData, builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             return builder.string();
         }
 
         public static void toXContent(MetaData metaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, "API"));
-
             builder.startObject("meta-data");
-
-            builder.field("version", metaData.version());
-            builder.field("uuid", metaData.uuid);
-
-            if (!metaData.persistentSettings().getAsMap().isEmpty()) {
-                builder.startObject("settings");
-                for (Map.Entry<String, String> entry : metaData.persistentSettings().getAsMap().entrySet()) {
-                    builder.field(entry.getKey(), entry.getValue());
-                }
-                builder.endObject();
-            }
-
-            if (context == XContentContext.API && !metaData.transientSettings().getAsMap().isEmpty()) {
-                builder.startObject("transient_settings");
-                for (Map.Entry<String, String> entry : metaData.transientSettings().getAsMap().entrySet()) {
-                    builder.field(entry.getKey(), entry.getValue());
-                }
-                builder.endObject();
-            }
-
-            builder.startObject("templates");
-            for (ObjectCursor<IndexTemplateMetaData> cursor : metaData.templates().values()) {
-                IndexTemplateMetaData.Builder.toXContent(cursor.value, builder, params);
-            }
-            builder.endObject();
-
-            if (context == XContentContext.API && !metaData.indices().isEmpty()) {
-                builder.startObject("indices");
-                for (IndexMetaData indexMetaData : metaData) {
-                    IndexMetaData.Builder.toXContent(indexMetaData, builder, params);
-                }
-                builder.endObject();
-            }
-
-            for (ObjectObjectCursor<String, ClusterStatePart> cursor : metaData.customs()) {
-                if (cursor.value.context().contains(context)) {
-                    builder.startObject(cursor.key);
-                    cursor.value.toXContent(builder, params);
-                    builder.endObject();
-                }
-            }
+            metaData.toXContent(builder, params);
             builder.endObject();
         }
 
@@ -1554,10 +1436,13 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
             for (ObjectCursor<IndexTemplateMetaData> cursor : metaData.templates.values()) {
                 IndexTemplateMetaData.Builder.writeTo(cursor.value, out);
             }
-            out.writeVInt(metaData.customs().size());
-            for (ObjectObjectCursor<String, ClusterStatePart> cursor : metaData.customs()) {
-                out.writeString(cursor.key);
-                cursor.value.writeTo(out);
+            //TODO: Hack - generalize the toXContent
+            out.writeVInt(metaData.parts().size() - 4);
+            for (ObjectObjectCursor<String, ClusterStatePart> cursor : metaData.parts()) {
+                if (!cursor.key.equals(TRANSIENT_SETTINGS_TYPE) && !cursor.key.equals(PERSISTENT_SETTINGS_TYPE) && !cursor.key.equals(INDICES_TYPE) && !cursor.key.equals(TEMPLATES_TYPE)) {
+                    out.writeString(cursor.key);
+                    cursor.value.writeTo(out);
+                }
             }
         }
     }

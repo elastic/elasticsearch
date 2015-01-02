@@ -12,14 +12,17 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.signature.InternalSignatureService;
 import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.signature.InternalSignatureService;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.Set;
 
 import static org.elasticsearch.shield.signature.tool.SystemKeyTool.Generate;
 import static org.hamcrest.Matchers.*;
@@ -92,5 +95,26 @@ public class SystemKeyToolTests extends CliToolTestCase {
         assertThat(status, is(CliTool.ExitStatus.OK));
         byte[] bytes = Streams.copyToByteArray(path.toFile());
         assertThat(bytes.length, is(InternalSignatureService.KEY_SIZE / 8));
+    }
+
+    @Test
+    public void testThatSystemKeyMayOnlyBeReadByOwner() throws Exception {
+        File config = newTempDir();
+        File shieldConfig = new File(config, ShieldPlugin.NAME);
+        shieldConfig.mkdirs();
+        Path path = new File(shieldConfig, "system_key").toPath();
+
+        // no posix file permissions, nothing to test, done here
+        boolean supportsPosixPermissions = Files.getFileStore(shieldConfig.toPath()).supportsFileAttributeView(PosixFileAttributeView.class);
+        assumeTrue("Ignoring because posix file attributes are not supported", supportsPosixPermissions);
+
+        when(env.configFile()).thenReturn(config);
+        Generate generate = new Generate(terminal, null);
+        CliTool.ExitStatus status = generate.execute(ImmutableSettings.EMPTY, env);
+        assertThat(status, is(CliTool.ExitStatus.OK));
+
+        Set<PosixFilePermission> posixFilePermissions = Files.getPosixFilePermissions(path);
+        assertThat(posixFilePermissions, hasSize(2));
+        assertThat(posixFilePermissions, containsInAnyOrder(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE));
     }
 }

@@ -83,7 +83,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
     @Test
     public void restorePersistentSettingsTest() throws Exception {
         logger.info("--> start node");
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        internalCluster().startNode();
         Client client = client();
 
         // Add dummy persistent setting
@@ -120,7 +120,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         Path tempDir = newTempDirPath();
 
         logger.info("--> start node");
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        internalCluster().startNode();
         Client client = client();
         createIndex("test-idx");
         ensureYellow();
@@ -358,8 +358,8 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
     @Test
     public void restoreIndexWithMissingShards() throws Exception {
         logger.info("--> start 2 nodes");
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        internalCluster().startNode();
+        internalCluster().startNode();
         cluster().wipeIndices("_all");
 
         logger.info("--> create an index that will have some unallocated shards");
@@ -495,8 +495,8 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
     @Test
     public void restoreIndexWithShardsMissingInLocalGateway() throws Exception {
         logger.info("--> start 2 nodes");
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        internalCluster().startNode();
+        internalCluster().startNode();
         cluster().wipeIndices("_all");
 
         logger.info("--> create repository");

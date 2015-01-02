@@ -19,7 +19,6 @@
 
 package org.elasticsearch.stresstest.fullrestart;
 
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.count.CountResponse;
@@ -33,12 +32,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
-import org.elasticsearch.node.internal.InternalNode;
 
-import java.nio.file.Path;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
@@ -53,8 +49,6 @@ public class FullRestartStressTest {
     private final ESLogger logger = Loggers.getLogger(getClass());
 
     private int numberOfNodes = 4;
-
-    private boolean clearNodeWork = false;
 
     private int numberOfIndices = 5;
     private int textTokens = 150;
@@ -105,11 +99,6 @@ public class FullRestartStressTest {
 
     public FullRestartStressTest period(TimeValue period) {
         this.period = period;
-        return this;
-    }
-
-    public FullRestartStressTest clearNodeWork(boolean clearNodeWork) {
-        this.clearNodeWork = clearNodeWork;
         return this;
     }
 
@@ -197,15 +186,7 @@ public class FullRestartStressTest {
 
             client.close();
             for (Node node : nodes) {
-                Path[] nodeDatas = ((InternalNode) node).injector().getInstance(NodeEnvironment.class).nodeDataPaths();
                 node.close();
-                if (clearNodeWork && !settings.get("gateway.type").equals("local")) {
-                    try {
-                        IOUtils.rm(nodeDatas);
-                    } catch (Exception ex) {
-                        logger.debug("failed to remove node data locations", ex);
-                    }
-                }
             }
 
             if ((System.currentTimeMillis() - testStart) > period.millis()) {
@@ -222,7 +203,6 @@ public class FullRestartStressTest {
         int numberOfNodes = 2;
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("index.shard.check_on_startup", true)
-                .put("gateway.type", "local")
                 .put("gateway.recover_after_nodes", numberOfNodes)
                 .put("index.number_of_shards", 1)
                 .put("path.data", "data/data1,data/data2")
@@ -231,7 +211,6 @@ public class FullRestartStressTest {
         FullRestartStressTest test = new FullRestartStressTest()
                 .settings(settings)
                 .period(TimeValue.timeValueMinutes(20))
-                .clearNodeWork(false) // only applies to shared gateway
                 .numberOfNodes(numberOfNodes)
                 .numberOfIndices(1)
                 .textTokens(150)

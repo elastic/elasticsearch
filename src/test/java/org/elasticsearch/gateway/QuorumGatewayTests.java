@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -57,7 +58,7 @@ public class QuorumGatewayTests extends ElasticsearchIntegrationTest {
     @Slow
     public void testChangeInitialShardsRecovery() throws Exception {
         logger.info("--> starting 3 nodes");
-        final String[] nodes = internalCluster().startNodesAsync(3, settingsBuilder().put("gateway.type", "local").build()).get().toArray(new String[0]);
+        final String[] nodes = internalCluster().startNodesAsync(3).get().toArray(new String[0]);
 
         createIndex("test");
         ensureGreen();
@@ -80,7 +81,7 @@ public class QuorumGatewayTests extends ElasticsearchIntegrationTest {
         internalCluster().fullRestart(new RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                return settingsBuilder().put("gateway.type", "local").build();
+                return ImmutableSettings.EMPTY;
             }
             
             @Override
@@ -123,7 +124,7 @@ public class QuorumGatewayTests extends ElasticsearchIntegrationTest {
     public void testQuorumRecovery() throws Exception {
 
         logger.info("--> starting 3 nodes");
-        internalCluster().startNodesAsync(3, settingsBuilder().put("gateway.type", "local").build()).get();
+        internalCluster().startNodesAsync(3).get();
         // we are shutting down nodes - make sure we don't have 2 clusters if we test network
         setMinimumMasterNodes(2);
 

@@ -505,7 +505,7 @@ public class InternalEngine implements Engine {
                 doUpdate = true;
                 updatedVersion = 1;
 
-           } else {
+            } else {
                 // On primary, we throw DAEE if the _uid is already in the index with an older version:
                 assert create.origin() == Operation.Origin.PRIMARY;
                 throw new DocumentAlreadyExistsException(shardId, create.type(), create.id());

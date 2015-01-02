@@ -69,8 +69,12 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     /**
-     * This method could be used by discovery plugins
+     * This method could be used by discovery plugins. For example in EC2 discovery,
+     * we are adding a HostsProvider to unicastZenPing.
+     * This hosts provider makes AWS API calls to get back the list of potential elasticsearch nodes.
+     * https://github.com/elasticsearch/elasticsearch-cloud-aws/blob/master/src/main/java/org/elasticsearch/discovery/ec2/Ec2Discovery.java#L64-71
      */
+    @SuppressWarnings("unused")
     public void zenPings(ImmutableList<? extends ZenPing> pings) {
         this.zenPings = pings;
         if (lifecycle.started()) {

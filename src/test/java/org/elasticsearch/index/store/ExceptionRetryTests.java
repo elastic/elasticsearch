@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -86,7 +87,7 @@ public class ExceptionRetryTests extends ElasticsearchIntegrationTest {
                 @Override
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
                     super.sendRequest(node, requestId, action, request, options);
-                    if (action.equals("indices:data/write/bulk[s]") && !exceptionThrown) {
+                    if (action.equals(TransportShardBulkAction.getActionName()) && !exceptionThrown) {
                         logger.info("Throw disconnected exception");
                         exceptionThrown = true;
                         throw new ConnectTransportException(node, action);

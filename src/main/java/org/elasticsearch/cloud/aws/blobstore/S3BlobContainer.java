@@ -20,10 +20,7 @@
 package org.elasticsearch.cloud.aws.blobstore;
 
 import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.amazonaws.services.s3.model.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -132,6 +129,24 @@ public class S3BlobContainer extends AbstractBlobContainer {
             }
         }
         return blobsBuilder.build();
+    }
+
+    @Override
+    public void move(String sourceBlobName, String targetBlobName) throws IOException {
+        try {
+            CopyObjectRequest request = new CopyObjectRequest(blobStore.bucket(), buildKey(sourceBlobName),
+                    blobStore.bucket(), buildKey(targetBlobName));
+
+            if (blobStore.serverSideEncryption()) {
+                ObjectMetadata objectMetadata = new ObjectMetadata();
+                objectMetadata.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+                request.setNewObjectMetadata(objectMetadata);
+            }
+            blobStore.client().copyObject(request);
+            blobStore.client().deleteObject(blobStore.bucket(), buildKey(sourceBlobName));
+        } catch (AmazonS3Exception e){
+            throw new IOException(e);
+        }
     }
 
     @Override

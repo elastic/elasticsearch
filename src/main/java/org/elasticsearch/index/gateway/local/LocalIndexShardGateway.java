@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.gateway.IndexShardGateway;
@@ -76,6 +77,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
 
     private volatile ScheduledFuture flushScheduler;
     private final TimeValue syncInterval;
+    private final CancellableThreads cancellableThreads = new CancellableThreads();
 
     @Inject
     public LocalIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool, MappingUpdatedAction mappingUpdatedAction,
@@ -319,15 +321,20 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                     logger.debug("failed to send mapping update post recovery to master for [{}]", t, type);
                 }
             });
-
-            try {
-                boolean waited = latch.await(waitForMappingUpdatePostRecovery.millis(), TimeUnit.MILLISECONDS);
-                if (!waited) {
-                    logger.debug("waited for mapping update on master for [{}], yet timed out", type);
+            cancellableThreads.execute(new CancellableThreads.Interruptable() {
+                @Override
+                public void run() throws InterruptedException {
+                    try {
+                        boolean waited = latch.await(waitForMappingUpdatePostRecovery.millis(), TimeUnit.MILLISECONDS);
+                        if (!waited) {
+                            logger.debug("waited for mapping update on master for [{}], yet timed out", type);
+                        }
+                    } catch (InterruptedException e) {
+                        logger.debug("interrupted while waiting for mapping update");
+                    }
                 }
-            } catch (InterruptedException e) {
-                logger.debug("interrupted while waiting for mapping update");
-            }
+            });
+
         }
         recoveryState.getTranslog().time(System.currentTimeMillis() - recoveryState.getTranslog().startTime());
     }
@@ -341,6 +348,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
     @Override
     public void close() {
         FutureUtils.cancel(flushScheduler);
+        cancellableThreads.cancel("closed");
     }
 
     class Sync implements Runnable {

@@ -107,7 +107,7 @@ public class ExceptionRetryTests extends ElasticsearchIntegrationTest {
         if (response.hasFailures()) {
             for (BulkItemResponse singleIndexRespons : response.getItems()) {
                 if (singleIndexRespons.isFailed()) {
-                    fail();
+                    fail("None of the bulk items should fail but got " + singleIndexRespons.getFailureMessage());
                 }
             }
         }

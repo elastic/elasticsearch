@@ -14,6 +14,13 @@ governing permissions and limitations under the License. -->
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.elasticsearch</groupId>
+        <artifactId>elasticsearch-parent</artifactId>
+        <version>2.0.0-SNAPSHOT</version>
+    </parent>
+
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-cloud-azure</artifactId>
     <version>3.0.0-SNAPSHOT</version>
@@ -31,88 +38,49 @@ governing permissions and limitations under the License. -->
     </licenses>
     <scm>
         <connection>scm:git:git@github.com:elasticsearch/elasticsearch-cloud-azure.git</connection>
-        <developerConnection>scm:git:git@github.com:elasticsearch/elasticsearch-cloud-azure.git
-        </developerConnection>
+        <developerConnection>scm:git:git@github.com:elasticsearch/elasticsearch-cloud-azure.git</developerConnection>
         <url>http://github.com/elasticsearch/elasticsearch-cloud-azure</url>
     </scm>
 
-    <parent>
-        <groupId>org.sonatype.oss</groupId>
-        <artifactId>oss-parent</artifactId>
-        <version>7</version>
-    </parent>
-
     <properties>
-        <elasticsearch.version>2.0.0-SNAPSHOT</elasticsearch.version>
-        <lucene.version>5.0.0</lucene.version>
-        <lucene.maven.version>5.0.0-snapshot-1642891</lucene.maven.version>
-        <tests.output>onerror</tests.output>
-        <tests.shuffle>true</tests.shuffle>
-        <tests.output>onerror</tests.output>
-        <tests.client.ratio></tests.client.ratio>
-        <tests.jvm.argline></tests.jvm.argline>
-        <es.logger.level>INFO</es.logger.level>
+        <!-- You can add any specific project property here -->
     </properties>
-
-    <repositories>
-        <repository>
-            <id>Lucene snapshots</id>
-            <url>https://download.elasticsearch.org/lucenesnapshots/1642891/</url>
-        </repository>
-        <repository>
-            <id>sonatype</id>
-            <url>http://oss.sonatype.org/content/repositories/releases/</url>
-        </repository>
-    </repositories>
 
     <dependencies>
         <dependency>
             <groupId>org.hamcrest</groupId>
-            <artifactId>hamcrest-core</artifactId>
-            <version>1.3.RC2</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.hamcrest</groupId>
-            <artifactId>hamcrest-library</artifactId>
-            <version>1.3.RC2</version>
-            <scope>test</scope>
+            <artifactId>hamcrest-all</artifactId>
         </dependency>
         <dependency>
             <groupId>com.carrotsearch.randomizedtesting</groupId>
             <artifactId>randomizedtesting-runner</artifactId>
-            <version>2.1.10</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-test-framework</artifactId>
-            <version>${lucene.maven.version}</version>
-            <scope>test</scope>
         </dependency>
 
         <dependency>
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch</artifactId>
-            <version>${elasticsearch.version}</version>
+            <scope>provided</scope>
         </dependency>
+
+        <!-- Azure API -->
         <dependency>
             <groupId>com.microsoft.windowsazure</groupId>
             <artifactId>microsoft-windowsazure-api</artifactId>
             <version>0.4.6</version>
         </dependency>
+
         <dependency>
             <groupId>log4j</groupId>
             <artifactId>log4j</artifactId>
-            <version>1.2.17</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch</artifactId>
-            <version>${elasticsearch.version}</version>
             <type>test-jar</type>
-            <scope>test</scope>
         </dependency>
     </dependencies>
 
@@ -134,16 +102,10 @@ governing permissions and limitations under the License. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.0</version>
-                <configuration>
-                    <source>1.6</source>
-                    <target>1.6</target>
-                </configuration>
             </plugin>
             <plugin>
                 <groupId>com.carrotsearch.randomizedtesting</groupId>
                 <artifactId>junit4-maven-plugin</artifactId>
-                <version>2.0.14</version>
                 <executions>
                     <execution>
                         <id>tests</id>
@@ -213,6 +175,7 @@ governing permissions and limitations under the License. -->
                                 <tests.weekly>${tests.weekly}</tests.weekly>
                                 <tests.slow>${tests.slow}</tests.slow>
                                 <tests.azure>${tests.azure}</tests.azure>
+                                <tests.config>${tests.config}</tests.config>
                                 <tests.awaitsfix>${tests.awaitsfix}</tests.awaitsfix>
                                 <tests.slow>${tests.slow}</tests.slow>
                                 <tests.timeoutSuite>${tests.timeoutSuite}</tests.timeoutSuite>
@@ -220,7 +183,6 @@ governing permissions and limitations under the License. -->
                                 <tests.integration>${tests.integration}</tests.integration>
                                 <tests.cluster_seed>${tests.cluster_seed}</tests.cluster_seed>
                                 <tests.client.ratio>${tests.client.ratio}</tests.client.ratio>
-                                <tests.config>${tests.config}</tests.config>
                                 <es.logger.level>${es.logger.level}</es.logger.level>
                                 <java.awt.headless>true</java.awt.headless>
                             </systemProperties>
@@ -231,27 +193,14 @@ governing permissions and limitations under the License. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.13</version>
-                <configuration>
-                    <skip>true</skip>
-                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
-                <version>2.2.1</version>
-                <executions>
-                    <execution>
-                        <id>attach-sources</id>
-                        <goals>
-                            <goal>jar</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
-                <version>2.4</version>
                 <configuration>
                     <appendAssemblyId>false</appendAssemblyId>
                     <outputDirectory>${project.build.directory}/releases/</outputDirectory>
@@ -270,4 +219,12 @@ governing permissions and limitations under the License. -->
             </plugin>
         </plugins>
     </build>
+
+    <repositories>
+        <repository>
+            <id>oss-snapshots</id>
+            <name>Sonatype OSS Snapshots</name>
+            <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+        </repository>
+    </repositories>
 </project>

@@ -88,7 +88,7 @@ public class ExceptionRetryTests extends ElasticsearchIntegrationTest {
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
                     super.sendRequest(node, requestId, action, request, options);
                     if (action.equals(TransportShardBulkAction.getActionName()) && !exceptionThrown.get()) {
-                        logger.info("Throw disconnected exception");
+                        logger.debug("Throw ConnectTransportException");
                         exceptionThrown.set(true);
                         throw new ConnectTransportException(node, action);
                     }

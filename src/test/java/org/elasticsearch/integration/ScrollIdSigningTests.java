@@ -10,10 +10,13 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.authz.AuthorizationException;
+import org.elasticsearch.shield.signature.InternalSignatureService;
 import org.elasticsearch.shield.signature.SignatureService;
 import org.elasticsearch.test.ShieldIntegrationTest;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.util.Locale;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -23,13 +26,6 @@ import static org.hamcrest.Matchers.*;
  *
  */
 public class ScrollIdSigningTests extends ShieldIntegrationTest {
-
-    private SignatureService signatureService;
-
-    @Before
-    public void init() throws Exception {
-        signatureService = internalCluster().getInstance(SignatureService.class);
-    }
 
     @Test
     public void testSearchAndClearScroll() throws Exception {
@@ -108,6 +104,8 @@ public class ScrollIdSigningTests extends ShieldIntegrationTest {
     }
 
     private void assertSigned(String scrollId) {
-        assertThat(signatureService.signed(scrollId), is(true));
+        SignatureService signatureService = internalCluster().getDataNodeInstance(InternalSignatureService.class);
+        String message = String.format(Locale.ROOT, "Expected scrollId [%s] to be signed, but was not", scrollId);
+        assertThat(message, signatureService.signed(scrollId), is(true));
     }
 }

@@ -55,7 +55,7 @@ public class InternalSignatureServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testSigned() throws Exception {
-        InternalSignatureService service = new InternalSignatureService(settings, env, watcherService);
+        InternalSignatureService service = new InternalSignatureService(settings, env, watcherService).start();
         String text = randomAsciiOfLength(10);
         String signed = service.sign(text);
         assertThat(service.signed(signed), is(true));
@@ -63,7 +63,7 @@ public class InternalSignatureServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testSignAndUnsign() throws Exception {
-        InternalSignatureService service = new InternalSignatureService(settings, env, watcherService);
+        InternalSignatureService service = new InternalSignatureService(settings, env, watcherService).start();
         String text = randomAsciiOfLength(10);
         String signed = service.sign(text);
         assertThat(text.equals(signed), is(false));
@@ -73,7 +73,7 @@ public class InternalSignatureServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testSignAndUnsign_NoKeyFile() throws Exception {
-        InternalSignatureService service = new InternalSignatureService(ImmutableSettings.EMPTY, env, watcherService);
+        InternalSignatureService service = new InternalSignatureService(ImmutableSettings.EMPTY, env, watcherService).start();
         String text = randomAsciiOfLength(10);
         String signed = service.sign(text);
         assertThat(text, equalTo(signed));
@@ -89,7 +89,7 @@ public class InternalSignatureServiceTests extends ElasticsearchTestCase {
             public void onKeyRefresh() {
                 latch.countDown();
             }
-        });
+        }).start();
 
         String text = randomAsciiOfLength(10);
         String signed = service.sign(text);

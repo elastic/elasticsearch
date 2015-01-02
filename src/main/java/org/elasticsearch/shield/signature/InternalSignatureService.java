@@ -9,6 +9,7 @@ import org.apache.commons.codec.binary.Base64;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -32,7 +33,7 @@ import java.util.regex.Pattern;
 /**
  *
  */
-public class InternalSignatureService extends AbstractComponent implements SignatureService {
+public class InternalSignatureService extends AbstractLifecycleComponent<InternalSignatureService> implements SignatureService {
 
     public static final String FILE_SETTING = "shield.system_key.file";
     public static final String KEY_ALGO = "HmacSHA512";
@@ -42,8 +43,11 @@ public class InternalSignatureService extends AbstractComponent implements Signa
     static final String HMAC_ALGO = "HmacSHA1";
 
     private static final Pattern SIG_PATTERN = Pattern.compile("^\\$\\$[0-9]+\\$\\$.+");
+    private final Environment env;
+    private final ResourceWatcherService watcherService;
+    private final Listener listener;
 
-    private final Path keyFile;
+    private Path keyFile;
 
     private volatile SecretKey key;
 
@@ -54,11 +58,9 @@ public class InternalSignatureService extends AbstractComponent implements Signa
 
     InternalSignatureService(Settings settings, Environment env, ResourceWatcherService watcherService, Listener listener) {
         super(settings);
-        keyFile = resolveFile(settings, env);
-        key = readKey(keyFile);
-        FileWatcher watcher = new FileWatcher(keyFile.getParent().toFile());
-        watcher.addListener(new FileListener(listener));
-        watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
+        this.env = env;
+        this.watcherService = watcherService;
+        this.listener = listener;
     }
 
     public static byte[] generateKey() throws Exception {
@@ -146,6 +148,21 @@ public class InternalSignatureService extends AbstractComponent implements Signa
         byte[] sig = mac.doFinal(text.getBytes(Charsets.UTF_8));
         return Base64.encodeBase64URLSafeString(sig);
     }
+
+    @Override
+    protected void doStart() throws ElasticsearchException {
+        keyFile = resolveFile(settings, env);
+        key = readKey(keyFile);
+        FileWatcher watcher = new FileWatcher(keyFile.getParent().toFile());
+        watcher.addListener(new FileListener(listener));
+        watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
+    }
+
+    @Override
+    protected void doStop() throws ElasticsearchException {}
+
+    @Override
+    protected void doClose() throws ElasticsearchException {}
 
     private class FileListener extends FileChangesListener {
 

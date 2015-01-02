@@ -362,8 +362,8 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
     @Test
     public void testGetDeleteNonExistingSnapshot_86() {
         ClusterAdminClient client = client().admin().cluster();
-        logger.info("-->  creating azure repository without any path");
-        PutRepositoryResponse putRepositoryResponse = client.preparePutRepository("test-repo").setType("azure")
+        logger.info("-->  creating s3 repository without any path");
+        PutRepositoryResponse putRepositoryResponse = client.preparePutRepository("test-repo")
                 .setType("s3").setSettings(ImmutableSettings.settingsBuilder()
                                 .put("base_path", basePath)
                 ).get();

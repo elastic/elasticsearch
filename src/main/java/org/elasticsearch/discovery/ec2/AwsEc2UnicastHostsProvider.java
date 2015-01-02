@@ -23,6 +23,7 @@ import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.model.*;
 import org.elasticsearch.Version;
+import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -37,11 +38,7 @@ import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  *
@@ -72,10 +69,10 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
     private final HostType hostType;
 
     @Inject
-    public AwsEc2UnicastHostsProvider(Settings settings, TransportService transportService, AmazonEC2 client, Version version) {
+    public AwsEc2UnicastHostsProvider(Settings settings, TransportService transportService, AwsEc2Service awsEc2Service, Version version) {
         super(settings);
         this.transportService = transportService;
-        this.client = client;
+        this.client = awsEc2Service.client();
         this.version = version;
 
         this.hostType = HostType.valueOf(componentSettings.get("host_type", "private_ip").toUpperCase());

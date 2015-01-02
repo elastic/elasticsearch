@@ -453,6 +453,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                             if (exp.unwrapCause() instanceof ConnectTransportException || exp.unwrapCause() instanceof NodeClosedException ||
                                     retryPrimaryException(exp)) {
                                 primaryOperationStarted.set(false);
+                                internalRequest.request().setCanHaveDuplicates();
                                 // we already marked it as started when we executed it (removed the listener) so pass false
                                 // to re-add to the cluster listener
                                 logger.trace("received an error from node the primary was assigned to ({}), scheduling a retry", exp.getMessage());

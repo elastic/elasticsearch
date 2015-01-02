@@ -32,8 +32,6 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.hamcrest.Matchers;
 import org.junit.Before;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
 
 import java.io.IOException;
 import java.net.URL;
@@ -61,17 +59,17 @@ public abstract class PluginManagerIntegrationTestCase extends ElasticsearchInte
     protected Path configDir;
     protected ImmutableSettings.Builder settingsBuilder;
 
-    @Rule
-    public TemporaryFolder folder = new TemporaryFolder();
-
     protected static final String PLUGIN_NAME = "test-plugin";
 
     @Before
     public void init() throws Exception {
-        homeDir = folder.getRoot().toPath();
-        pluginsDir = folder.newFolder("plugins").toPath();
-        binDir = folder.newFolder("bin").toPath();
-        configDir = folder.newFolder("config").toPath();
+        homeDir = newTempDirPath();
+        pluginsDir = homeDir.resolve("plugins");
+//        Files.createDirectory(pluginsDir);
+        binDir = homeDir.resolve("bin");
+        Files.createDirectory(binDir);
+        configDir = homeDir.resolve("config");
+        Files.createDirectory(configDir);
         logger.info("  --> Tests will run in home dir [{}]", homeDir);
         settingsBuilder = ImmutableSettings.builder()
                 .put("path.home", homeDir.toAbsolutePath());

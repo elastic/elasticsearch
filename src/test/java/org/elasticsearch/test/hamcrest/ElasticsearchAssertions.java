@@ -70,7 +70,6 @@ import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 
-import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -799,15 +798,8 @@ public class ElasticsearchAssertions {
     /**
      * Check that a file does not exist
      */
-    public static void assertFileDoesNotExist(File file) {
-        assertThat("file/dir [" + file + "] should not exist.", file.exists(), is(false));
-    }
-
-    /**
-     * Check that a file does not exist
-     */
     public static void assertFileDoesNotExist(Path file) {
-        assertFileDoesNotExist(file.toFile());
+        assertThat("file/dir [" + file + "] should not exist.", Files.exists(file), is(false));
     }
 
     /**
@@ -816,13 +808,6 @@ public class ElasticsearchAssertions {
     public static void assertDirectoryExists(Path dir) {
         assertFileExists(dir);
         assertThat("file [" + dir + "] should be a directory.", Files.isDirectory(dir), is(true));
-    }
-
-    /**
-     * Check that a directory does not exist
-     */
-    public static void assertDirectoryDoesNotExist(File dir) {
-        assertFileDoesNotExist(dir);
     }
 
     /**

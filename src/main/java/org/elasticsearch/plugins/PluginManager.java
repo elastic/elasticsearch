@@ -441,6 +441,9 @@ public class PluginManager extends CliTool {
         }
 
         public Path[] getListInstalledPlugins(Environment env) throws IOException {
+            if (Files.exists(env.pluginsFile()) == false) {
+                return null;
+            }
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(env.pluginsFile())) {
                 return Iterators.toArray(stream.iterator(), Path.class);
             }

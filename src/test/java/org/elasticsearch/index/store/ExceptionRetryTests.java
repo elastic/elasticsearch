@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.index.store;
 
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -68,19 +70,12 @@ public class ExceptionRetryTests extends ElasticsearchIntegrationTest {
         final AtomicBoolean exceptionThrown = new AtomicBoolean(false);
         int numDocs = scaledRandomIntBetween(100, 1000);
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
-        List<NodeStats> dataNodeStats = new ArrayList<>();
-        for (NodeStats stat : nodeStats.getNodes()) {
-            dataNodeStats.add(stat);
-        }
-
-        Collections.shuffle(dataNodeStats, getRandom());
-        NodeStats unluckyNode = dataNodeStats.get(1);
-
+        NodeStats unluckyNode = randomFrom(nodeStats.getNodes());
         assertAcked(client().admin().indices().prepareCreate("index"));
         ensureGreen("index");
 
         //create a transport service that throws a ConnectTransportException for one bulk request and therefore triggers a retry.
-        for (NodeStats dataNode : dataNodeStats) {
+        for (NodeStats dataNode : nodeStats.getNodes()) {
             MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().name()));
             mockTransportService.addDelegate(internalCluster().getInstance(Discovery.class, unluckyNode.getNode().name()).localNode(), new MockTransportService.DelegateTransport(mockTransportService.original()) {
 

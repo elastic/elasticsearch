@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData.*;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -61,11 +60,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
@@ -568,12 +567,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             // index with a custom data_path. It will only work if the 1.5.0
             // node is the master in the cluster, but it is better protection
             // than nothing.
-            for (ObjectObjectCursor<String, DiscoveryNode> entry : state.nodes().dataNodes()) {
-                if (entry.value.version().onOrAfter(Version.V_1_5_0) == false) {
-                    throw new IndexCreationException(new Index(request.index()),
-                            new ElasticsearchIllegalArgumentException("custom data_path is disabled unless all nodes are at least version "
-                                    + Version.V_1_5_0));
-                }
+            if (Version.smallest(version, state.nodes().smallestNonClientNodeVersion()).onOrAfter(Version.V_1_5_0) == false) {
+                throw new IndexCreationException(new Index(request.index()),
+                        new ElasticsearchIllegalArgumentException("custom data_path is disabled unless all nodes are at least version "
+                                + Version.V_1_5_0));
             }
         }
     }

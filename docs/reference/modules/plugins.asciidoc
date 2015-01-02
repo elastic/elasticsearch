@@ -9,7 +9,7 @@ custom manner. They range from adding custom mapping types, custom
 analyzers (in a more built in fashion), native scripts, custom discovery
 and more.
 
-coming[1.4.0]
+coming[2.0.0]
 
 [float]
 [[plugins-command-install]]
@@ -266,17 +266,17 @@ plugin.mandatory: mapper-attachments,analysis-smartcn
 For safety reasons, if a mandatory plugin is not installed, the node
 will not start.
 
-deprecated[1.4.0]
+deprecated[2.0.0]
 
-If you are still using elasticsearch 1.3.0 or lesser, plugin script uses older deprecated options:
+If you are still using elasticsearch before 2.0.0, plugin script uses older deprecated options:
 
 [source,shell]
 -----------------------------------
-# Before 1.4.0, install was --install
+# Before 2.0.0, install was --install
 bin/plugin --install <org>/<user/component>/<version>
 # Installing a local plugin or using a specific download url
 bin/plugin --install plugin-name --url file:///path/to/plugin
-# Before 1.4.0, uninstall was --remove
+# Before 2.0.0, uninstall was --remove
 bin/plugin --remove <pluginname>
 # Using verbose mode
 bin/plugin --install mobz/elasticsearch-head --verbose

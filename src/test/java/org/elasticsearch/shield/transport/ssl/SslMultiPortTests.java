@@ -7,7 +7,6 @@ package org.elasticsearch.shield.transport.ssl;
 
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.netty.channel.Channel;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -15,16 +14,13 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ShieldIntegrationTest;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.netty.NettyTransport;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.File;
-import java.lang.reflect.Field;
-import java.net.InetSocketAddress;
-import java.util.Map;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.shield.transport.support.TransportProfileUtil.getProfilePort;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.CoreMatchers.is;
@@ -83,7 +79,7 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
     @Test(expected = NoNodeAvailableException.class)
     public void testThatStandardTransportClientCannotConnectToClientProfile() throws Exception {
         try(TransportClient transportClient = createTransportClient(ImmutableSettings.EMPTY)) {
-            transportClient.addTransportAddress(new InetSocketTransportAddress("localhost", getClientProfilePort()));
+            transportClient.addTransportAddress(new InetSocketTransportAddress("localhost", getProfilePort("client", internalCluster())));
             transportClient.admin().cluster().prepareHealth().get();
         }
     }
@@ -92,7 +88,7 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
     public void testThatProfileTransportClientCanConnectToClientProfile() throws Exception {
         Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile");
         try (TransportClient transportClient = createTransportClient(settings)) {
-            transportClient.addTransportAddress(new InetSocketTransportAddress("localhost", getClientProfilePort()));
+            transportClient.addTransportAddress(new InetSocketTransportAddress("localhost", getProfilePort("client", internalCluster())));
             assertGreenClusterState(transportClient);
         }
     }
@@ -105,18 +101,5 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
             transportClient.addTransportAddress(transportAddress);
             transportClient.admin().cluster().prepareHealth().get();
         }
-    }
-
-    /*
-     * Gets the actual port that the client profile in this test environment is listening on as the randomClientPort
-     * may actually be bound by some other node
-     */
-    private int getClientProfilePort() throws Exception {
-        NettyTransport transport = (NettyTransport) internalCluster().getInstance(Transport.class);
-        Field channels = NettyTransport.class.getDeclaredField("serverChannels");
-        channels.setAccessible(true);
-        Map<String, Channel> serverChannels = (Map<String, Channel>) channels.get(transport);
-        Channel clientProfileChannel = serverChannels.get("client");
-        return ((InetSocketAddress) clientProfileChannel.getLocalAddress()).getPort();
     }
 }

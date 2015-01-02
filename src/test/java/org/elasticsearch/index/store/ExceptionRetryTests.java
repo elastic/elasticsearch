@@ -39,6 +39,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -48,8 +49,6 @@ import static org.hamcrest.Matchers.greaterThan;
 
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
 public class ExceptionRetryTests extends ElasticsearchIntegrationTest {
-
-    volatile boolean exceptionThrown = false;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -66,6 +65,7 @@ public class ExceptionRetryTests extends ElasticsearchIntegrationTest {
      */
     @Test
     public void testRetryDueToExceptionOnNetworkLayer() throws ExecutionException, InterruptedException, IOException {
+        final AtomicBoolean exceptionThrown = new AtomicBoolean(false);
         int numDocs = scaledRandomIntBetween(100, 1000);
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
         List<NodeStats> dataNodeStats = new ArrayList<>();
@@ -87,12 +87,11 @@ public class ExceptionRetryTests extends ElasticsearchIntegrationTest {
                 @Override
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
                     super.sendRequest(node, requestId, action, request, options);
-                    if (action.equals(TransportShardBulkAction.getActionName()) && !exceptionThrown) {
+                    if (action.equals(TransportShardBulkAction.getActionName()) && !exceptionThrown.get()) {
                         logger.info("Throw disconnected exception");
-                        exceptionThrown = true;
+                        exceptionThrown.set(true);
                         throw new ConnectTransportException(node, action);
                     }
-
                 }
             });
         }

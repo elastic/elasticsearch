@@ -19,6 +19,8 @@
 
 package org.elasticsearch.discovery.ec2;
 
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.ZenDiscoveryModule;
 
@@ -26,6 +28,13 @@ import org.elasticsearch.discovery.zen.ZenDiscoveryModule;
  *
  */
 public class Ec2DiscoveryModule extends ZenDiscoveryModule {
+
+    @Inject
+    public Ec2DiscoveryModule(Settings settings) {
+        if (settings.getAsBoolean("cloud.enabled", true)) {
+            addUnicastHostProvider(AwsEc2UnicastHostsProvider.class);
+        }
+    }
 
     @Override
     protected void bindDiscovery() {

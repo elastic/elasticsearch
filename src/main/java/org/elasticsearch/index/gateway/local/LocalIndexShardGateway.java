@@ -115,6 +115,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         recoveryState.setStage(RecoveryState.Stage.INDEX);
         long version = -1;
         long translogId = -1;
+        final Set<String> typesToUpdate = Sets.newHashSet();
         indexShard.store().incRef();
         try {
             try {
@@ -242,7 +243,6 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
             StreamInput in = null;
             logger.trace("recovering translog file: {} length: {}", recoveringTranslogFile, recoveringTranslogFile.length());
-            final Set<String> typesToUpdate = Sets.newHashSet();
             try {
                 TranslogStream stream = TranslogStreams.translogStreamFor(recoveringTranslogFile);
                 try {
@@ -301,35 +301,34 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             } catch (Exception ex) {
                 logger.debug("Failed to delete recovering translog file {}", ex, recoveringTranslogFile);
             }
-
-            for (final String type : typesToUpdate) {
-                final CountDownLatch latch = new CountDownLatch(1);
-                mappingUpdatedAction.updateMappingOnMaster(indexService.index().name(), indexService.mapperService().documentMapper(type), indexService.indexUUID(), new MappingUpdatedAction.MappingUpdateListener() {
-                    @Override
-                    public void onMappingUpdate() {
-                        latch.countDown();
-                    }
-
-                    @Override
-                    public void onFailure(Throwable t) {
-                        latch.countDown();
-                        logger.debug("failed to send mapping update post recovery to master for [{}]", t, type);
-                    }
-                });
-
-                try {
-                    boolean waited = latch.await(waitForMappingUpdatePostRecovery.millis(), TimeUnit.MILLISECONDS);
-                    if (!waited) {
-                        logger.debug("waited for mapping update on master for [{}], yet timed out");
-                    }
-                } catch (InterruptedException e) {
-                    logger.debug("interrupted while waiting for mapping update");
-                }
-            }
         } finally {
             indexShard.store().decRef();
         }
 
+        for (final String type : typesToUpdate) {
+            final CountDownLatch latch = new CountDownLatch(1);
+            mappingUpdatedAction.updateMappingOnMaster(indexService.index().name(), indexService.mapperService().documentMapper(type), indexService.indexUUID(), new MappingUpdatedAction.MappingUpdateListener() {
+                @Override
+                public void onMappingUpdate() {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Throwable t) {
+                    latch.countDown();
+                    logger.debug("failed to send mapping update post recovery to master for [{}]", t, type);
+                }
+            });
+
+            try {
+                boolean waited = latch.await(waitForMappingUpdatePostRecovery.millis(), TimeUnit.MILLISECONDS);
+                if (!waited) {
+                    logger.debug("waited for mapping update on master for [{}], yet timed out", type);
+                }
+            } catch (InterruptedException e) {
+                logger.debug("interrupted while waiting for mapping update");
+            }
+        }
         recoveryState.getTranslog().time(System.currentTimeMillis() - recoveryState.getTranslog().startTime());
     }
 

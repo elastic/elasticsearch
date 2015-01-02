@@ -170,7 +170,10 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
     @Test
     public void testSpecifiedIndexUnavailable_singleIndexThatIsClosed() throws Exception {
         assertAcked(prepareCreate("test1"));
-        ensureYellow();
+        // we need to wait until all shards are allocated since recovery from
+        // gateway will fail unless the majority of the replicas was allocated
+        // pre-closing. with lots of replicas this will fail.
+        ensureGreen();
 
         assertAcked(client().admin().indices().prepareClose("test1"));
 
@@ -559,7 +562,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
     // For now don't handle closed indices
     public void testCloseApi_specifiedIndices() throws Exception {
         createIndex("test1", "test2");
-        ensureYellow();
+        ensureGreen();
         verify(search("test1", "test2"), false);
         verify(count("test1", "test2"), false);
         assertAcked(client().admin().indices().prepareClose("test2").get());
@@ -581,7 +584,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
     @Test
     public void testCloseApi_wildcards() throws Exception {
         createIndex("foo", "foobar", "bar", "barbaz");
-        ensureYellow();
+        ensureGreen();
 
         verify(client().admin().indices().prepareClose("bar*"), false);
         verify(client().admin().indices().prepareClose("bar*"), true);
@@ -854,7 +857,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(client().admin().indices().prepareUpdateSettings("_all").setSettings(ImmutableSettings.builder().put("a", "b")), true);
 
         createIndex("foo", "foobar", "bar", "barbaz");
-        ensureYellow();
+        ensureGreen();
         assertAcked(client().admin().indices().prepareClose("_all").get());
 
         verify(client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put("a", "b")), false);

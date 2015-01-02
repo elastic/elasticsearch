@@ -45,8 +45,7 @@ String json = "{" +
 [[using-map]]
 ==== Using Map
 
-Map is a key:values pair collection. It represents very well a JSON
-structure:
+Map is a key:values pair collection. It represents a JSON structure:
 
 [source,java]
 --------------------------------------------------
@@ -87,7 +86,7 @@ import com.fasterxml.jackson.databind.*;
 ObjectMapper mapper = new ObjectMapper(); // create once, reuse
 
 // generate json
-String json = mapper.writeValueAsString(yourbeaninstance);
+byte[] json = mapper.writeValueAsBytes(yourbeaninstance);
 --------------------------------------------------
 
 

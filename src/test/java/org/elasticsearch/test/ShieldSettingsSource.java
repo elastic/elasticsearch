@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -28,6 +27,7 @@ import java.net.URISyntaxException;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.shield.test.ShieldTestUtils.writeFile;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 
 /**
  * {@link org.elasticsearch.test.SettingsSource} subclass that allows to set all needed settings for shield.
@@ -66,6 +66,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     private final String subfolderPrefix;
     private final byte[] systemKey;
     private final boolean sslTransportEnabled;
+    private final boolean hostnameVerificationEnabled;
 
     /**
      * Creates a new {@link org.elasticsearch.test.SettingsSource} for the shield configuration.
@@ -84,6 +85,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
         this.parentFolder = parentFolder;
         this.subfolderPrefix = scope.name();
         this.sslTransportEnabled = sslTransportEnabled;
+        hostnameVerificationEnabled = randomBoolean();
     }
 
     @Override
@@ -91,7 +93,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
         File folder = createFolder(parentFolder, subfolderPrefix + "-" + nodeOrdinal);
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put(super.node(nodeOrdinal))
                 .put("plugin.types", ShieldPlugin.class.getName() + "," + licensePluginClass().getName())
-                .put("shield.audit.enabled", RandomizedTest.randomBoolean())
+                .put("shield.audit.enabled", randomBoolean())
                 .put(InternalSignatureService.FILE_SETTING, writeFile(folder, "system_key", systemKey))
                 .put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE)
                 .put("shield.authc.realms.esusers.order", 0)
@@ -101,7 +103,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
                 .put(getNodeSSLSettings());
 
         //the random call has to happen all the time for repeatability
-        String networkHost = RandomizedTest.randomBoolean() ? "127.0.0.1" : "::1";
+        String networkHost = randomBoolean() ? "127.0.0.1" : "::1";
         if (OsUtils.MAC) {
             builder.put("network.host", networkHost);
         }
@@ -158,7 +160,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     }
 
     private void setUser(ImmutableSettings.Builder builder, String username, SecuredString password) {
-        if (RandomizedTest.randomBoolean()) {
+        if (randomBoolean()) {
             builder.put(Headers.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue(username, password));
         } else {
             builder.put("shield.user", username + ":" + new String(password.internalChars()));
@@ -188,11 +190,11 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     }
 
     private Settings getNodeSSLSettings() {
-        return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode", sslTransportEnabled);
+        return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode", sslTransportEnabled, hostnameVerificationEnabled);
     }
 
     private Settings getClientSSLSettings() {
-        return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient", sslTransportEnabled);
+        return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient", sslTransportEnabled, hostnameVerificationEnabled);
     }
 
     /**
@@ -203,10 +205,10 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
      * @return the configuration settings
      */
     public static Settings getSSLSettingsForStore(String resourcePathToStore, String password) {
-        return getSSLSettingsForStore(resourcePathToStore, password, true);
+        return getSSLSettingsForStore(resourcePathToStore, password, true, true);
     }
 
-    private static Settings getSSLSettingsForStore(String resourcePathToStore, String password, boolean sslTransportEnabled) {
+    private static Settings getSSLSettingsForStore(String resourcePathToStore, String password, boolean sslTransportEnabled, boolean hostnameVerificationEnabled) {
         File store;
         try {
             store = new File(ShieldSettingsSource.class.getResource(resourcePathToStore).toURI());
@@ -225,10 +227,10 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
         if (sslTransportEnabled) {
             builder.put("shield.ssl.keystore.path", store.getPath())
                     .put("shield.ssl.keystore.password", password)
-                    .put(NettySecuredTransport.HOSTNAME_VERIFICATION_SETTING, RandomizedTest.randomBoolean());
+                    .put(NettySecuredTransport.HOSTNAME_VERIFICATION_SETTING, hostnameVerificationEnabled);
         }
 
-        if (sslTransportEnabled && RandomizedTest.randomBoolean()) {
+        if (sslTransportEnabled && randomBoolean()) {
             builder.put("shield.ssl.truststore.path", store.getPath())
                     .put("shield.ssl.truststore.password", password);
         }

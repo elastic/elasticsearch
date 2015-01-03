@@ -20,6 +20,7 @@ package org.elasticsearch.index.store;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -66,6 +67,7 @@ public class ExceptionRetryTests extends ElasticsearchIntegrationTest {
      * see https://github.com/elasticsearch/elasticsearch/issues/8788
      */
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/8788")
     public void testRetryDueToExceptionOnNetworkLayer() throws ExecutionException, InterruptedException, IOException {
         final AtomicBoolean exceptionThrown = new AtomicBoolean(false);
         int numDocs = scaledRandomIntBetween(100, 1000);

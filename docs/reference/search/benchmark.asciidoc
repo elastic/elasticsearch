@@ -100,7 +100,6 @@ Cache clearing parameters:
 `clear_caches.id`::             Whether to clear the id cache.
 `clear_caches.recycler`::       Whether to clear the recycler cache.
 `clear_caches.fields`::         Array of fields to clear.
-`clear_caches.filter_keys`::    Array of filter keys to clear.
 
 Global parameters:
 [horizontal]

@@ -26,7 +26,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -59,7 +58,6 @@ public class RangeFilterParser implements FilterParser {
         XContentParser parser = parseContext.parser();
 
         FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
-        HashedBytesRef cacheKey = null;
         String fieldName = null;
         Object from = null;
         Object to = null;
@@ -115,8 +113,6 @@ public class RangeFilterParser implements FilterParser {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
                     cache = parseContext.parseFilterCachePolicy();
-                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new HashedBytesRef(parser.text());
                 } else if ("execution".equals(currentFieldName)) {
                     execution = parser.text();
                 } else {
@@ -173,7 +169,7 @@ public class RangeFilterParser implements FilterParser {
         }
 
         if (cache != null) {
-            filter = parseContext.cacheFilter(filter, cacheKey, cache);
+            filter = parseContext.cacheFilter(filter, cache);
         }
 
         filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);

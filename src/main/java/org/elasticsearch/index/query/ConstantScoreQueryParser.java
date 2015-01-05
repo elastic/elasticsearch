@@ -56,7 +56,6 @@ public class ConstantScoreQueryParser implements QueryParser {
         boolean queryFound = false;
         float boost = 1.0f;
         FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
-        HashedBytesRef cacheKey = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -78,8 +77,6 @@ public class ConstantScoreQueryParser implements QueryParser {
                     boost = parser.floatValue();
                 } else if ("_cache".equals(currentFieldName)) {
                     cache = parseContext.parseFilterCachePolicy();
-                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new HashedBytesRef(parser.text());
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[constant_score] query does not support [" + currentFieldName + "]");
                 }
@@ -96,7 +93,7 @@ public class ConstantScoreQueryParser implements QueryParser {
         if (filter != null) {
             // cache the filter if possible needed
             if (cache != null) {
-                filter = parseContext.cacheFilter(filter, cacheKey, cache);
+                filter = parseContext.cacheFilter(filter, cache);
             }
 
             Query query1 = new ConstantScoreQuery(filter);

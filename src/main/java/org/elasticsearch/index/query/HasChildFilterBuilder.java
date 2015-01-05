@@ -82,13 +82,6 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
     }
 
     /**
-     * This is a noop since has_child can't be cached.
-     */
-    public HasChildFilterBuilder cacheKey(String cacheKey) {
-        return this;
-    }
-
-    /**
      * Configures at what cut off point only to evaluate parent documents that contain the matching parent id terms
      * instead of evaluating all parent docs.
      */

@@ -33,7 +33,6 @@ public class TermsFilterBuilder extends BaseFilterBuilder {
     private final Object values;
 
     private Boolean cache;
-    private String cacheKey;
 
     private String filterName;
 
@@ -140,11 +139,6 @@ public class TermsFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
-    public TermsFilterBuilder cacheKey(String cacheKey) {
-        this.cacheKey = cacheKey;
-        return this;
-    }
-
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(TermsFilterParser.NAME);
@@ -159,9 +153,6 @@ public class TermsFilterBuilder extends BaseFilterBuilder {
         }
         if (cache != null) {
             builder.field("_cache", cache);
-        }
-        if (cacheKey != null) {
-            builder.field("_cache_key", cacheKey);
         }
 
         builder.endObject();

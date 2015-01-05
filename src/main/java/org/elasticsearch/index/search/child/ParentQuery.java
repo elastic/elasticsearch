@@ -260,8 +260,11 @@ public class ParentQuery extends Query {
             if (bytesValues == null) {
                 return null;
             }
-
-            return new ChildScorer(this, parentIdxs, scores, childrenDocSet.iterator(), bytesValues);
+            DocIdSetIterator childrenIterator = childrenDocSet.iterator();
+            if (childrenIterator == null) {
+                return null;
+            }
+            return new ChildScorer(this, parentIdxs, scores, childrenIterator, bytesValues);
         }
 
     }

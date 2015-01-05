@@ -364,8 +364,6 @@ public class RestBenchAction extends BaseRestHandler {
                     }
                     if (RestClearIndicesCacheAction.Fields.FIELDS.match(fieldName)) {
                         clearCachesSettings.fields(fields.toArray(new String[fields.size()]));
-                    } else if (RestClearIndicesCacheAction.Fields.FILTER_KEYS.match(fieldName)) {
-                        clearCachesSettings.filterKeys(fields.toArray(new String[fields.size()]));
                     } else {
                         throw new ElasticsearchParseException("Failed parsing " + token.name() + " field [" + fieldName + "] field is not recognized");
                     }

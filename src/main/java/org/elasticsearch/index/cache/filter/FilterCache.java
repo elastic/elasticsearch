@@ -19,18 +19,14 @@
 
 package org.elasticsearch.index.cache.filter;
 
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterCachingPolicy;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.CloseableComponent;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexService;
 
 /**
  *
  */
-public interface FilterCache extends IndexComponent, CloseableComponent {
+public interface FilterCache extends IndexComponent, CloseableComponent, org.apache.lucene.search.FilterCache {
 
     static class EntriesStats {
         public final long sizeInBytes;
@@ -45,13 +41,5 @@ public interface FilterCache extends IndexComponent, CloseableComponent {
     // we need to "inject" the index service to not create cyclic dep
     void setIndexService(IndexService indexService);
 
-    String type();
-
-    Filter cache(Filter filterToCache, @Nullable HashedBytesRef cacheKey, FilterCachingPolicy policy);
-
-    void clear(Object reader);
-
     void clear(String reason);
-
-    void clear(String reason, String[] keys);
 }

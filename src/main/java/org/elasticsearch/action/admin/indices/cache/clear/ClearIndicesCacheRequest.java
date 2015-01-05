@@ -37,7 +37,6 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
     private boolean recycler = false;
     private boolean queryCache = false;
     private String[] fields = null;
-    private String[] filterKeys = null;
     
 
     ClearIndicesCacheRequest() {
@@ -83,15 +82,6 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
         return this.fields;
     }
 
-    public ClearIndicesCacheRequest filterKeys(String... filterKeys) {
-        this.filterKeys = filterKeys;
-        return this;
-    }
-
-    public String[] filterKeys() {
-        return this.filterKeys;
-    }
-
     public boolean idCache() {
         return this.idCache;
     }
@@ -117,7 +107,6 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
         idCache = in.readBoolean();
         recycler = in.readBoolean();
         fields = in.readStringArray();
-        filterKeys = in.readStringArray();
         queryCache = in.readBoolean();
     }
 
@@ -128,7 +117,6 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
         out.writeBoolean(idCache);
         out.writeBoolean(recycler);
         out.writeStringArrayNullable(fields);
-        out.writeStringArrayNullable(filterKeys);
         out.writeBoolean(queryCache);
     }
 }

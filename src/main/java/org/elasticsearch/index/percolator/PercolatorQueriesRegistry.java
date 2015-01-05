@@ -269,9 +269,8 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
             // Maybe add a mode load? This isn't really a write. We need write b/c state=post_recovery
             try (Engine.Searcher searcher = shard.acquireSearcher("percolator_load_queries", true)) {
                 Query query = new ConstantScoreQuery(
-                        indexCache.filter().cache(
+                        indexCache.filter().doCache(
                                 new TermFilter(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME)),
-                                null,
                                 queryParserService.autoFilterCachePolicy()
                         )
                 );

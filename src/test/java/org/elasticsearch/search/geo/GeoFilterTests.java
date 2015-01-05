@@ -519,16 +519,6 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
                 if (randomBoolean()) {
                     builder.cache(randomBoolean());
                 }
-                if (randomBoolean()) {
-                    String cacheKey = cacheKeys.get(builder);
-                    if (cacheKey == null) {
-                        cacheKey = randomUnicodeOfLength(6);
-                        cacheKeys.put(builder, cacheKey);
-                    }
-                    builder.cacheKey(cacheKey);
-                } else {
-                    builder.cacheKey(null);
-                }
                 try {
                     long expectedCount = expectedCounts.get(builder);
                     SearchResponse response = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery())

@@ -768,7 +768,7 @@ public class PercolatorService extends AbstractComponent {
 
     private void queryBasedPercolating(Engine.Searcher percolatorSearcher, PercolateContext context, QueryCollector percolateCollector) throws IOException {
         Filter percolatorTypeFilter = context.indexService().mapperService().documentMapper(TYPE_NAME).typeFilter();
-        percolatorTypeFilter = context.indexService().cache().filter().cache(percolatorTypeFilter, null, context.indexService().queryParserService().autoFilterCachePolicy());
+        percolatorTypeFilter = context.indexService().cache().filter().doCache(percolatorTypeFilter, context.indexService().queryParserService().autoFilterCachePolicy());
         FilteredQuery query = new FilteredQuery(context.percolateQuery(), percolatorTypeFilter);
         percolatorSearcher.searcher().search(query, percolateCollector);
         for (Collector queryCollector : percolateCollector.aggregatorCollector) {

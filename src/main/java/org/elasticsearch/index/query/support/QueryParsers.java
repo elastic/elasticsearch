@@ -105,7 +105,7 @@ public final class QueryParsers {
             return query;
         }
         DocumentMapper docMapper = smartFieldMappers.docMapper();
-        return new FilteredQuery(query, parseContext.cacheFilter(docMapper.typeFilter(), null, parseContext.autoFilterCachePolicy()));
+        return new FilteredQuery(query, parseContext.cacheFilter(docMapper.typeFilter(), parseContext.autoFilterCachePolicy()));
     }
 
     public static Filter wrapSmartNameFilter(Filter filter, @Nullable MapperService.SmartNameFieldMappers smartFieldMappers,
@@ -117,6 +117,6 @@ public final class QueryParsers {
             return filter;
         }
         DocumentMapper docMapper = smartFieldMappers.docMapper();
-        return new AndFilter(ImmutableList.of(parseContext.cacheFilter(docMapper.typeFilter(), null, parseContext.autoFilterCachePolicy()), filter));
+        return new AndFilter(ImmutableList.of(parseContext.cacheFilter(docMapper.typeFilter(), parseContext.autoFilterCachePolicy()), filter));
     }
 }

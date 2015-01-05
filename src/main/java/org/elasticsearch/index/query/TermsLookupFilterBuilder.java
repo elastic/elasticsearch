@@ -34,10 +34,8 @@ public class TermsLookupFilterBuilder extends BaseFilterBuilder {
     private String lookupId;
     private String lookupRouting;
     private String lookupPath;
-    private Boolean lookupCache;
 
     private Boolean cache;
-    private String cacheKey;
     private String filterName;
 
     public TermsLookupFilterBuilder(String name) {
@@ -89,18 +87,8 @@ public class TermsLookupFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
-    public TermsLookupFilterBuilder lookupCache(boolean lookupCache) {
-        this.lookupCache = lookupCache;
-        return this;
-    }
-
     public TermsLookupFilterBuilder cache(boolean cache) {
         this.cache = cache;
-        return this;
-    }
-
-    public TermsLookupFilterBuilder cacheKey(String cacheKey) {
-        this.cacheKey = cacheKey;
         return this;
     }
 
@@ -117,9 +105,6 @@ public class TermsLookupFilterBuilder extends BaseFilterBuilder {
         if (lookupRouting != null) {
             builder.field("routing", lookupRouting);
         }
-        if (lookupCache != null) {
-            builder.field("cache", lookupCache);
-        }
         builder.field("path", lookupPath);
         builder.endObject();
 
@@ -128,9 +113,6 @@ public class TermsLookupFilterBuilder extends BaseFilterBuilder {
         }
         if (cache != null) {
             builder.field("_cache", cache);
-        }
-        if (cacheKey != null) {
-            builder.field("_cache_key", cacheKey);
         }
 
         builder.endObject();

@@ -867,7 +867,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexShar
     private Query filterQueryIfNeeded(Query query, String[] types) {
         Filter searchFilter = mapperService.searchFilter(types);
         if (searchFilter != null) {
-            query = new FilteredQuery(query, indexCache.filter().cache(searchFilter, null, indexService.queryParserService().autoFilterCachePolicy()));
+            query = new FilteredQuery(query, indexCache.filter().doCache(searchFilter, indexService.queryParserService().autoFilterCachePolicy()));
         }
         return query;
     }

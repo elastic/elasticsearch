@@ -52,8 +52,7 @@ You have to enable caching explicitly in order to have the
 		    "max_determinized_states": 20000
                 },
                 "_name":"test",
-                "_cache" : true,
-                "_cache_key" : "key"
+                "_cache" : true
             }
         }
     }

@@ -70,13 +70,6 @@ public class HasParentFilterBuilder extends BaseFilterBuilder {
     }
 
     /**
-     * This is a noop since has_parent can't be cached.
-     */
-    public HasParentFilterBuilder cacheKey(String cacheKey) {
-        return this;
-    }
-
-    /**
      * Sets inner hit definition in the scope of this filter and reusing the defined type and query.
      */
     public HasParentFilterBuilder innerHit(QueryInnerHitBuilder innerHit) {

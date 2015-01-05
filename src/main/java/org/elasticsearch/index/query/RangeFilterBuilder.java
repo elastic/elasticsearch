@@ -42,7 +42,6 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
     private boolean includeUpper = true;
 
     private Boolean cache;
-    private String cacheKey;
 
     private String filterName;
 
@@ -349,11 +348,6 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
-    public RangeFilterBuilder cacheKey(String cacheKey) {
-        this.cacheKey = cacheKey;
-        return this;
-    }
-
     /**
      * Sets the execution mode that controls how the range filter is executed. Valid values are: "index" and "fielddata".
      * <ol>
@@ -399,9 +393,6 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
         }
         if (cache != null) {
             builder.field("_cache", cache);
-        }
-        if (cacheKey != null) {
-            builder.field("_cache_key", cacheKey);
         }
         if (execution != null) {
             builder.field("execution", execution);

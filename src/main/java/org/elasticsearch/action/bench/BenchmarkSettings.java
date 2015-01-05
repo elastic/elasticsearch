@@ -287,7 +287,6 @@ public class BenchmarkSettings implements Streamable {
         clearCaches.idCache(clearCachesSettings.idCache);
         clearCaches.recycler(clearCachesSettings.recyclerCache);
         clearCaches.fields(clearCachesSettings.fields);
-        clearCaches.filterKeys(clearCachesSettings.filterKeys);
     }
 
     public void buildSearchRequestsFromSettings() {
@@ -334,7 +333,6 @@ public class BenchmarkSettings implements Streamable {
         private boolean idCache = false;
         private boolean recyclerCache = false;
         private String[] fields = null;
-        private String[] filterKeys = null;
 
         public void filterCache(boolean filterCache) {
             this.filterCache = filterCache;
@@ -350,9 +348,6 @@ public class BenchmarkSettings implements Streamable {
         }
         public void fields(String[] fields) {
             this.fields = fields;
-        }
-        public void filterKeys(String[] filterKeys) {
-            this.filterKeys = filterKeys;
         }
     }
 

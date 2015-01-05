@@ -19,45 +19,27 @@
 
 package org.elasticsearch.index.cache.filter;
 
-import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
-import org.apache.lucene.search.DocIdSet;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
 
 /**
  */
-public class ShardFilterCache extends AbstractIndexShardComponent implements RemovalListener<WeightedFilterCache.FilterCacheKey, DocIdSet> {
+public class ShardFilterCache extends AbstractIndexShardComponent {
 
-    final CounterMetric evictionsMetric = new CounterMetric();
-    final CounterMetric totalMetric = new CounterMetric();
+    final IndicesFilterCache cache;
 
     @Inject
-    public ShardFilterCache(ShardId shardId, @IndexSettings Settings indexSettings) {
+    public ShardFilterCache(ShardId shardId, @IndexSettings Settings indexSettings, IndicesFilterCache cache) {
         super(shardId, indexSettings);
+        this.cache = cache;
     }
 
     public FilterCacheStats stats() {
-        return new FilterCacheStats(totalMetric.count(), evictionsMetric.count());
+        return cache.getStats(shardId);
     }
 
-    public void onCached(long sizeInBytes) {
-        totalMetric.inc(sizeInBytes);
-    }
-
-    @Override
-    public void onRemoval(RemovalNotification<WeightedFilterCache.FilterCacheKey, DocIdSet> removalNotification) {
-        if (removalNotification.wasEvicted()) {
-            evictionsMetric.inc();
-        }
-        if (removalNotification.getValue() != null) {
-            totalMetric.dec(DocIdSets.sizeInBytes(removalNotification.getValue()));
-        }
-    }
 }

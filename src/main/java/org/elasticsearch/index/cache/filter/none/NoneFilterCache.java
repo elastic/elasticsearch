@@ -21,9 +21,7 @@ package org.elasticsearch.index.cache.filter.none;
 
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilterCachingPolicy;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -48,32 +46,17 @@ public class NoneFilterCache extends AbstractIndexComponent implements FilterCac
     }
 
     @Override
-    public String type() {
-        return "none";
-    }
-
-    @Override
     public void close() {
         // nothing to do here
     }
 
     @Override
-    public Filter cache(Filter filterToCache, @Nullable HashedBytesRef cacheKey, FilterCachingPolicy policy) {
+    public Filter doCache(Filter filterToCache, FilterCachingPolicy policy) {
         return filterToCache;
     }
 
     @Override
     public void clear(String reason) {
-        // nothing to do here
-    }
-
-    @Override
-    public void clear(String reason, String[] keys) {
-        // nothing to do there
-    }
-
-    @Override
-    public void clear(Object reader) {
         // nothing to do here
     }
 }

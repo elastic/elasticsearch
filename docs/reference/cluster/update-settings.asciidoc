@@ -153,9 +153,6 @@ due to forced awareness or allocation filtering.
 `indices.cache.filter.size`::
      See <<index-modules-cache>>
 
-`indices.cache.filter.expire` (time)::
-     See <<index-modules-cache>>
-
 [float]
 ==== TTL interval
 

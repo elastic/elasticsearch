@@ -46,7 +46,6 @@ public class GeoDistanceFilterBuilder extends BaseFilterBuilder {
     private String optimizeBbox;
 
     private Boolean cache;
-    private String cacheKey;
 
     private String filterName;
 
@@ -111,11 +110,6 @@ public class GeoDistanceFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
-    public GeoDistanceFilterBuilder cacheKey(String cacheKey) {
-        this.cacheKey = cacheKey;
-        return this;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(GeoDistanceFilterParser.NAME);
@@ -136,9 +130,6 @@ public class GeoDistanceFilterBuilder extends BaseFilterBuilder {
         }
         if (cache != null) {
             builder.field("_cache", cache);
-        }
-        if (cacheKey != null) {
-            builder.field("_cache_key", cacheKey);
         }
         builder.endObject();
     }

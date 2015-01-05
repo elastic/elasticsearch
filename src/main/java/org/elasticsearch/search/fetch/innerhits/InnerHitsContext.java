@@ -129,7 +129,7 @@ public final class InnerHitsContext {
                 rawParentFilter = parentObjectMapper.nestedTypeFilter();
             }
             BitDocIdSetFilter parentFilter = context.bitsetFilterCache().getBitDocIdSetFilter(rawParentFilter);
-            Filter childFilter = context.filterCache().cache(childObjectMapper.nestedTypeFilter(), null, context.queryParserService().autoFilterCachePolicy());
+            Filter childFilter = context.filterCache().doCache(childObjectMapper.nestedTypeFilter(), context.queryParserService().autoFilterCachePolicy());
             try {
                 Query q = new FilteredQuery(query, new NestedChildrenFilter(parentFilter, childFilter, hitContext));
                 context.searcher().search(q, topDocsCollector);

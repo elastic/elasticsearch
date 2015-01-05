@@ -29,7 +29,6 @@ import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -64,7 +63,6 @@ public class GeohashCellFilter {
     public static final String NEIGHBORS = "neighbors";
     public static final String PRECISION = "precision";
     public static final String CACHE = "_cache";
-    public static final String CACHE_KEY = "_cache_key";
 
     /**
      * Create a new geohash filter for a given set of geohashes. In general this method
@@ -105,7 +103,6 @@ public class GeohashCellFilter {
         private int levels = -1;
         private boolean neighbors;
         private Boolean cache;
-        private String cacheKey;
 
 
         public Builder(String field) {
@@ -170,11 +167,6 @@ public class GeohashCellFilter {
             return this;
         }
 
-        public Builder cacheKey(String cacheKey) {
-            this.cacheKey = cacheKey;
-            return this;
-        }
-
         @Override
         protected void doXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(NAME);
@@ -186,9 +178,6 @@ public class GeohashCellFilter {
             }
             if (cache != null) {
                 builder.field(CACHE, cache);
-            }
-            if (cacheKey != null) {
-                builder.field(CACHE_KEY, cacheKey);
             }
             builder.field(field, geohash);
 
@@ -216,7 +205,6 @@ public class GeohashCellFilter {
             int levels = -1;
             boolean neighbors = false;
             FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
-            HashedBytesRef cacheKey = null;
 
 
             XContentParser.Token token;
@@ -242,9 +230,6 @@ public class GeohashCellFilter {
                     } else if (CACHE.equals(field)) {
                         parser.nextToken();
                         cache = parseContext.parseFilterCachePolicy();
-                    } else if (CACHE_KEY.equals(field)) {
-                        parser.nextToken();
-                        cacheKey = new HashedBytesRef(parser.text());
                     } else {
                         fieldName = field;
                         token = parser.nextToken();
@@ -297,7 +282,7 @@ public class GeohashCellFilter {
             }
 
             if (cache != null) {
-                filter = parseContext.cacheFilter(filter, cacheKey, cache);
+                filter = parseContext.cacheFilter(filter, cache);
             }
 
             return filter;

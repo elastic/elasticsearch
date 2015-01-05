@@ -54,7 +54,7 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
     public NestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper, AggregationContext aggregationContext, Aggregator parentAggregator, Map<String, Object> metaData, FilterCachingPolicy filterCachingPolicy) {
         super(name, factories, aggregationContext, parentAggregator, metaData);
         this.parentAggregator = parentAggregator;
-        childFilter = aggregationContext.searchContext().filterCache().cache(objectMapper.nestedTypeFilter(), null, filterCachingPolicy);
+        childFilter = aggregationContext.searchContext().filterCache().doCache(objectMapper.nestedTypeFilter(), filterCachingPolicy);
         // The childDocs need to be consumed in docId order, this ensures that:
         aggregationContext.ensureScoreDocsInOrder();
     }

@@ -67,5 +67,5 @@ curl -XGET "http://localhost:9200/_stats/id_cache?pretty&human"
 ==== Caching
 
 The `has_parent` filter cannot be cached in the filter cache. The `_cache`
-and `_cache_key` options are a no-op in this filter. Also any filter that
+option is a no-op in this filter. Also any filter that
 wraps the `has_parent` filter either directly or indirectly will not be cached.

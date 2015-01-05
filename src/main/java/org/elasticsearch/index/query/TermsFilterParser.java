@@ -96,7 +96,6 @@ public class TermsFilterParser implements FilterParser {
         String lookupPath = null;
         String lookupRouting = null;
 
-        HashedBytesRef cacheKey = null;
         XContentParser.Token token;
         String execution = EXECUTION_VALUE_PLAIN;
         List<Object> terms = Lists.newArrayList();
@@ -154,8 +153,6 @@ public class TermsFilterParser implements FilterParser {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
                     cache = parseContext.parseFilterCachePolicy();
-                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new HashedBytesRef(parser.text());
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[terms] filter does not support [" + currentFieldName + "]");
                 }
@@ -217,11 +214,11 @@ public class TermsFilterParser implements FilterParser {
                 XBooleanFilter boolFiler = new XBooleanFilter();
                 if (fieldMapper != null) {
                     for (Object term : terms) {
-                        boolFiler.add(parseContext.cacheFilter(fieldMapper.termFilter(term, parseContext), null, parseContext.autoFilterCachePolicy()), BooleanClause.Occur.SHOULD);
+                        boolFiler.add(parseContext.cacheFilter(fieldMapper.termFilter(term, parseContext), parseContext.autoFilterCachePolicy()), BooleanClause.Occur.SHOULD);
                     }
                 } else {
                     for (Object term : terms) {
-                        boolFiler.add(parseContext.cacheFilter(new TermFilter(new Term(fieldName, BytesRefs.toBytesRef(term))), null, parseContext.autoFilterCachePolicy()), BooleanClause.Occur.SHOULD);
+                        boolFiler.add(parseContext.cacheFilter(new TermFilter(new Term(fieldName, BytesRefs.toBytesRef(term))), parseContext.autoFilterCachePolicy()), BooleanClause.Occur.SHOULD);
                     }
                 }
                 filter = boolFiler;
@@ -241,11 +238,11 @@ public class TermsFilterParser implements FilterParser {
                 List<Filter> filters = Lists.newArrayList();
                 if (fieldMapper != null) {
                     for (Object term : terms) {
-                        filters.add(parseContext.cacheFilter(fieldMapper.termFilter(term, parseContext), null, parseContext.autoFilterCachePolicy()));
+                        filters.add(parseContext.cacheFilter(fieldMapper.termFilter(term, parseContext), parseContext.autoFilterCachePolicy()));
                     }
                 } else {
                     for (Object term : terms) {
-                        filters.add(parseContext.cacheFilter(new TermFilter(new Term(fieldName, BytesRefs.toBytesRef(term))), null, parseContext.autoFilterCachePolicy()));
+                        filters.add(parseContext.cacheFilter(new TermFilter(new Term(fieldName, BytesRefs.toBytesRef(term))), parseContext.autoFilterCachePolicy()));
                     }
                 }
                 filter = new AndFilter(filters);
@@ -265,11 +262,11 @@ public class TermsFilterParser implements FilterParser {
                 List<Filter> filters = Lists.newArrayList();
                 if (fieldMapper != null) {
                     for (Object term : terms) {
-                        filters.add(parseContext.cacheFilter(fieldMapper.termFilter(term, parseContext), null, parseContext.autoFilterCachePolicy()));
+                        filters.add(parseContext.cacheFilter(fieldMapper.termFilter(term, parseContext), parseContext.autoFilterCachePolicy()));
                     }
                 } else {
                     for (Object term : terms) {
-                        filters.add(parseContext.cacheFilter(new TermFilter(new Term(fieldName, BytesRefs.toBytesRef(term))), null, parseContext.autoFilterCachePolicy()));
+                        filters.add(parseContext.cacheFilter(new TermFilter(new Term(fieldName, BytesRefs.toBytesRef(term))), parseContext.autoFilterCachePolicy()));
                     }
                 }
                 filter = new OrFilter(filters);
@@ -290,7 +287,7 @@ public class TermsFilterParser implements FilterParser {
             }
 
             if (cache != null) {
-                filter = parseContext.cacheFilter(filter, cacheKey, cache);
+                filter = parseContext.cacheFilter(filter, cache);
             }
 
             filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);

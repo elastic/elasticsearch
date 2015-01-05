@@ -24,7 +24,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.TermRangeFilter;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
@@ -145,12 +144,10 @@ public class MissingFilterParser implements FilterParser {
                 boolFilter.add(filter, BooleanClause.Occur.SHOULD);
             }
 
-            // we always cache this one, really does not change... (exists)
-            // its ok to cache under the fieldName cacheKey, since its per segment and the mapping applies to this data on this segment...
-            existenceFilter = parseContext.cacheFilter(boolFilter, new HashedBytesRef("$exists$" + fieldPattern), parseContext.autoFilterCachePolicy());
+            existenceFilter = parseContext.cacheFilter(boolFilter, parseContext.autoFilterCachePolicy());
             existenceFilter = new NotFilter(existenceFilter);
             // cache the not filter as well, so it will be faster
-            existenceFilter = parseContext.cacheFilter(existenceFilter, new HashedBytesRef("$missing$" + fieldPattern), parseContext.autoFilterCachePolicy());
+            existenceFilter = parseContext.cacheFilter(existenceFilter, parseContext.autoFilterCachePolicy());
         }
 
         if (nullValue) {
@@ -160,7 +157,7 @@ public class MissingFilterParser implements FilterParser {
                     nullFilter = smartNameFieldMappers.mapper().nullValueFilter();
                     if (nullFilter != null) {
                         // cache the not filter as well, so it will be faster
-                        nullFilter = parseContext.cacheFilter(nullFilter, new HashedBytesRef("$null$" + fieldPattern), parseContext.autoFilterCachePolicy());
+                        nullFilter = parseContext.cacheFilter(nullFilter, parseContext.autoFilterCachePolicy());
                     }
                 }
             }
@@ -173,7 +170,7 @@ public class MissingFilterParser implements FilterParser {
                 combined.add(existenceFilter, BooleanClause.Occur.SHOULD);
                 combined.add(nullFilter, BooleanClause.Occur.SHOULD);
                 // cache the not filter as well, so it will be faster
-                filter = parseContext.cacheFilter(combined, null, parseContext.autoFilterCachePolicy());
+                filter = parseContext.cacheFilter(combined, parseContext.autoFilterCachePolicy());
             } else {
                 filter = nullFilter;
             }

@@ -761,25 +761,6 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testFiltersWithCustomCacheKey() throws Exception {
-        createIndex("test");
-        ensureGreen();
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
-        refresh();
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(termsFilter("field1", "value1").cacheKey("test1"))).get();
-        assertHitCount(searchResponse, 1l);
-
-        searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(termsFilter("field1", "value1").cacheKey("test1"))).get();
-        assertHitCount(searchResponse, 1l);
-
-        searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(termsFilter("field1", "value1"))).get();
-        assertHitCount(searchResponse, 1l);
-
-        searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(termsFilter("field1", "value1"))).get();
-        assertHitCount(searchResponse, 1l);
-    }
-
-    @Test
     public void testMatchQueryNumeric() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type1", "long", "type=long", "double", "type=double"));
         ensureGreen();

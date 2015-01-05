@@ -39,7 +39,6 @@ public class RegexpFilterBuilder extends BaseFilterBuilder {
     private boolean maxDetermizedStatesSet;
 
     private Boolean cache;
-    private String cacheKey;
     private String filterName;
 
     /**
@@ -95,11 +94,6 @@ public class RegexpFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
-    public RegexpFilterBuilder cacheKey(String cacheKey) {
-        this.cacheKey = cacheKey;
-        return this;
-    }
-
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(RegexpFilterParser.NAME);
@@ -120,9 +114,6 @@ public class RegexpFilterBuilder extends BaseFilterBuilder {
         }
         if (cache != null) {
             builder.field("_cache", cache);
-        }
-        if (cacheKey != null) {
-            builder.field("_cache_key", cacheKey);
         }
         builder.endObject();
     }

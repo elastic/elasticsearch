@@ -110,3 +110,9 @@ large, it is recommended to make it replicated to all nodes by setting
 `index.auto_expand_replicas: 0-all` in order to remove the network overhead as
 well.
 
+=== Custom filter cache keys
+
+Custom filter cache keys are not supported anymore: the filter itself is now
+always used as a cache key. Instead the filter cache makes sure to always store
+a single instance of a given filter to save memory, and accounts memory that
+is used by filters.

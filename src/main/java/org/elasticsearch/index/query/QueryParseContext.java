@@ -34,7 +34,6 @@ import org.apache.lucene.util.Bits;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.common.lucene.search.NoCacheQuery;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -207,7 +206,7 @@ public class QueryParseContext {
         return indexQueryParser.bitsetFilterCache.getBitDocIdSetFilter(filter);
     }
 
-    public Filter cacheFilter(Filter filter, final @Nullable HashedBytesRef cacheKey, final FilterCachingPolicy cachePolicy) {
+    public Filter cacheFilter(Filter filter, final FilterCachingPolicy cachePolicy) {
         if (filter == null) {
             return null;
         }
@@ -225,12 +224,12 @@ public class QueryParseContext {
                     if (filter == null) {
                         return null;
                     }
-                    filter = indexQueryParser.indexCache.filter().cache(filter, cacheKey, cachePolicy);
+                    filter = indexQueryParser.indexCache.filter().doCache(filter, cachePolicy);
                     return filter.getDocIdSet(atomicReaderContext, bits);
                 }
             };
         } else {
-            return indexQueryParser.indexCache.filter().cache(filter, cacheKey, cachePolicy);
+            return indexQueryParser.indexCache.filter().doCache(filter, cachePolicy);
         }
     }
 

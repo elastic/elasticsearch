@@ -106,8 +106,6 @@ public class HasChildFilterParser implements FilterParser {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
                     // noop to be backwards compatible
-                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    // noop to be backwards compatible
                 } else if ("short_circuit_cutoff".equals(currentFieldName)) {
                     shortCircuitParentDocSet = parser.intValue();
                 } else if ("min_children".equals(currentFieldName) || "minChildren".equals(currentFieldName)) {
@@ -153,7 +151,7 @@ public class HasChildFilterParser implements FilterParser {
         String parentType = parentFieldMapper.type();
 
         // wrap the query with type query
-        query = new FilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter(), null, parseContext.autoFilterCachePolicy()));
+        query = new FilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter(), parseContext.autoFilterCachePolicy()));
 
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
@@ -169,7 +167,7 @@ public class HasChildFilterParser implements FilterParser {
             nonNestedDocsFilter = parseContext.bitsetFilter(NonNestedDocsFilter.INSTANCE);
         }
 
-        Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null, parseContext.autoFilterCachePolicy());
+        Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), parseContext.autoFilterCachePolicy());
         ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
 
         Query childrenQuery;

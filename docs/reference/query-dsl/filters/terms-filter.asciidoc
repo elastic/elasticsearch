@@ -158,18 +158,13 @@ curl -XGET localhost:9200/tweets/_search -d '{
             "type" : "user",
             "id" : "2",
             "path" : "followers"
-          },
-          "_cache_key" : "user_2_friends"
+          }
         }
       }
     }
   }
 }'
 --------------------------------------------------
-
-If there are lots of matching values, then `_cache_key` is recommended to be set,
-so that the filter cache will not store a reference to the potentially heavy
-terms filter.
 
 The structure of the external terms document can also include array of
 inner objects, for example:

@@ -24,7 +24,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.TermRangeFilter;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -125,9 +124,7 @@ public class ExistsFilterParser implements FilterParser {
             boolFilter.add(filter, BooleanClause.Occur.SHOULD);
         }
 
-        // we always cache this one, really does not change... (exists)
-        // its ok to cache under the fieldName cacheKey, since its per segment and the mapping applies to this data on this segment...
-        Filter filter = parseContext.cacheFilter(boolFilter, new HashedBytesRef("$exists$" + fieldPattern), parseContext.autoFilterCachePolicy());
+        Filter filter = parseContext.cacheFilter(boolFilter, parseContext.autoFilterCachePolicy());
 
         filter = wrapSmartNameFilter(filter, nonNullFieldMappers, parseContext);
         if (filterName != null) {

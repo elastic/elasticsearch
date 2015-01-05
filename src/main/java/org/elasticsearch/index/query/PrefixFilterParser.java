@@ -25,7 +25,6 @@ import org.apache.lucene.search.FilterCachingPolicy;
 import org.apache.lucene.search.PrefixFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -54,7 +53,6 @@ public class PrefixFilterParser implements FilterParser {
         XContentParser parser = parseContext.parser();
 
         FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
-        HashedBytesRef cacheKey = null;
         String fieldName = null;
         Object value = null;
 
@@ -69,8 +67,6 @@ public class PrefixFilterParser implements FilterParser {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
                     cache = parseContext.parseFilterCachePolicy();
-                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new HashedBytesRef(parser.text());
                 } else {
                     fieldName = currentFieldName;
                     value = parser.objectBytes();
@@ -102,7 +98,7 @@ public class PrefixFilterParser implements FilterParser {
         }
 
         if (cache != null) {
-            filter = parseContext.cacheFilter(filter, cacheKey, cache);
+            filter = parseContext.cacheFilter(filter, cache);
         }
 
         filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);

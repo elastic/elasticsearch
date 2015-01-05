@@ -143,7 +143,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
     @Override
     public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        return new ConstantScoreQuery(context.cacheFilter(termFilter(value, context), null, context.autoFilterCachePolicy()));
+        return new ConstantScoreQuery(context.cacheFilter(termFilter(value, context), context.autoFilterCachePolicy()));
     }
 
     @Override

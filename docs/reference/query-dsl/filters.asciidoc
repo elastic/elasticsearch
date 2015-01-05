@@ -86,10 +86,6 @@ to make sure that the filter will not be cached, and `auto`, which is the
 default and will decide on whether to cache the filter based on the cost
 to cache it and how often it has been used as explained above.
 
-Filters also allow to set `_cache_key` which will be used as the
-caching key for that filter. This can be handy when using very large
-filters (like a terms filter with many elements in it).
-
 include::filters/and-filter.asciidoc[]
 
 include::filters/bool-filter.asciidoc[]

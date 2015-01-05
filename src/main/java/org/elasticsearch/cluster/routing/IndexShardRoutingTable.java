@@ -504,13 +504,14 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return shards;
     }
 
-    public List<ShardRouting> shardsWithState(ShardRoutingState... states) {
+    public List<ShardRouting> shardsWithState(ShardRoutingState state) {
+        if (state == ShardRoutingState.INITIALIZING) {
+            return allInitializingShards;
+        }
         List<ShardRouting> shards = newArrayList();
         for (ShardRouting shardEntry : this) {
-            for (ShardRoutingState state : states) {
-                if (shardEntry.state() == state) {
-                    shards.add(shardEntry);
-                }
+            if (shardEntry.state() == state) {
+                shards.add(shardEntry);
             }
         }
         return shards;

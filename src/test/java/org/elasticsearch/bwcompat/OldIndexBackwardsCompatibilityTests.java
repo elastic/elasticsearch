@@ -38,10 +38,10 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardCompatibilityTest {
+    // TODO: test for proper exception on unsupported indexes (maybe via separate test?)
+    // We have a 0.20.6.zip etc for this.
     
     List<String> indexes = Arrays.asList(
-        // not yet: until https://github.com/elasticsearch/elasticsearch/pull/9142
-        // "index-0.20.6.zip",
         "index-0.90.0.zip",
         "index-0.90.1.zip",
         "index-0.90.2.zip",

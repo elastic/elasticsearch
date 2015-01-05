@@ -35,6 +35,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+
 public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardCompatibilityTest {
     
     List<String> indexes = Arrays.asList(
@@ -101,9 +103,9 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
     }
 
     void assertRealtimeGetWorks() {
-        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
             .put("refresh_interval", -1)
-            .build());
+            .build()));
         SearchRequestBuilder searchReq = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery());
         SearchHit hit = searchReq.get().getHits().getAt(0);
         String docId = hit.getId();
@@ -113,9 +115,9 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         Map<String, Object> source = getRsp.getSourceAsMap();
         assertThat(source, Matchers.hasKey("foo"));
 
-        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
             .put("refresh_interval", "1s")
-            .build());
+            .build()));
     }
 
     void assertNewReplicasWork() {
@@ -127,13 +129,13 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
                 .put("master.node", false).build());
         }
         ensureGreen("test");
-        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
-            .put("number_of_replicas", numReplicas)).execute().actionGet();
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
+            .put("number_of_replicas", numReplicas)).execute().actionGet());
         ensureGreen("test"); // TODO: what is the proper way to wait for new replicas to recover?
 
-        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
             .put("number_of_replicas", 0))
-            .execute().actionGet();
+            .execute().actionGet());
     }
 
 }

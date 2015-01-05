@@ -29,6 +29,8 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 
+import java.util.Collection;
+
 /**
  * {@link org.elasticsearch.index.fielddata.IndexFieldData} impl based on global ordinals.
  */
@@ -81,7 +83,7 @@ final class InternalGlobalOrdinalsIndexFieldData extends GlobalOrdinalsIndexFiel
         }
 
         @Override
-        public Iterable<Accountable> getChildResources() {
+        public Collection<Accountable> getChildResources() {
             return afd.getChildResources();
         }
 

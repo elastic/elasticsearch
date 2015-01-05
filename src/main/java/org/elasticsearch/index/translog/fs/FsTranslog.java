@@ -43,7 +43,13 @@ import org.elasticsearch.index.translog.TranslogStreams;
 
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
-import java.nio.file.*;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.OpenOption;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -180,7 +186,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     }
 
     @Override
-    public Iterable<Accountable> getChildResources() {
+    public Collection<Accountable> getChildResources() {
         return Collections.emptyList();
     }
 

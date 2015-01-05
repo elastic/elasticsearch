@@ -31,6 +31,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 
 final class BytesBinaryDVAtomicFieldData implements AtomicFieldData {
@@ -48,7 +49,7 @@ final class BytesBinaryDVAtomicFieldData implements AtomicFieldData {
     }
 
     @Override
-    public Iterable<Accountable> getChildResources() {
+    public Collection<Accountable> getChildResources() {
         return Collections.emptyList();
     }
 

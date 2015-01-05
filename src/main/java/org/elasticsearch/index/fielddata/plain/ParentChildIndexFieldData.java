@@ -23,8 +23,14 @@ import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableSortedSet;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DocsEnum;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiDocValues.OrdinalMap;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
@@ -41,13 +47,22 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
+import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentTypeListener;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -55,7 +70,17 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableSet;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -396,7 +421,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         }
 
         @Override
-        public Iterable<Accountable> getChildResources() {
+        public Collection<Accountable> getChildResources() {
             return Collections.emptyList();
         }
 
@@ -470,7 +495,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         }
 
         @Override
-        public Iterable<Accountable> getChildResources() {
+        public Collection<Accountable> getChildResources() {
             return Collections.emptyList();
         }
 

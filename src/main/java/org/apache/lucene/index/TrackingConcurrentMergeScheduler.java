@@ -88,7 +88,7 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     }
 
     @Override
-    protected void doMerge(MergePolicy.OneMerge merge) throws IOException {
+    protected void doMerge(IndexWriter writer, MergePolicy.OneMerge merge) throws IOException {
         int totalNumDocs = merge.totalNumDocs();
         long totalSizeInBytes = merge.totalBytesSize();
         long time = System.currentTimeMillis();
@@ -104,7 +104,7 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         }
         try {
             beforeMerge(onGoingMerge);
-            super.doMerge(merge);
+            super.doMerge(writer, merge);
         } finally {
             long took = System.currentTimeMillis() - time;
 

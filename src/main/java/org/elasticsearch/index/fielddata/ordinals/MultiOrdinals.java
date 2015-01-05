@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
@@ -32,6 +29,11 @@ import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.index.fielddata.AbstractRandomAccessOrds;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * {@link Ordinals} implementation which is efficient at storing field data ordinals for multi-valued or sparse fields.
@@ -91,11 +93,11 @@ public class MultiOrdinals extends Ordinals {
     }
 
     @Override
-    public Iterable<Accountable> getChildResources() {
+    public Collection<Accountable> getChildResources() {
         List<Accountable> resources = new ArrayList<>();
         resources.add(Accountables.namedAccountable("offsets", endOffsets));
         resources.add(Accountables.namedAccountable("ordinals", ords));
-        return resources;
+        return Collections.unmodifiableCollection(resources);
     }
 
     @Override

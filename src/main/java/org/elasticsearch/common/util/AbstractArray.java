@@ -19,9 +19,10 @@
 
 package org.elasticsearch.common.util;
 
-import java.util.Collections;
-
 import org.apache.lucene.util.Accountable;
+
+import java.util.Collection;
+import java.util.Collections;
 
 
 abstract class AbstractArray implements BigArray {
@@ -46,7 +47,7 @@ abstract class AbstractArray implements BigArray {
     protected abstract void doClose();
 
     @Override
-    public Iterable<Accountable> getChildResources() {
+    public Collection<Accountable> getChildResources() {
         return Collections.emptyList();
     }
 }

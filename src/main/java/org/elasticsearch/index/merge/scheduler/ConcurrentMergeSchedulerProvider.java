@@ -20,10 +20,12 @@
 package org.elasticsearch.index.merge.scheduler;
 
 import com.google.common.collect.ImmutableSet;
+
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
 import org.apache.lucene.index.TrackingConcurrentMergeScheduler;
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -128,10 +130,10 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
         }
 
         @Override
-        protected void handleMergeException(Throwable exc) {
+        protected void handleMergeException(Directory dir, Throwable exc) {
             logger.warn("failed to merge", exc);
             provider.failedMerge(new MergePolicy.MergeException(exc, dir));
-            super.handleMergeException(exc);
+            super.handleMergeException(dir, exc);
         }
 
         @Override
@@ -153,7 +155,7 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
         }
 
         @Override
-        protected void maybeStall() {
+        protected void maybeStall(IndexWriter writer) {
             // Don't stall here, because we do our own index throttling (in InternalEngine.IndexThrottle) when merges can't keep up
         }
     }

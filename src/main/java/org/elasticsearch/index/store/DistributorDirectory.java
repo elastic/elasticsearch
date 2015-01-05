@@ -37,6 +37,7 @@ public final class DistributorDirectory extends Directory {
 
     private final Distributor distributor;
     private final HashMap<String, Directory> nameDirMapping = new HashMap<>();
+    private boolean closed = false;
 
     /**
      * Creates a new DistributorDirectory from multiple directories. Note: The first directory in the given array
@@ -126,9 +127,13 @@ public final class DistributorDirectory extends Directory {
 
     @Override
     public synchronized void close() throws IOException {
+        if (closed) {
+            return;
+        }
         try {
             assert assertConsistency();
         } finally {
+            closed = true;
             IOUtils.close(distributor.all());
         }
     }

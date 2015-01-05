@@ -19,18 +19,27 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import java.util.Collections;
-
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+
+import java.util.Collection;
+import java.util.Collections;
 
 public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
@@ -58,7 +67,7 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
         }
 
         @Override
-        public Iterable<Accountable> getChildResources() {
+        public Collection<Accountable> getChildResources() {
             return Collections.emptyList();
         }
 

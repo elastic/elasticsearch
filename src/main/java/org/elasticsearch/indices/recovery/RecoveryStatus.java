@@ -186,26 +186,14 @@ public class RecoveryStatus extends AbstractRefCounted {
         }
     }
 
-    private String getTempNameForFile(String origFile) {
+    /** Get a temporary name for the provided file name. */
+    public String getTempNameForFile(String origFile) {
         return tempFilePrefix + origFile;
-    }
-
-    /** return true if the give file is a temporary file name issued by this recovery */
-    private boolean isTempFile(String filename) {
-        return tempFileNames.containsKey(filename);
     }
 
     public IndexOutput getOpenIndexOutput(String key) {
         ensureRefCount();
         return openIndexOutputs.get(key);
-    }
-
-    /** returns the original file name for a temporary file name issued by this recovery */
-    private String originalNameForTempFile(String tempFile) {
-        if (!isTempFile(tempFile)) {
-            throw new ElasticsearchException("[" + tempFile + "] is not a temporary file made by this recovery");
-        }
-        return tempFile.substring(tempFilePrefix.length());
     }
 
     /** remove and {@link org.apache.lucene.store.IndexOutput} for a given file. It is the caller's responsibility to close it */

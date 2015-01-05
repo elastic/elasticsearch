@@ -397,8 +397,15 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         boolean success = false;
         try {
             if (metadata.hasLegacyChecksum()) {
-                logger.debug("create legacy adler32 output for {}", fileName);
-                output = new LegacyVerification.Adler32VerifyingIndexOutput(output, metadata.checksum(), metadata.length());
+                // Lucene's .tii and .tis files (3.x) were not actually append-only.
+                // this means the adler32 in ES 0.20.x releases is actually wrong, we can't use it:
+                if (metadata.name().endsWith(".tii") || metadata.name().endsWith(".tis")) {
+                    logger.debug("create legacy length-only output for non-write-once file {}", fileName);
+                    output = new LegacyVerification.LengthVerifyingIndexOutput(output, metadata.length());
+                } else {
+                    logger.debug("create legacy adler32 output for {}", fileName);
+                    output = new LegacyVerification.Adler32VerifyingIndexOutput(output, metadata.checksum(), metadata.length());
+                }
             } else if (metadata.checksum() == null) {
                 // TODO: when the file is a segments_N, we can still CRC-32 + length for more safety
                 // its had that checksum forever.

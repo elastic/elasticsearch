@@ -48,6 +48,7 @@ import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -456,7 +457,9 @@ public class RecoveryTarget extends AbstractComponent {
                     }
                     // write the checksum
                     recoveryStatus.legacyChecksums().add(request.metadata());
-                    store.directory().sync(Collections.singleton(request.name()));
+                    final String temporaryFileName = recoveryStatus.getTempNameForFile(request.name());
+                    assert Arrays.asList(store.directory().listAll()).contains(temporaryFileName);
+                    store.directory().sync(Collections.singleton(temporaryFileName));
                     IndexOutput remove = recoveryStatus.removeOpenIndexOutputs(request.name());
                     recoveryStatus.state().getIndex().addRecoveredFileCount(1);
                     assert remove == null || remove == indexOutput; // remove maybe null if we got finished

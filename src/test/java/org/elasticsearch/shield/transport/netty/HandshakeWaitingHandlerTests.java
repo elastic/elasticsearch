@@ -20,6 +20,8 @@ import org.junit.*;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.net.InetSocketAddress;
 import java.nio.file.Paths;
 import java.security.SecureRandom;
@@ -32,18 +34,28 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.hamcrest.Matchers.*;
 
 public class HandshakeWaitingHandlerTests extends ElasticsearchTestCase {
+
     private static final int CONCURRENT_CLIENT_REQUESTS = 20;
 
-    private static ServerBootstrap serverBootstrap;
-    private static ClientBootstrap clientBootstrap;
-    private static SSLContext sslContext;
     private static int iterations;
+    private static int randomPort;
+
+    private ServerBootstrap serverBootstrap;
+    private ClientBootstrap clientBootstrap;
+    private SSLContext sslContext;
 
     private final AtomicBoolean failed = new AtomicBoolean(false);
     private volatile Throwable failureCause = null;
+    private ExecutorService threadPoolExecutor;
 
     @BeforeClass
-    public static void setup() throws Exception {
+    public static void generatePort() {
+        randomPort = randomIntBetween(49000, 65500);
+        iterations = randomIntBetween(10, 100);
+    }
+
+    @Before
+    public void setup() throws Exception {
         SSLService sslService = new SSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", Paths.get(HandshakeWaitingHandlerTests.class.getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks").toURI()))
                 .put("shield.ssl.keystore.password", "testnode")
@@ -51,30 +63,31 @@ public class HandshakeWaitingHandlerTests extends ElasticsearchTestCase {
 
         sslContext = sslService.getSslContext();
 
-        ChannelFactory factory = new NioServerSocketChannelFactory(
-                Executors.newFixedThreadPool(1),
-                Executors.newFixedThreadPool(1));
-        serverBootstrap = new ServerBootstrap(factory);
+        serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory());
+        serverBootstrap.setPipelineFactory(getServerFactory());
+        serverBootstrap.bind(new InetSocketAddress("localhost", randomPort));
 
-        ChannelFactory clientFactory = new NioClientSocketChannelFactory(
-                Executors.newCachedThreadPool(),
-                Executors.newCachedThreadPool());
-        clientBootstrap = new ClientBootstrap(clientFactory);
+        clientBootstrap = new ClientBootstrap(new NioClientSocketChannelFactory());
 
-        iterations = randomIntBetween(10, 100);
+        threadPoolExecutor = Executors.newFixedThreadPool(CONCURRENT_CLIENT_REQUESTS);
     }
 
     @After
     public void reset() {
+        threadPoolExecutor.shutdown();
+
+        clientBootstrap.shutdown();
+        clientBootstrap.releaseExternalResources();
+
+        serverBootstrap.shutdown();
+        serverBootstrap.releaseExternalResources();
+
         failed.set(false);
         failureCause = null;
     }
 
     @Test
     public void testWriteBeforeHandshakeFailsWithoutHandler() throws Exception {
-        serverBootstrap.setPipelineFactory(getServerFactory());
-        final int randomPort = randomIntBetween(49000, 65500);
-        serverBootstrap.bind(new InetSocketAddress("localhost", randomPort));
         clientBootstrap.setPipelineFactory(new ChannelPipelineFactory() {
 
             @Override
@@ -86,40 +99,30 @@ public class HandshakeWaitingHandlerTests extends ElasticsearchTestCase {
             }
         });
 
-        ExecutorService threadPoolExecutor = Executors.newFixedThreadPool(CONCURRENT_CLIENT_REQUESTS);
-        try {
-            List<Callable<ChannelFuture>> callables = new ArrayList<>(CONCURRENT_CLIENT_REQUESTS);
-            for (int i = 0; i < CONCURRENT_CLIENT_REQUESTS; i++) {
-                callables.add(new WriteBeforeHandshakeCompletedCallable(clientBootstrap, randomPort));
-            }
-
-            for (int i = 0; i < iterations; i++) {
-                List<Future<ChannelFuture>> futures = threadPoolExecutor.invokeAll(callables);
-                for (Future<ChannelFuture> future : futures) {
-                    ChannelFuture handshakeFuture = future.get();
-                    handshakeFuture.await();
-                    handshakeFuture.getChannel().close();
-                }
-
-                if (failed.get()) {
-                    assertThat(failureCause, anyOf(instanceOf(SSLException.class), instanceOf(AssertionError.class)));
-                    break;
-                }
-            }
-
-            if (!failed.get()) {
-                fail("Expected this test to fail with an SSLException or AssertionError");
-            }
-        } finally {
-            threadPoolExecutor.shutdown();
+        List<Callable<ChannelFuture>> callables = new ArrayList<>(CONCURRENT_CLIENT_REQUESTS);
+        for (int i = 0; i < CONCURRENT_CLIENT_REQUESTS; i++) {
+            callables.add(new WriteBeforeHandshakeCompletedCallable(clientBootstrap, randomPort));
         }
+
+        for (int i = 0; i < iterations; i++) {
+            List<Future<ChannelFuture>> futures = threadPoolExecutor.invokeAll(callables);
+            for (Future<ChannelFuture> future : futures) {
+                ChannelFuture handshakeFuture = future.get();
+                handshakeFuture.await();
+                handshakeFuture.getChannel().close();
+            }
+
+            if (failed.get()) {
+                assertThat(failureCause, anyOf(instanceOf(SSLException.class), instanceOf(AssertionError.class)));
+                break;
+            }
+        }
+
+        assertThat("Expected this test to fail with an SSLException or AssertionError", failed.get(), is(true));
     }
 
     @Test
     public void testWriteBeforeHandshakePassesWithHandshakeWaitingHandler() throws Exception {
-        serverBootstrap.setPipelineFactory(getServerFactory());
-        final int randomPort = randomIntBetween(49000, 65500);
-        serverBootstrap.bind(new InetSocketAddress("localhost", randomPort));
         clientBootstrap.setPipelineFactory(new ChannelPipelineFactory() {
 
             @Override
@@ -132,37 +135,39 @@ public class HandshakeWaitingHandlerTests extends ElasticsearchTestCase {
             }
         });
 
-        ExecutorService threadPoolExecutor = Executors.newFixedThreadPool(CONCURRENT_CLIENT_REQUESTS);
-        try {
-            List<Callable<ChannelFuture>> callables = new ArrayList<>(CONCURRENT_CLIENT_REQUESTS);
-            for (int i = 0; i < CONCURRENT_CLIENT_REQUESTS; i++) {
-                callables.add(new WriteBeforeHandshakeCompletedCallable(clientBootstrap, randomPort));
-            }
+        List<Callable<ChannelFuture>> callables = new ArrayList<>(CONCURRENT_CLIENT_REQUESTS);
+        for (int i = 0; i < CONCURRENT_CLIENT_REQUESTS; i++) {
+            callables.add(new WriteBeforeHandshakeCompletedCallable(clientBootstrap, randomPort));
+        }
 
-            for (int i = 0; i < iterations; i++) {
-                List<Future<ChannelFuture>> futures = threadPoolExecutor.invokeAll(callables);
-                for (Future<ChannelFuture> future : futures) {
-                    ChannelFuture handshakeFuture = future.get();
-                    handshakeFuture.await();
+        for (int i = 0; i < iterations; i++) {
+            List<Future<ChannelFuture>> futures = threadPoolExecutor.invokeAll(callables);
+            for (Future<ChannelFuture> future : futures) {
+                ChannelFuture handshakeFuture = future.get();
+                handshakeFuture.await();
 
-                    // Wait for pending writes to prevent IOExceptions
-                    Channel channel = handshakeFuture.getChannel();
-                    HandshakeWaitingHandler handler = channel.getPipeline().get(HandshakeWaitingHandler.class);
-                    while (handler != null && handler.hasPendingWrites()) {
-                        Thread.sleep(10);
-                    }
-
-                    channel.close();
+                // Wait for pending writes to prevent IOExceptions
+                Channel channel = handshakeFuture.getChannel();
+                HandshakeWaitingHandler handler = channel.getPipeline().get(HandshakeWaitingHandler.class);
+                while (handler != null && handler.hasPendingWrites()) {
+                    sleep(10);
                 }
 
-                if (failed.get()) {
-                    failureCause.printStackTrace();
-                    fail("Expected this test to always pass with the HandshakeWaitingHandler in pipeline");
-                }
+                channel.close();
             }
 
-        } finally {
-            threadPoolExecutor.shutdown();
+            assertNotFailed();
+        }
+    }
+
+    private void assertNotFailed() {
+        if (failed.get()) {
+            StringWriter writer = new StringWriter();
+            if (failed.get()) {
+                failureCause.printStackTrace(new PrintWriter(writer));
+            }
+
+            assertThat("Expected this test to always pass with the HandshakeWaitingHandler in pipeline\n" + writer.toString(), failed.get(), is(false));
         }
     }
 
@@ -191,17 +196,6 @@ public class HandshakeWaitingHandlerTests extends ElasticsearchTestCase {
                     });
             }
         };
-    }
-
-    @AfterClass
-    public static void cleanUp() {
-        clientBootstrap.shutdown();
-        serverBootstrap.shutdown();
-        clientBootstrap.releaseExternalResources();
-        serverBootstrap.releaseExternalResources();
-        clientBootstrap = null;
-        serverBootstrap = null;
-        sslContext = null;
     }
 
     private static class WriteBeforeHandshakeCompletedCallable implements Callable<ChannelFuture> {

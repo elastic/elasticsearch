@@ -18,10 +18,6 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
@@ -35,6 +31,11 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 /**
  */
@@ -64,7 +65,7 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AbstractAtomicG
         }
         
         @Override
-        public Iterable<Accountable> getChildResources() {
+        public Collection<Accountable> getChildResources() {
             List<Accountable> resources = new ArrayList<>();
             resources.add(Accountables.namedAccountable("latitude", lat));
             resources.add(Accountables.namedAccountable("longitude", lon));
@@ -133,7 +134,7 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AbstractAtomicG
         }
         
         @Override
-        public Iterable<Accountable> getChildResources() {
+        public Collection<Accountable> getChildResources() {
             List<Accountable> resources = new ArrayList<>();
             resources.add(Accountables.namedAccountable("latitude", lat));
             resources.add(Accountables.namedAccountable("longitude", lon));

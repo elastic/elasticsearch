@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.engine.internal;
 
-import java.util.Collections;
-
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.Version;
 import org.elasticsearch.index.translog.Translog;
+
+import java.util.Collection;
+import java.util.Collections;
 
 class VersionValue implements Accountable {
 
@@ -58,7 +58,7 @@ class VersionValue implements Accountable {
     }
     
     @Override
-    public Iterable<Accountable> getChildResources() {
+    public Collection<Accountable> getChildResources() {
         return Collections.emptyList();
     }
 }

@@ -147,7 +147,6 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
      */
     private Query newPossiblyAnalyzedQuery(String field, String termStr) {
         try (TokenStream source = getAnalyzer().tokenStream(field, termStr)) {
-            source.reset();
             // Use the analyzer to get all the tokens, and then build a TermQuery,
             // PhraseQuery, or nothing based on the term count
             CachingTokenFilter buffer = new CachingTokenFilter(source);

@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 
 final class GeoPointBinaryDVAtomicFieldData extends AbstractAtomicGeoPointFieldData {
@@ -49,7 +50,7 @@ final class GeoPointBinaryDVAtomicFieldData extends AbstractAtomicGeoPointFieldD
     }
     
     @Override
-    public Iterable<Accountable> getChildResources() {
+    public Collection<Accountable> getChildResources() {
         return Collections.emptyList();
     }
 

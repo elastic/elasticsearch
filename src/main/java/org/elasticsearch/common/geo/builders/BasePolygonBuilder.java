@@ -366,7 +366,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
             final int pos;
             if (intersections == 0 ||
                (pos = Arrays.binarySearch(edges, 0, intersections, current, INTERSECTION_ORDER)) >= 0) {
-                throw new ElasticsearchParseException("Invaild shape: Hole is not within polygon");
+                throw new ElasticsearchParseException("Invalid shape: Hole is not within polygon");
             }
             final int index = -(pos+2);
             final int component = -edges[index].component - numHoles - 1;

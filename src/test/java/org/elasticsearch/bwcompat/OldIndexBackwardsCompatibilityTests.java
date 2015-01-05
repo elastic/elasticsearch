@@ -38,7 +38,8 @@ import java.util.Map;
 public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardCompatibilityTest {
     
     List<String> indexes = Arrays.asList(
-        "index-0.20.6.zip",
+        // not yet: until https://github.com/elasticsearch/elasticsearch/pull/9142
+        // "index-0.20.6.zip",
         "index-0.90.0.zip",
         "index-0.90.1.zip",
         "index-0.90.2.zip",
@@ -93,7 +94,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         SearchResponse searchRsp = searchReq.get();
         ElasticsearchAssertions.assertNoFailures(searchRsp);
         long numDocs = searchRsp.getHits().getTotalHits();
-        logger.debug("Found " + numDocs + " in old index");
+        logger.info("Found " + numDocs + " in old index");
         
         searchReq.addSort("long_sort", SortOrder.ASC);
         ElasticsearchAssertions.assertNoFailures(searchReq.get());
@@ -118,7 +119,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
     }
 
     void assertNewReplicasWork() {
-        final int numReplicas = randomIntBetween(1, 2);
+        final int numReplicas = randomIntBetween(2, 3);
         for (int i = 0; i < numReplicas; ++i) {
             logger.debug("Creating another node for replica " + i);
             internalCluster().startNode(ImmutableSettings.builder()
@@ -127,13 +128,12 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         }
         ensureGreen("test");
         client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
-            .put("number_of_replicas", numReplicas)
-            .build());
+            .put("number_of_replicas", numReplicas)).execute().actionGet();
         ensureGreen("test"); // TODO: what is the proper way to wait for new replicas to recover?
 
         client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
-            .put("number_of_replicas", 0)
-            .build());
+            .put("number_of_replicas", 0))
+            .execute().actionGet();
     }
 
 }

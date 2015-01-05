@@ -78,14 +78,14 @@ due to forced awareness or allocation filtering.
 
 `cluster.routing.allocation.balance.index`::
      Defines a factor to the number of shards per index allocated
-      on a specific node (float). Defaults to `0.5f`.  Raising this raises the
+      on a specific node (float). Defaults to `0.55f`.  Raising this raises the
       tendency to equalize the number of shards per index across all nodes in
       the cluster.
 
 `cluster.routing.allocation.balance.primary`::
      Defines a weight factor for the number of primaries of a specific index
-      allocated on a node (float). `0.05f`.  Raising this raises the tendency
-      to equalize the number of primary shards across all nodes in the cluster.
+      allocated on a node (float). `0.00f`.  Raising this raises the tendency
+      to equalize the number of primary shards across all nodes in the cluster. deprecated[1.3.8]
 
 `cluster.routing.allocation.balance.threshold`::
      Minimal optimization value of operations that should be performed (non

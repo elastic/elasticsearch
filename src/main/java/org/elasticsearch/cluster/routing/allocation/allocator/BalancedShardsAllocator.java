@@ -71,9 +71,18 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
     public static final String SETTING_SHARD_BALANCE_FACTOR = "cluster.routing.allocation.balance.shard";
     public static final String SETTING_PRIMARY_BALANCE_FACTOR = "cluster.routing.allocation.balance.primary";
 
-    private static final float DEFAULT_INDEX_BALANCE_FACTOR = 0.5f;
+    private static final float DEFAULT_INDEX_BALANCE_FACTOR = 0.55f;
     private static final float DEFAULT_SHARD_BALANCE_FACTOR = 0.45f;
-    private static final float DEFAULT_PRIMARY_BALANCE_FACTOR = 0.05f;
+    /**
+     * The primary balance factor was introduces as a tie-breaker to make the initial allocation
+     * more deterministic. Yet other mechanism have been added ensure that the algorithm is more deterministic such that this
+     * setting is not needed anymore. Additionally, this setting was abused to balance shards based on their primary flag which can lead
+     * to unexpected behavior when allocating or balancing the shards.
+     *
+     * @deprecated the threshold primary balance factor is deprecated and should not be used.
+     */
+    @Deprecated
+    private static final float DEFAULT_PRIMARY_BALANCE_FACTOR = 0.0f;
 
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
@@ -191,44 +200,23 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         private final float indexBalance;
         private final float shardBalance;
         private final float primaryBalance;
-        private final EnumMap<Operation, float[]> thetaMap = new EnumMap<>(Operation.class);
+        private final float[] theta;
 
         public WeightFunction(float indexBalance, float shardBalance, float primaryBalance) {
             float sum = indexBalance + shardBalance + primaryBalance;
             if (sum <= 0.0f) {
                 throw new ElasticsearchIllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
             }
-            final float[] defaultTheta = new float[]{shardBalance / sum, indexBalance / sum, primaryBalance / sum};
-            for (Operation operation : Operation.values()) {
-                switch (operation) {
-                    case THRESHOLD_CHECK:
-                        sum = indexBalance + shardBalance;
-                        if (sum <= 0.0f) {
-                            thetaMap.put(operation, defaultTheta);
-                        } else {
-                            thetaMap.put(operation, new float[]{shardBalance / sum, indexBalance / sum, 0});
-                        }
-                        break;
-                    case BALANCE:
-                    case ALLOCATE:
-                    case MOVE:
-                        thetaMap.put(operation, defaultTheta);
-                        break;
-                    default:
-                        assert false;
-                }
-            }
+            theta = new float[]{shardBalance / sum, indexBalance / sum, primaryBalance / sum};
             this.indexBalance = indexBalance;
             this.shardBalance = shardBalance;
             this.primaryBalance = primaryBalance;
         }
 
         public float weight(Operation operation, Balancer balancer, ModelNode node, String index) {
-            final float weightShard = (node.numShards() - balancer.avgShardsPerNode());
-            final float weightIndex = (node.numShards(index) - balancer.avgShardsPerNode(index));
-            final float weightPrimary = (node.numPrimaries() - balancer.avgPrimariesPerNode());
-            final float[] theta = thetaMap.get(operation);
-            assert theta != null;
+            final float weightShard = node.numShards() - balancer.avgShardsPerNode();
+            final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
+            final float weightPrimary = node.numPrimaries() - balancer.avgPrimariesPerNode();
             return theta[0] * weightShard + theta[1] * weightIndex + theta[2] * weightPrimary;
         }
 
@@ -250,13 +238,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         /**
          * Provided during move operation.
          */
-        MOVE,
-        /**
-         * Provided when the weight delta is checked against the configured threshold.
-         * This can be used to ignore tie-breaking weight factors that should not
-         * solely trigger a relocation unless the delta is above the threshold.
-         */
-        THRESHOLD_CHECK
+        MOVE
     }
 
     /**
@@ -348,11 +330,16 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             return allocateUnassigned(unassigned, routing.ignoredUnassigned());
         }
 
+        private static float absDelta(float lower, float higher) {
+            assert higher >= lower : higher + " lt " + lower +" but was expected to be gte";
+            return Math.abs(higher - lower);
+        }
+
         private static boolean lessThan(float delta, float threshold) {
             /* deltas close to the threshold are "rounded" to the threshold manually
                to prevent floating point problems if the delta is very close to the
                threshold ie. 1.000000002 which can trigger unnecessary balance actions*/
-            return delta <= threshold + 0.001f;
+            return delta <= (threshold + 0.001f);
         }
 
         /**
@@ -393,11 +380,10 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                             final ModelNode maxNode = modelNodes[highIdx];
                             advance_range:
                             if (maxNode.numShards(index) > 0) {
-                                float delta = weights[highIdx] - weights[lowIdx];
-                                delta = lessThan(delta, threshold) ? delta : sorter.weight(Operation.THRESHOLD_CHECK, maxNode) - sorter.weight(Operation.THRESHOLD_CHECK, minNode);
+                                float delta = absDelta(weights[lowIdx], weights[highIdx]);
                                 if (lessThan(delta, threshold)) {
                                     if (lowIdx > 0 && highIdx-1 > 0 // is there a chance for a higher delta?
-                                        && (weights[highIdx-1] - weights[0] > threshold) // check if we need to break at all
+                                        && (absDelta(weights[0], weights[highIdx-1]) > threshold) // check if we need to break at all
                                         ) {
                                         /* This is a special case if allocations from the "heaviest" to the "lighter" nodes is not possible
                                          * due to some allocation decider restrictions like zone awareness. if one zone has for instance
@@ -747,7 +733,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                             final RoutingNode node = routingNodes.node(minNode.getNodeId());
                             if (deciders.canAllocate(node, allocation).type() != Type.YES) {
                                 if (logger.isTraceEnabled()) {
-                                    logger.trace("Can not allocate on node [{}] remove from round decisin [{}]", node, decision.type());
+                                    logger.trace("Can not allocate on node [{}] remove from round decision [{}]", node, decision.type());
                                 }
                                 throttledNodes.add(minNode);
                             }

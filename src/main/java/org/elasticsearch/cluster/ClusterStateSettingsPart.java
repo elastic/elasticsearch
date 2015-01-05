@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.metadata.IndexClusterStatePart;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -35,12 +36,14 @@ import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsT
 
 /**
  */
-public class ClusterStateSettingsPart extends AbstractClusterStatePart {
+public class ClusterStateSettingsPart extends AbstractClusterStatePart implements IndexClusterStatePart<ClusterStateSettingsPart> {
 
+    private final String type;
     private final Settings settings;
     private final EnumSet<XContentContext> xContentContext;
 
-    public ClusterStateSettingsPart(Settings settings, EnumSet<XContentContext> xContentContext) {
+    public ClusterStateSettingsPart(String type, Settings settings, EnumSet<XContentContext> xContentContext) {
+        this.type = type;
         this.settings = settings;
         this.xContentContext = xContentContext;
     }
@@ -67,30 +70,50 @@ public class ClusterStateSettingsPart extends AbstractClusterStatePart {
         return xContentContext;
     }
 
+    @Override
+    public ClusterStateSettingsPart mergeWith(ClusterStateSettingsPart second) {
+        return second;
+    }
+
+    @Override
+    public String partType() {
+        return type;
+    }
+
     public static class Factory extends AbstractClusterStatePart.AbstractFactory<ClusterStateSettingsPart> {
+        private final String type;
         private final EnumSet<XContentContext> xContentContext;
 
-        public Factory() {
+        public Factory(String type) {
+            this.type = type;
             xContentContext = API;
         }
 
-        public Factory(EnumSet<XContentContext> xContentContext) {
+        public Factory(String type, EnumSet<XContentContext> xContentContext) {
+            this.type = type;
             this.xContentContext = xContentContext;
         }
 
         @Override
         public ClusterStateSettingsPart readFrom(StreamInput in, LocalContext context) throws IOException {
-            return new ClusterStateSettingsPart(readSettingsFromStream(in), xContentContext);
+            return new ClusterStateSettingsPart(type, readSettingsFromStream(in), xContentContext);
         }
 
         @Override
         public ClusterStateSettingsPart fromXContent(XContentParser parser, LocalContext context) throws IOException {
             Settings settings = ImmutableSettings.settingsBuilder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())).build();
-            return new ClusterStateSettingsPart(settings, xContentContext);
+            return new ClusterStateSettingsPart(type, settings, xContentContext);
         }
 
         public ClusterStateSettingsPart fromSettings(Settings settings) {
-            return new ClusterStateSettingsPart(settings, xContentContext);
+            return new ClusterStateSettingsPart(type, settings, xContentContext);
         }
+
+
+        @Override
+        public String partType() {
+            return type;
+        }
+
     }
 }

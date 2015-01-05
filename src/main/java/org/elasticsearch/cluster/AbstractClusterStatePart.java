@@ -23,10 +23,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.Map;
 
 /**
  */
@@ -102,6 +106,21 @@ public abstract class AbstractClusterStatePart implements ClusterStatePart {
         public T fromXContent(XContentParser parser, LocalContext context) throws IOException {
             throw new UnsupportedOperationException("Not implemented yet");
         }
+
+        @Override
+        public T fromMap(Map<String, Object> map, LocalContext context) throws IOException {
+            // if it starts with the type, remove it
+            if (map.size() == 1 && map.containsKey(partType())) {
+                map = (Map<String, Object>) map.values().iterator().next();
+            }
+            XContentBuilder builder = XContentFactory.smileBuilder().map(map);
+            try (XContentParser parser = XContentFactory.xContent(XContentType.SMILE).createParser(builder.bytes())) {
+                // move to START_OBJECT
+                parser.nextToken();
+                return fromXContent(parser, context);
+            }
+        }
+
     }
 
 }

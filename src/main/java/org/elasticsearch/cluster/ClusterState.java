@@ -34,7 +34,6 @@ import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
@@ -47,6 +46,55 @@ import static com.google.common.collect.Sets.newHashSet;
  *
  */
 public class ClusterState extends CompositeClusterStatePart<ClusterState> {
+
+    public static final String TYPE = "cluster";
+
+    public static final Factory FACTORY = new Factory();
+
+    public static class Factory extends AbstractCompositeFactory<ClusterState> {
+
+        @Override
+        public ClusterState fromParts(long version, String uuid, ImmutableOpenMap.Builder<String, ClusterStatePart> parts) {
+            return new ClusterState(version, uuid, parts.build());
+        }
+
+        @Override
+        public String partType() {
+            return TYPE;
+        }
+    }
+
+    static {
+        FACTORY.registerFactory(ClusterName.TYPE, ClusterName.FACTORY);
+        FACTORY.registerFactory(DiscoveryNodes.TYPE, DiscoveryNodes.FACTORY);
+        FACTORY.registerFactory(ClusterBlocks.TYPE, ClusterBlocks.FACTORY);
+        FACTORY.registerFactory(RoutingTable.TYPE, RoutingTable.FACTORY);
+        FACTORY.registerFactory(MetaData.TYPE, MetaData.FACTORY);
+    }
+
+    public static class ClusterStateDiff {
+        private long version;
+        private ClusterState.Diff<ClusterState> diff;
+
+        public ClusterStateDiff(long version, ClusterState.Diff<ClusterState> diff) {
+            this.version = version;
+            this.diff = diff;
+        }
+
+        public ClusterState apply(ClusterState previous) throws IncompatibleClusterStateVersionException {
+            ClusterState newState = diff.apply(previous);
+            return newState;
+        }
+
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(version);
+            diff.writeTo(out);
+        }
+
+        public long version() {
+            return version;
+        }
+    }
 
     public static enum ClusterStateStatus {
         UNKNOWN((byte) 0),
@@ -293,6 +341,11 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> {
         return builder;
     }
 
+    @Override
+    public String partType() {
+        return TYPE;
+    }
+
     public static Builder builder(ClusterName clusterName) {
         return new Builder(clusterName);
     }
@@ -451,50 +504,6 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> {
         public static ClusterState fromDiffBytes(ClusterState before, byte[] data, DiscoveryNode localNode) throws IOException {
             ClusterStateDiff diff = readDiffFrom(new BytesStreamInput(data, false), localNode);
             return diff.apply(before);
-        }
-    }
-
-    public static final String TYPE = "cluster";
-
-    public static final Factory FACTORY = new Factory();
-
-    public static class Factory extends AbstractCompositeClusterStatePartFactory<ClusterState> {
-
-        @Override
-        public ClusterState fromParts(long version, String uuid, ImmutableOpenMap.Builder<String, ClusterStatePart> parts) {
-            return new ClusterState(version, uuid, parts.build());
-        }
-    }
-
-    static {
-        registerFactory(ClusterName.TYPE, ClusterName.FACTORY);
-        registerFactory(DiscoveryNodes.TYPE, DiscoveryNodes.FACTORY);
-        registerFactory(ClusterBlocks.TYPE, ClusterBlocks.FACTORY);
-        registerFactory(RoutingTable.TYPE, RoutingTable.FACTORY);
-        registerFactory(MetaData.TYPE, MetaData.FACTORY);
-    }
-
-    public static class ClusterStateDiff {
-        private long version;
-        private ClusterState.Diff<ClusterState> diff;
-
-        public ClusterStateDiff(long version, ClusterState.Diff<ClusterState> diff) {
-            this.version = version;
-            this.diff = diff;
-        }
-
-        public ClusterState apply(ClusterState previous) throws IncompatibleClusterStateVersionException {
-            ClusterState newState = diff.apply(previous);
-            return newState;
-        }
-
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(version);
-            diff.writeTo(out);
-        }
-
-        public long version() {
-            return version;
         }
     }
 

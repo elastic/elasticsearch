@@ -28,6 +28,8 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.cluster.ClusterStatePart;
+import org.elasticsearch.cluster.metadata.IndexClusterStatePart;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -71,7 +73,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
 
     private final Set<Alias> aliases = newHashSet();
     
-    private Map<String, IndexMetaData.Custom> customs = newHashMap();
+    private Map<String, IndexClusterStatePart> customs = newHashMap();
 
     PutIndexTemplateRequest() {
     }
@@ -294,10 +296,10 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
                 aliases((Map<String, Object>) entry.getValue());
             } else {
                 // maybe custom?
-                IndexMetaData.Custom.Factory factory = IndexMetaData.lookupFactory(name);
+                ClusterStatePart.Factory<IndexClusterStatePart> factory = IndexMetaData.FACTORY.lookupFactory(name);
                 if (factory != null) {
                     try {
-                        customs.put(name, factory.fromMap((Map<String, Object>) entry.getValue()));
+                        customs.put(name, factory.fromMap((Map<String, Object>) entry.getValue(), null));
                     } catch (IOException e) {
                         throw new ElasticsearchParseException("failed to parse custom metadata for [" + name + "]");
                     }
@@ -347,12 +349,12 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
         }
     }
 
-    public PutIndexTemplateRequest custom(IndexMetaData.Custom custom) {
-        customs.put(custom.type(), custom);
+    public PutIndexTemplateRequest custom(IndexClusterStatePart custom) {
+        customs.put(custom.partType(), custom);
         return this;
     }
 
-    Map<String, IndexMetaData.Custom> customs() {
+    Map<String, IndexClusterStatePart> customs() {
         return this.customs;
     }
        
@@ -442,7 +444,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
             String type = in.readString();
-            IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupFactorySafe(type).readFrom(in);
+            IndexClusterStatePart customIndexMetaData = IndexMetaData.FACTORY.lookupFactorySafe(type).readFrom(in, null);
             customs.put(type, customIndexMetaData);
         }
         int aliasesSize = in.readVInt();
@@ -466,9 +468,9 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
             out.writeString(entry.getValue());
         }
         out.writeVInt(customs.size());
-        for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
+        for (Map.Entry<String, IndexClusterStatePart> entry : customs.entrySet()) {
             out.writeString(entry.getKey());
-            IndexMetaData.lookupFactorySafe(entry.getKey()).writeTo(entry.getValue(), out);
+            entry.getValue().writeTo(out);
         }
         out.writeVInt(aliases.size());
         for (Alias alias : aliases) {

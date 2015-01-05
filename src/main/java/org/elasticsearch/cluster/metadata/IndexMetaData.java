@@ -22,12 +22,9 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractClusterStatePart;
-import org.elasticsearch.cluster.LocalContext;
-import org.elasticsearch.cluster.MapItemClusterStatePart;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
@@ -47,14 +44,12 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
 import java.io.IOException;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
@@ -65,64 +60,37 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
 /**
  *
  */
-public class IndexMetaData extends AbstractClusterStatePart implements MapItemClusterStatePart {
+public class IndexMetaData extends NamedCompositeClusterStatePart<IndexClusterStatePart> implements NamedClusterStatePart {
 
     public static String TYPE = "index_metadata";
 
     public static Factory FACTORY = new Factory();
 
-    public interface Custom {
+    public static final String SETTINGS_TYPE = "settings";
 
-        String type();
+    public static final ClusterStateSettingsPart.Factory SETTINGS_FACTORY = new ClusterStateSettingsPart.Factory(SETTINGS_TYPE);
 
-        interface Factory<T extends Custom> {
+    public static final String MAPPINGS_TYPE = "mappings";
 
-            String type();
+    public static final MapClusterStatePart.Factory<MappingMetaData> MAPPINGS_FACTORY = new MapClusterStatePart.Factory<>(MAPPINGS_TYPE, MappingMetaData.FACTORY, API_GATEWAY_SNAPSHOT);
 
-            T readFrom(StreamInput in) throws IOException;
+    public static final String ALIASES_TYPE = "aliases";
 
-            void writeTo(T customIndexMetaData, StreamOutput out) throws IOException;
-
-            T fromMap(Map<String, Object> map) throws IOException;
-
-            T fromXContent(XContentParser parser) throws IOException;
-
-            void toXContent(T customIndexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException;
-
-            /**
-             * Merges from first to second, with first being more important, i.e., if something exists in first and second,
-             * first will prevail.
-             */
-            T merge(T first, T second);
-        }
-    }
-
-    public static Map<String, Custom.Factory> customFactories = new HashMap<>();
+    public static final MapClusterStatePart.Factory<AliasMetaData> ALIASES_FACTORY = new MapClusterStatePart.Factory<>(ALIASES_TYPE, AliasMetaData.FACTORY, API_GATEWAY_SNAPSHOT);
 
     static {
+        FACTORY.registerFactory(SETTINGS_TYPE, SETTINGS_FACTORY);
+        FACTORY.registerFactory(MAPPINGS_TYPE, MAPPINGS_FACTORY);
+        FACTORY.registerFactory(ALIASES_TYPE, ALIASES_FACTORY);
         // register non plugin custom metadata
-        registerFactory(IndexWarmersMetaData.TYPE, IndexWarmersMetaData.FACTORY);
+        FACTORY.registerFactory(IndexWarmersMetaData.TYPE, IndexWarmersMetaData.FACTORY);
     }
 
-    /**
-     * Register a custom index meta data factory. Make sure to call it from a static block.
-     */
-    public static void registerFactory(String type, Custom.Factory factory) {
-        customFactories.put(type, factory);
+    @Override
+    public String partType() {
+        return TYPE;
     }
 
-    @Nullable
-    public static <T extends Custom> Custom.Factory<T> lookupFactory(String type) {
-        return customFactories.get(type);
-    }
-
-    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) throws ElasticsearchIllegalArgumentException {
-        Custom.Factory<T> factory = customFactories.get(type);
-        if (factory == null) {
-            throw new ElasticsearchIllegalArgumentException("No custom index metadata factoy registered for type [" + type + "]");
-        }
-        return factory;
-    }
 
     public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(5, "index read-only (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA));
     public static final ClusterBlock INDEX_READ_BLOCK = new ClusterBlock(7, "index read (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.READ));
@@ -189,10 +157,7 @@ public class IndexMetaData extends AbstractClusterStatePart implements MapItemCl
     private final ImmutableOpenMap<String, AliasMetaData> aliases;
 
     private final Settings settings;
-
     private final ImmutableOpenMap<String, MappingMetaData> mappings;
-
-    private final ImmutableOpenMap<String, Custom> customs;
 
     private transient final int totalNumberOfShards;
 
@@ -204,17 +169,17 @@ public class IndexMetaData extends AbstractClusterStatePart implements MapItemCl
     private final HashFunction routingHashFunction;
     private final boolean useTypeForRouting;
 
-    private IndexMetaData(String index, long version, State state, Settings settings, ImmutableOpenMap<String, MappingMetaData> mappings, ImmutableOpenMap<String, AliasMetaData> aliases, ImmutableOpenMap<String, Custom> customs) {
-        Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_SHARDS, null) != null, "must specify numberOfShards for index [" + index + "]");
-        Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, null) != null, "must specify numberOfReplicas for index [" + index + "]");
+    private IndexMetaData(String index, long version, State state, ImmutableOpenMap<String, IndexClusterStatePart> parts) {
+        super(parts);
         this.index = index;
         this.version = version;
         this.state = state;
-        this.settings = settings;
-        this.mappings = mappings;
-        this.customs = customs;
+        this.settings = parts.containsKey(SETTINGS_TYPE) ? ((ClusterStateSettingsPart)get(SETTINGS_TYPE)).getSettings() : ImmutableSettings.EMPTY;
         this.totalNumberOfShards = numberOfShards() * (numberOfReplicas() + 1);
-        this.aliases = aliases;
+        Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_SHARDS, null) != null, "must specify numberOfShards for index [" + index + "]");
+        Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, null) != null, "must specify numberOfReplicas for index [" + index + "]");
+        this.mappings = parts.containsKey(MAPPINGS_TYPE) ? ((MapClusterStatePart<MappingMetaData>)get(MAPPINGS_TYPE)).parts() : ImmutableOpenMap.<String, MappingMetaData>of();
+        this.aliases = parts.containsKey(ALIASES_TYPE) ? ((MapClusterStatePart<AliasMetaData>)get(ALIASES_TYPE)).parts() : ImmutableOpenMap.<String, AliasMetaData>of();
 
         ImmutableMap<String, String> requireMap = settings.getByPrefix("index.routing.allocation.require.").getAsMap();
         if (requireMap.isEmpty()) {
@@ -404,17 +369,17 @@ public class IndexMetaData extends AbstractClusterStatePart implements MapItemCl
         return mappings.get(MapperService.DEFAULT_MAPPING);
     }
 
-    public ImmutableOpenMap<String, Custom> customs() {
-        return this.customs;
+    public ImmutableOpenMap<String, IndexClusterStatePart> customs() {
+        return this.parts;
     }
 
-    public ImmutableOpenMap<String, Custom> getCustoms() {
-        return this.customs;
+    public ImmutableOpenMap<String, IndexClusterStatePart> getCustoms() {
+        return this.parts;
     }
 
     @SuppressWarnings("unchecked")
-    public <T extends Custom> T custom(String type) {
-        return (T) customs.get(type);
+    public <T extends IndexClusterStatePart> T custom(String type) {
+        return (T) parts.get(type);
     }
 
     @Nullable
@@ -443,23 +408,11 @@ public class IndexMetaData extends AbstractClusterStatePart implements MapItemCl
 
         IndexMetaData that = (IndexMetaData) o;
 
-        if (!aliases.equals(that.aliases)) {
-            return false;
-        }
-        if (!index.equals(that.index)) {
-            return false;
-        }
-        if (!mappings.equals(that.mappings)) {
-            return false;
-        }
-        if (!settings.equals(that.settings)) {
-            return false;
-        }
         if (state != that.state) {
             return false;
         }
 
-        if (!customs.equals(that.customs)) {
+        if (!parts.equals(that.parts)) {
             return false;
         }
 
@@ -470,11 +423,27 @@ public class IndexMetaData extends AbstractClusterStatePart implements MapItemCl
     public int hashCode() {
         int result = index.hashCode();
         result = 31 * result + state.hashCode();
-        result = 31 * result + aliases.hashCode();
-        result = 31 * result + settings.hashCode();
-        result = 31 * result + mappings.hashCode();
-        result = 31 * result + customs.hashCode();
+        result = 31 * result + parts.hashCode();
         return result;
+    }
+
+    @Override
+    protected void valuesPartWriteTo(StreamOutput out) throws IOException {
+        out.writeVLong(version);
+        out.writeByte(state.id());
+    }
+
+    @Override
+    protected void valuesPartToXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("version", version);
+        builder.field("state", state.toString().toLowerCase(Locale.ENGLISH));
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        // TODO: switch to generic toXContent
+        Builder.toXContent(this, builder, params);
+        return builder;
     }
 
     public static Builder builder(String index) {
@@ -485,7 +454,7 @@ public class IndexMetaData extends AbstractClusterStatePart implements MapItemCl
         return new Builder(indexMetaData);
     }
 
-    public static class Builder {
+    public static class Builder extends NamedCompositeClusterStatePart.Builder<IndexClusterStatePart, IndexMetaData> {
 
         private String index;
         private State state = State.OPEN;
@@ -493,13 +462,11 @@ public class IndexMetaData extends AbstractClusterStatePart implements MapItemCl
         private Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
         private final ImmutableOpenMap.Builder<String, MappingMetaData> mappings;
         private final ImmutableOpenMap.Builder<String, AliasMetaData> aliases;
-        private final ImmutableOpenMap.Builder<String, Custom> customs;
 
         public Builder(String index) {
             this.index = index;
             this.mappings = ImmutableOpenMap.builder();
             this.aliases = ImmutableOpenMap.builder();
-            this.customs = ImmutableOpenMap.builder();
         }
 
         public Builder(IndexMetaData indexMetaData) {
@@ -509,7 +476,10 @@ public class IndexMetaData extends AbstractClusterStatePart implements MapItemCl
             this.settings = indexMetaData.settings();
             this.mappings = ImmutableOpenMap.builder(indexMetaData.mappings);
             this.aliases = ImmutableOpenMap.builder(indexMetaData.aliases);
-            this.customs = ImmutableOpenMap.builder(indexMetaData.customs);
+            parts.putAll(indexMetaData.parts());
+            parts.remove(SETTINGS_TYPE);
+            parts.remove(MAPPINGS_TYPE);
+            parts.remove(ALIASES_TYPE);
         }
 
         public String index() {
@@ -519,6 +489,10 @@ public class IndexMetaData extends AbstractClusterStatePart implements MapItemCl
         public Builder index(String index) {
             this.index = index;
             return this;
+        }
+
+        public String getKey() {
+            return index;
         }
 
         public Builder numberOfShards(int numberOfShards) {
@@ -604,18 +578,18 @@ public class IndexMetaData extends AbstractClusterStatePart implements MapItemCl
             return this;
         }
 
-        public Builder putCustom(String type, Custom customIndexMetaData) {
-            this.customs.put(type, customIndexMetaData);
+        public Builder putCustom(String type, IndexClusterStatePart customIndexMetaData) {
+            this.parts.put(type, customIndexMetaData);
             return this;
         }
 
         public Builder removeCustom(String type) {
-            this.customs.remove(type);
+            this.parts.remove(type);
             return this;
         }
 
-        public Custom getCustom(String type) {
-            return this.customs.get(type);
+        public ClusterStatePart getCustom(String type) {
+            return this.parts.get(type);
         }
 
         public long version() {
@@ -639,7 +613,40 @@ public class IndexMetaData extends AbstractClusterStatePart implements MapItemCl
                 }
             }
 
-            return new IndexMetaData(index, version, state, tmpSettings, mappings.build(), tmpAliases.build(), customs.build());
+            return new IndexMetaData(index, version, state, buildParts(tmpSettings, mappings.build(), tmpAliases.build(), parts.build()));
+        }
+
+        @Override
+        public void parseValuePart(XContentParser parser, String currentFieldName, LocalContext context) throws IOException {
+            if ("state".equals(currentFieldName)) {
+                state = State.fromString(parser.text());
+            } else if ("version".equals(currentFieldName)) {
+                version = parser.longValue();
+            }
+        }
+
+        @Override
+        public void readValuePartsFrom(StreamInput in, LocalContext context) throws IOException {
+            version = in.readVLong();
+            state = State.fromId(in.readByte());
+        }
+
+        @Override
+        public void writeValuePartsTo(StreamOutput out) throws IOException {
+            out.writeVLong(version);
+            out.writeByte(state.id());
+        }
+
+        private static ImmutableOpenMap<String, IndexClusterStatePart> buildParts(Settings settings,
+                                                                             ImmutableOpenMap<String, MappingMetaData> mappings,
+                                                                             ImmutableOpenMap<String, AliasMetaData> aliases,
+                                                                             ImmutableOpenMap<String, IndexClusterStatePart> parts) {
+            ImmutableOpenMap.Builder<String, IndexClusterStatePart> builder = ImmutableOpenMap.builder();
+            builder.put(SETTINGS_TYPE, SETTINGS_FACTORY.fromSettings(settings));
+            builder.put(MAPPINGS_TYPE, MAPPINGS_FACTORY.fromOpenMap(mappings));
+            builder.put(ALIASES_TYPE, ALIASES_FACTORY.fromOpenMap(aliases));
+            builder.putAll(parts);
+            return builder.build();
         }
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -648,63 +655,33 @@ public class IndexMetaData extends AbstractClusterStatePart implements MapItemCl
             builder.field("version", indexMetaData.version());
             builder.field("state", indexMetaData.state().toString().toLowerCase(Locale.ENGLISH));
 
-            boolean binary = params.paramAsBoolean("binary", false);
-
-            builder.startObject("settings");
-            Settings settings = indexMetaData.settings();
-            settings.toXContent(builder, params);
-            for (Map.Entry<String, String> entry : indexMetaData.settings().getAsMap().entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
-            builder.endObject();
-
             if (params.paramAsBoolean("reduce_mappings", false)) {
                 builder.startObject("mappings");
                 for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
-                    byte[] mappingSource = cursor.value.source().uncompressed();
-                    XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
-                    Map<String, Object> mapping = parser.map();
-                    if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
-                        // the type name is the root value, reduce it
-                        mapping = (Map<String, Object>) mapping.get(cursor.key);
-                    }
-                    builder.field(cursor.key);
-                    builder.map(mapping);
+                    cursor.value.toXContent(builder, params);
                 }
                 builder.endObject();
             } else {
                 builder.startArray("mappings");
                 for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
-                    if (binary) {
-                        builder.value(cursor.value.source().compressed());
-                    } else {
-                        byte[] data = cursor.value.source().uncompressed();
-                        XContentParser parser = XContentFactory.xContent(data).createParser(data);
-                        Map<String, Object> mapping = parser.mapOrdered();
-                        parser.close();
-                        builder.map(mapping);
-                    }
+                    cursor.value.toXContent(builder, params);
                 }
                 builder.endArray();
             }
 
-            for (ObjectObjectCursor<String, Custom> cursor : indexMetaData.customs()) {
-                builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
-                lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
-                builder.endObject();
+            for (ObjectObjectCursor<String, IndexClusterStatePart> cursor : indexMetaData.parts()) {
+                if (!cursor.key.equals(MAPPINGS_TYPE)) {
+                    builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
+                    cursor.value.toXContent(builder, params);
+                    builder.endObject();
+                }
             }
-
-            builder.startObject("aliases");
-            for (ObjectCursor<AliasMetaData> cursor : indexMetaData.aliases().values()) {
-                AliasMetaData.Builder.toXContent(cursor.value, builder, params);
-            }
-            builder.endObject();
-
 
             builder.endObject();
         }
 
         public static IndexMetaData fromXContent(XContentParser parser) throws IOException {
+            // TODO : switch to NamedCompositeClusterStatePart.AbstractFactory parser
             if (parser.currentToken() == null) { // fresh parser? move to the first token
                 parser.nextToken();
             }
@@ -737,12 +714,12 @@ public class IndexMetaData extends AbstractClusterStatePart implements MapItemCl
                         }
                     } else {
                         // check if its a custom index metadata
-                        Custom.Factory<Custom> factory = lookupFactory(currentFieldName);
+                        ClusterStatePart.Factory<IndexClusterStatePart> factory = FACTORY.lookupFactory(currentFieldName);
                         if (factory == null) {
                             //TODO warn
                             parser.skipChildren();
                         } else {
-                            builder.putCustom(factory.type(), factory.fromXContent(parser));
+                            builder.putCustom(currentFieldName, factory.fromXContent(parser, null));
                         }
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
@@ -771,47 +748,11 @@ public class IndexMetaData extends AbstractClusterStatePart implements MapItemCl
         }
 
         public static IndexMetaData readFrom(StreamInput in) throws IOException {
-            Builder builder = new Builder(in.readString());
-            builder.version(in.readLong());
-            builder.state(State.fromId(in.readByte()));
-            builder.settings(readSettingsFromStream(in));
-            int mappingsSize = in.readVInt();
-            for (int i = 0; i < mappingsSize; i++) {
-                MappingMetaData mappingMd = MappingMetaData.readFrom(in);
-                builder.putMapping(mappingMd);
-            }
-            int aliasesSize = in.readVInt();
-            for (int i = 0; i < aliasesSize; i++) {
-                AliasMetaData aliasMd = AliasMetaData.Builder.readFrom(in);
-                builder.putAlias(aliasMd);
-            }
-            int customSize = in.readVInt();
-            for (int i = 0; i < customSize; i++) {
-                String type = in.readString();
-                Custom customIndexMetaData = lookupFactorySafe(type).readFrom(in);
-                builder.putCustom(type, customIndexMetaData);
-            }
-            return builder.build();
+            return FACTORY.readFrom(in, null);
         }
 
         public static void writeTo(IndexMetaData indexMetaData, StreamOutput out) throws IOException {
-            out.writeString(indexMetaData.index());
-            out.writeLong(indexMetaData.version());
-            out.writeByte(indexMetaData.state().id());
-            writeSettingsToStream(indexMetaData.settings(), out);
-            out.writeVInt(indexMetaData.mappings().size());
-            for (ObjectCursor<MappingMetaData> cursor : indexMetaData.mappings().values()) {
-                MappingMetaData.writeTo(cursor.value, out);
-            }
-            out.writeVInt(indexMetaData.aliases().size());
-            for (ObjectCursor<AliasMetaData> cursor : indexMetaData.aliases().values()) {
-                AliasMetaData.Builder.writeTo(cursor.value, out);
-            }
-            out.writeVInt(indexMetaData.customs().size());
-            for (ObjectObjectCursor<String, Custom> cursor : indexMetaData.customs()) {
-                out.writeString(cursor.key);
-                lookupFactorySafe(cursor.key).writeTo(cursor.value, out);
-            }
+            indexMetaData.writeTo(out);
         }
     }
 
@@ -820,27 +761,26 @@ public class IndexMetaData extends AbstractClusterStatePart implements MapItemCl
         return index;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        Builder.writeTo(this, out);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        Builder.toXContent(this, builder, params);
-        return builder;
-    }
-
-    public static class Factory extends AbstractClusterStatePart.AbstractFactory<IndexMetaData> {
+    public static class Factory extends NamedCompositeClusterStatePart.AbstractFactory<IndexClusterStatePart, IndexMetaData> {
 
         @Override
-        public IndexMetaData readFrom(StreamInput in, LocalContext context) throws IOException {
-            return Builder.readFrom(in);
+        public NamedCompositeClusterStatePart.Builder<IndexClusterStatePart, IndexMetaData> builder(String key) {
+            return new Builder(key);
+        }
+
+        @Override
+        public NamedCompositeClusterStatePart.Builder<IndexClusterStatePart, IndexMetaData> builder(IndexMetaData part) {
+            return new Builder(part);
         }
 
         @Override
         public IndexMetaData fromXContent(XContentParser parser, LocalContext context) throws IOException {
             return Builder.fromXContent(parser);
+        }
+
+        @Override
+        public String partType() {
+            return TYPE;
         }
     }
 

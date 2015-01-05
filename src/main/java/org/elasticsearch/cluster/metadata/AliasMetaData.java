@@ -21,6 +21,9 @@ package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.cluster.AbstractClusterStatePart;
+import org.elasticsearch.cluster.LocalContext;
+import org.elasticsearch.cluster.NamedClusterStatePart;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,7 +41,51 @@ import java.util.Set;
 /**
  *
  */
-public class AliasMetaData {
+public class AliasMetaData extends AbstractClusterStatePart implements NamedClusterStatePart, IndexClusterStatePart<AliasMetaData> {
+
+    public static final String TYPE = "alias";
+
+    public static final Factory FACTORY = new Factory();
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Builder.writeTo(this, out);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        Builder.toXContent(this, builder, params);
+        return builder;
+    }
+
+    @Override
+    public String key() {
+        return alias;
+    }
+
+    @Override
+    public String partType() {
+        return TYPE;
+    }
+
+
+    @Override
+    public AliasMetaData mergeWith(AliasMetaData second) {
+        return null;
+    }
+
+    public static class Factory extends AbstractClusterStatePart.AbstractFactory<AliasMetaData> {
+
+        @Override
+        public AliasMetaData readFrom(StreamInput in, LocalContext context) throws IOException {
+            return Builder.readFrom(in);
+        }
+
+        @Override
+        public String partType() {
+            return TYPE;
+        }
+    }
 
     private final String alias;
 

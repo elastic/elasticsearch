@@ -21,8 +21,9 @@ package org.elasticsearch.search.warmer;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.AbstractClusterStatePart;
+import org.elasticsearch.cluster.LocalContext;
+import org.elasticsearch.cluster.metadata.IndexClusterStatePart;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -38,11 +39,81 @@ import java.util.Map;
 
 /**
  */
-public class IndexWarmersMetaData implements IndexMetaData.Custom {
+public class IndexWarmersMetaData extends AbstractClusterStatePart implements IndexClusterStatePart<IndexWarmersMetaData> {
 
     public static final String TYPE = "warmers";
 
     public static final Factory FACTORY = new Factory();
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(entries.size());
+        for (Entry entry : entries) {
+            out.writeString(entry.name());
+            out.writeStringArray(entry.types());
+            if (entry.source() == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeBytesReference(entry.source());
+            }
+            out.writeOptionalBoolean(entry.queryCache());
+        }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        //No need, IndexMetaData already writes it
+        //builder.startObject(TYPE, XContentBuilder.FieldCaseConversion.NONE);
+        for (Entry entry : entries) {
+            toXContent(entry, builder, params);
+        }
+        //No need, IndexMetaData already writes it
+        //builder.endObject();
+        return builder;
+    }
+
+    public static void toXContent(Entry entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
+        boolean binary = params.paramAsBoolean("binary", false);
+        builder.startObject(entry.name(), XContentBuilder.FieldCaseConversion.NONE);
+        builder.field("types", entry.types());
+        if (entry.queryCache() != null) {
+            builder.field("queryCache", entry.queryCache());
+        }
+        builder.field("source");
+        if (binary) {
+            builder.value(entry.source());
+        } else {
+            Map<String, Object> mapping = XContentFactory.xContent(entry.source()).createParser(entry.source()).mapOrderedAndClose();
+            builder.map(mapping);
+        }
+        builder.endObject();
+    }
+
+    @Override
+    public IndexWarmersMetaData mergeWith(IndexWarmersMetaData second) {
+        List<Entry> entries = Lists.newArrayList();
+        entries.addAll(entries);
+        for (Entry secondEntry : second.entries()) {
+            boolean found = false;
+            for (Entry firstEntry : entries) {
+                if (firstEntry.name().equals(secondEntry.name())) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                entries.add(secondEntry);
+            }
+        }
+        return new IndexWarmersMetaData(entries.toArray(new Entry[entries.size()]));
+    }
+
+    @Override
+    public String partType() {
+        return TYPE;
+    }
+
 
     public static class Entry {
         private final String name;
@@ -87,20 +158,10 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
         return this.entries;
     }
 
-    @Override
-    public String type() {
-        return TYPE;
-    }
-
-    public static class Factory implements IndexMetaData.Custom.Factory<IndexWarmersMetaData> {
+    public static class Factory extends AbstractClusterStatePart.AbstractFactory<IndexWarmersMetaData> {
 
         @Override
-        public String type() {
-            return TYPE;
-        }
-
-        @Override
-        public IndexWarmersMetaData readFrom(StreamInput in) throws IOException {
+        public IndexWarmersMetaData readFrom(StreamInput in, LocalContext context) throws IOException {
             Entry[] entries = new Entry[in.readVInt()];
             for (int i = 0; i < entries.length; i++) {
                 String name = in.readString();
@@ -117,37 +178,7 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
         }
 
         @Override
-        public void writeTo(IndexWarmersMetaData warmers, StreamOutput out) throws IOException {
-            out.writeVInt(warmers.entries().size());
-            for (Entry entry : warmers.entries()) {
-                out.writeString(entry.name());
-                out.writeStringArray(entry.types());
-                if (entry.source() == null) {
-                    out.writeBoolean(false);
-                } else {
-                    out.writeBoolean(true);
-                    out.writeBytesReference(entry.source());
-                }
-                out.writeOptionalBoolean(entry.queryCache());
-            }
-        }
-
-        @Override
-        public IndexWarmersMetaData fromMap(Map<String, Object> map) throws IOException {
-            // if it starts with the type, remove it
-            if (map.size() == 1 && map.containsKey(TYPE)) {
-                map = (Map<String, Object>) map.values().iterator().next();
-            }
-            XContentBuilder builder = XContentFactory.smileBuilder().map(map);
-            try (XContentParser parser = XContentFactory.xContent(XContentType.SMILE).createParser(builder.bytes())) {
-                // move to START_OBJECT
-                parser.nextToken();
-                return fromXContent(parser);
-            }
-        }
-
-        @Override
-        public IndexWarmersMetaData fromXContent(XContentParser parser) throws IOException {
+        public IndexWarmersMetaData fromXContent(XContentParser parser, LocalContext context) throws IOException {
             // we get here after we are at warmers token
             String currentFieldName = null;
             XContentParser.Token token;
@@ -191,50 +222,8 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
         }
 
         @Override
-        public void toXContent(IndexWarmersMetaData warmers, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            //No need, IndexMetaData already writes it
-            //builder.startObject(TYPE, XContentBuilder.FieldCaseConversion.NONE);
-            for (Entry entry : warmers.entries()) {
-                toXContent(entry, builder, params);
-            }
-            //No need, IndexMetaData already writes it
-            //builder.endObject();
-        }
-
-        public void toXContent(Entry entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            boolean binary = params.paramAsBoolean("binary", false);
-            builder.startObject(entry.name(), XContentBuilder.FieldCaseConversion.NONE);
-            builder.field("types", entry.types());
-            if (entry.queryCache() != null) {
-                builder.field("queryCache", entry.queryCache());
-            }
-            builder.field("source");
-            if (binary) {
-                builder.value(entry.source());
-            } else {
-                Map<String, Object> mapping = XContentFactory.xContent(entry.source()).createParser(entry.source()).mapOrderedAndClose();
-                builder.map(mapping);
-            }
-            builder.endObject();
-        }
-
-        @Override
-        public IndexWarmersMetaData merge(IndexWarmersMetaData first, IndexWarmersMetaData second) {
-            List<Entry> entries = Lists.newArrayList();
-            entries.addAll(first.entries());
-            for (Entry secondEntry : second.entries()) {
-                boolean found = false;
-                for (Entry firstEntry : first.entries()) {
-                    if (firstEntry.name().equals(secondEntry.name())) {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) {
-                    entries.add(secondEntry);
-                }
-            }
-            return new IndexWarmersMetaData(entries.toArray(new Entry[entries.size()]));
+        public String partType() {
+            return TYPE;
         }
     }
 }

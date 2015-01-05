@@ -22,7 +22,7 @@ package org.elasticsearch.cluster;
 /**
  * All cluster state parts that can be put into a map should implement this interface
  */
-public interface MapItemClusterStatePart extends ClusterStatePart {
+public interface NamedClusterStatePart extends ClusterStatePart {
     String key();
 
 }

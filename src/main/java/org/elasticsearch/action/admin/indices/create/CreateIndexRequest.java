@@ -24,7 +24,6 @@ import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -32,6 +31,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.cluster.metadata.IndexClusterStatePart;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -73,7 +73,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private final Set<Alias> aliases = Sets.newHashSet();
 
-    private final Map<String, IndexMetaData.Custom> customs = newHashMap();
+    private final Map<String, IndexClusterStatePart> customs = newHashMap();
 
     CreateIndexRequest() {
     }
@@ -406,11 +406,11 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                 aliases((Map<String, Object>) entry.getValue());
             } else {
                 // maybe custom?
-                IndexMetaData.Custom.Factory factory = IndexMetaData.lookupFactory(name);
+                IndexClusterStatePart.Factory<IndexClusterStatePart> factory = IndexMetaData.FACTORY.lookupFactory(name);
                 if (factory != null) {
                     found = true;
                     try {
-                        customs.put(name, factory.fromMap((Map<String, Object>) entry.getValue()));
+                        customs.put(name, factory.fromMap((Map<String, Object>) entry.getValue(), null));
                     } catch (IOException e) {
                         throw new ElasticsearchParseException("failed to parse custom metadata for [" + name + "]");
                     }
@@ -435,12 +435,12 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     /**
      * Adds custom metadata to the index to be created.
      */
-    public CreateIndexRequest custom(IndexMetaData.Custom custom) {
-        customs.put(custom.type(), custom);
+    public CreateIndexRequest custom(IndexClusterStatePart custom) {
+        customs.put(custom.partType(), custom);
         return this;
     }
 
-    Map<String, IndexMetaData.Custom> customs() {
+    Map<String, IndexClusterStatePart> customs() {
         return this.customs;
     }
 
@@ -458,7 +458,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
             String type = in.readString();
-            IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupFactorySafe(type).readFrom(in);
+            IndexClusterStatePart customIndexMetaData = IndexMetaData.FACTORY.lookupFactorySafe(type).readFrom(in, null);
             customs.put(type, customIndexMetaData);
         }
         int aliasesSize = in.readVInt();
@@ -480,9 +480,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             out.writeString(entry.getValue());
         }
         out.writeVInt(customs.size());
-        for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
+        for (Map.Entry<String, IndexClusterStatePart> entry : customs.entrySet()) {
             out.writeString(entry.getKey());
-            IndexMetaData.lookupFactorySafe(entry.getKey()).writeTo(entry.getValue(), out);
+            entry.getValue().writeTo(out);
         }
         out.writeVInt(aliases.size());
         for (Alias alias : aliases) {

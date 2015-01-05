@@ -72,7 +72,7 @@ public class RestGetWarmerAction extends BaseRestHandler {
                     builder.startObject(entry.key, XContentBuilder.FieldCaseConversion.NONE);
                     builder.startObject(IndexWarmersMetaData.TYPE, XContentBuilder.FieldCaseConversion.NONE);
                     for (IndexWarmersMetaData.Entry warmerEntry : entry.value) {
-                        IndexWarmersMetaData.FACTORY.toXContent(warmerEntry, builder, request);
+                        IndexWarmersMetaData.toXContent(warmerEntry, builder, request);
                     }
                     builder.endObject();
                     builder.endObject();

@@ -21,11 +21,9 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.Sets;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractClusterStatePart;
-import org.elasticsearch.cluster.ClusterStatePart;
 import org.elasticsearch.cluster.LocalContext;
-import org.elasticsearch.cluster.MapItemClusterStatePart;
+import org.elasticsearch.cluster.NamedClusterStatePart;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedString;
@@ -47,7 +45,7 @@ import java.util.Set;
 /**
  *
  */
-public class IndexTemplateMetaData extends AbstractClusterStatePart implements MapItemClusterStatePart {
+public class IndexTemplateMetaData extends AbstractClusterStatePart implements NamedClusterStatePart{
 
     public static String TYPE = "template";
 
@@ -66,10 +64,10 @@ public class IndexTemplateMetaData extends AbstractClusterStatePart implements M
 
     private final ImmutableOpenMap<String, AliasMetaData> aliases;
 
-    private final ImmutableOpenMap<String, IndexMetaData.Custom> customs;
+    private final ImmutableOpenMap<String, IndexClusterStatePart> customs;
 
     public IndexTemplateMetaData(String name, int order, String template, Settings settings, ImmutableOpenMap<String, CompressedString> mappings,
-                                 ImmutableOpenMap<String, AliasMetaData> aliases, ImmutableOpenMap<String, IndexMetaData.Custom> customs) {
+                                 ImmutableOpenMap<String, AliasMetaData> aliases, ImmutableOpenMap<String, IndexClusterStatePart> customs) {
         this.name = name;
         this.order = order;
         this.template = template;
@@ -127,16 +125,21 @@ public class IndexTemplateMetaData extends AbstractClusterStatePart implements M
         return this.aliases;
     }
 
-    public ImmutableOpenMap<String, IndexMetaData.Custom> customs() {
+    public ImmutableOpenMap<String, IndexClusterStatePart> customs() {
         return this.customs;
     }
 
-    public ImmutableOpenMap<String, IndexMetaData.Custom> getCustoms() {
+    public ImmutableOpenMap<String, IndexClusterStatePart> getCustoms() {
         return this.customs;
+    }
+
+    @Override
+    public String partType() {
+        return TYPE;
     }
 
     @SuppressWarnings("unchecked")
-    public <T extends IndexMetaData.Custom> T custom(String type) {
+    public <T extends IndexClusterStatePart> T custom(String type) {
         return (T) customs.get(type);
     }
 
@@ -177,9 +180,10 @@ public class IndexTemplateMetaData extends AbstractClusterStatePart implements M
 
     public static class Builder {
 
-        private static final Set<String> VALID_FIELDS = Sets.newHashSet("template", "order", "mappings", "settings");
+        private static final Set<String> VALID_FIELDS = Sets.newHashSet("template", "order");
         static {
-            VALID_FIELDS.addAll(IndexMetaData.customFactories.keySet());
+            VALID_FIELDS.addAll(IndexMetaData.FACTORY.availableFactories());
+            VALID_FIELDS.remove("aliases");
         }
 
         private String name;
@@ -194,7 +198,7 @@ public class IndexTemplateMetaData extends AbstractClusterStatePart implements M
 
         private final ImmutableOpenMap.Builder<String, AliasMetaData> aliases;
 
-        private final ImmutableOpenMap.Builder<String, IndexMetaData.Custom> customs;
+        private final ImmutableOpenMap.Builder<String, IndexClusterStatePart> customs;
 
         public Builder(String name) {
             this.name = name;
@@ -263,7 +267,7 @@ public class IndexTemplateMetaData extends AbstractClusterStatePart implements M
             return this;
         }
 
-        public Builder putCustom(String type, IndexMetaData.Custom customIndexMetaData) {
+        public Builder putCustom(String type, IndexClusterStatePart customIndexMetaData) {
             this.customs.put(type, customIndexMetaData);
             return this;
         }
@@ -273,7 +277,7 @@ public class IndexTemplateMetaData extends AbstractClusterStatePart implements M
             return this;
         }
 
-        public IndexMetaData.Custom getCustom(String type) {
+        public IndexClusterStatePart getCustom(String type) {
             return this.customs.get(type);
         }
 
@@ -317,9 +321,9 @@ public class IndexTemplateMetaData extends AbstractClusterStatePart implements M
                 builder.endArray();
             }
 
-            for (ObjectObjectCursor<String, IndexMetaData.Custom> cursor : indexTemplateMetaData.customs()) {
+            for (ObjectObjectCursor<String, IndexClusterStatePart> cursor : indexTemplateMetaData.customs()) {
                 builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
-                IndexMetaData.lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
+                cursor.value.toXContent(builder, params);
                 builder.endObject();
             }
 
@@ -367,12 +371,12 @@ public class IndexTemplateMetaData extends AbstractClusterStatePart implements M
                         }
                     } else {
                         // check if its a custom index metadata
-                        IndexMetaData.Custom.Factory<IndexMetaData.Custom> factory = IndexMetaData.lookupFactory(currentFieldName);
+                        IndexClusterStatePart.Factory<IndexClusterStatePart> factory = IndexMetaData.FACTORY.lookupFactory(currentFieldName);
                         if (factory == null) {
                             //TODO warn
                             parser.skipChildren();
                         } else {
-                            builder.putCustom(factory.type(), factory.fromXContent(parser));
+                            builder.putCustom(currentFieldName, factory.fromXContent(parser, null));
                         }
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
@@ -437,7 +441,7 @@ public class IndexTemplateMetaData extends AbstractClusterStatePart implements M
             int customSize = in.readVInt();
             for (int i = 0; i < customSize; i++) {
                 String type = in.readString();
-                IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupFactorySafe(type).readFrom(in);
+                IndexClusterStatePart customIndexMetaData = IndexMetaData.FACTORY.lookupFactorySafe(type).readFrom(in, null);
                 builder.putCustom(type, customIndexMetaData);
             }
             return builder.build();
@@ -458,9 +462,9 @@ public class IndexTemplateMetaData extends AbstractClusterStatePart implements M
                 AliasMetaData.Builder.writeTo(cursor.value, out);
             }
             out.writeVInt(indexTemplateMetaData.customs().size());
-            for (ObjectObjectCursor<String, IndexMetaData.Custom> cursor : indexTemplateMetaData.customs()) {
+            for (ObjectObjectCursor<String, IndexClusterStatePart> cursor : indexTemplateMetaData.customs()) {
                 out.writeString(cursor.key);
-                IndexMetaData.lookupFactorySafe(cursor.key).writeTo(cursor.value, out);
+                cursor.value.writeTo(out);
             }
         }
     }
@@ -491,6 +495,11 @@ public class IndexTemplateMetaData extends AbstractClusterStatePart implements M
         @Override
         public IndexTemplateMetaData fromXContent(XContentParser parser, LocalContext context) throws IOException {
             return Builder.fromXContent(parser, parser.currentName());
+        }
+
+        @Override
+        public String partType() {
+            return TYPE;
         }
     }
 

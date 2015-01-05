@@ -83,11 +83,21 @@ public class ClusterBlocks extends AbstractClusterStatePart {
         }
     }
 
+    @Override
+    public String partType() {
+        return TYPE;
+    }
+
     public static class Factory extends AbstractFactory<ClusterBlocks> {
 
         @Override
         public ClusterBlocks readFrom(StreamInput in, LocalContext context) throws IOException {
             return Builder.readClusterBlocks(in);
+        }
+
+        @Override
+        public String partType() {
+            return TYPE;
         }
     }
 

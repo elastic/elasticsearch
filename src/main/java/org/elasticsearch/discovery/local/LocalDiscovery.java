@@ -314,6 +314,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                     ClusterState.ClusterStateDiff diff = ClusterState.Builder.readDiffFrom(new BytesStreamInput(clusterStateDiffBytes, false), discovery.localNode);
                     try {
                         newNodeSpecificClusterState = diff.apply(discovery.clusterService.state());
+                        logger.debug("sending diff cluster state version with size {} to [{}]", clusterStateDiffBytes.length, discovery.localNode.getName());
                     } catch (IncompatibleClusterStateVersionException ex) {
                         logger.debug("incompatible cluster state version - resending complete cluster state", ex);
                     }

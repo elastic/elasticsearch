@@ -147,7 +147,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
                 builder.startObject(Fields.WARMERS);
                 if (warmers != null) {
                     for (IndexWarmersMetaData.Entry warmer : warmers) {
-                        IndexWarmersMetaData.FACTORY.toXContent(warmer, builder, params);
+                        IndexWarmersMetaData.toXContent(warmer, builder, params);
                     }
                 }
                 builder.endObject();

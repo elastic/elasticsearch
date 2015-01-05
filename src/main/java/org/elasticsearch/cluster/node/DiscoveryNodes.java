@@ -71,6 +71,11 @@ public class DiscoveryNodes extends AbstractClusterStatePart implements Iterable
         public DiscoveryNodes readFrom(StreamInput in, LocalContext context) throws IOException {
             return Builder.readFrom(in, context.getLocalNode());
         }
+
+        @Override
+        public String partType() {
+            return TYPE;
+        }
     }
 
     private DiscoveryNodes(ImmutableOpenMap<String, DiscoveryNode> nodes, ImmutableOpenMap<String, DiscoveryNode> dataNodes, ImmutableOpenMap<String, DiscoveryNode> masterNodes, String masterNodeId, String localNodeId, Version minNodeVersion, Version minNonClientNodeVersion) {
@@ -503,6 +508,11 @@ public class DiscoveryNodes extends AbstractClusterStatePart implements Iterable
             builder.endObject();
         }
         return builder;
+    }
+
+    @Override
+    public String partType() {
+        return TYPE;
     }
 
     public static class Delta {

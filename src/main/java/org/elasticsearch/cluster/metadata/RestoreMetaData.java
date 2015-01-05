@@ -105,6 +105,11 @@ public class RestoreMetaData extends AbstractClusterStatePart {
         return entries.hashCode();
     }
 
+    @Override
+    public String partType() {
+        return TYPE;
+    }
+
     /**
      * Restore metadata
      */
@@ -496,6 +501,11 @@ public class RestoreMetaData extends AbstractClusterStatePart {
                 entries[i] = new Entry(snapshotId, state, indexBuilder.build(), builder.build());
             }
             return new RestoreMetaData(entries);
+        }
+
+        @Override
+        public String partType() {
+            return TYPE;
         }
     }
 

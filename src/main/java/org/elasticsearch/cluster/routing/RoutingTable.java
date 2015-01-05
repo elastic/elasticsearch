@@ -67,6 +67,11 @@ public class RoutingTable extends AbstractClusterStatePart implements Iterable<I
         this.indicesRouting = ImmutableMap.copyOf(indicesRouting);
     }
 
+    @Override
+    public String partType() {
+        return TYPE;
+    }
+
 
     public static class Factory extends AbstractFactory<RoutingTable> {
 
@@ -134,7 +139,11 @@ public class RoutingTable extends AbstractClusterStatePart implements Iterable<I
                 return new NoDiff<>();
             }
         }
-        
+
+        @Override
+        public String partType() {
+            return TYPE;
+        }
     }
 
     private static class RoutingTableDiff implements Diff<RoutingTable> {

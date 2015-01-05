@@ -87,6 +87,11 @@ public class ClusterName extends AbstractClusterStatePart implements Streamable 
     }
 
     @Override
+    public String partType() {
+        return TYPE;
+    }
+
+    @Override
     public int hashCode() {
         return value != null ? value.hashCode() : 0;
     }
@@ -109,5 +114,9 @@ public class ClusterName extends AbstractClusterStatePart implements Streamable 
             return readClusterName(in);
         }
 
+        @Override
+        public String partType() {
+            return TYPE;
+        }
     }
 }

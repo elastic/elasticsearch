@@ -55,6 +55,11 @@ public class BenchmarkMetaData extends AbstractClusterStatePart {
         return entries.hashCode();
     }
 
+    @Override
+    public String partType() {
+        return TYPE;
+    }
+
     public static class Entry {
         private final State state;
         private final String benchmarkId;
@@ -199,6 +204,11 @@ public class BenchmarkMetaData extends AbstractClusterStatePart {
                 entries[i] = new Entry(benchmarkId, state, nodes);
             }
             return new BenchmarkMetaData(entries);
+        }
+
+        @Override
+        public String partType() {
+            return TYPE;
         }
     }
 

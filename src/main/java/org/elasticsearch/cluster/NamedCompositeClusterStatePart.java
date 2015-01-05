@@ -29,10 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
@@ -42,15 +39,11 @@ import static com.google.common.collect.Maps.newHashMap;
  * <p/>
  * Only one instance of each type can be present in the composite part. The key of the map is the part's type.
  */
-public abstract class CompositeClusterStatePart<T extends CompositeClusterStatePart> extends AbstractClusterStatePart {
+public abstract class NamedCompositeClusterStatePart<E extends ClusterStatePart> extends AbstractClusterStatePart implements NamedClusterStatePart{
 
-    protected final long version;
-    protected final String uuid;
-    protected final ImmutableOpenMap<String, ClusterStatePart> parts;
+    protected final ImmutableOpenMap<String, E> parts;
 
-    protected CompositeClusterStatePart(long version, String uuid, ImmutableOpenMap<String, ClusterStatePart> parts) {
-        this.version = version;
-        this.uuid = uuid;
+    protected NamedCompositeClusterStatePart(ImmutableOpenMap<String, E> parts) {
         this.parts = parts;
     }
 
@@ -59,7 +52,7 @@ public abstract class CompositeClusterStatePart<T extends CompositeClusterStateP
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        CompositeClusterStatePart that = (CompositeClusterStatePart) o;
+        NamedCompositeClusterStatePart that = (NamedCompositeClusterStatePart) o;
 
         if (parts != null ? !parts.equals(that.parts) : that.parts != null) return false;
 
@@ -71,16 +64,19 @@ public abstract class CompositeClusterStatePart<T extends CompositeClusterStateP
         return parts != null ? parts.hashCode() : 0;
     }
 
-    public ImmutableOpenMap<String, ClusterStatePart> parts() {
+    public ImmutableOpenMap<String, E> parts() {
         return parts;
     }
 
+    protected abstract void valuesPartWriteTo(StreamOutput out) throws IOException;
+    protected abstract void valuesPartToXContent(XContentBuilder builder, Params params) throws IOException;
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(version);
-        out.writeString(uuid);
+        out.writeString(key());
+        valuesPartWriteTo(out);
         out.writeVInt(parts().size());
-        for (ObjectObjectCursor<String, ClusterStatePart> cursor : parts()) {
+        for (ObjectObjectCursor<String, E> cursor : parts()) {
             out.writeString(cursor.key);
             cursor.value.writeTo(out);
         }
@@ -89,9 +85,8 @@ public abstract class CompositeClusterStatePart<T extends CompositeClusterStateP
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, XContentContext.API.toString()));
-        builder.field("version", version);
-        builder.field("uuid", uuid);
-        for (ObjectObjectCursor<String, ClusterStatePart> partIter : parts) {
+        valuesPartToXContent(builder, params);
+        for (ObjectObjectCursor<String, E> partIter : parts) {
             if (partIter.value.context().contains(context)) {
                 builder.startObject(partIter.key);
                 partIter.value.toXContent(builder, params);
@@ -101,105 +96,123 @@ public abstract class CompositeClusterStatePart<T extends CompositeClusterStateP
         return builder;
     }
 
-    public <T extends ClusterStatePart> T get(String type) {
+    public <T extends E> T get(String type) {
         return (T) parts.get(type);
     }
 
-    public long getVersion() {
-        return version;
+
+    public static abstract class Builder<E extends ClusterStatePart, T extends NamedCompositeClusterStatePart<E>> {
+
+        protected ImmutableOpenMap.Builder<String, E> parts = ImmutableOpenMap.builder();
+
+        public void putAll(T part) {
+            parts.putAll(part.parts());
+        }
+
+        public void put(String type, E part) {
+            parts.put(type, part);
+        }
+
+        public void remove(String type) {
+            parts.remove(type);
+        }
+
+        public abstract T build();
+
+        public abstract String getKey();
+
+        public abstract void parseValuePart(XContentParser parser, String currentFieldName, LocalContext context) throws IOException;
+
+        public abstract void readValuePartsFrom(StreamInput in, LocalContext context) throws IOException;
+
+        public abstract void writeValuePartsTo(StreamOutput out) throws IOException;
     }
 
-    public String getUuid() {
-        return uuid;
-    }
+    public static abstract class AbstractFactory<E extends ClusterStatePart, T extends NamedCompositeClusterStatePart<E>> extends AbstractClusterStatePart.AbstractFactory<T> {
 
-    public long version() {
-        return version;
-    }
-
-    public String uuid() {
-        return uuid;
-    }
-
-    public static abstract class AbstractCompositeFactory<T extends CompositeClusterStatePart> extends AbstractClusterStatePart.AbstractFactory<T> {
-
-        private final Map<String, Factory> partFactories = new HashMap<>();
+        private final Map<String, Factory<? extends E>> partFactories = new HashMap<>();
         /**
          * Register a custom index meta data factory. Make sure to call it from a static block.
          */
-        public void registerFactory(String type, ClusterStatePart.Factory factory) {
+        public void registerFactory(String type, Factory<? extends E> factory) {
             partFactories.put(type, factory);
         }
 
-        @Nullable
-        public <T extends ClusterStatePart> ClusterStatePart.Factory<T> lookupFactory(String type) {
-            return partFactories.get(type);
+        public Set<String> availableFactories() {
+            return partFactories.keySet();
         }
 
-        public <T extends ClusterStatePart> ClusterStatePart.Factory<T> lookupFactorySafe(String type) throws ElasticsearchIllegalArgumentException {
-            ClusterStatePart.Factory<T> factory = lookupFactory(type);
+        @Nullable
+        public <T extends E> Factory<T> lookupFactory(String type) {
+            return (Factory<T>)partFactories.get(type);
+        }
+
+        public <T extends E> Factory<T> lookupFactorySafe(String type) throws ElasticsearchIllegalArgumentException {
+            Factory<T> factory = lookupFactory(type);
             if (factory == null) {
                 throw new ElasticsearchIllegalArgumentException("No cluster state part factory registered for type [" + type + "]");
             }
             return factory;
         }
 
+        public abstract Builder<E, T> builder(String key);
+
+        public abstract Builder<E, T> builder(T part);
+
         @Override
         public T readFrom(StreamInput in, LocalContext context) throws IOException {
-            long version = in.readVLong();
-            String uuid = in.readString();
-            ImmutableOpenMap.Builder<String, ClusterStatePart> builder = ImmutableOpenMap.builder();
+            String key = in.readString();
+            Builder<E, T> builder = builder(key);
+            builder.readValuePartsFrom(in, context);
             int partsSize = in.readVInt();
             for (int i = 0; i < partsSize; i++) {
                 String type = in.readString();
-                ClusterStatePart part = lookupFactorySafe(type).readFrom(in, context);
+                E part = lookupFactorySafe(type).readFrom(in, context);
                 builder.put(type, part);
             }
-            return fromParts(version, uuid, builder);
+            return builder.build();
         }
-
-        public abstract T fromParts(long version, String uuid, ImmutableOpenMap.Builder<String, ClusterStatePart> parts);
 
         @Override
         public Diff<T> diff(@Nullable T before, T after) {
             assert after != null;
-            Map<String, Diff<ClusterStatePart>> diffs = newHashMap();
+            Map<String, Diff<E>> diffs = newHashMap();
             List<String> deletes = newArrayList();
             if (before != null) {
-                ImmutableOpenMap<String, ClusterStatePart> beforeParts = before.parts();
-                ImmutableOpenMap<String, ClusterStatePart> afterParts = after.parts();
+                ImmutableOpenMap<String, E> beforeParts = before.parts();
+                ImmutableOpenMap<String, E> afterParts = after.parts();
                 if (before.equals(after)) {
                     return new NoDiff<>();
                 } else {
-                    for (ObjectObjectCursor<String, ClusterStatePart> partIter : beforeParts) {
+                    for (ObjectObjectCursor<String, E> partIter : beforeParts) {
                         if (!afterParts.containsKey(partIter.key)) {
                             deletes.add(partIter.key);
                         }
                     }
-                    for (ObjectObjectCursor<String, ClusterStatePart> partIter : afterParts) {
-                        ClusterStatePart.Factory<ClusterStatePart> factory = lookupFactorySafe(partIter.key);
-                        ClusterStatePart beforePart = beforeParts.get(partIter.key);
+                    for (ObjectObjectCursor<String, E> partIter : afterParts) {
+                        Factory<E> factory = lookupFactorySafe(partIter.key);
+                        E beforePart = beforeParts.get(partIter.key);
                         if (!partIter.value.equals(beforePart)) {
                             diffs.put(partIter.key, factory.diff(beforePart, partIter.value));
                         }
                     }
                 }
             } else {
-                ImmutableOpenMap<String, ClusterStatePart> afterParts = after.parts();
-                for (ObjectObjectCursor<String, ClusterStatePart> partIter : afterParts) {
-                    ClusterStatePart.Factory<ClusterStatePart> factory = lookupFactorySafe(partIter.key);
+                ImmutableOpenMap<String, E> afterParts = after.parts();
+                for (ObjectObjectCursor<String, E> partIter : afterParts) {
+                    Factory<E> factory = lookupFactorySafe(partIter.key);
                     diffs.put(partIter.key, factory.diff(null, partIter.value));
                 }
             }
-            return new CompositeDiff<>(this, after.version(), before.uuid(), after.uuid(), deletes, diffs);
+            return new CompositeDiff<>(builder(after), deletes, diffs);
         }
 
         @Override
         public Diff<T> readDiffFrom(StreamInput in, LocalContext context) throws IOException {
             if (in.readBoolean()) {
-                long version = in.readVLong();
-                String previousUuid = in.readString();
-                String uuid = in.readString();
+                String key = in.readString();
+                Builder<E, T> builder = builder(key);
+                builder.readValuePartsFrom(in, context);
                 int deletesSize = in.readVInt();
                 List<String> deletes = new ArrayList<>();
                 for (int i = 0; i < deletesSize; i++) {
@@ -207,12 +220,12 @@ public abstract class CompositeClusterStatePart<T extends CompositeClusterStateP
                 }
 
                 int diffsSize = in.readVInt();
-                Map<String, Diff<ClusterStatePart>> diffs = newHashMap();
+                Map<String, Diff<E>> diffs = newHashMap();
                 for (int i = 0; i < diffsSize; i++) {
-                    String key = in.readString();
-                    diffs.put(key, lookupFactorySafe(key).readDiffFrom(in, context));
+                    String partKey = in.readString();
+                    diffs.put(partKey, lookupFactorySafe(partKey).readDiffFrom(in, context));
                 }
-                return new CompositeDiff<>(this, version, previousUuid, uuid, deletes, diffs);
+                return new CompositeDiff<>(builder, deletes, diffs);
 
             } else {
                 return new NoDiff<T>();
@@ -222,82 +235,82 @@ public abstract class CompositeClusterStatePart<T extends CompositeClusterStateP
         @Override
         public T fromXContent(XContentParser parser, LocalContext context) throws IOException {
             XContentParser.Token token;
-            long version = -1;
-            String uuid = "_na_";
-            ImmutableOpenMap.Builder<String, ClusterStatePart> parts = ImmutableOpenMap.builder();
+            if (parser.currentToken() == null) { // fresh parser? move to the first token
+                parser.nextToken();
+            }
+            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {  // on a start object move to next token
+                parser.nextToken();
+            }
+            Builder<E, T> builder = builder(parser.currentName());
             String currentFieldName = parser.currentName();
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     // check if its a custom index metadata
-                    ClusterStatePart.Factory<ClusterStatePart> factory = lookupFactory(currentFieldName);
+                    Factory<E> factory = lookupFactory(currentFieldName);
                     if (factory == null) {
                         //TODO warn?
                         parser.skipChildren();
                     } else {
-                        parts.put(currentFieldName, factory.fromXContent(parser, context));
+                        builder.put(currentFieldName, factory.fromXContent(parser, context));
                     }
                 } else if (token.isValue()) {
-                    if ("version".equals(currentFieldName)) {
-                        version = parser.longValue();
-                    } else if ("uuid".equals(currentFieldName)) {
-                        uuid = parser.text();
-                    }
+                    builder.parseValuePart(parser, currentFieldName, context);
+//                    if ("version".equals(currentFieldName)) {
+//                        version = parser.longValue();
+//                    } else if ("uuid".equals(currentFieldName)) {
+//                        uuid = parser.text();
+//                    }
                 }
             }
-            return fromParts(version, uuid, parts);
+            return builder.build();
         }
     }
 
-    private static class CompositeDiff<T extends CompositeClusterStatePart> implements Diff<T> {
+    private static class CompositeDiff<E extends ClusterStatePart, T extends NamedCompositeClusterStatePart<E>> implements Diff<T> {
 
-        private final long version;
-        private final String previousUuid;
-        private final String uuid;
-        private final Map<String, Diff<ClusterStatePart>> diffs;
+        private final Builder<E, T> builder;
+        private final Map<String, Diff<E>> diffs;
         private final List<String> deletes;
-        private final AbstractCompositeFactory<T> factory;
 
-        private CompositeDiff(AbstractCompositeFactory<T> factory, long version, String previousUuid, String uuid, List<String> deletes, Map<String, Diff<ClusterStatePart>> diffs) {
-            this.version = version;
-            this.previousUuid = previousUuid;
-            this.uuid = uuid;
+        private CompositeDiff(Builder<E, T> builder, List<String> deletes, Map<String, Diff<E>> diffs) {
             this.diffs = diffs;
             this.deletes = deletes;
-            this.factory = factory;
+            this.builder = builder;
         }
 
         @Override
         public T apply(T part) {
-            if(!previousUuid.equals(part.getUuid())) {
-                throw new IncompatibleClusterStateVersionException("Expected diffs for version " + part.version + " with uuid " + part.uuid + " got uuid " + previousUuid);
-            }
-            ImmutableOpenMap.Builder<String, ClusterStatePart> parts = ImmutableOpenMap.builder();
-            parts.putAll(part.parts);
-            for (String delete : deletes) {
-                parts.remove(delete);
-            }
+            if (part != null) {
+                builder.putAll(part);
+                for (String delete : deletes) {
+                    builder.remove(delete);
+                }
 
-            for (Map.Entry<String, Diff<ClusterStatePart>> entry : diffs.entrySet()) {
-                parts.put(entry.getKey(), entry.getValue().apply(part.get(entry.getKey())));
+                for (Map.Entry<String, Diff<E>> entry : diffs.entrySet()) {
+                    builder.put(entry.getKey(), entry.getValue().apply(part.get(entry.getKey())));
+                }
+            } else {
+                for (Map.Entry<String, Diff<E>> entry : diffs.entrySet()) {
+                    builder.put(entry.getKey(), entry.getValue().apply(null));
+                }
             }
-            return factory.fromParts(version, uuid, parts);
+            return builder.build();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(true); // We have diffs
-            out.writeVLong(version);
-            out.writeString(previousUuid);
-            out.writeString(uuid);
+            out.writeString(builder.getKey());
+            builder.writeValuePartsTo(out);
             out.writeVInt(deletes.size());
             for (String delete : deletes) {
                 out.writeString(delete);
             }
 
             out.writeVInt(diffs.size());
-            for (Map.Entry<String, Diff<ClusterStatePart>> entry : diffs.entrySet()) {
+            for (Map.Entry<String, Diff<E>> entry : diffs.entrySet()) {
                 out.writeString(entry.getKey());
                 entry.getValue().writeTo(out);
             }

@@ -30,6 +30,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
 import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -43,6 +44,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.warmer.IndexWarmerMissingException;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -341,6 +343,8 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    @Test
+    @TestLogging("discovery.zen.publish:DEBUG")
     public void testQueryCacheOnWarmer() {
         createIndex("test");
         ensureGreen();
@@ -351,16 +355,18 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
                 .setSearchRequest(client().prepareSearch("test").setTypes("a1").setQuery(QueryBuilders.matchAllQuery()))
                 .get());
 
-        client().prepareIndex("test", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
+        logger.info("index first time");
+        IndexResponse indexResponse = client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
+        logger.info("indexed " + indexResponse.getId());
         assertThat(client().admin().indices().prepareStats("test").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), equalTo(0l));
 
         logger.info("register warmer with query cache, validate caching happened");
         assertAcked(client().admin().indices().preparePutWarmer("warmer_1")
                 .setSearchRequest(client().prepareSearch("test").setTypes("a1").setQuery(QueryBuilders.matchAllQuery()).setQueryCache(true))
                 .get());
-
-        // index again, to make sure it gets refreshed
-        client().prepareIndex("test", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
+        logger.info("index again, to make sure it gets refreshed");
+        client().prepareIndex("test", "type1", "1").setSource("field2", "value1").setRefresh(true).execute().actionGet();
+        logger.info("checking stats");
         assertThat(client().admin().indices().prepareStats("test").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), greaterThan(0l));
 
         client().admin().indices().prepareClearCache().setQueryCache(true).get(); // clean the cache
@@ -373,8 +379,8 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
                 .setSearchRequest(client().prepareSearch("test").setTypes("a1").setQuery(QueryBuilders.matchAllQuery()))
                 .get());
 
-        // index again, to make sure it gets refreshed
-        client().prepareIndex("test", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
+        logger.info("index again, to make sure it gets refreshed");
+        client().prepareIndex("test", "type1", "1").setSource("field3", "value1").setRefresh(true).execute().actionGet();
         assertThat(client().admin().indices().prepareStats("test").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), greaterThan(0l));
     }
 }

@@ -34,14 +34,11 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexClosedException;
@@ -68,7 +65,7 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
     public static final String ALL = "_all";
 
 
-    public static class Factory extends AbstractCompositeClusterStatePartFactory<MetaData> {
+    public static class Factory extends AbstractCompositeFactory<MetaData> {
 
         @Override
         public MetaData readFrom(StreamInput in, LocalContext context) throws IOException {
@@ -78,6 +75,11 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
         @Override
         public MetaData fromParts(long version, String uuid, ImmutableOpenMap.Builder<String, ClusterStatePart> parts) {
             return new MetaData(version, uuid, parts.build());
+        }
+
+        @Override
+        public String partType() {
+            return TYPE;
         }
     }
 
@@ -91,33 +93,38 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
         return super.toXContent(builder, new DelegatingBooleanParams("reduce_mappings", true, params));
     }
 
+    @Override
+    public String partType() {
+        return TYPE;
+    }
+
     public static final String PERSISTENT_SETTINGS_TYPE = "settings";
 
-    public static final ClusterStateSettingsPart.Factory PERSISTENT_SETTINGS_FACTORY = new ClusterStateSettingsPart.Factory(API_GATEWAY_SNAPSHOT);
+    public static final ClusterStateSettingsPart.Factory PERSISTENT_SETTINGS_FACTORY = new ClusterStateSettingsPart.Factory(PERSISTENT_SETTINGS_TYPE, API_GATEWAY_SNAPSHOT);
 
     public static final String TRANSIENT_SETTINGS_TYPE = "transient_settings";
 
-    public static final ClusterStateSettingsPart.Factory TRANSIENT_SETTINGS_FACTORY = new ClusterStateSettingsPart.Factory(API);
+    public static final ClusterStateSettingsPart.Factory TRANSIENT_SETTINGS_FACTORY = new ClusterStateSettingsPart.Factory(TRANSIENT_SETTINGS_TYPE, API);
 
     public static final String INDICES_TYPE = "indices";
 
-    public static final MapClusterStatePart.Factory<IndexMetaData> INDICES_FACTORY = new MapClusterStatePart.Factory<>(IndexMetaData.FACTORY);
+    public static final MapClusterStatePart.Factory<IndexMetaData> INDICES_FACTORY = new MapClusterStatePart.Factory<>(INDICES_TYPE, IndexMetaData.FACTORY);
 
     public static final String TEMPLATES_TYPE = "templates";
 
-    public static final MapClusterStatePart.Factory<IndexTemplateMetaData> TEMPLATES_FACTORY = new MapClusterStatePart.Factory<>(IndexTemplateMetaData.FACTORY, API_GATEWAY_SNAPSHOT);
+    public static final MapClusterStatePart.Factory<IndexTemplateMetaData> TEMPLATES_FACTORY = new MapClusterStatePart.Factory<>(TEMPLATES_TYPE, IndexTemplateMetaData.FACTORY, API_GATEWAY_SNAPSHOT);
 
     static {
-        registerFactory(TRANSIENT_SETTINGS_TYPE, TRANSIENT_SETTINGS_FACTORY);
-        registerFactory(PERSISTENT_SETTINGS_TYPE, PERSISTENT_SETTINGS_FACTORY);
-        registerFactory(INDICES_TYPE, INDICES_FACTORY);
-        registerFactory(TEMPLATES_TYPE, TEMPLATES_FACTORY);
+        FACTORY.registerFactory(TRANSIENT_SETTINGS_TYPE, TRANSIENT_SETTINGS_FACTORY);
+        FACTORY.registerFactory(PERSISTENT_SETTINGS_TYPE, PERSISTENT_SETTINGS_FACTORY);
+        FACTORY.registerFactory(INDICES_TYPE, INDICES_FACTORY);
+        FACTORY.registerFactory(TEMPLATES_TYPE, TEMPLATES_FACTORY);
 
         // register non plugin custom metadata
-        registerFactory(RepositoriesMetaData.TYPE, RepositoriesMetaData.FACTORY);
-        registerFactory(SnapshotMetaData.TYPE, SnapshotMetaData.FACTORY);
-        registerFactory(RestoreMetaData.TYPE, RestoreMetaData.FACTORY);
-        registerFactory(BenchmarkMetaData.TYPE, BenchmarkMetaData.FACTORY);
+        FACTORY.registerFactory(RepositoriesMetaData.TYPE, RepositoriesMetaData.FACTORY);
+        FACTORY.registerFactory(SnapshotMetaData.TYPE, SnapshotMetaData.FACTORY);
+        FACTORY.registerFactory(RestoreMetaData.TYPE, RestoreMetaData.FACTORY);
+        FACTORY.registerFactory(BenchmarkMetaData.TYPE, BenchmarkMetaData.FACTORY);
     }
 
     public static final String SETTING_READ_ONLY = "cluster.blocks.read_only";
@@ -1312,8 +1319,8 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
             ImmutableOpenMap.Builder<String, ClusterStatePart> builder = ImmutableOpenMap.builder();
             builder.put(TRANSIENT_SETTINGS_TYPE, TRANSIENT_SETTINGS_FACTORY.fromSettings(transientSettings));
             builder.put(PERSISTENT_SETTINGS_TYPE, PERSISTENT_SETTINGS_FACTORY.fromSettings(persistentSettings));
-            builder.put(INDICES_TYPE, INDICES_FACTORY.fromMap(indices));
-            builder.put(TEMPLATES_TYPE, TEMPLATES_FACTORY.fromMap(templates));
+            builder.put(INDICES_TYPE, INDICES_FACTORY.fromOpenMap(indices));
+            builder.put(TEMPLATES_TYPE, TEMPLATES_FACTORY.fromOpenMap(templates));
             builder.putAll(customs);
             return builder.build();
         }
@@ -1379,7 +1386,7 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
             for (int i = 0; i < customSize; i++) {
                 String type = in.readString();
                 // TODO: context
-                ClusterStatePart customIndexMetaData = lookupFactorySafe(type).readFrom(in, null);
+                ClusterStatePart customIndexMetaData = FACTORY.lookupFactorySafe(type).readFrom(in, null);
                 builder.putCustom(type, customIndexMetaData);
             }
             return builder.build();

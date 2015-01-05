@@ -95,6 +95,11 @@ public class IndexRoutingTable extends AbstractClusterStatePart implements Itera
     }
 
     @Override
+    public String partType() {
+        return TYPE;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(index(), XContentBuilder.FieldCaseConversion.NONE);
         builder.startObject("shards");
@@ -135,6 +140,11 @@ public class IndexRoutingTable extends AbstractClusterStatePart implements Itera
         @Override
         public IndexRoutingTable readFrom(StreamInput in, LocalContext context) throws IOException {
             return Builder.readFrom(in);
+        }
+
+        @Override
+        public String partType() {
+            return TYPE;
         }
 
     }

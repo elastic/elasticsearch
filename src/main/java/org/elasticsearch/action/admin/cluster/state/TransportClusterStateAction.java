@@ -41,8 +41,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 
-import static com.google.common.collect.Lists.newArrayList;
-import static org.elasticsearch.cluster.metadata.MetaData.lookupFactorySafe;
 
 /**
  *

@@ -27,13 +27,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.Map;
 
 /**
  */
 public interface ClusterStatePart extends ToXContent {
 
     public static final String CONTEXT_MODE_PARAM = "context_mode";
-
 
     public enum XContentContext {
         /* Custom metadata should be returns as part of API call */
@@ -58,6 +58,8 @@ public interface ClusterStatePart extends ToXContent {
 
     EnumSet<XContentContext> context();
 
+    String partType();
+
     interface Factory<T extends ClusterStatePart> {
 
         Diff<T> diff(T before, T after);
@@ -67,6 +69,10 @@ public interface ClusterStatePart extends ToXContent {
         T readFrom(StreamInput in, LocalContext context) throws IOException;
 
         T fromXContent(XContentParser parser, LocalContext context) throws IOException;
+
+        T fromMap(Map<String, Object> map, LocalContext context) throws IOException;
+
+        String partType();
 
         Version addedIn();
 

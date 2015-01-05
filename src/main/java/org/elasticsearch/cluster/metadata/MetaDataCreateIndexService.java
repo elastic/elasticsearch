@@ -247,7 +247,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // find templates, highest order are better matching
                     List<IndexTemplateMetaData> templates = findTemplates(request, currentState, indexTemplateFilter);
 
-                    Map<String, Custom> customs = Maps.newHashMap();
+                    Map<String, IndexClusterStatePart> customs = Maps.newHashMap();
 
                     // add the request mapping
                     Map<String, Map<String, Object>> mappings = Maps.newHashMap();
@@ -260,7 +260,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         mappings.put(entry.getKey(), parseMapping(entry.getValue()));
                     }
 
-                    for (Map.Entry<String, Custom> entry : request.customs().entrySet()) {
+                    for (Map.Entry<String, IndexClusterStatePart> entry : request.customs().entrySet()) {
                         customs.put(entry.getKey(), entry.getValue());
                     }
 
@@ -275,14 +275,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             }
                         }
                         // handle custom
-                        for (ObjectObjectCursor<String, Custom> cursor : template.customs()) {
+                        for (ObjectObjectCursor<String, IndexClusterStatePart> cursor : template.customs()) {
                             String type = cursor.key;
-                            IndexMetaData.Custom custom = cursor.value;
-                            IndexMetaData.Custom existing = customs.get(type);
+                            IndexClusterStatePart custom = cursor.value;
+                            IndexClusterStatePart existing = customs.get(type);
                             if (existing == null) {
                                 customs.put(type, custom);
                             } else {
-                                IndexMetaData.Custom merged = IndexMetaData.lookupFactorySafe(type).merge(existing, custom);
+                                IndexClusterStatePart merged = existing.mergeWith(custom);
                                 customs.put(type, merged);
                             }
                         }
@@ -439,7 +439,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         indexMetaDataBuilder.putAlias(aliasMetaData);
                     }
 
-                    for (Map.Entry<String, Custom> customEntry : customs.entrySet()) {
+                    for (Map.Entry<String, IndexClusterStatePart> customEntry : customs.entrySet()) {
                         indexMetaDataBuilder.putCustom(customEntry.getKey(), customEntry.getValue());
                     }
 

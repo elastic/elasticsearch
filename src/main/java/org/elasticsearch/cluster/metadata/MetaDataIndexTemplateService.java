@@ -146,7 +146,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                         .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).build();
                 templateBuilder.putAlias(aliasMetaData);
             }
-            for (Map.Entry<String, IndexMetaData.Custom> entry : request.customs.entrySet()) {
+            for (Map.Entry<String, IndexClusterStatePart> entry : request.customs.entrySet()) {
                 templateBuilder.putCustom(entry.getKey(), entry.getValue());
             }
         } catch (Throwable e) {
@@ -238,7 +238,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
         Map<String, String> mappings = Maps.newHashMap();
         List<Alias> aliases = Lists.newArrayList();
-        Map<String, IndexMetaData.Custom> customs = Maps.newHashMap();
+        Map<String, IndexClusterStatePart> customs = Maps.newHashMap();
 
         TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 
@@ -277,7 +277,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             return this;
         }
 
-        public PutRequest customs(Map<String, IndexMetaData.Custom> customs) {
+        public PutRequest customs(Map<String, IndexClusterStatePart> customs) {
             this.customs.putAll(customs);
             return this;
         }

@@ -24,6 +24,7 @@ import com.google.common.collect.Sets;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.metadata.IndexClusterStatePart;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -51,7 +52,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     private final Set<Alias> aliases = Sets.newHashSet();
 
-    private final Map<String, IndexMetaData.Custom> customs = newHashMap();
+    private final Map<String, IndexClusterStatePart> customs = newHashMap();
 
     private final Set<ClusterBlock> blocks = Sets.newHashSet();
 
@@ -77,7 +78,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
-    public CreateIndexClusterStateUpdateRequest customs(Map<String, IndexMetaData.Custom> customs) {
+    public CreateIndexClusterStateUpdateRequest customs(Map<String, IndexClusterStatePart> customs) {
         this.customs.putAll(customs);
         return this;
     }
@@ -120,7 +121,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return aliases;
     }
 
-    public Map<String, IndexMetaData.Custom> customs() {
+    public Map<String, IndexClusterStatePart> customs() {
         return customs;
     }
 

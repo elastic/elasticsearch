@@ -62,6 +62,11 @@ public class SnapshotMetaData extends AbstractClusterStatePart {
         return entries.hashCode();
     }
 
+    @Override
+    public String partType() {
+        return TYPE;
+    }
+
     public static class Entry {
         private final State state;
         private final SnapshotId snapshotId;
@@ -438,6 +443,10 @@ public class SnapshotMetaData extends AbstractClusterStatePart {
             return new SnapshotMetaData(entries);
         }
 
+        @Override
+        public String partType() {
+            return TYPE;
+        }
     }
 
 

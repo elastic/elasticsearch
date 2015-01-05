@@ -120,6 +120,11 @@ public class RepositoriesMetaData extends AbstractClusterStatePart {
     }
 
     @Override
+    public String partType() {
+        return TYPE;
+    }
+
+    @Override
     public EnumSet<MetaData.XContentContext> context() {
         return ClusterStatePart.API_GATEWAY;
     }
@@ -186,6 +191,12 @@ public class RepositoriesMetaData extends AbstractClusterStatePart {
             }
             return new RepositoriesMetaData(repository.toArray(new RepositoryMetaData[repository.size()]));
         }
+
+        @Override
+        public String partType() {
+            return TYPE;
+        }
+
     }
 
 }

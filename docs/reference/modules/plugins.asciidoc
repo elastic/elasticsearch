@@ -318,6 +318,7 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/carrot2/elasticsearch-carrot2[carrot2 Plugin]: Results clustering with carrot2 (by Dawid Weiss)
 * https://github.com/derryx/elasticsearch-changes-plugin[Elasticsearch Changes Plugin] (by Thomas Peuss)
 * https://github.com/johtani/elasticsearch-extended-analyze[Extended Analyze Plugin] (by Jun Ohtani)
+* https://github.com/YannBrrd/elasticsearch-entity-resolution[Entity Resolution Plugin] using http://github.com/larsga/Duke[Duke] for duplication detection (by Yann Barraud)
 * https://github.com/spinscale/elasticsearch-graphite-plugin[Elasticsearch Graphite Plugin] (by Alexander Reelsen)
 * https://github.com/mattweber/elasticsearch-mocksolrplugin[Elasticsearch Mock Solr Plugin] (by Matt Weber)
 * https://github.com/viniciusccarvalho/elasticsearch-newrelic[Elasticsearch New Relic Plugin] (by Vinicius Carvalho)

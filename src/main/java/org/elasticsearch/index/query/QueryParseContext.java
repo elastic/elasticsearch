@@ -236,6 +236,10 @@ public class QueryParseContext {
         return ImmutableMap.copyOf(namedFilters);
     }
 
+    public void combineNamedFilters(QueryParseContext context) {
+        namedFilters.putAll(context.namedFilters);
+    }
+
     @Nullable
     public Query parseInnerQuery() throws IOException, QueryParsingException {
         // move to START object

@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -40,7 +42,7 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -447,5 +449,39 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
         assertThat(clearScrollResponse.isSucceeded(), is(true));
 
         assertThrows(internalCluster().transportClient().prepareSearchScroll(searchResponse.getScrollId()), RestStatus.NOT_FOUND);
+    }
+
+    @Test
+    public void testStringSortMissingAscTerminates() throws Exception {
+        assertAcked(prepareCreate("test")
+                .setSettings(ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
+                .addMapping("test", "no_field", "type=string", "some_field", "type=string"));
+        client().prepareIndex("test", "test", "1").setSource("some_field", "test").get();
+        refresh();
+
+        SearchResponse response = client().prepareSearch("test")
+                .setTypes("test")
+                .addSort(new FieldSortBuilder("no_field").order(SortOrder.ASC).missing("_last"))
+                .setScroll("1m")
+                .get();
+        assertHitCount(response, 1);
+        assertSearchHits(response, "1");
+
+        response = client().prepareSearchScroll(response.getScrollId()).get();
+        assertSearchResponse(response);
+        assertHitCount(response, 1);
+        assertNoSearchHits(response);
+
+        response = client().prepareSearch("test")
+                .setTypes("test")
+                .addSort(new FieldSortBuilder("no_field").order(SortOrder.ASC).missing("_first"))
+                .setScroll("1m")
+                .get();
+        assertHitCount(response, 1);
+        assertSearchHits(response, "1");
+
+        response = client().prepareSearchScroll(response.getScrollId()).get();
+        assertHitCount(response, 1);
+        assertThat(response.getHits().getHits().length, equalTo(0));
     }
 }

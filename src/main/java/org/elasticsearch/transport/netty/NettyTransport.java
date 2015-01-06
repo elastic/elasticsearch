@@ -22,6 +22,7 @@ package org.elasticsearch.transport.netty;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+
 import org.elasticsearch.*;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
@@ -97,6 +98,9 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     static {
         NettyUtils.setup();
     }
+
+    public static final String HTTP_SERVER_WORKER_THREAD_NAME_PREFIX = "http_server_worker";
+    public static final String HTTP_SERVER_BOSS_THREAD_NAME_PREFIX = "http_server_boss";
 
     public static final String WORKER_COUNT = "transport.netty.worker_count";
     public static final String CONNECTIONS_PER_NODE_RECOVERY = "transport.connections_per_node.recovery";
@@ -443,16 +447,21 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         logger.debug("using profile[{}], worker_count[{}], port[{}], bind_host[{}], publish_host[{}], compress[{}], connect_timeout[{}], connections_per_node[{}/{}/{}/{}/{}], receive_predictor[{}->{}]",
                 name, workerCount, port, bindHost, publishHost, compress, connectTimeout, connectionsPerNodeRecovery, connectionsPerNodeBulk, connectionsPerNodeReg, connectionsPerNodeState, connectionsPerNodePing, receivePredictorMin, receivePredictorMax);
 
+        final ThreadFactory bossFactory = daemonThreadFactory(this.settings, HTTP_SERVER_BOSS_THREAD_NAME_PREFIX, name);
+        final ThreadFactory workerFactory = daemonThreadFactory(this.settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX, name);
+        assert Transports.isTransportThreadFactory(bossFactory);
+        assert Transports.isTransportThreadFactory(workerFactory);
+
         ServerBootstrap serverBootstrap;
         if (blockingServer) {
             serverBootstrap = new ServerBootstrap(new OioServerSocketChannelFactory(
-                    Executors.newCachedThreadPool(daemonThreadFactory(this.settings, "transport_server_boss", name)),
-                    Executors.newCachedThreadPool(daemonThreadFactory(this.settings, "transport_server_worker", name))
+                    Executors.newCachedThreadPool(bossFactory),
+                    Executors.newCachedThreadPool(workerFactory)
             ));
         } else {
             serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(
-                    Executors.newCachedThreadPool(daemonThreadFactory(this.settings, "transport_server_boss", name)),
-                    Executors.newCachedThreadPool(daemonThreadFactory(this.settings, "transport_server_worker", name)),
+                    Executors.newCachedThreadPool(bossFactory),
+                    Executors.newCachedThreadPool(workerFactory),
                     workerCount));
         }
         serverBootstrap.setPipelineFactory(configureServerChannelPipelineFactory(name, settings));

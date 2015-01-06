@@ -41,6 +41,8 @@ import org.elasticsearch.transport.support.TransportStatus;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -51,6 +53,8 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
  *
  */
 public class LocalTransport extends AbstractLifecycleComponent<Transport> implements Transport {
+
+    public static final String LOCAL_TRANSPORT_THREAD_NAME_PREFIX = "local_transport";
 
     private final ThreadPool threadPool;
     private final ThreadPoolExecutor workers;
@@ -75,7 +79,9 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         int workerCount = this.settings.getAsInt(TRANSPORT_LOCAL_WORKERS, EsExecutors.boundedNumberOfProcessors(settings));
         int queueSize = this.settings.getAsInt(TRANSPORT_LOCAL_QUEUE, -1);
         logger.debug("creating [{}] workers, queue_size [{}]", workerCount, queueSize);
-        this.workers = EsExecutors.newFixed(workerCount, queueSize, EsExecutors.daemonThreadFactory(this.settings, "local_transport"));
+        final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(this.settings, LOCAL_TRANSPORT_THREAD_NAME_PREFIX);
+        assert Transports.isTransportThreadFactory(threadFactory);
+        this.workers = EsExecutors.newFixed(workerCount, queueSize, threadFactory);
     }
 
     @Override

@@ -476,11 +476,13 @@ _Response :_
 ```
 
 
-## TokenFilter : kuromoji_part_of_speech
+## TokenFilter : ja_stop
 
 
 A token filter of type `ja_stop` that provide a predefined "_japanese_" stop words.
 *Note: It is only provide "_japanese_". If you want to use other predefined stop words, you can use `stop` token filter.*
+
+_Example Settings:_
 
 ### example
 
@@ -505,10 +507,18 @@ curl -XPUT 'http://localhost:9200/kuromoji_sample/' -d'
             }
         }
     }
-}
-'
+}'
+```
 
+_Example Request using `_analyze` API :_
+
+```sh
 curl -XPOST 'http://localhost:9200/kuromoji_sample/_analyze?analyzer=katakana_analyzer&pretty' -d 'ストップは消える'
+```
+
+_Response :_
+
+```json
 {
   "tokens" : [ {
     "token" : "消える",

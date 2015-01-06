@@ -112,8 +112,10 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
                     InternalSimpleValue metricAgg = new InternalSimpleValue(entry.getKey(), metricDiff, null);
                     metricsAggregations.add(metricAgg);
                 }
+                InternalSimpleValue docCountDerivAgg = new InternalSimpleValue("_doc_count", diff, null);
+                metricsAggregations.add(docCountDerivAgg);
                 InternalAggregations metricsAggs = new InternalAggregations(metricsAggregations);
-                newBuckets.add(factory.createBucket(newBucketKey, diff, metricsAggs, keyed, formatter));
+                newBuckets.add(factory.createBucket(newBucketKey, 0, metricsAggs, keyed, formatter));
             }
             lastValue = thisbucketDocCount;
             lastMetricValues = thisBucketMetricValues;

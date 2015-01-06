@@ -19,11 +19,9 @@
 
 package org.elasticsearch.search.aggregations.transformer;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -132,7 +130,6 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         System.out.println("firstDerivValuesCounts: " + Arrays.toString(firstDerivValuesCounts));
     }
 
-    @AwaitsFix(bugUrl = "Doc count derivative can't be stored in doc count variable")
     @Test
     public void testSingleValue() {
 
@@ -151,11 +148,13 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
             Histogram.Bucket bucket = deriv.getBucketByKey(i * interval);
             assertThat(bucket, notNullValue());
             assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
-            assertThat(bucket.getDocCount(), equalTo(firstDerivValueCounts[i]));
+            assertThat(bucket.getDocCount(), equalTo(0l));
+            SimpleValue docCountDeriv = bucket.getAggregations().get("_doc_count");
+            assertThat(docCountDeriv, notNullValue());
+            assertThat(docCountDeriv.value(), equalTo((double) firstDerivValueCounts[i]));
         }
     }
 
-    @AwaitsFix(bugUrl = "Doc count derivative can't be stored in doc count variable")
     @Test
     public void singleValuedField_WithSubAggregation() throws Exception {
         SearchResponse response = client()
@@ -173,16 +172,20 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         assertThat(deriv.getBuckets().size(), equalTo(numFirstDerivValueBuckets));
         Object[] propertiesKeys = (Object[]) deriv.getProperty("_key");
         Object[] propertiesDocCounts = (Object[]) deriv.getProperty("_count");
+        Object[] propertiesDocCountDerivs = (Object[]) deriv.getProperty("_doc_count.value");
         Object[] propertiesCounts = (Object[]) deriv.getProperty("sum.value");
 
         List<Histogram.Bucket> buckets = new ArrayList<>(deriv.getBuckets());
-        for (int i = 0; i < numValueBuckets; ++i) {
+        for (int i = 0; i < numFirstDerivValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
             assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
-            assertThat(bucket.getDocCount(), equalTo(firstDerivValueCounts[i]));
+            assertThat(bucket.getDocCount(), equalTo(0l));
             assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
-            Sum sum = bucket.getAggregations().get("sum");
+            SimpleValue docCountDeriv = bucket.getAggregations().get("_doc_count");
+            assertThat(docCountDeriv, notNullValue());
+            assertThat(docCountDeriv.value(), equalTo((double) firstDerivValueCounts[i]));
+            SimpleValue sum = bucket.getAggregations().get("sum");
             assertThat(sum, notNullValue());
             long s1 = 0;
             long s2 = 0;
@@ -191,13 +194,14 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
                     s1 += j + 1;
                 }
                 if ((j + 1) / interval == i + 1) {
-                    s1 += j + 1;
+                    s2 += j + 1;
                 }
             }
             long s = s2 - s1;
-            assertThat(sum.getValue(), equalTo((double) s));
+            assertThat(sum.value(), equalTo((double) s));
             assertThat((String) propertiesKeys[i], equalTo(String.valueOf((long) i * interval)));
-            assertThat((long) propertiesDocCounts[i], equalTo(valueCounts[i]));
+            assertThat((long) propertiesDocCounts[i], equalTo(0l));
+            assertThat((double) propertiesDocCountDerivs[i], equalTo((double) firstDerivValueCounts[i]));
             assertThat((double) propertiesCounts[i], equalTo((double) s));
         }
     }

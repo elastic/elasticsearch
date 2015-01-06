@@ -58,6 +58,7 @@ import org.elasticsearch.search.aggregations.metrics.stats.extended.InternalExte
 import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.tophits.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.valuecount.InternalValueCount;
+import org.elasticsearch.search.aggregations.transformer.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.transformer.derivative.InternalDerivative;
 
 /**
@@ -108,6 +109,7 @@ public class TransportAggregationModule extends AbstractModule implements SpawnM
 
         // transformers
         InternalDerivative.registerStream();
+        InternalSimpleValue.registerStream();
     }
 
     @Override

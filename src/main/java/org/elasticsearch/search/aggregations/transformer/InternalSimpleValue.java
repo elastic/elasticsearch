@@ -43,7 +43,7 @@ public class InternalSimpleValue extends SingleValue implements SimpleValue {
         }
     };
 
-    public static void registerStreams() {
+    public static void registerStream() {
         AggregationStreams.registerStream(STREAM, TYPE.stream());
     }
 

@@ -657,11 +657,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             metadata = buildMetadata(commit, directory, logger);
         }
 
-        private static final boolean useLuceneChecksum(Version version, boolean hasLegacyChecksum) {
-            return (version.onOrAfter(FIRST_LUCENE_CHECKSUM_VERSION) && hasLegacyChecksum == false) // no legacy checksum and a guarantee that lucene has checksums
-                    || version.onOrAfter(FIRST_ES_CRC32_VERSION); // OR we know that we didn't even write legacy checksums anymore when this segment was written.
-        }
-
         ImmutableMap<String, StoreFileMetaData> buildMetadata(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
             ImmutableMap.Builder<String, StoreFileMetaData> builder = ImmutableMap.builder();
             Map<String, String> checksumMap = readLegacyChecksums(directory).v1();
@@ -670,24 +665,28 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 Version maxVersion = Version.LUCENE_4_0; // we don't know which version was used to write so we take the max version.
                 for (SegmentCommitInfo info : segmentCommitInfos) {
                     final Version version = info.info.getVersion();
-                    if (version != null && version.onOrAfter(maxVersion)) {
+                    if (version == null) {
+                        // version is written since 3.1+: we should have already hit IndexFormatTooOld.
+                        throw new IllegalArgumentException("expected valid version value: " + info.info.toString());
+                    }
+                    if (version.onOrAfter(maxVersion)) {
                         maxVersion = version;
                     }
                     for (String file : info.files()) {
                         String legacyChecksum = checksumMap.get(file);
-                        if (useLuceneChecksum(version, legacyChecksum != null)) {
+                        if (version.onOrAfter(FIRST_LUCENE_CHECKSUM_VERSION)) {
                             checksumFromLuceneFile(directory, file, builder, logger, version, SEGMENT_INFO_EXTENSION.equals(IndexFileNames.getExtension(file)));
                         } else {
-                            builder.put(file, new StoreFileMetaData(file, directory.fileLength(file), legacyChecksum, null));
+                            builder.put(file, new StoreFileMetaData(file, directory.fileLength(file), legacyChecksum, version));
                         }
                     }
                 }
                 final String segmentsFile = segmentCommitInfos.getSegmentsFileName();
                 String legacyChecksum = checksumMap.get(segmentsFile);
-                if (useLuceneChecksum(maxVersion, legacyChecksum != null)) {
+                if (maxVersion.onOrAfter(FIRST_LUCENE_CHECKSUM_VERSION)) {
                     checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
                 } else {
-                    builder.put(segmentsFile, new StoreFileMetaData(segmentsFile, directory.fileLength(segmentsFile), legacyChecksum, null, hashFile(directory, segmentsFile)));
+                    builder.put(segmentsFile, new StoreFileMetaData(segmentsFile, directory.fileLength(segmentsFile), legacyChecksum, maxVersion, hashFile(directory, segmentsFile)));
                 }
             } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                 throw ex;

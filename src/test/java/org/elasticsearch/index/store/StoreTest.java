@@ -444,9 +444,16 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         DirectoryService directoryService = new LuceneManagedDirectoryService(random(), false);
         Store store = new Store(shardId, ImmutableSettings.EMPTY,  null, directoryService, randomDistributor(directoryService), new DummyShardLock(shardId));
 
-        // .tii
+        // .tii: no version specified
         StoreFileMetaData tii = new StoreFileMetaData("foo.tii", 20, "boguschecksum", null);
         try (VerifyingIndexOutput output = (VerifyingIndexOutput) store.createVerifyingOutput("foo.temp", tii, IOContext.DEFAULT)) {
+            output.writeBytes(new byte[20], 20);
+            output.verify();
+        }
+        
+        // .tii: old version
+        tii = new StoreFileMetaData("foo.tii", 20, "boguschecksum", Version.LUCENE_36);
+        try (VerifyingIndexOutput output = (VerifyingIndexOutput) store.createVerifyingOutput("foo.temp2", tii, IOContext.DEFAULT)) {
             output.writeBytes(new byte[20], 20);
             output.verify();
         }
@@ -548,21 +555,21 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         DirectoryService directoryService = new LuceneManagedDirectoryService(random(), false);
         Store store = new Store(shardId, ImmutableSettings.EMPTY,  null, directoryService, randomDistributor(directoryService), new DummyShardLock(shardId));
 
-        // segments_N: unspecified version
+        // segments.gen: unspecified version
         StoreFileMetaData segmentsGen = new StoreFileMetaData("segments.gen", 20, "boguschecksum", null);
         try (VerifyingIndexOutput output = (VerifyingIndexOutput) store.createVerifyingOutput("foo.temp", segmentsGen, IOContext.DEFAULT)) {
             output.writeBytes(new byte[20], 20);
             output.verify();
         }
 
-        // segments_N: specified old version
+        // segments.gen: specified old version
         segmentsGen = new StoreFileMetaData("segments.gen", 20, "boguschecksum", Version.LUCENE_33);
         try (VerifyingIndexOutput output = (VerifyingIndexOutput) store.createVerifyingOutput("foo.temp2", segmentsGen, IOContext.DEFAULT)) {
             output.writeBytes(new byte[20], 20);
             output.verify();
         }
 
-        // segments_N: should still be checksummed for an ok version (lucene checksum)
+        // segments.gen: should still be checksummed for an ok version (lucene checksum)
         segmentsGen = new StoreFileMetaData("segments.gen", 20, "boguschecksum", Version.LUCENE_48);
         try (VerifyingIndexOutput output = (VerifyingIndexOutput) store.createVerifyingOutput("foo.temp3", segmentsGen, IOContext.DEFAULT)) {
             output.writeBytes(new byte[20], 20);

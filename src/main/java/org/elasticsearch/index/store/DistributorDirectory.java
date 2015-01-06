@@ -25,8 +25,11 @@ import org.elasticsearch.index.store.distributor.Distributor;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -102,8 +105,20 @@ public final class DistributorDirectory extends Directory {
     @Override
     public void sync(Collection<String> names) throws IOException {
         // no need to sync this operation it could be long running too
-        for (Directory dir : distributor.all()) {
-            dir.sync(names);
+        final Map<Directory, Collection<String>> perDirectory = new IdentityHashMap<>();
+        for (String name : names) {
+            final Directory dir = getDirectory(name);
+            Collection<String> dirNames = perDirectory.get(dir);
+            if (dirNames == null) {
+                dirNames = new ArrayList<>();
+                perDirectory.put(dir, dirNames);
+            }
+            dirNames.add(name);
+        }
+        for (Map.Entry<Directory, Collection<String>> entry : perDirectory.entrySet()) {
+            final Directory dir = entry.getKey();
+            final Collection<String> dirNames = entry.getValue();
+            dir.sync(dirNames);
         }
     }
 

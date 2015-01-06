@@ -221,7 +221,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
     }
 
-    static class Factory<B extends InternalHistogram.Bucket> {
+    public static class Factory<B extends InternalHistogram.Bucket> {
 
         protected Factory() {
         }
@@ -268,6 +268,14 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         return TYPE;
     }
 
+    public @Nullable ValueFormatter formatter() {
+        return formatter;
+    }
+
+    public boolean keyed() {
+        return keyed;
+    }
+
     @Override
     public List<B> getBuckets() {
         return buckets;
@@ -289,7 +297,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         return bucketsMap.get(key.longValue());
     }
 
-    protected Factory<B> getFactory() {
+    public Factory<B> getFactory() {
         return FACTORY;
     }
 

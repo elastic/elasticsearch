@@ -140,7 +140,7 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
     }
 
     @Override
-    protected InternalHistogram.Factory<Bucket> getFactory() {
+    public InternalHistogram.Factory<Bucket> getFactory() {
         return FACTORY;
     }
 
@@ -167,12 +167,13 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
     }
 
     @Override
-    protected InternalDateHistogram.Bucket createBucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, ValueFormatter formatter) {
+    public InternalDateHistogram.Bucket createBucket(long key, long docCount, InternalAggregations aggregations, boolean keyed,
+            ValueFormatter formatter) {
         return new Bucket(key, docCount, aggregations, keyed, formatter);
     }
     
     @Override
-    protected Bucket createEmptyBucket(boolean keyed, ValueFormatter formatter) {
+    public Bucket createEmptyBucket(boolean keyed, ValueFormatter formatter) {
         return new Bucket(keyed, formatter);
     }
 

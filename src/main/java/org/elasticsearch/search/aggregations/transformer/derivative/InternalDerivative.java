@@ -102,6 +102,7 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
         }
         final InternalAggregations aggs = InternalAggregations.reduce(subAggregationsList, reduceContext);
         InternalHistogram histo = (InternalHistogram) aggs.iterator().next();
+        InternalHistogram.Factory factory = histo.getFactory();
         List<InternalHistogram.Bucket> histoBuckets = histo.getBuckets();
         Long lastValue = null;
         Long newBucketKey = null;
@@ -110,14 +111,12 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
             long thisbucketDocCount = histoBucket.getDocCount();
             if (lastValue != null) {
                 long diff = thisbucketDocCount - lastValue;
-                newBuckets.add(new InternalHistogram.Bucket(newBucketKey, diff, false, null, InternalAggregations.EMPTY)); // NOCOMMIT get keyed and formatter from histoBucket
+                newBuckets.add(factory.createBucket(newBucketKey, diff, InternalAggregations.EMPTY, histo.keyed(), histo.formatter())); // NOCOMMIT get keyed and formatter from histoBucket
             }
             lastValue = thisbucketDocCount;
             newBucketKey = histoBucket.getKeyAsNumber().longValue();
         }
-        InternalHistogram<InternalHistogram.Bucket> derivativeHisto = new InternalHistogram<InternalHistogram.Bucket>(name, newBuckets,
-                null, 1, null, null, false,
-                null);
+        InternalHistogram<InternalHistogram.Bucket> derivativeHisto = factory.create(name, newBuckets, null, 1, null, histo.formatter(), histo.keyed(), null);
         return derivativeHisto;
     }
 

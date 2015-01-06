@@ -65,6 +65,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
     @Override
     public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
+        Transports.assertTransportThread();
         Object m = e.getMessage();
         if (!(m instanceof ChannelBuffer)) {
             ctx.sendUpstream(e);

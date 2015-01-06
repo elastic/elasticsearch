@@ -91,17 +91,32 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                     }
                 }
                 
+                @Override
+                public void setScorer(Scorer scorer) {
+                    BytesRefFieldComparatorSource.this.setScorer(scorer);
+                }
+
                 public BytesRef value(int slot) {
                     // TODO: When serializing the response to the coordinating node, we lose the information about
                     // whether the comparator sorts missing docs first or last. We should fix it and let
                     // TopDocs.merge deal with it (it knows how to)
                     BytesRef value = super.value(slot);
                     if (value == null) {
+                        assert sortMissingFirst(missingValue) || sortMissingLast(missingValue);
                         value = missingBytes;
                     }
                     return value;
                 }
                 
+                public void setTopValue(BytesRef topValue) {
+                    // symetric of value(int): if we need to feed the comparator with <tt>null</tt>
+                    // if we overrode the value with MAX_TERM in value(int)
+                    if (topValue == missingBytes && (sortMissingFirst(missingValue) || sortMissingLast(missingValue))) {
+                        topValue = null;
+                    }
+                    super.setTopValue(topValue);
+                }
+
             };
         }
 

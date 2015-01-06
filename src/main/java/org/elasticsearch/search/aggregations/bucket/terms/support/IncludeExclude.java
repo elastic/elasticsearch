@@ -20,9 +20,14 @@ package org.elasticsearch.search.aggregations.bucket.terms.support;
 
 import com.carrotsearch.hppc.LongOpenHashSet;
 import com.carrotsearch.hppc.LongSet;
+
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.util.*;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.CharsRefBuilder;
+import org.apache.lucene.util.LongBitSet;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.regex.Regex;
@@ -176,10 +181,15 @@ public class IncludeExclude {
                 // We have includeVals that are a regex or only regex excludes - we need to do the potentially 
                 // slow option of hitting termsEnum for every term in the index.
                 TermsEnum globalTermsEnum = valueSource.globalOrdinalsValues().termsEnum();
+                SearchContext context = SearchContext.current();
+                boolean isTimed = context.timeoutInMillis() > 0l;
                 try {
                     for (BytesRef term = globalTermsEnum.next(); term != null; term = globalTermsEnum.next()) {
                         if (accept(term)) {
                             acceptedGlobalOrdinals.set(globalTermsEnum.ord());
+                        }
+                        if (isTimed) {
+                            context.checkForTimeout();
                         }
                     }
                 } catch (IOException e) {

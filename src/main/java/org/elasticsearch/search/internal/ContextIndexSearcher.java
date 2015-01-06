@@ -29,6 +29,7 @@ import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.Lucene.TimedoutException;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.MultiCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
@@ -135,9 +136,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         final boolean terminateAfterSet = searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER;
 
         if (timeoutSet) {
-            // TODO: change to use our own counter that uses the scheduler in ThreadPool
-            // throws TimeLimitingCollector.TimeExceededException when timeout has reached
-            collector = Lucene.wrapTimeLimitingCollector(collector, searchContext.timeEstimateCounter(), searchContext.timeoutInMillis());
+            TimeLimitingCollector tlc = Lucene.wrapTimeLimitingCollector(collector, searchContext.timeEstimateCounter(),
+                    searchContext.timeoutInMillis());
+            // Account for any time spent already on prior search activity
+            tlc.setBaseline(searchContext.getEstimatedStartTime());
+            collector = tlc;
         }
         if (terminateAfterSet) {
             // throws Lucene.EarlyTerminationException when given count is reached
@@ -166,6 +169,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 try {
                     super.search(leaves, weight, collector);
                 } catch (TimeLimitingCollector.TimeExceededException e) {
+                    assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
+                    searchContext.queryResult().searchTimedOut(true);
+                } catch (TimedoutException e) {
                     assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
                     searchContext.queryResult().searchTimedOut(true);
                 } catch (Lucene.EarlyTerminationException e) {

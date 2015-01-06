@@ -23,6 +23,7 @@ import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.MoreExecutors;
+
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
@@ -50,7 +51,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -61,6 +71,8 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
  *
  */
 public class ThreadPool extends AbstractComponent {
+
+    public static final int DEFAULT_ESTIMATED_TIME_INTERVAL = 200;
 
     public static class Names {
         public static final String SAME = "same";
@@ -79,6 +91,11 @@ public class ThreadPool extends AbstractComponent {
         public static final String SNAPSHOT = "snapshot";
         public static final String OPTIMIZE = "optimize";
         public static final String BENCH = "bench";
+        // The setting for the background timer thread's update interval is
+        // technically not a pool-level setting but is prefixed with the
+        // "search" pool name here simply because the parsing logic insists on
+        // all thread-related settings being prefixed with a pool name.
+        public static final String ESTIMATED_TIME_INTERVAL = "search.estimated_time_interval";
     }
 
     public static final String THREADPOOL_GROUP = "threadpool.";
@@ -154,7 +171,8 @@ public class ThreadPool extends AbstractComponent {
             nodeSettingsService.addListener(new ApplySettings());
         }
 
-        TimeValue estimatedTimeInterval = componentSettings.getAsTime("estimated_time_interval", TimeValue.timeValueMillis(200));
+        TimeValue estimatedTimeInterval = componentSettings.getAsTime(Names.ESTIMATED_TIME_INTERVAL,
+                TimeValue.timeValueMillis(DEFAULT_ESTIMATED_TIME_INTERVAL));
         this.estimatedTimeThread = new EstimatedTimeThread(EsExecutors.threadName(settings, "[timer]"), estimatedTimeInterval.millis());
         this.estimatedTimeThread.start();
     }

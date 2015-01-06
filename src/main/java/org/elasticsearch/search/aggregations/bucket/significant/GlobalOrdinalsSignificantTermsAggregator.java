@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.Lucene.TimedoutException;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -29,6 +30,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -64,6 +66,11 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
         if (globalOrds == null) { // no context in this reader
             return buildEmptyAggregation();
         }
+        // We failed to build the list of accepted global ordinals
+        // due to a timeout in their construction
+        if (includeExclude != null && acceptedGlobalOrdinals == null) {
+            return buildEmptyAggregation();
+        }
 
         final int size;
         if (bucketCountThresholds.getMinDocCount() == 0) {
@@ -74,7 +81,8 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
         }
         long supersetSize = termsAggFactory.prepareBackground(context);
         long subsetSize = numCollectedDocs;
-
+        SearchContext searchContext = context.searchContext();
+        boolean isTimed = searchContext.timeoutInMillis() > 0l;
         BucketSignificancePriorityQueue ordered = new BucketSignificancePriorityQueue(size);
         SignificantStringTerms.Bucket spare = null;
         for (long globalTermOrd = 0; globalTermOrd < globalOrds.getValueCount(); ++globalTermOrd) {
@@ -93,6 +101,14 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
             copy(globalOrds.lookupOrd(globalTermOrd), spare.termBytes);
             spare.subsetDf = bucketDocCount;
             spare.subsetSize = subsetSize;
+            if (isTimed) {
+                try {
+                    searchContext.checkForTimeout();
+                } catch (TimedoutException te) {
+                    // time is up - exit gracefully
+                    return buildEmptyAggregation();
+                }
+            }
             spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.termBytes);
             spare.supersetSize = supersetSize;
             // During shard-local down-selection we use subset/superset stats

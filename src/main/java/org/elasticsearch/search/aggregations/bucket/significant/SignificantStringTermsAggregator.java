@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.Lucene.TimedoutException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTermsAggregator;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -66,6 +68,8 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         long subsetSize = numCollectedDocs;
 
         BucketSignificancePriorityQueue ordered = new BucketSignificancePriorityQueue(size);
+        SearchContext searchContext = context.searchContext();
+        boolean isTimed = searchContext.timeoutInMillis() > 0l;
         SignificantStringTerms.Bucket spare = null;
         for (int i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {
@@ -75,6 +79,15 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
             bucketOrds.get(i, spare.termBytes);
             spare.subsetDf = bucketDocCount(i);
             spare.subsetSize = subsetSize;
+            if (isTimed) {
+                try {
+                    searchContext.checkForTimeout();
+                } catch (TimedoutException te) {
+                    // time is up - exit gracefully
+                    return buildEmptyAggregation();
+                }
+            }
+
             spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.termBytes);
             spare.supersetSize = supersetSize;
             // During shard-local down-selection we use subset/superset stats

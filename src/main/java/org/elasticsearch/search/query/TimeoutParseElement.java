@@ -19,10 +19,13 @@
 
 package org.elasticsearch.search.query;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
+import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  */
@@ -35,6 +38,24 @@ public class TimeoutParseElement implements SearchParseElement {
             context.timeoutInMillis(parser.longValue());
         } else {
             context.timeoutInMillis(TimeValue.parseTimeValue(parser.text(), null).millis());
+        }
+        if (context.timeoutInMillis() > 0) {
+            // Check that the requested timeout setting is within the bounds of
+            // what we can detect without false positives - (false negatives are
+            // still possible obviously and relate to the frequency with which
+            // we are able to perform timeout checks in all sections of our code
+            Settings searchSettings = context.indexShard().searchService().indexSettings();
+            Settings componentSettings = searchSettings.getComponentSettings(ThreadPool.class);
+            TimeValue timerResolution = componentSettings.getAsTime(ThreadPool.Names.ESTIMATED_TIME_INTERVAL,
+                    TimeValue.timeValueMillis(ThreadPool.DEFAULT_ESTIMATED_TIME_INTERVAL));
+            if (context.timeoutInMillis() < timerResolution.getMillis() * 2) {
+                throw new SearchParseException(context,
+                        "Search timeout value must be at least double the node's configured timer resolution (currently "
+                                + timerResolution.getMillis() + " milliseconds). This timer resolution is set using the \""
+                                + ThreadPool.THREADPOOL_GROUP
+                                + ThreadPool.Names.ESTIMATED_TIME_INTERVAL + "\" node setting");
+            }
+
         }
     }
 }

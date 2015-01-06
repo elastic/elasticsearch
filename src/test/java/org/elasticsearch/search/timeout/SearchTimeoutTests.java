@@ -19,11 +19,13 @@
 
 package org.elasticsearch.search.timeout;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.FilterBuilders.scriptFilter;
@@ -38,17 +40,36 @@ public class SearchTimeoutTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put(GroovyScriptEngineService.GROOVY_SCRIPT_SANDBOX_ENABLED, false).build();
+        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+                .put(GroovyScriptEngineService.GROOVY_SCRIPT_SANDBOX_ENABLED, false)
+                .put(ThreadPool.THREADPOOL_GROUP + ThreadPool.Names.ESTIMATED_TIME_INTERVAL, 100).build();
     }
 
     @Test
     public void simpleTimeoutTest() throws Exception {
         client().prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).execute().actionGet();
 
-        SearchResponse searchResponse = client().prepareSearch("test")
-                .setTimeout("10ms")
-                .setQuery(filteredQuery(matchAllQuery(), scriptFilter("Thread.sleep(500); return true;")))
-                .execute().actionGet();
+        SearchResponse searchResponse = client().prepareSearch("test").setTimeout("200ms")
+                .setQuery(filteredQuery(matchAllQuery(), scriptFilter("Thread.sleep(500); return true;"))).execute().actionGet();
         assertThat(searchResponse.isTimedOut(), equalTo(true));
     }
+
+    @Test
+    public void invalidTimeoutTest() throws Exception {
+        client().prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).execute().actionGet();
+
+        ElasticsearchException expected = null;
+        try {
+            // Timeout parameters must be at least double the resolution of the
+            // interval used by the estimatedTimeCounter inside a node.
+            client().prepareSearch("test").setTimeout("10ms")
+                .setQuery(filteredQuery(matchAllQuery(), scriptFilter("Thread.sleep(500); return true;")))
+                .execute().actionGet();
+        } catch (ElasticsearchException e) {
+            expected = e;
+        }
+        assertNotNull(expected);
+        assertTrue(expected.getMessage().contains("SearchParseException"));
+    }
+
 }

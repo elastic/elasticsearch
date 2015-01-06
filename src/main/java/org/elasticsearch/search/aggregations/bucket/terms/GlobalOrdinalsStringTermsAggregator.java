@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.ArrayUtil;
@@ -34,7 +34,6 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongHash;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.AbstractRandomAccessOrds;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalMapping;
@@ -145,6 +144,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (globalOrds == null) { // no context in this reader
+            return buildEmptyAggregation();
+        }
+        // We failed to build the list of accepted global ordinals
+        // due to a timeout in their construction
+        if (includeExclude != null && acceptedGlobalOrdinals == null) {
             return buildEmptyAggregation();
         }
 

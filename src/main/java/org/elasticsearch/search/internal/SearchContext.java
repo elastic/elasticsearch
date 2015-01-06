@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.MultimapBuilder;
+
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -31,6 +32,7 @@ import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.Lucene.TimedoutException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -73,9 +75,11 @@ public abstract class SearchContext implements Releasable {
 
     private static ThreadLocal<SearchContext> current = new ThreadLocal<>();
     public final static int DEFAULT_TERMINATE_AFTER = 0;
+    private long estimatedStartTime = 0;
 
     public static void setCurrent(SearchContext value) {
         current.set(value);
+        value.started();
         QueryParseContext.setTypes(value.types());
     }
 
@@ -352,6 +356,47 @@ public abstract class SearchContext implements Releasable {
     public abstract MapperService.SmartNameObjectMapper smartNameObjectMapper(String name);
 
     public abstract Counter timeEstimateCounter();
+
+    // This Counter implementation is used for non time-critical
+    // operations working on small datasets such as in test or percolation
+    // search contexts.
+    protected static Counter systemTimeCounter = new Counter() {
+
+        @Override
+        public long addAndGet(long arg0) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long get() {
+            return System.currentTimeMillis();
+        }
+    };
+
+
+    private void started(){
+        estimatedStartTime = timeEstimateCounter().get();
+    }
+
+    public long getEstimatedStartTime() {
+        return estimatedStartTime;
+    }
+
+    /**
+     * Helper method used to terminate costly loops that have overrun by
+     * throwing a {@link TimedoutException} and setting the timed out flag on
+     * any response.
+     */
+    public void checkForTimeout() {
+        if (timeoutInMillis() > 0l) {
+            Counter counter = timeEstimateCounter();
+            long now = counter.get();
+            if (now > estimatedStartTime + timeoutInMillis()) {
+                queryResult().searchTimedOut(true);
+                throw new TimedoutException(estimatedStartTime + timeoutInMillis(), now);
+            }
+        }
+    }
 
     /**
      * The life time of an object that is used during search execution.

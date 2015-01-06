@@ -30,19 +30,26 @@ import java.util.EnumSet;
 import java.util.Map;
 
 /**
+ * Part of the cluster state
+ *
+ * Each cluster state part is serializable in both binary and json formats and can calculate differences with the
+ * previous version of the same part.
  */
 public interface ClusterStatePart extends ToXContent {
 
     public static final String CONTEXT_MODE_PARAM = "context_mode";
 
+    /**
+     * Represents the context in which this part should be serialized as JSON
+     */
     public enum XContentContext {
-        /* Custom metadata should be returns as part of API call */
+        /* A part should be returned as part of API call */
         API,
 
-        /* Custom metadata should be stored as part of the persistent cluster state */
+        /* A part should be stored by gateway as a persistent cluster state */
         GATEWAY,
 
-        /* Custom metadata should be stored as part of a snapshot */
+        /* A part should be stored as part of a snapshot */
         SNAPSHOT;
     }
 
@@ -54,10 +61,19 @@ public interface ClusterStatePart extends ToXContent {
     public static EnumSet<XContentContext> GATEWAY = EnumSet.of(XContentContext.GATEWAY);
     public static EnumSet<XContentContext> GATEWAY_SNAPSHOT = EnumSet.of(XContentContext.GATEWAY, XContentContext.SNAPSHOT);
 
+    /**
+     * Writes part to output stream
+     */
     void writeTo(StreamOutput out) throws IOException;
 
+    /**
+     * Returns a set of contexts in which this part should be serialized as JSON
+     */
     EnumSet<XContentContext> context();
 
+    /**
+     * Returns part type
+     */
     String partType();
 
     interface Factory<T extends ClusterStatePart> {

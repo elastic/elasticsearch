@@ -33,6 +33,7 @@ import java.util.EnumSet;
 import java.util.Map;
 
 /**
+ * Basic implementation of cluster state part that send entire part as a difference if part got changed.
  */
 public abstract class AbstractClusterStatePart implements ClusterStatePart {
 

@@ -86,7 +86,7 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadOperation
                 continue;
             }
 
-            Settings settings = settingsFilter.filterSettings(settingsFilter.getPatterns(), indexMetaData.settings());
+            Settings settings = SettingsFilter.filterSettings(settingsFilter.getPatterns(), indexMetaData.settings());
             if (!CollectionUtils.isEmpty(request.names())) {
                 ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder();
                 for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {

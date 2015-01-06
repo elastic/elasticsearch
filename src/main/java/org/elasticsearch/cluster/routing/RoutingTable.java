@@ -23,12 +23,14 @@ import com.carrotsearch.hppc.IntSet;
 import com.google.common.collect.*;
 import org.elasticsearch.cluster.AbstractClusterStatePart;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStatePart;
 import org.elasticsearch.cluster.LocalContext;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
@@ -67,12 +69,6 @@ public class RoutingTable extends AbstractClusterStatePart implements Iterable<I
         this.indicesRouting = ImmutableMap.copyOf(indicesRouting);
     }
 
-    @Override
-    public String partType() {
-        return TYPE;
-    }
-
-
     public static class Factory extends AbstractFactory<RoutingTable> {
 
         @Override
@@ -81,8 +77,27 @@ public class RoutingTable extends AbstractClusterStatePart implements Iterable<I
         }
 
         @Override
-        public RoutingTable fromXContent(XContentParser parser, LocalContext context) throws IOException {
-            throw new UnsupportedOperationException("Not implemented yet");
+        public void writeTo(RoutingTable routingTable, StreamOutput out) throws IOException {
+            Builder.writeTo(routingTable, out);
+        }
+
+        @Override
+        public void toXContent(RoutingTable routingTable, XContentBuilder builder, Params params) throws IOException {
+            builder.startObject("indices");
+            for (IndexRoutingTable indexRoutingTable : routingTable) {
+                builder.startObject(indexRoutingTable.index(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject("shards");
+                for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                    builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
+                    for (ShardRouting shardRouting : indexShardRoutingTable) {
+                        shardRouting.toXContent(builder, params);
+                    }
+                    builder.endArray();
+                }
+                builder.endObject();
+                builder.endObject();
+            }
+            builder.endObject();
         }
 
         @Override
@@ -93,19 +108,15 @@ public class RoutingTable extends AbstractClusterStatePart implements Iterable<I
             if (before != null) {
                 ImmutableMap<String, IndexRoutingTable> beforeParts = before.indicesRouting;
                 ImmutableMap<String, IndexRoutingTable> afterParts = after.indicesRouting;
-                if (before.equals(after)) {
-                    return new NoDiff<>();
-                } else {
-                    for (String key : beforeParts.keySet()) {
-                        if (!afterParts.containsKey(key)) {
-                            deletes.add(key);
-                        }
+                for (String key : beforeParts.keySet()) {
+                    if (!afterParts.containsKey(key)) {
+                        deletes.add(key);
                     }
-                    for (Map.Entry<String, IndexRoutingTable> part : afterParts.entrySet()) {
-                        IndexRoutingTable beforePart = beforeParts.get(part.getKey());
-                        if (!part.getValue().equals(beforePart)) {
-                            diffs.put(part.getKey(), IndexRoutingTable.FACTORY.diff(beforePart, part.getValue()));
-                        }
+                }
+                for (Map.Entry<String, IndexRoutingTable> part : afterParts.entrySet()) {
+                    IndexRoutingTable beforePart = beforeParts.get(part.getKey());
+                    if (!part.getValue().equals(beforePart)) {
+                        diffs.put(part.getKey(), IndexRoutingTable.FACTORY.diff(beforePart, part.getValue()));
                     }
                 }
             } else {
@@ -119,25 +130,37 @@ public class RoutingTable extends AbstractClusterStatePart implements Iterable<I
 
         @Override
         public Diff<RoutingTable> readDiffFrom(StreamInput in, LocalContext context) throws IOException {
-            if (in.readBoolean()) {
-                long version = in.readVLong();
-                int deletesSize = in.readVInt();
-                List<String> deletes = new ArrayList<>();
-                for (int i = 0; i < deletesSize; i++) {
-                    deletes.add(in.readString());
-                }
-
-                int diffsSize = in.readVInt();
-                Map<String, Diff<IndexRoutingTable>> diffs = newHashMap();
-                for (int i = 0; i < diffsSize; i++) {
-                    String key = in.readString();
-                    diffs.put(key, IndexRoutingTable.FACTORY.readDiffFrom(in, context));
-                }
-                return new RoutingTableDiff(version, deletes, diffs);
-
-            } else {
-                return new NoDiff<>();
+            long version = in.readVLong();
+            int deletesSize = in.readVInt();
+            List<String> deletes = new ArrayList<>();
+            for (int i = 0; i < deletesSize; i++) {
+                deletes.add(in.readString());
             }
+
+            int diffsSize = in.readVInt();
+            Map<String, Diff<IndexRoutingTable>> diffs = newHashMap();
+            for (int i = 0; i < diffsSize; i++) {
+                String key = in.readString();
+                diffs.put(key, IndexRoutingTable.FACTORY.readDiffFrom(in, context));
+            }
+            return new RoutingTableDiff(version, deletes, diffs);
+        }
+
+        @Override
+        public void writeDiffsTo(Diff<RoutingTable> diff, StreamOutput out) throws IOException {
+            RoutingTableDiff routingTableDiff = (RoutingTableDiff) diff;
+            out.writeVLong(routingTableDiff.version);
+            out.writeVInt(routingTableDiff.deletes.size());
+            for (String delete : routingTableDiff.deletes) {
+                out.writeString(delete);
+            }
+
+            out.writeVInt(routingTableDiff.diffs.size());
+            for (Map.Entry<String, Diff<IndexRoutingTable>> entry : routingTableDiff.diffs.entrySet()) {
+                out.writeString(entry.getKey());
+                IndexRoutingTable.FACTORY.writeDiffsTo(entry.getValue(), out);
+            }
+
         }
 
         @Override
@@ -170,22 +193,6 @@ public class RoutingTable extends AbstractClusterStatePart implements Iterable<I
                 parts.put(entry.getKey(), entry.getValue().apply(part.indicesRouting.get(entry.getKey())));
             }
             return new RoutingTable(version, parts);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeBoolean(true); // We have diffs
-            out.writeVLong(version);
-            out.writeVInt(deletes.size());
-            for (String delete : deletes) {
-                out.writeString(delete);
-            }
-
-            out.writeVInt(diffs.size());
-            for (Map.Entry<String, Diff<IndexRoutingTable>> entry : diffs.entrySet()) {
-                out.writeString(entry.getKey());
-                entry.getValue().writeTo(out);
-            }
         }
     }
     /**
@@ -423,31 +430,6 @@ public class RoutingTable extends AbstractClusterStatePart implements Iterable<I
 
     public static Builder builder(RoutingTable routingTable) {
         return new Builder(routingTable);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        Builder.writeTo(this, out);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("indices");
-        for (IndexRoutingTable indexRoutingTable : this) {
-            builder.startObject(indexRoutingTable.index(), XContentBuilder.FieldCaseConversion.NONE);
-            builder.startObject("shards");
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    shardRouting.toXContent(builder, params);
-                }
-                builder.endArray();
-            }
-            builder.endObject();
-            builder.endObject();
-        }
-        builder.endObject();
-        return builder;
     }
 
     public static class Builder {

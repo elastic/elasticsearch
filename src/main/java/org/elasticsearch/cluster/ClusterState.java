@@ -34,6 +34,8 @@ import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
@@ -41,11 +43,12 @@ import java.io.IOException;
 import java.util.*;
 
 import static com.google.common.collect.Sets.newHashSet;
+import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 
 /**
  *
  */
-public class ClusterState extends CompositeClusterStatePart<ClusterState> {
+public class ClusterState extends CompositeClusterStatePart<ClusterState> implements ToXContent {
 
     public static final String TYPE = "cluster";
 
@@ -84,11 +87,6 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> {
         public ClusterState apply(ClusterState previous) throws IncompatibleClusterStateVersionException {
             ClusterState newState = diff.apply(previous);
             return newState;
-        }
-
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(version);
-            diff.writeTo(out);
         }
 
         public long version() {
@@ -290,8 +288,6 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> {
         }
     }
 
-
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         EnumSet<Metric> metrics = Metric.parseString(params.param("metric", "_all"), true);
@@ -311,7 +307,7 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> {
         for(ObjectObjectCursor<String, ClusterStatePart> partIter : parts) {
             if (metricStrings.contains(partIter.key)) {
                 builder.startObject(partIter.key);
-                partIter.value.toXContent(builder, params);
+                FACTORY.lookupFactorySafe(partIter.key).toXContent(partIter.value, builder, params);
                 builder.endObject();
             }
         }
@@ -339,11 +335,6 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> {
         }
 
         return builder;
-    }
-
-    @Override
-    public String partType() {
-        return TYPE;
     }
 
     public static Builder builder(ClusterName clusterName) {
@@ -474,7 +465,7 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> {
         }
 
         public static void writeTo(ClusterState state, StreamOutput out) throws IOException {
-            state.writeTo(out);
+            FACTORY.writeTo(state, out);
         }
 
         /**
@@ -486,9 +477,16 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> {
         }
 
         public static ClusterStateDiff readDiffFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
+
+            // TODO: Do we need this version
             long version = in.readVLong();
             LocalContext localContext = new LocalContext(localNode);
             return new ClusterStateDiff(version, FACTORY.readDiffFrom(in, localContext));
+        }
+
+        public static void writeDiffTo(ClusterStateDiff diff, StreamOutput out) throws IOException {
+            out.writeVLong(diff.version);
+            FACTORY.writeDiffsTo(diff.diff, out);
         }
 
         public static ClusterStateDiff diff(ClusterState before, ClusterState after) {
@@ -497,7 +495,7 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> {
 
         public static byte[] toDiffBytes(ClusterState before, ClusterState after) throws IOException {
             BytesStreamOutput os = new BytesStreamOutput();
-            diff(before, after).writeTo(os);
+            writeDiffTo(diff(before, after), os);
             return os.bytes().toBytes();
         }
 
@@ -505,6 +503,7 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> {
             ClusterStateDiff diff = readDiffFrom(new BytesStreamInput(data, false), localNode);
             return diff.apply(before);
         }
+
     }
 
 }

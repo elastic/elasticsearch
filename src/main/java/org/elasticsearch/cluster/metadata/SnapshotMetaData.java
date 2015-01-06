@@ -62,11 +62,6 @@ public class SnapshotMetaData extends AbstractClusterStatePart {
         return entries.hashCode();
     }
 
-    @Override
-    public String partType() {
-        return TYPE;
-    }
-
     public static class Entry {
         private final State state;
         private final SnapshotId snapshotId;
@@ -337,27 +332,6 @@ public class SnapshotMetaData extends AbstractClusterStatePart {
         return null;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(entries.size());
-        for (Entry entry : entries) {
-            entry.snapshotId().writeTo(out);
-            out.writeBoolean(entry.includeGlobalState());
-            out.writeByte(entry.state().value());
-            out.writeVInt(entry.indices().size());
-            for (String index : entry.indices()) {
-                out.writeString(index);
-            }
-            out.writeLong(entry.startTime());
-            out.writeVInt(entry.shards().size());
-            for (Map.Entry<ShardId, ShardSnapshotStatus> shardEntry : entry.shards().entrySet()) {
-                shardEntry.getKey().writeTo(out);
-                out.writeOptionalString(shardEntry.getValue().nodeId());
-                out.writeByte(shardEntry.getValue().state().value());
-            }
-        }
-    }
-
     static final class Fields {
         static final XContentBuilderString REPOSITORY = new XContentBuilderString("repository");
         static final XContentBuilderString SNAPSHOTS = new XContentBuilderString("snapshots");
@@ -373,17 +347,7 @@ public class SnapshotMetaData extends AbstractClusterStatePart {
         static final XContentBuilderString NODE = new XContentBuilderString("node");
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startArray(Fields.SNAPSHOTS);
-        for (Entry entry : entries) {
-            toXContent(entry, builder, params);
-        }
-        builder.endArray();
-        return builder;
-    }
-
-    public void toXContent(Entry entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
+    public static void toXContent(Entry entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.field(Fields.REPOSITORY, entry.snapshotId().getRepository());
         builder.field(Fields.SNAPSHOT, entry.snapshotId().getSnapshot());
@@ -442,6 +406,37 @@ public class SnapshotMetaData extends AbstractClusterStatePart {
             }
             return new SnapshotMetaData(entries);
         }
+
+        @Override
+        public void writeTo(SnapshotMetaData snapshotMetaData, StreamOutput out) throws IOException {
+            out.writeVInt(snapshotMetaData.entries.size());
+            for (Entry entry : snapshotMetaData.entries) {
+                entry.snapshotId().writeTo(out);
+                out.writeBoolean(entry.includeGlobalState());
+                out.writeByte(entry.state().value());
+                out.writeVInt(entry.indices().size());
+                for (String index : entry.indices()) {
+                    out.writeString(index);
+                }
+                out.writeLong(entry.startTime());
+                out.writeVInt(entry.shards().size());
+                for (Map.Entry<ShardId, ShardSnapshotStatus> shardEntry : entry.shards().entrySet()) {
+                    shardEntry.getKey().writeTo(out);
+                    out.writeOptionalString(shardEntry.getValue().nodeId());
+                    out.writeByte(shardEntry.getValue().state().value());
+                }
+            }
+        }
+
+        @Override
+        public void toXContent(SnapshotMetaData snapshotMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
+            builder.startArray(Fields.SNAPSHOTS);
+            for (Entry entry : snapshotMetaData.entries) {
+                SnapshotMetaData.toXContent(entry, builder, params);
+            }
+            builder.endArray();
+        }
+
 
         @Override
         public String partType() {

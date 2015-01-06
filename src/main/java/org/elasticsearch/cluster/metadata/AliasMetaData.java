@@ -29,6 +29,7 @@ import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -48,26 +49,14 @@ public class AliasMetaData extends AbstractClusterStatePart implements NamedClus
     public static final Factory FACTORY = new Factory();
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        Builder.writeTo(this, out);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        Builder.toXContent(this, builder, params);
-        return builder;
+    public String partType() {
+        return TYPE;
     }
 
     @Override
     public String key() {
         return alias;
     }
-
-    @Override
-    public String partType() {
-        return TYPE;
-    }
-
 
     @Override
     public AliasMetaData mergeWith(AliasMetaData second) {
@@ -82,9 +71,21 @@ public class AliasMetaData extends AbstractClusterStatePart implements NamedClus
         }
 
         @Override
+        public void writeTo(AliasMetaData aliasMetaData, StreamOutput out) throws IOException {
+            Builder.writeTo(aliasMetaData, out);
+        }
+
+        @Override
+        public void toXContent(AliasMetaData aliasMetaData, XContentBuilder builder, Params params) throws IOException {
+            Builder.toXContent(aliasMetaData, builder, params);
+        }
+
+        @Override
         public String partType() {
             return TYPE;
         }
+
+
     }
 
     private final String alias;

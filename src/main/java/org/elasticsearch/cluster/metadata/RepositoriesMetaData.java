@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -83,22 +84,6 @@ public class RepositoriesMetaData extends AbstractClusterStatePart {
         return null;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(repositories.size());
-        for (RepositoryMetaData repository : repositories) {
-            repository.writeTo(out);
-        }
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        for (RepositoryMetaData repository : repositories()) {
-            toXContent(repository, builder, params);
-        }
-        return builder;
-    }
-
     /**
      * Serializes information about a single repository
      *
@@ -119,16 +104,6 @@ public class RepositoriesMetaData extends AbstractClusterStatePart {
         builder.endObject();
     }
 
-    @Override
-    public String partType() {
-        return TYPE;
-    }
-
-    @Override
-    public EnumSet<MetaData.XContentContext> context() {
-        return ClusterStatePart.API_GATEWAY;
-    }
-
     /**
      * Repository metadata factory
      */
@@ -144,6 +119,14 @@ public class RepositoriesMetaData extends AbstractClusterStatePart {
                 repository[i] = RepositoryMetaData.readFrom(in);
             }
             return new RepositoriesMetaData(repository);
+        }
+
+        @Override
+        public void writeTo(RepositoriesMetaData repositoriesMetaData, StreamOutput out) throws IOException {
+            out.writeVInt(repositoriesMetaData.repositories.size());
+            for (RepositoryMetaData repository : repositoriesMetaData.repositories) {
+                repository.writeTo(out);
+            }
         }
 
         /**
@@ -191,6 +174,14 @@ public class RepositoriesMetaData extends AbstractClusterStatePart {
             }
             return new RepositoriesMetaData(repository.toArray(new RepositoryMetaData[repository.size()]));
         }
+
+        @Override
+        public void toXContent(RepositoriesMetaData repositoriesMetaData, XContentBuilder builder, Params params) throws IOException {
+            for (RepositoryMetaData repository : repositoriesMetaData.repositories()) {
+                RepositoriesMetaData.toXContent(repository, builder, params);
+            }
+        }
+
 
         @Override
         public String partType() {

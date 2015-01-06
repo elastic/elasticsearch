@@ -26,6 +26,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -43,30 +44,12 @@ import static com.google.common.collect.Maps.newHashMap;
  */
 public class MapClusterStatePart<T extends NamedClusterStatePart> extends AbstractClusterStatePart implements IndexClusterStatePart< MapClusterStatePart<T>> {
 
-    private final ImmutableOpenMap<String, T> parts;
-    private final EnumSet<XContentContext> xContentContext;
     private final String type;
+    private final ImmutableOpenMap<String, T> parts;
 
-    public MapClusterStatePart(String type, ImmutableOpenMap<String, T> parts, EnumSet<XContentContext> xContentContext) {
-        this.parts = parts;
+    public MapClusterStatePart(String type, ImmutableOpenMap<String, T> parts) {
         this.type = type;
-        this.xContentContext = xContentContext;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(parts.size());
-        for (ObjectObjectCursor<String, T> part : parts) {
-            part.value.writeTo(out);
-        }
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        for (ObjectCursor<T> part : parts.values()) {
-            part.value.toXContent(builder, params);
-        }
-        return builder;
+        this.parts = parts;
     }
 
     public ImmutableOpenMap<String, T> parts() {
@@ -75,11 +58,6 @@ public class MapClusterStatePart<T extends NamedClusterStatePart> extends Abstra
 
     public T get(String type) {
         return parts.get(type);
-    }
-
-    @Override
-    public EnumSet<XContentContext> context() {
-        return xContentContext;
     }
 
     @Override
@@ -119,7 +97,22 @@ public class MapClusterStatePart<T extends NamedClusterStatePart> extends Abstra
                 T part = factory.readFrom(in, context);
                 builder.put(part.key(), part);
             }
-            return new MapClusterStatePart<>(type, builder.build(), xContentContext);
+            return new MapClusterStatePart<>(type, builder.build());
+        }
+
+        @Override
+        public void writeTo(MapClusterStatePart<T> part, StreamOutput out) throws IOException {
+            out.writeVInt(part.parts.size());
+            for (ObjectObjectCursor<String, T> cursor : part.parts) {
+                factory.writeTo(cursor.value, out);
+            }
+        }
+
+        @Override
+        public void toXContent(MapClusterStatePart<T> part, XContentBuilder builder, Params params) throws IOException {
+            for (ObjectCursor<T> cursor : part.parts.values()) {
+                factory.toXContent(cursor.value, builder, params);
+            }
         }
 
         @Override
@@ -129,7 +122,7 @@ public class MapClusterStatePart<T extends NamedClusterStatePart> extends Abstra
                 T part = factory.fromXContent(parser, context);
                 builder.put(part.key(), part);
             }
-            return new MapClusterStatePart<>(type, builder.build(), xContentContext);
+            return new MapClusterStatePart<>(type, builder.build());
         }
 
         @Override
@@ -140,19 +133,15 @@ public class MapClusterStatePart<T extends NamedClusterStatePart> extends Abstra
             if (before != null) {
                 ImmutableOpenMap<String, T> beforeParts = before.parts();
                 ImmutableOpenMap<String, T> afterParts = after.parts();
-                if (before.equals(after)) {
-                    return new NoDiff<>();
-                } else {
-                    for (ObjectObjectCursor<String, T> partIter : beforeParts) {
-                        if (!afterParts.containsKey(partIter.key)) {
-                            deletes.add(partIter.key);
-                        }
+                for (ObjectObjectCursor<String, T> partIter : beforeParts) {
+                    if (!afterParts.containsKey(partIter.key)) {
+                        deletes.add(partIter.key);
                     }
-                    for (ObjectObjectCursor<String, T> partIter : afterParts) {
-                        T beforePart = beforeParts.get(partIter.key);
-                        if (!partIter.value.equals(beforePart)) {
-                            diffs.put(partIter.key, factory.diff(beforePart, partIter.value));
-                        }
+                }
+                for (ObjectObjectCursor<String, T> partIter : afterParts) {
+                    T beforePart = beforeParts.get(partIter.key);
+                    if (!partIter.value.equals(beforePart)) {
+                        diffs.put(partIter.key, factory.diff(beforePart, partIter.value));
                     }
                 }
             } else {
@@ -166,28 +155,29 @@ public class MapClusterStatePart<T extends NamedClusterStatePart> extends Abstra
 
         @Override
         public Diff<MapClusterStatePart<T>> readDiffFrom(StreamInput in, LocalContext context) throws IOException {
-            if (in.readBoolean()) {
-                int deletesSize = in.readVInt();
-                List<String> deletes = new ArrayList<>();
-                for (int i = 0; i < deletesSize; i++) {
-                    deletes.add(in.readString());
-                }
-
-                int diffsSize = in.readVInt();
-                Map<String, Diff<T>> diffs = newHashMap();
-                for (int i = 0; i < diffsSize; i++) {
-                    String key = in.readString();
-                    diffs.put(key, factory.readDiffFrom(in, context));
-                }
-                return new MapDiff<>(type, deletes, diffs, xContentContext);
-
-            } else {
-                return new NoDiff<>();
+            int deletesSize = in.readVInt();
+            List<String> deletes = new ArrayList<>();
+            for (int i = 0; i < deletesSize; i++) {
+                deletes.add(in.readString());
             }
+
+            int diffsSize = in.readVInt();
+            Map<String, Diff<T>> diffs = newHashMap();
+            for (int i = 0; i < diffsSize; i++) {
+                String key = in.readString();
+                diffs.put(key, factory.readDiffFrom(in, context));
+            }
+            return new MapDiff<>(type, deletes, diffs, xContentContext);
         }
 
         public MapClusterStatePart<T> fromOpenMap(ImmutableOpenMap<String, T> map) {
-            return new MapClusterStatePart<>(type, map, xContentContext);
+            return new MapClusterStatePart<>(type, map);
+        }
+
+
+        @Override
+        public EnumSet<XContentContext> context() {
+            return xContentContext;
         }
 
 
@@ -196,6 +186,20 @@ public class MapClusterStatePart<T extends NamedClusterStatePart> extends Abstra
             return type;
         }
 
+        @Override
+        public void writeDiffsTo(Diff<MapClusterStatePart<T>> diff, StreamOutput out) throws IOException {
+            MapDiff<T> mapDiff = (MapDiff<T>)diff;
+            out.writeVInt(mapDiff.deletes.size());
+            for (String delete : mapDiff.deletes) {
+                out.writeString(delete);
+            }
+
+            out.writeVInt(mapDiff.diffs.size());
+            for (Map.Entry<String, Diff<T>> entry : mapDiff.diffs.entrySet()) {
+                out.writeString(entry.getKey());
+                factory.writeDiffsTo(entry.getValue(), out);
+            }
+        }
     }
 
     private static class MapDiff<T extends NamedClusterStatePart> implements Diff<MapClusterStatePart<T>> {
@@ -229,22 +233,7 @@ public class MapClusterStatePart<T extends NamedClusterStatePart> extends Abstra
                     parts.put(entry.getKey(), entry.getValue().apply(null));
                 }
             }
-            return new MapClusterStatePart(type, parts.build(), xContentContext);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeBoolean(true); // We have diffs
-            out.writeVInt(deletes.size());
-            for (String delete : deletes) {
-                out.writeString(delete);
-            }
-
-            out.writeVInt(diffs.size());
-            for (Map.Entry<String, Diff<T>> entry : diffs.entrySet()) {
-                out.writeString(entry.getKey());
-                entry.getValue().writeTo(out);
-            }
+            return new MapClusterStatePart(type, parts.build());
         }
     }
 

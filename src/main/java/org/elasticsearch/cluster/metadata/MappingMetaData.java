@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.cluster.AbstractClusterStatePart;
+import org.elasticsearch.cluster.ClusterStatePart;
 import org.elasticsearch.cluster.LocalContext;
 import org.elasticsearch.cluster.NamedClusterStatePart;
 import org.elasticsearch.common.Nullable;
@@ -52,32 +53,8 @@ public class MappingMetaData extends AbstractClusterStatePart implements NamedCl
     public static final Factory FACTORY = new Factory();
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        writeTo(this, out);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if(params.paramAsBoolean("reduce_mappings", false)) {
-            byte[] mappingSource = source().uncompressed();
-            XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
-            Map<String, Object> mapping = parser.map();
-            if (mapping.size() == 1 && mapping.containsKey(type)) {
-                // the type name is the root value, reduce it
-                mapping = (Map<String, Object>) mapping.get(type);
-            }
-            builder.field(type);
-            builder.map(mapping);
-        } else if (params.paramAsBoolean("binary", false)) {
-            builder.value(source().compressed());
-        } else {
-            byte[] data = source().uncompressed();
-            XContentParser parser = XContentFactory.xContent(data).createParser(data);
-            Map<String, Object> mapping = parser.mapOrdered();
-            parser.close();
-            builder.map(mapping);
-        }
-        return builder;
+    public String partType() {
+        return TYPE;
     }
 
     @Override
@@ -98,13 +75,36 @@ public class MappingMetaData extends AbstractClusterStatePart implements NamedCl
         }
 
         @Override
+        public void writeTo(MappingMetaData part, StreamOutput out) throws IOException {
+            MappingMetaData.writeTo(part, out);
+        }
+
+        @Override
         public String partType() {
             return TYPE;
         }
 
         @Override
-        public MappingMetaData fromXContent(XContentParser parser, LocalContext context) throws IOException {
-            return super.fromXContent(parser, context);
+        public void toXContent(MappingMetaData part, XContentBuilder builder, ToXContent.Params params) throws IOException {
+            if(params.paramAsBoolean("reduce_mappings", false)) {
+                byte[] mappingSource = part.source().uncompressed();
+                XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
+                Map<String, Object> mapping = parser.map();
+                if (mapping.size() == 1 && mapping.containsKey(partType())) {
+                    // the type name is the root value, reduce it
+                    mapping = (Map<String, Object>) mapping.get(partType());
+                }
+                builder.field(partType());
+                builder.map(mapping);
+            } else if (params.paramAsBoolean("binary", false)) {
+                builder.value(part.source().compressed());
+            } else {
+                byte[] data = part.source().uncompressed();
+                XContentParser parser = XContentFactory.xContent(data).createParser(data);
+                Map<String, Object> mapping = parser.mapOrdered();
+                parser.close();
+                builder.map(mapping);
+            }
         }
     }
 
@@ -452,11 +452,6 @@ public class MappingMetaData extends AbstractClusterStatePart implements NamedCl
 
     public String type() {
         return this.type;
-    }
-
-    @Override
-    public String partType() {
-        return TYPE;
     }
 
     public CompressedString source() {

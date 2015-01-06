@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -50,6 +51,41 @@ public class IndexTemplateMetaData extends AbstractClusterStatePart implements N
     public static String TYPE = "template";
 
     public static Factory FACTORY = new Factory();
+
+    public static class Factory extends AbstractClusterStatePart.AbstractFactory<IndexTemplateMetaData> {
+
+        @Override
+        public IndexTemplateMetaData readFrom(StreamInput in, LocalContext context) throws IOException {
+            return Builder.readFrom(in);
+        }
+
+        @Override
+        public void writeTo(IndexTemplateMetaData indexTemplateMetaData, StreamOutput out) throws IOException {
+            Builder.writeTo(indexTemplateMetaData, out);
+        }
+
+        @Override
+        public IndexTemplateMetaData fromXContent(XContentParser parser, LocalContext context) throws IOException {
+            return Builder.fromXContent(parser, parser.currentName());
+        }
+
+        @Override
+        public void toXContent(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder, Params params) throws IOException {
+            Builder.toXContent(indexTemplateMetaData, builder, params);
+        }
+
+        @Override
+        public EnumSet<XContentContext> context() {
+            return API_GATEWAY_SNAPSHOT;
+        }
+
+
+        @Override
+        public String partType() {
+            return TYPE;
+        }
+    }
+
 
     private final String name;
 
@@ -133,11 +169,6 @@ public class IndexTemplateMetaData extends AbstractClusterStatePart implements N
         return this.customs;
     }
 
-    @Override
-    public String partType() {
-        return TYPE;
-    }
-
     @SuppressWarnings("unchecked")
     public <T extends IndexClusterStatePart> T custom(String type) {
         return (T) customs.get(type);
@@ -171,11 +202,6 @@ public class IndexTemplateMetaData extends AbstractClusterStatePart implements N
         result = 31 * result + settings.hashCode();
         result = 31 * result + mappings.hashCode();
         return result;
-    }
-
-    @Override
-    public EnumSet<XContentContext> context() {
-        return API_GATEWAY_SNAPSHOT;
     }
 
     public static class Builder {
@@ -323,7 +349,7 @@ public class IndexTemplateMetaData extends AbstractClusterStatePart implements N
 
             for (ObjectObjectCursor<String, IndexClusterStatePart> cursor : indexTemplateMetaData.customs()) {
                 builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
-                cursor.value.toXContent(builder, params);
+                IndexMetaData.FACTORY.lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
                 builder.endObject();
             }
 
@@ -463,8 +489,11 @@ public class IndexTemplateMetaData extends AbstractClusterStatePart implements N
             }
             out.writeVInt(indexTemplateMetaData.customs().size());
             for (ObjectObjectCursor<String, IndexClusterStatePart> cursor : indexTemplateMetaData.customs()) {
-                out.writeString(cursor.key);
-                cursor.value.writeTo(out);
+                IndexClusterStatePart.Factory<IndexClusterStatePart> factory = IndexMetaData.FACTORY.lookupFactorySafe(cursor.key);
+                if (factory.addedIn().onOrAfter(out.getVersion())) {
+                    out.writeString(cursor.key);
+                    factory.writeTo(cursor.value, out);
+                }
             }
         }
     }
@@ -473,35 +502,5 @@ public class IndexTemplateMetaData extends AbstractClusterStatePart implements N
     public String key() {
         return name;
     }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        Builder.writeTo(this, out);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        Builder.toXContent(this, builder, params);
-        return builder;
-    }
-
-    public static class Factory extends AbstractClusterStatePart.AbstractFactory<IndexTemplateMetaData> {
-
-        @Override
-        public IndexTemplateMetaData readFrom(StreamInput in, LocalContext context) throws IOException {
-            return Builder.readFrom(in);
-        }
-
-        @Override
-        public IndexTemplateMetaData fromXContent(XContentParser parser, LocalContext context) throws IOException {
-            return Builder.fromXContent(parser, parser.currentName());
-        }
-
-        @Override
-        public String partType() {
-            return TYPE;
-        }
-    }
-
 
 }

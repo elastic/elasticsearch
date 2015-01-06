@@ -86,11 +86,46 @@ public class IndexMetaData extends NamedCompositeClusterStatePart<IndexClusterSt
         FACTORY.registerFactory(IndexWarmersMetaData.TYPE, IndexWarmersMetaData.FACTORY);
     }
 
-    @Override
-    public String partType() {
-        return TYPE;
-    }
+    public static class Factory extends NamedCompositeClusterStatePart.AbstractFactory<IndexClusterStatePart, IndexMetaData> {
 
+        @Override
+        public NamedCompositeClusterStatePart.Builder<IndexClusterStatePart, IndexMetaData> builder(String key) {
+            return new Builder(key);
+        }
+
+        @Override
+        public NamedCompositeClusterStatePart.Builder<IndexClusterStatePart, IndexMetaData> builder(IndexMetaData part) {
+            return new Builder(part);
+        }
+
+        @Override
+        public IndexMetaData fromXContent(XContentParser parser, LocalContext context) throws IOException {
+            return Builder.fromXContent(parser);
+        }
+
+        @Override
+        protected void valuesPartWriteTo(IndexMetaData indexMetaData, StreamOutput out) throws IOException {
+            out.writeVLong(indexMetaData.version);
+            out.writeByte(indexMetaData.state.id());
+        }
+
+        @Override
+        protected void valuesPartToXContent(IndexMetaData indexMetaData, XContentBuilder builder, Params params) throws IOException {
+            builder.field("version", indexMetaData.version);
+            builder.field("state", indexMetaData.state.toString().toLowerCase(Locale.ENGLISH));
+        }
+
+        @Override
+        public void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, Params params) throws IOException {
+            // TODO: switch to generic toXContent
+            Builder.toXContent(indexMetaData, builder, params);
+        }
+
+        @Override
+        public String partType() {
+            return TYPE;
+        }
+    }
 
     public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(5, "index read-only (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA));
     public static final ClusterBlock INDEX_READ_BLOCK = new ClusterBlock(7, "index read (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.READ));
@@ -427,25 +462,6 @@ public class IndexMetaData extends NamedCompositeClusterStatePart<IndexClusterSt
         return result;
     }
 
-    @Override
-    protected void valuesPartWriteTo(StreamOutput out) throws IOException {
-        out.writeVLong(version);
-        out.writeByte(state.id());
-    }
-
-    @Override
-    protected void valuesPartToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("version", version);
-        builder.field("state", state.toString().toLowerCase(Locale.ENGLISH));
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // TODO: switch to generic toXContent
-        Builder.toXContent(this, builder, params);
-        return builder;
-    }
-
     public static Builder builder(String index) {
         return new Builder(index);
     }
@@ -658,13 +674,13 @@ public class IndexMetaData extends NamedCompositeClusterStatePart<IndexClusterSt
             if (params.paramAsBoolean("reduce_mappings", false)) {
                 builder.startObject("mappings");
                 for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
-                    cursor.value.toXContent(builder, params);
+                    MappingMetaData.FACTORY.toXContent(cursor.value, builder, params);
                 }
                 builder.endObject();
             } else {
                 builder.startArray("mappings");
                 for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
-                    cursor.value.toXContent(builder, params);
+                    MappingMetaData.FACTORY.toXContent(cursor.value, builder, params);
                 }
                 builder.endArray();
             }
@@ -672,7 +688,7 @@ public class IndexMetaData extends NamedCompositeClusterStatePart<IndexClusterSt
             for (ObjectObjectCursor<String, IndexClusterStatePart> cursor : indexMetaData.parts()) {
                 if (!cursor.key.equals(MAPPINGS_TYPE)) {
                     builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
-                    cursor.value.toXContent(builder, params);
+                    FACTORY.lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
                     builder.endObject();
                 }
             }
@@ -752,36 +768,13 @@ public class IndexMetaData extends NamedCompositeClusterStatePart<IndexClusterSt
         }
 
         public static void writeTo(IndexMetaData indexMetaData, StreamOutput out) throws IOException {
-            indexMetaData.writeTo(out);
+            FACTORY.writeTo(indexMetaData, out);
         }
     }
 
     @Override
     public String key() {
         return index;
-    }
-
-    public static class Factory extends NamedCompositeClusterStatePart.AbstractFactory<IndexClusterStatePart, IndexMetaData> {
-
-        @Override
-        public NamedCompositeClusterStatePart.Builder<IndexClusterStatePart, IndexMetaData> builder(String key) {
-            return new Builder(key);
-        }
-
-        @Override
-        public NamedCompositeClusterStatePart.Builder<IndexClusterStatePart, IndexMetaData> builder(IndexMetaData part) {
-            return new Builder(part);
-        }
-
-        @Override
-        public IndexMetaData fromXContent(XContentParser parser, LocalContext context) throws IOException {
-            return Builder.fromXContent(parser);
-        }
-
-        @Override
-        public String partType() {
-            return TYPE;
-        }
     }
 
 }

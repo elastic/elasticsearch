@@ -45,34 +45,6 @@ public class IndexWarmersMetaData extends AbstractClusterStatePart implements In
 
     public static final Factory FACTORY = new Factory();
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(entries.size());
-        for (Entry entry : entries) {
-            out.writeString(entry.name());
-            out.writeStringArray(entry.types());
-            if (entry.source() == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeBytesReference(entry.source());
-            }
-            out.writeOptionalBoolean(entry.queryCache());
-        }
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        //No need, IndexMetaData already writes it
-        //builder.startObject(TYPE, XContentBuilder.FieldCaseConversion.NONE);
-        for (Entry entry : entries) {
-            toXContent(entry, builder, params);
-        }
-        //No need, IndexMetaData already writes it
-        //builder.endObject();
-        return builder;
-    }
-
     public static void toXContent(Entry entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
         boolean binary = params.paramAsBoolean("binary", false);
         builder.startObject(entry.name(), XContentBuilder.FieldCaseConversion.NONE);
@@ -113,7 +85,6 @@ public class IndexWarmersMetaData extends AbstractClusterStatePart implements In
     public String partType() {
         return TYPE;
     }
-
 
     public static class Entry {
         private final String name;
@@ -178,6 +149,22 @@ public class IndexWarmersMetaData extends AbstractClusterStatePart implements In
         }
 
         @Override
+        public void writeTo(IndexWarmersMetaData indexWarmersMetaData, StreamOutput out) throws IOException {
+            out.writeVInt(indexWarmersMetaData.entries.size());
+            for (Entry entry : indexWarmersMetaData.entries) {
+                out.writeString(entry.name());
+                out.writeStringArray(entry.types());
+                if (entry.source() == null) {
+                    out.writeBoolean(false);
+                } else {
+                    out.writeBoolean(true);
+                    out.writeBytesReference(entry.source());
+                }
+                out.writeOptionalBoolean(entry.queryCache());
+            }
+        }
+
+        @Override
         public IndexWarmersMetaData fromXContent(XContentParser parser, LocalContext context) throws IOException {
             // we get here after we are at warmers token
             String currentFieldName = null;
@@ -219,6 +206,17 @@ public class IndexWarmersMetaData extends AbstractClusterStatePart implements In
                 }
             }
             return new IndexWarmersMetaData(entries.toArray(new Entry[entries.size()]));
+        }
+
+        @Override
+        public void toXContent(IndexWarmersMetaData indexWarmersMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
+            //No need, IndexMetaData already writes it
+            //builder.startObject(TYPE, XContentBuilder.FieldCaseConversion.NONE);
+            for (Entry entry : indexWarmersMetaData.entries) {
+                IndexWarmersMetaData.toXContent(entry, builder, params);
+            }
+            //No need, IndexMetaData already writes it
+            //builder.endObject();
         }
 
         @Override

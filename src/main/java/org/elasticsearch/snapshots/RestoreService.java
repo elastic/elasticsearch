@@ -283,7 +283,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                 private void restoreGlobalStateIfRequested(MetaData.Builder mdBuilder) {
                     if (request.includeGlobalState()) {
                         for (ObjectObjectCursor<String, ClusterStatePart> cursor : metaData.parts()) {
-                            if (cursor.value.context().contains(ClusterStatePart.XContentContext.SNAPSHOT)) {
+                            if (MetaData.FACTORY.lookupFactory(cursor.key).context().contains(ClusterStatePart.XContentContext.SNAPSHOT)) {
                                 if (cursor.key.equals(IndexTemplateMetaData.TYPE)) {
                                     // Merge templates instead of replacing them
                                     for (ObjectCursor<IndexTemplateMetaData> cursor2 : metaData.templates().values()) {

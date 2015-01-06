@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 
@@ -83,17 +84,41 @@ public class ClusterBlocks extends AbstractClusterStatePart {
         }
     }
 
-    @Override
-    public String partType() {
-        return TYPE;
-    }
-
     public static class Factory extends AbstractFactory<ClusterBlocks> {
 
         @Override
         public ClusterBlocks readFrom(StreamInput in, LocalContext context) throws IOException {
             return Builder.readClusterBlocks(in);
         }
+
+        @Override
+        public void writeTo(ClusterBlocks clusterBlocks, StreamOutput out) throws IOException {
+            Builder.writeClusterBlocks(clusterBlocks, out);
+        }
+
+        @Override
+        public void toXContent(ClusterBlocks clusterBlocks, XContentBuilder builder, Params params) throws IOException {
+            if (!clusterBlocks.global().isEmpty()) {
+                builder.startObject("global");
+                for (ClusterBlock block : clusterBlocks.global()) {
+                    block.toXContent(builder, params);
+                }
+                builder.endObject();
+            }
+
+            if (!clusterBlocks.indices().isEmpty()) {
+                builder.startObject("indices");
+                for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : clusterBlocks.indices().entrySet()) {
+                    builder.startObject(entry.getKey());
+                    for (ClusterBlock block : entry.getValue()) {
+                        block.toXContent(builder, params);
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+        }
+
 
         @Override
         public String partType() {
@@ -226,36 +251,6 @@ public class ClusterBlocks extends AbstractClusterStatePart {
             }
         }
         return new ClusterBlockException(builder.build());
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        Builder.writeClusterBlocks(this, out);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (!global().isEmpty()) {
-            builder.startObject("global");
-            for (ClusterBlock block : global()) {
-                block.toXContent(builder, params);
-            }
-            builder.endObject();
-        }
-
-        if (!indices().isEmpty()) {
-            builder.startObject("indices");
-            for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : indices().entrySet()) {
-                builder.startObject(entry.getKey());
-                for (ClusterBlock block : entry.getValue()) {
-                    block.toXContent(builder, params);
-                }
-                builder.endObject();
-            }
-            builder.endObject();
-        }
-
-        return builder;
     }
 
     static class ImmutableLevelHolder {

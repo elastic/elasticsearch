@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStatePart;
+import org.elasticsearch.cluster.ClusterStatePart.Factory;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -125,8 +126,10 @@ public class TransportClusterStateAction extends TransportMasterNodeReadOperatio
             }
 
             // Filter our metadata that shouldn't be returned by API
+            // TODO: we probably shouldn't do that
             for(ObjectObjectCursor<String, ClusterStatePart> cursor :  currentState.metaData().customs()) {
-                if(!cursor.value.context().contains(MetaData.XContentContext.API)) {
+                Factory<ClusterStatePart> factory = MetaData.FACTORY.lookupFactorySafe(cursor.key);
+                if(!factory.context().contains(ClusterStatePart.XContentContext.API)) {
                     mdBuilder.removeCustom(cursor.key);
                 }
             }

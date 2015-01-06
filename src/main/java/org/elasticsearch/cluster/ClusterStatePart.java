@@ -20,9 +20,11 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -35,7 +37,7 @@ import java.util.Map;
  * Each cluster state part is serializable in both binary and json formats and can calculate differences with the
  * previous version of the same part.
  */
-public interface ClusterStatePart extends ToXContent {
+public interface ClusterStatePart {
 
     public static final String CONTEXT_MODE_PARAM = "context_mode";
 
@@ -61,43 +63,59 @@ public interface ClusterStatePart extends ToXContent {
     public static EnumSet<XContentContext> GATEWAY = EnumSet.of(XContentContext.GATEWAY);
     public static EnumSet<XContentContext> GATEWAY_SNAPSHOT = EnumSet.of(XContentContext.GATEWAY, XContentContext.SNAPSHOT);
 
-    /**
-     * Writes part to output stream
-     */
-    void writeTo(StreamOutput out) throws IOException;
-
-    /**
-     * Returns a set of contexts in which this part should be serialized as JSON
-     */
-    EnumSet<XContentContext> context();
-
-    /**
-     * Returns part type
-     */
-    String partType();
-
     interface Factory<T extends ClusterStatePart> {
+
+        /**
+         * Reads a part from input stream
+         */
+        T readFrom(StreamInput in, LocalContext context) throws IOException;
+
+        /**
+         * Writes the  part to output stream
+         */
+        void writeTo(T part, StreamOutput out) throws IOException;
+
+        /**
+         * Reads a part from XContent stream
+         */
+        T fromXContent(XContentParser parser, LocalContext context) throws IOException;
+
+        /**
+         * Writes a part from XContent stream
+         */
+        void toXContent(T part, XContentBuilder builder, ToXContent.Params params) throws IOException;
+
+        /**
+         * Reads a part from map
+         */
+        T fromMap(Map<String, Object> map, LocalContext context) throws IOException;
 
         Diff<T> diff(T before, T after);
 
         Diff<T> readDiffFrom(StreamInput in, LocalContext context) throws IOException;
 
-        T readFrom(StreamInput in, LocalContext context) throws IOException;
+        void writeDiffsTo(Diff<T> diff, StreamOutput out) throws IOException;
 
-        T fromXContent(XContentParser parser, LocalContext context) throws IOException;
 
-        T fromMap(Map<String, Object> map, LocalContext context) throws IOException;
-
+        /**
+         * Returns part type
+         */
         String partType();
 
+        /**
+         * Returns the version of Elasticsearch where this part was first added
+         */
         Version addedIn();
 
+        /**
+         * Returns a set of contexts in which this part should be serialized as JSON
+         */
+        EnumSet<XContentContext> context();
     }
 
     interface Diff<T extends ClusterStatePart> {
 
         T apply(T part);
 
-        void writeTo(StreamOutput out) throws IOException;
     }
 }

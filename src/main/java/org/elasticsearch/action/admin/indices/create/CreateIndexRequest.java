@@ -481,8 +481,11 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         }
         out.writeVInt(customs.size());
         for (Map.Entry<String, IndexClusterStatePart> entry : customs.entrySet()) {
-            out.writeString(entry.getKey());
-            entry.getValue().writeTo(out);
+            IndexClusterStatePart.Factory<IndexClusterStatePart> factory = IndexMetaData.FACTORY.lookupFactorySafe(entry.getKey());
+            if (factory.addedIn().onOrAfter(out.getVersion())) {
+                out.writeString(entry.getKey());
+                factory.writeTo(entry.getValue(), out);
+            }
         }
         out.writeVInt(aliases.size());
         for (Alias alias : aliases) {

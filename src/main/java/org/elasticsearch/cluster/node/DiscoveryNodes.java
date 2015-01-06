@@ -35,6 +35,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -70,6 +71,28 @@ public class DiscoveryNodes extends AbstractClusterStatePart implements Iterable
         @Override
         public DiscoveryNodes readFrom(StreamInput in, LocalContext context) throws IOException {
             return Builder.readFrom(in, context.getLocalNode());
+        }
+
+        @Override
+        public void writeTo(DiscoveryNodes discoveryNodes, StreamOutput out) throws IOException {
+            DiscoveryNodes.Builder.writeTo(discoveryNodes, out);
+        }
+
+        @Override
+        public void toXContent(DiscoveryNodes discoveryNodes, XContentBuilder builder, Params params) throws IOException {
+            for (DiscoveryNode node : discoveryNodes) {
+                builder.startObject(node.id(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.field("name", node.name());
+                builder.field("transport_address", node.address().toString());
+
+                builder.startObject("attributes");
+                for (Map.Entry<String, String> attr : node.attributes().entrySet()) {
+                    builder.field(attr.getKey(), attr.getValue());
+                }
+                builder.endObject();
+
+                builder.endObject();
+            }
         }
 
         @Override
@@ -485,34 +508,6 @@ public class DiscoveryNodes extends AbstractClusterStatePart implements Iterable
 
     public Delta emptyDelta() {
         return new Delta(null, null, localNodeId, DiscoveryNode.EMPTY_LIST, DiscoveryNode.EMPTY_LIST);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        DiscoveryNodes.Builder.writeTo(this, out);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        for (DiscoveryNode node : this) {
-            builder.startObject(node.id(), XContentBuilder.FieldCaseConversion.NONE);
-            builder.field("name", node.name());
-            builder.field("transport_address", node.address().toString());
-
-            builder.startObject("attributes");
-            for (Map.Entry<String, String> attr : node.attributes().entrySet()) {
-                builder.field(attr.getKey(), attr.getValue());
-            }
-            builder.endObject();
-
-            builder.endObject();
-        }
-        return builder;
-    }
-
-    @Override
-    public String partType() {
-        return TYPE;
     }
 
     public static class Delta {

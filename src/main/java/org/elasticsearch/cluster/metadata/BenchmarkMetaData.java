@@ -55,11 +55,6 @@ public class BenchmarkMetaData extends AbstractClusterStatePart {
         return entries.hashCode();
     }
 
-    @Override
-    public String partType() {
-        return TYPE;
-    }
-
     public static class Entry {
         private final State state;
         private final String benchmarkId;
@@ -161,27 +156,7 @@ public class BenchmarkMetaData extends AbstractClusterStatePart {
         return this.entries;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(entries.size());
-        for (Entry entry : entries) {
-            out.writeString(entry.benchmarkId());
-            out.writeByte(entry.state().id());
-            out.writeStringArray(entry.nodes());
-        }
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startArray("benchmarks");
-        for (Entry entry : entries) {
-            toXContent(entry, builder, params);
-        }
-        builder.endArray();
-        return builder;
-    }
-
-    public void toXContent(Entry entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
+    public static void toXContent(Entry entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.field("id", entry.benchmarkId());
         builder.field("state", entry.state());
@@ -206,6 +181,24 @@ public class BenchmarkMetaData extends AbstractClusterStatePart {
             return new BenchmarkMetaData(entries);
         }
 
+        @Override
+        public void writeTo(BenchmarkMetaData benchmarkMetaData, StreamOutput out) throws IOException {
+            out.writeVInt(benchmarkMetaData.entries.size());
+            for (Entry entry : benchmarkMetaData.entries) {
+                out.writeString(entry.benchmarkId());
+                out.writeByte(entry.state().id());
+                out.writeStringArray(entry.nodes());
+            }
+        }
+
+        @Override
+        public void toXContent(BenchmarkMetaData benchmarkMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
+            builder.startArray("benchmarks");
+            for (Entry entry : benchmarkMetaData.entries) {
+                BenchmarkMetaData.toXContent(entry, builder, params);
+            }
+            builder.endArray();
+        }
         @Override
         public String partType() {
             return TYPE;

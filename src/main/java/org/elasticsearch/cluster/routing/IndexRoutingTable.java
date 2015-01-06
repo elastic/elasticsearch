@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -95,27 +96,6 @@ public class IndexRoutingTable extends AbstractClusterStatePart implements Itera
     }
 
     @Override
-    public String partType() {
-        return TYPE;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(index(), XContentBuilder.FieldCaseConversion.NONE);
-        builder.startObject("shards");
-        for (ObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : shards.values()) {
-            builder.startArray(Integer.toString(indexShardRoutingTable.value.shardId().id()));
-            for (ShardRouting shardRouting : indexShardRoutingTable.value) {
-                shardRouting.toXContent(builder, params);
-            }
-            builder.endArray();
-        }
-        builder.endObject();
-        builder.endObject();
-        return builder;
-    }
-
-    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -140,6 +120,26 @@ public class IndexRoutingTable extends AbstractClusterStatePart implements Itera
         @Override
         public IndexRoutingTable readFrom(StreamInput in, LocalContext context) throws IOException {
             return Builder.readFrom(in);
+        }
+
+        @Override
+        public void writeTo(IndexRoutingTable indexRoutingTable, StreamOutput out) throws IOException {
+            Builder.writeTo(indexRoutingTable, out);
+        }
+
+        @Override
+        public void toXContent(IndexRoutingTable indexRoutingTable, XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(indexRoutingTable.index(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject("shards");
+            for (ObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : indexRoutingTable.shards.values()) {
+                builder.startArray(Integer.toString(indexShardRoutingTable.value.shardId().id()));
+                for (ShardRouting shardRouting : indexShardRoutingTable.value) {
+                    shardRouting.toXContent(builder, params);
+                }
+                builder.endArray();
+            }
+            builder.endObject();
+            builder.endObject();
         }
 
         @Override
@@ -391,11 +391,6 @@ public class IndexRoutingTable extends AbstractClusterStatePart implements Itera
 
     public static Builder builder(String index) {
         return new Builder(index);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        Builder.writeTo(this, out);
     }
 
     public static class Builder {

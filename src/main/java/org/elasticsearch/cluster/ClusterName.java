@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -39,6 +40,29 @@ public class ClusterName extends AbstractClusterStatePart implements Streamable 
     public static final String SETTING = "cluster.name";
 
     public static final ClusterName DEFAULT = new ClusterName("elasticsearch".intern());
+
+    public static class Factory extends AbstractFactory<ClusterName> {
+
+        @Override
+        public ClusterName readFrom(StreamInput in, LocalContext context) throws IOException {
+            return readClusterName(in);
+        }
+
+        @Override
+        public void writeTo(ClusterName part, StreamOutput out) throws IOException {
+            part.writeTo(out);
+        }
+
+        @Override
+        public void toXContent(ClusterName clusterName, XContentBuilder builder, Params params) throws IOException {
+            builder.field("cluster_name", clusterName);
+        }
+
+        @Override
+        public String partType() {
+            return TYPE;
+        }
+    }
 
     private String value;
 
@@ -87,11 +111,6 @@ public class ClusterName extends AbstractClusterStatePart implements Streamable 
     }
 
     @Override
-    public String partType() {
-        return TYPE;
-    }
-
-    @Override
     public int hashCode() {
         return value != null ? value.hashCode() : 0;
     }
@@ -99,24 +118,5 @@ public class ClusterName extends AbstractClusterStatePart implements Streamable 
     @Override
     public String toString() {
         return "Cluster [" + value + "]";
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("cluster_name", value);
-        return builder;
-    }
-
-    public static class Factory extends AbstractFactory<ClusterName> {
-
-        @Override
-        public ClusterName readFrom(StreamInput in, LocalContext context) throws IOException {
-            return readClusterName(in);
-        }
-
-        @Override
-        public String partType() {
-            return TYPE;
-        }
     }
 }

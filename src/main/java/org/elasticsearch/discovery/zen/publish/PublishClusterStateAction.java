@@ -23,6 +23,7 @@ import com.google.common.collect.Maps;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterState.ClusterStateDiff;
 import org.elasticsearch.cluster.IncompatibleClusterStateVersionException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -295,7 +296,8 @@ public class PublishClusterStateAction extends AbstractComponent {
         StreamOutput stream = new HandlesStreamOutput(CompressorFactory.defaultCompressor().streamOutput(bStream));
         stream.setVersion(nodeVersion);
         stream.writeBoolean(false);
-        ClusterState.Builder.diff(lastProcessedClusterState, clusterState).writeTo(stream);
+        ClusterStateDiff diff = ClusterState.Builder.diff(lastProcessedClusterState, clusterState);
+        ClusterState.Builder.writeDiffTo(diff, stream);
         stream.close();
         return bStream.bytes();
     }

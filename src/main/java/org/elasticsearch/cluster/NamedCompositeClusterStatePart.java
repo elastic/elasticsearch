@@ -25,6 +25,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -39,7 +40,7 @@ import static com.google.common.collect.Maps.newHashMap;
  * <p/>
  * Only one instance of each type can be present in the composite part. The key of the map is the part's type.
  */
-public abstract class NamedCompositeClusterStatePart<E extends ClusterStatePart> extends AbstractClusterStatePart implements NamedClusterStatePart{
+public abstract class NamedCompositeClusterStatePart<E extends ClusterStatePart> extends AbstractClusterStatePart implements NamedClusterStatePart {
 
     protected final ImmutableOpenMap<String, E> parts;
 
@@ -66,34 +67,6 @@ public abstract class NamedCompositeClusterStatePart<E extends ClusterStatePart>
 
     public ImmutableOpenMap<String, E> parts() {
         return parts;
-    }
-
-    protected abstract void valuesPartWriteTo(StreamOutput out) throws IOException;
-    protected abstract void valuesPartToXContent(XContentBuilder builder, Params params) throws IOException;
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(key());
-        valuesPartWriteTo(out);
-        out.writeVInt(parts().size());
-        for (ObjectObjectCursor<String, E> cursor : parts()) {
-            out.writeString(cursor.key);
-            cursor.value.writeTo(out);
-        }
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, XContentContext.API.toString()));
-        valuesPartToXContent(builder, params);
-        for (ObjectObjectCursor<String, E> partIter : parts) {
-            if (partIter.value.context().contains(context)) {
-                builder.startObject(partIter.key);
-                partIter.value.toXContent(builder, params);
-                builder.endObject();
-            }
-        }
-        return builder;
     }
 
     public <T extends E> T get(String type) {
@@ -131,6 +104,7 @@ public abstract class NamedCompositeClusterStatePart<E extends ClusterStatePart>
     public static abstract class AbstractFactory<E extends ClusterStatePart, T extends NamedCompositeClusterStatePart<E>> extends AbstractClusterStatePart.AbstractFactory<T> {
 
         private final Map<String, Factory<? extends E>> partFactories = new HashMap<>();
+
         /**
          * Register a custom index meta data factory. Make sure to call it from a static block.
          */
@@ -144,7 +118,7 @@ public abstract class NamedCompositeClusterStatePart<E extends ClusterStatePart>
 
         @Nullable
         public <T extends E> Factory<T> lookupFactory(String type) {
-            return (Factory<T>)partFactories.get(type);
+            return (Factory<T>) partFactories.get(type);
         }
 
         public <T extends E> Factory<T> lookupFactorySafe(String type) throws ElasticsearchIllegalArgumentException {
@@ -173,62 +147,18 @@ public abstract class NamedCompositeClusterStatePart<E extends ClusterStatePart>
             return builder.build();
         }
 
-        @Override
-        public Diff<T> diff(@Nullable T before, T after) {
-            assert after != null;
-            Map<String, Diff<E>> diffs = newHashMap();
-            List<String> deletes = newArrayList();
-            if (before != null) {
-                ImmutableOpenMap<String, E> beforeParts = before.parts();
-                ImmutableOpenMap<String, E> afterParts = after.parts();
-                if (before.equals(after)) {
-                    return new NoDiff<>();
-                } else {
-                    for (ObjectObjectCursor<String, E> partIter : beforeParts) {
-                        if (!afterParts.containsKey(partIter.key)) {
-                            deletes.add(partIter.key);
-                        }
-                    }
-                    for (ObjectObjectCursor<String, E> partIter : afterParts) {
-                        Factory<E> factory = lookupFactorySafe(partIter.key);
-                        E beforePart = beforeParts.get(partIter.key);
-                        if (!partIter.value.equals(beforePart)) {
-                            diffs.put(partIter.key, factory.diff(beforePart, partIter.value));
-                        }
-                    }
-                }
-            } else {
-                ImmutableOpenMap<String, E> afterParts = after.parts();
-                for (ObjectObjectCursor<String, E> partIter : afterParts) {
-                    Factory<E> factory = lookupFactorySafe(partIter.key);
-                    diffs.put(partIter.key, factory.diff(null, partIter.value));
-                }
-            }
-            return new CompositeDiff<>(builder(after), deletes, diffs);
-        }
 
         @Override
-        public Diff<T> readDiffFrom(StreamInput in, LocalContext context) throws IOException {
-            if (in.readBoolean()) {
-                String key = in.readString();
-                Builder<E, T> builder = builder(key);
-                builder.readValuePartsFrom(in, context);
-                int deletesSize = in.readVInt();
-                List<String> deletes = new ArrayList<>();
-                for (int i = 0; i < deletesSize; i++) {
-                    deletes.add(in.readString());
+        public void writeTo(T part, StreamOutput out) throws IOException {
+            out.writeString(part.key());
+            valuesPartWriteTo(part, out);
+            out.writeVInt(part.parts().size());
+            for (ObjectObjectCursor<String, E> cursor : part.parts()) {
+                Factory<E> factory = lookupFactorySafe(cursor.key);
+                if (factory.addedIn().onOrAfter(out.getVersion())) {
+                    out.writeString(cursor.key);
+                    factory.writeTo(cursor.value, out);
                 }
-
-                int diffsSize = in.readVInt();
-                Map<String, Diff<E>> diffs = newHashMap();
-                for (int i = 0; i < diffsSize; i++) {
-                    String partKey = in.readString();
-                    diffs.put(partKey, lookupFactorySafe(partKey).readDiffFrom(in, context));
-                }
-                return new CompositeDiff<>(builder, deletes, diffs);
-
-            } else {
-                return new NoDiff<T>();
             }
         }
 
@@ -257,14 +187,97 @@ public abstract class NamedCompositeClusterStatePart<E extends ClusterStatePart>
                     }
                 } else if (token.isValue()) {
                     builder.parseValuePart(parser, currentFieldName, context);
-//                    if ("version".equals(currentFieldName)) {
-//                        version = parser.longValue();
-//                    } else if ("uuid".equals(currentFieldName)) {
-//                        uuid = parser.text();
-//                    }
                 }
             }
             return builder.build();
+        }
+
+        protected abstract void valuesPartWriteTo(T part, StreamOutput out) throws IOException;
+
+        protected abstract void valuesPartToXContent(T part, XContentBuilder builder, Params params) throws IOException;
+
+        @Override
+        public void toXContent(T part, XContentBuilder builder, Params params) throws IOException {
+            XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, XContentContext.API.toString()));
+            valuesPartToXContent(part, builder, params);
+            for (ObjectObjectCursor<String, E> cursor : part.parts) {
+                Factory<E> factory = lookupFactorySafe(cursor.key);
+                if (factory.context().contains(context)) {
+                    builder.startObject(cursor.key);
+                    factory.toXContent(cursor.value, builder, params);
+                    builder.endObject();
+                }
+            }
+        }
+
+        @Override
+        public Diff<T> diff(@Nullable T before, T after) {
+            assert after != null;
+            Map<String, Diff<E>> diffs = newHashMap();
+            List<String> deletes = newArrayList();
+            if (before != null) {
+                ImmutableOpenMap<String, E> beforeParts = before.parts();
+                ImmutableOpenMap<String, E> afterParts = after.parts();
+                for (ObjectObjectCursor<String, E> partIter : beforeParts) {
+                    if (!afterParts.containsKey(partIter.key)) {
+                        deletes.add(partIter.key);
+                    }
+                }
+                for (ObjectObjectCursor<String, E> partIter : afterParts) {
+                    Factory<E> factory = lookupFactorySafe(partIter.key);
+                    E beforePart = beforeParts.get(partIter.key);
+                    if (!partIter.value.equals(beforePart)) {
+                        diffs.put(partIter.key, factory.diff(beforePart, partIter.value));
+                    }
+                }
+            } else {
+                ImmutableOpenMap<String, E> afterParts = after.parts();
+                for (ObjectObjectCursor<String, E> partIter : afterParts) {
+                    Factory<E> factory = lookupFactorySafe(partIter.key);
+                    diffs.put(partIter.key, factory.diff(null, partIter.value));
+                }
+            }
+            return new CompositeDiff<>(builder(after), deletes, diffs);
+        }
+
+        @Override
+        public Diff<T> readDiffFrom(StreamInput in, LocalContext context) throws IOException {
+            String key = in.readString();
+            Builder<E, T> builder = builder(key);
+            builder.readValuePartsFrom(in, context);
+            int deletesSize = in.readVInt();
+            List<String> deletes = new ArrayList<>();
+            for (int i = 0; i < deletesSize; i++) {
+                deletes.add(in.readString());
+            }
+
+            int diffsSize = in.readVInt();
+            Map<String, Diff<E>> diffs = newHashMap();
+            for (int i = 0; i < diffsSize; i++) {
+                String partKey = in.readString();
+                diffs.put(partKey, lookupFactorySafe(partKey).readDiffFrom(in, context));
+            }
+            return new CompositeDiff<>(builder, deletes, diffs);
+        }
+
+        @Override
+        public void writeDiffsTo(Diff<T> diff, StreamOutput out) throws IOException {
+            CompositeDiff<E, T> compositeDiff = (CompositeDiff<E, T>) diff;
+            out.writeString(compositeDiff.builder.getKey());
+            compositeDiff.builder.writeValuePartsTo(out);
+            out.writeVInt(compositeDiff.deletes.size());
+            for (String delete : compositeDiff.deletes) {
+                out.writeString(delete);
+            }
+
+            out.writeVInt(compositeDiff.diffs.size());
+            for (Map.Entry<String, Diff<E>> entry : compositeDiff.diffs.entrySet()) {
+                Factory<E> factory = lookupFactorySafe(entry.getKey());
+                if (factory.addedIn().onOrAfter(out.getVersion())) {
+                    out.writeString(entry.getKey());
+                    factory.writeDiffsTo(entry.getValue(), out);
+                }
+            }
         }
     }
 
@@ -299,22 +312,6 @@ public abstract class NamedCompositeClusterStatePart<E extends ClusterStatePart>
             return builder.build();
         }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeBoolean(true); // We have diffs
-            out.writeString(builder.getKey());
-            builder.writeValuePartsTo(out);
-            out.writeVInt(deletes.size());
-            for (String delete : deletes) {
-                out.writeString(delete);
-            }
-
-            out.writeVInt(diffs.size());
-            for (Map.Entry<String, Diff<E>> entry : diffs.entrySet()) {
-                out.writeString(entry.getKey());
-                entry.getValue().writeTo(out);
-            }
-        }
     }
 
 

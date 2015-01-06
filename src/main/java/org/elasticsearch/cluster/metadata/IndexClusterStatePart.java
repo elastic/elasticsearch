@@ -30,4 +30,9 @@ import java.util.Map;
 */
 public interface IndexClusterStatePart<T extends IndexClusterStatePart> extends ClusterStatePart {
     T mergeWith(T second);
+
+    /**
+     * Returns part type
+     */
+    String partType();
 }

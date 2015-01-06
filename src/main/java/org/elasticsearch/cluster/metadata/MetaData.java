@@ -78,24 +78,14 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
         }
 
         @Override
+        public void writeTo(MetaData part, StreamOutput out) throws IOException {
+            Builder.writeTo(part, out);
+        }
+
+        @Override
         public String partType() {
             return TYPE;
         }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        Builder.writeTo(this, out);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return super.toXContent(builder, new DelegatingBooleanParams("reduce_mappings", true, params));
-    }
-
-    @Override
-    public String partType() {
-        return TYPE;
     }
 
     public static final String PERSISTENT_SETTINGS_TYPE = "settings";
@@ -1137,14 +1127,14 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
         // Check if any persistent metadata needs to be saved
         int customCount1 = 0;
         for (ObjectObjectCursor<String, ClusterStatePart> cursor : metaData1.parts()) {
-            if (cursor.value.context().contains(XContentContext.GATEWAY)) {
+            if (FACTORY.lookupFactory(cursor.key).context().contains(XContentContext.GATEWAY)) {
                 if (!cursor.value.equals(metaData2.get(cursor.key))) return false;
                 customCount1++;
             }
         }
         int customCount2 = 0;
         for (ObjectObjectCursor<String, ClusterStatePart> cursor : metaData2.parts()) {
-            if (cursor.value.context().contains(XContentContext.GATEWAY)) {
+            if (FACTORY.lookupFactory(cursor.key).context().contains(XContentContext.GATEWAY)) {
                 customCount2++;
             }
         }
@@ -1332,7 +1322,7 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
         public static String toXContent(MetaData metaData) throws IOException {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.startObject();
-            metaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            FACTORY.toXContent(metaData, builder, ToXContent.EMPTY_PARAMS);
             toXContent(metaData, builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             return builder.string();
@@ -1340,7 +1330,7 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
 
         public static void toXContent(MetaData metaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject("meta-data");
-            metaData.toXContent(builder, params);
+            FACTORY.toXContent(metaData, builder, params);
             builder.endObject();
         }
 
@@ -1405,12 +1395,15 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
             for (ObjectCursor<IndexTemplateMetaData> cursor : metaData.templates.values()) {
                 IndexTemplateMetaData.Builder.writeTo(cursor.value, out);
             }
-            //TODO: Hack - generalize the toXContent
+            //TODO: Hack - generalize
             out.writeVInt(metaData.parts().size() - 4);
             for (ObjectObjectCursor<String, ClusterStatePart> cursor : metaData.parts()) {
                 if (!cursor.key.equals(TRANSIENT_SETTINGS_TYPE) && !cursor.key.equals(PERSISTENT_SETTINGS_TYPE) && !cursor.key.equals(INDICES_TYPE) && !cursor.key.equals(TEMPLATES_TYPE)) {
-                    out.writeString(cursor.key);
-                    cursor.value.writeTo(out);
+                    ClusterStatePart.Factory<ClusterStatePart> factory = FACTORY.lookupFactorySafe(cursor.key);
+                    if (factory.addedIn().onOrAfter(out.getVersion())){
+                        out.writeString(cursor.key);
+                        factory.writeTo(cursor.value, out);
+                    }
                 }
             }
         }

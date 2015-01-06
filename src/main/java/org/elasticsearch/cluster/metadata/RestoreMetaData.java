@@ -43,6 +43,75 @@ public class RestoreMetaData extends AbstractClusterStatePart {
 
     public static final Factory FACTORY = new Factory();
 
+    /**
+     * Restore metadata factory
+     */
+    public static class Factory extends AbstractClusterStatePart.AbstractFactory<RestoreMetaData>  {
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public RestoreMetaData readFrom(StreamInput in, LocalContext context) throws IOException {
+            Entry[] entries = new Entry[in.readVInt()];
+            for (int i = 0; i < entries.length; i++) {
+                SnapshotId snapshotId = SnapshotId.readSnapshotId(in);
+                State state = State.fromValue(in.readByte());
+                int indices = in.readVInt();
+                ImmutableList.Builder<String> indexBuilder = ImmutableList.builder();
+                for (int j = 0; j < indices; j++) {
+                    indexBuilder.add(in.readString());
+                }
+                ImmutableMap.Builder<ShardId, ShardRestoreStatus> builder = ImmutableMap.<ShardId, ShardRestoreStatus>builder();
+                int shards = in.readVInt();
+                for (int j = 0; j < shards; j++) {
+                    ShardId shardId = ShardId.readShardId(in);
+                    ShardRestoreStatus shardState = ShardRestoreStatus.readShardRestoreStatus(in);
+                    builder.put(shardId, shardState);
+                }
+                entries[i] = new Entry(snapshotId, state, indexBuilder.build(), builder.build());
+            }
+            return new RestoreMetaData(entries);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeTo(RestoreMetaData restoreMetaData, StreamOutput out) throws IOException {
+            out.writeVInt(restoreMetaData.entries.size());
+            for (Entry entry : restoreMetaData.entries) {
+                entry.snapshotId().writeTo(out);
+                out.writeByte(entry.state().value());
+                out.writeVInt(entry.indices().size());
+                for (String index : entry.indices()) {
+                    out.writeString(index);
+                }
+                out.writeVInt(entry.shards().size());
+                for (Map.Entry<ShardId, ShardRestoreStatus> shardEntry : entry.shards().entrySet()) {
+                    shardEntry.getKey().writeTo(out);
+                    shardEntry.getValue().writeTo(out);
+                }
+            }
+        }
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void toXContent(RestoreMetaData restoreMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
+            builder.startArray("snapshots");
+            for (Entry entry : restoreMetaData.entries) {
+                RestoreMetaData.toXContent(entry, builder, params);
+            }
+            builder.endArray();
+        }
+
+
+        @Override
+        public String partType() {
+            return TYPE;
+        }
+    }
+
     private final ImmutableList<Entry> entries;
 
     /**
@@ -103,11 +172,6 @@ public class RestoreMetaData extends AbstractClusterStatePart {
     @Override
     public int hashCode() {
         return entries.hashCode();
-    }
-
-    @Override
-    public String partType() {
-        return TYPE;
     }
 
     /**
@@ -402,40 +466,6 @@ public class RestoreMetaData extends AbstractClusterStatePart {
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(entries.size());
-        for (Entry entry : entries) {
-            entry.snapshotId().writeTo(out);
-            out.writeByte(entry.state().value());
-            out.writeVInt(entry.indices().size());
-            for (String index : entry.indices()) {
-                out.writeString(index);
-            }
-            out.writeVInt(entry.shards().size());
-            for (Map.Entry<ShardId, ShardRestoreStatus> shardEntry : entry.shards().entrySet()) {
-                shardEntry.getKey().writeTo(out);
-                shardEntry.getValue().writeTo(out);
-            }
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startArray("snapshots");
-        for (Entry entry : entries) {
-            toXContent(entry, builder, params);
-        }
-        builder.endArray();
-        return builder;
-    }
-
-    /**
      * Serializes single restore operation
      *
      * @param entry   restore operation metadata
@@ -443,7 +473,7 @@ public class RestoreMetaData extends AbstractClusterStatePart {
      * @param params  serialization parameters
      * @throws IOException
      */
-    public void toXContent(Entry entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
+    public static void toXContent(Entry entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.field("snapshot", entry.snapshotId().getSnapshot());
         builder.field("repository", entry.snapshotId().getRepository());
@@ -473,41 +503,5 @@ public class RestoreMetaData extends AbstractClusterStatePart {
         builder.endArray();
         builder.endObject();
     }
-    /**
-     * Restore metadata factory
-     */
-    public static class Factory extends AbstractClusterStatePart.AbstractFactory<RestoreMetaData>  {
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public RestoreMetaData readFrom(StreamInput in, LocalContext context) throws IOException {
-            Entry[] entries = new Entry[in.readVInt()];
-            for (int i = 0; i < entries.length; i++) {
-                SnapshotId snapshotId = SnapshotId.readSnapshotId(in);
-                State state = State.fromValue(in.readByte());
-                int indices = in.readVInt();
-                ImmutableList.Builder<String> indexBuilder = ImmutableList.builder();
-                for (int j = 0; j < indices; j++) {
-                    indexBuilder.add(in.readString());
-                }
-                ImmutableMap.Builder<ShardId, ShardRestoreStatus> builder = ImmutableMap.<ShardId, ShardRestoreStatus>builder();
-                int shards = in.readVInt();
-                for (int j = 0; j < shards; j++) {
-                    ShardId shardId = ShardId.readShardId(in);
-                    ShardRestoreStatus shardState = ShardRestoreStatus.readShardRestoreStatus(in);
-                    builder.put(shardId, shardState);
-                }
-                entries[i] = new Entry(snapshotId, state, indexBuilder.build(), builder.build());
-            }
-            return new RestoreMetaData(entries);
-        }
-
-        @Override
-        public String partType() {
-            return TYPE;
-        }
-    }
-
 
 }

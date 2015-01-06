@@ -20,11 +20,14 @@
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.commons.lang3.builder.Diff;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -73,32 +76,6 @@ public abstract class CompositeClusterStatePart<T extends CompositeClusterStateP
 
     public ImmutableOpenMap<String, ClusterStatePart> parts() {
         return parts;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(version);
-        out.writeString(uuid);
-        out.writeVInt(parts().size());
-        for (ObjectObjectCursor<String, ClusterStatePart> cursor : parts()) {
-            out.writeString(cursor.key);
-            cursor.value.writeTo(out);
-        }
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, XContentContext.API.toString()));
-        builder.field("version", version);
-        builder.field("uuid", uuid);
-        for (ObjectObjectCursor<String, ClusterStatePart> partIter : parts) {
-            if (partIter.value.context().contains(context)) {
-                builder.startObject(partIter.key);
-                partIter.value.toXContent(builder, params);
-                builder.endObject();
-            }
-        }
-        return builder;
     }
 
     public <T extends ClusterStatePart> T get(String type) {
@@ -161,6 +138,34 @@ public abstract class CompositeClusterStatePart<T extends CompositeClusterStateP
         public abstract T fromParts(long version, String uuid, ImmutableOpenMap.Builder<String, ClusterStatePart> parts);
 
         @Override
+        public void writeTo(T part, StreamOutput out) throws IOException {
+            out.writeVLong(part.version);
+            out.writeString(part.uuid);
+            out.writeVInt(part.parts().size());
+            ImmutableOpenMap<String, ClusterStatePart> parts = part.parts;
+            for (ObjectObjectCursor<String, ClusterStatePart> cursor : parts) {
+                out.writeString(cursor.key);
+                lookupFactorySafe(cursor.key).writeTo(cursor.value, out);
+            }
+        }
+
+        @Override
+        public void toXContent(T part, XContentBuilder builder, Params params) throws IOException {
+            XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, XContentContext.API.toString()));
+            builder.field("version", part.version);
+            builder.field("uuid", part.uuid);
+            ImmutableOpenMap<String, ClusterStatePart> parts = part.parts;
+            for (ObjectObjectCursor<String, ClusterStatePart> partIter : parts) {
+                Factory<ClusterStatePart> factory = lookupFactorySafe(partIter.key);
+                if (factory.context().contains(context)) {
+                    builder.startObject(partIter.key);
+                    factory.toXContent(partIter.value, builder, params);
+                    builder.endObject();
+                }
+            }
+        }
+
+        @Override
         public Diff<T> diff(@Nullable T before, T after) {
             assert after != null;
             Map<String, Diff<ClusterStatePart>> diffs = newHashMap();
@@ -168,20 +173,16 @@ public abstract class CompositeClusterStatePart<T extends CompositeClusterStateP
             if (before != null) {
                 ImmutableOpenMap<String, ClusterStatePart> beforeParts = before.parts();
                 ImmutableOpenMap<String, ClusterStatePart> afterParts = after.parts();
-                if (before.equals(after)) {
-                    return new NoDiff<>();
-                } else {
-                    for (ObjectObjectCursor<String, ClusterStatePart> partIter : beforeParts) {
-                        if (!afterParts.containsKey(partIter.key)) {
-                            deletes.add(partIter.key);
-                        }
+                for (ObjectObjectCursor<String, ClusterStatePart> partIter : beforeParts) {
+                    if (!afterParts.containsKey(partIter.key)) {
+                        deletes.add(partIter.key);
                     }
-                    for (ObjectObjectCursor<String, ClusterStatePart> partIter : afterParts) {
-                        ClusterStatePart.Factory<ClusterStatePart> factory = lookupFactorySafe(partIter.key);
-                        ClusterStatePart beforePart = beforeParts.get(partIter.key);
-                        if (!partIter.value.equals(beforePart)) {
-                            diffs.put(partIter.key, factory.diff(beforePart, partIter.value));
-                        }
+                }
+                for (ObjectObjectCursor<String, ClusterStatePart> partIter : afterParts) {
+                    ClusterStatePart.Factory<ClusterStatePart> factory = lookupFactorySafe(partIter.key);
+                    ClusterStatePart beforePart = beforeParts.get(partIter.key);
+                    if (!partIter.value.equals(beforePart)) {
+                        diffs.put(partIter.key, factory.diff(beforePart, partIter.value));
                     }
                 }
             } else {
@@ -196,27 +197,44 @@ public abstract class CompositeClusterStatePart<T extends CompositeClusterStateP
 
         @Override
         public Diff<T> readDiffFrom(StreamInput in, LocalContext context) throws IOException {
-            if (in.readBoolean()) {
-                long version = in.readVLong();
-                String previousUuid = in.readString();
-                String uuid = in.readString();
-                int deletesSize = in.readVInt();
-                List<String> deletes = new ArrayList<>();
-                for (int i = 0; i < deletesSize; i++) {
-                    deletes.add(in.readString());
-                }
-
-                int diffsSize = in.readVInt();
-                Map<String, Diff<ClusterStatePart>> diffs = newHashMap();
-                for (int i = 0; i < diffsSize; i++) {
-                    String key = in.readString();
-                    diffs.put(key, lookupFactorySafe(key).readDiffFrom(in, context));
-                }
-                return new CompositeDiff<>(this, version, previousUuid, uuid, deletes, diffs);
-
-            } else {
-                return new NoDiff<T>();
+            long version = in.readVLong();
+            String previousUuid = in.readString();
+            String uuid = in.readString();
+            int deletesSize = in.readVInt();
+            List<String> deletes = new ArrayList<>();
+            for (int i = 0; i < deletesSize; i++) {
+                deletes.add(in.readString());
             }
+
+            int diffsSize = in.readVInt();
+            Map<String, Diff<ClusterStatePart>> diffs = newHashMap();
+            for (int i = 0; i < diffsSize; i++) {
+                String key = in.readString();
+                diffs.put(key, lookupFactorySafe(key).readDiffFrom(in, context));
+            }
+            return new CompositeDiff<>(this, version, previousUuid, uuid, deletes, diffs);
+        }
+
+        @Override
+        public void writeDiffsTo(Diff<T> diff, StreamOutput out) throws IOException {
+            CompositeDiff<T> compositeDiff = (CompositeDiff<T>) diff;
+            out.writeVLong(compositeDiff.version);
+            out.writeString(compositeDiff.previousUuid);
+            out.writeString(compositeDiff.uuid);
+            out.writeVInt(compositeDiff.deletes.size());
+            for (String delete : compositeDiff.deletes) {
+                out.writeString(delete);
+            }
+
+            out.writeVInt(compositeDiff.diffs.size());
+            for (Map.Entry<String, Diff<ClusterStatePart>> entry : compositeDiff.diffs.entrySet()) {
+                Factory<ClusterStatePart> factory = lookupFactory(entry.getKey());
+                if (factory.addedIn().onOrAfter(out.getVersion())) {
+                    out.writeString(entry.getKey());
+                    factory.writeDiffsTo(entry.getValue(), out);
+                }
+            }
+
         }
 
         @Override
@@ -283,24 +301,6 @@ public abstract class CompositeClusterStatePart<T extends CompositeClusterStateP
                 parts.put(entry.getKey(), entry.getValue().apply(part.get(entry.getKey())));
             }
             return factory.fromParts(version, uuid, parts);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeBoolean(true); // We have diffs
-            out.writeVLong(version);
-            out.writeString(previousUuid);
-            out.writeString(uuid);
-            out.writeVInt(deletes.size());
-            for (String delete : deletes) {
-                out.writeString(delete);
-            }
-
-            out.writeVInt(diffs.size());
-            for (Map.Entry<String, Diff<ClusterStatePart>> entry : diffs.entrySet()) {
-                out.writeString(entry.getKey());
-                entry.getValue().writeTo(out);
-            }
         }
     }
 

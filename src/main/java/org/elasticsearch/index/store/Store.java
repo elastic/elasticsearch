@@ -331,8 +331,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      * The returned IndexOutput might validate the files checksum if the file has been written with a newer lucene version
      * and the metadata holds the necessary information to detect that it was been written by Lucene 4.8 or newer. If it has only
      * a legacy checksum, returned IndexOutput will not verify the checksum.
-     *
-     * Note: Checksums are calculated nevertheless since lucene does it by default sicne version 4.8.0. This method only adds the
+     * <p/>
+     * Note: Checksums are calculated nevertheless since lucene does it by default since version 4.8.0. This method only adds the
      * verification against the checksum in the given metadata and does not add any significant overhead.
      */
     public IndexOutput createVerifyingOutput(String fileName, final StoreFileMetaData metadata, final IOContext context) throws IOException {
@@ -340,8 +340,25 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         boolean success = false;
         try {
             if (metadata.hasLegacyChecksum()) {
-                logger.debug("create legacy adler32 output for {}", fileName);
-                output = new LegacyVerification.Adler32VerifyingIndexOutput(output, metadata.checksum(), metadata.length());
+                // Lucene's .tii and .tis files (3.x) were not actually append-only.
+                // this means the adler32 in ES 0.20.x releases is actually wrong, we can't use it.
+                boolean badTermInfo = metadata.name().endsWith(".tii") || metadata.name().endsWith(".tis");
+                // Lucene's .cfs (3.0-3.3) was not append-only, so old ES checksums (pre-0.18.x) are wrong.
+                // NOTE: if we don't know the version, then we don't trust the checksum. 
+                boolean badCFS = metadata.name().endsWith(".cfs") && 
+                                 (metadata.writtenBy() == null || metadata.writtenBy().onOrAfter(Version.LUCENE_34) == false);
+                // Lucene's segments_N always had a checksum, and reasonably old versions of ES never added
+                // their own metadata for it. But it wasn't append-only, so be defensive and don't rely upon
+                // old versions omitting the checksum. NOTE: This logic also excludes segments.gen for the same reason.
+                boolean badCommit = metadata.name().startsWith(IndexFileNames.SEGMENTS);
+                        
+                if (badTermInfo || badCFS || badCommit) {
+                    logger.debug("create legacy length-only output for non-write-once file {}", fileName);
+                    output = new LegacyVerification.LengthVerifyingIndexOutput(output, metadata.length());
+                } else {
+                    logger.debug("create legacy adler32 output for {}", fileName);
+                    output = new LegacyVerification.Adler32VerifyingIndexOutput(output, metadata.checksum(), metadata.length());
+                }
             } else if (metadata.checksum() == null) {
                 // TODO: when the file is a segments_N, we can still CRC-32 + length for more safety
                 // its had that checksum forever.

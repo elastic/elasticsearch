@@ -225,10 +225,7 @@ public class FileSystemUtils {
                     Path path = buildPath(subpath);
                     if (!Files.exists(path)) {
                         // We just move the structure to new dir
-                        if (!dir.toFile().renameTo(path.toFile())) {
-                            throw new IOException("Could not move [" + dir + "] to [" + path + "]");
-                        }
-
+                        move(dir, path);
                         // We just ignore sub files from here
                         return FileVisitResult.SKIP_SUBTREE;
                     }
@@ -268,16 +265,34 @@ public class FileSystemUtils {
      */
     public static void copyDirectoryRecursively(File source, File destination) throws IOException {
         Files.walkFileTree(source.toPath(),
-                new TreeCopier(source.toPath(), destination.toPath()));
+                new TreeCopier(source.toPath(), destination.toPath(), false));
+    }
+
+    /**
+     * Move or rename a file to a target file. This method supports moving a file from
+     * different filesystems (not supported by Files.move()).
+     *
+     * @param source source file
+     * @param destination destination file
+     */
+    public static void move(Path source, Path destination) throws IOException {
+        try {
+            // We can't use atomic move here since source & target can be on different filesystems.
+            Files.move(source, destination);
+        } catch (DirectoryNotEmptyException e) {
+            Files.walkFileTree(source, new TreeCopier(source, destination, true));
+        }
     }
 
     static class TreeCopier extends SimpleFileVisitor<Path> {
         private final Path source;
         private final Path target;
+        private final boolean delete;
 
-        TreeCopier(Path source, Path target) {
+        TreeCopier(Path source, Path target, boolean delete) {
             this.source = source;
             this.target = target;
+            this.delete = delete;
         }
 
         @Override
@@ -294,10 +309,21 @@ public class FileSystemUtils {
         }
 
         @Override
+        public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+            if (delete) {
+                deleteRecursively(dir.toFile(), true);
+            }
+            return CONTINUE;
+        }
+
+        @Override
         public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
             Path newFile = target.resolve(source.relativize(file));
             try {
                 Files.copy(file, newFile);
+                if ((delete) && (Files.exists(newFile))) {
+                    Files.delete(file);
+                }
             } catch (IOException x) {
                 // We ignore this
             }

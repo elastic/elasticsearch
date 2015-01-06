@@ -238,8 +238,10 @@ public class PluginManager {
             File toLocation = pluginHandle.binDir(environment);
             debug("Found bin, moving to " + toLocation.getAbsolutePath());
             FileSystemUtils.deleteRecursively(toLocation);
-            if (!binFile.renameTo(toLocation)) {
-                throw new IOException("Could not move ["+ binFile.getAbsolutePath() + "] to [" + toLocation.getAbsolutePath() + "]");
+            try {
+                FileSystemUtils.move(binFile.toPath(), toLocation.toPath());
+            } catch (IOException e) {
+                throw new IOException("Could not move [" + binFile + "] to [" + toLocation + "]", e);
             }
             // Make everything in bin/ executable
             Files.walkFileTree(toLocation.toPath(), new SimpleFileVisitor<Path>() {

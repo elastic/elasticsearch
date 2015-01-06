@@ -3,9 +3,8 @@
 if DEFINED JAVA_HOME goto cont
 
 :err
-echo JAVA_HOME environment variable must be set!
-pause
-exit
+ECHO JAVA_HOME environment variable must be set! 1>&2
+EXIT /B 1 
 
 :cont
 set SCRIPT_DIR=%~dp0

@@ -250,6 +250,10 @@ public class QueryParseContext {
         return ImmutableMap.copyOf(namedFilters);
     }
 
+    public void combineNamedFilters(QueryParseContext context) {
+        namedFilters.putAll(context.namedFilters);
+    }
+
     public void addInnerHits(String name, InnerHitsContext.BaseInnerHits context) {
         SearchContext sc = SearchContext.current();
         InnerHitsContext innerHitsContext;

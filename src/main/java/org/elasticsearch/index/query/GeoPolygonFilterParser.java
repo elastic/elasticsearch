@@ -76,8 +76,8 @@ public class GeoPolygonFilterParser implements FilterParser {
 
         List<GeoPoint> shell = Lists.newArrayList();
 
-        boolean normalizeLon = true;
-        boolean normalizeLat = true;
+        boolean normalizeLon = false;
+        boolean normalizeLat = false;
 
         String filterName = null;
         String currentFieldName = null;

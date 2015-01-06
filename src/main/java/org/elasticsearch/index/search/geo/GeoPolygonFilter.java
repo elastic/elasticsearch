@@ -93,12 +93,26 @@ public class GeoPolygonFilter extends Filter {
 
         private static boolean pointInPolygon(GeoPoint[] points, double lat, double lon) {
             boolean inPoly = false;
+            double lat0, lon0, lat1, lon1;
+            if (lon < 0) {
+                lon += 360;
+            }
+
+            if (lat <0) {
+                lat += 180;
+            }
 
             for (int i = 1; i < points.length; i++) {
-                if (points[i].lon() < lon && points[i-1].lon() >= lon
-                        || points[i-1].lon() < lon && points[i].lon() >= lon) {
-                    if (points[i].lat() + (lon - points[i].lon()) /
-                            (points[i-1].lon() - points[i].lon()) * (points[i-1].lat() - points[i].lat()) < lat) {
+                lon0 = (points[i-1].lon() < 0) ? points[i-1].lon() + 360.0 : points[i-1].lon();
+                lon1 = (points[i].lon() < 0) ? points[i].lon() + 360.0 : points[i].lon();
+
+                lat0 = (points[i-1].lat() < 0) ? points[i-1].lat() + 180.0 : points[i-1].lat();
+                lat1 = (points[i].lat() < 0) ? points[i].lat() + 180.0 : points[i].lat();
+
+                if (lon1 < lon && lon0 >= lon
+                        || lon0 < lon && lon1 >= lon) {
+                    if (lat1 + (lon - lon1) /
+                            (lon0 - lon1) * (lat0 - lat1) < lat) {
                         inPoly = !inPoly;
                     }
                 }

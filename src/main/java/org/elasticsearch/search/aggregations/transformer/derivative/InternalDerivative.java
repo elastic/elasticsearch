@@ -23,17 +23,22 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
+import org.elasticsearch.search.aggregations.transformer.InternalSimpleValue;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 public class InternalDerivative<B extends InternalHistogram.Bucket> extends InternalAggregation {
 
@@ -85,16 +90,33 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
         InternalHistogram histo = (InternalHistogram) aggs.iterator().next();
         InternalHistogram.Factory factory = histo.getFactory();
         List<InternalHistogram.Bucket> histoBuckets = histo.getBuckets();
-        Long lastValue = null;
         Long newBucketKey = null;
+        Long lastValue = null;
+        Map<String, Double> lastMetricValues = null;
         List<InternalHistogram.Bucket> newBuckets = new ArrayList<>();
         for (InternalHistogram.Bucket histoBucket : histoBuckets) {
             long thisbucketDocCount = histoBucket.getDocCount();
-            if (lastValue != null) {
+            Map<String, Double> thisBucketMetricValues = new HashMap<>();
+            for (Aggregation aggregation : histoBucket.getAggregations()) {
+                if (aggregation instanceof InternalNumericMetricsAggregation.SingleValue) {
+                    InternalNumericMetricsAggregation.SingleValue metricAgg = (InternalNumericMetricsAggregation.SingleValue) aggregation;
+                    thisBucketMetricValues.put(metricAgg.getName(), metricAgg.value());
+                }
+                // NOCOMMIT implement this for multi-value metrics
+            }
+            if (newBucketKey != null) {
                 long diff = thisbucketDocCount - lastValue;
-                newBuckets.add(factory.createBucket(newBucketKey, diff, InternalAggregations.EMPTY, keyed, formatter));
+                List<InternalAggregation> metricsAggregations = new ArrayList<>();
+                for (Entry<String, Double> entry : thisBucketMetricValues.entrySet()) {
+                    double metricDiff = entry.getValue() - lastMetricValues.get(entry.getKey());
+                    InternalSimpleValue metricAgg = new InternalSimpleValue(entry.getKey(), metricDiff, null);
+                    metricsAggregations.add(metricAgg);
+                }
+                InternalAggregations metricsAggs = new InternalAggregations(metricsAggregations);
+                newBuckets.add(factory.createBucket(newBucketKey, diff, metricsAggs, keyed, formatter));
             }
             lastValue = thisbucketDocCount;
+            lastMetricValues = thisBucketMetricValues;
             newBucketKey = histoBucket.getKeyAsNumber().longValue();
         }
         InternalHistogram<InternalHistogram.Bucket> derivativeHisto = factory.create(name, newBuckets, null, 1, null, formatter, keyed,

@@ -255,7 +255,11 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                       EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
         super(name, metaData);
         this.buckets = buckets;
-        this.order = order;
+        if (order == null) {
+            this.order = (InternalOrder) InternalOrder.COUNT_ASC;
+        } else {
+            this.order = order;
+        }
         assert (minDocCount == 0) == (emptyBucketInfo != null);
         this.minDocCount = minDocCount;
         this.emptyBucketInfo = emptyBucketInfo;

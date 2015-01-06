@@ -19,24 +19,23 @@
 
 package org.elasticsearch.search.aggregations.transformer.derivative;
 
-import com.carrotsearch.hppc.LongObjectOpenHashMap;
-
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class InternalDerivative<B extends InternalHistogram.Bucket> extends InternalMultiBucketAggregation implements Histogram {
+public class InternalDerivative<B extends InternalHistogram.Bucket> extends InternalAggregation {
 
     final static Type TYPE = new Type("derivative", "deriv");
 
@@ -53,42 +52,24 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
         AggregationStreams.registerStream(STREAM, TYPE.stream());
     }
 
+    private boolean keyed;
+    private @Nullable ValueFormatter formatter;
+    private InternalAggregations aggregations;
+
     public InternalDerivative() {
     }
 
-    public InternalDerivative(String name, InternalAggregations subAggregations, Map<String, Object> metaData) {
+    public InternalDerivative(String name, boolean keyed, @Nullable ValueFormatter formatter, InternalAggregations subAggregations,
+            Map<String, Object> metaData) {
         super(name, metaData);
+        this.keyed = keyed;
+        this.formatter = formatter;
         this.aggregations = subAggregations;
     }
-
-    protected List<B> buckets;
-    private LongObjectOpenHashMap<B> bucketsMap;
-    private InternalAggregations aggregations;
 
     @Override
     public Type type() {
         return TYPE;
-    }
-
-    @Override
-    public List<B> getBuckets() {
-        return buckets;
-    }
-
-    @Override
-    public B getBucketByKey(String key) {
-        return getBucketByKey(Long.valueOf(key));
-    }
-
-    @Override
-    public B getBucketByKey(Number key) {
-        if (bucketsMap == null) {
-            bucketsMap = new LongObjectOpenHashMap<>(buckets.size());
-            for (B bucket : buckets) {
-                bucketsMap.put(bucket.getKeyAsNumber().longValue(), bucket);
-            }
-        }
-        return bucketsMap.get(key.longValue());
     }
 
     @Override
@@ -111,12 +92,13 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
             long thisbucketDocCount = histoBucket.getDocCount();
             if (lastValue != null) {
                 long diff = thisbucketDocCount - lastValue;
-                newBuckets.add(factory.createBucket(newBucketKey, diff, InternalAggregations.EMPTY, histo.keyed(), histo.formatter())); // NOCOMMIT get keyed and formatter from histoBucket
+                newBuckets.add(factory.createBucket(newBucketKey, diff, InternalAggregations.EMPTY, keyed, formatter));
             }
             lastValue = thisbucketDocCount;
             newBucketKey = histoBucket.getKeyAsNumber().longValue();
         }
-        InternalHistogram<InternalHistogram.Bucket> derivativeHisto = factory.create(name, newBuckets, null, 1, null, histo.formatter(), histo.keyed(), null);
+        InternalHistogram<InternalHistogram.Bucket> derivativeHisto = factory.create(name, newBuckets, null, 1, null, formatter, keyed,
+                null);
         return derivativeHisto;
     }
 
@@ -132,10 +114,19 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
+//        InternalOrder.Streams.writeOrder(order, out); // NOCOMMIT implement order
+        ValueFormatterStreams.writeOptional(formatter, out);
+        out.writeBoolean(keyed);
+        aggregations.writeTo(out);
     }
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
+//        order = InternalOrder.Streams.readOrder(in); // NOCOMMIT implement order
+        formatter = ValueFormatterStreams.readOptional(in);
+        keyed = in.readBoolean();
+        aggregations = InternalAggregations.readAggregations(in);
+
     }
 
 }

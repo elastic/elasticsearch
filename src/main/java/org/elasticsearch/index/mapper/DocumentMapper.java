@@ -666,11 +666,8 @@ public class DocumentMapper implements ToXContent {
         }
     }
 
-    public void addFieldMapperListener(FieldMapperListener fieldMapperListener, boolean includeExisting) {
+    public void addFieldMapperListener(FieldMapperListener fieldMapperListener) {
         fieldMapperListeners.add(fieldMapperListener);
-        if (includeExisting) {
-            traverse(fieldMapperListener);
-        }
     }
 
     public void traverse(FieldMapperListener listener) {
@@ -702,11 +699,8 @@ public class DocumentMapper implements ToXContent {
         }
     }
 
-    public void addObjectMapperListener(ObjectMapperListener objectMapperListener, boolean includeExisting) {
+    public void addObjectMapperListener(ObjectMapperListener objectMapperListener) {
         objectMapperListeners.add(objectMapperListener);
-        if (includeExisting) {
-            traverse(objectMapperListener);
-        }
     }
 
     public void traverse(ObjectMapperListener listener) {

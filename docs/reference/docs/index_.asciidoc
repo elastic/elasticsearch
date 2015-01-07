@@ -63,30 +63,6 @@ objects will automatically be added to the mapping definition of the
 type specified. Check out the <<mapping,mapping>>
 section for more information on mapping definitions.
 
-Note that the format of the JSON document can also include the type (very handy
-when using JSON mappers) if the `index.mapping.allow_type_wrapper` setting is
-set to true, for example:
-
-[source,js]
---------------------------------------------------
-$ curl -XPOST 'http://localhost:9200/twitter' -d '{
-  "settings": {
-    "index": {
-      "mapping.allow_type_wrapper": true
-    }
-  }
-}'
-{"acknowledged":true}
-
-$ curl -XPUT 'http://localhost:9200/twitter/tweet/1' -d '{
-    "tweet" : {
-        "user" : "kimchy",
-        "post_date" : "2009-11-15T14:12:12",
-        "message" : "trying out Elasticsearch"
-    }
-}'
---------------------------------------------------
-
 Automatic index creation can be disabled by setting
 `action.auto_create_index` to `false` in the config file of all nodes.
 Automatic mapping creation can be disabled by setting

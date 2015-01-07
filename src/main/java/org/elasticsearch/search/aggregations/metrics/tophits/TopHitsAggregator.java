@@ -167,7 +167,7 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+        public Aggregator createInternal(AggregationContext aggregationContext, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
             return new TopHitsAggregator(fetchPhase, subSearchContext, name, aggregationContext, parent, metaData);
         }
 

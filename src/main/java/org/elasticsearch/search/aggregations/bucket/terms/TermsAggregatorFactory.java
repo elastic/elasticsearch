@@ -161,8 +161,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     }
 
     @Override
-    protected Aggregator create(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
-        if (collectsOnly0 == false) {
+    protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
+        if (collectsSingleBucket == false) {
             return asMultiBucketAggregator(this, aggregationContext, parent);
         }
         if (valuesSource instanceof ValuesSource.Bytes) {

@@ -77,20 +77,20 @@ public abstract class AggregatorFactory {
         return parent;
     }
 
-    protected abstract Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException;
+    protected abstract Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException;
 
     /**
      * Creates the aggregator
      *
      * @param context               The aggregation context
      * @param parent                The parent aggregator (if this is a top level factory, the parent will be {@code null})
-     * @param collectsOnly0         If true then the created aggregator will only be collected with <tt>0</tt> as a bucket ordinal.
+     * @param collectsSingleBucket  If true then the created aggregator will only be collected with <tt>0</tt> as a bucket ordinal.
      *                              Some factories can take advantage of this in order to return more optimized implementations.
      *
      * @return                      The created aggregator
      */
-    public final Aggregator create(AggregationContext context, Aggregator parent, boolean collectsOnly0) throws IOException {
-        Aggregator aggregator = createInternal(context, parent, collectsOnly0, this.metaData);
+    public final Aggregator create(AggregationContext context, Aggregator parent, boolean collectsSingleBucket) throws IOException {
+        Aggregator aggregator = createInternal(context, parent, collectsSingleBucket, this.metaData);
         return aggregator;
     }
 
@@ -107,7 +107,7 @@ public abstract class AggregatorFactory {
      */
     protected static Aggregator asMultiBucketAggregator(final AggregatorFactory factory, final AggregationContext context, Aggregator parent) throws IOException {
         final Aggregator first = factory.create(context, parent, true);
-        return new Aggregator(first.name(), AggregatorFactories.EMPTY, first.context(), first.parent(), first.getMetaData()) {
+        return new Aggregator(first.name(), AggregatorFactories.EMPTY, first.context(), first.parent(), first.metaData()) {
 
             ObjectArray<Aggregator> aggregators;
             LeafReaderContext readerContext;

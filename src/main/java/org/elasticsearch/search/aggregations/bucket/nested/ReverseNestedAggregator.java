@@ -135,12 +135,12 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalReverseNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), getMetaData());
+        return new InternalReverseNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalReverseNested(name, 0, buildEmptySubAggregations(), getMetaData());
+        return new InternalReverseNested(name, 0, buildEmptySubAggregations(), metaData());
     }
 
     Filter getParentFilter() {
@@ -157,7 +157,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
             return new ReverseNestedAggregator(name, factories, path, context, parent, metaData);
         }
     }

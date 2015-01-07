@@ -94,7 +94,7 @@ public class FiltersAggregator extends BucketsAggregator {
             InternalFilters.Bucket bucket = new InternalFilters.Bucket(filter.key, bucketDocCount(bucketOrd), bucketAggregations(bucketOrd), keyed);
             buckets.add(bucket);
         }
-        return new InternalFilters(name, buckets, keyed, getMetaData());
+        return new InternalFilters(name, buckets, keyed, metaData());
     }
 
     @Override
@@ -105,7 +105,7 @@ public class FiltersAggregator extends BucketsAggregator {
             InternalFilters.Bucket bucket = new InternalFilters.Bucket(filters[i].key, 0, subAggs, keyed);
             buckets.add(bucket);
         }
-        return new InternalFilters(name, buckets, keyed, getMetaData());
+        return new InternalFilters(name, buckets, keyed, metaData());
     }
 
     private final long bucketOrd(long owningBucketOrdinal, int filterOrd) {
@@ -124,7 +124,7 @@ public class FiltersAggregator extends BucketsAggregator {
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
             return new FiltersAggregator(name, factories, filters, keyed, context, parent, metaData);
         }
     }

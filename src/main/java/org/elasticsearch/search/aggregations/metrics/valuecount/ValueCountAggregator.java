@@ -80,15 +80,15 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
-            return new InternalValueCount(name, 0, getMetaData());
+            return new InternalValueCount(name, 0, metaData());
         }
         assert owningBucketOrdinal < counts.size();
-        return new InternalValueCount(name, counts.get(owningBucketOrdinal), getMetaData());
+        return new InternalValueCount(name, counts.get(owningBucketOrdinal), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalValueCount(name, 0l, getMetaData());
+        return new InternalValueCount(name, 0l, metaData());
     }
 
     @Override
@@ -108,7 +108,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         }
 
         @Override
-        protected Aggregator create(VS valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+        protected Aggregator doCreateInternal(VS valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
             return new ValueCountAggregator(name, valuesSource, aggregationContext, parent, metaData);
         }
 

@@ -143,16 +143,16 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
-            return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, getMetaData());
+            return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, metaData());
         }
         assert owningBucketOrdinal < counts.size();
         return new InternalExtendedStats(name, counts.get(owningBucketOrdinal), sums.get(owningBucketOrdinal), mins.get(owningBucketOrdinal),
-                maxes.get(owningBucketOrdinal), sumOfSqrs.get(owningBucketOrdinal), getMetaData());
+                maxes.get(owningBucketOrdinal), sumOfSqrs.get(owningBucketOrdinal), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, getMetaData());
+        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, metaData());
     }
 
     @Override
@@ -172,7 +172,7 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
             return new ExtendedStatsAggregator(name, valuesSource, aggregationContext, parent, metaData);
         }
     }

@@ -66,12 +66,12 @@ public class FilterAggregator extends SingleBucketAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalFilter(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), getMetaData());
+        return new InternalFilter(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalFilter(name, 0, buildEmptySubAggregations(), getMetaData());
+        return new InternalFilter(name, 0, buildEmptySubAggregations(), metaData());
     }
 
     public static class Factory extends AggregatorFactory {
@@ -84,7 +84,7 @@ public class FilterAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
             return new FilterAggregator(name, filter, factories, context, parent, metaData);
         }
 

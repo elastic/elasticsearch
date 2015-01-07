@@ -206,7 +206,7 @@ public class RangeAggregator extends BucketsAggregator {
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
-        return rangeFactory.create(name, buckets, formatter, keyed, getMetaData());
+        return rangeFactory.create(name, buckets, formatter, keyed, metaData());
     }
 
     @Override
@@ -220,7 +220,7 @@ public class RangeAggregator extends BucketsAggregator {
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
-        return rangeFactory.create(name, buckets, formatter, keyed, getMetaData());
+        return rangeFactory.create(name, buckets, formatter, keyed, metaData());
     }
 
     private static final void sortRanges(final Range[] ranges) {
@@ -278,7 +278,7 @@ public class RangeAggregator extends BucketsAggregator {
             for (RangeAggregator.Range range : ranges) {
                 buckets.add(factory.createBucket(range.key, range.from, range.to, 0, subAggs, keyed, formatter));
             }
-            return factory.create(name, buckets, formatter, keyed, getMetaData());
+            return factory.create(name, buckets, formatter, keyed, metaData());
         }
     }
 
@@ -301,7 +301,7 @@ public class RangeAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
             return new RangeAggregator(name, factories, valuesSource, config.format(), rangeFactory, ranges, keyed, aggregationContext, parent, metaData);
         }
     }

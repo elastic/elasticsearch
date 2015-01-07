@@ -86,12 +86,12 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalChildren(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), getMetaData());
+        return new InternalChildren(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalChildren(name, 0, buildEmptySubAggregations(), getMetaData());
+        return new InternalChildren(name, 0, buildEmptySubAggregations(), metaData());
     }
 
     @Override
@@ -204,7 +204,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+        protected Aggregator doCreateInternal(ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
             long maxOrd = valuesSource.globalMaxOrd(aggregationContext.searchContext().searcher(), parentType);
             return new ParentToChildrenAggregator(name, factories, aggregationContext, parent, parentType, childFilter, parentFilter, valuesSource, maxOrd, metaData);
         }

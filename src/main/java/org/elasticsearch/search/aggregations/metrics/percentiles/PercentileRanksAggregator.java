@@ -43,13 +43,13 @@ public class PercentileRanksAggregator extends AbstractPercentilesAggregator {
         if (state == null) {
             return buildEmptyAggregation();
         } else {
-            return new InternalPercentileRanks(name, keys, state, keyed, getMetaData());
+            return new InternalPercentileRanks(name, keys, state, keyed, metaData());
         }
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalPercentileRanks(name, keys, new TDigestState(compression), keyed, getMetaData());
+        return new InternalPercentileRanks(name, keys, new TDigestState(compression), keyed, metaData());
     }
 
     @Override
@@ -82,7 +82,7 @@ public class PercentileRanksAggregator extends AbstractPercentilesAggregator {
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
             return new PercentileRanksAggregator(name, valuesSource, aggregationContext, parent, values, compression, keyed, metaData);
         }
     }

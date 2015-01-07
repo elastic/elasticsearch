@@ -49,7 +49,7 @@ public class GlobalAggregator extends SingleBucketAggregator {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0 : "global aggregator can only be a top level aggregator";
-        return new InternalGlobal(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), getMetaData());
+        return new InternalGlobal(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metaData());
     }
 
     @Override
@@ -64,12 +64,12 @@ public class GlobalAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
             if (parent != null) {
                 throw new AggregationExecutionException("Aggregation [" + parent.name() + "] cannot have a global " +
                         "sub-aggregation [" + name + "]. Global aggregations can only be defined as top level aggregations");
             }
-            if (collectsOnly0 == false) {
+            if (collectsSingleBucket == false) {
                 throw new ElasticsearchIllegalStateException();
             }
             return new GlobalAggregator(name, factories, context, metaData);

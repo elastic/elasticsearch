@@ -123,13 +123,13 @@ public class HistogramAggregator extends BucketsAggregator {
 
         // value source will be null for unmapped fields
         InternalHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0 ? new InternalHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds) : null;
-        return histogramFactory.create(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, getMetaData());
+        return histogramFactory.create(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         InternalHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0 ? new InternalHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds) : null;
-        return histogramFactory.create(name, Collections.emptyList(), order, minDocCount, emptyBucketInfo, formatter, keyed, getMetaData());
+        return histogramFactory.create(name, Collections.emptyList(), order, minDocCount, emptyBucketInfo, formatter, keyed, metaData());
     }
 
     @Override
@@ -165,8 +165,8 @@ public class HistogramAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
-            if (collectsOnly0 == false) {
+        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
+            if (collectsSingleBucket == false) {
                 return asMultiBucketAggregator(this, aggregationContext, parent);
             }
             // we need to round the bounds given by the user and we have to do it for every aggregator we crate

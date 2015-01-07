@@ -86,15 +86,15 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
-            return new InternalMin(name, Double.POSITIVE_INFINITY, getMetaData());
+            return new InternalMin(name, Double.POSITIVE_INFINITY, metaData());
         }
         assert owningBucketOrdinal < mins.size();
-        return new InternalMin(name, mins.get(owningBucketOrdinal), getMetaData());
+        return new InternalMin(name, mins.get(owningBucketOrdinal), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMin(name, Double.POSITIVE_INFINITY, getMetaData());
+        return new InternalMin(name, Double.POSITIVE_INFINITY, metaData());
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
@@ -109,7 +109,7 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
             return new MinAggregator(name, valuesSource, aggregationContext, parent, metaData);
         }
     }

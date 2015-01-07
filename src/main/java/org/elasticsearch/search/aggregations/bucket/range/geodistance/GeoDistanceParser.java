@@ -180,7 +180,7 @@ public class GeoDistanceParser implements Aggregator.Parser {
         }
 
         @Override
-        protected Aggregator create(final ValuesSource.GeoPoint valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+        protected Aggregator doCreateInternal(final ValuesSource.GeoPoint valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
             DistanceSource distanceSource = new DistanceSource(valuesSource, distanceType, origin, unit);
             aggregationContext.registerReaderContextAware(distanceSource);
             return new RangeAggregator(name, factories, distanceSource, null, rangeFactory, ranges, keyed, aggregationContext, parent, metaData);

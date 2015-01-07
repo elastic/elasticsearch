@@ -89,13 +89,13 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
         double posRight = posRights.get(owningBucketOrdinal);
         double negLeft = negLefts.get(owningBucketOrdinal);
         double negRight = negRights.get(owningBucketOrdinal);
-        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, getMetaData());
+        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalGeoBounds(name, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
-                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, wrapLongitude, getMetaData());
+                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, wrapLongitude, metaData());
     }
 
     @Override
@@ -174,8 +174,8 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
         }
 
         @Override
-        protected Aggregator create(ValuesSource.GeoPoint valuesSource, AggregationContext aggregationContext,
-                Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+        protected Aggregator doCreateInternal(ValuesSource.GeoPoint valuesSource, AggregationContext aggregationContext,
+                Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
             return new GeoBoundsAggregator(name, aggregationContext, parent, valuesSource, wrapLongitude, metaData);
         }
 

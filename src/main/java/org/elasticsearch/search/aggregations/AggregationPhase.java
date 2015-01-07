@@ -83,7 +83,7 @@ public class AggregationPhase implements SearchPhase {
             try {
                 aggregators = context.aggregations().factories().createTopLevelAggregators(aggregationContext);
             } catch (IOException e) {
-                throw ExceptionsHelper.convertToElastic(e);
+                throw new AggregationInitializationException("Could not initialize aggregators", e);
             }
             for (int i = 0; i < aggregators.length; i++) {
                 if (!(aggregators[i] instanceof GlobalAggregator)) {
@@ -142,7 +142,7 @@ public class AggregationPhase implements SearchPhase {
             try {
                 aggregations.add(aggregator.buildAggregation(0));
             } catch (IOException e) {
-                throw new QueryPhaseExecutionException(context, "Failed to build aggregation", e);
+                throw new AggregationExecutionException("Failed to build aggregation", e);
             }
         }
         context.queryResult().aggregations(new InternalAggregations(aggregations));

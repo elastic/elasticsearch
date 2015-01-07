@@ -87,14 +87,14 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null || owningBucketOrdinal >= counts.size()) {
-            return new InternalAvg(name, 0l, 0, getMetaData());
+            return new InternalAvg(name, 0l, 0, metaData());
         }
-        return new InternalAvg(name, sums.get(owningBucketOrdinal), counts.get(owningBucketOrdinal), getMetaData());
+        return new InternalAvg(name, sums.get(owningBucketOrdinal), counts.get(owningBucketOrdinal), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalAvg(name, 0.0, 0l, getMetaData());
+        return new InternalAvg(name, 0.0, 0l, metaData());
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
@@ -109,7 +109,7 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
             return new AvgAggregator(name, valuesSource, aggregationContext, parent, metaData);
         }
     }

@@ -105,12 +105,12 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         } else {
             aggregation = params.get("_agg");
         }
-        return new InternalScriptedMetric(name, aggregation, scriptLang, reduceScriptType, reduceScript, reduceParams, getMetaData());
+        return new InternalScriptedMetric(name, aggregation, scriptLang, reduceScriptType, reduceScript, reduceParams, metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalScriptedMetric(name, null, scriptLang, reduceScriptType, reduceScript, reduceParams, getMetaData());
+        return new InternalScriptedMetric(name, null, scriptLang, reduceScriptType, reduceScript, reduceParams, metaData());
     }
 
     public static class Factory extends AggregatorFactory {
@@ -144,8 +144,8 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
-            if (collectsOnly0 == false) {
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
+            if (collectsSingleBucket == false) {
                 return asMultiBucketAggregator(this, context, parent);
             }
             Map<String, Object> params = null;

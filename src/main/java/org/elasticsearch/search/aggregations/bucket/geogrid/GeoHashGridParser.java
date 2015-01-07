@@ -127,8 +127,8 @@ public class GeoHashGridParser implements Aggregator.Parser {
         }
 
         @Override
-        protected Aggregator create(final ValuesSource.GeoPoint valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
-            if (collectsOnly0 == false) {
+        protected Aggregator doCreateInternal(final ValuesSource.GeoPoint valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
+            if (collectsSingleBucket == false) {
                 return asMultiBucketAggregator(this, aggregationContext, parent);
             }
             final CellValues cellIdValues = new CellValues(valuesSource, precision);

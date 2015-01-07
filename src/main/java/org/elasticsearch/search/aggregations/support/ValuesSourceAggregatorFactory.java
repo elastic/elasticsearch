@@ -49,12 +49,12 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     }
 
     @Override
-    public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+    public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
         if (config.unmapped()) {
             return createUnmapped(context, parent, metaData);
         }
         VS vs = context.valuesSource(config, parent == null ? 0 : 1 + parent.depth());
-        return create(vs, context, parent, collectsOnly0, metaData);
+        return doCreateInternal(vs, context, parent, collectsSingleBucket, metaData);
     }
 
     @Override
@@ -66,7 +66,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
 
     protected abstract Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException;
 
-    protected abstract Aggregator create(VS valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException;
+    protected abstract Aggregator doCreateInternal(VS valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException;
 
     private void resolveValuesSourceConfigFromAncestors(String aggName, AggregatorFactory parent, Class<VS> requiredValuesSourceType) {
         ValuesSourceConfig config;

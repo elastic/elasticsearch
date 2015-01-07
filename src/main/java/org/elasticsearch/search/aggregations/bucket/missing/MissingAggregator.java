@@ -64,12 +64,12 @@ public class MissingAggregator extends SingleBucketAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalMissing(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), getMetaData());
+        return new InternalMissing(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMissing(name, 0, buildEmptySubAggregations(), getMetaData());
+        return new InternalMissing(name, 0, buildEmptySubAggregations(), metaData());
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource>  {
@@ -84,7 +84,7 @@ public class MissingAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected MissingAggregator create(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+        protected MissingAggregator doCreateInternal(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
             return new MissingAggregator(name, factories, valuesSource, aggregationContext, parent, metaData);
         }
     }

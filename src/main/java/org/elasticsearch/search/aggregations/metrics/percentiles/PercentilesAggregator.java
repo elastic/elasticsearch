@@ -43,7 +43,7 @@ public class PercentilesAggregator extends AbstractPercentilesAggregator {
         if (state == null) {
             return buildEmptyAggregation();
         } else {
-            return new InternalPercentiles(name, keys, state, keyed, getMetaData());
+            return new InternalPercentiles(name, keys, state, keyed, metaData());
         }
     }
     
@@ -59,7 +59,7 @@ public class PercentilesAggregator extends AbstractPercentilesAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalPercentiles(name, keys, new TDigestState(compression), keyed, getMetaData());
+        return new InternalPercentiles(name, keys, new TDigestState(compression), keyed, metaData());
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
@@ -82,7 +82,7 @@ public class PercentilesAggregator extends AbstractPercentilesAggregator {
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
             return new PercentilesAggregator(name, valuesSource, aggregationContext, parent, percents, compression, keyed, metaData);
         }
     }

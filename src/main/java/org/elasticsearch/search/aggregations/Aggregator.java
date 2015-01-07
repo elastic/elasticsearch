@@ -211,7 +211,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         };
     }
 
-    public Map<String, Object> getMetaData() {
+    public Map<String, Object> metaData() {
         return this.metaData;
     }
 

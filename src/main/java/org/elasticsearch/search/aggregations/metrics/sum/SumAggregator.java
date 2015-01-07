@@ -81,14 +81,14 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
-            return new InternalSum(name, 0, getMetaData());
+            return new InternalSum(name, 0, metaData());
         }
-        return new InternalSum(name, sums.get(owningBucketOrdinal), getMetaData());
+        return new InternalSum(name, sums.get(owningBucketOrdinal), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalSum(name, 0.0, getMetaData());
+        return new InternalSum(name, 0.0, metaData());
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
@@ -103,7 +103,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsOnly0, Map<String, Object> metaData) throws IOException {
+        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
             return new SumAggregator(name, valuesSource, aggregationContext, parent, metaData);
         }
     }

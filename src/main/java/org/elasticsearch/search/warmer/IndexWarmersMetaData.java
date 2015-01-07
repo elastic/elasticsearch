@@ -210,13 +210,11 @@ public class IndexWarmersMetaData extends AbstractClusterStatePart implements In
 
         @Override
         public void toXContent(IndexWarmersMetaData indexWarmersMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            //No need, IndexMetaData already writes it
-            //builder.startObject(TYPE, XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject();
             for (Entry entry : indexWarmersMetaData.entries) {
                 IndexWarmersMetaData.toXContent(entry, builder, params);
             }
-            //No need, IndexMetaData already writes it
-            //builder.endObject();
+            builder.endObject();
         }
 
         @Override

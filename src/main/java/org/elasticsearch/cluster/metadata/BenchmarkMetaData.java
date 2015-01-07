@@ -193,11 +193,13 @@ public class BenchmarkMetaData extends AbstractClusterStatePart {
 
         @Override
         public void toXContent(BenchmarkMetaData benchmarkMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
+            builder.startObject();
             builder.startArray("benchmarks");
             for (Entry entry : benchmarkMetaData.entries) {
                 BenchmarkMetaData.toXContent(entry, builder, params);
             }
             builder.endArray();
+            builder.endObject();
         }
         @Override
         public String partType() {

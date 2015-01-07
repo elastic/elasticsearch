@@ -729,7 +729,9 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
             @Override
             public void toXContent(T part, XContentBuilder builder, ToXContent.Params params) throws IOException {
+                builder.startObject();
                 builder.field("data", part.getData());
+                builder.endObject();
             }
 
             @Override

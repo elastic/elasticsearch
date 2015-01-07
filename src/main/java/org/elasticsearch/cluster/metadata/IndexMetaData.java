@@ -71,17 +71,13 @@ public class IndexMetaData extends NamedCompositeClusterStatePart<IndexClusterSt
 
     public static final ClusterStateSettingsPart.Factory SETTINGS_FACTORY = new ClusterStateSettingsPart.Factory(SETTINGS_TYPE);
 
-    public static final String MAPPINGS_TYPE = "mappings";
-
-    public static final MapClusterStatePart.Factory<MappingMetaData> MAPPINGS_FACTORY = new MapClusterStatePart.Factory<>(MAPPINGS_TYPE, MappingMetaData.FACTORY, API_GATEWAY_SNAPSHOT);
-
     public static final String ALIASES_TYPE = "aliases";
 
     public static final MapClusterStatePart.Factory<AliasMetaData> ALIASES_FACTORY = new MapClusterStatePart.Factory<>(ALIASES_TYPE, AliasMetaData.FACTORY, API_GATEWAY_SNAPSHOT);
 
     static {
         FACTORY.registerFactory(SETTINGS_TYPE, SETTINGS_FACTORY);
-        FACTORY.registerFactory(MAPPINGS_TYPE, MAPPINGS_FACTORY);
+        FACTORY.registerFactory(MappingsMetaData.TYPE, MappingsMetaData.FACTORY);
         FACTORY.registerFactory(ALIASES_TYPE, ALIASES_FACTORY);
         // register non plugin custom metadata
         FACTORY.registerFactory(IndexWarmersMetaData.TYPE, IndexWarmersMetaData.FACTORY);
@@ -214,7 +210,7 @@ public class IndexMetaData extends NamedCompositeClusterStatePart<IndexClusterSt
         this.totalNumberOfShards = numberOfShards() * (numberOfReplicas() + 1);
         Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_SHARDS, null) != null, "must specify numberOfShards for index [" + index + "]");
         Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, null) != null, "must specify numberOfReplicas for index [" + index + "]");
-        this.mappings = parts.containsKey(MAPPINGS_TYPE) ? ((MapClusterStatePart<MappingMetaData>)get(MAPPINGS_TYPE)).parts() : ImmutableOpenMap.<String, MappingMetaData>of();
+        this.mappings = parts.containsKey(MappingsMetaData.TYPE) ? ((MapClusterStatePart<MappingMetaData>)get(MappingsMetaData.TYPE)).parts() : ImmutableOpenMap.<String, MappingMetaData>of();
         this.aliases = parts.containsKey(ALIASES_TYPE) ? ((MapClusterStatePart<AliasMetaData>)get(ALIASES_TYPE)).parts() : ImmutableOpenMap.<String, AliasMetaData>of();
 
         ImmutableMap<String, String> requireMap = settings.getByPrefix("index.routing.allocation.require.").getAsMap();
@@ -482,7 +478,7 @@ public class IndexMetaData extends NamedCompositeClusterStatePart<IndexClusterSt
             this.aliases = ImmutableOpenMap.builder(indexMetaData.aliases);
             parts.putAll(indexMetaData.parts());
             parts.remove(SETTINGS_TYPE);
-            parts.remove(MAPPINGS_TYPE);
+            parts.remove(MappingsMetaData.TYPE);
             parts.remove(ALIASES_TYPE);
         }
 
@@ -647,7 +643,7 @@ public class IndexMetaData extends NamedCompositeClusterStatePart<IndexClusterSt
                                                                              ImmutableOpenMap<String, IndexClusterStatePart> parts) {
             ImmutableOpenMap.Builder<String, IndexClusterStatePart> builder = ImmutableOpenMap.builder();
             builder.put(SETTINGS_TYPE, SETTINGS_FACTORY.fromSettings(settings));
-            builder.put(MAPPINGS_TYPE, MAPPINGS_FACTORY.fromOpenMap(mappings));
+            builder.put(MappingsMetaData.TYPE, MappingsMetaData.FACTORY.fromOpenMap(mappings));
             builder.put(ALIASES_TYPE, ALIASES_FACTORY.fromOpenMap(aliases));
             builder.putAll(parts);
             return builder.build();
@@ -656,31 +652,10 @@ public class IndexMetaData extends NamedCompositeClusterStatePart<IndexClusterSt
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
             FACTORY.valuesPartToXContent(indexMetaData, builder, params);
-
-            // TODO: we can make this generic but we need to move startObject inside Factory.toXContent
-            if (params.paramAsBoolean("reduce_mappings", false)) {
-                builder.startObject("mappings");
-                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
-                    MappingMetaData.FACTORY.toXContent(cursor.value, builder, params);
-                }
-                builder.endObject();
-            } else {
-                builder.startArray("mappings");
-                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
-                    MappingMetaData.FACTORY.toXContent(cursor.value, builder, params);
-                }
-                builder.endArray();
-            }
-
             for (ObjectObjectCursor<String, IndexClusterStatePart> cursor : indexMetaData.parts()) {
-                if (!cursor.key.equals(MAPPINGS_TYPE)) {
-                    builder.field(cursor.key, FieldCaseConversion.NONE);
-                    builder.startObject();
-                    FACTORY.lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
-                    builder.endObject();
-                }
+                builder.field(cursor.key, FieldCaseConversion.NONE);
+                FACTORY.lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
             }
-
             builder.endObject();
         }
 
@@ -700,39 +675,20 @@ public class IndexMetaData extends NamedCompositeClusterStatePart<IndexClusterSt
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if ("mappings".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            if (token == XContentParser.Token.FIELD_NAME) {
-                                currentFieldName = parser.currentName();
-                            } else if (token == XContentParser.Token.START_OBJECT) {
-                                String mappingType = currentFieldName;
-                                Map<String, Object> mappingSource = MapBuilder.<String, Object>newMapBuilder().put(mappingType, parser.mapOrdered()).map();
-                                builder.putMapping(new MappingMetaData(mappingType, mappingSource));
-                            }
-                        }
+                    ClusterStatePart.Factory<IndexClusterStatePart> factory = FACTORY.lookupFactory(currentFieldName);
+                    if (factory == null) {
+                        //TODO warn
+                        parser.skipChildren();
                     } else {
-                        // check if its a custom index metadata
-                        ClusterStatePart.Factory<IndexClusterStatePart> factory = FACTORY.lookupFactory(currentFieldName);
-                        if (factory == null) {
-                            //TODO warn
-                            parser.skipChildren();
-                        } else {
-                            builder.putCustom(currentFieldName, factory.fromXContent(parser, null));
-                        }
+                        builder.putCustom(currentFieldName, factory.fromXContent(parser, null));
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
-                    if ("mappings".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-                                builder.putMapping(new MappingMetaData(new CompressedString(parser.binaryValue())));
-                            } else {
-                                Map<String, Object> mapping = parser.mapOrdered();
-                                if (mapping.size() == 1) {
-                                    String mappingType = mapping.keySet().iterator().next();
-                                    builder.putMapping(new MappingMetaData(mappingType, mapping));
-                                }
-                            }
-                        }
+                    ClusterStatePart.Factory<IndexClusterStatePart> factory = FACTORY.lookupFactory(currentFieldName);
+                    if (factory == null) {
+                        //TODO warn
+                        parser.skipChildren();
+                    } else {
+                        builder.putCustom(currentFieldName, factory.fromXContent(parser, null));
                     }
                 } else if (token.isValue()) {
                     builder.parseValuePart(parser, currentFieldName, null);

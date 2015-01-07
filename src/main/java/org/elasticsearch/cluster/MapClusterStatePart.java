@@ -110,9 +110,11 @@ public class MapClusterStatePart<T extends NamedClusterStatePart> extends Abstra
 
         @Override
         public void toXContent(MapClusterStatePart<T> part, XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
             for (ObjectCursor<T> cursor : part.parts.values()) {
                 factory.toXContent(cursor.value, builder, params);
             }
+            builder.endObject();
         }
 
         @Override

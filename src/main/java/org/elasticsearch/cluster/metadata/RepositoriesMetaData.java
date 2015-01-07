@@ -177,9 +177,11 @@ public class RepositoriesMetaData extends AbstractClusterStatePart {
 
         @Override
         public void toXContent(RepositoriesMetaData repositoriesMetaData, XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
             for (RepositoryMetaData repository : repositoriesMetaData.repositories()) {
                 RepositoriesMetaData.toXContent(repository, builder, params);
             }
+            builder.endObject();
         }
 
 

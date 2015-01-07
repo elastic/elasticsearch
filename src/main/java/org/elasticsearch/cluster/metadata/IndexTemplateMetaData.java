@@ -348,9 +348,8 @@ public class IndexTemplateMetaData extends AbstractClusterStatePart implements N
             }
 
             for (ObjectObjectCursor<String, IndexClusterStatePart> cursor : indexTemplateMetaData.customs()) {
-                builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
+                builder.field(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
                 IndexMetaData.FACTORY.lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
-                builder.endObject();
             }
 
             builder.startObject("aliases");

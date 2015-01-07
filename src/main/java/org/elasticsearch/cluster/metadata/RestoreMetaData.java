@@ -98,11 +98,13 @@ public class RestoreMetaData extends AbstractClusterStatePart {
          */
         @Override
         public void toXContent(RestoreMetaData restoreMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
+            builder.startObject();
             builder.startArray("snapshots");
             for (Entry entry : restoreMetaData.entries) {
                 RestoreMetaData.toXContent(entry, builder, params);
             }
             builder.endArray();
+            builder.endObject();
         }
 
 

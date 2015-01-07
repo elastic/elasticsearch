@@ -248,7 +248,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
 
             String idToUpdate = Integer.toString(randomInt(3));
             UpdateResponse updateResponse = client().prepareUpdate(indexName, "child", idToUpdate)
-                    .setParent("1")
+                    .setRouting("1")
                     .setDoc("count", 1)
                     .get();
             assertThat(updateResponse.getVersion(), greaterThan(1l));

@@ -110,3 +110,8 @@ large, it is recommended to make it replicated to all nodes by setting
 `index.auto_expand_replicas: 0-all` in order to remove the network overhead as
 well.
 
+=== Parent parameter on update request
+
+The `parent` parameter has been removed from the update request. Before 2.x it just set the routing parameter. The
+`routing` setting should be used instead. The `parent` setting was confusing, because it had the impression that the parent
+a child documents points to can be changed but this is not true.

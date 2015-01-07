@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -149,6 +150,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
     }
 
     @Test
+    @TestLogging("env:TRACE")
     public void testDeleteSafe() throws IOException, InterruptedException {
         final NodeEnvironment env = newNodeEnvironment();
         ShardLock fooLock = env.shardLock(new ShardId("foo", 1));

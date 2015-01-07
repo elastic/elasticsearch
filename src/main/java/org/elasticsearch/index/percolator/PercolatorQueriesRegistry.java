@@ -26,6 +26,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -85,6 +86,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
     private final RealTimePercolatorOperationListener realTimePercolatorOperationListener = new RealTimePercolatorOperationListener();
     private final PercolateTypeListener percolateTypeListener = new PercolateTypeListener();
     private final AtomicBoolean realTimePercolatorEnabled = new AtomicBoolean(false);
+
     private boolean mapUnmappedFieldsAsString;
 
     private CloseableThreadLocal<QueryParseContext> cache = new CloseableThreadLocal<QueryParseContext>() {
@@ -215,7 +217,8 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
             //
             // For backward compatibility, query can contain unmapped fields only if index.percolator.map_unmapped_fields_as_string
             // is set to true
-            context.setAllowUnmappedFields(mapUnmappedFieldsAsString ? true : false);
+            context.setAllowUnmappedFields(false);
+            context.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString ? true : false);
             return queryParserService.parseInnerQuery(context);
         } catch (IOException e) {
             throw new QueryParsingException(queryParserService.index(), "Failed to parse", e);

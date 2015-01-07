@@ -22,6 +22,7 @@ package org.elasticsearch.common.jna;
 import com.sun.jna.Native;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.jna.Kernel32Library.ConsoleCtrlHandler;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
@@ -58,6 +59,48 @@ public class Natives {
             } else if (!System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("mac")) {
                 // OS X allows mlockall to be called, but always returns an error
                 logger.warn("Unknown mlockall error " + errno);
+            }
+        }
+    }
+
+    public static void tryVirtualLock() {
+        Integer handle = null;
+        try {
+            handle = Kernel32Library.getInstance().openProcess(
+                    Kernel32Library.PROCESS_ALL_ACCESS,
+                    false,
+                    JvmInfo.jvmInfo().getPid()
+            );
+
+            // By default, Windows limits the number of pages that can be locked
+            // therefore we must increase the min and max working set sizes
+            long size = JvmInfo.jvmInfo().mem().getHeapInit().getBytes();
+            if (!Kernel32Library.getInstance().setProcessWorkingSetSize(handle, size, size)) {
+                logger.warn("Unable to lock JVM memory."
+                        + " Failed to set working set sizes. Error " + Native.getLastError());
+            } else {
+                Kernel32Library.MEMORY_BASIC_INFORMATION memInfo = new Kernel32Library.MEMORY_BASIC_INFORMATION();
+                long address = 0;
+
+                while (Kernel32Library.getInstance().virtualQueryEx(handle, address, memInfo, memInfo.size()) != 0) {
+                    boolean isLockable = memInfo.state == Kernel32Library.MEM_COMMIT
+                            && (memInfo.protect & Kernel32Library.PAGE_NOACCESS) != Kernel32Library.PAGE_NOACCESS
+                            && (memInfo.protect & Kernel32Library.PAGE_GUARD) != Kernel32Library.PAGE_GUARD;
+
+                    if (isLockable) {
+                        Kernel32Library.getInstance().virtualLock(memInfo.baseAddress, memInfo.regionSize);
+                    }
+
+                    // Move to the next region
+                    address += memInfo.regionSize;
+                }
+                LOCAL_MLOCKALL = true;
+            }
+        } catch (UnsatisfiedLinkError e) {
+            // this will have already been logged by Kernel32Library, no need to repeat it
+        } finally {
+            if (handle != null) {
+                Kernel32Library.getInstance().closeHandle(handle);
             }
         }
     }

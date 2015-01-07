@@ -37,6 +37,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
+import com.sun.jna.Platform;
 import java.nio.file.Paths;
 import java.util.Locale;
 import java.util.Set;
@@ -59,7 +60,11 @@ public class Bootstrap {
 
     private void setup(boolean addShutdownHook, Tuple<Settings, Environment> tuple) throws Exception {
         if (tuple.v1().getAsBoolean("bootstrap.mlockall", false)) {
-            Natives.tryMlockall();
+            if (Platform.isWindows()) {
+                Natives.tryVirtualLock();
+            } else {
+                Natives.tryMlockall();
+            }
         }
 
         NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(tuple.v1()).loadConfigSettings(false);

@@ -22,11 +22,13 @@ package org.elasticsearch.common.jna;
 import com.google.common.collect.ImmutableList;
 import com.sun.jna.Library;
 import com.sun.jna.Native;
+import com.sun.jna.Structure;
 import com.sun.jna.win32.StdCallLibrary;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 
@@ -34,6 +36,27 @@ import java.util.List;
  * Library for Windows/Kernel32
  */
 public class Kernel32Library {
+
+    public static final int PROCESS_ALL_ACCESS = 0x0501;
+    public static final int PAGE_NOACCESS = 0x0001;
+    public static final int PAGE_GUARD = 0x0100;
+
+    public static final int MEM_COMMIT = 0x1000;
+
+    public static class MEMORY_BASIC_INFORMATION extends Structure {
+        public long baseAddress;
+        public long allocationBase;
+        public int allocationProtect;
+        public long regionSize;
+        public int state;
+        public int protect;
+        public int type;
+
+        @Override
+        protected List getFieldOrder() {
+            return Arrays.asList(new String[]{"baseAddress", "allocationBase", "allocationProtect", "regionSize", "state", "protect", "type"});
+        }
+    }
 
     private static ESLogger logger = Loggers.getLogger(Kernel32Library.class);
 
@@ -60,6 +83,26 @@ public class Kernel32Library {
         return Holder.instance;
     }
 
+    public boolean virtualLock(long address, long size) {
+        return internal.VirtualLock(address, size);
+    }
+
+    public int virtualQueryEx(int handle, Long address, MEMORY_BASIC_INFORMATION memoryInfo, int length) {
+        return internal.VirtualQueryEx(handle, address, memoryInfo, length);
+    }
+
+    public boolean setProcessWorkingSetSize(int handle, long minSize, long maxSize) {
+        return internal.SetProcessWorkingSetSize(handle, minSize, maxSize);
+    }
+
+    public Integer openProcess(int access, boolean inheritHandle, long processId) {
+        return internal.OpenProcess(access, inheritHandle, processId);
+    }
+
+    public boolean closeHandle(int handle) {
+        return internal.CloseHandle(handle);
+    }
+
     public boolean addConsoleCtrlHandler(ConsoleCtrlHandler handler) {
         if (internal == null) {
             throw new UnsupportedOperationException("windows/Kernel32 library not loaded, console ctrl handler cannot be set");
@@ -81,7 +124,17 @@ public class Kernel32Library {
 
     interface Kernel32 extends Library {
 
-        /**
+        public boolean VirtualLock(long address, long size);
+
+        public int VirtualQueryEx(int handle, Long address, MEMORY_BASIC_INFORMATION memoryInfo, int length);
+
+        public boolean SetProcessWorkingSetSize(int handle, long minSize, long maxSize);
+
+        public Integer OpenProcess(int access, boolean inheritHandle, long processId);
+
+        public boolean CloseHandle(int processHandle);
+
+        /*
          * Registers a Console Ctrl Handler.
          *
          * @param handler

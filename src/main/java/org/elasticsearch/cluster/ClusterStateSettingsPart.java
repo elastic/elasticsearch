@@ -36,13 +36,16 @@ import static org.elasticsearch.common.settings.ImmutableSettings.readSettingsFr
 import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsToStream;
 
 /**
+ * Wrapper for settings as a cluster state part.
+ *
+ * Used to represent persistent, transient and index settings in the cluster metadata.
  */
 public class ClusterStateSettingsPart extends AbstractClusterStatePart implements IndexClusterStatePart<ClusterStateSettingsPart> {
 
     private final String type;
     private final Settings settings;
 
-    public ClusterStateSettingsPart(String type, Settings settings) {
+    private ClusterStateSettingsPart(String type, Settings settings) {
         this.type = type;
         this.settings = settings;
     }
@@ -89,7 +92,6 @@ public class ClusterStateSettingsPart extends AbstractClusterStatePart implement
             Settings settings = ImmutableSettings.settingsBuilder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())).build();
             return new ClusterStateSettingsPart(type, settings);
         }
-
 
         @Override
         public void toXContent(ClusterStateSettingsPart clusterStateSettingsPart, XContentBuilder builder, Params params) throws IOException {

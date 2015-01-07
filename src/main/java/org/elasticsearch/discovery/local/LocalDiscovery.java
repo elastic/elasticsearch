@@ -310,7 +310,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                     if (clusterStateDiffBytes == null) {
                         clusterStateDiffBytes = Builder.toDiffBytes(lastProcessedClusterState, clusterState);
                     }
-//                    nodeSpecificClusterState = ClusterState.Builder.fromDiffBytes(lastProcessedClusterState, clusterStateDiffBytes, discovery.localNode);
                     ClusterState.ClusterStateDiff diff = ClusterState.Builder.readDiffFrom(new BytesStreamInput(clusterStateDiffBytes, false), discovery.localNode);
                     try {
                         newNodeSpecificClusterState = diff.apply(discovery.clusterService.state());

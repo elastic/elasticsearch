@@ -128,7 +128,7 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
                             if (indexMetaData == null) {
                                 throw new IndexMissingException(new Index(index));
                             }
-                            IndexWarmersMetaData warmers = indexMetaData.custom(IndexWarmersMetaData.TYPE);
+                            IndexWarmersMetaData warmers = indexMetaData.get(IndexWarmersMetaData.TYPE);
                             if (warmers == null) {
                                 logger.info("[{}] putting warmer [{}]", index, request.name());
                                 warmers = new IndexWarmersMetaData(new IndexWarmersMetaData.Entry(request.name(), request.searchRequest().types(), request.searchRequest().queryCache(), source));

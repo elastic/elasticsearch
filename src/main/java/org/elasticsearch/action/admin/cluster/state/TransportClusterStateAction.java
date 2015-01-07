@@ -126,7 +126,6 @@ public class TransportClusterStateAction extends TransportMasterNodeReadOperatio
             }
 
             // Filter our metadata that shouldn't be returned by API
-            // TODO: we probably shouldn't do that
             for(ObjectObjectCursor<String, ClusterStatePart> cursor :  currentState.metaData().customs()) {
                 Factory<ClusterStatePart> factory = MetaData.FACTORY.lookupFactorySafe(cursor.key);
                 if(!factory.context().contains(ClusterStatePart.XContentContext.API)) {

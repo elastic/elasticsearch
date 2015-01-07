@@ -102,7 +102,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
                     if (indexMetaData == null) {
                         throw new IndexMissingException(new Index(index));
                     }
-                    IndexWarmersMetaData warmers = indexMetaData.custom(IndexWarmersMetaData.TYPE);
+                    IndexWarmersMetaData warmers = indexMetaData.get(IndexWarmersMetaData.TYPE);
                     if (warmers != null) {
                         List<IndexWarmersMetaData.Entry> entries = Lists.newArrayList();
                         for (IndexWarmersMetaData.Entry entry : warmers.entries()) {
@@ -138,7 +138,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
                         if (indexMetaData == null) {
                             throw new IndexMissingException(new Index(index));
                         }
-                        IndexWarmersMetaData warmers = indexMetaData.custom(IndexWarmersMetaData.TYPE);
+                        IndexWarmersMetaData warmers = indexMetaData.get(IndexWarmersMetaData.TYPE);
                         if (warmers != null) {
                             for (IndexWarmersMetaData.Entry entry : warmers.entries()) {
                                 for (String warmer : request.names()) {

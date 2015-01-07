@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import org.apache.commons.lang3.builder.Diff;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,7 +30,7 @@ import java.util.EnumSet;
 import java.util.Map;
 
 /**
- * Basic implementation of cluster state part that send entire part as a difference if part got changed.
+ * Basic implementation of cluster state part that sends entire part as a difference if the part got changed.
  */
 public abstract class AbstractClusterStatePart implements ClusterStatePart {
 

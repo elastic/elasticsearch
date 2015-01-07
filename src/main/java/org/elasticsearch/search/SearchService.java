@@ -961,7 +961,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
 
         public TerminationHandle internalWarm(final IndexShard indexShard, final IndexMetaData indexMetaData, final IndicesWarmer.WarmerContext warmerContext, ThreadPool threadPool, final boolean top) {
-            IndexWarmersMetaData custom = indexMetaData.custom(IndexWarmersMetaData.TYPE);
+            IndexWarmersMetaData custom = indexMetaData.get(IndexWarmersMetaData.TYPE);
             if (custom == null) {
                 return TerminationHandle.NO_WAIT;
             }

@@ -131,7 +131,7 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
         ensureGreen();
 
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-        IndexWarmersMetaData warmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
+        IndexWarmersMetaData warmersMetaData = clusterState.metaData().index("test").get(IndexWarmersMetaData.TYPE);
         assertThat(warmersMetaData, Matchers.notNullValue());
         assertThat(warmersMetaData.entries().size(), equalTo(1));
 
@@ -156,7 +156,7 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
                         "}"));
 
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-        IndexWarmersMetaData warmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
+        IndexWarmersMetaData warmersMetaData = clusterState.metaData().index("test").get(IndexWarmersMetaData.TYPE);
         assertThat(warmersMetaData, Matchers.notNullValue());
         assertThat(warmersMetaData.entries().size(), equalTo(1));
 

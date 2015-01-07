@@ -98,7 +98,7 @@ public abstract class CompositeClusterStatePart<T extends CompositeClusterStateP
         return uuid;
     }
 
-    public static abstract class AbstractCompositeFactory<T extends CompositeClusterStatePart> extends AbstractClusterStatePart.AbstractFactory<T> {
+    protected static abstract class AbstractCompositeFactory<T extends CompositeClusterStatePart> extends AbstractClusterStatePart.AbstractFactory<T> {
 
         private final Map<String, Factory> partFactories = new HashMap<>();
         /**
@@ -234,7 +234,6 @@ public abstract class CompositeClusterStatePart<T extends CompositeClusterStateP
                     factory.writeDiffsTo(entry.getValue(), out);
                 }
             }
-
         }
 
         @Override

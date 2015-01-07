@@ -80,7 +80,7 @@ public class GatewayIndicesWarmerTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> verify warmers are registered in cluster state");
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-        IndexWarmersMetaData warmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
+        IndexWarmersMetaData warmersMetaData = clusterState.metaData().index("test").get(IndexWarmersMetaData.TYPE);
         assertThat(warmersMetaData, Matchers.notNullValue());
         assertThat(warmersMetaData.entries().size(), equalTo(2));
 
@@ -100,7 +100,7 @@ public class GatewayIndicesWarmerTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> verify warmers are recovered");
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-        IndexWarmersMetaData recoveredWarmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
+        IndexWarmersMetaData recoveredWarmersMetaData = clusterState.metaData().index("test").get(IndexWarmersMetaData.TYPE);
         assertThat(recoveredWarmersMetaData.entries().size(), equalTo(warmersMetaData.entries().size()));
         for (int i = 0; i < warmersMetaData.entries().size(); i++) {
             assertThat(recoveredWarmersMetaData.entries().get(i).name(), equalTo(warmersMetaData.entries().get(i).name()));
@@ -122,7 +122,7 @@ public class GatewayIndicesWarmerTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> verify warmers (delete) are registered in cluster state");
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-        warmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
+        warmersMetaData = clusterState.metaData().index("test").get(IndexWarmersMetaData.TYPE);
         assertThat(warmersMetaData, Matchers.notNullValue());
         assertThat(warmersMetaData.entries().size(), equalTo(1));
 
@@ -138,7 +138,7 @@ public class GatewayIndicesWarmerTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> verify warmers are recovered");
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-        recoveredWarmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
+        recoveredWarmersMetaData = clusterState.metaData().index("test").get(IndexWarmersMetaData.TYPE);
         assertThat(recoveredWarmersMetaData.entries().size(), equalTo(warmersMetaData.entries().size()));
         for (int i = 0; i < warmersMetaData.entries().size(); i++) {
             assertThat(recoveredWarmersMetaData.entries().get(i).name(), equalTo(warmersMetaData.entries().get(i).name()));

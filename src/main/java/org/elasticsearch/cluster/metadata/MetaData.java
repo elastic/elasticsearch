@@ -401,7 +401,7 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
         Iterable<String> intersection = HppcMaps.intersection(ObjectOpenHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
-            IndexWarmersMetaData indexWarmersMetaData = indexMetaData.custom(IndexWarmersMetaData.TYPE);
+            IndexWarmersMetaData indexWarmersMetaData = indexMetaData.get(IndexWarmersMetaData.TYPE);
             if (indexWarmersMetaData == null || indexWarmersMetaData.entries().isEmpty()) {
                 continue;
             }

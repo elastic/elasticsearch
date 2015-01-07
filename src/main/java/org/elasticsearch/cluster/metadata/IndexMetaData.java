@@ -42,6 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
@@ -404,19 +405,6 @@ public class IndexMetaData extends NamedCompositeClusterStatePart<IndexClusterSt
         return mappings.get(MapperService.DEFAULT_MAPPING);
     }
 
-    public ImmutableOpenMap<String, IndexClusterStatePart> customs() {
-        return this.parts;
-    }
-
-    public ImmutableOpenMap<String, IndexClusterStatePart> getCustoms() {
-        return this.parts;
-    }
-
-    @SuppressWarnings("unchecked")
-    public <T extends IndexClusterStatePart> T custom(String type) {
-        return (T) parts.get(type);
-    }
-
     @Nullable
     public DiscoveryNodeFilters requireFilters() {
         return requireFilters;
@@ -667,10 +655,9 @@ public class IndexMetaData extends NamedCompositeClusterStatePart<IndexClusterSt
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
+            FACTORY.valuesPartToXContent(indexMetaData, builder, params);
 
-            builder.field("version", indexMetaData.version());
-            builder.field("state", indexMetaData.state().toString().toLowerCase(Locale.ENGLISH));
-
+            // TODO: we can make this generic but we need to move startObject inside Factory.toXContent
             if (params.paramAsBoolean("reduce_mappings", false)) {
                 builder.startObject("mappings");
                 for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
@@ -687,7 +674,8 @@ public class IndexMetaData extends NamedCompositeClusterStatePart<IndexClusterSt
 
             for (ObjectObjectCursor<String, IndexClusterStatePart> cursor : indexMetaData.parts()) {
                 if (!cursor.key.equals(MAPPINGS_TYPE)) {
-                    builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
+                    builder.field(cursor.key, FieldCaseConversion.NONE);
+                    builder.startObject();
                     FACTORY.lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
                     builder.endObject();
                 }
@@ -712,9 +700,7 @@ public class IndexMetaData extends NamedCompositeClusterStatePart<IndexClusterSt
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if ("settings".equals(currentFieldName)) {
-                        builder.settings(ImmutableSettings.settingsBuilder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())));
-                    } else if ("mappings".equals(currentFieldName)) {
+                    if ("mappings".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = parser.currentName();
@@ -723,10 +709,6 @@ public class IndexMetaData extends NamedCompositeClusterStatePart<IndexClusterSt
                                 Map<String, Object> mappingSource = MapBuilder.<String, Object>newMapBuilder().put(mappingType, parser.mapOrdered()).map();
                                 builder.putMapping(new MappingMetaData(mappingType, mappingSource));
                             }
-                        }
-                    } else if ("aliases".equals(currentFieldName)) {
-                        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                            builder.putAlias(AliasMetaData.Builder.fromXContent(parser));
                         }
                     } else {
                         // check if its a custom index metadata
@@ -753,11 +735,7 @@ public class IndexMetaData extends NamedCompositeClusterStatePart<IndexClusterSt
                         }
                     }
                 } else if (token.isValue()) {
-                    if ("state".equals(currentFieldName)) {
-                        builder.state(State.fromString(parser.text()));
-                    } else if ("version".equals(currentFieldName)) {
-                        builder.version(parser.longValue());
-                    }
+                    builder.parseValuePart(parser, currentFieldName, null);
                 }
             }
             return builder.build();

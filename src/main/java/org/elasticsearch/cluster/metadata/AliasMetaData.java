@@ -86,6 +86,10 @@ public class AliasMetaData extends AbstractClusterStatePart implements NamedClus
         }
 
 
+        @Override
+        public AliasMetaData fromXContent(XContentParser parser, LocalContext context) throws IOException {
+            return AliasMetaData.Builder.fromXContent(parser);
+        }
     }
 
     private final String alias;

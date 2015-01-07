@@ -90,10 +90,23 @@ public interface ClusterStatePart {
          */
         T fromMap(Map<String, Object> map, LocalContext context) throws IOException;
 
-        Diff<T> diff(T before, T after);
+        /**
+         * Returns differences between before state of the part and after state of the part
+         *
+         * If the part didn't exists the before part can be null
+         */
+        Diff<T> diff(@Nullable T before, T after);
 
+        /**
+         * Reads the Diff object from an input stream
+         *
+         * The context contains information that might be necessary to deserialize the part such as local node.
+         */
         Diff<T> readDiffFrom(StreamInput in, LocalContext context) throws IOException;
 
+        /**
+         * Writes the Diff object to an output stream
+         */
         void writeDiffsTo(Diff<T> diff, StreamOutput out) throws IOException;
 
 
@@ -113,8 +126,14 @@ public interface ClusterStatePart {
         EnumSet<XContentContext> context();
     }
 
+    /**
+     * Differences between two versions of the same part
+     */
     interface Diff<T extends ClusterStatePart> {
 
+        /**
+         * Returns the new version of the part after applying differences
+         */
         T apply(T part);
 
     }

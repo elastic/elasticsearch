@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -35,20 +35,32 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
-import java.util.*;
-
-import static com.google.common.collect.Sets.newHashSet;
-import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 
 /**
  *
  */
 public class ClusterState extends CompositeClusterStatePart<ClusterState> implements ToXContent {
+
+    public static enum ClusterStateStatus {
+        UNKNOWN((byte) 0),
+        RECEIVED((byte) 1),
+        BEING_APPLIED((byte) 2),
+        APPLIED((byte) 3);
+
+        private final byte id;
+
+        ClusterStateStatus(byte id) {
+            this.id = id;
+        }
+
+        public byte id() {
+            return this.id;
+        }
+    }
 
     public static final String TYPE = "cluster";
 
@@ -85,29 +97,11 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> implem
         }
 
         public ClusterState apply(ClusterState previous) throws IncompatibleClusterStateVersionException {
-            ClusterState newState = diff.apply(previous);
-            return newState;
+            return diff.apply(previous);
         }
 
         public long version() {
             return version;
-        }
-    }
-
-    public static enum ClusterStateStatus {
-        UNKNOWN((byte) 0),
-        RECEIVED((byte) 1),
-        BEING_APPLIED((byte) 2),
-        APPLIED((byte) 3);
-
-        private final byte id;
-
-        ClusterStateStatus(byte id) {
-            this.id = id;
-        }
-
-        public byte id() {
-            return this.id;
         }
     }
 
@@ -122,7 +116,7 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> implem
     private final ClusterBlocks blocks;
 
     private final ClusterName clusterName;
-    
+
     // built on demand
     private volatile RoutingNodes routingNodes;
 
@@ -137,7 +131,6 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> implem
         this.blocks = get(ClusterBlocks.TYPE);
         this.status = ClusterStateStatus.UNKNOWN;
     }
-
 
     public ClusterStateStatus status() {
         return status;
@@ -238,74 +231,63 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> implem
         }
     }
 
-    public enum Metric {
-        VERSION("version"),
-        MASTER_NODE("master_node"),
-        BLOCKS("blocks"),
-        NODES("nodes"),
-        METADATA("metadata"),
-        ROUTING_TABLE("routing_table"),
-        CUSTOMS("customs");
+    public static class Metrics {
 
-        private static Map<String, Metric> valueToEnum;
+        public static final String VERSION = "version";
+        public static final String MASTER_NODE = "master_node";
+        public static final String NODES = DiscoveryNodes.TYPE;
+        public static final String ROUTING_TABLE = RoutingTable.TYPE;
+        public static final String METADATA = MetaData.TYPE;
+        public static final String BLOCKS = ClusterBlocks.TYPE;
 
-        static {
-            valueToEnum = new HashMap<>();
-            for (Metric metric : Metric.values()) {
-                valueToEnum.put(metric.value, metric);
-            }
-        }
 
-        private final String value;
+        private final ImmutableSet<String> includes;
+        private final ImmutableSet<String> excludes;
 
-        private Metric(String value) {
-            this.value = value;
-        }
-
-        public static EnumSet<Metric> parseString(String param, boolean ignoreUnknown) {
-            String[] metrics = Strings.splitStringByCommaToArray(param);
-            EnumSet<Metric> result = EnumSet.noneOf(Metric.class);
-            for (String metric : metrics) {
-                if ("_all".equals(metric)) {
-                    result = EnumSet.allOf(Metric.class);
-                    break;
-                }
-                Metric m = valueToEnum.get(metric);
-                if (m == null) {
-                    if (!ignoreUnknown) {
-                        throw new ElasticsearchIllegalArgumentException("Unknown metric [" + metric + "]");
+        public Metrics(String params) {
+            if (params.equals("_all")) {
+                this.includes = ImmutableSet.of();
+                this.excludes = ImmutableSet.of();
+            } else {
+                ImmutableSet.Builder<String> includes = ImmutableSet.builder();
+                ImmutableSet.Builder<String> excludes = ImmutableSet.builder();
+                String[] metrics = Strings.splitStringByCommaToArray(params);
+                for (String metric : metrics) {
+                    if (metric.startsWith("+")) {
+                        includes.add(metric.substring(1));
+                    } else if (metric.startsWith("-")) {
+                        excludes.add(metric.substring(1));
+                    } else {
+                        includes.add(metric);
                     }
-                } else {
-                    result.add(m);
                 }
+                this.includes = includes.build();
+                this.excludes = excludes.build();
             }
-            return result;
         }
 
-        @Override
-        public String toString() {
-            return value;
+        public boolean matches(String metric) {
+            if (includes.isEmpty()) {
+                return !excludes.contains(metric);
+            }
+            return includes.contains(metric) && !excludes.contains(metric);
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        EnumSet<Metric> metrics = Metric.parseString(params.param("metric", "_all"), true);
-        Set<String> metricStrings = newHashSet();
-        for (Metric metric : metrics) {
-            metricStrings.add(metric.value);
-        }
+        Metrics metrics = new Metrics(params.param("metric", "_all"));
 
-        if (metrics.contains(Metric.VERSION)) {
+        if (metrics.matches(Metrics.VERSION)) {
             builder.field("version", version);
         }
 
-        if (metrics.contains(Metric.MASTER_NODE)) {
+        if (metrics.matches(Metrics.MASTER_NODE)) {
             builder.field("master_node", nodes().masterNodeId());
         }
 
         for(ObjectObjectCursor<String, ClusterStatePart> partIter : parts) {
-            if (metricStrings.contains(partIter.key)) {
+            if (metrics.matches(partIter.key)) {
                 builder.startObject(partIter.key);
                 FACTORY.lookupFactorySafe(partIter.key).toXContent(partIter.value, builder, params);
                 builder.endObject();
@@ -313,7 +295,7 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> implem
         }
 
         // routing nodes
-        if (metrics.contains(Metric.ROUTING_TABLE)) {
+        if (metrics.matches(Metrics.ROUTING_TABLE)) {
             builder.startObject("routing_nodes");
             builder.startArray("unassigned");
             for (ShardRouting shardRouting : readOnlyRoutingNodes().unassigned()) {
@@ -477,8 +459,6 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> implem
         }
 
         public static ClusterStateDiff readDiffFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
-
-            // TODO: Do we need this version
             long version = in.readVLong();
             LocalContext localContext = new LocalContext(localNode);
             return new ClusterStateDiff(version, FACTORY.readDiffFrom(in, localContext));
@@ -497,11 +477,6 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> implem
             BytesStreamOutput os = new BytesStreamOutput();
             writeDiffTo(diff(before, after), os);
             return os.bytes().toBytes();
-        }
-
-        public static ClusterState fromDiffBytes(ClusterState before, byte[] data, DiscoveryNode localNode) throws IOException {
-            ClusterStateDiff diff = readDiffFrom(new BytesStreamInput(data, false), localNode);
-            return diff.apply(before);
         }
 
     }

@@ -18,53 +18,63 @@
  */
 package org.elasticsearch.test.engine;
 
+import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherManager;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.internal.InternalEngine;
-import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.merge.policy.MergePolicyProvider;
-import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.warmer.IndicesWarmer;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 public class MockInternalEngine extends InternalEngine {
+    public static final String WRAP_READER_RATIO = "index.engine.mock.random.wrap_reader_ratio";
+    public static final String READER_WRAPPER_TYPE = "index.engine.mock.random.wrapper";
+
+    public static class MockContext {
+        public final Random random;
+        public final boolean wrapReader;
+        public final Class<? extends FilterDirectoryReader> wrapper;
+        public final Settings indexSettings;
+
+        public MockContext(Random random, boolean wrapReader, Class<? extends FilterDirectoryReader> wrapper, Settings indexSettings) {
+            this.random = random;
+            this.wrapReader = wrapReader;
+            this.wrapper = wrapper;
+            this.indexSettings = indexSettings;
+        }
+    }
 
     public static final ConcurrentMap<AssertingSearcher, RuntimeException> INFLIGHT_ENGINE_SEARCHERS = new ConcurrentHashMap<>();
 
-    private MockInternalEngineHolder.MockContext mockContext;
 
-    public MockInternalEngine(MockInternalEngineHolder.MockContext mockContext, ShardId shardId, ESLogger logger, CodecService codecService,
-                              ThreadPool threadPool, ShardIndexingService indexingService,
-                              @Nullable IndicesWarmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy, Translog translog,
-                              MergePolicyProvider mergePolicyProvider, MergeSchedulerProvider mergeScheduler, AnalysisService analysisService,
-                              SimilarityService similarityService, boolean enableGcDeletes, long gcDeletesInMillis, ByteSizeValue indexingBufferSize, String codecName,
-                              boolean compoundOnFlush, boolean checksumOnMerge, int indexConcurrency, boolean optimizeAutoGenerateId, boolean failEngineOnCorruption,
-                              FailedEngineListener failedEngineListener) throws EngineException {
-        super(shardId, logger, codecService, threadPool, indexingService, warmer, store, deletionPolicy, translog, mergePolicyProvider,
-                mergeScheduler, analysisService, similarityService, enableGcDeletes, gcDeletesInMillis, indexingBufferSize, codecName,
-                compoundOnFlush, checksumOnMerge, indexConcurrency, optimizeAutoGenerateId, failEngineOnCorruption, failedEngineListener);
-        this.mockContext = mockContext;
+    private MockContext mockContext;
+
+    public MockInternalEngine(EngineConfig config) throws EngineException {
+        super(config);
+        Settings indexSettings = config.getIndexSettings();
+        final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.SETTING_INDEX_SEED, 0l);
+        Random random = new Random(seed);
+        final double ratio = indexSettings.getAsDouble(WRAP_READER_RATIO, 0.0d); // DISABLED by default - AssertingDR is crazy slow
+        Class<? extends AssertingDirectoryReader> wrapper = indexSettings.getAsClass(READER_WRAPPER_TYPE, AssertingDirectoryReader.class);
+        boolean wrapReader = random.nextDouble() < ratio;
+        if (logger.isTraceEnabled()) {
+            logger.trace("Using [{}] for shard [{}] seed: [{}] wrapReader: [{}]", this.getClass().getName(), shardId, seed, wrapReader);
+        }
+        mockContext = new MockContext(random, wrapReader, wrapper, indexSettings);
     }
 
     @Override
@@ -186,6 +196,26 @@ public class MockInternalEngine extends InternalEngine {
         public ShardId shardId() {
             return shardId;
         }
+    }
+
+    public static abstract class DirectoryReaderWrapper extends FilterDirectoryReader {
+        protected final SubReaderWrapper subReaderWrapper;
+
+        public DirectoryReaderWrapper(DirectoryReader in, SubReaderWrapper subReaderWrapper) {
+            super(in, subReaderWrapper);
+            this.subReaderWrapper = subReaderWrapper;
+        }
+
+        @Override
+        public Object getCoreCacheKey() {
+            return in.getCoreCacheKey();
+        }
+
+        @Override
+        public Object getCombinedCoreAndDeletesKey() {
+            return in.getCombinedCoreAndDeletesKey();
+        }
+
     }
 
 }

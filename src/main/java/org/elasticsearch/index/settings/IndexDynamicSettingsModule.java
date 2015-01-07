@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.gateway.local.LocalGatewayAllocator;
-import org.elasticsearch.index.engine.internal.InternalEngineHolder;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
 import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
 import org.elasticsearch.index.merge.policy.LogDocMergePolicyProvider;
@@ -41,7 +41,7 @@ import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
-import org.elasticsearch.indices.warmer.InternalIndicesWarmer;
+import org.elasticsearch.indices.IndicesWarmer;
 
 /**
  */
@@ -81,13 +81,13 @@ public class IndexDynamicSettingsModule extends AbstractModule {
         indexDynamicSettings.addDynamicSetting(LogDocMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_DOCS, Validator.POSITIVE_INTEGER);
         indexDynamicSettings.addDynamicSetting(LogDocMergePolicyProvider.INDEX_MERGE_POLICY_MERGE_FACTOR, Validator.INTEGER_GTE_2);
         indexDynamicSettings.addDynamicSetting(LogDocMergePolicyProvider.INDEX_COMPOUND_FORMAT);
-        indexDynamicSettings.addDynamicSetting(InternalEngineHolder.INDEX_INDEX_CONCURRENCY, Validator.NON_NEGATIVE_INTEGER);
-        indexDynamicSettings.addDynamicSetting(InternalEngineHolder.INDEX_COMPOUND_ON_FLUSH, Validator.BOOLEAN);
-        indexDynamicSettings.addDynamicSetting(InternalEngineHolder.INDEX_GC_DELETES, Validator.TIME);
-        indexDynamicSettings.addDynamicSetting(InternalEngineHolder.INDEX_CODEC);
-        indexDynamicSettings.addDynamicSetting(InternalEngineHolder.INDEX_FAIL_ON_MERGE_FAILURE);
-        indexDynamicSettings.addDynamicSetting(InternalEngineHolder.INDEX_FAIL_ON_CORRUPTION);
-        indexDynamicSettings.addDynamicSetting(InternalEngineHolder.INDEX_CHECKSUM_ON_MERGE, Validator.BOOLEAN);
+        indexDynamicSettings.addDynamicSetting(EngineConfig.INDEX_CONCURRENCY_SETTING, Validator.NON_NEGATIVE_INTEGER);
+        indexDynamicSettings.addDynamicSetting(EngineConfig.INDEX_COMPOUND_ON_FLUSH, Validator.BOOLEAN);
+        indexDynamicSettings.addDynamicSetting(EngineConfig.INDEX_GC_DELETES_SETTING, Validator.TIME);
+        indexDynamicSettings.addDynamicSetting(EngineConfig.INDEX_CODEC_SETTING);
+        indexDynamicSettings.addDynamicSetting(EngineConfig.INDEX_FAIL_ON_MERGE_FAILURE_SETTING);
+        indexDynamicSettings.addDynamicSetting(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING);
+        indexDynamicSettings.addDynamicSetting(EngineConfig.INDEX_CHECKSUM_ON_MERGE, Validator.BOOLEAN);
         indexDynamicSettings.addDynamicSetting(ShardSlowLogIndexingService.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN, Validator.TIME);
         indexDynamicSettings.addDynamicSetting(ShardSlowLogIndexingService.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO, Validator.TIME);
         indexDynamicSettings.addDynamicSetting(ShardSlowLogIndexingService.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG, Validator.TIME);
@@ -118,7 +118,7 @@ public class IndexDynamicSettingsModule extends AbstractModule {
         indexDynamicSettings.addDynamicSetting(TranslogService.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, Validator.BYTES_SIZE);
         indexDynamicSettings.addDynamicSetting(TranslogService.INDEX_TRANSLOG_FLUSH_THRESHOLD_PERIOD, Validator.TIME);
         indexDynamicSettings.addDynamicSetting(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH);
-        indexDynamicSettings.addDynamicSetting(InternalIndicesWarmer.INDEX_WARMER_ENABLED);
+        indexDynamicSettings.addDynamicSetting(IndicesWarmer.INDEX_WARMER_ENABLED);
         indexDynamicSettings.addDynamicSetting(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, Validator.BOOLEAN);
     }
 

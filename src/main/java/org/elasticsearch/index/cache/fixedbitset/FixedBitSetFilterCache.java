@@ -49,7 +49,8 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.indices.warmer.IndicesWarmer;
+import org.elasticsearch.indices.IndicesWarmer;
+import org.elasticsearch.indices.IndicesWarmer.TerminationHandle;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -237,7 +238,7 @@ public class FixedBitSetFilterCache extends AbstractIndexComponent implements At
     final class FixedBitSetFilterWarmer extends IndicesWarmer.Listener {
 
         @Override
-        public TerminationHandle warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, IndicesWarmer.WarmerContext context, ThreadPool threadPool) {
+        public IndicesWarmer.TerminationHandle warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, IndicesWarmer.WarmerContext context, ThreadPool threadPool) {
             if (!loadRandomAccessFiltersEagerly) {
                 return TerminationHandle.NO_WAIT;
             }

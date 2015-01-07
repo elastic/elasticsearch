@@ -146,7 +146,7 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
                 .build();
 
         String metaDataSource = MetaData.Builder.toXContent(metaData);
-//        System.out.println("ToJson: " + metaDataSource);
+        logger.trace("ToJson: [{}]", metaDataSource);
 
         MetaData parsedMetaData = MetaData.Builder.fromXContent(XContentFactory.xContent(XContentType.JSON).createParser(metaDataSource));
 

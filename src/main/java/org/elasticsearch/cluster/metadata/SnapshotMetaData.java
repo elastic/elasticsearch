@@ -430,11 +430,13 @@ public class SnapshotMetaData extends AbstractClusterStatePart {
 
         @Override
         public void toXContent(SnapshotMetaData snapshotMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
+            builder.startObject();
             builder.startArray(Fields.SNAPSHOTS);
             for (Entry entry : snapshotMetaData.entries) {
                 SnapshotMetaData.toXContent(entry, builder, params);
             }
             builder.endArray();
+            builder.endObject();
         }
 
 

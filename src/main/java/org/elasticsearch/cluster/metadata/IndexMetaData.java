@@ -96,11 +96,6 @@ public class IndexMetaData extends NamedCompositeClusterStatePart<IndexClusterSt
         }
 
         @Override
-        public IndexMetaData fromXContent(XContentParser parser, LocalContext context) throws IOException {
-            return Builder.fromXContent(parser);
-        }
-
-        @Override
         protected void valuesPartWriteTo(IndexMetaData indexMetaData, StreamOutput out) throws IOException {
             out.writeVLong(indexMetaData.version);
             out.writeByte(indexMetaData.state.id());
@@ -110,12 +105,6 @@ public class IndexMetaData extends NamedCompositeClusterStatePart<IndexClusterSt
         protected void valuesPartToXContent(IndexMetaData indexMetaData, XContentBuilder builder, Params params) throws IOException {
             builder.field("version", indexMetaData.version);
             builder.field("state", indexMetaData.state.toString().toLowerCase(Locale.ENGLISH));
-        }
-
-        @Override
-        public void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, Params params) throws IOException {
-            // TODO: switch to generic toXContent
-            Builder.toXContent(indexMetaData, builder, params);
         }
 
         @Override
@@ -650,51 +639,11 @@ public class IndexMetaData extends NamedCompositeClusterStatePart<IndexClusterSt
         }
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
-            FACTORY.valuesPartToXContent(indexMetaData, builder, params);
-            for (ObjectObjectCursor<String, IndexClusterStatePart> cursor : indexMetaData.parts()) {
-                builder.field(cursor.key, FieldCaseConversion.NONE);
-                FACTORY.lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
-            }
-            builder.endObject();
+            FACTORY.toXContent(indexMetaData, builder, params);
         }
 
         public static IndexMetaData fromXContent(XContentParser parser) throws IOException {
-            // TODO : switch to NamedCompositeClusterStatePart.AbstractFactory parser
-            if (parser.currentToken() == null) { // fresh parser? move to the first token
-                parser.nextToken();
-            }
-            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {  // on a start object move to next token
-                parser.nextToken();
-            }
-            Builder builder = new Builder(parser.currentName());
-
-            String currentFieldName = null;
-            XContentParser.Token token = parser.nextToken();
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    ClusterStatePart.Factory<IndexClusterStatePart> factory = FACTORY.lookupFactory(currentFieldName);
-                    if (factory == null) {
-                        //TODO warn
-                        parser.skipChildren();
-                    } else {
-                        builder.putCustom(currentFieldName, factory.fromXContent(parser, null));
-                    }
-                } else if (token == XContentParser.Token.START_ARRAY) {
-                    ClusterStatePart.Factory<IndexClusterStatePart> factory = FACTORY.lookupFactory(currentFieldName);
-                    if (factory == null) {
-                        //TODO warn
-                        parser.skipChildren();
-                    } else {
-                        builder.putCustom(currentFieldName, factory.fromXContent(parser, null));
-                    }
-                } else if (token.isValue()) {
-                    builder.parseValuePart(parser, currentFieldName, null);
-                }
-            }
-            return builder.build();
+            return FACTORY.fromXContent(parser, null);
         }
 
         public static IndexMetaData readFrom(StreamInput in) throws IOException {

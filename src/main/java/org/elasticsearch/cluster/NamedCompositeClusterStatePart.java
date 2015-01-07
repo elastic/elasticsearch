@@ -164,7 +164,6 @@ public abstract class NamedCompositeClusterStatePart<E extends ClusterStatePart>
 
         @Override
         public T fromXContent(XContentParser parser, LocalContext context) throws IOException {
-            XContentParser.Token token;
             if (parser.currentToken() == null) { // fresh parser? move to the first token
                 parser.nextToken();
             }
@@ -172,11 +171,12 @@ public abstract class NamedCompositeClusterStatePart<E extends ClusterStatePart>
                 parser.nextToken();
             }
             Builder<E, T> builder = builder(parser.currentName());
-            String currentFieldName = parser.currentName();
+            String currentFieldName = null;
+            XContentParser.Token token = parser.nextToken();
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_OBJECT) {
+                } else if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
                     // check if its a custom index metadata
                     Factory<E> factory = lookupFactory(currentFieldName);
                     if (factory == null) {
@@ -199,15 +199,16 @@ public abstract class NamedCompositeClusterStatePart<E extends ClusterStatePart>
         @Override
         public void toXContent(T part, XContentBuilder builder, Params params) throws IOException {
             XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, XContentContext.API.toString()));
+            builder.startObject(part.key(), XContentBuilder.FieldCaseConversion.NONE);
             valuesPartToXContent(part, builder, params);
             for (ObjectObjectCursor<String, E> cursor : part.parts) {
                 Factory<E> factory = lookupFactorySafe(cursor.key);
                 if (factory.context().contains(context)) {
-                    builder.startObject(cursor.key);
+                    builder.field(cursor.key);
                     factory.toXContent(cursor.value, builder, params);
-                    builder.endObject();
                 }
             }
+            builder.endObject();
         }
 
         @Override

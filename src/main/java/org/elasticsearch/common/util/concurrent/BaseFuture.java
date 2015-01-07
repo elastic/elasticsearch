@@ -92,7 +92,7 @@ public abstract class BaseFuture<V> implements Future<V> {
     @Override
     public V get(long timeout, TimeUnit unit) throws InterruptedException,
             TimeoutException, ExecutionException {
-        assert Transports.isTransportThread(Thread.currentThread()) == false : Thread.currentThread().getName();
+        Transports.assertNotTransportThread();
         return sync.get(unit.toNanos(timeout));
     }
 
@@ -114,7 +114,7 @@ public abstract class BaseFuture<V> implements Future<V> {
      */
     @Override
     public V get() throws InterruptedException, ExecutionException {
-        assert Transports.isTransportThread(Thread.currentThread()) == false : Thread.currentThread().getName();
+        Transports.assertNotTransportThread();
         return sync.get();
     }
 

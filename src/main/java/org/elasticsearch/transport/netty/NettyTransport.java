@@ -101,6 +101,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     public static final String HTTP_SERVER_WORKER_THREAD_NAME_PREFIX = "http_server_worker";
     public static final String HTTP_SERVER_BOSS_THREAD_NAME_PREFIX = "http_server_boss";
+    public static final String TRANSPORT_CLIENT_WORKER_THREAD_NAME_PREFIX = "transport_client_worker";
+    public static final String TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX = "transport_client_boss";
 
     public static final String WORKER_COUNT = "transport.netty.worker_count";
     public static final String CONNECTIONS_PER_NODE_RECOVERY = "transport.connections_per_node.recovery";
@@ -317,13 +319,13 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     private ClientBootstrap createClientBootstrap() {
 
         if (blockingClient) {
-            clientBootstrap = new ClientBootstrap(new OioClientSocketChannelFactory(Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_client_worker"))));
+            clientBootstrap = new ClientBootstrap(new OioClientSocketChannelFactory(Executors.newCachedThreadPool(daemonThreadFactory(settings, TRANSPORT_CLIENT_WORKER_THREAD_NAME_PREFIX))));
         } else {
             int bossCount = componentSettings.getAsInt("boss_count", 1);
             clientBootstrap = new ClientBootstrap(new NioClientSocketChannelFactory(
-                    Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_client_boss")),
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX)),
                     bossCount,
-                    new NioWorkerPool(Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_client_worker")), workerCount),
+                    new NioWorkerPool(Executors.newCachedThreadPool(daemonThreadFactory(settings, TRANSPORT_CLIENT_WORKER_THREAD_NAME_PREFIX)), workerCount),
                     new HashedWheelTimer(daemonThreadFactory(settings, "transport_client_timer"))));
         }
         clientBootstrap.setPipelineFactory(configureClientChannelPipelineFactory());
@@ -449,9 +451,6 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         final ThreadFactory bossFactory = daemonThreadFactory(this.settings, HTTP_SERVER_BOSS_THREAD_NAME_PREFIX, name);
         final ThreadFactory workerFactory = daemonThreadFactory(this.settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX, name);
-        assert Transports.isTransportThreadFactory(bossFactory);
-        assert Transports.isTransportThreadFactory(workerFactory);
-
         ServerBootstrap serverBootstrap;
         if (blockingServer) {
             serverBootstrap = new ServerBootstrap(new OioServerSocketChannelFactory(

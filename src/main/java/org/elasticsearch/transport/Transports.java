@@ -23,7 +23,6 @@ import org.elasticsearch.transport.local.LocalTransport;
 import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.util.Arrays;
-import java.util.concurrent.ThreadFactory;
 
 public enum Transports {
     ;
@@ -38,7 +37,9 @@ public enum Transports {
         for (String s : Arrays.asList(
                 LocalTransport.LOCAL_TRANSPORT_THREAD_NAME_PREFIX,
                 NettyTransport.HTTP_SERVER_BOSS_THREAD_NAME_PREFIX,
-                NettyTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)) {
+                NettyTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX,
+                NettyTransport.TRANSPORT_CLIENT_WORKER_THREAD_NAME_PREFIX,
+                NettyTransport.TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX)) {
             if (threadName.contains(s)) {
                 return true;
             }
@@ -46,18 +47,13 @@ public enum Transports {
         return false;
     }
 
-    /**
-     * Utility method to detect whether a thread factory generates network
-     * threads.
-     * @see #isTransportThread
-     */
-    public static final boolean isTransportThreadFactory(ThreadFactory factory) {
-        final Thread thread = factory.newThread(new Runnable() {
-           @Override
-            public void run() {
-               // no-op
-            } 
-        });
-        return isTransportThread(thread);
+    public static void assertTransportThread() {
+        final Thread t = Thread.currentThread();
+        assert isTransportThread(t) : "Expected transport thread but got [" + t + "]";
+    }
+
+    public static void assertNotTransportThread() {
+        final Thread t = Thread.currentThread();
+        assert isTransportThread(t) ==false : "Thread [" + t + "] executed a blocking operation yet is a transport thread";
     }
 }

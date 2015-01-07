@@ -27,7 +27,12 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.ThrowableObjectInputStream;
-import org.elasticsearch.common.io.stream.*;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.CachedStreamInput;
+import org.elasticsearch.common.io.stream.HandlesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
@@ -35,13 +40,26 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.ActionNotFoundTransportException;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.ResponseHandlerFailureTransportException;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportSerializationException;
+import org.elasticsearch.transport.TransportServiceAdapter;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.transport.support.TransportStatus;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -80,7 +98,6 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         int queueSize = this.settings.getAsInt(TRANSPORT_LOCAL_QUEUE, -1);
         logger.debug("creating [{}] workers, queue_size [{}]", workerCount, queueSize);
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(this.settings, LOCAL_TRANSPORT_THREAD_NAME_PREFIX);
-        assert Transports.isTransportThreadFactory(threadFactory);
         this.workers = EsExecutors.newFixed(workerCount, queueSize, threadFactory);
     }
 
@@ -216,6 +233,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     protected void messageReceived(byte[] data, String action, LocalTransport sourceTransport, Version version, @Nullable final Long sendRequestId) {
+        Transports.assertTransportThread();
         try {
             transportServiceAdapter.received(data.length);
             StreamInput stream = new BytesStreamInput(data, false);

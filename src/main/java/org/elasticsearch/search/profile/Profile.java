@@ -21,9 +21,11 @@ package org.elasticsearch.search.profile;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.lucene.search.profile.ProfileComponent;
 import org.elasticsearch.common.lucene.search.profile.ProfileQuery;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -53,8 +55,9 @@ public class Profile implements Streamable, ToXContent {
     // The Lucene toString() of the class (e.g. "my_field:zach")
     private String details;
 
-    // Aggregate time for this Profile.  Includes timing of children components
-    private long time;
+    private long rewriteTime;
+
+    private long executionTime;
 
     // Total time of the entire Profile tree.  Provided by the parent, used to calculate relative timing
     private long totalTime;
@@ -94,12 +97,33 @@ public class Profile implements Streamable, ToXContent {
         return this.details;
     }
 
-    public long time() {
-        return time;
+    public long time(ProfileComponent.Timing timing) {
+        switch (timing) {
+            case REWRITE:
+                return rewriteTime;
+            case EXECUTION:
+                return executionTime;
+            case ALL:
+                return totalTime;
+            default:
+                return totalTime;
+        }
     }
 
-    public void setTime(long time) {
-        this.time = time;
+    public void setTime(ProfileComponent.Timing timing, long time) {
+        switch (timing) {
+            case REWRITE:
+                rewriteTime = time;
+                break;
+            case EXECUTION:
+                executionTime = time;
+                break;
+            case ALL:
+                totalTime = time;
+                break;
+            default:
+                throw new ElasticsearchIllegalArgumentException("Must setTime for either REWRITE, EXECUTION or ALL timing.");
+        }
     }
 
     public long totalTime() {
@@ -114,7 +138,7 @@ public class Profile implements Streamable, ToXContent {
     }
 
     public void makeTopLevelProfile() {
-        this.setTotalTime(time);
+        this.setTotalTime(time(ProfileComponent.Timing.ALL));
         this.topProfile = true;
     }
 
@@ -143,8 +167,9 @@ public class Profile implements Streamable, ToXContent {
             // has some...so we'll use those and just skip the merge process
             components.addAll(other.components);
         }
-        this.time += other.time();
-
+        this.rewriteTime += other.time(ProfileComponent.Timing.REWRITE);
+        this.executionTime += other.time(ProfileComponent.Timing.EXECUTION);
+        this.totalTime += other.time(ProfileComponent.Timing.ALL);
         return this;
     }
 
@@ -202,8 +227,16 @@ public class Profile implements Streamable, ToXContent {
         }
 
         builder.field("type", className);
-        builder.field("time", time);
-        builder.field("relative", String.format(Locale.US, "%.5g%%", ((float) time / (float)totalTime)*100f));
+        builder.field("rewrite_time", time(ProfileComponent.Timing.REWRITE));
+        builder.field("execution_time", time(ProfileComponent.Timing.EXECUTION));
+        long combinedTime = time(ProfileComponent.Timing.REWRITE) + time(ProfileComponent.Timing.EXECUTION);
+        float relativeTime;
+        if (combinedTime == 0 || totalTime == 0) {
+            relativeTime = 0;
+        } else {
+            relativeTime = ((float) combinedTime / (float)totalTime)*100f;
+        }
+        builder.field("relative", String.format(Locale.US, "%.5g%%", relativeTime));
         builder.field("lucene", details);
 
         if (components.size() > 0) {
@@ -224,7 +257,8 @@ public class Profile implements Streamable, ToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         className = in.readString();
-        time = in.readLong();
+        rewriteTime = in.readLong();
+        executionTime = in.readLong();
         totalTime = in.readLong();
         details = in.readString();
 
@@ -240,7 +274,8 @@ public class Profile implements Streamable, ToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(className);
-        out.writeLong(time);
+        out.writeLong(time(ProfileComponent.Timing.REWRITE));
+        out.writeLong(time(ProfileComponent.Timing.EXECUTION));
         out.writeLong(totalTime);
         out.writeString(details);
 

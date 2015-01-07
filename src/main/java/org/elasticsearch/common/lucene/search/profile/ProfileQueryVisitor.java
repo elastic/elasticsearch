@@ -37,6 +37,13 @@ import java.util.ListIterator;
  */
 public class ProfileQueryVisitor extends Visitor<Object, ProfileComponent> {
 
+    private ProfileQuery parent = null;
+
+    public ProfileQueryVisitor(ProfileQuery parent) {
+        this();
+        this.parent = parent;
+    }
+
     public ProfileQueryVisitor() {
         super(ProfileQueryVisitor.class, Object.class, ProfileComponent.class, new InvocationDispatcher.Disambiguator() {
             @Override
@@ -70,97 +77,144 @@ public class ProfileQueryVisitor extends Visitor<Object, ProfileComponent> {
 
     public ProfileQuery visit(BooleanQuery booleanQuery) {
 
+        ProfileQuery newProfile = new ProfileQuery();
+
         // TODO replace this later with in-place updates
         BooleanQuery newQuery = new BooleanQuery(booleanQuery.isCoordDisabled());
 
         for (BooleanClause clause : booleanQuery.clauses()) {
             ProfileQuery pQuery = (ProfileQuery) apply(clause.getQuery());
+            pQuery.setParentQuery(parent);
             newQuery.add(pQuery, clause.getOccur());
         }
         newQuery.setBoost(booleanQuery.getBoost());
         newQuery.setMinimumNumberShouldMatch(booleanQuery.getMinimumNumberShouldMatch());
 
-        return new ProfileQuery(newQuery);
+        newProfile.setSubQuery(newQuery);
+        newProfile.setParentQuery(parent);
+        return newProfile;
     }
 
     public ProfileQuery visit(XFilteredQuery query) {
+        ProfileQuery newProfile = new ProfileQuery();
+
         ProfileQuery pQuery = (ProfileQuery) apply(query.getQuery());
+        pQuery.setParentQuery(parent);
+
         ProfileFilter pFilter = (ProfileFilter) apply(query.getFilter());
+        pFilter.setParentQuery(parent);
 
         XFilteredQuery newQuery = new XFilteredQuery(pQuery, pFilter);
         newQuery.setBoost(query.getBoost());
-        return new ProfileQuery(newQuery);
+
+        newProfile.setSubQuery(newQuery);
+        newProfile.setParentQuery(parent);
+        return newProfile;
     }
 
     public ProfileQuery visit(XConstantScoreQuery query) {
+
+        ProfileQuery newProfile = new ProfileQuery();
+
         ProfileFilter pFilter = (ProfileFilter) apply(query.getFilter());
+        pFilter.setParentQuery(parent);
 
         XConstantScoreQuery newQuery = new XConstantScoreQuery(pFilter);
         newQuery.setBoost(query.getBoost());
-        return new ProfileQuery(newQuery);
+
+        newProfile.setSubQuery(newQuery);
+        newProfile.setParentQuery(parent);
+        return newProfile;
     }
 
 
     public ProfileQuery visit(ConstantScoreQuery query) {
 
+        ProfileQuery newProfile = new ProfileQuery();
         Query q = query.getQuery();
 
         if (q != null) {
             ProfileQuery pQuery = (ProfileQuery) apply(q);
+            pQuery.setParentQuery(parent);
             ConstantScoreQuery newQuery = new ConstantScoreQuery(pQuery);
             newQuery.setBoost(query.getBoost());
-            return new ProfileQuery(newQuery);
+            newProfile.setSubQuery(newQuery);
         } else {
             ProfileFilter pFilter = (ProfileFilter) apply(query.getFilter());
+            pFilter.setParentQuery(parent);
             ConstantScoreQuery newQuery = new ConstantScoreQuery(pFilter);
             newQuery.setBoost(query.getBoost());
-            return new ProfileQuery(newQuery);
+            newProfile.setSubQuery(newQuery);
         }
+
+        newProfile.setParentQuery(parent);
+        return newProfile;
 
     }
 
     public ProfileQuery visit(DisjunctionMaxQuery query) {
+        ProfileQuery newProfile = new ProfileQuery();
         DisjunctionMaxQuery newDis = new DisjunctionMaxQuery(query.getTieBreakerMultiplier());
 
         for (Query disjunct : query.getDisjuncts()) {
             ProfileQuery pQuery = (ProfileQuery) apply(disjunct);
+            pQuery.setParentQuery(parent);
             newDis.add(pQuery);
         }
 
         newDis.setBoost(query.getBoost());
-        return new ProfileQuery(newDis);
+        newProfile.setSubQuery(newDis);
+        newProfile.setParentQuery(parent);
+        return newProfile;
     }
 
     public ProfileFilter visit(XBooleanFilter boolFilter) {
+
         XBooleanFilter newFilter = new XBooleanFilter();
 
         for (FilterClause clause : boolFilter.clauses()) {
             ProfileFilter pFilter = (ProfileFilter) apply(clause.getFilter());
+            pFilter.setParentQuery(parent);
             newFilter.add(pFilter, clause.getOccur());
         }
 
-        return new ProfileFilter(newFilter);
+        ProfileFilter newProfile = new ProfileFilter(newFilter);
+        newProfile.setParentQuery(parent);
+        return newProfile;
     }
 
     public ProfileFilter visit(AndFilter filter) {
         ArrayList<ProfileFilter> pFilters = new ArrayList<ProfileFilter>(filter.filters().size());
         for (Filter f : filter.filters()) {
-            pFilters.add((ProfileFilter)apply(f));
+            ProfileFilter pf = (ProfileFilter)apply(f);
+            pf.setParentQuery(parent);
+            pFilters.add(pf);
         }
-        return new ProfileFilter(new AndFilter(pFilters));
+        ProfileFilter newProfile = new ProfileFilter(new AndFilter(pFilters));
+        newProfile.setParentQuery(parent);
+        return newProfile;
     }
 
     public ProfileFilter visit(OrFilter filter) {
         ArrayList<ProfileFilter> pFilters = new ArrayList<ProfileFilter>(filter.filters().size());
         for (Filter f : filter.filters()) {
-            pFilters.add((ProfileFilter)apply(f));
+            ProfileFilter pf = (ProfileFilter)apply(f);
+            pf.setParentQuery(parent);
         }
-        return new ProfileFilter(new OrFilter(pFilters));
+        ProfileFilter newProfile = new ProfileFilter(new OrFilter(pFilters));
+        newProfile.setParentQuery(parent);
+        return newProfile;
     }
 
     public ProfileFilter visit(NotFilter filter) {
-        NotFilter newNot = new NotFilter((ProfileFilter)apply(filter.filter()));
-        return new ProfileFilter(newNot);
+        ProfileFilter pf = (ProfileFilter)apply(filter.filter());
+        pf.setParentQuery(parent);
+
+        NotFilter newNot = new NotFilter(pf);
+        ProfileFilter newProfile = new ProfileFilter(newNot);
+
+        newProfile.setParentQuery(parent);
+        return newProfile;
     }
 
     public ProfileQuery visit(ToParentBlockJoinQuery query) throws NoSuchFieldException, IllegalAccessException {
@@ -179,14 +233,26 @@ public class ProfileQueryVisitor extends Visitor<Object, ProfileComponent> {
 
         ToParentBlockJoinQuery newQuery = new ToParentBlockJoinQuery(innerQuery, parentsFilter, scoreMode);
         newQuery.setBoost(query.getBoost());
-        return new ProfileQuery(newQuery);
+
+        ProfileQuery newProfile = new ProfileQuery(newQuery);
+        newProfile.setParentQuery(parent);
+
+        return newProfile;
     }
 
     public ProfileQuery visit(Query query) {
-        return new ProfileQuery(query);
+        ProfileQuery newProfile =  new ProfileQuery(query);
+        newProfile.setParentQuery(parent);
+        return newProfile;
     }
 
     public ProfileFilter visit(Filter filter) {
-        return new ProfileFilter(filter);
+        ProfileFilter newProfile =  new ProfileFilter(filter);
+        newProfile.setParentQuery(parent);
+        return newProfile;
+    }
+
+    public ProfileQuery visit(ProfileQuery query) {
+        return query;
     }
 }

@@ -24,8 +24,10 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -39,7 +41,10 @@ import java.util.concurrent.TimeUnit;
 public class ProfileFilter extends Filter implements ProfileComponent {
 
     private Filter subFilter;
-    private long time = 0;
+    ProfileQuery parentQuery = null;
+
+    private long rewriteTime = 0;
+    private long executionTime = 0;
 
     private String className;
     private String details;
@@ -56,16 +61,78 @@ public class ProfileFilter extends Filter implements ProfileComponent {
         return this.subFilter;
     }
 
-    public long time() {
-        return this.time;
+    public ProfileQuery parentQuery() {
+        return parentQuery;
     }
 
-    public void setTime(long time) {
-        this.time = time;
+    public void setParentQuery(ProfileQuery parent) {
+        if (this.parentQuery == null) {
+            this.parentQuery = parent;
+        }
     }
 
-    public void addTime(long time) {
-        this.time += time;
+    public long time(Timing timing) {
+        switch (timing) {
+            case REWRITE:
+                return rewriteTime;
+            case EXECUTION:
+                return executionTime;
+            case ALL:
+                return rewriteTime + executionTime;
+            default:
+                return rewriteTime + executionTime;
+        }
+    }
+
+    public void setTime(Timing timing, long time) {
+        switch (timing) {
+            case REWRITE:
+                rewriteTime = time;
+                break;
+            case EXECUTION:
+                executionTime = time;
+                break;
+            case ALL:
+                throw new ElasticsearchIllegalArgumentException("Must setTime for either REWRITE or EXECUTION timing.");
+            default:
+                throw new ElasticsearchIllegalArgumentException("Must setTime for either REWRITE or EXECUTION timing.");
+        }
+    }
+
+    public void addTime(Timing timing, long time) {
+
+        //OH GOD WHY
+        Method[] methods = this.subFilter.getClass().getMethods();
+        for (Method m : methods) {
+            if (m.getName().equals("clauses") || m.getName().equals("getQuery") || m.getName().equals("getFilter")) {
+                return;
+            }
+        }
+
+        if (parentQuery != null) {
+            addParentTime(timing, time);
+        } else {
+            addLocalTime(timing, time);
+        }
+    }
+
+    private void addLocalTime(Timing timing, long time) {
+        switch (timing) {
+            case REWRITE:
+                rewriteTime += time;
+                break;
+            case EXECUTION:
+                executionTime += time;
+                break;
+            case ALL:
+                throw new ElasticsearchIllegalArgumentException("Must addTime for either REWRITE or EXECUTION timing.");
+            default:
+                throw new ElasticsearchIllegalArgumentException("Must addTime for either REWRITE or EXECUTION timing.");
+        }
+    }
+
+    private void addParentTime(Timing timing, long time) {
+        parentQuery.addTime(timing, time);
     }
 
     public String className() {
@@ -89,7 +156,7 @@ public class ProfileFilter extends Filter implements ProfileComponent {
         stopwatch.start();
         DocIdSet idSet = this.subFilter.getDocIdSet(context, acceptDocs);
         stopwatch.stop();
-        addTime(stopwatch.elapsed(TimeUnit.MICROSECONDS));
+        addTime(Timing.EXECUTION, stopwatch.elapsed(TimeUnit.MICROSECONDS));
         stopwatch.reset();
 
         return idSet;

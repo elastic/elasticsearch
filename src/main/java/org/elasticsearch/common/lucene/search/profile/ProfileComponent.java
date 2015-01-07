@@ -25,11 +25,15 @@ package org.elasticsearch.common.lucene.search.profile;
  */
 public interface ProfileComponent {
 
-    public long time();
+    enum Timing {
+        REWRITE, EXECUTION, ALL
+    }
 
-    public void setTime(long time);
+    public long time(Timing timing);
 
-    public void addTime(long time);
+    public void setTime(Timing timing, long time);
+
+    public void addTime(Timing timing, long time);
 
     public String className();
 
@@ -38,4 +42,6 @@ public interface ProfileComponent {
     public String details();
 
     public void setDetails(String details);
+
+
 }

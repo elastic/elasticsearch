@@ -23,6 +23,7 @@ import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.common.lucene.search.*;
+import org.elasticsearch.common.lucene.search.profile.ProfileComponent;
 import org.elasticsearch.common.lucene.search.profile.ProfileFilter;
 import org.elasticsearch.common.lucene.search.profile.ProfileQuery;
 import org.elasticsearch.common.lucene.search.profile.Visitor;
@@ -74,7 +75,7 @@ public class ProfileCollapsingVisitor extends Visitor<Object, ArrayList> {
         p.setClassName(pQuery.className());
         p.setDetails(pQuery.details());
 
-        return this.compileResults(p, apply(pQuery.subQuery()), pQuery.time());
+        return this.compileResults(p, apply(pQuery.subQuery()), pQuery.time(ProfileComponent.Timing.REWRITE), pQuery.time(ProfileComponent.Timing.EXECUTION));
     }
 
     public ArrayList<Profile> visit(ProfileFilter pFilter) {
@@ -82,7 +83,7 @@ public class ProfileCollapsingVisitor extends Visitor<Object, ArrayList> {
         p.setClassName(pFilter.className());
         p.setDetails(pFilter.details());
 
-        return this.compileResults(p, apply(pFilter.subFilter()), pFilter.time());
+        return this.compileResults(p, apply(pFilter.subFilter()), pFilter.time(ProfileComponent.Timing.REWRITE), pFilter.time(ProfileComponent.Timing.EXECUTION));
     }
 
     public ArrayList<Profile> visit(XFilteredQuery query) {
@@ -204,19 +205,24 @@ public class ProfileCollapsingVisitor extends Visitor<Object, ArrayList> {
     /**
      * Utility method to merge the timings of an array of components into the parent Profile
      */
-    private ArrayList<Profile> compileResults(Profile p, ArrayList<Profile> components, long extraTime) {
-        long time = 0;
+    private ArrayList<Profile> compileResults(Profile p, ArrayList<Profile> components, long rewriteTime, long executionTime) {
+
+        long totalTime = 0;
 
         if (components != null && components.size() != 0) {
             for (Profile component : components) {
-                time += component.time();
+                totalTime += component.time(ProfileComponent.Timing.ALL);
+                //totalTime += component.time(ProfileComponent.Timing.EXECUTION);
                 p.addComponent(component);
             }
         }
-        time += extraTime;
-        p.setTime(time);
 
-        ArrayList<Profile> pList = new ArrayList<Profile>(1);
+        p.setTime(ProfileComponent.Timing.EXECUTION, executionTime);
+        p.setTime(ProfileComponent.Timing.REWRITE, rewriteTime);
+        totalTime += executionTime + rewriteTime;
+        p.setTime(ProfileComponent.Timing.ALL, totalTime);
+
+        ArrayList<Profile> pList = new ArrayList<>(1);
         pList.add(p);
 
         return pList;

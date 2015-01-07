@@ -109,10 +109,8 @@ public class GeoPolygonFilter extends Filter {
                 lat0 = (points[i-1].lat() < 0) ? points[i-1].lat() + 180.0 : points[i-1].lat();
                 lat1 = (points[i].lat() < 0) ? points[i].lat() + 180.0 : points[i].lat();
 
-                if (lon1 < lon && lon0 >= lon
-                        || lon0 < lon && lon1 >= lon) {
-                    if (lat1 + (lon - lon1) /
-                            (lon0 - lon1) * (lat0 - lat1) < lat) {
+                if (lon1 < lon && lon0 >= lon || lon0 < lon && lon1 >= lon) {
+                    if (lat1 + (lon - lon1) / (lon0 - lon1) * (lat0 - lat1) < lat) {
                         inPoly = !inPoly;
                     }
                 }

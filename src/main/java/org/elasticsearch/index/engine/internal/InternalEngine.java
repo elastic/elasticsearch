@@ -39,17 +39,15 @@ import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.*;
@@ -61,14 +59,11 @@ import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.search.nested.IncludeNestedDocsQuery;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.warmer.IndicesWarmer;
-import org.elasticsearch.indices.warmer.InternalIndicesWarmer;
+import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.*;
@@ -88,34 +83,22 @@ public class InternalEngine implements Engine {
 
     protected final ESLogger logger;
     protected final ShardId shardId;
-
-    private volatile boolean failEngineOnCorruption;
-    private volatile ByteSizeValue indexingBufferSize;
-    private volatile int indexConcurrency;
-    private volatile boolean compoundOnFlush;
-    private volatile long gcDeletesInMillis;
+    private final EngineConfig engineConfig;
+    private final FailEngineOnMergeFailure mergeSchedulerFailureListener;
+    private final MergeSchedulerListener mergeSchedulerListener;
+    private final EngineConfig.EngineSettingsListener listener;
 
     /** When we last pruned expired tombstones from versionMap.deletes: */
     private volatile long lastDeleteVersionPruneTimeMSec;
 
-    private volatile boolean enableGcDeletes = true;
-    private volatile String codecName;
-    private final boolean optimizeAutoGenerateId;
-
-    private final ThreadPool threadPool;
-
     private final ShardIndexingService indexingService;
     @Nullable
-    private final InternalIndicesWarmer warmer;
+    private final IndicesWarmer warmer;
     private final Store store;
     private final SnapshotDeletionPolicy deletionPolicy;
     private final Translog translog;
     private final MergePolicyProvider mergePolicyProvider;
     private final MergeSchedulerProvider mergeScheduler;
-    private final AnalysisService analysisService;
-    private final SimilarityService similarityService;
-    private final CodecService codecService;
-
 
     private final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
     private final InternalLock readLock = new InternalLock(rwl.readLock());
@@ -127,12 +110,8 @@ public class InternalEngine implements Engine {
     private volatile SearcherManager searcherManager;
 
     private volatile boolean closed = false;
-    private volatile Closeable storeReference;
-
     // flag indicating if a dirty operation has occurred since the last refresh
     private volatile boolean dirty = false;
-
-    private volatile boolean possibleMergeNeeded = false;
 
     private final AtomicBoolean optimizeMutex = new AtomicBoolean();
     // we use flushNeeded here, since if there are no changes, then the commit won't write
@@ -163,64 +142,60 @@ public class InternalEngine implements Engine {
 
     private final IndexThrottle throttle;
 
-    public InternalEngine(ShardId shardId, ESLogger logger, CodecService codecService, ThreadPool threadPool,
-                          ShardIndexingService indexingService, @Nullable IndicesWarmer warmer,
-                          Store store, SnapshotDeletionPolicy deletionPolicy, Translog translog,
-                          MergePolicyProvider mergePolicyProvider, MergeSchedulerProvider mergeScheduler,
-                          AnalysisService analysisService, SimilarityService similarityService,
-                          boolean enableGcDeletes, long gcDeletesInMillis, ByteSizeValue indexingBufferSize, String codecName,
-                          boolean compoundOnFlush, int indexConcurrency, boolean optimizeAutoGenerateId, boolean failEngineOnCorruption,
-                          FailedEngineListener failedEngineListener) throws EngineException {
-        Preconditions.checkNotNull(store, "Store must be provided to the engine");
-        Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the engine");
-        Preconditions.checkNotNull(translog, "Translog must be provided to the engine");
+    public InternalEngine(EngineConfig engineConfig) throws EngineException {
+        Preconditions.checkNotNull(engineConfig.getStore(), "Store must be provided to the engine");
+        Preconditions.checkNotNull(engineConfig.getDeletionPolicy(), "Snapshot deletion policy must be provided to the engine");
+        Preconditions.checkNotNull(engineConfig.getTranslog(), "Translog must be provided to the engine");
 
-        this.shardId = shardId;
-        this.logger = logger;
-        this.gcDeletesInMillis = gcDeletesInMillis;
-        this.enableGcDeletes = enableGcDeletes;
-        this.indexingBufferSize = indexingBufferSize;
-        this.codecName = codecName;
-
-        this.threadPool = threadPool;
-        this.lastDeleteVersionPruneTimeMSec = threadPool.estimatedTimeInMillis();
-        this.indexingService = indexingService;
-        this.warmer = (InternalIndicesWarmer) warmer;
-        this.store = store;
-        this.deletionPolicy = deletionPolicy;
-        this.translog = translog;
-        this.mergePolicyProvider = mergePolicyProvider;
-        this.mergeScheduler = mergeScheduler;
-        this.analysisService = analysisService;
-        this.similarityService = similarityService;
-        this.codecService = codecService;
-        this.compoundOnFlush = compoundOnFlush;
-        this.indexConcurrency = indexConcurrency;
+        this.shardId = engineConfig.getShardId();
+        this.logger = Loggers.getLogger(getClass(), engineConfig.getIndexSettings(), shardId);
+        this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
+        this.indexingService = engineConfig.getIndexingService();
+        this.warmer = engineConfig.getWarmer();
+        this.store = engineConfig.getStore();
+        this.deletionPolicy = engineConfig.getDeletionPolicy();
+        this.translog = engineConfig.getTranslog();
+        this.mergePolicyProvider = engineConfig.getMergePolicyProvider();
+        this.mergeScheduler = engineConfig.getMergeScheduler();
         this.versionMap = new LiveVersionMap();
-        this.dirtyLocks = new Object[indexConcurrency * 50]; // we multiply it to have enough...
+        this.dirtyLocks = new Object[engineConfig.getIndexConcurrency() * 50]; // we multiply it to have enough...
         for (int i = 0; i < dirtyLocks.length; i++) {
             dirtyLocks[i] = new Object();
         }
-        this.optimizeAutoGenerateId = optimizeAutoGenerateId;
-        this.failEngineOnCorruption = failEngineOnCorruption;
-        this.failedEngineListener = failedEngineListener;
+
+        this.mergeSchedulerFailureListener = new FailEngineOnMergeFailure();
+        this.mergeSchedulerListener = new MergeSchedulerListener();
+        this.mergeScheduler.addListener(mergeSchedulerListener);
+        this.mergeScheduler.addFailureListener(mergeSchedulerFailureListener);
+
+        this.failedEngineListener = engineConfig.getFailedEngineListener();
         throttle = new IndexThrottle();
+        this.engineConfig = engineConfig;
+        listener = new EngineConfig.EngineSettingsListener(logger, engineConfig) {
+            @Override
+            protected void onChange() {
+                updateSettings();
+            }
+        };
+        engineConfig.getIndexSettingsService().addListener(listener);
+        final IndexWriter writer = start();
+        assert indexWriter == null : "IndexWriter already initialized";
+        indexWriter = writer;
     }
 
     @Override
     public void updateIndexingBufferSize(ByteSizeValue indexingBufferSize) {
-        ByteSizeValue preValue = this.indexingBufferSize;
+        ByteSizeValue preValue = engineConfig.getIndexingBufferSize();
+
         try (InternalLock _ = readLock.acquire()) {
-            this.indexingBufferSize = indexingBufferSize;
-            IndexWriter indexWriter = this.indexWriter;
-            if (indexWriter != null) {
-                indexWriter.getConfig().setRAMBufferSizeMB(this.indexingBufferSize.mbFrac());
-            }
+            ensureOpen();
+            engineConfig.setIndexingBufferSize(indexingBufferSize);
+            indexWriter.getConfig().setRAMBufferSizeMB(indexingBufferSize.mbFrac());
         }
         if (preValue.bytes() != indexingBufferSize.bytes()) {
             // its inactive, make sure we do a full flush in this case, since the memory
             // changes only after a "data" change has happened to the writer
-            if (indexingBufferSize == Engine.INACTIVE_SHARD_INDEXING_BUFFER && preValue != Engine.INACTIVE_SHARD_INDEXING_BUFFER) {
+            if (indexingBufferSize == EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER && preValue != EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER) {
                 logger.debug("updating index_buffer_size from [{}] to (inactive) [{}]", preValue, indexingBufferSize);
                 try {
                     flush(FlushType.COMMIT, false, false);
@@ -237,50 +212,20 @@ public class InternalEngine implements Engine {
         }
     }
 
-    @Override
-    public void addFailedEngineListener(FailedEngineListener listener) {
-        throw new UnsupportedOperationException("addFailedEngineListener is not supported by InternalEngine. Use InternalEngineHolder.");
-    }
-
-    @Override
-    public void start() throws EngineException {
+    private IndexWriter start() throws EngineException {
         store.incRef();
-        /*
-         * This might look weird but it's in-fact needed since if we close
-         * the engine due to a corruption on IW startup the reference is decremented in the close
-         * method and this must not happen more than once
-         */
-        final Closeable storeRef = new Closeable() {
-            private final AtomicBoolean closed = new AtomicBoolean(false);
-            @Override
-            public void close() throws IOException {
-                if (closed.compareAndSet(false, true)) {
-                    store.decRef();
-                }
-            }
-        };
-        final List<Closeable> closeOnFailure = new ArrayList<>(Arrays.asList(storeRef));
-        try (InternalLock _ = writeLock.acquire()) {
-            IndexWriter indexWriter = this.indexWriter;
-            if (indexWriter != null) {
-                throw new EngineAlreadyStartedException(shardId);
-            }
-            if (closed) {
-                throw new EngineClosedException(shardId);
-            }
-            storeReference = storeRef;
-
-            if (logger.isDebugEnabled()) {
-                logger.debug("starting engine");
-            }
+        boolean success = false;
+        IndexWriter indexWriter = null;
+        SearcherManager searcherManager = null;
+        try {
             try {
                 indexWriter = createWriter();
-                closeOnFailure.add(indexWriter);
             } catch (IOException e) {
                 maybeFailEngine(e, "start");
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
             }
             try {
+                assert indexWriter != null;
                 // commit on a just opened writer will commit even if there are no changes done to it
                 // we rely on that for the commit data translog id key
                 final long translogId = Math.max(0, translog.findLargestPresentTranslogId()) + 1;
@@ -293,96 +238,46 @@ public class InternalEngine implements Engine {
                     indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
                     indexWriter.commit();
                 }
-
+                searcherManager = buildSearchManager(indexWriter);
+                lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
                 translog.newTranslog(translogId);
-                final SearcherManager searcherManager = buildSearchManager(indexWriter);
-                closeOnFailure.add(searcherManager);
                 versionMap.setManager(searcherManager);
-                this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
                 this.searcherManager = searcherManager;
                 translogIdGenerator.set(translogId);
-                this.indexWriter = indexWriter;
-                closeOnFailure.clear(); // all is well
+                success = true;
+                return indexWriter;
             } catch (IOException e) {
                 maybeFailEngine(e, "start");
                 try {
-                    if (indexWriter != null) {
-                        indexWriter.rollback();
-                    }
+                    indexWriter.rollback();
                 } catch (IOException e1) { // iw is closed below
                     e.addSuppressed(e1);
                 }
                 throw new EngineCreationFailureException(shardId, "failed to open reader on writer", e);
             }
         } finally {
-            if (closeOnFailure.isEmpty() == false) { // release everything we created on a failure
-                IOUtils.closeWhileHandlingException(closeOnFailure);
+            if (success == false) { // release everything we created on a failure
+                store.decRef();
+                IOUtils.closeWhileHandlingException(indexWriter, searcherManager);
+            }
+        }
+    }
+
+    private void updateSettings() {
+        if (closed == false) {
+            final LiveIndexWriterConfig iwc = indexWriter.getConfig();
+            iwc.setUseCompoundFile(engineConfig.isCompoundOnFlush());
+            final boolean concurrencyNeedsUpdate = iwc.getMaxThreadStates() != engineConfig.getIndexConcurrency();
+            final boolean codecNeedsUpdate = iwc.getCodec().equals(engineConfig.getCodec()) == false;
+            if (codecNeedsUpdate || concurrencyNeedsUpdate) {
+                flush(FlushType.NEW_WRITER, false, false);
             }
         }
     }
 
     @Override
-    public void stop() throws EngineException {
-        throw new UnsupportedOperationException("stop() is not supported by InternalEngine. Use InternalEngineHolder.");
-    }
-
-    @Override
-    public ShardId shardId() {
-        return shardId;
-    }
-
-    @Override
-    public TimeValue defaultRefreshInterval() {
-        return InternalEngineHolder.DEFAULT_REFRESH_INTERVAL;
-    }
-
-    /** return the current indexing buffer size setting * */
     public ByteSizeValue indexingBufferSize() {
-        return indexingBufferSize;
-    }
-
-    @Override
-    public void enableGcDeletes(boolean enableGcDeletes) {
-        this.enableGcDeletes = enableGcDeletes;
-    }
-
-    public void updateSettings(final long gcDeletesInMillis, final boolean compoundOnFlush, boolean failEngineOnCorruption, final int indexConcurrency, final String codecName) {
-        ensureOpen();
-        if (this.gcDeletesInMillis != gcDeletesInMillis) {
-            logger.trace("[impl] updating gcDeletesInMillis from [{}] to [{}]", this.gcDeletesInMillis, gcDeletesInMillis);
-            this.gcDeletesInMillis = gcDeletesInMillis;
-        }
-        if (this.compoundOnFlush != compoundOnFlush) {
-            this.compoundOnFlush = compoundOnFlush;
-            logger.trace("[impl] updating compoundOnFlush from [{}] to [{}]", this.compoundOnFlush, compoundOnFlush);
-            indexWriter.getConfig().setUseCompoundFile(compoundOnFlush);
-        }
-        if (this.failEngineOnCorruption != failEngineOnCorruption) {
-            logger.trace("[impl] updating failEngineOnCorruption from [{}] to [{}]", this.failEngineOnCorruption, failEngineOnCorruption);
-            this.failEngineOnCorruption = failEngineOnCorruption;
-        }
-        if (indexConcurrency != this.indexConcurrency || !codecName.equals(this.codecName)) {
-            boolean requiresFlushing = false;
-            try (InternalLock _ = readLock.acquire()) {
-                if (indexConcurrency != this.indexConcurrency) {
-                    logger.trace("[impl] updating indexConcurrency from [{}] to [{}]", this.indexConcurrency, indexConcurrency);
-                    this.indexConcurrency = indexConcurrency;
-                    // we have to flush in this case, since it only applies on a new index writer
-                    requiresFlushing = true;
-                }
-                if (!codecName.equals(this.codecName)) {
-                    logger.trace("[impl] updating codecName from [{}] to [{}]", this.codecName, codecName);
-                    this.codecName = codecName;
-                    // we want to flush in this case, so the new codec will be reflected right away...
-                    requiresFlushing = true;
-                }
-
-            } finally {
-                if (requiresFlushing) {
-                    flush(FlushType.NEW_WRITER, false, false);
-                }
-            }
-        }
+        return engineConfig.getIndexingBufferSize();
     }
 
     @Override
@@ -416,7 +311,7 @@ public class InternalEngine implements Engine {
             } catch (Throwable e) {
                 Releasables.closeWhileHandlingException(searcher);
                 //TODO: A better exception goes here
-                throw new EngineException(shardId(), "Couldn't resolve version", e);
+                throw new EngineException(shardId, "Couldn't resolve version", e);
             }
 
             if (docIdAndVersion != null) {
@@ -446,7 +341,6 @@ public class InternalEngine implements Engine {
                 innerCreate(create, writer);
             }
             dirty = true;
-            possibleMergeNeeded = true;
             flushNeeded = true;
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine(t, "create");
@@ -457,7 +351,7 @@ public class InternalEngine implements Engine {
 
 
     private void innerCreate(Create create, IndexWriter writer) throws IOException {
-        if (optimizeAutoGenerateId && create.autoGeneratedId() && !create.canHaveDuplicates()) {
+        if (engineConfig.isOptimizeAutoGenerateId() && create.autoGeneratedId() && !create.canHaveDuplicates()) {
             // We don't need to lock because this ID cannot be concurrently updated:
             innerCreateNoLock(create, writer, Versions.NOT_FOUND, null);
         } else {
@@ -468,7 +362,7 @@ public class InternalEngine implements Engine {
                 if (versionValue == null) {
                     currentVersion = loadCurrentVersionFromIndex(create.uid());
                 } else {
-                    if (enableGcDeletes && versionValue.delete() && (threadPool.estimatedTimeInMillis() - versionValue.time()) > gcDeletesInMillis) {
+                    if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() - versionValue.time()) > engineConfig.getGcDeletesInMillis()) {
                         currentVersion = Versions.NOT_FOUND; // deleted, and GC
                     } else {
                         currentVersion = versionValue.version();
@@ -551,7 +445,6 @@ public class InternalEngine implements Engine {
                 innerIndex(index, writer);
             }
             dirty = true;
-            possibleMergeNeeded = true;
             flushNeeded = true;
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine(t, "index");
@@ -565,14 +458,14 @@ public class InternalEngine implements Engine {
      */
     private void checkVersionMapRefresh() {
         // TODO: we force refresh when versionMap is using > 25% of IW's RAM buffer; should we make this separately configurable?
-        if (versionMap.ramBytesUsedForRefresh() > 0.25 * indexingBufferSize.bytes() && versionMapRefreshPending.getAndSet(true) == false) {
+        if (versionMap.ramBytesUsedForRefresh() > 0.25 * engineConfig.getIndexingBufferSize().bytes() && versionMapRefreshPending.getAndSet(true) == false) {
             try {
                 if (closed) {
                     // no point...
                     return;
                 }
                 // Now refresh to clear versionMap:
-                threadPool.executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
+                engineConfig.getThreadPool().executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
                     public void run() {
                         try {
                             refresh("version_table_full", false);
@@ -594,7 +487,7 @@ public class InternalEngine implements Engine {
             if (versionValue == null) {
                 currentVersion = loadCurrentVersionFromIndex(index.uid());
             } else {
-                if (enableGcDeletes && versionValue.delete() && (threadPool.estimatedTimeInMillis() - versionValue.time()) > gcDeletesInMillis) {
+                if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() - versionValue.time()) > engineConfig.getGcDeletesInMillis()) {
                     currentVersion = Versions.NOT_FOUND; // deleted, and GC
                 } else {
                     currentVersion = versionValue.version();
@@ -642,13 +535,9 @@ public class InternalEngine implements Engine {
     @Override
     public void delete(Delete delete) throws EngineException {
         try (InternalLock _ = readLock.acquire()) {
-            IndexWriter writer = this.indexWriter;
-            if (writer == null) {
-                throw new EngineClosedException(shardId, failedEngine);
-            }
-            innerDelete(delete, writer);
+            final IndexWriter indexWriter = currentIndexWriter();
+            innerDelete(delete, indexWriter);
             dirty = true;
-            possibleMergeNeeded = true;
             flushNeeded = true;
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine(t, "delete");
@@ -661,7 +550,7 @@ public class InternalEngine implements Engine {
     private void maybePruneDeletedTombstones() {
         // It's expensive to prune because we walk the deletes map acquiring dirtyLock for each uid so we only do it
         // every 1/4 of gcDeletesInMillis:
-        if (enableGcDeletes && threadPool.estimatedTimeInMillis() - lastDeleteVersionPruneTimeMSec > gcDeletesInMillis * 0.25) {
+        if (engineConfig.isEnableGcDeletes() && engineConfig.getThreadPool().estimatedTimeInMillis() - lastDeleteVersionPruneTimeMSec > engineConfig.getGcDeletesInMillis() * 0.25) {
             pruneDeletedTombstones();
         }
     }
@@ -673,7 +562,7 @@ public class InternalEngine implements Engine {
             if (versionValue == null) {
                 currentVersion = loadCurrentVersionFromIndex(delete.uid());
             } else {
-                if (enableGcDeletes && versionValue.delete() && (threadPool.estimatedTimeInMillis() - versionValue.time()) > gcDeletesInMillis) {
+                if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() - versionValue.time()) > engineConfig.getGcDeletesInMillis()) {
                     currentVersion = Versions.NOT_FOUND; // deleted, and GC
                 } else {
                     currentVersion = versionValue.version();
@@ -705,7 +594,7 @@ public class InternalEngine implements Engine {
 
             delete.updateVersion(updatedVersion, found);
             Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
-            versionMap.putUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, threadPool.estimatedTimeInMillis(), translogLocation));
+            versionMap.putUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis(), translogLocation));
 
             indexingService.postDeleteUnderLock(delete);
         }
@@ -714,11 +603,7 @@ public class InternalEngine implements Engine {
     @Override
     public void delete(DeleteByQuery delete) throws EngineException {
         try (InternalLock _ = readLock.acquire()) {
-            IndexWriter writer = this.indexWriter;
-            if (writer == null) {
-                throw new EngineClosedException(shardId);
-            }
-
+            final IndexWriter indexWriter = currentIndexWriter();
             Query query;
             if (delete.nested() && delete.aliasFilter() != null) {
                 query = new IncludeNestedDocsQuery(new FilteredQuery(delete.query(), delete.aliasFilter()), delete.parentFilter());
@@ -730,10 +615,9 @@ public class InternalEngine implements Engine {
                 query = delete.query();
             }
 
-            writer.deleteDocuments(query);
+            indexWriter.deleteDocuments(query);
             translog.add(new Translog.DeleteByQuery(delete));
             dirty = true;
-            possibleMergeNeeded = true;
             flushNeeded = true;
         } catch (Throwable t) {
             maybeFailEngine(t, "delete_by_query");
@@ -753,18 +637,8 @@ public class InternalEngine implements Engine {
           * the searcher is acquired. */
         store.incRef();
         try {
-            SearcherManager manager = this.searcherManager;
-            if (manager == null) {
-                ensureOpen();
-                try (InternalLock _ = this.readLock.acquire()) {
-                    // we might start up right now and the searcherManager is not initialized
-                    // we take the read lock and retry again since write lock is taken
-                    // while start() is called and otherwise the ensureOpen() call will
-                    // barf.
-                    manager = this.searcherManager;
-                    assert manager != null : "SearcherManager is null but shouldn't";
-                }
-            }
+            final SearcherManager manager = this.searcherManager; // can never be null
+            assert manager != null : "SearcherManager is null";
             /* This might throw NPE but that's fine we will run ensureOpen()
             *  in the catch block and throw the right exception */
             final IndexSearcher searcher = manager.acquire();
@@ -818,21 +692,9 @@ public class InternalEngine implements Engine {
         return false;
     }
 
-    private boolean possibleMergeNeeded() {
-        IndexWriter writer = this.indexWriter;
-        if (writer == null) {
-            return false;
-        }
-        // a merge scheduler might bail without going through all its pending merges
-        // so make sure we also check if there are pending merges
-        return this.possibleMergeNeeded || writer.hasPendingMerges();
-    }
-
     @Override
     public void refresh(String source, boolean force) throws EngineException {
-        if (indexWriter == null) {
-            throw new EngineClosedException(shardId);
-        }
+        ensureOpen();
         // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
         try (InternalLock _ = readLock.acquire()) {
@@ -957,7 +819,7 @@ public class InternalEngine implements Engine {
 
                 // We don't have to do this here; we do it defensively to make sure that even if wall clock time is misbehaving
                 // (e.g., moves backwards) we will at least still sometimes prune deleted tombstones:
-                if (enableGcDeletes) {
+                if (engineConfig.isEnableGcDeletes()) {
                     pruneDeletedTombstones();
                 }
 
@@ -981,7 +843,7 @@ public class InternalEngine implements Engine {
 
                 // We don't have to do this here; we do it defensively to make sure that even if wall clock time is misbehaving
                 // (e.g., moves backwards) we will at least still sometimes prune deleted tombstones:
-                if (enableGcDeletes) {
+                if (engineConfig.isEnableGcDeletes()) {
                     pruneDeletedTombstones();
                 }
 
@@ -1011,7 +873,7 @@ public class InternalEngine implements Engine {
     }
 
     private void ensureOpen() {
-        if (indexWriter == null) {
+        if (closed) {
             throw new EngineClosedException(shardId, failedEngine);
         }
     }
@@ -1024,13 +886,14 @@ public class InternalEngine implements Engine {
     private IndexWriter currentIndexWriter() {
         final IndexWriter writer = indexWriter;
         if (writer == null) {
+            assert closed : "Engine is not closed but writer is null";
             throw new EngineClosedException(shardId, failedEngine);
         }
         return writer;
     }
 
     private void pruneDeletedTombstones() {
-        long timeMSec = threadPool.estimatedTimeInMillis();
+        long timeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
 
         // TODO: not good that we reach into LiveVersionMap here; can we move this inside VersionMap instead?  problem is the dirtyLock...
 
@@ -1039,10 +902,10 @@ public class InternalEngine implements Engine {
             BytesRef uid = entry.getKey();
             synchronized (dirtyLock(uid)) { // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
 
-                // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:                
+                // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
                 VersionValue versionValue = versionMap.getTombstoneUnderLock(uid);
                 if (versionValue != null) {
-                    if (timeMSec - versionValue.time() > gcDeletesInMillis) {
+                    if (timeMSec - versionValue.time() > engineConfig.getGcDeletesInMillis()) {
                         versionMap.removeTombstoneUnderLock(uid);
                     }
                 }
@@ -1050,19 +913,6 @@ public class InternalEngine implements Engine {
         }
 
         lastDeleteVersionPruneTimeMSec = timeMSec;
-    }
-
-    private void maybeMerge() throws EngineException {
-        if (!possibleMergeNeeded()) {
-            return;
-        }
-        possibleMergeNeeded = false;
-        try (InternalLock _ = readLock.acquire()) {
-            currentIndexWriter().maybeMerge();
-        } catch (Throwable t) {
-            maybeFailEngine(t, "maybe_merge");
-            throw new OptimizeFailedEngineException(shardId, t);
-        }
     }
 
     // TODO: can we please remove this method?!
@@ -1107,7 +957,6 @@ public class InternalEngine implements Engine {
                     writer.forceMergeDeletes(false);
                 } else if (maxNumSegments <= 0) {
                     writer.maybeMerge();
-                    possibleMergeNeeded = false;
                 } else {
                     writer.forceMerge(maxNumSegments, false);
                 }
@@ -1124,7 +973,7 @@ public class InternalEngine implements Engine {
             waitForMerges(flush);
         } else if (flush) {
             // we only need to monitor merges for async calls if we are going to flush
-            threadPool.executor(ThreadPool.Names.OPTIMIZE).execute(new AbstractRunnable() {
+            engineConfig.getThreadPool().executor(ThreadPool.Names.OPTIMIZE).execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Throwable t) {
                     logger.error("Exception while waiting for merges asynchronously after optimize", t);
@@ -1214,11 +1063,11 @@ public class InternalEngine implements Engine {
 
     private boolean maybeFailEngine(Throwable t, String source) {
         if (Lucene.isCorruptionException(t)) {
-            if (this.failEngineOnCorruption) {
+            if (engineConfig.isFailEngineOnCorruption()) {
                 failEngine("corrupt file detected source: [" + source + "]", t);
                 return true;
             } else {
-                logger.warn("corrupt file detected source: [{}] but [{}] is set to [{}]", t, source, InternalEngineHolder.INDEX_FAIL_ON_CORRUPTION, this.failEngineOnCorruption);
+                logger.warn("corrupt file detected source: [{}] but [{}] is set to [{}]", t, source, EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, engineConfig.isFailEngineOnCorruption());
             }
         } else if (ExceptionsHelper.isOOM(t)) {
             failEngine("out of memory", t);
@@ -1233,7 +1082,7 @@ public class InternalEngine implements Engine {
         }
         return t;
     }
-    
+
     private long guardedRamBytesUsed(Accountable a) {
         if (a == null) {
             return 0;
@@ -1379,8 +1228,11 @@ public class InternalEngine implements Engine {
                 } catch (Throwable e) {
                     logger.warn("failed to rollback writer on close", e);
                 } finally {
+                    store.decRef();
                     indexWriter = null;
-                    IOUtils.closeWhileHandlingException(storeReference);
+                    this.mergeScheduler.removeListener(mergeSchedulerListener);
+                    this.mergeScheduler.removeFailureListener(mergeSchedulerFailureListener);
+                    engineConfig.getIndexSettingsService().removeListener(listener);
                 }
             }
         }
@@ -1419,7 +1271,10 @@ public class InternalEngine implements Engine {
                     failedEngine = failure;
                     failedEngineListener.onFailedEngine(shardId, reason, failure);
                 } finally {
-                    close();
+                    if (indexWriter != null) {
+                        // we might be not yet be fully constructed - don't call close
+                        close();
+                    }
                 }
             }
         } else {
@@ -1456,31 +1311,31 @@ public class InternalEngine implements Engine {
     private IndexWriter createWriter() throws IOException {
         try {
             boolean create = !Lucene.indexExists(store.directory());
-            IndexWriterConfig config = new IndexWriterConfig(analysisService.defaultIndexAnalyzer());
-            config.setCommitOnClose(false); // we by default don't commit on close
-            config.setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
-            config.setIndexDeletionPolicy(deletionPolicy);
-            config.setInfoStream(new LoggerInfoStream(logger));
-            config.setMergeScheduler(mergeScheduler.newMergeScheduler());
+            final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
+            iwc.setCommitOnClose(false); // we by default don't commit on close
+            iwc.setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
+            iwc.setIndexDeletionPolicy(deletionPolicy);
+            iwc.setInfoStream(new LoggerInfoStream(logger));
+            iwc.setMergeScheduler(mergeScheduler.newMergeScheduler());
             MergePolicy mergePolicy = mergePolicyProvider.getMergePolicy();
             // Give us the opportunity to upgrade old segments while performing
             // background merges
             mergePolicy = new ElasticsearchMergePolicy(mergePolicy);
-            config.setMergePolicy(mergePolicy);
-            config.setSimilarity(similarityService.similarity());
-            config.setRAMBufferSizeMB(indexingBufferSize.mbFrac());
-            config.setMaxThreadStates(indexConcurrency);
-            config.setCodec(codecService.codec(codecName));
+            iwc.setMergePolicy(mergePolicy);
+            iwc.setSimilarity(engineConfig.getSimilarity());
+            iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().mbFrac());
+            iwc.setMaxThreadStates(engineConfig.getIndexConcurrency());
+            iwc.setCodec(engineConfig.getCodec());
             /* We set this timeout to a highish value to work around
              * the default poll interval in the Lucene lock that is
              * 1000ms by default. We might need to poll multiple times
              * here but with 1s poll this is only executed twice at most
              * in combination with the default writelock timeout*/
-            config.setWriteLockTimeout(5000);
-            config.setUseCompoundFile(this.compoundOnFlush);
+            iwc.setWriteLockTimeout(5000);
+            iwc.setUseCompoundFile(this.engineConfig.isCompoundOnFlush());
             // Warm-up hook for newly-merged segments. Warming up segments here is better since it will be performed at the end
             // of the merge operation and won't slow down _refresh
-            config.setMergedSegmentWarmer(new IndexReaderWarmer() {
+            iwc.setMergedSegmentWarmer(new IndexReaderWarmer() {
                 @Override
                 public void warm(LeafReader reader) throws IOException {
                     try {
@@ -1502,7 +1357,7 @@ public class InternalEngine implements Engine {
                     }
                 }
             });
-            return new IndexWriter(store.directory(), config);
+            return new IndexWriter(store.directory(), iwc);
         } catch (LockObtainFailedException ex) {
             boolean isLocked = IndexWriter.isLocked(store.directory());
             logger.warn("Could not lock IndexWriter isLocked [{}]", ex, isLocked);
@@ -1568,18 +1423,19 @@ public class InternalEngine implements Engine {
 
     class SearchFactory extends SearcherFactory {
 
+
         @Override
         public IndexSearcher newSearcher(IndexReader reader) throws IOException {
             IndexSearcher searcher = new IndexSearcher(reader);
-            searcher.setSimilarity(similarityService.similarity());
+            searcher.setSimilarity(engineConfig.getSimilarity());
             if (warmer != null) {
                 // we need to pass a custom searcher that does not release anything on Engine.Search Release,
                 // we will release explicitly
                 IndexSearcher newSearcher = null;
                 boolean closeNewSearcher = false;
                 try {
-                    if (searcherManager == null) {
-                        // fresh index writer, just do on all of it
+                    if (indexWriter == null) {
+                        // we are starting up - no writer active so we can't acquire a searcher.
                         newSearcher = searcher;
                     } else {
                         try (final Searcher currentSearcher = acquireSearcher("search_factory")) {
@@ -1778,27 +1634,59 @@ public class InternalEngine implements Engine {
     }
 
     long getGcDeletesInMillis() {
-        return gcDeletesInMillis;
-    }
-
-    String getCodecName() {
-        return codecName;
-    }
-
-    boolean isCompoundOnFlush() {
-        return compoundOnFlush;
-    }
-
-    int getIndexConcurrency() {
-        return indexConcurrency;
-    }
-
-    boolean isFailEngineOnCorruption() {
-        return failEngineOnCorruption;
+        return engineConfig.getGcDeletesInMillis();
     }
 
     LiveIndexWriterConfig getCurrentIndexWriterConfig() {
-        IndexWriter writer = currentIndexWriter();
-        return writer == null ? null : writer.getConfig();
+        return currentIndexWriter().getConfig();
+    }
+
+
+    class FailEngineOnMergeFailure implements MergeSchedulerProvider.FailureListener {
+        @Override
+        public void onFailedMerge(MergePolicy.MergeException e) {
+            if (Lucene.isCorruptionException(e)) {
+                if (engineConfig.isFailEngineOnCorruption()) {
+                    failEngine("corrupt file detected source: [merge]", e);
+                } else {
+                    logger.warn("corrupt file detected source: [merge] but [{}] is set to [{}]", e, EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, engineConfig.isFailEngineOnCorruption());
+                }
+            } else if (engineConfig.isFailOnMergeFailure()) {
+                failEngine("merge exception", e);
+            }
+        }
+    }
+
+    class MergeSchedulerListener implements MergeSchedulerProvider.Listener {
+        private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
+        private final AtomicBoolean isThrottling = new AtomicBoolean();
+
+        @Override
+        public synchronized void beforeMerge(OnGoingMerge merge) {
+            int maxNumMerges = mergeScheduler.getMaxMerges();
+            if (numMergesInFlight.incrementAndGet() > maxNumMerges) {
+                if (isThrottling.getAndSet(true) == false) {
+                    logger.info("now throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
+                    indexingService.throttlingActivated();
+                    activateThrottling();
+                }
+            }
+        }
+
+        @Override
+        public synchronized void afterMerge(OnGoingMerge merge) {
+            int maxNumMerges = mergeScheduler.getMaxMerges();
+            if (numMergesInFlight.decrementAndGet() < maxNumMerges) {
+                if (isThrottling.getAndSet(false)) {
+                    logger.info("stop throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
+                    indexingService.throttlingDeactivated();
+                    deactivateThrottling();
+                }
+            }
+        }
+    }
+
+    EngineConfig config() {
+        return engineConfig;
     }
 }

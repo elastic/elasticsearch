@@ -20,6 +20,7 @@ package org.elasticsearch.index.engine.internal;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 
 import static org.hamcrest.Matchers.is;
@@ -29,11 +30,12 @@ public class InternalEngineSettingsTest extends ElasticsearchSingleNodeTest {
     public void testLuceneSettings() {
         final IndexService service = createIndex("foo");
         // INDEX_COMPOUND_ON_FLUSH
-        assertThat(engine(service).currentIndexWriterConfig().getUseCompoundFile(), is(true));
-        client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put(InternalEngineHolder.INDEX_COMPOUND_ON_FLUSH, false).build()).get();
-        assertThat(engine(service).currentIndexWriterConfig().getUseCompoundFile(), is(false));
-        client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put(InternalEngineHolder.INDEX_COMPOUND_ON_FLUSH, true).build()).get();
-        assertThat(engine(service).currentIndexWriterConfig().getUseCompoundFile(), is(true));
+        InternalEngine engine = ((InternalEngine)engine(service));
+        assertThat(engine.currentIndexWriterConfig().getUseCompoundFile(), is(true));
+        client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, false).build()).get();
+        assertThat(engine.currentIndexWriterConfig().getUseCompoundFile(), is(false));
+        client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, true).build()).get();
+        assertThat(engine.currentIndexWriterConfig().getUseCompoundFile(), is(true));
     }
 
 

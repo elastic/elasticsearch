@@ -96,9 +96,7 @@ public class ClusterStateSettingsPart extends AbstractClusterStatePart implement
         @Override
         public void toXContent(ClusterStateSettingsPart clusterStateSettingsPart, XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            for (Map.Entry<String, String> entry : clusterStateSettingsPart.settings.getAsMap().entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
+            clusterStateSettingsPart.settings.toXContent(builder, params);
             builder.endObject();
         }
 

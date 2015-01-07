@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.*;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
@@ -220,6 +221,11 @@ public class IndexWarmersMetaData extends AbstractClusterStatePart implements In
         @Override
         public String partType() {
             return TYPE;
+        }
+
+        @Override
+        public EnumSet<XContentContext> context() {
+            return API_GATEWAY_SNAPSHOT;
         }
     }
 }

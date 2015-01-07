@@ -89,7 +89,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 /**
  * Service responsible for submitting create index requests
  */
-public class MetaDataCreateIndexService extends AbstractComponent {
+    public class MetaDataCreateIndexService extends AbstractComponent {
 
     public final static int MAX_INDEX_NAME_BYTES = 255;
     private static final DefaultIndexTemplateFilter DEFAULT_INDEX_TEMPLATE_FILTER = new DefaultIndexTemplateFilter();
@@ -274,18 +274,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 mappings.put(cursor.key, parseMapping(cursor.value.string()));
                             }
                         }
-                        // handle custom
-                        for (ObjectObjectCursor<String, IndexClusterStatePart> cursor : template.customs()) {
-                            String type = cursor.key;
-                            IndexClusterStatePart custom = cursor.value;
-                            IndexClusterStatePart existing = customs.get(type);
-                            if (existing == null) {
-                                customs.put(type, custom);
-                            } else {
-                                IndexClusterStatePart merged = existing.mergeWith(custom);
-                                customs.put(type, merged);
-                            }
-                        }
                         //handle aliases
                         for (ObjectObjectCursor<String, AliasMetaData> cursor : template.aliases()) {
                             AliasMetaData aliasMetaData = cursor.value;
@@ -308,6 +296,23 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             aliasValidator.validateAliasMetaData(aliasMetaData, request.index(), currentState.metaData());
                             templatesAliases.put(aliasMetaData.alias(), aliasMetaData);
                         }
+                        // handle custom
+                        for (ObjectObjectCursor<String, IndexClusterStatePart> cursor : template.parts()) {
+                            String type = cursor.key;
+                            if (type.equals(ALIASES_TYPE) || type.equals(CompressedMappingMetaData.TYPE) || type.equals(SETTINGS_TYPE)) {
+                                // We do special processing for aliases, settings and mappings - skipping
+                                continue;
+                            }
+                            IndexClusterStatePart custom = cursor.value;
+                            IndexClusterStatePart existing = customs.get(type);
+                            if (existing == null) {
+                                customs.put(type, custom);
+                            } else {
+                                IndexClusterStatePart merged = existing.mergeWith(custom);
+                                customs.put(type, merged);
+                            }
+                        }
+
                     }
 
                     // now add config level mappings

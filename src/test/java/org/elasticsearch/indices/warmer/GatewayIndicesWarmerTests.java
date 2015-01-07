@@ -84,7 +84,7 @@ public class GatewayIndicesWarmerTests extends ElasticsearchIntegrationTest {
         assertThat(warmersMetaData, Matchers.notNullValue());
         assertThat(warmersMetaData.entries().size(), equalTo(2));
 
-        IndexWarmersMetaData templateWarmers = clusterState.metaData().templates().get("template_1").custom(IndexWarmersMetaData.TYPE);
+        IndexWarmersMetaData templateWarmers = clusterState.metaData().templates().get("template_1").get(IndexWarmersMetaData.TYPE);
         assertThat(templateWarmers, Matchers.notNullValue());
         assertThat(templateWarmers.entries().size(), equalTo(1));
 
@@ -108,7 +108,7 @@ public class GatewayIndicesWarmerTests extends ElasticsearchIntegrationTest {
         }
 
         logger.info("--> verify warmers in template are recovered");
-        IndexWarmersMetaData recoveredTemplateWarmers = clusterState.metaData().templates().get("template_1").custom(IndexWarmersMetaData.TYPE);
+        IndexWarmersMetaData recoveredTemplateWarmers = clusterState.metaData().templates().get("template_1").get(IndexWarmersMetaData.TYPE);
         assertThat(recoveredTemplateWarmers.entries().size(), equalTo(templateWarmers.entries().size()));
         for (int i = 0; i < templateWarmers.entries().size(); i++) {
             assertThat(recoveredTemplateWarmers.entries().get(i).name(), equalTo(templateWarmers.entries().get(i).name()));

@@ -18,10 +18,15 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import java.util.Collections;
-
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.AtomicGeoPointFieldData;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+
+import java.util.Collection;
+import java.util.Collections;
 
 /**
  */
@@ -45,7 +50,7 @@ abstract class AbstractAtomicGeoPointFieldData implements AtomicGeoPointFieldDat
             }
             
             @Override
-            public Iterable<? extends Accountable> getChildResources() {
+            public Collection<Accountable> getChildResources() {
                 return Collections.emptyList();
             }
 

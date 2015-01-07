@@ -20,7 +20,9 @@
 package org.elasticsearch.common.settings;
 
 import com.google.common.base.Charsets;
+import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -45,6 +47,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.Strings.toCamelCase;
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
@@ -57,6 +61,7 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 public class ImmutableSettings implements Settings {
 
     public static final Settings EMPTY = new Builder().build();
+    private final static Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
 
     private ImmutableMap<String, String> settings;
     private final ImmutableMap<String, String> forcedUnderscoreSettings;
@@ -873,6 +878,7 @@ public class ImmutableSettings implements Settings {
          * Sets all the provided settings.
          */
         public Builder put(Settings settings) {
+            removeNonArraysFieldsIfNewSettingsContainsFieldAsArray(settings.getAsMap());
             map.putAll(settings.getAsMap());
             classLoader = settings.getClassLoaderIfSet();
             return this;
@@ -882,8 +888,40 @@ public class ImmutableSettings implements Settings {
          * Sets all the provided settings.
          */
         public Builder put(Map<String, String> settings) {
+            removeNonArraysFieldsIfNewSettingsContainsFieldAsArray(settings);
             map.putAll(settings);
             return this;
+        }
+
+        /**
+         * Removes non array values from the existing map, if settings contains an array value instead
+         *
+         * Example:
+         *   Existing map contains: {key:value}
+         *   New map contains: {key:[value1,value2]} (which has been flattened to {}key.0:value1,key.1:value2})
+         *
+         *   This ensure that that the 'key' field gets removed from the map in order to override all the
+         *   data instead of merging
+         */
+        private void removeNonArraysFieldsIfNewSettingsContainsFieldAsArray(Map<String, String> settings) {
+            List<String> prefixesToRemove = new ArrayList<>();
+            for (final Map.Entry<String, String> entry : settings.entrySet()) {
+                final Matcher matcher = ARRAY_PATTERN.matcher(entry.getKey());
+                if (matcher.matches()) {
+                    prefixesToRemove.add(matcher.group(1));
+                } else if (Iterables.any(map.keySet(), startsWith(entry.getKey() + "."))) {
+                    prefixesToRemove.add(entry.getKey());
+                }
+            }
+            for (String prefix : prefixesToRemove) {
+                Iterator<Map.Entry<String, String>> iterator = map.entrySet().iterator();
+                while (iterator.hasNext()) {
+                    Map.Entry<String, String> entry = iterator.next();
+                    if (entry.getKey().startsWith(prefix + ".") || entry.getKey().equals(prefix)) {
+                        iterator.remove();
+                    }
+                }
+            }
         }
 
         /**
@@ -1088,6 +1126,24 @@ public class ImmutableSettings implements Settings {
          */
         public Settings build() {
             return new ImmutableSettings(Collections.unmodifiableMap(map), classLoader);
+        }
+    }
+
+    private static StartsWithPredicate startsWith(String prefix) {
+        return new StartsWithPredicate(prefix);
+    }
+
+    private static final class StartsWithPredicate implements Predicate<String> {
+
+        private String prefix;
+
+        public StartsWithPredicate(String prefix) {
+            this.prefix = prefix;
+        }
+
+        @Override
+        public boolean apply(String input) {
+            return input.startsWith(prefix);
         }
     }
 }

@@ -71,6 +71,6 @@ public class TypeFilterParser implements FilterParser {
         } else {
             filter = documentMapper.typeFilter();
         }
-        return parseContext.cacheFilter(filter, null);
+        return parseContext.cacheFilter(filter, null, parseContext.autoFilterCachePolicy());
     }
 }

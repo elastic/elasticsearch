@@ -36,6 +36,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -44,7 +45,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 /**
  *
  */
-public class TranslogService extends AbstractIndexShardComponent {
+public class TranslogService extends AbstractIndexShardComponent implements Closeable {
 
     private static final String FLUSH_THRESHOLD_OPS_KEY = "flush_threshold_ops";
     private static final String FLUSH_THRESHOLD_SIZE_KEY = "flush_threshold_size";

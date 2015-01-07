@@ -39,6 +39,8 @@ import org.elasticsearch.search.sort.SortParseElement;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.index.query.support.InnerHitsQueryParserHelper.parseCommonInnerHitOptions;
+
 /**
  */
 public class InnerHitsParseElement implements SearchParseElement {
@@ -70,7 +72,7 @@ public class InnerHitsParseElement implements SearchParseElement {
         Map<String, InnerHitsContext.BaseInnerHits> innerHitsMap = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token != XContentParser.Token.FIELD_NAME) {
-                throw new ElasticsearchIllegalArgumentException("Unexpected token " + token + " in [inner_hits]: aggregations definitions must start with the name of the aggregation.");
+                throw new ElasticsearchIllegalArgumentException("Unexpected token " + token + " in [inner_hits]: inner_hit definitions must start with the name of the inner_hit.");
             }
             final String innerHitName = parser.currentName();
             token = parser.nextToken();
@@ -138,63 +140,16 @@ public class InnerHitsParseElement implements SearchParseElement {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
-            } else if ("sort".equals(fieldName)) {
-                sortParseElement.parse(parser, subSearchContext);
-            } else if ("_source".equals(fieldName)) {
-                sourceParseElement.parse(parser, subSearchContext);
             } else if (token == XContentParser.Token.START_OBJECT) {
-                switch (fieldName) {
-                    case "highlight":
-                        highlighterParseElement.parse(parser, subSearchContext);
-                        break;
-                    case "scriptFields":
-                    case "script_fields":
-                        scriptFieldsParseElement.parse(parser, subSearchContext);
-                        break;
-                    case "inner_hits":
-                        childInnerHits = parseInnerHits(parser, subSearchContext);
-                        break;
-                    case "query":
-                        query = context.queryParserService().parse(parser).query();
-                        break;
-                    default:
-                        throw new ElasticsearchIllegalArgumentException("Unknown key for a " + token + " in [" + innerHitName + "]: [" + fieldName + "].");
-                }
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                switch (fieldName) {
-                    case "fielddataFields":
-                    case "fielddata_fields":
-                        fieldDataFieldsParseElement.parse(parser, subSearchContext);
-                        break;
-                    default:
-                        throw new ElasticsearchIllegalArgumentException("Unknown key for a " + token + " in [" + innerHitName + "]: [" + fieldName + "].");
-                }
-            } else if (token.isValue()) {
-                switch (fieldName) {
-                    case "query" :
-                        query = context.queryParserService().parse(parser).query();
-                        break;
-                    case "from":
-                        subSearchContext.from(parser.intValue());
-                        break;
-                    case "size":
-                        subSearchContext.size(parser.intValue());
-                        break;
-                    case "track_scores":
-                    case "trackScores":
-                        subSearchContext.trackScores(parser.booleanValue());
-                        break;
-                    case "version":
-                        subSearchContext.version(parser.booleanValue());
-                        break;
-                    case "explain":
-                        subSearchContext.explain(parser.booleanValue());
-                        break;
-                    default:
-                        throw new ElasticsearchIllegalArgumentException("Unknown key for a " + token + " in [" + innerHitName + "]: [" + fieldName + "].");
+                if ("query".equals(fieldName)) {
+                    query = context.queryParserService().parse(parser).query();
+                } else if ("inner_hits".equals(fieldName)) {
+                    childInnerHits = parseInnerHits(parser, context);
+                } else {
+                    parseCommonInnerHitOptions(parser, token, fieldName, subSearchContext, sortParseElement, sourceParseElement, highlighterParseElement, scriptFieldsParseElement, fieldDataFieldsParseElement);
                 }
             } else {
-                throw new ElasticsearchIllegalArgumentException("Unexpected token " + token + " in [" + innerHitName + "].");
+                parseCommonInnerHitOptions(parser, token, fieldName, subSearchContext, sortParseElement, sourceParseElement, highlighterParseElement, scriptFieldsParseElement, fieldDataFieldsParseElement);
             }
         }
 
@@ -224,14 +179,6 @@ public class InnerHitsParseElement implements SearchParseElement {
                 throw new ElasticsearchIllegalArgumentException("path [" + nestedPath +"] isn't nested");
             }
             DocumentMapper childDocumentMapper = smartNameObjectMapper.docMapper();
-            if (childDocumentMapper == null) {
-                for (DocumentMapper documentMapper : context.mapperService().docMappers(false)) {
-                    if (documentMapper.objectMappers().containsKey(nestedPath)) {
-                        childDocumentMapper = documentMapper;
-                        break;
-                    }
-                }
-            }
             if (currentFilter != null && childDocumentMapper != null) {
                 currentFilter.filter = context.bitsetFilterCache().getBitDocIdSetFilter(childObjectMapper.nestedTypeFilter());
                 NestedQueryParser.parentFilterContext.set(parentFilter);

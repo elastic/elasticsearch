@@ -50,7 +50,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
-import org.elasticsearch.cluster.routing.operation.OperationRouting;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -70,6 +70,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.cache.filter.AutoFilterCachingPolicy;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
 import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
@@ -191,8 +192,6 @@ public final class InternalTestCluster extends TestCluster {
 
     private final ExecutorService executor;
 
-    private final boolean hasFilterCache;
-
     /**
      * All nodes started by the cluster will have their name set to nodePrefix followed by a positive number
      */
@@ -277,6 +276,7 @@ public final class InternalTestCluster extends TestCluster {
         builder.put("script.disable_dynamic", false);
         builder.put("http.pipelining", enableHttpPipelining);
         builder.put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false);
+        builder.put(NodeEnvironment.SETTING_CUSTOM_DATA_PATH_ENABLED, true);
         if (Strings.hasLength(System.getProperty("es.logger.level"))) {
             builder.put("logger.level", System.getProperty("es.logger.level"));
         }
@@ -301,7 +301,6 @@ public final class InternalTestCluster extends TestCluster {
         builder.put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY, TimeValue.timeValueMillis(RandomInts.randomIntBetween(random, 20, 50)));
         defaultSettings = builder.build();
         executor = EsExecutors.newCached(0, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory("test_" + clusterName));
-        this.hasFilterCache = random.nextBoolean();
     }
 
     public static String nodeMode() {
@@ -340,8 +339,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private Settings getSettings(int nodeOrdinal, long nodeSeed, Settings others) {
         Builder builder = ImmutableSettings.settingsBuilder().put(defaultSettings)
-                .put(getRandomNodeSettings(nodeSeed))
-                .put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, hasFilterCache() ? WeightedFilterCache.class : NoneFilterCache.class);
+                .put(getRandomNodeSettings(nodeSeed));
         Settings settings = settingsSource.node(nodeOrdinal);
         if (settings != null) {
             if (settings.get(ClusterName.SETTING) != null) {
@@ -426,6 +424,25 @@ public final class InternalTestCluster extends TestCluster {
         if (random.nextInt(10) == 0) {
             builder.put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING, "noop");
             builder.put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING, "noop");
+        }
+
+        if (random.nextBoolean()) {
+            builder.put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, random.nextBoolean() ? WeightedFilterCache.class : NoneFilterCache.class);
+        }
+
+        if (random.nextBoolean()) {
+            final int freqCacheable = 1 + random.nextInt(5);
+            final int freqCostly = 1 + random.nextInt(5);
+            final int freqOther = Math.max(freqCacheable, freqCostly) + random.nextInt(2);
+            int historySize = 3 + random.nextInt(100);
+            historySize = Math.max(historySize, freqCacheable);
+            historySize = Math.max(historySize, freqCostly);
+            historySize = Math.max(historySize, freqOther);
+            builder.put(AutoFilterCachingPolicy.HISTORY_SIZE, historySize);
+            builder.put(AutoFilterCachingPolicy.MIN_FREQUENCY_CACHEABLE, freqCacheable);
+            builder.put(AutoFilterCachingPolicy.MIN_FREQUENCY_COSTLY, freqCostly);
+            builder.put(AutoFilterCachingPolicy.MIN_FREQUENCY_OTHER, freqOther);
+            builder.put(AutoFilterCachingPolicy.MIN_SEGMENT_SIZE_RATIO, random.nextFloat());
         }
 
         return builder.build();
@@ -1450,11 +1467,6 @@ public final class InternalTestCluster extends TestCluster {
     @Override
     public int numBenchNodes() {
         return benchNodeAndClients().size();
-    }
-
-    @Override
-    public boolean hasFilterCache() {
-        return hasFilterCache;
     }
 
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {

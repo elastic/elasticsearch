@@ -31,16 +31,25 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.*;
+import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogException;
+import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.index.translog.TranslogStreams;
 
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
-import java.nio.file.*;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.OpenOption;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -89,15 +98,14 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
 
     @Inject
-    public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, NodeEnvironment nodeEnv, BigArrays bigArrays) throws IOException {
+    public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService,
+                      BigArrays bigArrays, IndexStore indexStore) throws IOException {
         super(shardId, indexSettings);
         this.indexSettingsService = indexSettingsService;
         this.bigArrays = bigArrays;
-        Path[] shardLocations = nodeEnv.shardPaths(shardId);
-        this.locations = new Path[shardLocations.length];
-        for (int i = 0; i < shardLocations.length; i++) {
-            locations[i] = shardLocations[i].resolve("translog");
-            Files.createDirectories(locations[i]);
+        this.locations = indexStore.shardTranslogLocations(shardId);
+        for (Path location : locations) {
+            Files.createDirectories(location);
         }
 
         this.type = FsTranslogFile.Type.fromString(componentSettings.get("type", FsTranslogFile.Type.BUFFERED.name()));
@@ -178,7 +186,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     }
 
     @Override
-    public Iterable<? extends Accountable> getChildResources() {
+    public Collection<Accountable> getChildResources() {
         return Collections.emptyList();
     }
 

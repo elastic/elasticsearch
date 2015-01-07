@@ -48,12 +48,12 @@ $ bin/elasticsearch -Xmx2g -Xms2g -Des.index.store.type=memory --node.name=my-no
 
 [float]
 [[jvm-version]]
-== Java version
+== Java (JVM) version
 
 Elasticsearch is built using Java, and requires at least
 http://www.oracle.com/technetwork/java/javase/downloads/index.html[Java 7] in
-order to run Only Oracle's Java and
-the OpenJDK are supported.
+order to run. Only Oracle's Java and the OpenJDK are supported. The same JVM 
+version should be used on all Elasticsearch nodes and clients.
 
 We recommend installing the *Java 8 update 20 or later*, or *Java 7 update 55
 or later*.  Previous versions of Java 7 are known to have bugs that can cause

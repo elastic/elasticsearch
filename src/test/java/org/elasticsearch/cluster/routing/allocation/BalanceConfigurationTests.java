@@ -59,14 +59,12 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
         /* Tests balance over indices only */
         final float indexBalance = 1.0f;
         final float replicaBalance = 0.0f;
-        final float primaryBalance = 0.0f;
         final float balanceTreshold = 1.0f;
 
         ImmutableSettings.Builder settings = settingsBuilder();
         settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
         settings.put(BalancedShardsAllocator.SETTING_INDEX_BALANCE_FACTOR, indexBalance);
         settings.put(BalancedShardsAllocator.SETTING_SHARD_BALANCE_FACTOR, replicaBalance);
-        settings.put(BalancedShardsAllocator.SETTING_PRIMARY_BALANCE_FACTOR, primaryBalance);
         settings.put(BalancedShardsAllocator.SETTING_THRESHOLD, balanceTreshold);
 
         AllocationService strategy = createAllocationService(settings.build());
@@ -87,14 +85,12 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
         /* Tests balance over replicas only */
         final float indexBalance = 0.0f;
         final float replicaBalance = 1.0f;
-        final float primaryBalance = 0.0f;
         final float balanceTreshold = 1.0f;
 
         ImmutableSettings.Builder settings = settingsBuilder();
         settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
         settings.put(BalancedShardsAllocator.SETTING_INDEX_BALANCE_FACTOR, indexBalance);
         settings.put(BalancedShardsAllocator.SETTING_SHARD_BALANCE_FACTOR, replicaBalance);
-        settings.put(BalancedShardsAllocator.SETTING_PRIMARY_BALANCE_FACTOR, primaryBalance);
         settings.put(BalancedShardsAllocator.SETTING_THRESHOLD, balanceTreshold);
 
         AllocationService strategy = createAllocationService(settings.build());
@@ -108,33 +104,6 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
         clusterState = removeNodes(clusterState, strategy);
         assertReplicaBalance(logger, clusterState.getRoutingNodes(), (numberOfNodes + 1) - (numberOfNodes + 1) / 2, numberOfIndices, numberOfReplicas, numberOfShards, balanceTreshold);
 
-    }
-
-    @Test
-    public void testPrimaryBalance() {
-        /* Tests balance over primaries only */
-        final float indexBalance = 0.0f;
-        final float replicaBalance = 0.0f;
-        final float primaryBalance = 1.0f;
-        final float balanceTreshold = 1.0f;
-
-        ImmutableSettings.Builder settings = settingsBuilder();
-        settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
-        settings.put(BalancedShardsAllocator.SETTING_INDEX_BALANCE_FACTOR, indexBalance);
-        settings.put(BalancedShardsAllocator.SETTING_SHARD_BALANCE_FACTOR, replicaBalance);
-        settings.put(BalancedShardsAllocator.SETTING_PRIMARY_BALANCE_FACTOR, primaryBalance);
-        settings.put(BalancedShardsAllocator.SETTING_THRESHOLD, balanceTreshold);
-
-        AllocationService strategy = createAllocationService(settings.build());
-
-        ClusterState clusterstate = initCluster(strategy);
-        assertPrimaryBalance(logger, clusterstate.getRoutingNodes(), numberOfNodes, numberOfIndices, numberOfReplicas, numberOfShards, balanceTreshold);
-
-        clusterstate = addNode(clusterstate, strategy);
-        assertPrimaryBalance(logger, clusterstate.getRoutingNodes(), numberOfNodes + 1, numberOfIndices, numberOfReplicas, numberOfShards, balanceTreshold);
-
-        clusterstate = removeNodes(clusterstate, strategy);
-        assertPrimaryBalance(logger, clusterstate.getRoutingNodes(), numberOfNodes + 1 - (numberOfNodes + 1) / 2, numberOfIndices, numberOfReplicas, numberOfShards, balanceTreshold);
     }
 
     private ClusterState initCluster(AllocationService strategy) {
@@ -311,7 +280,6 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
         ImmutableSettings.Builder settings = settingsBuilder();
         settings.put(BalancedShardsAllocator.SETTING_INDEX_BALANCE_FACTOR, 0.2);
         settings.put(BalancedShardsAllocator.SETTING_SHARD_BALANCE_FACTOR, 0.3);
-        settings.put(BalancedShardsAllocator.SETTING_PRIMARY_BALANCE_FACTOR, 0.5);
         settings.put(BalancedShardsAllocator.SETTING_THRESHOLD, 2.0);
         final NodeSettingsService.Listener[] listeners = new NodeSettingsService.Listener[1];
         NodeSettingsService service = new NodeSettingsService(settingsBuilder().build()) {
@@ -326,7 +294,6 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(settings.build(), service);
         assertThat(allocator.getIndexBalance(), Matchers.equalTo(0.2f));
         assertThat(allocator.getShardBalance(), Matchers.equalTo(0.3f));
-        assertThat(allocator.getPrimaryBalance(), Matchers.equalTo(0.5f));
         assertThat(allocator.getThreshold(), Matchers.equalTo(2.0f));
 
         settings = settingsBuilder();
@@ -334,18 +301,15 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
         listeners[0].onRefreshSettings(settings.build());
         assertThat(allocator.getIndexBalance(), Matchers.equalTo(0.2f));
         assertThat(allocator.getShardBalance(), Matchers.equalTo(0.3f));
-        assertThat(allocator.getPrimaryBalance(), Matchers.equalTo(0.5f));
         assertThat(allocator.getThreshold(), Matchers.equalTo(2.0f));
 
         settings = settingsBuilder();
         settings.put(BalancedShardsAllocator.SETTING_INDEX_BALANCE_FACTOR, 0.5);
         settings.put(BalancedShardsAllocator.SETTING_SHARD_BALANCE_FACTOR, 0.1);
-        settings.put(BalancedShardsAllocator.SETTING_PRIMARY_BALANCE_FACTOR, 0.4);
         settings.put(BalancedShardsAllocator.SETTING_THRESHOLD, 3.0);
         listeners[0].onRefreshSettings(settings.build());
         assertThat(allocator.getIndexBalance(), Matchers.equalTo(0.5f));
         assertThat(allocator.getShardBalance(), Matchers.equalTo(0.1f));
-        assertThat(allocator.getPrimaryBalance(), Matchers.equalTo(0.4f));
         assertThat(allocator.getThreshold(), Matchers.equalTo(3.0f));
     }
 

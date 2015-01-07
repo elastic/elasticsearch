@@ -30,13 +30,14 @@ import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  *
  */
-public abstract class MergeSchedulerProvider extends AbstractIndexShardComponent implements IndexShardComponent {
+public abstract class MergeSchedulerProvider extends AbstractIndexShardComponent implements IndexShardComponent, Closeable {
 
     public static interface FailureListener {
         void onFailedMerge(MergePolicy.MergeException e);

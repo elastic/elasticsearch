@@ -26,11 +26,15 @@ import com.vividsolutions.jts.geom.Coordinate;
 public class PolygonBuilder extends BasePolygonBuilder<PolygonBuilder> {
 
     public PolygonBuilder() {
-        this(new ArrayList<Coordinate>());
+        this(new ArrayList<Coordinate>(), Orientation.RIGHT);
     }
 
-    protected PolygonBuilder(ArrayList<Coordinate> points) {
-        super();
+    public PolygonBuilder(Orientation orientation) {
+        this(new ArrayList<Coordinate>(), orientation);
+    }
+
+    protected PolygonBuilder(ArrayList<Coordinate> points, Orientation orientation) {
+        super(orientation);
         this.shell = new Ring<>(this, points);
     }
 

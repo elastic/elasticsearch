@@ -18,13 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -37,18 +30,12 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.util.*;
+
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.children;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.sameInstance;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -261,12 +248,25 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
 
             String idToUpdate = Integer.toString(randomInt(3));
             UpdateResponse updateResponse = client().prepareUpdate(indexName, "child", idToUpdate)
-                    .setParent("1")
+                    .setRouting("1")
                     .setDoc("count", 1)
                     .get();
             assertThat(updateResponse.getVersion(), greaterThan(1l));
             refresh();
         }
+    }
+
+    @Test
+    public void testNonExistingChildType() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .addAggregation(
+                        children("non-existing").childType("xyz")
+                ).get();
+        assertSearchResponse(searchResponse);
+
+        Children children = searchResponse.getAggregations().get("non-existing");
+        assertThat(children.getName(), equalTo("non-existing"));
+        assertThat(children.getDocCount(), equalTo(0l));
     }
 
     private static final class Control {

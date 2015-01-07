@@ -115,6 +115,85 @@ public class MultiPercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testWithRouting() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=string"));
+        ensureGreen();
+
+        logger.info("--> register a queries");
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+                .setRouting("a")
+                .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
+                .execute().actionGet();
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "2")
+                .setRouting("a")
+                .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
+                .execute().actionGet();
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "3")
+                .setRouting("a")
+                .setSource(jsonBuilder().startObject().field("query", boolQuery()
+                                .must(matchQuery("field1", "b"))
+                                .must(matchQuery("field1", "c"))
+                ).endObject())
+                .execute().actionGet();
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
+                .setRouting("a")
+                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
+                .execute().actionGet();
+
+        MultiPercolateResponse response = client().prepareMultiPercolate()
+                .add(client().preparePercolate()
+                        .setIndices("test").setDocumentType("type")
+                        .setRouting("a")
+                        .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "b").endObject())))
+                .add(client().preparePercolate()
+                        .setIndices("test").setDocumentType("type")
+                        .setRouting("a")
+                        .setPercolateDoc(docBuilder().setDoc(yamlBuilder().startObject().field("field1", "c").endObject())))
+                .add(client().preparePercolate()
+                        .setIndices("test").setDocumentType("type")
+                        .setRouting("a")
+                        .setPercolateDoc(docBuilder().setDoc(smileBuilder().startObject().field("field1", "b c").endObject())))
+                .add(client().preparePercolate()
+                        .setIndices("test").setDocumentType("type")
+                        .setRouting("a")
+                        .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "d").endObject())))
+                .add(client().preparePercolate() // non existing doc, so error element
+                        .setIndices("test").setDocumentType("type")
+                        .setRouting("a")
+                        .setGetRequest(Requests.getRequest("test").type("type").id("5")))
+                .execute().actionGet();
+
+        MultiPercolateResponse.Item item = response.getItems()[0];
+        assertMatchCount(item.response(), 2l);
+        assertThat(item.getResponse().getMatches(), arrayWithSize(2));
+        assertThat(item.errorMessage(), nullValue());
+        assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("1", "4"));
+
+        item = response.getItems()[1];
+        assertThat(item.errorMessage(), nullValue());
+
+        assertMatchCount(item.response(), 2l);
+        assertThat(item.getResponse().getMatches(), arrayWithSize(2));
+        assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("2", "4"));
+
+        item = response.getItems()[2];
+        assertThat(item.errorMessage(), nullValue());
+        assertMatchCount(item.response(), 4l);
+        assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4"));
+
+        item = response.getItems()[3];
+        assertThat(item.errorMessage(), nullValue());
+        assertMatchCount(item.response(), 1l);
+        assertThat(item.getResponse().getMatches(), arrayWithSize(1));
+        assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContaining("4"));
+
+        item = response.getItems()[4];
+        assertThat(item.getResponse(), nullValue());
+        assertThat(item.errorMessage(), notNullValue());
+        assertThat(item.errorMessage(), containsString("document missing"));
+    }
+
+    @Test
     public void testExistingDocsOnly() throws Exception {
         createIndex("test");
 

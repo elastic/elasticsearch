@@ -32,7 +32,7 @@ import org.elasticsearch.common.settings.Settings;
  *
  *
  */
-public interface Node extends Releasable{
+public interface Node extends Releasable {
 
     /**
      * The settings that were used to create the node.

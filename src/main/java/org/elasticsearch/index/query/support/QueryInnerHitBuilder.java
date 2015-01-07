@@ -17,26 +17,35 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.operation.hash;
+package org.elasticsearch.index.query.support;
+
+import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 /**
- * Simple hash function interface used for shard routing.
  */
-public interface HashFunction {
+public class QueryInnerHitBuilder extends BaseInnerHitBuilder<QueryInnerHitBuilder> {
+
+    private String name;
 
     /**
-     * Calculate a hash value for routing 
-     * @param routing String to calculate the hash value from 
-     * @return hash value of the given routing string
+     * Set the key name to be used in the response.
+     *
+     * Defaults to the path if used in nested query, child type if used in has_child query and parent type if used in has_parent.
      */
-    int hash(String routing);
+    public QueryInnerHitBuilder setName(String name) {
+        this.name = name;
+        return this;
+    }
 
-    /**
-     * Calculate a hash value for routing and its type
-     * @param type types name
-     * @param routing String to calculate the hash value from 
-     * @return hash value of the given type and routing string
-     */
-    @Deprecated
-    int hash(String type, String id);
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        super.toXContent(builder, params);
+        if (name != null) {
+            builder.field("name", name);
+        }
+        return builder;
+    }
+
 }

@@ -43,9 +43,6 @@ if NOT "%ES_DIRECT_SIZE%" == "" (
 set JAVA_OPTS=%JAVA_OPTS% -XX:MaxDirectMemorySize=%ES_DIRECT_SIZE%
 )
 
-REM reduce the per-thread stack size
-set JAVA_OPTS=%JAVA_OPTS% -Xss256k
-
 REM set to headless, just in case
 set JAVA_OPTS=%JAVA_OPTS% -Djava.awt.headless=true
 

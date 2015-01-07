@@ -148,7 +148,7 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
                 if (maxSizePerSec.bytes() <= 0) {
                     rateLimiter = null;
                 } else if (rateLimiter != null) {
-                    rateLimiter.setMbPerSec(maxSizePerSec.mbFrac());
+                    rateLimiter.setMBPerSec(maxSizePerSec.mbFrac());
                 } else {
                     rateLimiter = new SimpleRateLimiter(maxSizePerSec.mbFrac());
                 }

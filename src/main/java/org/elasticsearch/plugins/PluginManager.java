@@ -243,7 +243,11 @@ public class PluginManager {
             if (Files.exists(toLocation)) {
                 IOUtils.rm(toLocation);
             }
-            Files.move(binFile, toLocation);
+            try {
+                FileSystemUtils.move(binFile, toLocation);
+            } catch (IOException e) {
+                throw new IOException("Could not move [" + binFile + "] to [" + toLocation + "]", e);
+            }
             if (Files.getFileStore(toLocation).supportsFileAttributeView(PosixFileAttributeView.class)) {
                 final Set<PosixFilePermission> perms = new HashSet<>();
                 perms.add(PosixFilePermission.OWNER_EXECUTE);

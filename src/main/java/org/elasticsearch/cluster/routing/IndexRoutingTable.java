@@ -259,13 +259,13 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
     /**
      * Returns a {@link List} of shards that match one of the states listed in {@link ShardRoutingState states}
      *
-     * @param states a set of {@link ShardRoutingState states}
+     * @param state {@link ShardRoutingState} to retrieve
      * @return a {@link List} of shards that match one of the given {@link ShardRoutingState states}
      */
-    public List<ShardRouting> shardsWithState(ShardRoutingState... states) {
+    public List<ShardRouting> shardsWithState(ShardRoutingState state) {
         List<ShardRouting> shards = newArrayList();
         for (IndexShardRoutingTable shardRoutingTable : this) {
-            shards.addAll(shardRoutingTable.shardsWithState(states));
+            shards.addAll(shardRoutingTable.shardsWithState(state));
         }
         return shards;
     }

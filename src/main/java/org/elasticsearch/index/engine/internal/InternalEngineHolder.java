@@ -274,8 +274,8 @@ public class InternalEngineHolder extends AbstractIndexShardComponent implements
     }
 
     @Override
-    public List<Segment> segments() {
-        return engineSafe().segments();
+    public List<Segment> segments(boolean verbose) {
+        return engineSafe().segments(verbose);
     }
 
     @Override

@@ -29,10 +29,10 @@ setup:
           index:   test_1
           type:    test
           id:      1
-          parent:  5
+          routing:  5
           body:
             doc:        { foo: baz }
-            upsert:     { foo: bar }
+            upsert:     { foo: bar, _parent: 5 }
 
  - do:
       get:
@@ -50,7 +50,7 @@ setup:
           index:   test_1
           type:    test
           id:      1
-          parent:  5
+          routing:  5
           fields:  foo
           body:
             doc:        { foo: baz }

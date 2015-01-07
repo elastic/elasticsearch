@@ -5,7 +5,7 @@ A multi-bucket aggregation similar to the <<search-aggregations-bucket-histogram
 only be applied on date values. Since dates are represented in elasticsearch internally as long values, it is possible
 to use the normal `histogram` on dates as well, though accuracy will be compromised. The reason for this is in the fact
 that time based intervals are not fixed (think of leap years and on the number of days in a month). For this reason,
-we need a special support for time based data. From a functionality perspective, this histogram supports the same features
+we need special support for time based data. From a functionality perspective, this histogram supports the same features
 as the normal <<search-aggregations-bucket-histogram-aggregation,histogram>>. The main difference is that the interval can be specified by date/time expressions.
 
 Requesting bucket intervals of a month.
@@ -127,7 +127,7 @@ Response:
 
 Like with the normal <<search-aggregations-bucket-histogram-aggregation,histogram>>, both document level scripts and
 value level scripts are supported. It is also possible to control the order of the returned buckets using the `order`
-settings and filter the returned buckets based on a `min_doc_count` setting (by defaults to all buckets with
-`min_doc_count > 0` will be returned). This histogram also supports the `extended_bounds` settings, that enables extending
+settings and filter the returned buckets based on a `min_doc_count` setting (by default all buckets with
+`min_doc_count > 0` will be returned). This histogram also supports the `extended_bounds` setting, which enables extending
 the bounds of the histogram beyond the data itself (to read more on why you'd want to do that please refer to the
-explanation <<search-aggregations-bucket-histogram-aggregation-extended-bounds,here>>.
+explanation <<search-aggregations-bucket-histogram-aggregation-extended-bounds,here>>).

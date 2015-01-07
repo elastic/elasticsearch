@@ -21,11 +21,10 @@
           index:   test_1
           type:    test
           id:      1
-          parent:  5
           routing: 4
           body:
             doc:        { foo: baz }
-            upsert:     { foo: bar }
+            upsert:     { foo: bar, _parent: 5 }
 
  - do:
       get:
@@ -45,7 +44,7 @@
           index:   test_1
           type:    test
           id:      1
-          parent:  5
+          routing:  5
           body:
             doc:        { foo: baz }
 
@@ -54,7 +53,6 @@
           index:   test_1
           type:    test
           id:      1
-          parent:  5
           routing: 4
           fields:  foo
           body:

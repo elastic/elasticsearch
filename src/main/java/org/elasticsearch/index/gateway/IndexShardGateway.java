@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.gateway.IndexShardGateway;
@@ -74,6 +75,7 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
     private final TimeValue syncInterval;
 
     private volatile ScheduledFuture flushScheduler;
+    private final CancellableThreads cancellableThreads = new CancellableThreads();
 
 
     @Inject
@@ -103,6 +105,7 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
         recoveryState.setStage(RecoveryState.Stage.INDEX);
         long version = -1;
         long translogId = -1;
+        final Set<String> typesToUpdate = Sets.newHashSet();
         indexShard.store().incRef();
         try {
             try {
@@ -232,7 +235,6 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
             recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
             StreamInput in = null;
 
-            final Set<String> typesToUpdate = Sets.newHashSet();
             try {
                 logger.trace("recovering translog file: {} length: {}", recoveringTranslogFile, Files.size(recoveringTranslogFile));
                 TranslogStream stream = TranslogStreams.translogStreamFor(recoveringTranslogFile);
@@ -291,41 +293,45 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
             } catch (Exception ex) {
                 logger.debug("Failed to delete recovering translog file {}", ex, recoveringTranslogFile);
             }
-
-            for (final String type : typesToUpdate) {
-                final CountDownLatch latch = new CountDownLatch(1);
-                mappingUpdatedAction.updateMappingOnMaster(indexService.index().name(), indexService.mapperService().documentMapper(type), indexService.indexUUID(), new MappingUpdatedAction.MappingUpdateListener() {
-                    @Override
-                    public void onMappingUpdate() {
-                        latch.countDown();
-                    }
-
-                    @Override
-                    public void onFailure(Throwable t) {
-                        latch.countDown();
-                        logger.debug("failed to send mapping update post recovery to master for [{}]", t, type);
-                    }
-                });
-
-                try {
-                    boolean waited = latch.await(waitForMappingUpdatePostRecovery.millis(), TimeUnit.MILLISECONDS);
-                    if (!waited) {
-                        logger.debug("waited for mapping update on master for [{}], yet timed out");
-                    }
-                } catch (InterruptedException e) {
-                    logger.debug("interrupted while waiting for mapping update");
-                }
-            }
         } finally {
             indexShard.store().decRef();
         }
+        for (final String type : typesToUpdate) {
+            final CountDownLatch latch = new CountDownLatch(1);
+            mappingUpdatedAction.updateMappingOnMaster(indexService.index().name(), indexService.mapperService().documentMapper(type), indexService.indexUUID(), new MappingUpdatedAction.MappingUpdateListener() {
+                @Override
+                public void onMappingUpdate() {
+                    latch.countDown();
+                }
 
+                @Override
+                public void onFailure(Throwable t) {
+                    latch.countDown();
+                    logger.debug("failed to send mapping update post recovery to master for [{}]", t, type);
+                }
+            });
+            cancellableThreads.execute(new CancellableThreads.Interruptable() {
+                @Override
+                public void run() throws InterruptedException {
+                    try {
+                        if (latch.await(waitForMappingUpdatePostRecovery.millis(), TimeUnit.MILLISECONDS) == false) {
+                            logger.debug("waited for mapping update on master for [{}], yet timed out", type);
+                        }
+                    } catch (InterruptedException e) {
+                        logger.debug("interrupted while waiting for mapping update");
+                        throw e;
+                    }
+                }
+            });
+
+        }
         recoveryState.getTranslog().time(System.currentTimeMillis() - recoveryState.getTranslog().startTime());
     }
 
     @Override
     public void close() {
         FutureUtils.cancel(flushScheduler);
+        cancellableThreads.cancel("closed");
     }
 
     class Sync implements Runnable {

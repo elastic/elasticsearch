@@ -32,6 +32,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 
+import java.nio.file.Path;
+
 /**
  *
  */
@@ -165,7 +167,9 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
 
     public void reset() throws Exception {
         try {
-            IOUtils.rm(nodeEnv.nodeDataPaths());
+            Path[] dataPaths = nodeEnv.nodeDataPaths();
+            logger.trace("removing node data paths: [{}]", dataPaths);
+            IOUtils.rm(dataPaths);
         } catch (Exception ex) {
             logger.debug("failed to delete shard locations", ex);
         }

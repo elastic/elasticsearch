@@ -20,14 +20,18 @@
 package org.elasticsearch.index.cache.filter;
 
 import org.apache.lucene.search.Filter;
-import org.elasticsearch.common.component.CloseableComponent;
+import org.apache.lucene.search.FilterCachingPolicy;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexService;
+
+import java.io.Closeable;
 
 /**
  *
  */
-public interface FilterCache extends IndexComponent, CloseableComponent {
+public interface FilterCache extends IndexComponent, Closeable {
 
     static class EntriesStats {
         public final long sizeInBytes;
@@ -44,7 +48,7 @@ public interface FilterCache extends IndexComponent, CloseableComponent {
 
     String type();
 
-    Filter cache(Filter filterToCache);
+    Filter cache(Filter filterToCache, @Nullable HashedBytesRef cacheKey, FilterCachingPolicy policy);
 
     void clear(Object reader);
 

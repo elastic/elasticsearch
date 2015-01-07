@@ -115,7 +115,7 @@ public class TransportClusterStatsAction extends TransportNodesOperationAction<C
         NodeInfo nodeInfo = nodeService.info(false, true, false, true, false, false, true, false, true);
         NodeStats nodeStats = nodeService.stats(CommonStatsFlags.NONE, false, true, true, false, false, true, false, false, false);
         List<ShardStats> shardsStats = new ArrayList<>();
-        for (IndexService indexService : indicesService.indices().values()) {
+        for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
                 if (indexShard.routingEntry() != null && indexShard.routingEntry().active()) {
                     // only report on fully started shards

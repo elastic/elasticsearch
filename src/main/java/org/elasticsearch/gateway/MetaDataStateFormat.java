@@ -31,14 +31,14 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.*;
 
-import java.io.*;
-import java.nio.file.*;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -244,7 +244,9 @@ public abstract class MetaDataStateFormat<T> {
                             maxVersion = Math.max(maxVersion, version);
                             final boolean legacy = MetaDataStateFormat.STATE_FILE_EXTENSION.equals(matcher.group(2)) == false;
                             maxVersionIsLegacy &= legacy; // on purpose, see NOTE below
-                            files.add(new PathAndVersion(stateFile, version, legacy));
+                            PathAndVersion pav = new PathAndVersion(stateFile, version, legacy);
+                            logger.trace("found state file: {}", pav);
+                            files.add(pav);
                         }
                     }
                 }
@@ -275,6 +277,7 @@ public abstract class MetaDataStateFormat<T> {
                     }
                 } else {
                     state = format.read(stateFile, version);
+                    logger.trace("state version [{}] read from [{}]", version, stateFile.getFileName());
                 }
                 return state;
             } catch (Throwable e) {
@@ -323,6 +326,10 @@ public abstract class MetaDataStateFormat<T> {
             this.file = file;
             this.version = version;
             this.legacy = legacy;
+        }
+
+        public String toString() {
+            return "[version:" + version + ", legacy:" + legacy + ", file:" + file.toAbsolutePath() + "]";
         }
     }
 

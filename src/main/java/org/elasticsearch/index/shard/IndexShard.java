@@ -20,6 +20,7 @@
 package org.elasticsearch.index.shard;
 
 import com.google.common.base.Charsets;
+
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.search.Filter;
@@ -866,7 +867,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexShar
     private Query filterQueryIfNeeded(Query query, String[] types) {
         Filter searchFilter = mapperService.searchFilter(types);
         if (searchFilter != null) {
-            query = new FilteredQuery(query, indexCache.filter().cache(searchFilter));
+            query = new FilteredQuery(query, indexCache.filter().cache(searchFilter, null, indexService.queryParserService().autoFilterCachePolicy()));
         }
         return query;
     }

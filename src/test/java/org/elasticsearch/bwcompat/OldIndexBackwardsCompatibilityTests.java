@@ -35,7 +35,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+
 public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardCompatibilityTest {
+    // TODO: test for proper exception on unsupported indexes (maybe via separate test?)
+    // We have a 0.20.6.zip etc for this.
     
     List<String> indexes = Arrays.asList(
         "index-0.90.0.zip",
@@ -92,16 +96,16 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         SearchResponse searchRsp = searchReq.get();
         ElasticsearchAssertions.assertNoFailures(searchRsp);
         long numDocs = searchRsp.getHits().getTotalHits();
-        logger.debug("Found " + numDocs + " in old index");
+        logger.info("Found " + numDocs + " in old index");
         
         searchReq.addSort("long_sort", SortOrder.ASC);
         ElasticsearchAssertions.assertNoFailures(searchReq.get());
     }
 
     void assertRealtimeGetWorks() {
-        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
             .put("refresh_interval", -1)
-            .build());
+            .build()));
         SearchRequestBuilder searchReq = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery());
         SearchHit hit = searchReq.get().getHits().getAt(0);
         String docId = hit.getId();
@@ -111,13 +115,13 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         Map<String, Object> source = getRsp.getSourceAsMap();
         assertThat(source, Matchers.hasKey("foo"));
 
-        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
             .put("refresh_interval", "1s")
-            .build());
+            .build()));
     }
 
     void assertNewReplicasWork() {
-        final int numReplicas = randomIntBetween(1, 2);
+        final int numReplicas = randomIntBetween(2, 3);
         for (int i = 0; i < numReplicas; ++i) {
             logger.debug("Creating another node for replica " + i);
             internalCluster().startNode(ImmutableSettings.builder()
@@ -125,14 +129,13 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
                 .put("master.node", false).build());
         }
         ensureGreen("test");
-        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
-            .put("number_of_replicas", numReplicas)
-            .build());
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
+            .put("number_of_replicas", numReplicas)).execute().actionGet());
         ensureGreen("test"); // TODO: what is the proper way to wait for new replicas to recover?
 
-        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
-            .put("number_of_replicas", 0)
-            .build());
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
+            .put("number_of_replicas", 0))
+            .execute().actionGet());
     }
 
 }

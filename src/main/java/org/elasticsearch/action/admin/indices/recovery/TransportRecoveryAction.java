@@ -153,7 +153,7 @@ public class TransportRecoveryAction extends
 
         if (state == null) {
             IndexShardGatewayService gatewayService =
-                    indexService.shardInjector(request.shardId().id()).getInstance(IndexShardGatewayService.class);
+                    indexService.shardInjectorSafe(request.shardId().id()).getInstance(IndexShardGatewayService.class);
             state = gatewayService.recoveryState();
         }
 

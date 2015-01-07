@@ -33,8 +33,9 @@ import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
-import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
+import org.elasticsearch.cluster.routing.HashFunction;
+import org.elasticsearch.cluster.routing.DjbHashFunction;
+import org.elasticsearch.cluster.routing.SimpleHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -43,16 +44,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.file.*;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -72,10 +75,12 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
     private static final String DEPRECATED_SETTING_ROUTING_HASH_FUNCTION = "cluster.routing.operation.hash.type";
     private static final String DEPRECATED_SETTING_ROUTING_USE_TYPE = "cluster.routing.operation.use_type";
     public static final String GATEWAY_DANGLING_TIMEOUT = "gateway.dangling_timeout";
+    public static final String GATEWAY_DELETE_TIMEOUT = "gateway.delete_timeout";
     public static final String GATEWAY_AUTO_IMPORT_DANGLED = "gateway.auto_import_dangled";
     // legacy - this used to be in a different package
     private static final String GATEWAY_LOCAL_DANGLING_TIMEOUT = "gateway.local.dangling_timeout";
     private static final String GATEWAY_LOCAL_AUTO_IMPORT_DANGLED = "gateway.local.auto_import_dangled";
+
     static enum AutoImportDangledState {
         NO() {
             @Override
@@ -127,6 +132,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
     private final AutoImportDangledState autoImportDangled;
     private final TimeValue danglingTimeout;
+    private final TimeValue deleteTimeout;
     private final Map<String, DanglingIndex> danglingIndices = ConcurrentCollections.newConcurrentMap();
     private final Object danglingMutex = new Object();
 
@@ -159,8 +165,12 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
         this.autoImportDangled = AutoImportDangledState.fromString(settings.get(GATEWAY_AUTO_IMPORT_DANGLED, settings.get(GATEWAY_LOCAL_AUTO_IMPORT_DANGLED, AutoImportDangledState.YES.toString())));
         this.danglingTimeout = settings.getAsTime(GATEWAY_DANGLING_TIMEOUT, settings.getAsTime(GATEWAY_LOCAL_DANGLING_TIMEOUT, TimeValue.timeValueHours(2)));
+        this.deleteTimeout = settings.getAsTime(GATEWAY_DELETE_TIMEOUT, TimeValue.timeValueSeconds(30));
 
-        logger.debug("using gateway.local.auto_import_dangled [{}], with gateway.dangling_timeout [{}]", this.autoImportDangled, this.danglingTimeout);
+        logger.debug("using {} [{}],  {} [{}], with {} [{}]",
+                GATEWAY_AUTO_IMPORT_DANGLED, this.autoImportDangled,
+                GATEWAY_DELETE_TIMEOUT, this.deleteTimeout,
+                GATEWAY_DANGLING_TIMEOUT, this.danglingTimeout);
         if (DiscoveryNode.masterNode(settings) || DiscoveryNode.dataNode(settings)) {
             nodeEnv.ensureAtomicMoveSupported();
         }
@@ -180,10 +190,6 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
     public MetaData loadMetaState() throws Exception {
         return loadState();
-    }
-
-    public boolean isDangling(String index) {
-        return danglingIndices.containsKey(index);
     }
 
     @Override
@@ -258,7 +264,10 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                         try {
                             final Index idx = new Index(current.index());
                             MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(idx));
-                            nodeEnv.deleteIndexDirectorySafe(idx);
+                            // it may take a couple of seconds for outstanding shard reference
+                            // to release their refs (for example, on going recoveries)
+                            // we are working on a better solution see: https://github.com/elasticsearch/elasticsearch/pull/8608
+                            nodeEnv.deleteIndexDirectorySafe(idx, deleteTimeout.millis(), current.settings());
                         } catch (LockObtainFailedException ex) {
                             logger.debug("[{}] failed to delete index - at least one shards is still locked", ex, current.index());
                         } catch (Exception ex) {
@@ -302,14 +311,14 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                                 try {
                                     // the index deletion might not have worked due to shards still being locked
                                     // we have three cases here:
-                                    //  - we acquired all shards locks here --> we can import the dangeling index
+                                    //  - we acquired all shards locks here --> we can import the dangling index
                                     //  - we failed to acquire the lock --> somebody else uses it - DON'T IMPORT
                                     //  - we acquired successfully but the lock list is empty --> no shards present - DON'T IMPORT
                                     // in the last case we should in-fact try to delete the directory since it might be a leftover...
-                                    final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index);
+                                    final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, 0);
                                     if (shardLocks.isEmpty()) {
                                         // no shards - try to remove the directory
-                                        nodeEnv.deleteIndexDirectorySafe(index);
+                                        nodeEnv.deleteIndexDirectorySafe(index, 0, indexMetaData.settings());
                                         continue;
                                     }
                                     IOUtils.closeWhileHandlingException(shardLocks);
@@ -323,7 +332,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                                 } else if (danglingTimeout.millis() == 0) {
                                     logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, timeout set to 0, deleting now", indexName);
                                     try {
-                                        nodeEnv.deleteIndexDirectorySafe(index);
+                                        nodeEnv.deleteIndexDirectorySafe(index, 0, indexMetaData.settings());
                                     } catch (LockObtainFailedException ex) {
                                         logger.debug("[{}] failed to delete index - at least one shards is still locked", ex, indexName);
                                     } catch (Exception ex) {
@@ -331,7 +340,11 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                                     }
                                 } else {
                                     logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, scheduling to delete in [{}], auto import to cluster state [{}]", indexName, danglingTimeout, autoImportDangled);
-                                    danglingIndices.put(indexName, new DanglingIndex(indexName, threadPool.schedule(danglingTimeout, ThreadPool.Names.SAME, new RemoveDanglingIndex(index))));
+                                    danglingIndices.put(indexName,
+                                            new DanglingIndex(indexName,
+                                                    threadPool.schedule(danglingTimeout,
+                                                            ThreadPool.Names.SAME,
+                                                            new RemoveDanglingIndex(index, indexMetaData.settings()))));
                                 }
                             }
                         }
@@ -429,7 +442,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         final boolean deleteOldFiles = previousIndexMetaData != null && previousIndexMetaData.version() != indexMetaData.version();
         final MetaDataStateFormat<IndexMetaData> writer = indexStateFormat(format, formatParams, deleteOldFiles);
         try {
-            writer.write(indexMetaData, INDEX_STATE_FILE_PREFIX, indexMetaData.version(), nodeEnv.indexPaths(new Index(indexMetaData.index())));
+            writer.write(indexMetaData, INDEX_STATE_FILE_PREFIX, indexMetaData.version(),
+                    nodeEnv.indexPaths(new Index(indexMetaData.index())));
         } catch (Throwable ex) {
             logger.warn("[{}]: failed to write index state", ex, indexMetaData.index());
             throw new IOException("failed to write state for [" + indexMetaData.index() + "]", ex);
@@ -470,7 +484,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
     @Nullable
     private IndexMetaData loadIndexState(String index) throws IOException {
-        return MetaDataStateFormat.loadLatestState(logger, indexStateFormat(format, formatParams, true), INDEX_STATE_FILE_PATTERN, "[" + index + "]", nodeEnv.indexPaths(new Index(index)));
+        return MetaDataStateFormat.loadLatestState(logger, indexStateFormat(format, formatParams, true),
+                INDEX_STATE_FILE_PATTERN, "[" + index + "]", nodeEnv.indexPaths(new Index(index)));
     }
 
     private MetaData loadGlobalState() throws IOException {
@@ -508,7 +523,24 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
      * move this old & deprecated node setting to an index setting so that we can keep things backward compatible.
      */
     private void pre20Upgrade() throws Exception {
-        final Class<? extends HashFunction> pre20HashFunction = settings.getAsClass(DEPRECATED_SETTING_ROUTING_HASH_FUNCTION, null, "org.elasticsearch.cluster.routing.operation.hash.", "HashFunction");
+        final Class<? extends HashFunction> pre20HashFunction;
+        final String pre20HashFunctionName = settings.get(DEPRECATED_SETTING_ROUTING_HASH_FUNCTION, null);
+        final boolean hasCustomPre20HashFunction = pre20HashFunctionName != null;
+        // the hash function package has changed we replace the two hash functions if their fully qualified name is used.
+        if (hasCustomPre20HashFunction) {
+            switch (pre20HashFunctionName) {
+                case "org.elasticsearch.cluster.routing.operation.hash.simple.SimpleHashFunction":
+                    pre20HashFunction = SimpleHashFunction.class;
+                    break;
+                case "org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction":
+                    pre20HashFunction = DjbHashFunction.class;
+                    break;
+                default:
+                    pre20HashFunction = settings.getAsClass(DEPRECATED_SETTING_ROUTING_HASH_FUNCTION, DjbHashFunction.class, "org.elasticsearch.cluster.routing.", "HashFunction");
+            }
+        } else {
+            pre20HashFunction = DjbHashFunction.class;
+        }
         final Boolean pre20UseType = settings.getAsBoolean(DEPRECATED_SETTING_ROUTING_USE_TYPE, null);
         MetaData metaData = loadMetaState();
         for (IndexMetaData indexMetaData : metaData) {
@@ -516,7 +548,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                     && indexMetaData.getCreationVersion().before(Version.V_2_0_0)) {
                 // these settings need an upgrade
                 Settings indexSettings = ImmutableSettings.builder().put(indexMetaData.settings())
-                        .put(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION, pre20HashFunction == null ? DjbHashFunction.class : pre20HashFunction)
+                        .put(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION, pre20HashFunction)
                         .put(IndexMetaData.SETTING_LEGACY_ROUTING_USE_TYPE, pre20UseType == null ? false : pre20UseType)
                         .build();
                 IndexMetaData newMetaData = IndexMetaData.builder(indexMetaData)
@@ -532,7 +564,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                 }
             }
         }
-        if (pre20HashFunction != null || pre20UseType != null) {
+        if (hasCustomPre20HashFunction|| pre20UseType != null) {
             logger.warn("Settings [{}] and [{}] are deprecated. Index settings from your old indices have been updated to record the fact that they "
                     + "used some custom routing logic, you can now remove these settings from your `elasticsearch.yml` file", DEPRECATED_SETTING_ROUTING_HASH_FUNCTION, DEPRECATED_SETTING_ROUTING_USE_TYPE);
         }
@@ -541,9 +573,11 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
     class RemoveDanglingIndex implements Runnable {
 
         private final Index index;
+        private final Settings indexSettings;
 
-        RemoveDanglingIndex(Index index) {
+        RemoveDanglingIndex(Index index, @IndexSettings Settings indexSettings) {
             this.index = index;
+            this.indexSettings = indexSettings;
         }
 
         @Override
@@ -558,7 +592,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
                 try {
                     MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(index));
-                    nodeEnv.deleteIndexDirectorySafe(index);
+                    nodeEnv.deleteIndexDirectorySafe(index, 0, indexSettings);
                 } catch (Exception ex) {
                     logger.debug("failed to delete dangling index", ex);
                 }

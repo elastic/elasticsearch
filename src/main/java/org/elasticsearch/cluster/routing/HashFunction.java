@@ -17,14 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.common.component;
-
-import org.elasticsearch.ElasticsearchException;
+package org.elasticsearch.cluster.routing;
 
 /**
- *
+ * Simple hash function interface used for shard routing.
  */
-public interface CloseableComponent {
+public interface HashFunction {
 
-    void close() throws ElasticsearchException;
+    /**
+     * Calculate a hash value for routing 
+     * @param routing String to calculate the hash value from 
+     * @return hash value of the given routing string
+     */
+    int hash(String routing);
+
+    /**
+     * Calculate a hash value for routing and its type
+     * @param type types name
+     * @param routing String to calculate the hash value from 
+     * @return hash value of the given type and routing string
+     */
+    @Deprecated
+    int hash(String type, String id);
 }

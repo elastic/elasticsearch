@@ -22,6 +22,8 @@ import com.carrotsearch.hppc.LongObjectOpenHashMap;
 import com.google.common.collect.Lists;
 
 import org.apache.lucene.util.CollectionUtil;
+import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,6 +44,7 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormatterStream
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -258,7 +261,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         if (order == null) {
             this.order = (InternalOrder) InternalOrder.COUNT_ASC;
         } else {
-            this.order = order;
+        this.order = order;
         }
         assert (minDocCount == 0) == (emptyBucketInfo != null);
         this.minDocCount = minDocCount;
@@ -305,37 +308,77 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         return FACTORY;
     }
 
-    @Override
-    public InternalAggregation reduce(ReduceContext reduceContext) {
+    private static class IteratorAndCurrent<B> {
+
+        private final Iterator<B> iterator;
+        private B current;
+
+        IteratorAndCurrent(Iterator<B> iterator) {
+            this.iterator = iterator;
+            current = iterator.next();
+        }
+
+    }
+
+    private List<B> reduceBuckets(ReduceContext reduceContext) {
         List<InternalAggregation> aggregations = reduceContext.aggregations();
 
-        LongObjectPagedHashMap<List<B>> bucketsByKey = new LongObjectPagedHashMap<>(reduceContext.bigArrays());
+        final PriorityQueue<IteratorAndCurrent<B>> pq = new PriorityQueue<IteratorAndCurrent<B>>(aggregations.size()) {
+            @Override
+            protected boolean lessThan(IteratorAndCurrent<B> a, IteratorAndCurrent<B> b) {
+                return a.current.key < b.current.key;
+            }
+        };
         for (InternalAggregation aggregation : aggregations) {
             InternalHistogram<B> histogram = (InternalHistogram) aggregation;
-            for (B bucket : histogram.buckets) {
-                List<B> bucketList = bucketsByKey.get(bucket.key);
-                if (bucketList == null) {
-                    bucketList = new ArrayList<>(aggregations.size());
-                    bucketsByKey.put(bucket.key, bucketList);
+            if (histogram.buckets.isEmpty() == false) {
+                pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
                 }
-                bucketList.add(bucket);
             }
+
+        List<B> reducedBuckets = new ArrayList<>();
+        if (pq.size() > 0) {
+            // list of buckets coming from different shards that have the same key
+            List<B> currentBuckets = new ArrayList<>();
+            long key = pq.top().current.key;
+
+            do {
+                final IteratorAndCurrent<B> top = pq.top();
+
+                if (top.current.key != key) {
+                    // the key changes, reduce what we already buffered and reset the buffer for current buckets
+                    final B reduced = currentBuckets.get(0).reduce(currentBuckets, reduceContext);
+                    if (reduced.getDocCount() >= minDocCount) {
+                        reducedBuckets.add(reduced);
+                    }
+                    currentBuckets.clear();
+                    key = top.current.key;
         }
 
-        List<B> reducedBuckets = new ArrayList<>((int) bucketsByKey.size());
-        for (LongObjectPagedHashMap.Cursor<List<B>> cursor : bucketsByKey) {
-            List<B> sameTermBuckets = cursor.value;
-            B bucket = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext);
-            if (bucket.getDocCount() >= minDocCount) {
-                reducedBuckets.add(bucket);
+                currentBuckets.add(top.current);
+
+                if (top.iterator.hasNext()) {
+                    final B next = top.iterator.next();
+                    assert next.key > top.current.key : "shards must return data sorted by key";
+                    top.current = next;
+                    pq.updateTop();
+                } else {
+                    pq.pop();
+                }
+            } while (pq.size() > 0);
+
+            if (currentBuckets.isEmpty() == false) {
+                final B reduced = currentBuckets.get(0).reduce(currentBuckets, reduceContext);
+                if (reduced.getDocCount() >= minDocCount) {
+                    reducedBuckets.add(reduced);
             }
         }
-        bucketsByKey.close();
+        }
 
-        // adding empty buckets in needed
-        if (minDocCount == 0) {
-            CollectionUtil.introSort(reducedBuckets, order.asc ? InternalOrder.KEY_ASC.comparator() : InternalOrder.KEY_DESC.comparator());
-            List<B> list = order.asc ? reducedBuckets : Lists.reverse(reducedBuckets);
+        return reducedBuckets;
+    }
+
+    private void addEmptyBuckets(List<B> list) {
             B lastBucket = null;
             ExtendedBounds bounds = emptyBucketInfo.bounds;
             ListIterator<B> iter = list.listIterator();
@@ -389,12 +432,26 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                     key = emptyBucketInfo.rounding.nextRoundingValue(key);
                 }
             }
+    }
 
-            if (order != InternalOrder.KEY_ASC && order != InternalOrder.KEY_DESC) {
-                CollectionUtil.introSort(reducedBuckets, order.comparator());
+    @Override
+    public InternalAggregation reduce(ReduceContext reduceContext) {
+        List<B> reducedBuckets = reduceBuckets(reduceContext);
+
+        // adding empty buckets if needed
+        if (minDocCount == 0) {
+            addEmptyBuckets(reducedBuckets);
             }
 
+        if (order == InternalOrder.KEY_ASC) {
+            // nothing to do, data are already sorted since shards return
+            // sorted buckets and the merge-sort performed by reduceBuckets
+            // maintains order
+        } else if (order == InternalOrder.KEY_DESC) {
+            // we just need to reverse here...
+            reducedBuckets = Lists.reverse(reducedBuckets);
         } else {
+            // sorted by sub-aggregation, need to fall back to a costly n*log(n) sort
             CollectionUtil.introSort(reducedBuckets, order.comparator());
         }
 

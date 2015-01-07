@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.hamcrest.Matcher;
 import org.junit.Test;
@@ -669,15 +670,10 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     public void testDuelWithAndWithoutTermVectors() throws ElasticsearchException, IOException, ExecutionException, InterruptedException {
         // setup indices
         String[] indexNames = new String[] {"with_tv", "without_tv"};
-        ImmutableSettings.Builder settings = settingsBuilder()
-                .put(indexSettings())
-                .put("index.analysis.analyzer", "standard");
         assertAcked(prepareCreate(indexNames[0])
-                .setSettings(settings)
-                .addMapping("type1", "field1", "type=string,term_vector=with_positions_offsets"));
+                .addMapping("type1", "field1", "type=string,term_vector=with_positions_offsets,analyzer=keyword"));
         assertAcked(prepareCreate(indexNames[1])
-                .setSettings(settings)
-                .addMapping("type1", "field1", "type=string,term_vector=no"));
+                .addMapping("type1", "field1", "type=string,term_vector=no,analyzer=keyword"));
         ensureGreen();
 
         // index documents with and without term vectors
@@ -691,29 +687,28 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
                 "Transforming a data stream (such as when using a scrambler in telecommunications)."};
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
-        for (int i = 0; i < content.length; i++) {
-            for (String indexName : indexNames) {
+        for (String indexName : indexNames) {
+            for (int id = 0; id < content.length; id++) {
                 indexBuilders.add(client().prepareIndex()
                         .setIndex(indexName)
                         .setType("type1")
-                        .setId(String.valueOf(i))
-                        .setSource("field1", content[i]));
+                        .setId(String.valueOf(id))
+                        .setSource("field1", content[id]));
             }
         }
         indexRandom(true, indexBuilders);
 
         // request tvs and compare from each index
-        for (int i = 0; i < content.length; i++) {
+        for (int id = 0; id < content.length; id++) {
             Fields[] fields = new Fields[2];
-            int idx = 0;
-            for (String indexName : indexNames) {
-                TermVectorsResponse resp = client().prepareTermVectors(indexName, "type1", String.valueOf(i))
+            for (int j = 0; j < indexNames.length; j++) {
+                TermVectorsResponse resp = client().prepareTermVector(indexNames[j], "type1", String.valueOf(id))
                         .setOffsets(true)
                         .setPositions(true)
                         .setSelectedFields("field1")
                         .get();
-                assertThat("doc with index: test_with_tv, type1 and id: " + i, resp.isExists(), equalTo(true));
-                fields[idx++] = resp.getFields();
+                assertThat("doc with index: " + indexNames[j] + ", type1 and id: " + id, resp.isExists(), equalTo(true));
+                fields[j] = resp.getFields();
             }
             compareTermVectors("field1", fields[0], fields[1]);
         }
@@ -1126,4 +1121,107 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         return lessThan(value);
     }
 
+    @Test
+    public void testTermVectorsWithVersion() {
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)));
+        ensureGreen();
+
+        TermVectorsResponse response = client().prepareTermVectors("test", "type1", "1").get();
+        assertThat(response.isExists(), equalTo(false));
+
+        logger.info("--> index doc 1");
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").get();
+
+        // From translog:
+
+        // version 0 means ignore version, which is the default
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(0).get();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getVersion(), equalTo(1l));
+
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(1).get();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getVersion(), equalTo(1l));
+
+        try {
+            client().prepareGet(indexOrAlias(), "type1", "1").setVersion(2).get();
+            fail();
+        } catch (VersionConflictEngineException e) {
+            //all good
+        }
+
+        // From Lucene index:
+        refresh();
+
+        // version 0 means ignore version, which is the default
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(0).setRealtime(false).get();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getIndex(), equalTo("test"));
+        assertThat(response.getVersion(), equalTo(1l));
+
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(1).setRealtime(false).get();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getIndex(), equalTo("test"));
+        assertThat(response.getVersion(), equalTo(1l));
+
+        try {
+            client().prepareGet(indexOrAlias(), "type1", "1").setVersion(2).setRealtime(false).get();
+            fail();
+        } catch (VersionConflictEngineException e) {
+            //all good
+        }
+
+        logger.info("--> index doc 1 again, so increasing the version");
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").get();
+
+        // From translog:
+
+        // version 0 means ignore version, which is the default
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(0).get();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getIndex(), equalTo("test"));
+        assertThat(response.getVersion(), equalTo(2l));
+
+        try {
+            client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).get();
+            fail();
+        } catch (VersionConflictEngineException e) {
+            //all good
+        }
+
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(2).get();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getIndex(), equalTo("test"));
+        assertThat(response.getVersion(), equalTo(2l));
+
+        // From Lucene index:
+        refresh();
+
+        // version 0 means ignore version, which is the default
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(0).setRealtime(false).get();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getIndex(), equalTo("test"));
+        assertThat(response.getVersion(), equalTo(2l));
+
+        try {
+            client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).setRealtime(false).get();
+            fail();
+        } catch (VersionConflictEngineException e) {
+            //all good
+        }
+
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(2).setRealtime(false).get();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getIndex(), equalTo("test"));
+        assertThat(response.getVersion(), equalTo(2l));
+    }
 }

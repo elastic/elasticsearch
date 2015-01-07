@@ -16,10 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cluster.routing.operation.plain;
+package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.common.collect.Tuple;
 
 /**
  * Routing Preference Type

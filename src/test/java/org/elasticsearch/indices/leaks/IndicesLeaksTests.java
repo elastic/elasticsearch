@@ -58,7 +58,7 @@ public class IndicesLeaksTests extends ElasticsearchIntegrationTest {
         IndexService indexService = indicesService.indexServiceSafe("test");
         Injector indexInjector = indexService.injector();
         IndexShard shard = indexService.shardSafe(0);
-        Injector shardInjector = indexService.shardInjector(0);
+        Injector shardInjector = indexService.shardInjectorSafe(0);
 
         performCommonOperations();
 

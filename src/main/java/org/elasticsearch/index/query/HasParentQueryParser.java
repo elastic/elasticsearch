@@ -23,6 +23,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
@@ -30,10 +31,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
 import org.elasticsearch.index.query.support.XContentStructure;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.elasticsearch.index.search.child.ParentConstantScoreQuery;
 import org.elasticsearch.index.search.child.ParentQuery;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
+import org.elasticsearch.search.internal.SubSearchContext;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -45,8 +49,11 @@ public class HasParentQueryParser implements QueryParser {
 
     public static final String NAME = "has_parent";
 
+    private final InnerHitsQueryParserHelper innerHitsQueryParserHelper;
+
     @Inject
-    public HasParentQueryParser() {
+    public HasParentQueryParser(InnerHitsQueryParserHelper innerHitsQueryParserHelper) {
+        this.innerHitsQueryParserHelper = innerHitsQueryParserHelper;
     }
 
     @Override
@@ -64,6 +71,7 @@ public class HasParentQueryParser implements QueryParser {
         String parentType = null;
         boolean score = false;
         String queryName = null;
+        Tuple<String, SubSearchContext> innerHits = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -79,6 +87,8 @@ public class HasParentQueryParser implements QueryParser {
                 if ("query".equals(currentFieldName)) {
                     iq = new XContentStructure.InnerQuery(parseContext, parentType == null ? null : new String[] {parentType});
                     queryFound = true;
+                } else if ("inner_hits".equals(currentFieldName)) {
+                    innerHits = innerHitsQueryParserHelper.parse(parseContext);
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_parent] query does not support [" + currentFieldName + "]");
                 }
@@ -122,7 +132,7 @@ public class HasParentQueryParser implements QueryParser {
         }
 
         innerQuery.setBoost(boost);
-        Query query = createParentQuery(innerQuery, parentType, score, parseContext);
+        Query query = createParentQuery(innerQuery, parentType, score, parseContext, innerHits);
         if (query == null) {
             return null;
         }
@@ -134,10 +144,16 @@ public class HasParentQueryParser implements QueryParser {
         return query;
     }
 
-    static Query createParentQuery(Query innerQuery, String parentType, boolean score, QueryParseContext parseContext) {
+    static Query createParentQuery(Query innerQuery, String parentType, boolean score, QueryParseContext parseContext, Tuple<String, SubSearchContext> innerHits) {
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
             throw new QueryParsingException(parseContext.index(), "[has_parent] query configured 'parent_type' [" + parentType + "] is not a valid type");
+        }
+
+        if (innerHits != null) {
+            InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.v2(), innerQuery, null, parentDocMapper);
+            String name = innerHits.v1() != null ? innerHits.v1() : parentType;
+            parseContext.addInnerHits(name, parentChildInnerHits);
         }
 
         Set<String> parentTypes = new HashSet<>(5);
@@ -180,8 +196,8 @@ public class HasParentQueryParser implements QueryParser {
         }
 
         // wrap the query with type query
-        innerQuery = new FilteredQuery(innerQuery, parseContext.cacheFilter(parentDocMapper.typeFilter(), null));
-        Filter childrenFilter = parseContext.cacheFilter(new NotFilter(parentFilter), null);
+        innerQuery = new FilteredQuery(innerQuery, parseContext.cacheFilter(parentDocMapper.typeFilter(), null, parseContext.autoFilterCachePolicy()));
+        Filter childrenFilter = parseContext.cacheFilter(new NotFilter(parentFilter), null, parseContext.autoFilterCachePolicy());
         if (score) {
             return new ParentQuery(parentChildIndexFieldData, innerQuery, parentDocMapper.type(), childrenFilter);
         } else {

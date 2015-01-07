@@ -48,6 +48,10 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
     // List of linear rings defining the holes of the polygon 
     protected final ArrayList<BaseLineStringBuilder<?>> holes = new ArrayList<>();
 
+    public BasePolygonBuilder(Orientation orientation) {
+        super(orientation);
+    }
+
     @SuppressWarnings("unchecked")
     private E thisRef() {
         return (E)this;
@@ -125,9 +129,9 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
 
         Edge[] edges = new Edge[numEdges];
         Edge[] holeComponents = new Edge[holes.size()];
-        int offset = createEdges(0, false, shell, null, edges, 0);
+        int offset = createEdges(0, orientation, shell, null, edges, 0);
         for (int i = 0; i < holes.size(); i++) {
-            int length = createEdges(i+1, true, shell, this.holes.get(i), edges, offset);
+            int length = createEdges(i+1, orientation, shell, this.holes.get(i), edges, offset);
             holeComponents[i] = edges[offset];
             offset += length;
         }
@@ -357,9 +361,12 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
             // will get the correct position in the edge list and therefore the correct component to add the hole
             current.intersect = current.coordinate;
             final int intersections = intersections(current.coordinate.x, edges);
-            final int pos = Arrays.binarySearch(edges, 0, intersections, current, INTERSECTION_ORDER);
-            if (pos >= 0) {
-                throw new ElasticsearchParseException("Invaild shape: Hole is not within polygon");
+            // if no intersection is found then the hole is not within the polygon, so
+            // don't waste time calling a binary search
+            final int pos;
+            if (intersections == 0 ||
+               (pos = Arrays.binarySearch(edges, 0, intersections, current, INTERSECTION_ORDER)) >= 0) {
+                throw new ElasticsearchParseException("Invalid shape: Hole is not within polygon");
             }
             final int index = -(pos+2);
             final int component = -edges[index].component - numHoles - 1;
@@ -453,11 +460,15 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         }
     }
 
-    private static int createEdges(int component, boolean direction, BaseLineStringBuilder<?> shell, BaseLineStringBuilder<?> hole,
+    private static int createEdges(int component, Orientation orientation, BaseLineStringBuilder<?> shell,
+                                   BaseLineStringBuilder<?> hole,
                                    Edge[] edges, int offset) {
+        // inner rings (holes) have an opposite direction than the outer rings
+        // XOR will invert the orientation for outer ring cases (Truth Table:, T/T = F, T/F = T, F/T = T, F/F = F)
+        boolean direction = (component != 0 ^ orientation == Orientation.RIGHT);
         // set the points array accordingly (shell or hole)
         Coordinate[] points = (hole != null) ? hole.coordinates(false) : shell.coordinates(false);
-        Edge.ring(component, direction, shell, points, 0, edges, offset, points.length-1);
+        Edge.ring(component, direction, orientation == Orientation.LEFT, shell, points, 0, edges, offset, points.length-1);
         return points.length-1;
     }
 

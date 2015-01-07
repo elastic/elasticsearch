@@ -65,7 +65,7 @@ Match a document to the registered percolator queries:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/my-index/message/_percolate' -d '{
+curl -XGET 'localhost:9200/my-index/my-type/_percolate' -d '{
     "doc" : {
         "message" : "A new bonsai tree in the office"
     }

@@ -17,17 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.filter.support;
+package org.elasticsearch.cluster.routing;
 
-public class FilterCacheValue<T> {
+/**
+ * This class implements a simple hash function based on Java Build-In {@link Object#hashCode()}
+ */
+public class SimpleHashFunction implements HashFunction {
 
-    private final T value;
-
-    public FilterCacheValue(T value) {
-        this.value = value;
+    @Override
+    public int hash(String routing) {
+        return routing.hashCode();
     }
 
-    public T value() {
-        return value;
+    @Override
+    public int hash(String type, String id) {
+        return type.hashCode() + 31 * id.hashCode();
     }
 }

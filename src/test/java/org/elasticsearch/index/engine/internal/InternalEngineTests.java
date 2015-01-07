@@ -29,16 +29,14 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.IndexDeletionPolicy;
-import org.apache.lucene.index.LiveIndexWriterConfig;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
@@ -47,7 +45,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
@@ -68,7 +65,6 @@ import org.elasticsearch.index.settings.IndexDynamicSettingsModule;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
-import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
@@ -88,7 +84,6 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
@@ -122,34 +117,25 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     public void setUp() throws Exception {
         super.setUp();
         defaultSettings = ImmutableSettings.builder()
-                .put(InternalEngineHolder.INDEX_COMPOUND_ON_FLUSH, randomBoolean())
-                .put(InternalEngineHolder.INDEX_GC_DELETES, "1h") // make sure this doesn't kick in on us
-                .put(InternalEngineHolder.INDEX_FAIL_ON_CORRUPTION, randomBoolean())
+                .put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, randomBoolean())
+                .put(EngineConfig.INDEX_GC_DELETES_SETTING, "1h") // make sure this doesn't kick in on us
+                .put(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, randomBoolean())
                 .build(); // TODO randomize more settings
         threadPool = new ThreadPool(getClass().getName());
         store = createStore();
         store.deleteContent();
         storeReplica = createStore();
         storeReplica.deleteContent();
-        engineSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        engineSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         engine = createEngine(engineSettingsService, store, createTranslog());
         if (randomBoolean()) {
-            engine.enableGcDeletes(false);
+            ((InternalEngine)engine).config().setEnableGcDeletes(false);
         }
-        engine.start();
-        if (randomBoolean()) {
-            engine.stop();
-            engine.start();
-        }
-        replicaSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        replicaSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         replicaEngine = createEngine(replicaSettingsService, storeReplica, createTranslogReplica());
         if (randomBoolean()) {
-            replicaEngine.enableGcDeletes(false);
-        }
-        replicaEngine.start();
-        if (randomBoolean()) {
-            engine.stop();
-            engine.start();
+            ((InternalEngine)engine).config().setEnableGcDeletes(false);
+
         }
     }
 
@@ -231,8 +217,22 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     }
 
     protected Engine createEngine(IndexSettingsService indexSettingsService, Store store, Translog translog, MergeSchedulerProvider mergeSchedulerProvider) {
-        return new InternalEngineHolder(shardId, defaultSettings, threadPool, indexSettingsService, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), null, store, createSnapshotDeletionPolicy(), translog, createMergePolicy(), mergeSchedulerProvider,
-                new AnalysisService(shardId.index(), indexSettingsService.getSettings()), new SimilarityService(shardId.index()), new CodecService(shardId.index()));
+        return new InternalEngine(config(indexSettingsService, store, translog, mergeSchedulerProvider));
+    }
+
+    public EngineConfig config(IndexSettingsService indexSettingsService, Store store, Translog translog, MergeSchedulerProvider mergeSchedulerProvider) {
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        EngineConfig config = new EngineConfig(shardId, true, threadPool, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), indexSettingsService
+                , null, store, createSnapshotDeletionPolicy(), translog, createMergePolicy(), mergeSchedulerProvider,
+                iwc.getAnalyzer(), iwc.getSimilarity() , new CodecService(shardId.index()), new Engine.FailedEngineListener() {
+            @Override
+            public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t) {
+                // we don't need to notify anybody in this test
+            }
+        });
+
+
+        return config;
     }
 
     protected static final BytesReference B_1 = new BytesArray(new byte[]{1});
@@ -245,7 +245,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         assertThat(segments.isEmpty(), equalTo(true));
         assertThat(engine.segmentsStats().getCount(), equalTo(0l));
         assertThat(engine.segmentsStats().getMemoryInBytes(), equalTo(0l));
-        final boolean defaultCompound = defaultSettings.getAsBoolean(InternalEngineHolder.INDEX_COMPOUND_ON_FLUSH, true);
+        final boolean defaultCompound = defaultSettings.getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, true);
 
         // create a doc and refresh
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
@@ -282,7 +282,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
         assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
 
-        engineSettingsService.refreshSettings(ImmutableSettings.builder().put(InternalEngineHolder.INDEX_COMPOUND_ON_FLUSH, false).build());
+        engineSettingsService.refreshSettings(ImmutableSettings.builder().put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, false).build());
 
         ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_3, false);
         engine.create(new Engine.Create(null, newUid("3"), doc3));
@@ -330,7 +330,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
         assertThat(segments.get(1).isCompound(), equalTo(false));
 
-        engineSettingsService.refreshSettings(ImmutableSettings.builder().put(InternalEngineHolder.INDEX_COMPOUND_ON_FLUSH, true).build());
+        engineSettingsService.refreshSettings(ImmutableSettings.builder().put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, true).build());
         ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_3, false);
         engine.create(new Engine.Create(null, newUid("4"), doc4));
         engine.refresh("test", false);
@@ -385,35 +385,6 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         
     }
 
-    public void testStartAndAcquireConcurrently() throws IOException {
-        ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS));
-        final Store store = createStore();
-        final Engine engine = createEngine(engineSettingsService, store, createTranslog(), mergeSchedulerProvider);
-        final AtomicBoolean startPending = new AtomicBoolean(true);
-        Thread thread = new Thread() {
-            public void run() {
-                try {
-                    Thread.yield();
-                    engine.start();
-                } finally {
-                    startPending.set(false);
-                }
-
-            }
-        };
-        thread.start();
-        while (startPending.get()) {
-            try {
-                engine.acquireSearcher("foobar").close();
-                break;
-            } catch (EngineClosedException ex) {
-                // all good
-            }
-        }
-        engine.close();
-        store.close();
-    }
-
 
     @Test
     public void testSegmentsWithMergeFlag() throws Exception {
@@ -442,7 +413,6 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         });
 
         final Engine engine = createEngine(engineSettingsService, store, createTranslog(), mergeSchedulerProvider);
-        engine.start();
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), Lucene.STANDARD_ANALYZER, B_1, false);
         Engine.Index index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
@@ -716,7 +686,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(null, newUid("1"), doc));
         engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
-        final boolean failEngine = defaultSettings.getAsBoolean(InternalEngineHolder.INDEX_FAIL_ON_CORRUPTION, false);
+        final boolean failEngine = defaultSettings.getAsBoolean(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, false);
         final int failInPhase = randomIntBetween(1, 3);
         try {
             engine.recover(new Engine.RecoveryHandler() {
@@ -1396,18 +1366,11 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
         // Make sure enableGCDeletes == false works:
         Settings settings = ImmutableSettings.builder()
-                .put(InternalEngineHolder.INDEX_GC_DELETES, "0ms")
+                .put(EngineConfig.INDEX_GC_DELETES_SETTING, "0ms")
                 .build();
 
-        Engine engine = new InternalEngineHolder(shardId, settings, threadPool,
-                engineSettingsService,
-                new ShardIndexingService(shardId, settings,
-                        new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, engineSettingsService)),
-                null, store, createSnapshotDeletionPolicy(), createTranslog(), createMergePolicy(), createMergeScheduler(engineSettingsService),
-                new AnalysisService(shardId.index(), engineSettingsService.getSettings()), new SimilarityService(shardId.index()),
-                new CodecService(shardId.index()));
-        engine.start();
-        engine.enableGcDeletes(false);
+        Engine engine = new InternalEngine(config(engineSettingsService, store, createTranslog(), createMergeScheduler(engineSettingsService)));
+        ((InternalEngine)engine).config().setEnableGcDeletes(false);
 
         // Add document
         Document document = testDocument();
@@ -1473,7 +1436,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         try (Engine.Searcher test = this.engine.acquireSearcher("test")) {
             ShardId shardId = ShardUtils.extractShardId(test.reader());
             assertNotNull(shardId);
-            assertEquals(shardId, engine.shardId());
+            assertEquals(shardId, ((InternalEngine) engine).config().getShardId());
         }
     }
 
@@ -1498,32 +1461,29 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                 Settings build = ImmutableSettings.builder()
                         .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
                 IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), build);
-                Engine holder = createEngine(indexSettingsService, store, translog);
+                Engine holder;
+                try {
+                    holder = createEngine(indexSettingsService, store, translog);
+                } catch (EngineCreationFailureException ex) {
+                    assertEquals(store.refCount(), refCount);
+                    continue;
+                }
                 indexSettingsService.refreshSettings(ImmutableSettings.builder()
                         .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(InternalEngineHolder.INDEX_FAIL_ON_CORRUPTION, true).build());
+                        .put(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, true).build());
 
                 assertEquals(store.refCount(), refCount+1);
                 final int numStarts = scaledRandomIntBetween(1, 5);
                 for (int j = 0; j < numStarts; j++) {
                     try {
-                        holder.start();
-                        assertEquals(store.refCount(), refCount + 2);
-                        holder.stop();
+                        assertEquals(store.refCount(), refCount + 1);
+                        holder.close();
+                        holder = createEngine(indexSettingsService, store, translog);
                         assertEquals(store.refCount(), refCount + 1);
                     } catch (EngineCreationFailureException ex) {
                         // all is fine
-                        if (ex.getCause() instanceof CorruptIndexException) {
-                            assertEquals(store.refCount(), refCount);
-                            try {
-                                holder.start();
-                                fail("Engine must have failed on corrupt index");
-                            } catch (EngineClosedException e) {
-                                // good!
-                            }
-                            break; // failed engine can't start again
-                        }
-                        assertEquals(store.refCount(), refCount + 1);
+                        assertEquals(store.refCount(), refCount);
+                        break;
                     }
                 }
                 translog.close();
@@ -1535,15 +1495,15 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testSettings() {
-        final InternalEngineHolder holder = (InternalEngineHolder) engine;
         IndexDynamicSettingsModule settings = new IndexDynamicSettingsModule();
-        assertTrue(settings.containsSetting(InternalEngineHolder.INDEX_FAIL_ON_CORRUPTION));
-        assertTrue(settings.containsSetting(InternalEngineHolder.INDEX_COMPOUND_ON_FLUSH));
-        assertTrue(settings.containsSetting(InternalEngineHolder.INDEX_GC_DELETES));
-        assertTrue(settings.containsSetting(InternalEngineHolder.INDEX_CODEC));
-        assertTrue(settings.containsSetting(InternalEngineHolder.INDEX_FAIL_ON_MERGE_FAILURE));
-        assertTrue(settings.containsSetting(InternalEngineHolder.INDEX_INDEX_CONCURRENCY));
-
+        assertTrue(settings.containsSetting(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING));
+        assertTrue(settings.containsSetting(EngineConfig.INDEX_COMPOUND_ON_FLUSH));
+        assertTrue(settings.containsSetting(EngineConfig.INDEX_GC_DELETES_SETTING));
+        assertTrue(settings.containsSetting(EngineConfig.INDEX_CODEC_SETTING));
+        assertTrue(settings.containsSetting(EngineConfig.INDEX_FAIL_ON_MERGE_FAILURE_SETTING));
+        assertTrue(settings.containsSetting(EngineConfig.INDEX_CONCURRENCY_SETTING));
+        InternalEngine engine = (InternalEngine) this.engine;
+        CodecService codecService = new CodecService(shardId.index());
         final int iters = between(1, 20);
         for (int i = 0; i < iters; i++) {
             boolean compoundOnFlush = randomBoolean();
@@ -1551,39 +1511,35 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             boolean failOnMerge = randomBoolean();
             long gcDeletes = Math.max(0, randomLong());
             int indexConcurrency = randomIntBetween(1, 20);
-            String codecName = randomFrom(holder.codecService.availableCodecs());
+            String codecName = randomFrom(codecService.availableCodecs());
 
             Settings build = ImmutableSettings.builder()
-                    .put(InternalEngineHolder.INDEX_FAIL_ON_CORRUPTION, failOnCorruption)
-                    .put(InternalEngineHolder.INDEX_COMPOUND_ON_FLUSH, compoundOnFlush)
-                    .put(InternalEngineHolder.INDEX_GC_DELETES, gcDeletes)
-                    .put(InternalEngineHolder.INDEX_CODEC, codecName)
-                    .put(InternalEngineHolder.INDEX_FAIL_ON_MERGE_FAILURE, failOnMerge)
-                    .put(InternalEngineHolder.INDEX_INDEX_CONCURRENCY, indexConcurrency)
+                    .put(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, failOnCorruption)
+                    .put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, compoundOnFlush)
+                    .put(EngineConfig.INDEX_GC_DELETES_SETTING, gcDeletes)
+                    .put(EngineConfig.INDEX_CODEC_SETTING, codecName)
+                    .put(EngineConfig.INDEX_FAIL_ON_MERGE_FAILURE_SETTING, failOnMerge)
+                    .put(EngineConfig.INDEX_CONCURRENCY_SETTING, indexConcurrency)
                     .build();
 
             engineSettingsService.refreshSettings(build);
-            LiveIndexWriterConfig currentIndexWriterConfig = holder.engineSafe().getCurrentIndexWriterConfig();
-            assertEquals(holder.compoundOnFlush, compoundOnFlush);
-            assertEquals(holder.engineSafe().isCompoundOnFlush(), compoundOnFlush);
+            LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
+            assertEquals(engine.config().isCompoundOnFlush(), compoundOnFlush);
             assertEquals(currentIndexWriterConfig.getUseCompoundFile(), compoundOnFlush);
 
 
-            assertEquals(holder.gcDeletesInMillis, gcDeletes);
-            assertEquals(holder.engineSafe().getGcDeletesInMillis(), gcDeletes);
+            assertEquals(engine.config().getGcDeletesInMillis(), gcDeletes);
+            assertEquals(engine.getGcDeletesInMillis(), gcDeletes);
 
-            assertEquals(holder.codecName, codecName);
-            assertEquals(holder.engineSafe().getCodecName(), codecName);
-            assertEquals(currentIndexWriterConfig.getCodec(), holder.codecService.codec(codecName));
+            assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
+            assertEquals(currentIndexWriterConfig.getCodec().getName(), codecService.codec(codecName).getName());
 
 
-            assertEquals(holder.failEngineOnCorruption, failOnCorruption);
-            assertEquals(holder.engineSafe().isFailEngineOnCorruption(), failOnCorruption);
+            assertEquals(engine.config().isFailEngineOnCorruption(), failOnCorruption);
 
-            assertEquals(holder.failOnMergeFailure, failOnMerge); // only on the holder
+            assertEquals(engine.config().isFailOnMergeFailure(), failOnMerge); // only on the holder
 
-            assertEquals(holder.indexConcurrency, indexConcurrency);
-            assertEquals(holder.engineSafe().getIndexConcurrency(), indexConcurrency);
+            assertEquals(engine.config().getIndexConcurrency(), indexConcurrency);
             assertEquals(currentIndexWriterConfig.getMaxThreadStates(), indexConcurrency);
 
 

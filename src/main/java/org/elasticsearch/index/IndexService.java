@@ -42,7 +42,6 @@ import org.elasticsearch.index.cache.filter.ShardFilterCacheModule;
 import org.elasticsearch.index.cache.query.ShardQueryCacheModule;
 import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineModule;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldDataModule;
 import org.elasticsearch.index.gateway.IndexShardGatewayModule;
@@ -302,7 +301,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new ShardsPluginsModule(indexSettings, pluginsService));
-            modules.add(new IndexShardModule(shardId));
+            modules.add(new IndexShardModule(shardId, indexSettings));
             modules.add(new ShardIndexingModule());
             modules.add(new ShardSearchModule());
             modules.add(new ShardGetModule());
@@ -316,7 +315,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             modules.add(new ShardBitsetFilterCacheModule());
             modules.add(new ShardFieldDataModule());
             modules.add(new TranslogModule(indexSettings));
-            modules.add(new EngineModule(indexSettings));
             modules.add(new IndexShardGatewayModule());
             modules.add(new PercolatorShardModule());
             modules.add(new ShardTermVectorsModule());
@@ -391,7 +389,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                 }
             }
             closeInjectorResource(sId, shardInjector,
-                    Engine.class,
                     MergeSchedulerProvider.class,
                     MergePolicyProvider.class,
                     IndexShardGatewayService.class,

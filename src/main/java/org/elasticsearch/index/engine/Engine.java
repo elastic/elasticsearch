@@ -30,6 +30,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -49,32 +50,7 @@ import java.util.List;
  */
 public interface Engine extends Closeable {
 
-    static final String INDEX_CODEC = "index.codec";
-    static ByteSizeValue INACTIVE_SHARD_INDEXING_BUFFER = ByteSizeValue.parseBytesSizeValue("500kb");
-
-    ShardId shardId();
-
-    /**
-     * The default suggested refresh interval, -1 to disable it.
-     */
-    TimeValue defaultRefreshInterval();
-
-    void enableGcDeletes(boolean enableGcDeletes);
-
     void updateIndexingBufferSize(ByteSizeValue indexingBufferSize);
-
-    void addFailedEngineListener(FailedEngineListener listener);
-
-    /**
-     * Starts the Engine.
-     * <p/>
-     * <p>Note, after the creation and before the call to start, the store might
-     * be changed.
-     */
-    void start() throws EngineException;
-
-    /** Stops the engine but allow to re-start it */
-    void stop() throws EngineException;
 
     void create(Create create) throws EngineException;
 
@@ -127,6 +103,9 @@ public interface Engine extends Closeable {
      */
     void forceMerge(boolean flush, boolean waitForMerge);
 
+    /**
+     * Triggers a forced merge on this engine
+     */
     void forceMerge(boolean flush, boolean waitForMerge, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade) throws EngineException;
 
     /**
@@ -139,6 +118,8 @@ public interface Engine extends Closeable {
 
     /** fail engine due to some error. the engine will also be closed. */
     void failEngine(String reason, Throwable failure);
+
+    ByteSizeValue indexingBufferSize();
 
     static interface FailedEngineListener {
         void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t);
@@ -747,5 +728,4 @@ public interface Engine extends Closeable {
             }
         }
     }
-
 }

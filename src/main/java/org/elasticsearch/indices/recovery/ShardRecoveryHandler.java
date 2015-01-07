@@ -298,7 +298,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
                         } catch (Throwable e) {
                             final Throwable corruptIndexException;
                             if ((corruptIndexException = ExceptionsHelper.unwrapCorruption(e)) != null) {
-                                if (store.checkIntegrity(md) == false) { // we are corrupted on the primary -- fail!
+                                if (store.checkIntegrityNoException(md) == false) { // we are corrupted on the primary -- fail!
                                     logger.warn("{} Corrupted file detected {} checksum mismatch", shard.shardId(), md);
                                     if (corruptedEngine.compareAndSet(null, corruptIndexException) == false) {
                                         // if we are not the first exception, add ourselves as suppressed to the main one:

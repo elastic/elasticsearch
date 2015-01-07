@@ -564,8 +564,8 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             StoreFileMetaData legacy = new StoreFileMetaData("legacy.bin", legacyFileLength, Store.digestToString(adler32LegacyChecksum));
             assertTrue(legacy.hasLegacyChecksum());
             assertFalse(lucene.hasLegacyChecksum());
-            assertTrue(Store.checkIntegrity(lucene, dir));
-            assertTrue(Store.checkIntegrity(legacy, dir));
+            assertTrue(Store.checkIntegrityNoException(lucene, dir));
+            assertTrue(Store.checkIntegrityNoException(legacy, dir));
         }
 
         { // negative check - wrong checksum
@@ -573,8 +573,8 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             StoreFileMetaData legacy = new StoreFileMetaData("legacy.bin", legacyFileLength, Store.digestToString(adler32LegacyChecksum+1));
             assertTrue(legacy.hasLegacyChecksum());
             assertFalse(lucene.hasLegacyChecksum());
-            assertFalse(Store.checkIntegrity(lucene, dir));
-            assertFalse(Store.checkIntegrity(legacy, dir));
+            assertFalse(Store.checkIntegrityNoException(lucene, dir));
+            assertFalse(Store.checkIntegrityNoException(legacy, dir));
         }
 
         { // negative check - wrong length
@@ -582,8 +582,8 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             StoreFileMetaData legacy = new StoreFileMetaData("legacy.bin", legacyFileLength+1, Store.digestToString(adler32LegacyChecksum));
             assertTrue(legacy.hasLegacyChecksum());
             assertFalse(lucene.hasLegacyChecksum());
-            assertFalse(Store.checkIntegrity(lucene, dir));
-            assertFalse(Store.checkIntegrity(legacy, dir));
+            assertFalse(Store.checkIntegrityNoException(lucene, dir));
+            assertFalse(Store.checkIntegrityNoException(legacy, dir));
         }
 
         { // negative check - wrong file
@@ -591,8 +591,8 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             StoreFileMetaData legacy = new StoreFileMetaData("lucene_checksum.bin", legacyFileLength, Store.digestToString(adler32LegacyChecksum));
             assertTrue(legacy.hasLegacyChecksum());
             assertFalse(lucene.hasLegacyChecksum());
-            assertFalse(Store.checkIntegrity(lucene, dir));
-            assertFalse(Store.checkIntegrity(legacy, dir));
+            assertFalse(Store.checkIntegrityNoException(lucene, dir));
+            assertFalse(Store.checkIntegrityNoException(legacy, dir));
         }
         dir.close();
 

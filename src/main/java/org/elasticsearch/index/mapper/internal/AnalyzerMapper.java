@@ -186,4 +186,13 @@ public class AnalyzerMapper implements Mapper, InternalMapper, RootMapper {
     public void close() {
 
     }
+
+    // Added by Loggly - START
+    
+    @Override
+    public boolean isEphemeral() {
+        return false;
+    }
+
+    // Added by Loggly - END
 }

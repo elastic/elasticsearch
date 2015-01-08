@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.internal.*;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
+import org.elasticsearch.index.mapper.ip.EphemeralIpFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
@@ -172,4 +173,76 @@ public final class MapperBuilders {
     public static CompletionFieldMapper.Builder completionField(String name) {
         return new CompletionFieldMapper.Builder(name);
     }
+
+    // Added by Loggly - START
+    //
+    
+    public static EphemeralByteFieldMapper.Builder ephemeralByteField(String name) {
+        return new EphemeralByteFieldMapper.Builder(name);
+    }
+    public static EphemeralShortFieldMapper.Builder ephemeralShortField(String name) {
+        return new EphemeralShortFieldMapper.Builder(name);
+    }
+    public static EphemeralIntegerFieldMapper.Builder ephemeralIntegerField(String name) {
+        return new EphemeralIntegerFieldMapper.Builder(name);
+    }
+    public static EphemeralLongFieldMapper.Builder ephemeralLongField(String name) {
+        return new EphemeralLongFieldMapper.Builder(name);
+    }
+    public static EphemeralFloatFieldMapper.Builder ephemeralFloatField(String name) {
+        return new EphemeralFloatFieldMapper.Builder(name);
+    }
+    public static EphemeralDoubleFieldMapper.Builder ephemeralDoubleField(String name) {
+        return new EphemeralDoubleFieldMapper.Builder(name);
+    }
+    public static EphemeralBooleanFieldMapper.Builder ephemeralBooleanField(String name) {
+        return new EphemeralBooleanFieldMapper.Builder(name);
+    }
+    public static EphemeralDateFieldMapper.Builder ephemeralDateField(String name) {
+        return new EphemeralDateFieldMapper.Builder(name);
+    }
+    public static EphemeralIpFieldMapper.Builder ephemeralIpField(String name) {
+        return new EphemeralIpFieldMapper.Builder(name);
+    }
+    public static EphemeralStringFieldMapper.Builder ephemeralStringField(String name) {
+        return new EphemeralStringFieldMapper.Builder(name);
+    }
+
+    public static Mapper.Builder getEphemeralBuilder(String typeName, String fieldName) {
+        if (EphemeralByteFieldMapper.CONTENT_TYPE.equals(typeName)) {
+            return new EphemeralByteFieldMapper.Builder(fieldName);
+        }
+        if (EphemeralShortFieldMapper.CONTENT_TYPE.equals(typeName)) {
+            return new EphemeralShortFieldMapper.Builder(fieldName);
+        }
+        if (EphemeralIntegerFieldMapper.CONTENT_TYPE.equals(typeName)) {
+            return new EphemeralIntegerFieldMapper.Builder(fieldName);
+        }
+        if (EphemeralLongFieldMapper.CONTENT_TYPE.equals(typeName)) {
+            return new EphemeralLongFieldMapper.Builder(fieldName);
+        }
+        if (EphemeralFloatFieldMapper.CONTENT_TYPE.equals(typeName)) {
+            return new EphemeralFloatFieldMapper.Builder(fieldName);
+        }
+        if (EphemeralDoubleFieldMapper.CONTENT_TYPE.equals(typeName)) {
+            return new EphemeralDoubleFieldMapper.Builder(fieldName);
+        }
+        if (EphemeralBooleanFieldMapper.CONTENT_TYPE.equals(typeName)) {
+            return new EphemeralBooleanFieldMapper.Builder(fieldName);
+        }
+        if (EphemeralDateFieldMapper.CONTENT_TYPE.equals(typeName)) {
+            return new EphemeralDateFieldMapper.Builder(fieldName);
+        }
+        if (EphemeralIpFieldMapper.CONTENT_TYPE.equals(typeName)) {
+            return new EphemeralIpFieldMapper.Builder(fieldName);
+        }
+        if (EphemeralStringFieldMapper.CONTENT_TYPE.equals(typeName)) {
+            return new EphemeralStringFieldMapper.Builder(fieldName);
+        }
+        
+        return null;
+    }
+    //
+    // Added by Loggly - END
+
 }

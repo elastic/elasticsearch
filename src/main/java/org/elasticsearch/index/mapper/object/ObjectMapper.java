@@ -691,7 +691,13 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
     private void putDynamicMapper(ParseContext context, String arrayFieldName, Mapper mapper) throws IOException {
         // ...now re add it
         context.path().add(arrayFieldName);
-        context.setMappingsModified();
+
+        // changed by Loggly - START
+        // don't modify yet. check to see whether any of the fields are non-ephemeral first
+        //
+        //context.setMappingsModified();
+        //
+        // changed by Loggly - END
 
         if (context.isWithinNewMapper()) {
             // within a new mapper, no need to traverse,
@@ -716,6 +722,15 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 context.clearWithinNewMapper();
             }
         }
+
+        // Changed by Loggly - START
+        // only update context if the mapper is NOT ephemeral
+        //
+        if (!mapper.isEphemeral()) {
+            context.setMappingsModified();
+        }
+        //
+        // changed by Loggly - END
 
         // only put after we traversed and did the
         // callbacks, so other parsing won't see it only
@@ -924,7 +939,17 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 // only put after we traversed and did the callbacks, so other parsing won't see it only after we
                 // properly traversed it and adding the mappers
                 putMapper(mapper);
-                context.setMappingsModified();
+
+                // Changed by Loggly - START
+                //
+                // Only mark the mappings as modified if this is NOT an ephemeral field
+                // This minimizes the number of updates required to the master
+                //
+                if (!mapper.isEphemeral()) {
+                    context.setMappingsModified();
+                }
+                //
+                // Changed by Loggly - END
             } else {
                 mapper.parse(context);
             }
@@ -1052,7 +1077,11 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         // check internal mappers first (this is only relevant for root object)
         for (Mapper mapper : sortedMappers) {
             if (mapper instanceof InternalMapper) {
-                mapper.toXContent(builder, params);
+                // Changed by Loggly - START
+                if (!mapper.isEphemeral()) {
+                    mapper.toXContent(builder, params);
+                }
+                // Changed by Loggly - END
             }
         }
         if (additionalMappers != null && additionalMappers.length > 0) {
@@ -1062,7 +1091,11 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             }
 
             for (Mapper mapper : additionalSortedMappers.values()) {
-                mapper.toXContent(builder, params);
+                // Changed by Loggly - START
+                if (!mapper.isEphemeral()) {
+                    mapper.toXContent(builder, params);
+                }
+                // Changed by Loggly - END
             }
         }
 
@@ -1070,7 +1103,11 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             builder.startObject("properties");
             for (Mapper mapper : sortedMappers) {
                 if (!(mapper instanceof InternalMapper)) {
-                    mapper.toXContent(builder, params);
+                    // Changed by Loggly - START
+                    if (!mapper.isEphemeral()) {
+                        mapper.toXContent(builder, params);
+                    }
+                    // Changed by Loggly - END
                 }
             }
             builder.endObject();
@@ -1081,5 +1118,27 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
 
     }
+
+    // Added by Loggly - START
+    
+    @Override
+    public boolean isEphemeral() {
+       if (mappers.isEmpty()) {
+            // no children, so default to non-ephemeral
+            return false;
+        }
+        
+        // if any of the children are not ephemeral, this node can not be ephemeral
+        for (Mapper m : mappers.values()) {
+            if (!m.isEphemeral()) {
+                return false;
+            }
+        }
+
+        // all children are ephemeral, so safe for this to be ephemeral too
+        return true;
+    }
+
+    // Added by Loggly - END
 
 }

@@ -53,6 +53,19 @@ import org.elasticsearch.index.mapper.core.ShortFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.TokenCountFieldMapper;
 import org.elasticsearch.index.mapper.core.TypeParsers;
+
+// Added by Jon - START
+import org.elasticsearch.index.mapper.core.EphemeralBooleanFieldMapper;
+import org.elasticsearch.index.mapper.core.EphemeralByteFieldMapper;
+import org.elasticsearch.index.mapper.core.EphemeralDateFieldMapper;
+import org.elasticsearch.index.mapper.core.EphemeralDoubleFieldMapper;
+import org.elasticsearch.index.mapper.core.EphemeralFloatFieldMapper;
+import org.elasticsearch.index.mapper.core.EphemeralIntegerFieldMapper;
+import org.elasticsearch.index.mapper.core.EphemeralLongFieldMapper;
+import org.elasticsearch.index.mapper.core.EphemeralShortFieldMapper;
+import org.elasticsearch.index.mapper.core.EphemeralStringFieldMapper;
+// Added by Jon - END
+
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
@@ -71,6 +84,7 @@ import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
+import org.elasticsearch.index.mapper.ip.EphemeralIpFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -134,6 +148,26 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 .put(CompletionFieldMapper.CONTENT_TYPE, new CompletionFieldMapper.TypeParser())
                 .put(GeoPointFieldMapper.CONTENT_TYPE, new GeoPointFieldMapper.TypeParser())
                 .put(Murmur3FieldMapper.CONTENT_TYPE, new Murmur3FieldMapper.TypeParser());
+
+        // Added by Loggly - START
+        // TODO: should this be controlled by a flag?
+        //
+        if (true) {
+            typeParsersBuilder.put(EphemeralByteFieldMapper.CONTENT_TYPE, new EphemeralByteFieldMapper.TypeParser())
+                .put(EphemeralShortFieldMapper.CONTENT_TYPE, new EphemeralShortFieldMapper.TypeParser())
+                .put(EphemeralIntegerFieldMapper.CONTENT_TYPE, new EphemeralIntegerFieldMapper.TypeParser())
+                .put(EphemeralLongFieldMapper.CONTENT_TYPE, new EphemeralLongFieldMapper.TypeParser())
+                .put(EphemeralFloatFieldMapper.CONTENT_TYPE, new EphemeralFloatFieldMapper.TypeParser())
+                .put(EphemeralDoubleFieldMapper.CONTENT_TYPE, new EphemeralDoubleFieldMapper.TypeParser())
+                .put(EphemeralBooleanFieldMapper.CONTENT_TYPE, new EphemeralBooleanFieldMapper.TypeParser())
+                .put(EphemeralDateFieldMapper.CONTENT_TYPE, new EphemeralDateFieldMapper.TypeParser())
+                .put(EphemeralIpFieldMapper.CONTENT_TYPE, new EphemeralIpFieldMapper.TypeParser())
+                .put(EphemeralStringFieldMapper.CONTENT_TYPE, new EphemeralStringFieldMapper.TypeParser())
+                ;
+        }
+        //
+        // Added by Loggly - END
+
 
         if (ShapesAvailability.JTS_AVAILABLE) {
             typeParsersBuilder.put(GeoShapeFieldMapper.CONTENT_TYPE, new GeoShapeFieldMapper.TypeParser());
@@ -393,4 +427,14 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         }
         return mapping;
     }
+
+    // Added by Loggly - START
+    //
+    // make typeParsers visible within the package so we can use it in MapperService.smartName()
+    //
+    ImmutableMap<String, Mapper.TypeParser> typeParsers() {
+        return typeParsers;
+    }
+    //
+    // Added by Loggly - END
 }

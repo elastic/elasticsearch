@@ -80,6 +80,13 @@ public class ExternalRootMapper implements RootMapper {
         return false;
     }
 
+    // Added by Loggly - START
+    @Override
+    public boolean isEphemeral() {
+        return false;
+    }
+    // Added by Loggly - END
+
     public static class Builder extends Mapper.Builder<Builder, ExternalRootMapper> {
 
         protected Builder() {

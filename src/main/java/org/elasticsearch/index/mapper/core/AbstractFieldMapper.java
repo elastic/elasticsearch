@@ -695,6 +695,16 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        // Added by Loggly - START
+        // If this is an ephemeral field, then do nothing. This effectively makes
+        // this field invisible, which means it will never be passed to the master
+        //
+        if (this.isEphemeral()) {
+            return builder;
+        }
+        //
+        // Added by Loggly - END
+
         builder.startObject(names.name());
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
         doXContentBody(builder, includeDefaults, params);
@@ -1041,7 +1051,12 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                 });
                 builder.startObject("fields");
                 for (Mapper mapper : sortedMappers) {
-                    mapper.toXContent(builder, params);
+                    // Changed by Loggly - START
+                    // Only add non-ephemeral mappers
+                    if (!mapper.isEphemeral()) {
+                        mapper.toXContent(builder, params);
+                    }
+                    // Changed by Loggly - END
                 }
                 builder.endObject();
             }
@@ -1183,5 +1198,16 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     public boolean isGenerated() {
         return false;
     }
+
+    // Added by Loggly - START
+    //
+    // default behavior is that fields are NOT ephemeral
+    
+    @Override
+    public boolean isEphemeral() {
+        return false;
+    }
+    
+    // Added by Loggly - END
 
 }

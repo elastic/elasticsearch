@@ -389,6 +389,16 @@ public class DocumentMapper implements ToXContent {
         return this.rootObjectMapper;
     }
 
+    // Added by Loggly - START
+    // needed by MapperService.smartName()
+    //
+    Settings indexSettings() {
+        return this.indexSettings;
+    }
+    //
+    // Added by Loggly - END
+
+
     public UidFieldMapper uidMapper() {
         return rootMapper(UidFieldMapper.class);
     }

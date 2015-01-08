@@ -58,6 +58,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.mapper.object.DynamicTemplate;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
@@ -811,6 +812,13 @@ public class MapperService extends AbstractIndexComponent  {
                 if (mappers != null) {
                     return new SmartNameFieldMappers(this, mappers, documentMapper, false);
                 }
+
+                // Added by Loggly - START
+                SmartNameFieldMappers ephemeralFieldMappers = ephemeralSmartName(smartName, documentMapper);
+                if (ephemeralFieldMappers != null) {
+                    return ephemeralFieldMappers;
+                }
+                // Added by Loggly - END
             }
         }
         // did not find explicit field in the type provided, see if its prefixed with type
@@ -830,6 +838,40 @@ public class MapperService extends AbstractIndexComponent  {
         // it in other types...
         return null;
     }
+
+    // Added by Loggly - START
+    //
+    private SmartNameFieldMappers ephemeralSmartName(String smartName, DocumentMapper documentMapper) {
+        // First try and find the dynamic template for the field name.
+        //
+        ContentPath contentPath = new ContentPath();
+        DynamicTemplate dt = documentMapper.root().findTemplate(contentPath, smartName, "");
+        if (dt != null) {
+            // Found dynamic template, so now get the name of the type (e.g. ephemeral_ip)
+            // and then attempt to get the TypeParser for that name
+            //
+            String mt = dt.mappingType("string");
+            if (mt != null) {
+                Mapper.Builder builder = MapperBuilders.getEphemeralBuilder(mt, smartName);
+                if (builder != null) {
+                    // NOTE: documentMapper.indexSettings was private, but since
+                    // we need to access it here, we added an accessor
+                    //
+                    BuilderContext builderContext = new BuilderContext(documentMapper.indexSettings(), contentPath);
+
+                    Mapper mapper = builder.build(builderContext);
+                    FieldMappers mappers = new FieldMappers((FieldMapper) mapper);
+                    SmartNameFieldMappers ret = new SmartNameFieldMappers(this, mappers, documentMapper, false);
+                    return ret;
+                }
+            }
+        }
+        return null;
+    }
+    //
+    // Added by Loggly - END
+
+
 
     /**
      * Returns smart field mappers based on a smart name. A smart name is one that can optionally be prefixed

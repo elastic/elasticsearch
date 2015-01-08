@@ -151,4 +151,8 @@ public interface Mapper extends ToXContent {
     void traverse(ObjectMapperListener objectMapperListener);
 
     void close();
+
+    // Added by Loggly - START
+    boolean isEphemeral();
+    // Added by Loggly - END
 }

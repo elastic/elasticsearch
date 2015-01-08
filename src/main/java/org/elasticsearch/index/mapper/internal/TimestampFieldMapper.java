@@ -305,7 +305,14 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
                 this.enabledState = timestampFieldMapperMergeWith.enabledState;
             }
         } else {
-            if (!timestampFieldMapperMergeWith.defaultTimestamp().equals(defaultTimestamp)) {
+            if (timestampFieldMapperMergeWith.defaultTimestamp() == null && defaultTimestamp == null) {
+                return;
+            }
+            if (defaultTimestamp == null) {
+                mergeContext.addConflict("Cannot update default in _timestamp value. Value is null now encountering " + timestampFieldMapperMergeWith.defaultTimestamp());
+            } else if (timestampFieldMapperMergeWith.defaultTimestamp() == null) {
+                mergeContext.addConflict("Cannot update default in _timestamp value. Value is \" + defaultTimestamp.toString() + \" now encountering null");
+            } else if (!timestampFieldMapperMergeWith.defaultTimestamp().equals(defaultTimestamp)) {
                 mergeContext.addConflict("Cannot update default in _timestamp value. Value is " + defaultTimestamp.toString() + " now encountering " + timestampFieldMapperMergeWith.defaultTimestamp());
             }
             if (this.path != null) {

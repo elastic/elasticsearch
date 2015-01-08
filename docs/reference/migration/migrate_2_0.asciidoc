@@ -115,3 +115,15 @@ well.
 The `parent` parameter has been removed from the update request. Before 2.x it just set the routing parameter. The
 `routing` setting should be used instead. The `parent` setting was confusing, because it had the impression that the parent
 a child documents points to can be changed but this is not true.
+
+==== Delete by query
+
+The meaning of the `_shards` headers in the delete by query response has changed. Before version 2.0 the `total`,
+`successful` and `failed` fields in the header are based on the number of primary shards. The failures on replica
+shards aren't being kept track of. From version 2.0 the stats in the `_shards` header are based on all shards
+of an index. The http status code is left unchanged and is only based on failures that occurred while executing on
+primary shards.
+
+=== Mappings
+
+The setting `index.mapping.allow_type_wrapper` has been removed.  Documents should always be sent without the type as the root element.

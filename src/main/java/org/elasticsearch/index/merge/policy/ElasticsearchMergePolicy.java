@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.merge.policy;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.Directory;
@@ -66,7 +65,8 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
     }
 
     /** Return an "upgraded" view of the reader. */
-    static LeafReader filter(LeafReader reader) throws IOException {
+    // TODO: all this logic needs to be pulled out into separately testable thing!
+    static CodecReader filter(CodecReader reader) throws IOException {
         final FieldInfos fieldInfos = reader.getFieldInfos();
         final FieldInfo versionInfo = fieldInfos.fieldInfo(VersionFieldMapper.NAME);
         if (versionInfo != null && versionInfo.getDocValuesType() != DocValuesType.NONE) {
@@ -136,7 +136,7 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
                 return versions.get(index);
             }
         };
-        return new FilterLeafReader(reader) {
+        return SlowCodecReaderWrapper.wrap(new FilterLeafReader(reader) {
             @Override
             public FieldInfos getFieldInfos() {
                 return newFieldInfos;
@@ -152,7 +152,7 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
             public Bits getDocsWithField(String field) throws IOException {
                 return new Bits.MatchAllBits(in.maxDoc());
             }
-        };
+        });
     }
 
     static class IndexUpgraderOneMerge extends OneMerge {
@@ -162,13 +162,12 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
         }
 
         @Override
-        public List<LeafReader> getMergeReaders() throws IOException {
-            final List<LeafReader> readers = super.getMergeReaders();
-            ImmutableList.Builder<LeafReader> newReaders = ImmutableList.builder();
-            for (LeafReader reader : readers) {
+        public List<CodecReader> getMergeReaders() throws IOException {
+            final List<CodecReader> newReaders = new ArrayList<>();
+            for (CodecReader reader : super.getMergeReaders()) {
                 newReaders.add(filter(reader));
             }
-            return newReaders.build();
+            return newReaders;
         }
 
     }

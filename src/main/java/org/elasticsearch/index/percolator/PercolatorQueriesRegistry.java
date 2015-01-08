@@ -214,8 +214,8 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
             // because field type can't be inferred from queries (like document do) so the best option here is to disallow
             // the usage of unmapped fields in percolator queries to avoid unexpected behaviour
             //
-            // For backward compatibility, query can contain unmapped fields only if index.percolator.map_unmapped_fields_as_string
-            // is set to true
+            // if index.percolator.map_unmapped_fields_as_string is set to true, query can contain unmapped fields which will be mapped
+            // as an analyzed string.
             context.setAllowUnmappedFields(false);
             context.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString ? true : false);
             return queryParserService.parseInnerQuery(context);

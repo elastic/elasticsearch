@@ -399,7 +399,7 @@ public class QueryParseContext {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString){
             StringFieldMapper.Builder builder = MapperBuilders.stringField(name);
-            StringFieldMapper stringFieldMapper = builder.build(new Mapper.BuilderContext(ImmutableSettings.EMPTY,new ContentPath(1)));
+            StringFieldMapper stringFieldMapper = builder.build(new Mapper.BuilderContext(ImmutableSettings.EMPTY, new ContentPath(1)));
             return new MapperService.SmartNameFieldMappers(mapperService(), new FieldMappers(stringFieldMapper), null, false);
         } else {
             Version indexCreatedVersion = indexQueryParser.getIndexCreatedVersion();

@@ -80,7 +80,7 @@ public class StaticIndexBackwardCompatibilityTest extends ElasticsearchIntegrati
     static NodeInfo nodeInfo(final Client client) {
         final NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().get();
         final NodeInfo[] nodes = nodeInfos.getNodes();
-        assertEquals(1, nodes.length);
+        assertTrue(nodes.length > 0);
         return nodes[0];
     }
 }

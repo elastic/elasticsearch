@@ -93,27 +93,32 @@ public class GeoPolygonFilter extends Filter {
 
         private static boolean pointInPolygon(GeoPoint[] points, double lat, double lon) {
             boolean inPoly = false;
-            double lat0, lon0, lat1, lon1;
+            double lon0 = (points[0].lon() < 0) ? points[0].lon() + 360.0 : points[0].lon();
+            double lat0 = (points[0].lat() < 0) ? points[0].lat() + 180.0 : points[0].lat();
+            double lat1, lon1;
             if (lon < 0) {
                 lon += 360;
             }
 
-            if (lat <0) {
+            if (lat < 0) {
                 lat += 180;
             }
 
+            // simple even-odd PIP computation
+            //   1.  Determine if point is contained in the longitudinal range
+            //   2.  Determine whether point crosses the edge by computing the latitudinal delta
+            //       between the end-point of a parallel vector (originating at the point) and the
+            //       y-component of the edge sink
             for (int i = 1; i < points.length; i++) {
-                lon0 = (points[i-1].lon() < 0) ? points[i-1].lon() + 360.0 : points[i-1].lon();
                 lon1 = (points[i].lon() < 0) ? points[i].lon() + 360.0 : points[i].lon();
-
-                lat0 = (points[i-1].lat() < 0) ? points[i-1].lat() + 180.0 : points[i-1].lat();
                 lat1 = (points[i].lat() < 0) ? points[i].lat() + 180.0 : points[i].lat();
-
                 if (lon1 < lon && lon0 >= lon || lon0 < lon && lon1 >= lon) {
                     if (lat1 + (lon - lon1) / (lon0 - lon1) * (lat0 - lat1) < lat) {
                         inPoly = !inPoly;
                     }
                 }
+                lon0 = lon1;
+                lat0 = lat1;
             }
             return inPoly;
         }

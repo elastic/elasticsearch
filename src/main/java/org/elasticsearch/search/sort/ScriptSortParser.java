@@ -21,6 +21,7 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
@@ -131,11 +132,11 @@ public class ScriptSortParser implements SortParser {
         final Nested nested;
         if (nestedHelper != null && nestedHelper.getPath() != null) {
             BitDocIdSetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE);
-            BitDocIdSetFilter innerDocumentsFilter;
+            Filter innerDocumentsFilter;
             if (nestedHelper.filterFound()) {
-                innerDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(nestedHelper.getInnerFilter());
+                innerDocumentsFilter = context.filterCache().cache(nestedHelper.getInnerFilter(), null, context.queryParserService().autoFilterCachePolicy());
             } else {
-                innerDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(nestedHelper.getNestedObjectMapper().nestedTypeFilter());
+                innerDocumentsFilter = context.filterCache().cache(nestedHelper.getNestedObjectMapper().nestedTypeFilter(), null, context.queryParserService().autoFilterCachePolicy());
             }
             nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
         } else {

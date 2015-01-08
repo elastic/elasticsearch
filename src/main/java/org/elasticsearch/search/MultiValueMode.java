@@ -21,6 +21,8 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.index.*;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -31,6 +33,7 @@ import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
+import java.io.IOException;
 import java.util.Locale;
 
 /**
@@ -438,11 +441,19 @@ public enum MultiValueMode {
      *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      */
-    public NumericDocValues select(final SortedNumericDocValues values, final long missingValue, final FixedBitSet rootDocs, final FixedBitSet innerDocs, int maxDoc) {
-        if (rootDocs == null || innerDocs == null) {
+    public NumericDocValues select(final SortedNumericDocValues values, final long missingValue, final FixedBitSet rootDocs, DocIdSet innerDocSet, int maxDoc) throws IOException {
+        if (rootDocs == null || innerDocSet == null) {
             return select(DocValues.emptySortedNumeric(maxDoc), missingValue);
         }
+        final DocIdSetIterator innerDocs = innerDocSet.iterator();
+        if (innerDocs == null) {
+            return select(DocValues.emptySortedNumeric(maxDoc), missingValue);
+        }
+
         return new NumericDocValues() {
+
+            int lastSeenRootDoc = -1;
+            long lastEmittedValue;
 
             @Override
             public long get(int rootDoc) {
@@ -451,25 +462,33 @@ public enum MultiValueMode {
                     return missingValue;
                 }
 
-                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
-                final int firstNestedDoc = innerDocs.nextSetBit(prevRootDoc + 1);
-
-                long accumulated = startLong();
-                int numValues = 0;
-
-                for (int doc = firstNestedDoc; doc != -1 && doc < rootDoc; doc = innerDocs.nextSetBit(doc + 1)) {
-                    values.setDocument(doc);
-                    final int count = values.count();
-                    for (int i = 0; i < count; ++i) {
-                        final long value = values.valueAt(i);
-                        accumulated = apply(accumulated, value);
-                    }
-                    numValues += count;
+                // If via compareBottom this method has previously invoked for the same rootDoc then we need to use the
+                // last seen value as innerDocs can't re-iterate over nested child docs it already emitted,
+                // because DocIdSetIterator can only advance forwards.
+                if (rootDoc == lastSeenRootDoc) {
+                    return lastEmittedValue;
                 }
+                try {
+                    final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                    final int firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
 
-                return numValues == 0
-                        ? missingValue
-                        : reduce(accumulated, numValues);
+                    long accumulated = startLong();
+                    int numValues = 0;
+
+                    for (int doc = firstNestedDoc; doc > prevRootDoc && doc < rootDoc; doc = innerDocs.advance(doc + 1)) {
+                        values.setDocument(doc);
+                        final int count = values.count();
+                        for (int i = 0; i < count; ++i) {
+                            final long value = values.valueAt(i);
+                            accumulated = apply(accumulated, value);
+                        }
+                        numValues += count;
+                    }
+                    lastSeenRootDoc = rootDoc;
+                    return lastEmittedValue = numValues == 0 ? missingValue : reduce(accumulated, numValues);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
         };
     }
@@ -530,11 +549,20 @@ public enum MultiValueMode {
      *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      */
-    public NumericDoubleValues select(final SortedNumericDoubleValues values, final double missingValue, final FixedBitSet rootDocs, final FixedBitSet innerDocs, int maxDoc) {
-        if (rootDocs == null || innerDocs == null) {
+    public NumericDoubleValues select(final SortedNumericDoubleValues values, final double missingValue, final FixedBitSet rootDocs, DocIdSet innerDocSet, int maxDoc) throws IOException {
+        if (rootDocs == null || innerDocSet == null) {
             return select(FieldData.emptySortedNumericDoubles(maxDoc), missingValue);
         }
+
+        final DocIdSetIterator innerDocs = innerDocSet.iterator();
+        if (innerDocs == null) {
+            return select(FieldData.emptySortedNumericDoubles(maxDoc), missingValue);
+        }
+
         return new NumericDoubleValues() {
+
+            int lastSeenRootDoc = -1;
+            double lastEmittedValue;
 
             @Override
             public double get(int rootDoc) {
@@ -543,25 +571,31 @@ public enum MultiValueMode {
                     return missingValue;
                 }
 
-                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
-                final int firstNestedDoc = innerDocs.nextSetBit(prevRootDoc + 1);
-
-                double accumulated = startDouble();
-                int numValues = 0;
-
-                for (int doc = firstNestedDoc; doc != -1 && doc < rootDoc; doc = innerDocs.nextSetBit(doc + 1)) {
-                    values.setDocument(doc);
-                    final int count = values.count();
-                    for (int i = 0; i < count; ++i) {
-                        final double value = values.valueAt(i);
-                        accumulated = apply(accumulated, value);
-                    }
-                    numValues += count;
+                if (rootDoc == lastSeenRootDoc) {
+                    return lastEmittedValue;
                 }
+                try {
+                    final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                    final int firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
 
-                return numValues == 0
-                        ? missingValue
-                        : reduce(accumulated, numValues);
+                    double accumulated = startDouble();
+                    int numValues = 0;
+
+                    for (int doc = firstNestedDoc; doc > prevRootDoc && doc < rootDoc; doc = innerDocs.advance(doc + 1)) {
+                        values.setDocument(doc);
+                        final int count = values.count();
+                        for (int i = 0; i < count; ++i) {
+                            final double value = values.valueAt(i);
+                            accumulated = apply(accumulated, value);
+                        }
+                        numValues += count;
+                    }
+
+                    lastSeenRootDoc = rootDoc;
+                    return lastEmittedValue = numValues == 0 ? missingValue : reduce(accumulated, numValues);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
         };
     }
@@ -613,10 +647,16 @@ public enum MultiValueMode {
      *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      */
-    public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue, final FixedBitSet rootDocs, final FixedBitSet innerDocs, int maxDoc) {
-        if (rootDocs == null || innerDocs == null) {
+    public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue, final FixedBitSet rootDocs, DocIdSet innerDocSet, int maxDoc) throws IOException {
+        if (rootDocs == null || innerDocSet == null) {
             return select(FieldData.emptySortedBinary(maxDoc), missingValue);
         }
+
+        final DocIdSetIterator innerDocs = innerDocSet.iterator();
+        if (innerDocs == null) {
+            return select(FieldData.emptySortedBinary(maxDoc), missingValue);
+        }
+
         final BinaryDocValues selectedValues = select(values, new BytesRef());
         final Bits docsWithValue;
         if (FieldData.unwrapSingleton(values) != null) {
@@ -628,6 +668,9 @@ public enum MultiValueMode {
 
             final BytesRefBuilder spare = new BytesRefBuilder();
 
+            int lastSeenRootDoc = -1;
+            BytesRef lastEmittedValue;
+
             @Override
             public BytesRef get(int rootDoc) {
                 assert rootDocs.get(rootDoc) : "can only sort root documents";
@@ -635,28 +678,37 @@ public enum MultiValueMode {
                     return missingValue;
                 }
 
-                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
-                final int firstNestedDoc = innerDocs.nextSetBit(prevRootDoc + 1);
+                if (rootDoc == lastSeenRootDoc) {
+                    return lastEmittedValue;
+                }
 
-                BytesRefBuilder accumulated = null;
+                try {
+                    final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                    final int firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
 
-                for (int doc = firstNestedDoc; doc != -1 && doc < rootDoc; doc = innerDocs.nextSetBit(doc + 1)) {
-                    values.setDocument(doc);
-                    final BytesRef innerValue = selectedValues.get(doc);
-                    if (innerValue.length > 0 || docsWithValue == null || docsWithValue.get(doc)) {
-                        if (accumulated == null) {
-                            spare.copyBytes(innerValue);
-                            accumulated = spare;
-                        } else {
-                            final BytesRef applied = apply(accumulated.get(), innerValue);
-                            if (applied == innerValue) {
-                                accumulated.copyBytes(innerValue);
+                    BytesRefBuilder accumulated = null;
+
+                    for (int doc = firstNestedDoc; doc > prevRootDoc && doc < rootDoc; doc = innerDocs.advance(doc + 1)) {
+                        values.setDocument(doc);
+                        final BytesRef innerValue = selectedValues.get(doc);
+                        if (innerValue.length > 0 || docsWithValue == null || docsWithValue.get(doc)) {
+                            if (accumulated == null) {
+                                spare.copyBytes(innerValue);
+                                accumulated = spare;
+                            } else {
+                                final BytesRef applied = apply(accumulated.get(), innerValue);
+                                if (applied == innerValue) {
+                                    accumulated.copyBytes(innerValue);
+                                }
                             }
                         }
                     }
-                }
 
-                return accumulated == null ? missingValue : accumulated.get();
+                    lastSeenRootDoc = rootDoc;
+                    return lastEmittedValue = accumulated == null ? missingValue : accumulated.get();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
         };
     }
@@ -706,12 +758,21 @@ public enum MultiValueMode {
      *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      */
-    public SortedDocValues select(final RandomAccessOrds values, final FixedBitSet rootDocs, final FixedBitSet innerDocs) {
-        if (rootDocs == null || innerDocs == null) {
-            return select((RandomAccessOrds) DocValues.emptySortedSet());
+    public SortedDocValues select(final RandomAccessOrds values, final FixedBitSet rootDocs, DocIdSet innerDocSet) throws IOException {
+        if (rootDocs == null || innerDocSet == null) {
+            return select(DocValues.emptySortedSet());
         }
+
+        final DocIdSetIterator innerDocs = innerDocSet.iterator();
+        if (innerDocs == null) {
+            return select(DocValues.emptySortedSet());
+        }
+
         final SortedDocValues selectedValues = select(values);
         return new SortedDocValues() {
+
+            int lastSeenRootDoc = -1;
+            int lastEmittedOrd;
 
             @Override
             public BytesRef lookupOrd(int ord) {
@@ -730,22 +791,31 @@ public enum MultiValueMode {
                     return -1;
                 }
 
-                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
-                final int firstNestedDoc = innerDocs.nextSetBit(prevRootDoc + 1);
-                int ord = -1;
-
-                for (int doc = firstNestedDoc; doc != -1 && doc < rootDoc; doc = innerDocs.nextSetBit(doc + 1)) {
-                    final int innerOrd = selectedValues.getOrd(doc);
-                    if (innerOrd != -1) {
-                        if (ord == -1) {
-                            ord = innerOrd;
-                        } else {
-                            ord = applyOrd(ord, innerOrd);
-                        }
-                    }
+                if (rootDoc == lastSeenRootDoc) {
+                    return lastEmittedOrd;
                 }
 
-                return ord;
+                try {
+                    final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                    final int firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
+                    int ord = -1;
+
+                    for (int doc = firstNestedDoc; doc > prevRootDoc && doc < rootDoc; doc = innerDocs.advance(doc + 1)) {
+                        final int innerOrd = selectedValues.getOrd(doc);
+                        if (innerOrd != -1) {
+                            if (ord == -1) {
+                                ord = innerOrd;
+                            } else {
+                                ord = applyOrd(ord, innerOrd);
+                            }
+                        }
+                    }
+
+                    lastSeenRootDoc = rootDoc;
+                    return lastEmittedOrd = ord;
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
         };
     }

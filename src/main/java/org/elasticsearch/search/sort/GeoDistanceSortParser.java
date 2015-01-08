@@ -20,6 +20,7 @@
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.FieldCache.Doubles;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Filter;
@@ -157,11 +158,11 @@ public class GeoDistanceSortParser implements SortParser {
         final Nested nested;
         if (objectMapper != null && objectMapper.nested().isNested()) {
             FixedBitSetFilter rootDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(NonNestedDocsFilter.INSTANCE);
-            FixedBitSetFilter innerDocumentsFilter;
+            Filter innerDocumentsFilter;
             if (nestedFilter != null) {
-                innerDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(nestedFilter);
+                innerDocumentsFilter = context.filterCache().cache(nestedFilter);
             } else {
-                innerDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(objectMapper.nestedTypeFilter());
+                innerDocumentsFilter = context.filterCache().cache(objectMapper.nestedTypeFilter());
             }
             nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
         } else {
@@ -187,7 +188,7 @@ public class GeoDistanceSortParser implements SortParser {
                             selectedValues = finalSortMode.select(distanceValues, Double.MAX_VALUE);
                         } else {
                             final FixedBitSet rootDocs = nested.rootDocs(context);
-                            final FixedBitSet innerDocs = nested.innerDocs(context);
+                            final DocIdSet innerDocs = nested.innerDocs(context);
                             selectedValues = finalSortMode.select(distanceValues, Double.MAX_VALUE, rootDocs, innerDocs, context.reader().maxDoc());
                         }
                         return new Doubles() {

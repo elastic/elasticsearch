@@ -112,6 +112,7 @@ public class PercolateContext extends SearchContext {
     private SearchContextAggregations aggregations;
     private QuerySearchResult querySearchResult;
     private Sort sort;
+    private boolean executeDocsInOrder;
 
     public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard,
                             IndexService indexService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler,
@@ -719,5 +720,15 @@ public class PercolateContext extends SearchContext {
     @Override
     public Counter timeEstimateCounter() {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean requireDocsCollectedInOrder() {
+        return executeDocsInOrder;
+    }
+
+    @Override
+    public void setRequireDocsCollectedInOrder(boolean docsInOrder) {
+        this.executeDocsInOrder = docsInOrder;
     }
 }

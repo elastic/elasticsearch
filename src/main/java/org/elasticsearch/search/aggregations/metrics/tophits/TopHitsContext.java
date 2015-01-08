@@ -638,4 +638,14 @@ public class TopHitsContext extends SearchContext {
     public Counter timeEstimateCounter() {
         throw new UnsupportedOperationException("Not supported");
     }
+
+    @Override
+    public boolean requireDocsCollectedInOrder() {
+        return context.requireDocsCollectedInOrder();
+    }
+
+    @Override
+    public void setRequireDocsCollectedInOrder(boolean docsInOrder) {
+        throw new UnsupportedOperationException("Not supported");
+    }
 }

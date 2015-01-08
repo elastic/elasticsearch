@@ -21,6 +21,8 @@ package org.elasticsearch.search;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.lucene.index.*;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -29,6 +31,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 public class MultiValueModeTests extends ElasticsearchTestCase {
@@ -55,7 +58,7 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
         return innerDocs;
     }
 
-    public void testSingleValuedLongs() {
+    public void testSingleValuedLongs() throws Exception {
         final int numDocs = scaledRandomIntBetween(1, 100);
         final long[] array = new long[numDocs];
         final FixedBitSet docsWithValue = randomBoolean() ? null : new FixedBitSet(numDocs);
@@ -82,7 +85,7 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
         verify(multiValues, numDocs, rootDocs, innerDocs);
     }
 
-    public void testMultiValuedLongs() {
+    public void testMultiValuedLongs() throws Exception  {
         final int numDocs = scaledRandomIntBetween(1, 100);
         final long[][] array = new long[numDocs][];
         for (int i = 0; i < numDocs; ++i) {
@@ -142,20 +145,24 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
         }
     }
 
-    private void verify(SortedNumericDocValues values, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) {
+    private void verify(SortedNumericDocValues values, int maxDoc, FixedBitSet rootDocs, DocIdSet innerDocSet) throws IOException {
         for (long missingValue : new long[] { 0, randomLong() }) {
             for (MultiValueMode mode : MultiValueMode.values()) {
-                final NumericDocValues selected = mode.select(values, missingValue, rootDocs, innerDocs, maxDoc);
+                final NumericDocValues selected = mode.select(values, missingValue, rootDocs, innerDocSet, maxDoc);
                 int prevRoot = -1;
                 for (int root = rootDocs.nextSetBit(0); root != -1; root = root + 1 < maxDoc ? rootDocs.nextSetBit(root + 1) : -1) {
                     final long actual = selected.get(root);
                     long expected = mode.startLong();
                     int numValues = 0;
-                    for (int child = innerDocs.nextSetBit(prevRoot + 1); child != -1 && child < root; child = innerDocs.nextSetBit(child + 1)) {
-                        values.setDocument(child);
-                        for (int j = 0; j < values.count(); ++j) {
-                            expected = mode.apply(expected, values.valueAt(j));
-                            ++numValues;
+
+                    DocIdSetIterator innerDocs = innerDocSet.iterator();
+                    if (innerDocs != null) {
+                        for (int child = innerDocs.advance(prevRoot + 1); child != -1 && child < root; child = innerDocs.advance(child + 1)) {
+                            values.setDocument(child);
+                            for (int j = 0; j < values.count(); ++j) {
+                                expected = mode.apply(expected, values.valueAt(j));
+                                ++numValues;
+                            }
                         }
                     }
                     if (numValues == 0) {
@@ -172,7 +179,7 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
         }
     }
 
-    public void testSingleValuedDoubles() {
+    public void testSingleValuedDoubles() throws Exception  {
         final int numDocs = scaledRandomIntBetween(1, 100);
         final double[] array = new double[numDocs];
         final FixedBitSet docsWithValue = randomBoolean() ? null : new FixedBitSet(numDocs);
@@ -199,7 +206,7 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
         verify(multiValues, numDocs, rootDocs, innerDocs);
     }
 
-    public void testMultiValuedDoubles() {
+    public void testMultiValuedDoubles() throws Exception  {
         final int numDocs = scaledRandomIntBetween(1, 100);
         final double[][] array = new double[numDocs][];
         for (int i = 0; i < numDocs; ++i) {
@@ -259,7 +266,7 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
         }
     }
 
-    private void verify(SortedNumericDoubleValues values, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) {
+    private void verify(SortedNumericDoubleValues values, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
         for (long missingValue : new long[] { 0, randomLong() }) {
             for (MultiValueMode mode : MultiValueMode.values()) {
                 final NumericDoubleValues selected = mode.select(values, missingValue, rootDocs, innerDocs, maxDoc);
@@ -289,7 +296,7 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
         }
     }
 
-    public void testSingleValuedStrings() {
+    public void testSingleValuedStrings() throws Exception  {
         final int numDocs = scaledRandomIntBetween(1, 100);
         final BytesRef[] array = new BytesRef[numDocs];
         final FixedBitSet docsWithValue = randomBoolean() ? null : new FixedBitSet(numDocs);
@@ -319,7 +326,7 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
         verify(multiValues, numDocs, rootDocs, innerDocs);
     }
 
-    public void testMultiValuedStrings() {
+    public void testMultiValuedStrings() throws Exception  {
         final int numDocs = scaledRandomIntBetween(1, 100);
         final BytesRef[][] array = new BytesRef[numDocs][];
         for (int i = 0; i < numDocs; ++i) {
@@ -384,7 +391,7 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
         }
     }
 
-    private void verify(SortedBinaryDocValues values, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) {
+    private void verify(SortedBinaryDocValues values, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
         for (BytesRef missingValue : new BytesRef[] { new BytesRef(), new BytesRef(RandomStrings.randomAsciiOfLength(getRandom(), 8)) }) {
             for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX}) {
                 final BinaryDocValues selected = mode.select(values, missingValue, rootDocs, innerDocs, maxDoc);
@@ -416,7 +423,7 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
     }
 
 
-    public void testSingleValuedOrds() {
+    public void testSingleValuedOrds() throws Exception  {
         final int numDocs = scaledRandomIntBetween(1, 100);
         final int[] array = new int[numDocs];
         for (int i = 0; i < array.length; ++i) {
@@ -449,7 +456,7 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
         verify(multiValues, numDocs, rootDocs, innerDocs);
     }
 
-    public void testMultiValuedOrds() {
+    public void testMultiValuedOrds() throws Exception  {
         final int numDocs = scaledRandomIntBetween(1, 100);
         final long[][] array = new long[numDocs][];
         for (int i = 0; i < numDocs; ++i) {
@@ -518,7 +525,7 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
         }
     }
 
-    private void verify(RandomAccessOrds values, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) {
+    private void verify(RandomAccessOrds values, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
         for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX}) {
             final SortedDocValues selected = mode.select(values, rootDocs, innerDocs);
             int prevRoot = -1;

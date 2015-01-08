@@ -138,11 +138,11 @@ public class ScriptSortParser implements SortParser {
             }
 
             FixedBitSetFilter rootDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(NonNestedDocsFilter.INSTANCE);
-            FixedBitSetFilter innerDocumentsFilter;
+            Filter innerDocumentsFilter;
             if (nestedFilter != null) {
-                innerDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(nestedFilter);
+                innerDocumentsFilter = context.filterCache().cache(nestedFilter);
             } else {
-                innerDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(objectMapper.nestedTypeFilter());
+                innerDocumentsFilter = context.filterCache().cache(objectMapper.nestedTypeFilter());
             }
             nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
         } else {

@@ -248,12 +248,13 @@ public class SortParseElement implements SearchParseElement {
             }
             final Nested nested;
             if (objectMapper != null && objectMapper.nested().isNested()) {
+                context.setRequireDocsCollectedInOrder(true);
                 FixedBitSetFilter rootDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(NonNestedDocsFilter.INSTANCE);
-                FixedBitSetFilter innerDocumentsFilter;
+                Filter innerDocumentsFilter;
                 if (nestedFilter != null) {
-                    innerDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(nestedFilter);
+                    innerDocumentsFilter = context.filterCache().cache(nestedFilter);
                 } else {
-                    innerDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(objectMapper.nestedTypeFilter());
+                    innerDocumentsFilter = context.filterCache().cache(objectMapper.nestedTypeFilter());
                 }
                 nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
             } else {

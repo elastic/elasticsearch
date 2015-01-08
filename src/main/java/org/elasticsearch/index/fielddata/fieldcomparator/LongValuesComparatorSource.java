@@ -21,6 +21,7 @@ package org.elasticsearch.index.fielddata.fieldcomparator;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.FieldCache.Longs;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
@@ -70,7 +71,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                     selectedValues = sortMode.select(values, dMissingValue);
                 } else {
                     final FixedBitSet rootDocs = nested.rootDocs(context);
-                    final FixedBitSet innerDocs = nested.innerDocs(context);
+                    final DocIdSet innerDocs = nested.innerDocs(context);
                     selectedValues = sortMode.select(values, dMissingValue, rootDocs, innerDocs, context.reader().maxDoc());
                 }
                 return new Longs() {

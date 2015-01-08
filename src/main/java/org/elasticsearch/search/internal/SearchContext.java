@@ -368,6 +368,10 @@ public abstract class SearchContext implements Releasable {
 
     public abstract Counter timeEstimateCounter();
 
+    public abstract boolean requireDocsCollectedInOrder();
+
+    public abstract void setRequireDocsCollectedInOrder(boolean docsInOrder);
+
     /**
      * The life time of an object that is used during search execution.
      */

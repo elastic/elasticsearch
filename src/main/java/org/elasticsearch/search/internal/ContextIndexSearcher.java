@@ -170,6 +170,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             if (searchContext.minimumScore() != null) {
                 collector = new MinimumScoreCollector(collector, searchContext.minimumScore());
             }
+
+            if (searchContext.requireDocsCollectedInOrder() && collector.acceptsDocsOutOfOrder()) {
+                collector = enforceDocsInOrder(collector);
+            }
         }
 
         // we only compute the doc id set once since within a context, we execute the same query always...
@@ -220,5 +224,29 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } finally {
             searchContext.clearReleasables(Lifetime.COLLECTION);
         }
+    }
+
+    private static Collector enforceDocsInOrder(final Collector collector) {
+        return new Collector() {
+            @Override
+            public void setScorer(Scorer scorer) throws IOException {
+                collector.setScorer(scorer);
+            }
+
+            @Override
+            public void collect(int doc) throws IOException {
+                collector.collect(doc);
+            }
+
+            @Override
+            public void setNextReader(AtomicReaderContext context) throws IOException {
+                collector.setNextReader(context);
+            }
+
+            @Override
+            public boolean acceptsDocsOutOfOrder() {
+                return false;
+            }
+        };
     }
 }

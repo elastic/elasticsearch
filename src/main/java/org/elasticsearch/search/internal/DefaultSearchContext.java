@@ -185,6 +185,8 @@ public class DefaultSearchContext extends SearchContext {
 
     private volatile boolean useSlowScroll;
 
+    private boolean executeDocsInOrder;
+
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
                          ScriptService scriptService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler,
@@ -737,5 +739,15 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public Counter timeEstimateCounter() {
         return timeEstimateCounter;
+    }
+
+    @Override
+    public boolean requireDocsCollectedInOrder() {
+        return executeDocsInOrder;
+    }
+
+    @Override
+    public void setRequireDocsCollectedInOrder(boolean docsInOrder) {
+        this.executeDocsInOrder = docsInOrder;
     }
 }

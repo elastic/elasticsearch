@@ -115,7 +115,7 @@ public class RestBulkAction extends BaseRestHandler {
                         if (itemResponse.getResponse() instanceof DeleteResponse) {
                             DeleteResponse deleteResponse = itemResponse.getResponse();
                             if (deleteResponse.isFound()) {
-                                builder.field(Fields.STATUS, shardInfo.status());
+                                builder.field(Fields.STATUS, shardInfo.status().getStatus());
                             } else {
                                 builder.field(Fields.STATUS, RestStatus.NOT_FOUND.getStatus());
                             }
@@ -125,14 +125,14 @@ public class RestBulkAction extends BaseRestHandler {
                             if (indexResponse.isCreated()) {
                                 builder.field(Fields.STATUS, RestStatus.CREATED.getStatus());
                             } else {
-                                builder.field(Fields.STATUS, shardInfo.status());
+                                builder.field(Fields.STATUS, shardInfo.status().getStatus());
                             }
                         } else if (itemResponse.getResponse() instanceof UpdateResponse) {
                             UpdateResponse updateResponse = itemResponse.getResponse();
                             if (updateResponse.isCreated()) {
                                 builder.field(Fields.STATUS, RestStatus.CREATED.getStatus());
                             } else {
-                                builder.field(Fields.STATUS, shardInfo.status());
+                                builder.field(Fields.STATUS, shardInfo.status().getStatus());
                             }
                         }
                     }

@@ -136,7 +136,7 @@ public class SearchWhileRelocatingTests extends ElasticsearchIntegrationTest {
                 threads[j].join();
             }
             // this might time out on some machines if they are really busy and you hit lots of throttling
-            ClusterHealthResponse resp = client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setWaitForEvents(Priority.LANGUID).setTimeout("5m").get();
+            ClusterHealthResponse resp = client().admin().cluster().prepareHealth().setWaitForYellowStatus().setWaitForRelocatingShards(0).setWaitForEvents(Priority.LANGUID).setTimeout("5m").get();
             assertNoTimeout(resp);
             if (!thrownExceptions.isEmpty() || !nonCriticalExceptions.isEmpty()) {
                 Client client = client();

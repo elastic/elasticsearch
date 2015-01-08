@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.engine;
 
+import com.google.common.collect.Iterators;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,6 +30,10 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
 
 public class Segment implements Streamable {
 
@@ -41,6 +48,7 @@ public class Segment implements Streamable {
     public Boolean compound = null;
     public String mergeId;
     public long memoryInBytes;
+    public Accountable ramTree = null;
 
     Segment() {
     }
@@ -143,6 +151,10 @@ public class Segment implements Streamable {
         compound = in.readOptionalBoolean();
         mergeId = in.readOptionalString();
         memoryInBytes = in.readLong();
+        if (in.readBoolean()) {
+            // verbose mode
+            ramTree = readRamTree(in);
+        }
     }
 
     @Override
@@ -157,6 +169,37 @@ public class Segment implements Streamable {
         out.writeOptionalBoolean(compound);
         out.writeOptionalString(mergeId);
         out.writeLong(memoryInBytes);
+        
+        boolean verbose = ramTree != null;
+        out.writeBoolean(verbose);
+        if (verbose) {
+            writeRamTree(out, ramTree);
+        }
+    }
+
+    Accountable readRamTree(StreamInput in) throws IOException {
+        final String name = in.readString();
+        final long bytes = in.readVLong();
+        int numChildren = in.readVInt();
+        if (numChildren == 0) {
+            return Accountables.namedAccountable(name, bytes);
+        }
+        List<Accountable> children = new ArrayList(numChildren);
+        while (numChildren-- > 0) {
+            children.add(readRamTree(in));
+        }
+        return Accountables.namedAccountable(name, children, bytes);
+    }
+    
+    // the ram tree is written recursively since the depth is fairly low (5 or 6)
+    void writeRamTree(StreamOutput out, Accountable tree) throws IOException {
+        out.writeString(tree.toString());
+        out.writeVLong(tree.ramBytesUsed());
+        Collection<Accountable> children = tree.getChildResources();
+        out.writeVInt(children.size());
+        for (Accountable child : children) {
+            writeRamTree(out, child);
+        }
     }
 
     @Override

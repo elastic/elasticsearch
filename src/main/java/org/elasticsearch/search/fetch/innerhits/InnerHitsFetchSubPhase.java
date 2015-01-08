@@ -76,10 +76,8 @@ public class InnerHitsFetchSubPhase implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticsearchException {
-        InnerHitsContext innerHitsContext = context.innerHits();
         Map<String, InternalSearchHits> results = new HashMap<>();
-        Map<String, InnerHitsContext.BaseInnerHits> innerHitsByKey = innerHitsContext.getInnerHits();
-        for (Map.Entry<String, InnerHitsContext.BaseInnerHits> entry : innerHitsByKey.entrySet()) {
+        for (Map.Entry<String, InnerHitsContext.BaseInnerHits> entry : context.innerHits().getInnerHits().entrySet()) {
             InnerHitsContext.BaseInnerHits innerHits = entry.getValue();
             TopDocs topDocs = innerHits.topDocs(context, hitContext);
             innerHits.queryResult().topDocs(topDocs);

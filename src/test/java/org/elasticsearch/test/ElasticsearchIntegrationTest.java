@@ -61,6 +61,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -307,6 +308,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * per index basis. Allows to enable/disable the randomization for number of shards and replicas
      */
     private void randomIndexTemplate() throws IOException {
+
         // TODO move settings for random directory etc here into the index based randomized settings.
         if (cluster().size() > 0) {
             ImmutableSettings.Builder randomSettingsBuilder =
@@ -738,6 +740,12 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         int numberOfReplicas = numberOfReplicas();
         if (numberOfReplicas >= 0) {
             builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
+        }
+        // 30% of the time
+        if (randomInt(9) < 3) {
+            String dataPath = "data/custom-" + CHILD_JVM_ID + "/" + UUID.randomUUID().toString();
+            logger.info("using custom data_path for index: [{}]", dataPath);
+            builder.put(IndexMetaData.SETTING_DATA_PATH, dataPath);
         }
         return builder.build();
     }
@@ -1350,7 +1358,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 // see https://github.com/elasticsearch/elasticsearch/issues/8706
                 final DeleteResponse deleteResponse = client().prepareDelete(doc.v1(), RANDOM_BOGUS_TYPE, doc.v2()).get();
                 if (deleteResponse.isFound() == false) {
-                    logger.warn("failed to delete a dummy doc [][]", doc.v1(), doc.v2());
+                    logger.warn("failed to delete a dummy doc [{}][{}]", doc.v1(), doc.v2());
                 }
             }
         }
@@ -1709,11 +1717,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     /**
-     * Returns a random numeric field data format from the choices of "array",
-     * "compressed", or "doc_values".
+     * Returns a random numeric field data format from the choices of "array" or "doc_values".
      */
     public static String randomNumericFieldDataFormat() {
-        return randomFrom(Arrays.asList("array", "compressed", "doc_values"));
+        return randomFrom(Arrays.asList("array", "doc_values"));
     }
 
     /**

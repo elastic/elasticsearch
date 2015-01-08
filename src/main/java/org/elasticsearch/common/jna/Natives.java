@@ -20,6 +20,8 @@
 package org.elasticsearch.common.jna;
 
 import com.sun.jna.Native;
+import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.jna.Kernel32Library.ConsoleCtrlHandler;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
@@ -59,4 +61,23 @@ public class Natives {
             }
         }
     }
+
+    public static void addConsoleCtrlHandler(ConsoleCtrlHandler handler) {
+        // The console Ctrl handler is necessary on Windows platforms only.
+        if (Constants.WINDOWS) {
+            try {
+                boolean result = Kernel32Library.getInstance().addConsoleCtrlHandler(handler);
+                if (result) {
+                    logger.debug("console ctrl handler correctly set");
+                } else {
+                    logger.warn("unknown error " + Native.getLastError() + " when adding console ctrl handler:");
+                }
+            } catch (NoClassDefFoundError e) {
+                logger.warn("JNA not found: native methods and handlers will be disabled.");
+            } catch (UnsatisfiedLinkError e) {
+                // this will have already been logged by Kernel32Library, no need to repeat it
+            }
+        }
+    }
+
 }

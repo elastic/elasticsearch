@@ -19,7 +19,11 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -32,6 +36,7 @@ import org.elasticsearch.index.mapper.FieldMapper.Names;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 
 public class NumericDVIndexFieldData extends DocValuesIndexFieldData implements IndexNumericFieldData {
@@ -57,7 +62,7 @@ public class NumericDVIndexFieldData extends DocValuesIndexFieldData implements 
             }
             
             @Override
-            public Iterable<? extends Accountable> getChildResources() {
+            public Collection<Accountable> getChildResources() {
                 return Collections.emptyList();
             }
         };

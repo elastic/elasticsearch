@@ -44,6 +44,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.emptyIterable;
 
+@ElasticsearchIntegrationTest.ClusterScope(randomDynamicTemplates = false) // this test takes a long time to delete the idx if all fields are eager loading
 public class ConcurrentDynamicTemplateTests extends ElasticsearchIntegrationTest {
 
     private final String mappingType = "test-mapping";
@@ -100,45 +101,7 @@ public class ConcurrentDynamicTemplateTests extends ElasticsearchIntegrationTest
         Set<Integer> fieldsIdx = Sets.newHashSet();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
 
-        XContentBuilder mappings = XContentFactory.jsonBuilder().startObject().startObject("_default_");
-        mappings.startArray("dynamic_templates")
-                .startObject()
-                .startObject("template-strings")
-                .field("match_mapping_type", "string")
-                .startObject("mapping")
-                .startObject("fielddata")
-                .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst"))
-                .field(FieldMapper.Loading.KEY, FieldMapper.Loading.LAZY) // always use lazy loading
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .startObject()
-                .startObject("template-longs")
-                .field("match_mapping_type", "long")
-                .startObject("mapping")
-                .startObject("fielddata")
-                .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
-                .field(FieldMapper.Loading.KEY, FieldMapper.Loading.LAZY)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .startObject()
-                .startObject("template-doubles")
-                .field("match_mapping_type", "double")
-                .startObject("mapping")
-                .startObject("fielddata")
-                .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
-                .field(FieldMapper.Loading.KEY, FieldMapper.Loading.LAZY)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endArray();
-        mappings.endObject().endObject();
-
-        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("_default_", mappings));
+        createIndex("idx");
         ensureGreen("idx");
         for (int i = 0; i < numDocs; ++i) {
             int fieldIdx = i % numberOfFields;

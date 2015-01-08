@@ -30,9 +30,6 @@ if [ "x$ES_DIRECT_SIZE" != "x" ]; then
     JAVA_OPTS="$JAVA_OPTS -XX:MaxDirectMemorySize=${ES_DIRECT_SIZE}"
 fi
 
-# reduce the per-thread stack size
-JAVA_OPTS="$JAVA_OPTS -Xss256k"
-
 # set to headless, just in case
 JAVA_OPTS="$JAVA_OPTS -Djava.awt.headless=true"
 
@@ -65,3 +62,6 @@ JAVA_OPTS="$JAVA_OPTS -XX:+HeapDumpOnOutOfMemoryError"
 
 # Disables explicit GC
 JAVA_OPTS="$JAVA_OPTS -XX:+DisableExplicitGC"
+
+# Ensure UTF-8 encoding by default (e.g. filenames)
+JAVA_OPTS="$JAVA_OPTS -Dfile.encoding=UTF-8"

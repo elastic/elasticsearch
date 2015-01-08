@@ -34,8 +34,12 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.cache.filter.AutoFilterCachingPolicy;
+import org.elasticsearch.index.cache.filter.FilterCacheModule;
+import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -49,6 +53,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -73,7 +79,17 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
+@ClusterScope(scope = Scope.SUITE)
 public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+                // aggressive filter caching so that we can assert on the filter cache size
+                .put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, WeightedFilterCache.class)
+                .put(AutoFilterCachingPolicy.AGGRESSIVE_CACHING_SETTINGS)
+                .build();
+    }
 
     @Test
     public void multiLevelChild() throws Exception {
@@ -2052,7 +2068,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
         // filter cache should not contain any thing, b/c has_child and has_parent can't be cached.
         statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
-        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), cluster().hasFilterCache() ? greaterThan(initialCacheSize) : is(initialCacheSize));
+        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), greaterThan(initialCacheSize));
     }
 
     // https://github.com/elasticsearch/elasticsearch/issues/5783

@@ -17,7 +17,8 @@
 "Test cat fielddata output":
 
   - do:
-      cat.fielddata: {}
+      cat.fielddata:
+        v: false
 
   - do:
       index:

@@ -105,20 +105,6 @@ public class SimpleCountTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void simpleDateMathTests() throws Exception {
-        createIndex("test");
-        client().prepareIndex("test", "type1", "1").setSource("field", "2010-01-05T02:00").execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("field", "2010-01-06T02:00").execute().actionGet();
-        ensureGreen();
-        refresh();
-        CountResponse countResponse = client().prepareCount("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-03||+2d").lte("2010-01-04||+2d")).execute().actionGet();
-        assertHitCount(countResponse, 2l);
-
-        countResponse = client().prepareCount("test").setQuery(QueryBuilders.queryStringQuery("field:[2010-01-03||+2d TO 2010-01-04||+2d]")).execute().actionGet();
-        assertHitCount(countResponse, 2l);
-    }
-
-    @Test
     public void simpleCountEarlyTerminationTests() throws Exception {
         // set up one shard only to test early termination
         prepareCreate("test").setSettings(
@@ -130,29 +116,26 @@ public class SimpleCountTests extends ElasticsearchIntegrationTest {
 
         for (int i = 1; i <= max; i++) {
             String id = String.valueOf(i);
-            docbuilders.add(client().prepareIndex("test", "type1", id).setSource("field", "2010-01-"+ id +"T02:00"));
+            docbuilders.add(client().prepareIndex("test", "type1", id).setSource("field", i));
         }
 
         indexRandom(true, docbuilders);
         ensureGreen();
         refresh();
 
-        String upperBound = "2010-01-" + String.valueOf(max+1) + "||+2d";
-        String lowerBound = "2009-12-01||+2d";
-
         // sanity check
-        CountResponse countResponse = client().prepareCount("test").setQuery(QueryBuilders.rangeQuery("field").gte(lowerBound).lte(upperBound)).execute().actionGet();
+        CountResponse countResponse = client().prepareCount("test").setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(max)).execute().actionGet();
         assertHitCount(countResponse, max);
 
         // threshold <= actual count
         for (int i = 1; i <= max; i++) {
-            countResponse = client().prepareCount("test").setQuery(QueryBuilders.rangeQuery("field").gte(lowerBound).lte(upperBound)).setTerminateAfter(i).execute().actionGet();
+            countResponse = client().prepareCount("test").setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(max)).setTerminateAfter(i).execute().actionGet();
             assertHitCount(countResponse, i);
             assertTrue(countResponse.terminatedEarly());
         }
 
         // threshold > actual count
-        countResponse = client().prepareCount("test").setQuery(QueryBuilders.rangeQuery("field").gte(lowerBound).lte(upperBound)).setTerminateAfter(max + randomIntBetween(1, max)).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(max)).setTerminateAfter(max + randomIntBetween(1, max)).execute().actionGet();
         assertHitCount(countResponse, max);
         assertFalse(countResponse.terminatedEarly());
     }

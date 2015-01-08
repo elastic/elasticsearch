@@ -21,11 +21,12 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilterCachingPolicy;
 import org.apache.lucene.search.PrefixFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -52,8 +53,8 @@ public class PrefixFilterParser implements FilterParser {
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        boolean cache = true;
-        CacheKeyFilter.Key cacheKey = null;
+        FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
+        HashedBytesRef cacheKey = null;
         String fieldName = null;
         Object value = null;
 
@@ -67,9 +68,9 @@ public class PrefixFilterParser implements FilterParser {
                 if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
-                    cache = parser.booleanValue();
+                    cache = parseContext.parseFilterCachePolicy();
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new CacheKeyFilter.Key(parser.text());
+                    cacheKey = new HashedBytesRef(parser.text());
                 } else {
                     fieldName = currentFieldName;
                     value = parser.objectBytes();
@@ -100,8 +101,8 @@ public class PrefixFilterParser implements FilterParser {
             filter = new PrefixFilter(new Term(fieldName, BytesRefs.toBytesRef(value)));
         }
 
-        if (cache) {
-            filter = parseContext.cacheFilter(filter, cacheKey);
+        if (cache != null) {
+            filter = parseContext.cacheFilter(filter, cacheKey, cache);
         }
 
         filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);

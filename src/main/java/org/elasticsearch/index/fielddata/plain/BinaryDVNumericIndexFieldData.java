@@ -20,9 +20,10 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import com.google.common.base.Preconditions;
-import org.apache.lucene.index.LeafReaderContext;
+
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.Accountable;
@@ -32,8 +33,11 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
@@ -41,6 +45,7 @@ import org.elasticsearch.index.mapper.FieldMapper.Names;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 
 public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData implements IndexNumericFieldData {
@@ -85,7 +90,7 @@ public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData imple
                     }
                     
                     @Override
-                    public Iterable<? extends Accountable> getChildResources() {
+                    public Collection<Accountable> getChildResources() {
                         return Collections.emptyList();
                     }
 
@@ -99,7 +104,7 @@ public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData imple
                     }
                     
                     @Override
-                    public Iterable<? extends Accountable> getChildResources() {
+                    public Collection<Accountable> getChildResources() {
                         return Collections.emptyList();
                     }
 

@@ -33,14 +33,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
-import org.elasticsearch.index.shard.IndexShardClosedException;
-import org.elasticsearch.index.shard.IndexShardNotStartedException;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
@@ -49,8 +46,10 @@ import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
@@ -160,22 +159,27 @@ public class RecoveryTarget extends AbstractComponent {
                     new RecoveryFailedException(recoveryStatus.state(), "failed to list local files", e), true);
             return;
         }
-        StartRecoveryRequest request = new StartRecoveryRequest(recoveryStatus.shardId(), recoveryStatus.sourceNode(), clusterService.localNode(),
+        final StartRecoveryRequest request = new StartRecoveryRequest(recoveryStatus.shardId(), recoveryStatus.sourceNode(), clusterService.localNode(),
                 false, existingFiles, recoveryStatus.state().getType(), recoveryStatus.recoveryId());
 
+        final AtomicReference<RecoveryResponse> responseHolder = new AtomicReference<>();
         try {
             logger.trace("[{}][{}] starting recovery from {}", request.shardId().index().name(), request.shardId().id(), request.sourceNode());
 
             StopWatch stopWatch = new StopWatch().start();
-            recoveryStatus.setWaitingRecoveryThread(Thread.currentThread());
-
-            RecoveryResponse recoveryResponse = transportService.submitRequest(request.sourceNode(), RecoverySource.Actions.START_RECOVERY, request, new FutureTransportResponseHandler<RecoveryResponse>() {
+            recoveryStatus.CancellableThreads().execute(new CancellableThreads.Interruptable() {
                 @Override
-                public RecoveryResponse newInstance() {
-                    return new RecoveryResponse();
+                public void run() throws InterruptedException {
+                    responseHolder.set(transportService.submitRequest(request.sourceNode(), RecoverySource.Actions.START_RECOVERY, request, new FutureTransportResponseHandler<RecoveryResponse>() {
+                        @Override
+                        public RecoveryResponse newInstance() {
+                            return new RecoveryResponse();
+                        }
+                    }).txGet());
                 }
-            }).txGet();
-            recoveryStatus.clearWaitingRecoveryThread(Thread.currentThread());
+            });
+            final RecoveryResponse recoveryResponse = responseHolder.get();
+            assert responseHolder != null;
             stopWatch.stop();
             if (logger.isTraceEnabled()) {
                 StringBuilder sb = new StringBuilder();
@@ -197,6 +201,8 @@ public class RecoveryTarget extends AbstractComponent {
             }
             // do this through ongoing recoveries to remove it from the collection
             onGoingRecoveries.markRecoveryAsDone(recoveryStatus.recoveryId());
+        } catch (CancellableThreads.ExecutionCancelledException e) {
+            logger.trace("recovery cancelled", e);
         } catch (Throwable e) {
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}][{}] Got exception on recovery", e, request.shardId().index().name(), request.shardId().id());
@@ -435,7 +441,9 @@ public class RecoveryTarget extends AbstractComponent {
                     }
                     // write the checksum
                     recoveryStatus.legacyChecksums().add(request.metadata());
-                    store.directory().sync(Collections.singleton(request.name()));
+                    final String temporaryFileName = recoveryStatus.getTempNameForFile(request.name());
+                    assert Arrays.asList(store.directory().listAll()).contains(temporaryFileName);
+                    store.directory().sync(Collections.singleton(temporaryFileName));
                     IndexOutput remove = recoveryStatus.removeOpenIndexOutputs(request.name());
                     recoveryStatus.state().getIndex().addRecoveredFileCount(1);
                     assert remove == null || remove == indexOutput; // remove maybe null if we got finished
@@ -478,8 +486,6 @@ public class RecoveryTarget extends AbstractComponent {
             try {
                 doRecovery(statusRef.status());
             } finally {
-                // make sure we never interrupt the thread after we have released it back to the pool
-                statusRef.status().clearWaitingRecoveryThread(Thread.currentThread());
                 statusRef.close();
             }
         }

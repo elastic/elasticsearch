@@ -425,8 +425,8 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         byte[] addParent = new BytesArray("{\"index\" : { \"_index\" : \"test\", \"_type\" : \"parent\", \"_id\" : \"parent1\"}}\n" +
                 "{\"field1\" : \"value1\"}\n").array();
 
-        byte[] addChild = new BytesArray("{ \"update\" : { \"_index\" : \"test\", \"_type\" : \"child\", \"_id\" : \"child1\", \"parent\" : \"parent1\"}}\n" +
-                "{\"doc\" : { \"field1\" : \"value1\"}, \"doc_as_upsert\" : \"true\"}\n").array();
+        byte[] addChild = new BytesArray("{ \"update\" : { \"_index\" : \"test\", \"_type\" : \"child\", \"_id\" : \"child1\", \"routing\" : \"parent1\"}}\n" +
+                "{\"doc\" : { \"field1\" : \"value1\", \"_parent\" : \"parent1\"}, \"doc_as_upsert\" : \"true\"}\n").array();
 
         builder.add(addParent, 0, addParent.length, false);
         builder.add(addChild, 0, addChild.length, false);
@@ -462,8 +462,8 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         byte[] addParent = new BytesArray("{\"index\" : { \"_index\" : \"test\", \"_type\" : \"parent\", \"_id\" : \"parent1\"}}\n" +
                 "{\"field1\" : \"value1\"}\n").array();
 
-        byte[] addChild = new BytesArray("{\"update\" : { \"_id\" : \"child1\", \"_type\" : \"child\", \"_index\" : \"test\", \"parent\" : \"parent1\"} }\n" +
-                "{ \"script\" : \"ctx._source.field2 = 'value2'\", \"upsert\" : {\"field1\" : \"value1\"}}\n").array();
+        byte[] addChild = new BytesArray("{\"update\" : { \"_id\" : \"child1\", \"_type\" : \"child\", \"_index\" : \"test\", \"routing\" : \"parent1\"} }\n" +
+                "{ \"script\" : \"ctx._source.field2 = 'value2'\", \"upsert\" : {\"field1\" : \"value1\", \"_parent\" : \"parent1\"}}\n").array();
 
         builder.add(addParent, 0, addParent.length, false);
         builder.add(addChild, 0, addChild.length, false);

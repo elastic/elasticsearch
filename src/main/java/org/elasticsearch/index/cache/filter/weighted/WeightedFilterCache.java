@@ -22,32 +22,33 @@ package org.elasticsearch.index.cache.filter.weighted;
 import com.google.common.cache.Cache;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.Weigher;
+
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.BitsFilteredDocIdSet;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilterCachingPolicy;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.CachedFilter;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
+import org.elasticsearch.common.lucene.search.ResolvableFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.cache.filter.FilterCache;
-import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
 
 import java.io.IOException;
@@ -102,11 +103,10 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     @Override
     public void clear(String reason, String[] keys) {
         logger.debug("clear keys [], reason [{}]", reason, keys);
-        final BytesRefBuilder spare = new BytesRefBuilder();
         for (String key : keys) {
-            final byte[] keyBytes = Strings.toUTF8Bytes(key, spare);
+            final HashedBytesRef keyBytes = new HashedBytesRef(key);
             for (Object readerKey : seenReaders.keySet()) {
-                indicesFilterCache.cache().invalidate(new FilterCacheKey(readerKey, new CacheKeyFilter.Key(keyBytes)));
+                indicesFilterCache.cache().invalidate(new FilterCacheKey(readerKey, keyBytes));
             }
         }
     }
@@ -128,7 +128,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     }
 
     @Override
-    public Filter cache(Filter filterToCache) {
+    public Filter cache(Filter filterToCache, @Nullable HashedBytesRef cacheKey, FilterCachingPolicy cachePolicy) {
         if (filterToCache == null) {
             return null;
         }
@@ -138,57 +138,71 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
         if (CachedFilter.isCached(filterToCache)) {
             return filterToCache;
         }
-        return new FilterCacheFilterWrapper(filterToCache, this);
+        if (filterToCache instanceof ResolvableFilter) {
+            throw new IllegalArgumentException("Cannot cache instances of ResolvableFilter: " + filterToCache);
+        }
+        return new FilterCacheFilterWrapper(filterToCache, cacheKey, cachePolicy, this);
     }
 
     static class FilterCacheFilterWrapper extends CachedFilter {
 
         private final Filter filter;
-
+        private final Object filterCacheKey;
+        private final FilterCachingPolicy cachePolicy;
         private final WeightedFilterCache cache;
 
-        FilterCacheFilterWrapper(Filter filter, WeightedFilterCache cache) {
+        FilterCacheFilterWrapper(Filter filter, Object cacheKey, FilterCachingPolicy cachePolicy, WeightedFilterCache cache) {
             this.filter = filter;
+            this.filterCacheKey = cacheKey != null ? cacheKey : filter;
+            this.cachePolicy = cachePolicy;
             this.cache = cache;
         }
 
-
         @Override
         public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
-            Object filterKey = filter;
-            if (filter instanceof CacheKeyFilter) {
-                filterKey = ((CacheKeyFilter) filter).cacheKey();
+            if (context.ord == 0) {
+                cachePolicy.onUse(filter);
             }
-            FilterCacheKey cacheKey = new FilterCacheKey(context.reader().getCoreCacheKey(), filterKey);
+            FilterCacheKey cacheKey = new FilterCacheKey(context.reader().getCoreCacheKey(), filterCacheKey);
             Cache<FilterCacheKey, DocIdSet> innerCache = cache.indicesFilterCache.cache();
 
             DocIdSet cacheValue = innerCache.getIfPresent(cacheKey);
-            if (cacheValue == null) {
-                if (!cache.seenReaders.containsKey(context.reader().getCoreCacheKey())) {
-                    Boolean previous = cache.seenReaders.putIfAbsent(context.reader().getCoreCacheKey(), Boolean.TRUE);
-                    if (previous == null) {
-                        // we add a core closed listener only, for non core IndexReaders we rely on clear being called (percolator for example)
-                        context.reader().addCoreClosedListener(cache);
+            final DocIdSet ret;
+            if (cacheValue != null) {
+                ret = cacheValue;
+            } else {
+                final DocIdSet uncached = filter.getDocIdSet(context, null);
+                if (cachePolicy.shouldCache(filter, context, uncached)) {
+                    if (!cache.seenReaders.containsKey(context.reader().getCoreCacheKey())) {
+                        Boolean previous = cache.seenReaders.putIfAbsent(context.reader().getCoreCacheKey(), Boolean.TRUE);
+                        if (previous == null) {
+                            // we add a core closed listener only, for non core IndexReaders we rely on clear being called (percolator for example)
+                            context.reader().addCoreClosedListener(cache);
+                        }
                     }
-                }
-                // we can't pass down acceptedDocs provided, because we are caching the result, and acceptedDocs
-                // might be specific to a query. We don't pass the live docs either because a cache built for a specific
-                // generation of a segment might be reused by an older generation which has fewer deleted documents
-                cacheValue = DocIdSets.toCacheable(context.reader(), filter.getDocIdSet(context, null));
-                // we might put the same one concurrently, that's fine, it will be replaced and the removal
-                // will be called
-                ShardId shardId = ShardUtils.extractShardId(context.reader());
-                if (shardId != null) {
-                    IndexShard shard = cache.indexService.shard(shardId.id());
-                    if (shard != null) {
-                        cacheKey.removalListener = shard.filterCache();
-                        shard.filterCache().onCached(DocIdSets.sizeInBytes(cacheValue));
+                    // we can't pass down acceptedDocs provided, because we are caching the result, and acceptedDocs
+                    // might be specific to a query. We don't pass the live docs either because a cache built for a specific
+                    // generation of a segment might be reused by an older generation which has fewer deleted documents
+                    cacheValue = DocIdSets.toCacheable(context.reader(), uncached);
+                    // we might put the same one concurrently, that's fine, it will be replaced and the removal
+                    // will be called
+                    ShardId shardId = ShardUtils.extractShardId(context.reader());
+                    if (shardId != null) {
+                        IndexShard shard = cache.indexService.shard(shardId.id());
+                        if (shard != null) {
+                            cacheKey.removalListener = shard.filterCache();
+                            shard.filterCache().onCached(DocIdSets.sizeInBytes(cacheValue));
+                        }
                     }
+                    innerCache.put(cacheKey, cacheValue);
+                    ret = cacheValue;
+                } else {
+                    // uncached
+                    ret = uncached;
                 }
-                innerCache.put(cacheKey, cacheValue);
             }
 
-            return BitsFilteredDocIdSet.wrap(DocIdSets.isEmpty(cacheValue) ? null : cacheValue, acceptDocs);
+            return BitsFilteredDocIdSet.wrap(DocIdSets.isEmpty(ret) ? null : ret, acceptDocs);
         }
 
         public String toString() {

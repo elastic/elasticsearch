@@ -23,6 +23,7 @@ import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.log4j.spi.LoggingEvent;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -291,6 +292,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
     // #6882: make sure we can change index.merge.scheduler.max_thread_count live
     @Test
     @Slow
+    @AwaitsFix(bugUrl="Super slow because of LUCENE-6119. Muted until we clean up merge throttling.")
     public void testUpdateMergeMaxThreadCount() {
 
         MockAppender mockAppender = new MockAppender();

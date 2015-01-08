@@ -39,7 +39,6 @@ import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.codec.CodecModule;
-import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
@@ -84,7 +83,6 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
                 new IndexSettingsModule(index, settings),
                 new IndexCacheModule(settings),
                 new AnalysisModule(settings),
-                new IndexEngineModule(settings),
                 new SimilarityModule(settings),
                 new IndexNameModule(index),
                 new IndexQueryParserModule(settings),

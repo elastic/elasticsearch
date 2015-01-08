@@ -20,7 +20,6 @@
 package org.elasticsearch.action.update;
 
 import com.google.common.collect.Maps;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -170,17 +169,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             this.routing = null;
         } else {
             this.routing = routing;
-        }
-        return this;
-    }
-
-    /**
-     * Sets the parent id of this document. Will simply set the routing to this value, as it is only
-     * used for routing with delete requests.
-     */
-    public UpdateRequest parent(String parent) {
-        if (routing == null) {
-            routing = parent;
         }
         return this;
     }

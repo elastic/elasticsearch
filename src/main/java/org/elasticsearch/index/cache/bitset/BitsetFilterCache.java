@@ -33,7 +33,6 @@ import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.common.settings.Settings;
@@ -52,6 +51,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.warmer.IndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
@@ -68,7 +68,7 @@ import java.util.concurrent.Executor;
  * and require that it should always be around should use this cache, otherwise the
  * {@link org.elasticsearch.index.cache.filter.FilterCache} should be used instead.
  */
-public class BitsetFilterCache extends AbstractIndexComponent implements LeafReader.CoreClosedListener, RemovalListener<Object, Cache<Filter, BitsetFilterCache.Value>>, CloseableComponent {
+public class BitsetFilterCache extends AbstractIndexComponent implements LeafReader.CoreClosedListener, RemovalListener<Object, Cache<Filter, BitsetFilterCache.Value>>, Closeable {
 
     public static final String LOAD_RANDOM_ACCESS_FILTERS_EAGERLY = "index.load_fixed_bitset_filters_eagerly";
 
@@ -117,9 +117,8 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
     }
 
     public void clear(String reason) {
-        logger.debug("Clearing all Bitsets because [{}]", reason);
+        logger.debug("clearing all bitsets because [{}]", reason);
         loadedFilters.invalidateAll();
-        loadedFilters.cleanUp();
     }
 
     private BitDocIdSet getAndLoadIfNotPresent(final Filter filter, final LeafReaderContext context) throws IOException, ExecutionException {

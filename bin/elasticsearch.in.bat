@@ -43,9 +43,6 @@ if NOT "%ES_DIRECT_SIZE%" == "" (
 set JAVA_OPTS=%JAVA_OPTS% -XX:MaxDirectMemorySize=%ES_DIRECT_SIZE%
 )
 
-REM reduce the per-thread stack size
-set JAVA_OPTS=%JAVA_OPTS% -Xss256k
-
 REM set to headless, just in case
 set JAVA_OPTS=%JAVA_OPTS% -Djava.awt.headless=true
 
@@ -78,6 +75,9 @@ REM JAVA_OPTS=%JAVA_OPTS% -XX:HeapDumpPath=$ES_HOME/logs/heapdump.hprof
 
 REM Disables explicit GC
 set JAVA_OPTS=%JAVA_OPTS% -XX:+DisableExplicitGC
+
+REM Ensure UTF-8 encoding by default (e.g. filenames)
+set JAVA_OPTS=%JAVA_OPTS% -Dfile.encoding=UTF-8
 
 set ES_CLASSPATH=%ES_CLASSPATH%;%ES_HOME%/lib/${project.build.finalName}.jar;%ES_HOME%/lib/*;%ES_HOME%/lib/sigar/*
 set ES_PARAMS=-Delasticsearch -Des-foreground=yes -Des.path.home="%ES_HOME%"

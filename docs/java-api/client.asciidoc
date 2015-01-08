@@ -156,8 +156,8 @@ Client client =    new TransportClient(settings);
 
 Or using `elasticsearch.yml` file as shown in <<node-client>>
 
-The client allows to sniff the rest of the cluster, and add those into
-its list of machines to use. In this case, note that the IP addresses
+The client allows sniffing the rest of the cluster, which adds data nodes
+into its list of machines to use. In this case, note that the IP addresses
 used will be the ones that the other nodes were started with (the
 "publish" address). In order to enable it, set the
 `client.transport.sniff` to `true`:

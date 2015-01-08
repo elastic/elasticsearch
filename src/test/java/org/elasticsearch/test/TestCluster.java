@@ -209,11 +209,6 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
     public abstract void ensureEstimatedStats();
 
     /**
-     * Return whether or not this cluster can cache filters.
-     */
-    public abstract boolean hasFilterCache();
-
-    /**
      * Returns the cluster name
      */
     public abstract String getClusterName();

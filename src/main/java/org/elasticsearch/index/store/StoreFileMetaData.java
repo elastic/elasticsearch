@@ -147,7 +147,7 @@ public class StoreFileMetaData implements Streamable {
      * a Lucene version greater or equal to Lucene 4.8
      */
     public boolean hasLegacyChecksum() {
-        return checksum != null && ((writtenBy != null  && writtenBy.onOrAfter(Version.LUCENE_4_8)) == false);
+        return checksum != null && (writtenBy == null || writtenBy.onOrAfter(Version.LUCENE_4_8) == false);
     }
 
     /**

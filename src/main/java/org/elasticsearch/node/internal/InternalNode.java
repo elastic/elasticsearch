@@ -71,6 +71,7 @@ import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.memory.IndexingMemoryController;
+import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.monitor.MonitorModule;
 import org.elasticsearch.monitor.MonitorService;
@@ -187,7 +188,7 @@ public final class InternalNode implements Node {
             modules.add(new SearchModule());
             modules.add(new ActionModule(false));
             modules.add(new MonitorModule(settings));
-            modules.add(new GatewayModule(settings));
+            modules.add(new GatewayModule());
             modules.add(new NodeClientModule());
             modules.add(new ShapeModule());
             modules.add(new PercolatorModule());
@@ -287,13 +288,6 @@ public final class InternalNode implements Node {
         // we close indices first, so operations won't be allowed on it
         injector.getInstance(IndexingMemoryController.class).stop();
         injector.getInstance(IndicesTTLService.class).stop();
-        injector.getInstance(IndicesService.class).stop();
-        // sleep a bit to let operations finish with indices service
-//        try {
-//            Thread.sleep(500);
-//        } catch (InterruptedException e) {
-//            // ignore
-//        }
         injector.getInstance(RoutingService.class).stop();
         injector.getInstance(ClusterService.class).stop();
         injector.getInstance(DiscoveryService.class).stop();
@@ -306,7 +300,9 @@ public final class InternalNode implements Node {
         for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
             injector.getInstance(plugin).stop();
         }
-
+        // we should stop this last since it waits for resources to get released
+        // if we had scroll searchers etc or recovery going on we wait for to finish.
+        injector.getInstance(IndicesService.class).stop();
         logger.info("stopped");
 
         return this;
@@ -349,6 +345,7 @@ public final class InternalNode implements Node {
         injector.getInstance(IndexingMemoryController.class).close();
         injector.getInstance(IndicesTTLService.class).close();
         injector.getInstance(IndicesService.class).close();
+        injector.getInstance(IndicesStore.class).close();
         stopWatch.stop().start("routing");
         injector.getInstance(RoutingService.class).close();
         stopWatch.stop().start("cluster");
@@ -398,8 +395,6 @@ public final class InternalNode implements Node {
 
         injector.getInstance(NodeEnvironment.class).close();
         injector.getInstance(PageCacheRecycler.class).close();
-        Injectors.close(injector);
-
         CachedStreams.clear();
 
         logger.info("closed");

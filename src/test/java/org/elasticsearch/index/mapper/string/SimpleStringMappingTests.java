@@ -20,10 +20,15 @@
 package org.elasticsearch.index.mapper.string;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.TermFilter;
+import org.apache.lucene.queries.TermsFilter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -41,6 +46,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.*;
 
@@ -372,6 +378,20 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         assertTrue(mergeResult.hasConflicts());
         assertEquals(1, mergeResult.conflicts().length);
         assertTrue(mergeResult.conflicts()[0].contains("cannot enable norms"));
+    }
+
+    public void testTermsFilter() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "string").field("index", "not_analyzed").endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = parser.parse(mapping);
+        FieldMapper<?> mapper = defaultMapper.mappers().fullName("field").mapper();
+        assertNotNull(mapper);
+        assertTrue(mapper instanceof StringFieldMapper);
+        assertEquals(Queries.MATCH_NO_FILTER, mapper.termsFilter(Collections.emptyList(), null));
+        assertEquals(new TermFilter(new Term("field", "value")), mapper.termsFilter(Collections.singletonList("value"), null));
+        assertEquals(new TermsFilter(new Term("field", "value1"), new Term("field", "value2")), mapper.termsFilter(Arrays.asList("value1", "value2"), null));
     }
 
 }

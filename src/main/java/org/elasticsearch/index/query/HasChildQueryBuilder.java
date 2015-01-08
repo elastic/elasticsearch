@@ -19,6 +19,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
 
 import java.io.IOException;
 
@@ -42,6 +43,8 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
     private Integer shortCircuitCutoff;
 
     private String queryName;
+
+    private QueryInnerHitBuilder innerHit = null;
 
     public HasChildQueryBuilder(String type, QueryBuilder queryBuilder) {
         this.childType = type;
@@ -98,6 +101,14 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
         return this;
     }
 
+    /**
+     * Sets inner hit definition in the scope of this query and reusing the defined type and query.
+     */
+    public HasChildQueryBuilder innerHit(QueryInnerHitBuilder innerHit) {
+        this.innerHit = innerHit;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(HasChildQueryParser.NAME);
@@ -121,6 +132,11 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
         }
         if (queryName != null) {
             builder.field("_name", queryName);
+        }
+        if (innerHit != null) {
+            builder.startObject("inner_hits");
+            builder.value(innerHit);
+            builder.endObject();
         }
         builder.endObject();
     }

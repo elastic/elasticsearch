@@ -147,7 +147,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     @Override
     protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
         final InternalAggregation aggregation = new UnmappedTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), metaData);
-        return new NonCollectingAggregator(name, aggregationContext, parent, metaData) {
+        return new NonCollectingAggregator(name, aggregationContext, parent, factories, metaData) {
+            {
+                // even in the case of an unmapped aggregator, validate the order
+                InternalOrder.validate(order, this);
+            }
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;

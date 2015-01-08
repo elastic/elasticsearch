@@ -254,8 +254,11 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
             expectedScore = Float.MAX_VALUE;
         }
 
+        float weightSum = 0;
+
         for (int i = 0; i < weights.length; i++) {
             double functionScore = (double) weights[i] * scores[i];
+            weightSum += weights[i];
 
             if ("avg".equals(scoreMode)) {
                 expectedScore += functionScore;
@@ -271,7 +274,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
 
         }
         if ("avg".equals(scoreMode)) {
-            expectedScore /= weights.length;
+            expectedScore /= weightSum;
         }
         return expectedScore;
     }
@@ -442,6 +445,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
     public void testMinScoreFunctionScoreBasic() throws IOException {
         index(INDEX, TYPE, jsonBuilder().startObject().field("num", 2).endObject());
         refresh();
+        ensureYellow();
         float score = randomFloat();
         float minScore = randomFloat();
         SearchResponse searchResponse = client().search(
@@ -476,6 +480,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
             docs.add(client().prepareIndex(INDEX, TYPE, Integer.toString(i)).setSource("num", i + scoreOffset));
         }
         indexRandom(true, docs);
+        ensureYellow();
         String script = "return (doc['num'].value)";
         int numMatchingDocs = numDocs + scoreOffset - minScore;
         if (numMatchingDocs < 0) {

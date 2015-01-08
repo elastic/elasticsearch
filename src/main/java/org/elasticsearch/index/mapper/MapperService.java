@@ -701,7 +701,16 @@ public class MapperService extends AbstractIndexComponent  {
         }
         ObjectMappers mappers = objectMapper(smartName);
         if (mappers != null) {
-            return new SmartNameObjectMapper(mappers.mapper(), null);
+            return new SmartNameObjectMapper(mappers.mapper(), guessDocMapper(smartName));
+        }
+        return null;
+    }
+
+    private DocumentMapper guessDocMapper(String path) {
+        for (DocumentMapper documentMapper : docMappers(false)) {
+            if (documentMapper.objectMappers().containsKey(path)) {
+                return documentMapper;
+            }
         }
         return null;
     }

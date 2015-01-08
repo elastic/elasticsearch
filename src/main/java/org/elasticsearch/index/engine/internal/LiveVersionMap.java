@@ -19,17 +19,17 @@
 
 package org.elasticsearch.index.engine.internal;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
-
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 /** Maps _uid value to its version information. */
 class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
@@ -251,7 +251,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
     }
 
     @Override
-    public Iterable<? extends Accountable> getChildResources() {
+    public Collection<Accountable> getChildResources() {
         // TODO: useful to break down RAM usage here?
         return Collections.emptyList();
     }

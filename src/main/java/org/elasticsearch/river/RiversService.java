@@ -200,8 +200,6 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
         }
 
         river.close();
-
-        Injectors.close(injector);
     }
 
     private class ApplyRivers implements RiverClusterStateListener {

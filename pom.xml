@@ -32,7 +32,7 @@
 
     <properties>
         <lucene.version>5.0.0</lucene.version>
-        <lucene.maven.version>5.0.0-snapshot-1644303</lucene.maven.version>
+        <lucene.maven.version>5.0.0-snapshot-1649544</lucene.maven.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
@@ -54,7 +54,7 @@
         </repository>
         <repository>
             <id>Lucene snapshots</id>
-            <url>https://download.elasticsearch.org/lucenesnapshots/1644303</url>
+            <url>https://download.elasticsearch.org/lucenesnapshots/1649544</url>
         </repository>
     </repositories>
 
@@ -68,7 +68,7 @@
         <dependency>
             <groupId>com.carrotsearch.randomizedtesting</groupId>
             <artifactId>randomizedtesting-runner</artifactId>
-            <version>2.1.10</version>
+            <version>2.1.11</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -494,7 +494,6 @@
                             <jvmArgs>
                                 <param>-Xmx${tests.heap.size}</param>
                                 <param>-Xms${tests.heap.size}</param>
-                                <param>-Xss256k</param>
                                 <param>-XX:MaxPermSize=128m</param>
                                 <param>-XX:MaxDirectMemorySize=512m</param>
                                 <param>-Des.logger.prefix=</param>
@@ -1232,7 +1231,7 @@
                                 <!-- start excludes for Math.abs -->
                                 <exclude>org/elasticsearch/common/util/MathUtils.class</exclude>
                                 <exclude>org/elasticsearch/common/math/UnboxedMathUtils.class</exclude>
-                                <exclude>org/elasticsearch/cluster/routing/operation/plain/PlainOperationRouting.class</exclude>
+                                <exclude>org/elasticsearch/cluster/routing/OperationRouting.class</exclude>
                                 <!-- end excludes for Math.abs -->
                                 <!-- start exclude for FilteredQuery -->
                                 <exclude>org/elasticsearch/common/lucene/search/XFilteredQuery.class</exclude>

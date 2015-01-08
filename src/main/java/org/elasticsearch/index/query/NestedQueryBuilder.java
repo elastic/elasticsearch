@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
 
 import java.io.IOException;
 
@@ -35,6 +36,8 @@ public class NestedQueryBuilder extends BaseQueryBuilder implements BoostableQue
     private float boost = 1.0f;
 
     private String queryName;
+
+    private QueryInnerHitBuilder innerHit;
 
     public NestedQueryBuilder(String path, QueryBuilder queryBuilder) {
         this.path = path;
@@ -73,6 +76,14 @@ public class NestedQueryBuilder extends BaseQueryBuilder implements BoostableQue
         return this;
     }
 
+    /**
+     * Sets inner hit definition in the scope of this nested query and reusing the defined path and query.
+     */
+    public NestedQueryBuilder innerHit(QueryInnerHitBuilder innerHit) {
+        this.innerHit = innerHit;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NestedQueryParser.NAME);
@@ -93,6 +104,12 @@ public class NestedQueryBuilder extends BaseQueryBuilder implements BoostableQue
         if (queryName != null) {
             builder.field("_name", queryName);
         }
+        if (innerHit != null) {
+            builder.startObject("inner_hits");
+            builder.value(innerHit);
+            builder.endObject();
+        }
         builder.endObject();
     }
+
 }

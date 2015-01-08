@@ -2,7 +2,8 @@
 "Test cat thread_pool output":
 
   - do:
-      cat.thread_pool: {}
+      cat.thread_pool:
+        v: false
 
   - match:
       $body: |
@@ -21,6 +22,7 @@
   - do:
       cat.thread_pool:
           h: pid,id,h,i,po
+          v: false
 
   - match:
       $body: |

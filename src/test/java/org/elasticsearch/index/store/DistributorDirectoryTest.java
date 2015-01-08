@@ -19,7 +19,10 @@
 package org.elasticsearch.index.store;
 
 import com.carrotsearch.randomizedtesting.annotations.*;
+import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
@@ -36,6 +39,9 @@ import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 
 @ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchThreadFilter.class})
 @ThreadLeakScope(ThreadLeakScope.Scope.SUITE)
@@ -60,7 +66,7 @@ public class DistributorDirectoryTest extends BaseDirectoryTestCase {
     }
 
     // #7306: don't invoke the distributor when we are opening an already existing file
-    public void testDoNotCallDistributorOnRead() throws Exception {      
+    public void testDoNotCallDistributorOnRead() throws Exception {
         Directory dir = newDirectory();
         dir.createOutput("one.txt", IOContext.DEFAULT).close();
 
@@ -156,5 +162,42 @@ public class DistributorDirectoryTest extends BaseDirectoryTestCase {
             }
             IOUtils.close(dd);
         }
+    }
+
+    public void testSync() throws IOException {
+        final Set<String> syncedFiles = new HashSet<>();
+        final Directory[] directories = new Directory[RandomInts.randomIntBetween(random(), 1, 5)];
+        for (int i = 0; i < directories.length; ++i) {
+            final Directory dir = newDirectory();
+            directories[i] = new FilterDirectory(dir) {
+                @Override
+                public void sync(Collection<String> names) throws IOException {
+                    super.sync(names);
+                    syncedFiles.addAll(names);
+                }
+            };
+        }
+
+        final Directory directory = new DistributorDirectory(directories);
+
+        for (String file : Arrays.asList("a.bin", "b.bin")) {
+            try (IndexOutput out = directory.createOutput(file, IOContext.DEFAULT)) {
+                out.writeInt(random().nextInt());
+            }
+        }
+
+        // syncing on a missing file throws an exception
+        try {
+            directory.sync(Arrays.asList("a.bin", "c.bin"));
+        } catch (FileNotFoundException e) {
+            // expected
+        }
+        assertEquals(ImmutableSet.of(), syncedFiles);
+
+        // but syncing on existing files actually delegates
+        directory.sync(Arrays.asList("a.bin", "b.bin"));
+        assertEquals(ImmutableSet.of("a.bin", "b.bin"), syncedFiles);
+
+        directory.close();
     }
 }

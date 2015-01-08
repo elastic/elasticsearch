@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.gateway.local.LocalGatewayAllocator;
+import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -63,7 +63,7 @@ public class RareClusterStateTests extends ElasticsearchIntegrationTest {
         createIndex("a");
         ensureSearchable("a");
         ClusterState current = clusterService().state();
-        LocalGatewayAllocator allocator = internalCluster().getInstance(LocalGatewayAllocator.class);
+        GatewayAllocator allocator = internalCluster().getInstance(GatewayAllocator.class);
 
         AllocationDeciders allocationDeciders = new AllocationDeciders(ImmutableSettings.EMPTY, new AllocationDecider[0]);
         RoutingNodes routingNodes = new RoutingNodes(

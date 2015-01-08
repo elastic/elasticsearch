@@ -60,6 +60,10 @@ public class SearchStats implements Streamable, ToXContent {
             this.fetchCurrent = fetchCurrent;
         }
 
+        public Stats(Stats stats) {
+            this(stats.queryCount, stats.queryTimeInMillis, stats.queryCurrent, stats.fetchCount, stats.fetchTimeInMillis, stats.fetchCurrent);
+        }
+
         public void add(Stats stats) {
             queryCount += stats.queryCount;
             queryTimeInMillis += stats.queryTimeInMillis;
@@ -178,7 +182,7 @@ public class SearchStats implements Streamable, ToXContent {
             for (Map.Entry<String, Stats> entry : searchStats.groupStats.entrySet()) {
                 Stats stats = groupStats.get(entry.getKey());
                 if (stats == null) {
-                    groupStats.put(entry.getKey(), entry.getValue());
+                    groupStats.put(entry.getKey(), new Stats(entry.getValue()));
                 } else {
                     stats.add(entry.getValue());
                 }

@@ -32,11 +32,13 @@ import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -62,6 +64,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
  *
  */
 @ElasticsearchIntegrationTest.SuiteScopeTest
+@TestLogging("org.elasticsearch.action.search:TRACE,org.elasticsearch.search:TRACE")
 public class LongTermsTests extends AbstractTermsTests {
 
     private static final int NUM_DOCS = 5; // TODO randomize the size?
@@ -866,11 +869,11 @@ public class LongTermsTests extends AbstractTermsTests {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getDocCount(), equalTo(1l));
-            
+
             Avg avg = bucket.getAggregations().get("avg_i");
             assertThat(avg, notNullValue());
             assertThat(avg.getValue(), equalTo((double) i));
-            
+
             Terms subTermsAgg = bucket.getAggregations().get("subTerms");
             assertThat(subTermsAgg, notNullValue());
             assertThat(subTermsAgg.getBuckets().size(), equalTo(2));
@@ -979,79 +982,83 @@ public class LongTermsTests extends AbstractTermsTests {
 
     @Test
     public void singleValuedField_OrderedByMissingSubAggregation() throws Exception {
-        try {
+        for (String index : Arrays.asList("idx", "idx_unmapped")) {
+            try {
+                client().prepareSearch(index).setTypes("type")
+                        .addAggregation(terms("terms")
+                                .field(SINGLE_VALUED_FIELD_NAME)
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .order(Terms.Order.aggregation("avg_i", true))
+                        ).execute().actionGet();
 
-            client().prepareSearch("idx").setTypes("type")
-                    .addAggregation(terms("terms")
-                            .field(SINGLE_VALUED_FIELD_NAME)
-                            .collectMode(randomFrom(SubAggCollectionMode.values()))
-                            .order(Terms.Order.aggregation("avg_i", true))
-                    ).execute().actionGet();
+                fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation that doesn't exist");
 
-            fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation that doesn't exist");
-
-        } catch (ElasticsearchException e) {
-            // expected
+            } catch (ElasticsearchException e) {
+                // expected
+            }
         }
     }
 
     @Test
     public void singleValuedField_OrderedByNonMetricsOrMultiBucketSubAggregation() throws Exception {
-        try {
+        for (String index : Arrays.asList("idx", "idx_unmapped")) {
+            try {
+                client().prepareSearch(index).setTypes("type")
+                        .addAggregation(terms("terms")
+                                .field(SINGLE_VALUED_FIELD_NAME)
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .order(Terms.Order.aggregation("num_tags", true))
+                                .subAggregation(terms("num_tags").field("num_tags")
+                                        .collectMode(randomFrom(SubAggCollectionMode.values())))
+                        ).execute().actionGet();
 
-            client().prepareSearch("idx").setTypes("type")
-                    .addAggregation(terms("terms")
-                            .field(SINGLE_VALUED_FIELD_NAME)
-                            .collectMode(randomFrom(SubAggCollectionMode.values()))
-                            .order(Terms.Order.aggregation("num_tags", true))
-                            .subAggregation(terms("num_tags").field("num_tags")
-                                    .collectMode(randomFrom(SubAggCollectionMode.values())))
-                    ).execute().actionGet();
+                fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation which is not of a metrics type");
 
-            fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation which is not of a metrics type");
-
-        } catch (ElasticsearchException e) {
-            // expected
+            } catch (ElasticsearchException e) {
+                // expected
+            }
         }
     }
 
     @Test
     public void singleValuedField_OrderedByMultiValuedSubAggregation_WithUknownMetric() throws Exception {
-        try {
+        for (String index : Arrays.asList("idx", "idx_unmapped")) {
+            try {
+                client().prepareSearch(index).setTypes("type")
+                        .addAggregation(terms("terms")
+                                .field(SINGLE_VALUED_FIELD_NAME)
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .order(Terms.Order.aggregation("stats.foo", true))
+                                .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
+                        ).execute().actionGet();
 
-            client().prepareSearch("idx").setTypes("type")
-                    .addAggregation(terms("terms")
-                            .field(SINGLE_VALUED_FIELD_NAME)
-                            .collectMode(randomFrom(SubAggCollectionMode.values()))
-                            .order(Terms.Order.aggregation("stats.foo", true))
-                            .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
-                    ).execute().actionGet();
+                fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
+                        "with an unknown specified metric to order by");
 
-            fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
-                    "with an unknown specified metric to order by");
-
-        } catch (ElasticsearchException e) {
-            // expected
+            } catch (ElasticsearchException e) {
+                // expected
+            }
         }
     }
 
     @Test
     public void singleValuedField_OrderedByMultiValuedSubAggregation_WithoutMetric() throws Exception {
-        try {
+        for (String index : Arrays.asList("idx", "idx_unmapped")) {
+            try {
+                client().prepareSearch(index).setTypes("type")
+                        .addAggregation(terms("terms")
+                                .field(SINGLE_VALUED_FIELD_NAME)
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .order(Terms.Order.aggregation("stats", true))
+                                .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
+                        ).execute().actionGet();
 
-            client().prepareSearch("idx").setTypes("type")
-                    .addAggregation(terms("terms")
-                            .field(SINGLE_VALUED_FIELD_NAME)
-                            .collectMode(randomFrom(SubAggCollectionMode.values()))
-                            .order(Terms.Order.aggregation("stats", true))
-                            .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
-                    ).execute().actionGet();
+                fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
+                        "where the metric name is not specified");
 
-            fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
-                    "where the metric name is not specified");
-
-        } catch (ElasticsearchException e) {
-            // expected
+            } catch (ElasticsearchException e) {
+                // expected
+            }
         }
     }
 

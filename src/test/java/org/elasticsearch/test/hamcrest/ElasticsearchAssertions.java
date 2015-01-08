@@ -145,6 +145,10 @@ public class ElasticsearchAssertions {
         assertVersionSerializable(searchResponse);
     }
 
+    public static void assertNoSearchHits(SearchResponse searchResponse) {
+        assertEquals(0, searchResponse.getHits().getHits().length);
+    }
+
     public static void assertSearchHits(SearchResponse searchResponse, String... ids) {
         String shardStatus = formatShardStatus(searchResponse);
 

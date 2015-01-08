@@ -202,11 +202,9 @@ For string `"abcd"`:
 
 ===== Optional operators
 
-These operators are only available when they are explicitly enabled, by
-passing `flags` to the query.
-
-Multiple flags can be enabled either using the `ALL` flag, or by
-concatenating flags with a pipe `"|"`:
+These operators are available by default as the `flags` parameter defaults to `ALL`.
+Different flag combinations (concatened with `"\"`) can be used to enable/disable
+specific operators:
 
     {
         "regexp": {

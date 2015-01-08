@@ -25,6 +25,14 @@
 "Test cat segments output":
 
   - do:
+      cat.segments:
+        v: false
+
+  - match:
+      $body: |
+               /^$/
+
+  - do:
       indices.create:
         index: index1
         body:

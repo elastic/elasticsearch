@@ -166,12 +166,6 @@ public class DocumentMapper implements ToXContent {
 
         private Map<Class<? extends RootMapper>, RootMapper> rootMappers = new LinkedHashMap<>();
 
-        private NamedAnalyzer indexAnalyzer;
-
-        private NamedAnalyzer searchAnalyzer;
-
-        private NamedAnalyzer searchQuoteAnalyzer;
-
         private List<SourceTransform> sourceTransforms;
 
         private final String index;
@@ -228,36 +222,6 @@ public class DocumentMapper implements ToXContent {
             return this;
         }
 
-        public Builder indexAnalyzer(NamedAnalyzer indexAnalyzer) {
-            this.indexAnalyzer = indexAnalyzer;
-            return this;
-        }
-
-        public boolean hasIndexAnalyzer() {
-            return indexAnalyzer != null;
-        }
-
-        public Builder searchAnalyzer(NamedAnalyzer searchAnalyzer) {
-            this.searchAnalyzer = searchAnalyzer;
-            if (this.searchQuoteAnalyzer == null) {
-                this.searchQuoteAnalyzer = searchAnalyzer;
-            }
-            return this;
-        }
-
-        public Builder searchQuoteAnalyzer(NamedAnalyzer searchQuoteAnalyzer) {
-            this.searchQuoteAnalyzer = searchQuoteAnalyzer;
-            return this;
-        }
-
-        public boolean hasSearchAnalyzer() {
-            return searchAnalyzer != null;
-        }
-
-        public boolean hasSearchQuoteAnalyzer() {
-            return searchQuoteAnalyzer != null;
-        }
-
         public Builder transform(ScriptService scriptService, String script, ScriptType scriptType, String language, Map<String, Object> parameters) {
             if (sourceTransforms == null) {
                 sourceTransforms = new ArrayList<>();
@@ -268,8 +232,7 @@ public class DocumentMapper implements ToXContent {
 
         public DocumentMapper build(DocumentMapperParser docMapperParser) {
             Preconditions.checkNotNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
-            return new DocumentMapper(index, indexSettings, docMapperParser, rootObjectMapper, meta,
-                    indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer, rootMappers, sourceTransforms);
+            return new DocumentMapper(index, indexSettings, docMapperParser, rootObjectMapper, meta, rootMappers, sourceTransforms);
         }
     }
 
@@ -300,11 +263,6 @@ public class DocumentMapper implements ToXContent {
     private final RootMapper[] rootMappersOrdered;
     private final RootMapper[] rootMappersNotIncludedInObject;
 
-    private final NamedAnalyzer indexAnalyzer;
-
-    private final NamedAnalyzer searchAnalyzer;
-    private final NamedAnalyzer searchQuoteAnalyzer;
-
     private volatile DocumentFieldMappers fieldMappers;
 
     private volatile ImmutableMap<String, ObjectMapper> objectMappers = ImmutableMap.of();
@@ -324,7 +282,6 @@ public class DocumentMapper implements ToXContent {
     public DocumentMapper(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser,
                           RootObjectMapper rootObjectMapper,
                           ImmutableMap<String, Object> meta,
-                          NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, NamedAnalyzer searchQuoteAnalyzer,
                           Map<Class<? extends RootMapper>, RootMapper> rootMappers, List<SourceTransform> sourceTransforms) {
         this.index = index;
         this.indexSettings = indexSettings;
@@ -344,10 +301,6 @@ public class DocumentMapper implements ToXContent {
             }
         }
         this.rootMappersNotIncludedInObject = rootMappersNotIncludedInObjectLst.toArray(new RootMapper[rootMappersNotIncludedInObjectLst.size()]);
-
-        this.indexAnalyzer = indexAnalyzer;
-        this.searchAnalyzer = searchAnalyzer;
-        this.searchQuoteAnalyzer = searchQuoteAnalyzer != null ? searchQuoteAnalyzer : searchAnalyzer;
 
         this.typeFilter = typeMapper().termFilter(type, null);
 
@@ -370,7 +323,7 @@ public class DocumentMapper implements ToXContent {
         // now traverse and get all the statically defined ones
         rootObjectMapper.traverse(fieldMappersAgg);
 
-        this.fieldMappers = new DocumentFieldMappers(this).copyAndAllAll(fieldMappersAgg.mappers);
+        this.fieldMappers = new DocumentFieldMappers(docMapperParser.analysisService).copyAndAllAll(fieldMappersAgg.mappers);
 
         final Map<String, ObjectMapper> objectMappers = Maps.newHashMap();
         rootObjectMapper.traverse(new ObjectMapperListener() {
@@ -468,18 +421,6 @@ public class DocumentMapper implements ToXContent {
 
     public BoostFieldMapper boostFieldMapper() {
         return rootMapper(BoostFieldMapper.class);
-    }
-
-    public Analyzer indexAnalyzer() {
-        return this.indexAnalyzer;
-    }
-
-    public Analyzer searchAnalyzer() {
-        return this.searchAnalyzer;
-    }
-
-    public Analyzer searchQuotedAnalyzer() {
-        return this.searchQuoteAnalyzer;
     }
 
     public Filter typeFilter() {
@@ -765,23 +706,6 @@ public class DocumentMapper implements ToXContent {
         rootObjectMapper.toXContent(builder, params, new ToXContent() {
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                if (indexAnalyzer != null && searchAnalyzer != null && indexAnalyzer.name().equals(searchAnalyzer.name()) && !indexAnalyzer.name().startsWith("_")) {
-                    if (!indexAnalyzer.name().equals("default")) {
-                        // same analyzers, output it once
-                        builder.field("analyzer", indexAnalyzer.name());
-                    }
-                } else {
-                    if (indexAnalyzer != null && !indexAnalyzer.name().startsWith("_")) {
-                        if (!indexAnalyzer.name().equals("default")) {
-                            builder.field("index_analyzer", indexAnalyzer.name());
-                        }
-                    }
-                    if (searchAnalyzer != null && !searchAnalyzer.name().startsWith("_")) {
-                        if (!searchAnalyzer.name().equals("default")) {
-                            builder.field("search_analyzer", searchAnalyzer.name());
-                        }
-                    }
-                }
                 if (sourceTransforms != null) {
                     if (sourceTransforms.size() == 1) {
                         builder.field("transform");

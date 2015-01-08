@@ -902,7 +902,9 @@ public final class InternalTestCluster extends TestCluster {
         for (NodeAndClient nodeAndClient : nodes.values()) {
             TransportService transportService = nodeAndClient.node.injector().getInstance(TransportService.class);
             if (transportService instanceof MockTransportService) {
-                ((MockTransportService) transportService).clearAllRules();
+                final MockTransportService mockTransportService = (MockTransportService) transportService;
+                mockTransportService.clearAllRules();
+                mockTransportService.clearTracers();
             }
         }
         randomlyResetClients();

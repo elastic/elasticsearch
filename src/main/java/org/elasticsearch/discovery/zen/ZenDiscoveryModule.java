@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.MasterService;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
@@ -45,13 +46,17 @@ public class ZenDiscoveryModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(ElectMasterService.class).asEagerSingleton();
         bind(ZenPingService.class).asEagerSingleton();
         Multibinder<UnicastHostsProvider> unicastHostsProviderMultibinder = Multibinder.newSetBinder(binder(), UnicastHostsProvider.class);
         for (Class<? extends UnicastHostsProvider> unicastHostProvider : unicastHostProviders) {
             unicastHostsProviderMultibinder.addBinding().to(unicastHostProvider);
         }
+        bindMasterService();
         bindDiscovery();
+    }
+    
+    protected void bindMasterService() {
+        bind(MasterService.class).to(ElectMasterService.class).asEagerSingleton();
     }
 
     protected void bindDiscovery() {

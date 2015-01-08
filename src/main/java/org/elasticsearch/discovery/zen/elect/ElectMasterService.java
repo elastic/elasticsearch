@@ -26,13 +26,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.MasterService;
 
 import java.util.*;
 
 /**
  *
  */
-public class ElectMasterService extends AbstractComponent {
+public class ElectMasterService extends AbstractComponent implements MasterService {
 
     public static final String DISCOVERY_ZEN_MINIMUM_MASTER_NODES = "discovery.zen.minimum_master_nodes";
 

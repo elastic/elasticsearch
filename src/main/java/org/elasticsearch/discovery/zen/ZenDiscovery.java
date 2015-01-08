@@ -53,6 +53,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
+import org.elasticsearch.discovery.MasterService;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.fd.MasterFaultDetection;
 import org.elasticsearch.discovery.zen.fd.NodesFaultDetection;
@@ -123,7 +124,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     // a flag that should be used only for testing
     private final boolean sendLeaveRequest;
 
-    private final ElectMasterService electMaster;
+    protected final MasterService electMaster;
 
     private final boolean masterElectionFilterClientNodes;
     private final boolean masterElectionFilterDataNodes;
@@ -148,7 +149,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     @Inject
     public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                         TransportService transportService, final ClusterService clusterService, NodeSettingsService nodeSettingsService,
-                        DiscoveryNodeService discoveryNodeService, ZenPingService pingService, ElectMasterService electMasterService,
+                        DiscoveryNodeService discoveryNodeService, ZenPingService pingService, MasterService electMasterService,
                         DiscoverySettings discoverySettings, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
         super(settings);
         this.clusterName = clusterName;
@@ -257,6 +258,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         pingService.stop();
         masterFD.stop("zen disco stop");
         nodesFD.stop();
+        doStopMaster();
         initialStateSent.set(false);
         DiscoveryNodes nodes = nodes();
         if (sendLeaveRequest) {
@@ -350,6 +352,21 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         return joinThreadControl.joinThreadActive();
     }
 
+    /** 
+     *  Call this method when the local node is elected master
+     */
+    protected void doStartMaster(ClusterState newState, String reason) {
+        masterFD.stop(reason);
+        nodesFD.updateNodesAndPing(newState); // start the nodes FD
+    }
+
+    /**
+     *  Call this method when the local node stops being master
+     */
+    protected void doStopMaster() {
+        nodesFD.stop();
+    }
+
     /**
      * the main function of a join thread. This function is guaranteed to join the cluster
      * or spawn a new join thread upon failure to do so.
@@ -400,7 +417,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     if (newState.nodes().localNodeMaster()) {
                         // we only starts nodesFD if we are master (it may be that we received a cluster state while pinging)
                         joinThreadControl.markThreadAsDone(currentThread);
-                        nodesFD.updateNodesAndPing(newState); // start the nodes FD
+                        doStartMaster(newState, "elected as master on join cluster");
                     } else {
                         // if we're not a master it means another node published a cluster state while we were pinging
                         // make sure we go through another pinging round and actively join it
@@ -660,10 +677,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 final DiscoveryNode electedMaster = electMaster.electMaster(discoveryNodes); // elect master
                 final DiscoveryNode localNode = currentState.nodes().localNode();
                 if (localNode.equals(electedMaster)) {
-                    masterFD.stop("got elected as new master since master left (reason = " + reason + ")");
                     discoveryNodes = DiscoveryNodes.builder(discoveryNodes).masterNodeId(localNode.id()).build();
                     ClusterState newState = ClusterState.builder(currentState).nodes(discoveryNodes).build();
-                    nodesFD.updateNodesAndPing(newState);
+                    doStartMaster(newState, "got elected as new master since master left (reason = " + reason + ")");
                     return newState;
 
                 } else {
@@ -805,10 +821,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         //if (!electMaster.hasEnoughMasterNodes(newState.nodes())) {
                         //    return disconnectFromCluster(newState, "not enough master nodes on new cluster state received from [" + newState.nodes().masterNode() + "]");
                         //}
+                        
+                        updatedState = ensureCorrectClusterState(masterFD.masterNode(), currentState, updatedState);
 
-                        // check to see that we monitor the correct master of the cluster
-                        if (masterFD.masterNode() == null || !masterFD.masterNode().equals(updatedState.nodes().masterNode())) {
-                            masterFD.restart(updatedState.nodes().masterNode(), "new cluster state received and we are monitoring the wrong master [" + masterFD.masterNode() + "]");
+                        // If correct state cannot be determined, rejoin the cluster
+                        if (updatedState == null) {
+                            return rejoin(currentState, "could not determine correct master state");
                         }
 
                         if (currentState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock())) {
@@ -819,7 +837,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
                             return updatedState;
                         }
-
 
                         // some optimizations to make sure we keep old objects where possible
                         ClusterState.Builder builder = ClusterState.builder(updatedState);
@@ -862,6 +879,15 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 });
             }
         }
+    }
+
+    // Ensure that the cluster state is as expected
+    protected ClusterState ensureCorrectClusterState(final DiscoveryNode currentMaster, ClusterState currentState, ClusterState updatedState) {
+        // check to see that we monitor the correct master of the cluster
+        if (masterFD.masterNode() == null || !masterFD.masterNode().equals(updatedState.nodes().masterNode())) {
+            masterFD.restart(updatedState.nodes().masterNode(), "new cluster state received and we are monitoring the wrong master [" + masterFD.masterNode() + "]");
+        }
+        return updatedState;
     }
 
     private void handleJoinRequest(final DiscoveryNode node, final MembershipAction.JoinCallback callback) {
@@ -1049,13 +1075,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
     }
 
-    private ClusterState rejoin(ClusterState clusterState, String reason) {
+    protected ClusterState rejoin(ClusterState clusterState, String reason) {
 
         // *** called from within an cluster state update task *** //
         assert Thread.currentThread().getName().contains(InternalClusterService.UPDATE_THREAD_NAME);
 
         logger.warn(reason + ", current nodes: {}", clusterState.nodes());
         nodesFD.stop();
+        doStopMaster();
         masterFD.stop(reason);
 
 
@@ -1076,11 +1103,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 .build();
     }
 
-    private boolean localNodeMaster() {
+    protected boolean localNodeMaster() {
         return nodes().localNodeMaster();
     }
 
-    private ClusterState handleAnotherMaster(ClusterState localClusterState, final DiscoveryNode otherMaster, long otherClusterStateVersion, String reason) {
+    protected ClusterState handleAnotherMaster(ClusterState localClusterState, final DiscoveryNode otherMaster, long otherClusterStateVersion, String reason) {
         assert localClusterState.nodes().localNodeMaster() : "handleAnotherMaster called but current node is not a master";
         assert Thread.currentThread().getName().contains(InternalClusterService.UPDATE_THREAD_NAME) : "not called from the cluster state update thread";
 
@@ -1107,7 +1134,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
     }
 
-    private void sendInitialStateEventIfNeeded() {
+    protected void sendInitialStateEventIfNeeded() {
         if (initialStateSent.compareAndSet(false, true)) {
             for (InitialStateDiscoveryListener listener : initialStateListeners) {
                 listener.initialStateProcessed();

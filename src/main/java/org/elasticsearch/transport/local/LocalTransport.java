@@ -27,12 +27,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.ThrowableObjectInputStream;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.CachedStreamInput;
-import org.elasticsearch.common.io.stream.HandlesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
@@ -211,7 +206,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         final byte[] data = bStream.bytes().toBytes();
 
         transportServiceAdapter.sent(data.length);
-
+        transportServiceAdapter.onRequestSent(node, requestId, action, request, options);
         targetTransport.workers().execute(new Runnable() {
             @Override
             public void run() {
@@ -239,6 +234,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             if (isRequest) {
                 handleRequest(stream, requestId, sourceTransport, version);
             } else {
+                // notify with response before we process it and before we remove information about it.
+                transportServiceAdapter.onResponseReceived(requestId);
                 final TransportResponseHandler handler = transportServiceAdapter.remove(requestId);
                 // ignore if its null, the adapter logs it
                 if (handler != null) {
@@ -263,7 +260,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
 
     private void handleRequest(StreamInput stream, long requestId, LocalTransport sourceTransport, Version version) throws Exception {
         final String action = stream.readString();
-        final LocalTransportChannel transportChannel = new LocalTransportChannel(this, sourceTransport, action, requestId, version);
+        transportServiceAdapter.onRequestReceived(requestId, action);
+        final LocalTransportChannel transportChannel = new LocalTransportChannel(this, transportServiceAdapter, sourceTransport, action, requestId, version);
         try {
             final TransportRequestHandler handler = transportServiceAdapter.handler(action, version);
             if (handler == null) {

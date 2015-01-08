@@ -36,14 +36,16 @@ import java.io.NotSerializableException;
 public class LocalTransportChannel implements TransportChannel {
 
     private final LocalTransport sourceTransport;
+    private final TransportServiceAdapter sourceTransportServiceAdapter;
     // the transport we will *send to*
     private final LocalTransport targetTransport;
     private final String action;
     private final long requestId;
     private final Version version;
 
-    public LocalTransportChannel(LocalTransport sourceTransport, LocalTransport targetTransport, String action, long requestId, Version version) {
+    public LocalTransportChannel(LocalTransport sourceTransport, TransportServiceAdapter sourceTransportServiceAdapter, LocalTransport targetTransport, String action, long requestId, Version version) {
         this.sourceTransport = sourceTransport;
+        this.sourceTransportServiceAdapter = sourceTransportServiceAdapter;
         this.targetTransport = targetTransport;
         this.action = action;
         this.requestId = requestId;
@@ -78,6 +80,7 @@ public class LocalTransportChannel implements TransportChannel {
                 targetTransport.messageReceived(data, action, sourceTransport, version, null);
             }
         });
+        sourceTransportServiceAdapter.onResponseSent(requestId, action, response, options);
     }
 
     @Override
@@ -104,6 +107,7 @@ public class LocalTransportChannel implements TransportChannel {
                 targetTransport.messageReceived(data, action, sourceTransport, version, null);
             }
         });
+        sourceTransportServiceAdapter.onResponseSent(requestId, action, error);
     }
 
     private void writeResponseExceptionHeader(BytesStreamOutput stream) throws IOException {

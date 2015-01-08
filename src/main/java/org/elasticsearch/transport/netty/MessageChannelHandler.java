@@ -121,6 +121,8 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 buffer.readerIndex(expectedIndexReader);
             }
         } else {
+            // notify with response before we process it and before we remove information about it.
+            transportServiceAdapter.onResponseReceived(requestId);
             TransportResponseHandler handler = transportServiceAdapter.remove(requestId);
             // ignore if its null, the adapter logs it
             if (handler != null) {
@@ -205,8 +207,8 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
     protected String handleRequest(Channel channel, StreamInput buffer, long requestId, Version version) throws IOException {
         final String action = buffer.readString();
-
-        final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, action, channel, requestId, version, profileName);
+        transportServiceAdapter.onRequestReceived(requestId, action);
+        final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, transportServiceAdapter, action, channel, requestId, version, profileName);
         try {
             final TransportRequestHandler handler = transportServiceAdapter.handler(action, version);
             if (handler == null) {

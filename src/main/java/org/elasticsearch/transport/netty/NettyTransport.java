@@ -681,6 +681,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             ReleaseChannelFutureListener listener = new ReleaseChannelFutureListener(bytes);
             future.addListener(listener);
             addedReleaseListener = true;
+            transportServiceAdapter.onRequestSent(node, requestId, action, request, options);
         } finally {
             if (!addedReleaseListener) {
                 Releasables.close(bStream.bytes());

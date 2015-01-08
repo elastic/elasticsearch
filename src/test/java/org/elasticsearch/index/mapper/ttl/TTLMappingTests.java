@@ -69,7 +69,7 @@ public class TTLMappingTests extends ElasticsearchSingleNodeTest {
 
         assertThat(doc.rootDoc().getField("_ttl").fieldType().stored(), equalTo(true));
         assertNotSame(IndexOptions.NONE, doc.rootDoc().getField("_ttl").fieldType().indexOptions());
-        assertThat(doc.rootDoc().getField("_ttl").tokenStream(docMapper.indexAnalyzer(), null), notNullValue());
+        assertThat(doc.rootDoc().getField("_ttl").tokenStream(docMapper.mappers().indexAnalyzer(), null), notNullValue());
     }
 
     @Test

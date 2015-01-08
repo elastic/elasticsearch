@@ -131,16 +131,32 @@ def create_client(http_port, timeout=30):
     time.sleep(1)
   assert False, 'Timed out waiting for node for %s seconds' % timeout
 
-def generate_index(client):
+def generate_index(client, version):
   client.indices.delete(index='test', ignore=404)
   num_shards = random.randint(1, 10)
   num_replicas = random.randint(0, 1)
   logging.info('Create single shard test index')
+
+  mappings = {}
+  if not version.startswith('2.'):
+    # TODO: we need better "before/onOr/after" logic in python
+
+    # backcompat test for legacy type level analyzer settings, see #8874
+    mappings['analyzer_type1'] = {
+      'analyzer': 'standard',
+    }
+    mappings['analyzer_type2'] = {
+      'index_analyzer': 'standard',
+      'search_analyzer': 'keyword',
+      'search_quote_analyzer': 'english',
+   }
+
   client.indices.create(index='test', body={
       'settings': {
           'number_of_shards': 1,
           'number_of_replicas': 0
-      }
+      },
+      'mappings': mappings
   })
   health = client.cluster.health(wait_for_status='green', wait_for_relocating_shards=0)
   assert health['timed_out'] == False, 'cluster health timed out %s' % health
@@ -152,32 +168,32 @@ def generate_index(client):
 
 def snapshot_index(client, cfg):
   # Add bogus persistent settings to make sure they can be restored
-  client.cluster.put_settings(body = {
+  client.cluster.put_settings(body={
     'persistent': {
-      'cluster.routing.allocation.exclude.version_attr' : cfg.version
+      'cluster.routing.allocation.exclude.version_attr': cfg.version
     }
   })
-  client.indices.put_template(name = 'template_' + cfg.version.lower(), order = 0, body = {
-    "template" : "te*",
-    "settings" : {
+  client.indices.put_template(name='template_' + cfg.version.lower(), order=0, body={
+    "template": "te*",
+    "settings": {
       "number_of_shards" : 1
     },
-    "mappings" : {
-      "type1" : {
-        "_source" : { "enabled" : False }
+    "mappings": {
+      "type1": {
+        "_source": { "enabled" : False }
       }
     },
-    "aliases" : {
-      "alias1" : {},
-      "alias2" : {
-        "filter" : {
-          "term" : {"version" : cfg.version }
+    "aliases": {
+      "alias1": {},
+      "alias2": {
+        "filter": {
+          "term": {"version" : cfg.version }
         },
-        "routing" : "kimchy"
+        "routing": "kimchy"
       },
-      "{index}-alias" : {}
+      "{index}-alias": {}
     }
-  });
+  })
   client.snapshot.create_repository(repository='test_repo', body={
     'type': 'fs',
     'settings': {
@@ -243,7 +259,7 @@ def main():
   try:
     node = start_node(cfg.version, cfg.release_dir, cfg.data_dir, cfg.tcp_port, cfg.http_port)
     client = create_client(cfg.http_port)
-    generate_index(client)
+    generate_index(client, cfg.version)
     if cfg.snapshot_supported:
       snapshot_index(client, cfg)
   finally:

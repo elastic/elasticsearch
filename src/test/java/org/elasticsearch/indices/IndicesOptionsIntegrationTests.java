@@ -732,25 +732,6 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
     }
 
     @Test
-    // Indices exists never throws IndexMissingException, the indices options control its behaviour (return true or false)
-    public void testIndicesExists() throws Exception {
-        assertThat(client().admin().indices().prepareExists("foo").get().isExists(), equalTo(false));
-        assertThat(client().admin().indices().prepareExists("foo").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get().isExists(), equalTo(true));
-        assertThat(client().admin().indices().prepareExists("foo*").get().isExists(), equalTo(false));
-        assertThat(client().admin().indices().prepareExists("foo*").setIndicesOptions(IndicesOptions.fromOptions(false, true, true, false)).get().isExists(), equalTo(true));
-        assertThat(client().admin().indices().prepareExists("_all").get().isExists(), equalTo(false));
-
-        createIndex("foo", "foobar", "bar", "barbaz");
-        ensureYellow();
-
-        assertThat(client().admin().indices().prepareExists("foo*").get().isExists(), equalTo(true));
-        assertThat(client().admin().indices().prepareExists("foobar").get().isExists(), equalTo(true));
-        assertThat(client().admin().indices().prepareExists("bar*").get().isExists(), equalTo(true));
-        assertThat(client().admin().indices().prepareExists("bar").get().isExists(), equalTo(true));
-        assertThat(client().admin().indices().prepareExists("_all").get().isExists(), equalTo(true));
-    }
-
-    @Test
     public void testPutMapping() throws Exception {
         verify(client().admin().indices().preparePutMapping("foo").setType("type1").setSource("field", "type=string"), true);
         verify(client().admin().indices().preparePutMapping("_all").setType("type1").setSource("field", "type=string"), true);

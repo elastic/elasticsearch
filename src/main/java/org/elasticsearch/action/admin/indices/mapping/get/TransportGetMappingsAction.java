@@ -51,7 +51,7 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
 
     @Override
     protected ClusterBlockException checkBlock(GetMappingsRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override

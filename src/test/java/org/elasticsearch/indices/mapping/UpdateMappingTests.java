@@ -41,15 +41,16 @@ import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(randomDynamicTemplates = false)
@@ -439,5 +440,29 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
             throw threadException[0];
         }
 
+    }
+
+    @Test
+    public void testPutMappingsWithBlocks() throws Exception {
+        createIndex("test");
+        ensureGreen();
+
+        for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE)) {
+            try {
+                enableIndexBlock("test", block);
+                assertAcked(client().admin().indices().preparePutMapping("test").setType("doc").setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}"));
+            } finally {
+                disableIndexBlock("test", block);
+            }
+        }
+
+        for (String block : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
+            try {
+                enableIndexBlock("test", block);
+                assertBlocked(client().admin().indices().preparePutMapping("test").setType("doc").setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}"));
+            } finally {
+                disableIndexBlock("test", block);
+            }
+        }
     }
 }

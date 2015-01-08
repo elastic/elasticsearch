@@ -362,7 +362,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(count(indices), false);
         verify(clearCache(indices), false);
         verify(_flush(indices),false);
-        verify(segments(indices), true);
+        verify(segments(indices), false);
         verify(stats(indices), false);
         verify(optimize(indices), false);
         verify(refresh(indices), false);
@@ -437,7 +437,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(count(indices), false, 1);
         verify(clearCache(indices), false);
         verify(_flush(indices),false);
-        verify(segments(indices), true);
+        verify(segments(indices), false);
         verify(stats(indices), false);
         verify(optimize(indices), false);
         verify(refresh(indices), false);

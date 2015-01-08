@@ -226,6 +226,7 @@ abstract class QueryCollector extends SimpleCollector {
     final static class MatchAndSort extends QueryCollector {
 
         private final TopScoreDocCollector topDocsCollector;
+        private LeafCollector topDocsLeafCollector;
 
         MatchAndSort(ESLogger logger, PercolateContext context, boolean isNestedDoc) {
             super(logger, context, isNestedDoc);
@@ -248,7 +249,7 @@ abstract class QueryCollector extends SimpleCollector {
                     Lucene.exists(searcher, query, collector);
                 }
                 if (collector.exists()) {
-                    topDocsCollector.collect(doc);
+                    topDocsLeafCollector.collect(doc);
                     postMatch(doc);
                 }
             } catch (IOException e) {
@@ -259,13 +260,12 @@ abstract class QueryCollector extends SimpleCollector {
         @Override
         public void doSetNextReader(LeafReaderContext context) throws IOException {
             super.doSetNextReader(context);
-            LeafCollector leafCollector = topDocsCollector.getLeafCollector(context);
-            assert leafCollector == topDocsCollector : "TopDocsCollector returns itself as leaf collector";
+            topDocsLeafCollector = topDocsCollector.getLeafCollector(context);
         }
 
         @Override
         public void setScorer(Scorer scorer) throws IOException {
-            topDocsCollector.setScorer(scorer);
+            topDocsLeafCollector.setScorer(scorer);
         }
 
         TopDocs topDocs() {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.PidFile;
@@ -37,7 +38,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
-import com.sun.jna.Platform;
 import java.nio.file.Paths;
 import java.util.Locale;
 import java.util.Set;
@@ -60,7 +60,7 @@ public class Bootstrap {
 
     private void setup(boolean addShutdownHook, Tuple<Settings, Environment> tuple) throws Exception {
         if (tuple.v1().getAsBoolean("bootstrap.mlockall", false)) {
-            if (Platform.isWindows()) {
+            if (Constants.WINDOWS) {
                 Natives.tryVirtualLock();
             } else {
                 Natives.tryMlockall();

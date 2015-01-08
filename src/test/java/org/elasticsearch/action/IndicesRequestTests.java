@@ -92,11 +92,14 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
+import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -904,7 +907,8 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         private final Map<String, List<TransportRequest>> requests = new HashMap<>();
 
         @Inject
-        public InterceptingTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
+        public InterceptingTransportService(Settings settings, Transport transport, ThreadPool threadPool,
+                                            NodeSettingsService nodeSettingsService, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
             super(settings, transport, threadPool);
         }
 

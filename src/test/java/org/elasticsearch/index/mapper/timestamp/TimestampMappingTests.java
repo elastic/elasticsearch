@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.timestamp;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.TimestampParsingException;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -539,6 +540,87 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         for (String conflict : mergeResult.conflicts()) {
             assertThat(conflict, isIn(expectedConflicts));
         }
+    }
+
+    /**
+     * Test case for #9204
+     */
+    @Test
+    public void testMergingNullValues() throws Exception {
+        // From trying to add another field with default = null
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                .startObject("_timestamp")
+                    .field("enabled", true)
+                    .field("default", (String) null)
+                .endObject()
+                .endObject().endObject().string();
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+
+        DocumentMapper docMapper = parser.parse(mapping);
+        mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("_timestamp")
+                        .field("enabled", true)
+                        .field("default", (String) null)
+                    .endObject()
+                    .startObject("properties")
+                        .startObject("foo")
+                            .field("type", "string")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
+        assertThat(mergeResult.hasConflicts(), is(false));
+
+        client().admin().indices().delete(new DeleteIndexRequest("test")).get();
+
+        // From trying to update from null to non null
+        mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                .startObject("_timestamp")
+                    .field("enabled", true)
+                    .field("default", (String) null)
+                .endObject()
+                .endObject().endObject().string();
+        parser = createIndex("test").mapperService().documentMapperParser();
+
+        docMapper = parser.parse(mapping);
+        mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("_timestamp")
+                        .field("enabled", true)
+                        .field("default", "now")
+                    .endObject()
+                .endObject().endObject().string();
+
+        mergeResult = docMapper.merge(parser.parse(mapping), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
+        assertThat(mergeResult.hasConflicts(), is(true));
+
+        client().admin().indices().delete(new DeleteIndexRequest("test")).get();
+
+        // From trying to update from non null to null
+        mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                .startObject("_timestamp")
+                    .field("enabled", true)
+                    .field("default", "now")
+                .endObject()
+                .endObject().endObject().string();
+        parser = createIndex("test").mapperService().documentMapperParser();
+
+        docMapper = parser.parse(mapping);
+        mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("_timestamp")
+                .field("enabled", true)
+                .field("default", (String) null)
+                    .endObject()
+                .endObject().endObject().string();
+
+        mergeResult = docMapper.merge(parser.parse(mapping), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
+        assertThat(mergeResult.hasConflicts(), is(true));
     }
 
     @Test

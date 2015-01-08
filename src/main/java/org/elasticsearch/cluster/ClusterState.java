@@ -80,11 +80,11 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> implem
     }
 
     static {
-        FACTORY.registerFactory(ClusterName.TYPE, ClusterName.FACTORY);
-        FACTORY.registerFactory(DiscoveryNodes.TYPE, DiscoveryNodes.FACTORY);
-        FACTORY.registerFactory(ClusterBlocks.TYPE, ClusterBlocks.FACTORY);
-        FACTORY.registerFactory(RoutingTable.TYPE, RoutingTable.FACTORY);
-        FACTORY.registerFactory(MetaData.TYPE, MetaData.FACTORY);
+        FACTORY.registerFactory(ClusterName.FACTORY);
+        FACTORY.registerFactory(DiscoveryNodes.FACTORY);
+        FACTORY.registerFactory(ClusterBlocks.FACTORY);
+        FACTORY.registerFactory(RoutingTable.FACTORY);
+        FACTORY.registerFactory(MetaData.FACTORY);
     }
 
     public static class ClusterStateDiff {
@@ -192,6 +192,7 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> implem
     public ClusterName getClusterName() {
         return clusterName();
     }
+
     public ClusterName clusterName() {
         return this.clusterName;
     }

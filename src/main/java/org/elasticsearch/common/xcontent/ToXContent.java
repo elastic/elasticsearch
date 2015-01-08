@@ -146,6 +146,9 @@ public interface ToXContent {
         }
     }
 
+    /**
+     * Delegating params that adds a single string param to existing params
+     */
     public static class DelegatingStringParams implements Params {
 
         private final String key;
@@ -190,6 +193,9 @@ public interface ToXContent {
         }
     }
 
+    /**
+     * Delegating params that adds a single boolean param to existing params
+     */
     public static class DelegatingBooleanParams implements Params {
 
         private final String key;

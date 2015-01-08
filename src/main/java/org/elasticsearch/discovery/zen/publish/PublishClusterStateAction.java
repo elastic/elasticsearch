@@ -19,15 +19,12 @@
 
 package org.elasticsearch.discovery.zen.publish;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.ClusterStateDiff;
 import org.elasticsearch.cluster.IncompatibleClusterStateVersionException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -46,7 +43,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -75,19 +71,17 @@ public class PublishClusterStateAction extends AbstractComponent {
     private final DiscoveryNodesProvider nodesProvider;
     private final NewClusterStateListener listener;
     private final DiscoverySettings discoverySettings;
-    private final ClusterName clusterName;
     private final Map<String, Long> lastFullVersionSent = newHashMap();
     private final Lock versionMapLock = new ReentrantLock();
     private volatile ClusterState lastProcessedClusterState;
 
     public PublishClusterStateAction(Settings settings, TransportService transportService, DiscoveryNodesProvider nodesProvider,
-                                     NewClusterStateListener listener, DiscoverySettings discoverySettings, ClusterName clusterName) {
+                                     NewClusterStateListener listener, DiscoverySettings discoverySettings) {
         super(settings);
         this.transportService = transportService;
         this.nodesProvider = nodesProvider;
         this.listener = listener;
         this.discoverySettings = discoverySettings;
-        this.clusterName = clusterName;
         transportService.registerHandler(ACTION_NAME, new PublishClusterStateRequestHandler());
         lastProcessedClusterState = null;
     }
@@ -109,7 +103,8 @@ public class PublishClusterStateAction extends AbstractComponent {
 
         final AtomicBoolean timedOutWaitingForNodes = new AtomicBoolean(false);
         final TimeValue publishTimeout = discoverySettings.getPublishTimeout();
-        final boolean sendFullVersion = lastProcessedClusterState == null || clusterState.version() - lastProcessedClusterState.version() != 1;
+        final boolean sendFullVersion = !discoverySettings.getPublishDiffs() ||
+                lastProcessedClusterState == null || clusterState.version() - lastProcessedClusterState.version() != 1;
 
         // Remove nodes that are no longer part of the cluster
         versionMapLock.lock();
@@ -275,8 +270,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                 publishResponseHandler.onFailure(node, t);
             }
         } else {
-            logger.debug("skipping sending version {} to node {}, node already received version {}", clusterStateToSend.version(), node, lastVersionSent);
-            // TODO: Should this be a failure since we are not really sure if this node got the cluster state or not at this moment
+            logger.debug("skipping sending diffs for the version {} to the node {}, the node already was sent the full version {}", clusterStateToSend.version(), node, lastVersionSent);
             publishResponseHandler.onResponse(node);
         }
     }
@@ -324,7 +318,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                 clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
                 logger.debug("received full cluster state version {} with size {}", clusterState.version(), request.bytes().length());
             } else {
-                if(lastProcessedClusterState == null) {
+                if (lastProcessedClusterState == null) {
                     logger.debug("received diff cluster state version {} but don't have any local cluster state - requesting full state");
                     throw new IncompatibleClusterStateVersionException("have no local cluster state");
                 }

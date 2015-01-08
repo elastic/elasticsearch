@@ -134,7 +134,7 @@ public interface ClusterStatePart {
         /**
          * Returns the new version of the part after applying differences
          */
-        T apply(T part);
+        T apply(T part) throws IncompatibleClusterStateVersionException;
 
     }
 }

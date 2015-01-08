@@ -105,16 +105,16 @@ public class MetaData extends CompositeClusterStatePart<MetaData> implements Ite
     public static final MapClusterStatePart.Factory<IndexTemplateMetaData> TEMPLATES_FACTORY = new MapClusterStatePart.Factory<>(TEMPLATES_TYPE, IndexTemplateMetaData.FACTORY, API_GATEWAY_SNAPSHOT);
 
     static {
-        FACTORY.registerFactory(TRANSIENT_SETTINGS_TYPE, TRANSIENT_SETTINGS_FACTORY);
-        FACTORY.registerFactory(PERSISTENT_SETTINGS_TYPE, PERSISTENT_SETTINGS_FACTORY);
-        FACTORY.registerFactory(INDICES_TYPE, INDICES_FACTORY);
-        FACTORY.registerFactory(TEMPLATES_TYPE, TEMPLATES_FACTORY);
+        FACTORY.registerFactory(TRANSIENT_SETTINGS_FACTORY);
+        FACTORY.registerFactory(PERSISTENT_SETTINGS_FACTORY);
+        FACTORY.registerFactory(INDICES_FACTORY);
+        FACTORY.registerFactory(TEMPLATES_FACTORY);
 
         // register non plugin custom metadata
-        FACTORY.registerFactory(RepositoriesMetaData.TYPE, RepositoriesMetaData.FACTORY);
-        FACTORY.registerFactory(SnapshotMetaData.TYPE, SnapshotMetaData.FACTORY);
-        FACTORY.registerFactory(RestoreMetaData.TYPE, RestoreMetaData.FACTORY);
-        FACTORY.registerFactory(BenchmarkMetaData.TYPE, BenchmarkMetaData.FACTORY);
+        FACTORY.registerFactory(RepositoriesMetaData.FACTORY);
+        FACTORY.registerFactory(SnapshotMetaData.FACTORY);
+        FACTORY.registerFactory(RestoreMetaData.FACTORY);
+        FACTORY.registerFactory(BenchmarkMetaData.FACTORY);
     }
 
     public static final String SETTING_READ_ONLY = "cluster.blocks.read_only";

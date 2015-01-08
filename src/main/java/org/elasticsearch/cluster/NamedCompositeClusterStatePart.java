@@ -22,6 +22,7 @@ package org.elasticsearch.cluster;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,12 +32,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 
 /**
- * Represents a map of cluster state parts with different types.
+ * Base class for the composite cluster state part that can also be a part of MapClusterState part (IndexMetaData and IndexTemplateMetaData for example)
  * <p/>
  * Only one instance of each type can be present in the composite part. The key of the map is the part's type.
  */
@@ -103,13 +105,13 @@ public abstract class NamedCompositeClusterStatePart<E extends ClusterStatePart>
 
     public static abstract class AbstractFactory<E extends ClusterStatePart, T extends NamedCompositeClusterStatePart<E>> extends AbstractClusterStatePart.AbstractFactory<T> {
 
-        private final Map<String, Factory<? extends E>> partFactories = new HashMap<>();
+        private final Map<String, Factory<? extends E>> partFactories = new ConcurrentHashMap<>();
 
         /**
-         * Register a custom index meta data factory. Make sure to call it from a static block.
+         * Register a custom index meta data factory.
          */
-        public void registerFactory(String type, Factory<? extends E> factory) {
-            partFactories.put(type, factory);
+        public void registerFactory(Factory<? extends E> factory) {
+            partFactories.put(factory.partType(), factory);
         }
 
         public Set<String> availableFactories() {

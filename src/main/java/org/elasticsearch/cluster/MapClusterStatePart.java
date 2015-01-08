@@ -40,7 +40,9 @@ import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 
 /**
- * Represents a map of cluster state parts with the same type.
+ * A cluster part that consists of a map of cluster state parts
+ *
+ * All cluster state part have to have the same type and implement {@link org.elasticsearch.cluster.NamedClusterStatePart}
  */
 public class MapClusterStatePart<T extends NamedClusterStatePart> extends AbstractClusterStatePart implements IndexClusterStatePart< MapClusterStatePart<T>> {
 
@@ -62,8 +64,7 @@ public class MapClusterStatePart<T extends NamedClusterStatePart> extends Abstra
 
     @Override
     public MapClusterStatePart<T> mergeWith(MapClusterStatePart<T> second) {
-        //TODO: Implement
-        return null;
+        throw new UnsupportedOperationException("custom merge should occur in MetaDataCreateIndexService");
     }
 
     @Override

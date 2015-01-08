@@ -56,11 +56,11 @@ public class IndexTemplateMetaData extends NamedCompositeClusterStatePart<IndexC
     public static final MapClusterStatePart.Factory<AliasMetaData> ALIASES_FACTORY = new MapClusterStatePart.Factory<>(ALIASES_TYPE, AliasMetaData.FACTORY, API_GATEWAY_SNAPSHOT);
 
     static {
-        FACTORY.registerFactory(SETTINGS_TYPE, SETTINGS_FACTORY);
-        FACTORY.registerFactory(CompressedMappingMetaData.TYPE, CompressedMappingMetaData.FACTORY);
-        FACTORY.registerFactory(ALIASES_TYPE, ALIASES_FACTORY);
+        FACTORY.registerFactory(SETTINGS_FACTORY);
+        FACTORY.registerFactory(CompressedMappingMetaData.FACTORY);
+        FACTORY.registerFactory(ALIASES_FACTORY);
         // register non plugin custom metadata
-        FACTORY.registerFactory(IndexWarmersMetaData.TYPE, IndexWarmersMetaData.FACTORY);
+        FACTORY.registerFactory(IndexWarmersMetaData.FACTORY);
     }
 
     public static class Factory extends NamedCompositeClusterStatePart.AbstractFactory<IndexClusterStatePart, IndexTemplateMetaData> {

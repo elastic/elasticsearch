@@ -22,13 +22,10 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.ElasticsearchException;
 
 /**
+ * Thrown by {@link org.elasticsearch.cluster.ClusterStatePart.Diff#apply(ClusterStatePart)} method
  */
 public class IncompatibleClusterStateVersionException extends ElasticsearchException {
     public IncompatibleClusterStateVersionException(String msg) {
         super(msg);
-    }
-
-    public IncompatibleClusterStateVersionException(String msg, Throwable cause) {
-        super(msg, cause);
     }
 }

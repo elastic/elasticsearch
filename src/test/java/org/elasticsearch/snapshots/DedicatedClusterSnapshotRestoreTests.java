@@ -763,11 +763,11 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
     }
 
     static {
-        MetaData.FACTORY.registerFactory(SnapshottableMetadata.TYPE, SnapshottableMetadata.FACTORY);
-        MetaData.FACTORY.registerFactory(NonSnapshottableMetadata.TYPE, NonSnapshottableMetadata.FACTORY);
-        MetaData.FACTORY.registerFactory(SnapshottableGatewayMetadata.TYPE, SnapshottableGatewayMetadata.FACTORY);
-        MetaData.FACTORY.registerFactory(NonSnapshottableGatewayMetadata.TYPE, NonSnapshottableGatewayMetadata.FACTORY);
-        MetaData.FACTORY.registerFactory(SnapshotableGatewayNoApiMetadata.TYPE, SnapshotableGatewayNoApiMetadata.FACTORY);
+        MetaData.FACTORY.registerFactory(SnapshottableMetadata.FACTORY);
+        MetaData.FACTORY.registerFactory(NonSnapshottableMetadata.FACTORY);
+        MetaData.FACTORY.registerFactory(SnapshottableGatewayMetadata.FACTORY);
+        MetaData.FACTORY.registerFactory(NonSnapshottableGatewayMetadata.FACTORY);
+        MetaData.FACTORY.registerFactory(SnapshotableGatewayNoApiMetadata.FACTORY);
     }
 
     public static class SnapshottableMetadata extends TestCustomMetaData {

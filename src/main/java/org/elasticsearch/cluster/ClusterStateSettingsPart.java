@@ -61,7 +61,7 @@ public class ClusterStateSettingsPart extends AbstractClusterStatePart implement
 
     @Override
     public ClusterStateSettingsPart mergeWith(ClusterStateSettingsPart second) {
-        return second;
+        throw new UnsupportedOperationException("custom merge should occur in MetaDataCreateIndexService");
     }
 
     public static class Factory extends AbstractClusterStatePart.AbstractFactory<ClusterStateSettingsPart> {

@@ -85,7 +85,7 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadOpe
                         results.add(entry.value);
                     }
                 }
-                } else if (state.metaData().templates().containsKey(name)) {
+            } else if (state.metaData().templates().containsKey(name)) {
                 results.add(state.metaData().templates().get(name));
             }
         }

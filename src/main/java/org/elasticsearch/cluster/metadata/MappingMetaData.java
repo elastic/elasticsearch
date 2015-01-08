@@ -64,7 +64,7 @@ public class MappingMetaData extends AbstractClusterStatePart implements NamedCl
 
     @Override
     public MappingMetaData mergeWith(MappingMetaData second) {
-        return null;
+        throw new UnsupportedOperationException("custom merge should occur in MetaDataCreateIndexService");
     }
 
     public static class Factory extends AbstractClusterStatePart.AbstractFactory<MappingMetaData> {

@@ -49,7 +49,7 @@ public class MappingsMetaData  extends MapClusterStatePart<MappingMetaData> {
     public static class Factory extends MapClusterStatePart.Factory<MappingMetaData> {
 
         public Factory() {
-            super(MappingMetaData.TYPE, MappingMetaData.FACTORY);
+            super(TYPE, MappingMetaData.FACTORY);
         }
 
         @Override

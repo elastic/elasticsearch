@@ -34,6 +34,7 @@ import java.util.EnumSet;
 import java.util.Map;
 
 /**
+ * Wrapper class for a map of compressed mappings that stored as a cluster state part
  */
 public class CompressedMappingMetaData extends AbstractClusterStatePart implements IndexClusterStatePart<CompressedMappingMetaData> {
 
@@ -43,7 +44,7 @@ public class CompressedMappingMetaData extends AbstractClusterStatePart implemen
 
     @Override
     public CompressedMappingMetaData mergeWith(CompressedMappingMetaData second) {
-        throw new UnsupportedOperationException("merge should occur in MetaDataCreateIndexService");
+        throw new UnsupportedOperationException("custom merge should occur in MetaDataCreateIndexService");
     }
 
     @Override

@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.commons.lang3.builder.Diff;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,14 +37,16 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 
 /**
- * Represents a map of cluster state parts with different types.
+ * Base class for cluster state parts that consist of several other cluster state parts with different types.
  * <p/>
- * Only one instance of each type can be present in the composite part. The key of the map is the part's type.
+ * Only one instance of each type can be present in the composite part. Internally all parts are stored in a map.
+ * The key of the map is the part's type.
  */
 public abstract class CompositeClusterStatePart<T extends CompositeClusterStatePart> extends AbstractClusterStatePart {
 
@@ -100,12 +103,13 @@ public abstract class CompositeClusterStatePart<T extends CompositeClusterStateP
 
     protected static abstract class AbstractCompositeFactory<T extends CompositeClusterStatePart> extends AbstractClusterStatePart.AbstractFactory<T> {
 
-        private final Map<String, Factory> partFactories = new HashMap<>();
+        private final Map<String, Factory> partFactories = new ConcurrentHashMap<>();
+
         /**
          * Register a custom index meta data factory. Make sure to call it from a static block.
          */
-        public void registerFactory(String type, ClusterStatePart.Factory factory) {
-            partFactories.put(type, factory);
+        public void registerFactory(ClusterStatePart.Factory factory) {
+            partFactories.put(factory.partType(), factory);
         }
 
         @Nullable

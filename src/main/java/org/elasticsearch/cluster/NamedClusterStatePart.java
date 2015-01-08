@@ -20,9 +20,9 @@
 package org.elasticsearch.cluster;
 
 /**
- * All cluster state parts that can be put into a map should implement this interface
+ * All cluster state parts that can be put into a {@link org.elasticsearch.cluster.MapClusterStatePart} should
+ * implement this interface
  */
 public interface NamedClusterStatePart extends ClusterStatePart {
     String key();
-
 }

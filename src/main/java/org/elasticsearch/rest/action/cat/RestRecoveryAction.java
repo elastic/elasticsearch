@@ -29,6 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestResponseListener;
@@ -138,7 +139,7 @@ public class RestRecoveryAction extends AbstractCatAction {
                 t.startRow();
                 t.addCell(index);
                 t.addCell(shardResponse.getShardId());
-                t.addCell(state.getTimer().time());
+                t.addCell(new TimeValue(state.getTimer().time()));
                 t.addCell(state.getType().toString().toLowerCase(Locale.ROOT));
                 t.addCell(state.getStage().toString().toLowerCase(Locale.ROOT));
                 t.addCell(state.getSourceNode() == null ? "n/a" : state.getSourceNode().getHostName());

@@ -25,11 +25,9 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -150,7 +148,6 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
     }
 
     @Test
-    @TestLogging("env:TRACE")
     public void testDeleteSafe() throws IOException, InterruptedException {
         final NodeEnvironment env = newNodeEnvironment();
         ShardLock fooLock = env.shardLock(new ShardId("foo", 1));
@@ -196,6 +193,8 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
 
         final AtomicReference<Throwable> threadException = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
+        final CountDownLatch blockLatch = new CountDownLatch(1);
+        final CountDownLatch start = new CountDownLatch(1);
         if (randomBoolean()) {
             Thread t = new Thread(new AbstractRunnable() {
                 @Override
@@ -203,12 +202,15 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
                     logger.error("unexpected error", t);
                     threadException.set(t);
                     latch.countDown();
+                    blockLatch.countDown();
                 }
 
                 @Override
                 protected void doRun() throws Exception {
-                    try (ShardLock fooLock = env.shardLock(new ShardId("foo", 1))) {
-                        Thread.sleep(100);
+                    start.await();
+                    try (ShardLock _ = env.shardLock(new ShardId("foo", 1))) {
+                        blockLatch.countDown();
+                        Thread.sleep(randomIntBetween(1, 10));
                     }
                     latch.countDown();
                 }
@@ -216,7 +218,10 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
             t.start();
         } else {
             latch.countDown();
+            blockLatch.countDown();
         }
+        start.countDown();
+        blockLatch.await();
 
         env.deleteIndexDirectorySafe(new Index("foo"), 5000, idxSettings);
 

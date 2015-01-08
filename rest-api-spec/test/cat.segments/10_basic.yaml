@@ -25,6 +25,14 @@
 "Test cat segments output":
 
   - do:
+      cat.segments:
+        v: false
+
+  - match:
+      $body: |
+               /^$/
+
+  - do:
       indices.create:
         index: index1
         body:
@@ -39,7 +47,7 @@
         refresh: true
   - do:
        cluster.health:
-         wait_for_status: yellow
+         wait_for_status: green
   - do:
       cat.segments:
         v: false
@@ -57,7 +65,7 @@
             number_of_replicas: "0"
   - do:
        cluster.health:
-         wait_for_status: yellow
+         wait_for_status: green
          wait_for_relocating_shards: 0
 
   - do:
@@ -68,7 +76,7 @@
         refresh: true
   - do:
        cluster.health:
-         wait_for_status: yellow
+         wait_for_status: green
 
 
   - do:
@@ -85,3 +93,28 @@
   - match:
       $body: |
                   /^(index2 .+ \n?)$/
+
+---
+"Test cat segments on closed index behaviour":
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+       cluster.health:
+         wait_for_status: green
+
+  - do:
+    indices.close:
+      index: index1
+
+  - do:
+      catch: forbidden
+      cat.segments:
+        index: index1
+        v: false

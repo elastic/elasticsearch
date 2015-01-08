@@ -364,7 +364,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(count(indices), false);
         verify(clearCache(indices), false);
         verify(_flush(indices),false);
-        verify(segments(indices), true);
+        verify(segments(indices), false);
         verify(stats(indices), false);
         verify(status(indices), false);
         verify(optimize(indices), false);
@@ -442,7 +442,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(count(indices), false, 1);
         verify(clearCache(indices), false);
         verify(_flush(indices),false);
-        verify(segments(indices), true);
+        verify(segments(indices), false);
         verify(stats(indices), false);
         verify(status(indices), false);
         verify(optimize(indices), false);
@@ -532,7 +532,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .execute().actionGet();
         assertHitCount(response, 0l);
-        
+
         //you should still be able to run empty searches without things blowing up
         response  = client().prepareSearch()
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
@@ -685,26 +685,26 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         assertThat(client().admin().indices().prepareGetWarmers("foobar").setWarmers("warmer1").get().getWarmers().size(), equalTo(1));
 
     }
-    
+
     @Test
     public void testPutWarmer_wildcard() throws Exception {
         createIndex("foo", "foobar", "bar", "barbaz");
         ensureYellow();
 
         verify(client().admin().indices().preparePutWarmer("warmer1").setSearchRequest(client().prepareSearch().setIndices("foo*").setQuery(QueryBuilders.matchAllQuery())), false);
-        
+
         assertThat(client().admin().indices().prepareGetWarmers("foo").setWarmers("warmer1").get().getWarmers().size(), equalTo(1));
         assertThat(client().admin().indices().prepareGetWarmers("foobar").setWarmers("warmer1").get().getWarmers().size(), equalTo(1));
         assertThat(client().admin().indices().prepareGetWarmers("bar").setWarmers("warmer1").get().getWarmers().size(), equalTo(0));
         assertThat(client().admin().indices().prepareGetWarmers("barbaz").setWarmers("warmer1").get().getWarmers().size(), equalTo(0));
 
         verify(client().admin().indices().preparePutWarmer("warmer2").setSearchRequest(client().prepareSearch().setIndices().setQuery(QueryBuilders.matchAllQuery())), false);
-        
+
         assertThat(client().admin().indices().prepareGetWarmers("foo").setWarmers("warmer2").get().getWarmers().size(), equalTo(1));
         assertThat(client().admin().indices().prepareGetWarmers("foobar").setWarmers("warmer2").get().getWarmers().size(), equalTo(1));
         assertThat(client().admin().indices().prepareGetWarmers("bar").setWarmers("warmer2").get().getWarmers().size(), equalTo(1));
         assertThat(client().admin().indices().prepareGetWarmers("barbaz").setWarmers("warmer2").get().getWarmers().size(), equalTo(1));
-        
+
     }
 
     @Test
@@ -715,7 +715,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         assertThat(client().admin().indices().prepareAliasesExist("foobar_alias").setIndices("foobar").get().exists(), equalTo(true));
 
     }
-    
+
     @Test
     public void testPutAlias_wildcard() throws Exception {
         createIndex("foo", "foobar", "bar", "barbaz");
@@ -732,7 +732,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         assertThat(client().admin().indices().prepareAliasesExist("foobar_alias").setIndices("foobar").get().exists(), equalTo(true));
         assertThat(client().admin().indices().prepareAliasesExist("foobar_alias").setIndices("bar").get().exists(), equalTo(true));
         assertThat(client().admin().indices().prepareAliasesExist("foobar_alias").setIndices("barbaz").get().exists(), equalTo(true));
-        
+
     }
     @Test
     public void testDeleteMapping_typeWildcard() throws Exception {
@@ -742,14 +742,14 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         assertAcked(prepareCreate("foobar").addMapping("type2", "field", "type=string"));
         assertAcked(prepareCreate("bar").addMapping("type3", "field", "type=string"));
         assertAcked(prepareCreate("barbaz").addMapping("type4", "field", "type=string"));
-        
+
         ensureGreen();
 
         assertThat(client().admin().indices().prepareTypesExists("foo").setTypes("type1").get().isExists(), equalTo(true));
         assertThat(client().admin().indices().prepareTypesExists("foobar").setTypes("type2").get().isExists(), equalTo(true));
         assertThat(client().admin().indices().prepareTypesExists("bar").setTypes("type3").get().isExists(), equalTo(true));
         assertThat(client().admin().indices().prepareTypesExists("barbaz").setTypes("type4").get().isExists(), equalTo(true));
-        
+
         verify(client().admin().indices().prepareDeleteMapping("foo*").setType("type*"), false);
         assertThat(client().admin().indices().prepareTypesExists("foo").setTypes("type1").get().isExists(), equalTo(false));
         assertThat(client().admin().indices().prepareTypesExists("foobar").setTypes("type2").get().isExists(), equalTo(false));
@@ -849,7 +849,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         assertThat(client().admin().indices().prepareGetMappings("foobar").get().mappings().get("foobar").get("type3"), notNullValue());
         assertThat(client().admin().indices().prepareGetMappings("bar").get().mappings().get("bar").get("type3"), notNullValue());
         assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type3"), notNullValue());
-        
+
 
         verify(client().admin().indices().preparePutMapping("c*").setType("type1").setSource("field", "type=string"), true);
 
@@ -1003,7 +1003,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
     private static void verify(ActionRequestBuilder requestBuilder, boolean fail) {
         verify(requestBuilder, fail, 0);
     }
-    
+
     private static void verify(ActionRequestBuilder requestBuilder, boolean fail, long expectedCount) {
         if (fail) {
             if (requestBuilder instanceof MultiSearchRequestBuilder) {

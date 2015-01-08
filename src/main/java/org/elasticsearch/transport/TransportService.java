@@ -23,10 +23,16 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
+import org.elasticsearch.cluster.settings.DynamicSettings;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.metrics.MeanMetric;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -34,9 +40,9 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -75,6 +81,17 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     private final TransportService.Adapter adapter = new Adapter();
 
+    // tracer log
+
+    public static final String SETTING_TRACE_LOG_INCLUDE = "transport.tracer.include";
+    public static final String SETTING_TRACE_LOG_EXCLUDE = "transport.tracer.exclude";
+
+    private final ESLogger tracerLog;
+
+    volatile String[] tracerLogInclude;
+    volatile String[] tracelLogExclude;
+    private final ApplySettings settingsListener = new ApplySettings();
+
     public TransportService(Transport transport, ThreadPool threadPool) {
         this(EMPTY_SETTINGS, transport, threadPool);
     }
@@ -84,6 +101,41 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         super(settings);
         this.transport = transport;
         this.threadPool = threadPool;
+        this.tracerLogInclude = settings.getAsArray(SETTING_TRACE_LOG_INCLUDE, Strings.EMPTY_ARRAY, true);
+        this.tracelLogExclude = settings.getAsArray(SETTING_TRACE_LOG_EXCLUDE, new String[]{"internal:discovery/zen/fd*"}, true);
+        tracerLog = Loggers.getLogger(logger, ".tracer");
+    }
+
+    // These need to be optional as they don't exist in the context of a transport client
+    @Inject(optional = true)
+    public void setDynamicSettings(NodeSettingsService nodeSettingsService, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
+        dynamicSettings.addDynamicSettings(SETTING_TRACE_LOG_INCLUDE, SETTING_TRACE_LOG_INCLUDE + ".*");
+        dynamicSettings.addDynamicSettings(SETTING_TRACE_LOG_EXCLUDE, SETTING_TRACE_LOG_EXCLUDE + ".*");
+        nodeSettingsService.addListener(settingsListener);
+    }
+
+
+    class ApplySettings implements NodeSettingsService.Listener {
+        @Override
+        public void onRefreshSettings(Settings settings) {
+            String[] newTracerLogInclude = settings.getAsArray(SETTING_TRACE_LOG_INCLUDE, TransportService.this.tracerLogInclude, true);
+            String[] newTracerLogExclude = settings.getAsArray(SETTING_TRACE_LOG_EXCLUDE, TransportService.this.tracelLogExclude, true);
+            if (newTracerLogInclude == TransportService.this.tracerLogInclude && newTracerLogExclude == TransportService.this.tracelLogExclude) {
+                return;
+            }
+            if (Strings.arrayToCommaDelimitedString(newTracerLogInclude).equals(Strings.arrayToCommaDelimitedString(TransportService.this.tracerLogInclude)) &&
+                    Strings.arrayToCommaDelimitedString(newTracerLogExclude).equals(Strings.arrayToCommaDelimitedString(TransportService.this.tracelLogExclude))) {
+                return;
+            }
+            TransportService.this.tracerLogInclude = newTracerLogInclude;
+            TransportService.this.tracelLogExclude = newTracerLogExclude;
+            logger.info("tracer log updated to use include: {}, exclude: {}", newTracerLogInclude, newTracerLogExclude);
+        }
+    }
+
+    // used for testing
+    public void applySettings(Settings settings) {
+        settingsListener.onRefreshSettings(settings);
     }
 
     @Override
@@ -233,6 +285,18 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
     }
 
+    private boolean shouldTraceAction(String action) {
+        if (tracerLogInclude.length > 0) {
+            if (Regex.simpleMatch(tracerLogInclude, action) == false) {
+                return false;
+            }
+        }
+        if (tracelLogExclude.length > 0) {
+            return !Regex.simpleMatch(tracelLogExclude, action);
+        }
+        return true;
+    }
+
     private long newRequestId() {
         return requestIds.getAndIncrement();
     }
@@ -274,6 +338,60 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         @Override
         public void sent(long size) {
             txMetric.inc(size);
+        }
+
+        @Override
+        public void onRequestSent(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) {
+            if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
+                tracerLog.trace("[{}][{}] sent to [{}] (timeout: [{}])", requestId, action, node, options.timeout());
+            }
+        }
+
+        @Override
+        public void onResponseSent(long requestId, String action, TransportResponse response, TransportResponseOptions options) {
+            if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
+                tracerLog.trace("[{}][{}] sent response", requestId, action);
+            }
+        }
+
+        @Override
+        public void onResponseSent(long requestId, String action, Throwable t) {
+            if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
+                tracerLog.trace("[{}][{}] sent error response (error: [{}])", requestId, action, t.getMessage());
+            }
+        }
+
+        @Override
+        public void onResponseReceived(long requestId) {
+            if (tracerLog.isTraceEnabled()) {
+                // try to resolve the request
+                DiscoveryNode sourceNode = null;
+                String action = null;
+                RequestHolder holder = clientHandlers.get(requestId);
+                if (holder != null) {
+                    action = holder.action();
+                    sourceNode = holder.node();
+                } else {
+                    // lets see if its in the timeout holder
+                    TimeoutInfoHolder timeoutInfoHolder = timeoutInfoHandlers.get(requestId);
+                    if (timeoutInfoHolder != null) {
+                        action = holder.action();
+                        sourceNode = holder.node();
+                    }
+                }
+                if (action == null) {
+                    tracerLog.trace("[{}] received response but can't resolve it to a request");
+                } else if (shouldTraceAction(action)) {
+                    tracerLog.trace("[{}][{}] received response from [{}]", requestId, action, sourceNode);
+                }
+            }
+        }
+
+        @Override
+        public void onRequestReceived(long requestId, String action) {
+            if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
+                tracerLog.trace("[{}][{}] received request", requestId, action);
+            }
         }
 
         @Override

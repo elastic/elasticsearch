@@ -108,7 +108,7 @@ public class NettyTransportTests extends ElasticsearchIntegrationTest {
                     protected String handleRequest(Channel channel, StreamInput buffer, long requestId, Version version) throws IOException {
                         final String action = buffer.readString();
 
-                        final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, action, channel, requestId, version);
+                        final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, transportServiceAdapter, action, channel, requestId, version);
                         try {
                             final TransportRequestHandler handler = transportServiceAdapter.handler(action);
                             if (handler == null) {

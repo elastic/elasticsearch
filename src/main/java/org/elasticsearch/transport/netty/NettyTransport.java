@@ -22,7 +22,6 @@ package org.elasticsearch.transport.netty;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-
 import org.elasticsearch.*;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
@@ -700,6 +699,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             ReleaseChannelFutureListener listener = new ReleaseChannelFutureListener(bytes);
             future.addListener(listener);
             addedReleaseListener = true;
+            transportServiceAdapter.onRequestSent(node, requestId, action, request, options);
         } finally {
             if (!addedReleaseListener) {
                 Releasables.close(bStream.bytes());

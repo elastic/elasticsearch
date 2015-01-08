@@ -21,6 +21,7 @@ package org.elasticsearch.benchmark.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.local.LocalTransport;
@@ -71,6 +73,9 @@ public class TransportBenchmark {
 
         Settings settings = ImmutableSettings.settingsBuilder()
                 .build();
+        NodeSettingsService settingsService = new NodeSettingsService(settings);
+        DynamicSettings dynamicSettings = new DynamicSettings();
+
 
         final ThreadPool serverThreadPool = new ThreadPool("server");
         final TransportService serverTransportService = new TransportService(type.newTransport(settings, serverThreadPool), serverThreadPool).start();

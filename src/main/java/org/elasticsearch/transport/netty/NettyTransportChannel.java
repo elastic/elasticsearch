@@ -45,12 +45,14 @@ import java.io.NotSerializableException;
 public class NettyTransportChannel implements TransportChannel {
 
     private final NettyTransport transport;
+    private final TransportServiceAdapter transportServiceAdapter;
     private final Version version;
     private final String action;
     private final Channel channel;
     private final long requestId;
 
-    public NettyTransportChannel(NettyTransport transport, String action, Channel channel, long requestId, Version version) {
+    public NettyTransportChannel(NettyTransport transport, TransportServiceAdapter transportServiceAdapter, String action, Channel channel, long requestId, Version version) {
+        this.transportServiceAdapter = transportServiceAdapter;
         this.version = version;
         this.transport = transport;
         this.action = action;
@@ -98,6 +100,7 @@ public class NettyTransportChannel implements TransportChannel {
             ReleaseChannelFutureListener listener = new ReleaseChannelFutureListener(bytes);
             future.addListener(listener);
             addedReleaseListener = true;
+            transportServiceAdapter.onResponseSent(requestId, action, response, options);
         } finally {
             if (!addedReleaseListener) {
                 Releasables.close(bStream.bytes());
@@ -131,5 +134,6 @@ public class NettyTransportChannel implements TransportChannel {
         ChannelBuffer buffer = bytes.toChannelBuffer();
         NettyHeader.writeHeader(buffer, requestId, status, version);
         channel.write(buffer);
+        transportServiceAdapter.onResponseSent(requestId, action, error);
     }
 }

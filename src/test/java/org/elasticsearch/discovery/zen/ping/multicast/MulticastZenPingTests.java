@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.node.service.NodeService;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -63,6 +65,8 @@ public class MulticastZenPingTests extends ElasticsearchTestCase {
     public void testSimplePings() throws InterruptedException {
         Settings settings = ImmutableSettings.EMPTY;
         settings = buildRandomMulticast(settings);
+        NodeSettingsService settingsService = new NodeSettingsService(settings);
+        DynamicSettings dynamicSettings = new DynamicSettings();
 
         ThreadPool threadPool = new ThreadPool("testSimplePings");
         final ClusterName clusterName = new ClusterName("test");
@@ -136,6 +140,8 @@ public class MulticastZenPingTests extends ElasticsearchTestCase {
     public void testExternalPing() throws Exception {
         Settings settings = ImmutableSettings.EMPTY;
         settings = buildRandomMulticast(settings);
+        NodeSettingsService settingsService = new NodeSettingsService(settings);
+        DynamicSettings dynamicSettings = new DynamicSettings();
 
         final ThreadPool threadPool = new ThreadPool("testExternalPing");
         final ClusterName clusterName = new ClusterName("test");

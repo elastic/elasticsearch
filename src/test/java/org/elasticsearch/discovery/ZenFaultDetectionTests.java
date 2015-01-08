@@ -25,11 +25,13 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.discovery.zen.fd.MasterFaultDetection;
 import org.elasticsearch.discovery.zen.fd.NodesFaultDetection;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.cluster.NoopClusterService;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -104,6 +106,8 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
     }
 
     protected MockTransportService build(Settings settings, Version version) {
+        NodeSettingsService settingsService = new NodeSettingsService(settings);
+        DynamicSettings dynamicSettings = new DynamicSettings();
         MockTransportService transportService = new MockTransportService(ImmutableSettings.EMPTY, new LocalTransport(settings, threadPool, version), threadPool);
         transportService.start();
         return transportService;

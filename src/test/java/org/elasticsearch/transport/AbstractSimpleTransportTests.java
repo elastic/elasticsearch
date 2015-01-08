@@ -20,6 +20,10 @@
 package org.elasticsearch.transport;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.log4j.AppenderSkeleton;
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
+import org.apache.log4j.spi.LoggingEvent;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,8 +41,10 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.transport.TransportRequestOptions.options;
 import static org.hamcrest.Matchers.*;
@@ -64,9 +70,15 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new ThreadPool(getClass().getName());
-        serviceA = build(ImmutableSettings.builder().put("name", "TS_A").build(), version0);
+        serviceA = build(
+                ImmutableSettings.builder().put("name", "TS_A", TransportService.SETTING_TRACE_LOG_INCLUDE, "", TransportService.SETTING_TRACE_LOG_EXCLUDE, "NOTHING").build(),
+                version0
+        );
         nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version0);
-        serviceB = build(ImmutableSettings.builder().put("name", "TS_B").build(), version1);
+        serviceB = build(
+                ImmutableSettings.builder().put("name", "TS_B", TransportService.SETTING_TRACE_LOG_INCLUDE, "", TransportService.SETTING_TRACE_LOG_EXCLUDE, "NOTHING").build(),
+                version1
+        );
         nodeB = new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version1);
 
         // wait till all nodes are properly connected and the event has been sent, so tests in this class
@@ -131,27 +143,27 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
         TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "sayHello",
                 new StringMessageRequest("moshe"), new BaseTransportResponseHandler<StringMessageResponse>() {
-            @Override
-            public StringMessageResponse newInstance() {
-                return new StringMessageResponse();
-            }
+                    @Override
+                    public StringMessageResponse newInstance() {
+                        return new StringMessageResponse();
+                    }
 
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.GENERIC;
+                    }
 
-            @Override
-            public void handleResponse(StringMessageResponse response) {
-                assertThat("hello moshe", equalTo(response.message));
-            }
+                    @Override
+                    public void handleResponse(StringMessageResponse response) {
+                        assertThat("hello moshe", equalTo(response.message));
+                    }
 
-            @Override
-            public void handleException(TransportException exp) {
-                exp.printStackTrace();
-                assertThat("got exception instead of a response: " + exp.getMessage(), false, equalTo(true));
-            }
-        });
+                    @Override
+                    public void handleException(TransportException exp) {
+                        exp.printStackTrace();
+                        assertThat("got exception instead of a response: " + exp.getMessage(), false, equalTo(true));
+                    }
+                });
 
         try {
             StringMessageResponse message = res.get();
@@ -162,27 +174,27 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
         res = serviceB.submitRequest(nodeA, "sayHello",
                 new StringMessageRequest("moshe"), TransportRequestOptions.options().withCompress(true), new BaseTransportResponseHandler<StringMessageResponse>() {
-            @Override
-            public StringMessageResponse newInstance() {
-                return new StringMessageResponse();
-            }
+                    @Override
+                    public StringMessageResponse newInstance() {
+                        return new StringMessageResponse();
+                    }
 
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.GENERIC;
+                    }
 
-            @Override
-            public void handleResponse(StringMessageResponse response) {
-                assertThat("hello moshe", equalTo(response.message));
-            }
+                    @Override
+                    public void handleResponse(StringMessageResponse response) {
+                        assertThat("hello moshe", equalTo(response.message));
+                    }
 
-            @Override
-            public void handleException(TransportException exp) {
-                exp.printStackTrace();
-                assertThat("got exception instead of a response: " + exp.getMessage(), false, equalTo(true));
-            }
-        });
+                    @Override
+                    public void handleException(TransportException exp) {
+                        exp.printStackTrace();
+                        assertThat("got exception instead of a response: " + exp.getMessage(), false, equalTo(true));
+                    }
+                });
 
         try {
             StringMessageResponse message = res.get();
@@ -220,26 +232,26 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
         TransportFuture<TransportResponse.Empty> res = serviceB.submitRequest(nodeA, "sayHello",
                 TransportRequest.Empty.INSTANCE, TransportRequestOptions.options().withCompress(true), new BaseTransportResponseHandler<TransportResponse.Empty>() {
-            @Override
-            public TransportResponse.Empty newInstance() {
-                return TransportResponse.Empty.INSTANCE;
-            }
+                    @Override
+                    public TransportResponse.Empty newInstance() {
+                        return TransportResponse.Empty.INSTANCE;
+                    }
 
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.GENERIC;
+                    }
 
-            @Override
-            public void handleResponse(TransportResponse.Empty response) {
-            }
+                    @Override
+                    public void handleResponse(TransportResponse.Empty response) {
+                    }
 
-            @Override
-            public void handleException(TransportException exp) {
-                exp.printStackTrace();
-                assertThat("got exception instead of a response: " + exp.getMessage(), false, equalTo(true));
-            }
-        });
+                    @Override
+                    public void handleException(TransportException exp) {
+                        exp.printStackTrace();
+                        assertThat("got exception instead of a response: " + exp.getMessage(), false, equalTo(true));
+                    }
+                });
 
         try {
             TransportResponse.Empty message = res.get();
@@ -278,27 +290,27 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
         TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "sayHello",
                 new StringMessageRequest("moshe"), TransportRequestOptions.options().withCompress(true), new BaseTransportResponseHandler<StringMessageResponse>() {
-            @Override
-            public StringMessageResponse newInstance() {
-                return new StringMessageResponse();
-            }
+                    @Override
+                    public StringMessageResponse newInstance() {
+                        return new StringMessageResponse();
+                    }
 
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.GENERIC;
+                    }
 
-            @Override
-            public void handleResponse(StringMessageResponse response) {
-                assertThat("hello moshe", equalTo(response.message));
-            }
+                    @Override
+                    public void handleResponse(StringMessageResponse response) {
+                        assertThat("hello moshe", equalTo(response.message));
+                    }
 
-            @Override
-            public void handleException(TransportException exp) {
-                exp.printStackTrace();
-                assertThat("got exception instead of a response: " + exp.getMessage(), false, equalTo(true));
-            }
-        });
+                    @Override
+                    public void handleException(TransportException exp) {
+                        exp.printStackTrace();
+                        assertThat("got exception instead of a response: " + exp.getMessage(), false, equalTo(true));
+                    }
+                });
 
         try {
             StringMessageResponse message = res.get();
@@ -332,26 +344,26 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
         TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "sayHelloException",
                 new StringMessageRequest("moshe"), new BaseTransportResponseHandler<StringMessageResponse>() {
-            @Override
-            public StringMessageResponse newInstance() {
-                return new StringMessageResponse();
-            }
+                    @Override
+                    public StringMessageResponse newInstance() {
+                        return new StringMessageResponse();
+                    }
 
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.GENERIC;
+                    }
 
-            @Override
-            public void handleResponse(StringMessageResponse response) {
-                assertThat("got response instead of exception", false, equalTo(true));
-            }
+                    @Override
+                    public void handleResponse(StringMessageResponse response) {
+                        assertThat("got response instead of exception", false, equalTo(true));
+                    }
 
-            @Override
-            public void handleException(TransportException exp) {
-                assertThat("bad message !!!", equalTo(exp.getCause().getMessage()));
-            }
-        });
+                    @Override
+                    public void handleException(TransportException exp) {
+                        assertThat("bad message !!!", equalTo(exp.getCause().getMessage()));
+                    }
+                });
 
         try {
             res.txGet();
@@ -449,26 +461,26 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
         TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "sayHelloTimeoutNoResponse",
                 new StringMessageRequest("moshe"), options().withTimeout(100), new BaseTransportResponseHandler<StringMessageResponse>() {
-            @Override
-            public StringMessageResponse newInstance() {
-                return new StringMessageResponse();
-            }
+                    @Override
+                    public StringMessageResponse newInstance() {
+                        return new StringMessageResponse();
+                    }
 
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.GENERIC;
+                    }
 
-            @Override
-            public void handleResponse(StringMessageResponse response) {
-                assertThat("got response instead of exception", false, equalTo(true));
-            }
+                    @Override
+                    public void handleResponse(StringMessageResponse response) {
+                        assertThat("got response instead of exception", false, equalTo(true));
+                    }
 
-            @Override
-            public void handleException(TransportException exp) {
-                assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
-            }
-        });
+                    @Override
+                    public void handleException(TransportException exp) {
+                        assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
+                    }
+                });
 
         try {
             StringMessageResponse message = res.txGet();
@@ -512,28 +524,28 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
         final CountDownLatch latch = new CountDownLatch(1);
         TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "sayHelloTimeoutDelayedResponse",
                 new StringMessageRequest("300ms"), options().withTimeout(100), new BaseTransportResponseHandler<StringMessageResponse>() {
-            @Override
-            public StringMessageResponse newInstance() {
-                return new StringMessageResponse();
-            }
+                    @Override
+                    public StringMessageResponse newInstance() {
+                        return new StringMessageResponse();
+                    }
 
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.GENERIC;
+                    }
 
-            @Override
-            public void handleResponse(StringMessageResponse response) {
-                latch.countDown();
-                assertThat("got response instead of exception", false, equalTo(true));
-            }
+                    @Override
+                    public void handleResponse(StringMessageResponse response) {
+                        latch.countDown();
+                        assertThat("got response instead of exception", false, equalTo(true));
+                    }
 
-            @Override
-            public void handleException(TransportException exp) {
-                latch.countDown();
-                assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
-            }
-        });
+                    @Override
+                    public void handleException(TransportException exp) {
+                        latch.countDown();
+                        assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
+                    }
+                });
 
         try {
             StringMessageResponse message = res.txGet();
@@ -548,27 +560,27 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
             // now, try and send another request, this times, with a short timeout
             res = serviceB.submitRequest(nodeA, "sayHelloTimeoutDelayedResponse",
                     new StringMessageRequest(counter + "ms"), options().withTimeout(3000), new BaseTransportResponseHandler<StringMessageResponse>() {
-                @Override
-                public StringMessageResponse newInstance() {
-                    return new StringMessageResponse();
-                }
+                        @Override
+                        public StringMessageResponse newInstance() {
+                            return new StringMessageResponse();
+                        }
 
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.GENERIC;
-                }
+                        @Override
+                        public String executor() {
+                            return ThreadPool.Names.GENERIC;
+                        }
 
-                @Override
-                public void handleResponse(StringMessageResponse response) {
-                    assertThat("hello " + counter + "ms", equalTo(response.message));
-                }
+                        @Override
+                        public void handleResponse(StringMessageResponse response) {
+                            assertThat("hello " + counter + "ms", equalTo(response.message));
+                        }
 
-                @Override
-                public void handleException(TransportException exp) {
-                    exp.printStackTrace();
-                    assertThat("got exception instead of a response for " + counter + ": " + exp.getDetailedMessage(), false, equalTo(true));
-                }
-            });
+                        @Override
+                        public void handleException(TransportException exp) {
+                            exp.printStackTrace();
+                            assertThat("got exception instead of a response for " + counter + ": " + exp.getDetailedMessage(), false, equalTo(true));
+                        }
+                    });
 
             StringMessageResponse message = res.txGet();
             assertThat(message.message, equalTo("hello " + counter + "ms"));
@@ -576,6 +588,176 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
         serviceA.removeHandler("sayHelloTimeoutDelayedResponse");
     }
+
+
+    @Test
+    public void testTracerLog() throws InterruptedException {
+        TransportRequestHandler handler = new BaseTransportRequestHandler<StringMessageRequest>() {
+            @Override
+            public StringMessageRequest newInstance() {
+                return new StringMessageRequest("");
+            }
+
+            @Override
+            public void messageReceived(StringMessageRequest request, TransportChannel channel) throws Exception {
+                channel.sendResponse(new StringMessageResponse(""));
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+        };
+
+        TransportRequestHandler handlerWithError = new BaseTransportRequestHandler<StringMessageRequest>() {
+            @Override
+            public StringMessageRequest newInstance() {
+                return new StringMessageRequest("");
+            }
+
+            @Override
+            public void messageReceived(StringMessageRequest request, TransportChannel channel) throws Exception {
+                channel.sendResponse(new RuntimeException(""));
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+        };
+
+        final Semaphore requestCompleted = new Semaphore(0);
+        TransportResponseHandler noopResponseHandler = new BaseTransportResponseHandler<StringMessageResponse>() {
+
+            @Override
+            public StringMessageResponse newInstance() {
+                return new StringMessageResponse();
+            }
+
+            @Override
+            public void handleResponse(StringMessageResponse response) {
+                requestCompleted.release();
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                requestCompleted.release();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+        };
+
+        serviceA.registerHandler("test", handler);
+        serviceA.registerHandler("testError", handlerWithError);
+        serviceB.registerHandler("test", handler);
+        serviceB.registerHandler("testError", handlerWithError);
+
+        TracerLogAppender mockAppender = new TracerLogAppender();
+        Logger rootLogger = Logger.getRootLogger();
+        Level savedLevel = rootLogger.getLevel();
+        rootLogger.addAppender(mockAppender);
+        rootLogger.setLevel(Level.TRACE);
+
+        try {
+            serviceA.sendRequest(nodeB, "test", new StringMessageRequest(""), noopResponseHandler);
+            requestCompleted.acquire();
+            assertThat("didn't see request sent", mockAppender.sawRequestSent, equalTo(true));
+            assertThat("didn't see request received", mockAppender.sawRequestReceived, equalTo(true));
+            assertThat("didn't see response sent", mockAppender.sawResponseSent, equalTo(true));
+            assertThat("didn't see response received", mockAppender.sawResponseReceived, equalTo(true));
+            assertThat("saw error sent", mockAppender.sawErrorSent, equalTo(false));
+
+            mockAppender.reset();
+            serviceA.sendRequest(nodeB, "testError", new StringMessageRequest(""), noopResponseHandler);
+            requestCompleted.acquire();
+            assertThat("didn't see request sent", mockAppender.sawRequestSent, equalTo(true));
+            assertThat("didn't see request received", mockAppender.sawRequestReceived, equalTo(true));
+            assertThat("saw response sent", mockAppender.sawResponseSent, equalTo(false));
+            assertThat("didn't see response received", mockAppender.sawResponseReceived, equalTo(true));
+            assertThat("didn't see error sent", mockAppender.sawErrorSent, equalTo(true));
+
+            String includeSettings;
+            String excludeSettings;
+            if (randomBoolean()) {
+                // sometimes leave include empty (default)
+                includeSettings = randomBoolean() ? "*" : "";
+                excludeSettings = "*Error";
+            } else {
+                includeSettings = "test";
+                excludeSettings = "DOESN'T_MATCH";
+            }
+
+            serviceA.applySettings(ImmutableSettings.builder()
+                    .put(TransportService.SETTING_TRACE_LOG_INCLUDE, includeSettings, TransportService.SETTING_TRACE_LOG_EXCLUDE, excludeSettings)
+                    .build());
+
+            mockAppender.reset();
+            serviceA.sendRequest(nodeB, "test", new StringMessageRequest(""), noopResponseHandler);
+            requestCompleted.acquire();
+            assertThat("didn't see request sent", mockAppender.sawRequestSent, equalTo(true));
+            assertThat("didn't see request received", mockAppender.sawRequestReceived, equalTo(true));
+            assertThat("didn't see response sent", mockAppender.sawResponseSent, equalTo(true));
+            assertThat("didn't see response received", mockAppender.sawResponseReceived, equalTo(true));
+            assertThat("saw error sent", mockAppender.sawErrorSent, equalTo(false));
+
+            mockAppender.reset();
+            serviceA.sendRequest(nodeB, "testError", new StringMessageRequest(""), noopResponseHandler);
+            requestCompleted.acquire();
+            assertThat("saw request sent", mockAppender.sawRequestSent, equalTo(false));
+            assertThat("didn't see request received", mockAppender.sawRequestReceived, equalTo(true));
+            assertThat("saw response sent", mockAppender.sawResponseSent, equalTo(false));
+            assertThat("saw response received", mockAppender.sawResponseReceived, equalTo(false));
+            assertThat("didn't see error sent", mockAppender.sawErrorSent, equalTo(true));
+
+
+        } finally {
+            rootLogger.removeAppender(mockAppender);
+            rootLogger.setLevel(savedLevel);
+        }
+
+    }
+
+    private static class TracerLogAppender extends AppenderSkeleton {
+        public boolean sawRequestSent;
+        public boolean sawRequestReceived;
+        public boolean sawResponseSent;
+        public boolean sawErrorSent;
+        public boolean sawResponseReceived;
+
+        @Override
+        protected void append(LoggingEvent event) {
+            String message = event.getMessage().toString();
+            if (event.getLevel() == Level.TRACE && event.getLoggerName().endsWith("transport.tracer")) {
+                sawRequestSent |= Pattern.matches("\\[.*\\]\\[.*\\] sent to \\[.*", message);
+                sawRequestReceived |= Pattern.matches("\\[.*\\]\\[.*\\] received request", message);
+                sawResponseSent |= Pattern.matches("\\[.*\\]\\[.*\\] sent response", message);
+                sawErrorSent |= Pattern.matches("\\[.*\\]\\[.*\\] sent error response.*", message);
+                sawResponseReceived |= Pattern.matches("\\[.*\\]\\[.*\\] received response from \\[.*", message);
+            }
+
+        }
+
+        @Override
+        public boolean requiresLayout() {
+            return false;
+        }
+
+        @Override
+        public void close() {
+        }
+
+        public void reset() {
+            sawRequestSent = false;
+            sawRequestReceived = false;
+            sawResponseSent = false;
+            sawErrorSent = false;
+            sawResponseReceived = false;
+        }
+    }
+
 
     static class StringMessageRequest extends TransportRequest {
 

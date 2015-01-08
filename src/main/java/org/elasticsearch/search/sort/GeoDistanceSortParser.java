@@ -21,8 +21,7 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -157,12 +156,13 @@ public class GeoDistanceSortParser implements SortParser {
 
         final Nested nested;
         if (nestedHelper != null && nestedHelper.getPath() != null) {
+            
             BitDocIdSetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE);
-            BitDocIdSetFilter innerDocumentsFilter;
+            Filter innerDocumentsFilter;
             if (nestedHelper.filterFound()) {
-                innerDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(nestedHelper.getInnerFilter());
+                innerDocumentsFilter = context.filterCache().cache(nestedHelper.getInnerFilter(), null, context.queryParserService().autoFilterCachePolicy());
             } else {
-                innerDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(nestedHelper.getNestedObjectMapper().nestedTypeFilter());
+                innerDocumentsFilter = context.filterCache().cache(nestedHelper.getNestedObjectMapper().nestedTypeFilter(), null, context.queryParserService().autoFilterCachePolicy());
             }
             nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
         } else {
@@ -188,7 +188,7 @@ public class GeoDistanceSortParser implements SortParser {
                             selectedValues = finalSortMode.select(distanceValues, Double.MAX_VALUE);
                         } else {
                             final BitSet rootDocs = nested.rootDocs(context).bits();
-                            final BitSet innerDocs = nested.innerDocs(context).bits();
+                            final DocIdSet innerDocs = nested.innerDocs(context);
                             selectedValues = finalSortMode.select(distanceValues, Double.MAX_VALUE, rootDocs, innerDocs, context.reader().maxDoc());
                         }
                         return selectedValues.getRawDoubleValues();

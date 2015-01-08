@@ -19,15 +19,18 @@
 
 package org.elasticsearch.bwcompat;
 
-import org.apache.lucene.index.IndexFormatTooOldException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.rest.action.admin.indices.upgrade.UpgradeTest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
@@ -84,10 +87,14 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
     }
 
     void assertOldIndexWorks(String index) throws Exception {
-        loadIndex(index);
+        Settings settings = ImmutableSettings.builder()
+            .put(InternalNode.HTTP_ENABLED, true) // for _upgrade
+            .build();
+        loadIndex(index, settings);
         assertBasicSearchWorks();
         assertRealtimeGetWorks();
         assertNewReplicasWork();
+        assertUpgradeWorks();
         unloadIndex();
     }
 
@@ -126,7 +133,9 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
             logger.debug("Creating another node for replica " + i);
             internalCluster().startNode(ImmutableSettings.builder()
                 .put("data.node", true)
-                .put("master.node", false).build());
+                .put("master.node", false)
+                .put(InternalNode.HTTP_ENABLED, true) // for _upgrade
+                .build());
         }
         ensureGreen("test");
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
@@ -137,5 +146,12 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
             .put("number_of_replicas", 0))
             .execute().actionGet());
     }
+    
+    void assertUpgradeWorks() throws Exception {
+        HttpRequestBuilder httpClient = httpClient();
 
+        UpgradeTest.assertNotUpgraded(httpClient, "test");
+        UpgradeTest.runUpgrade(httpClient, "test", "wait_for_completion", "true");
+        UpgradeTest.assertUpgraded(httpClient, "test");
+    }
 }

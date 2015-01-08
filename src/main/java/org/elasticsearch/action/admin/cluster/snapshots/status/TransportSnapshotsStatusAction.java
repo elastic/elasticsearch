@@ -70,7 +70,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
 
     @Override
     protected ClusterBlockException checkBlock(SnapshotsStatusRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override

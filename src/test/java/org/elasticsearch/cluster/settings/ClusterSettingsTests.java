@@ -19,7 +19,9 @@
 
 package org.elasticsearch.cluster.settings;
 
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -28,9 +30,11 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = TEST)
@@ -140,5 +144,40 @@ public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
         assertAcked(response);
         assertThat(response.getTransientSettings().getAsMap().entrySet(), Matchers.emptyIterable());
         assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1l));
+    }
+
+    @Test
+    public void testClusterUpdateSettingsWithBlocks() {
+        String key1 = "cluster.routing.allocation.enable";
+        Settings transientSettings = ImmutableSettings.builder().put(key1, false).build();
+
+        String key2 = "cluster.routing.allocation.node_concurrent_recoveries";
+        Settings persistentSettings = ImmutableSettings.builder().put(key2, "5").build();
+
+        ClusterUpdateSettingsRequestBuilder request = client().admin().cluster().prepareUpdateSettings()
+                                                                                .setTransientSettings(transientSettings)
+                                                                                .setPersistentSettings(persistentSettings);
+
+        // Cluster settings updates are blocked when the cluster is read only
+        try {
+            setClusterReadOnly(true);
+            assertBlocked(request, MetaData.CLUSTER_READ_ONLY_BLOCK);
+
+            // But it's possible to update the settings to update the "cluster.blocks.read_only" setting
+            Settings settings = settingsBuilder().put(MetaData.SETTING_READ_ONLY, false).build();
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
+
+        } finally {
+            setClusterReadOnly(false);
+        }
+
+        // It should work now
+        ClusterUpdateSettingsResponse response = request.execute().actionGet();
+
+        assertAcked(response);
+        assertThat(response.getTransientSettings().get(key1), notNullValue());
+        assertThat(response.getTransientSettings().get(key2), nullValue());
+        assertThat(response.getPersistentSettings().get(key1), nullValue());
+        assertThat(response.getPersistentSettings().get(key2), notNullValue());
     }
 }

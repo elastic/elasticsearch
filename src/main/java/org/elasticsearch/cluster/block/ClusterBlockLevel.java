@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.block;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.Version;
 
 import java.util.EnumSet;
 
@@ -29,9 +30,18 @@ import java.util.EnumSet;
 public enum ClusterBlockLevel {
     READ(0),
     WRITE(1),
-    METADATA(2);
 
-    public static final EnumSet<ClusterBlockLevel> ALL = EnumSet.of(READ, WRITE, METADATA);
+    /**
+     * Since 1.6.0, METADATA has been split into two distincts cluster block levels
+     * @deprecated Use METADATA_READ or METADATA_WRITE instead.
+     */
+    @Deprecated
+    METADATA(2),
+
+    METADATA_READ(3),
+    METADATA_WRITE(4);
+
+    public static final EnumSet<ClusterBlockLevel> ALL = EnumSet.of(READ, WRITE, METADATA_READ, METADATA_WRITE);
     public static final EnumSet<ClusterBlockLevel> READ_WRITE = EnumSet.of(READ, WRITE);
 
     private final int id;
@@ -44,13 +54,35 @@ public enum ClusterBlockLevel {
         return this.id;
     }
 
-    public static ClusterBlockLevel fromId(int id) {
+    /**
+     * Returns the ClusterBlockLevel's id according to a given version, this to ensure backward compatibility.
+     *
+     * @param version the version
+     * @return the ClusterBlockLevel's id
+     */
+    public int toId(Version version) {
+        assert version != null : "Version shouldn't be null";
+        // Since 1.6.0, METADATA has been split into two distincts cluster block levels
+        if (version.before(Version.V_1_6_0)) {
+            if (this == ClusterBlockLevel.METADATA_READ || this == ClusterBlockLevel.METADATA_WRITE) {
+                return ClusterBlockLevel.METADATA.id();
+            }
+        }
+        return id();
+    }
+
+    static EnumSet<ClusterBlockLevel> fromId(int id) {
         if (id == 0) {
-            return READ;
+            return EnumSet.of(READ);
         } else if (id == 1) {
-            return WRITE;
+            return EnumSet.of(WRITE);
         } else if (id == 2) {
-            return METADATA;
+            // Since 1.6.0, METADATA has been split into two distincts cluster block levels
+            return EnumSet.of(METADATA_READ, METADATA_WRITE);
+        } else if (id == 3) {
+            return EnumSet.of(METADATA_READ);
+        } else if (id == 4) {
+            return EnumSet.of(METADATA_WRITE);
         }
         throw new ElasticsearchIllegalArgumentException("No cluster block level matching [" + id + "]");
     }

@@ -64,7 +64,7 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeOpera
 
     @Override
     protected ClusterBlockException checkBlock(DeleteIndexTemplateRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, "");
     }
 
     @Override

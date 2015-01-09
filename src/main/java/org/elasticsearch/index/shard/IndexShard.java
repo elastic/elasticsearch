@@ -904,7 +904,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexShar
     public void updateBufferSize(ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
         Engine engine = engineSafe();
         engine.updateIndexingBufferSize(shardIndexingBufferSize);
-        translog().updateBuffer(shardIndexingBufferSize);
+        translog().updateBuffer(shardTranslogBufferSize);
     }
 
     public void markAsInactive() {

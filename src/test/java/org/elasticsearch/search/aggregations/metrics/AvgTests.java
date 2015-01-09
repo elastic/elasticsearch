@@ -48,7 +48,7 @@ public class AvgTests extends AbstractNumericTests {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
-        Histogram.Bucket bucket = histo.getBucketByKey(1l);
+        Histogram.Bucket bucket = histo.getBuckets().get(1);
         assertThat(bucket, notNullValue());
 
         Avg avg = bucket.getAggregations().get("avg");

@@ -23,16 +23,22 @@ import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.text.StringText;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.AggregationStreams;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Represents a grid of cells where each cell's location is determined by a geohash.
@@ -90,16 +96,13 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation implemen
             this.geohashAsLong = geohashAsLong;
         }
 
-        public String getKey() {
+        @Override
+        public String getKeyAsString() {
             return GeoHashUtils.toString(geohashAsLong);
         }
 
         @Override
-        public Text getKeyAsText() {
-            return new StringText(getKey());
-        }
-
-        public GeoPoint getKeyAsGeoPoint() {
+        public GeoPoint getKey() {
             return GeoHashUtils.decode(geohashAsLong);
         }
 
@@ -136,11 +139,6 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation implemen
         }
 
         @Override
-        public Number getKeyAsNumber() {
-            return geohashAsLong;
-        }
-
-        @Override
         public void readFrom(StreamInput in) throws IOException {
             geohashAsLong = in.readLong();
             docCount = in.readVLong();
@@ -157,7 +155,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation implemen
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(CommonFields.KEY, getKeyAsText());
+            builder.field(CommonFields.KEY, getKeyAsString());
             builder.field(CommonFields.DOC_COUNT, docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
@@ -187,27 +185,6 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation implemen
     public List<GeoHashGrid.Bucket> getBuckets() {
         Object o = buckets;
         return (List<GeoHashGrid.Bucket>) o;
-    }
-
-    @Override
-    public GeoHashGrid.Bucket getBucketByKey(String geohash) {
-        if (bucketMap == null) {
-            bucketMap = new HashMap<>(buckets.size());
-            for (Bucket bucket : buckets) {
-                bucketMap.put(bucket.getKey(), bucket);
-            }
-        }
-        return bucketMap.get(geohash);
-    }
-
-    @Override
-    public GeoHashGrid.Bucket getBucketByKey(Number key) {
-        return getBucketByKey(GeoHashUtils.toString(key.longValue()));
-    }
-
-    @Override
-    public GeoHashGrid.Bucket getBucketByKey(GeoPoint key) {
-        return getBucketByKey(key.geohash());
     }
 
     @Override

@@ -48,11 +48,11 @@ public interface SignificantTerms extends MultiBucketsAggregation, Iterable<Sign
             this.supersetDf = supersetDf;
         }
 
-        public abstract Number getKeyAsNumber();
-
         abstract int compareTerm(SignificantTerms.Bucket other);
 
         public abstract double getSignificanceScore();
+
+        abstract Number getKeyAsNumber();
 
         public long getSubsetDf() {
             return subsetDf;
@@ -75,7 +75,9 @@ public interface SignificantTerms extends MultiBucketsAggregation, Iterable<Sign
     @Override
     List<Bucket> getBuckets();
 
-    @Override
-    Bucket getBucketByKey(String key);
+    /**
+     * Get the bucket for the given term, or null if there is no such bucket.
+     */
+    Bucket getBucketByKey(String term);
 
 }

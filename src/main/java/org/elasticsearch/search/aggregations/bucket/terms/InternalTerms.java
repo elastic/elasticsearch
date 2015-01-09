@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
+
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -32,7 +33,11 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -81,8 +86,6 @@ public abstract class InternalTerms extends InternalMultiBucketAggregation imple
         public Aggregations getAggregations() {
             return aggregations;
         }
-
-        abstract Object getKeyAsObject();
 
         abstract Bucket newBucket(long docCount, InternalAggregations aggs, long docCountError);
 
@@ -141,12 +144,12 @@ public abstract class InternalTerms extends InternalMultiBucketAggregation imple
         if (bucketMap == null) {
             bucketMap = Maps.newHashMapWithExpectedSize(buckets.size());
             for (Bucket bucket : buckets) {
-                bucketMap.put(bucket.getKey(), bucket);
+                bucketMap.put(bucket.getKeyAsString(), bucket);
             }
         }
         return bucketMap.get(term);
     }
-    
+
     public long getDocCountError() {
         return docCountError;
     }
@@ -184,7 +187,7 @@ public abstract class InternalTerms extends InternalMultiBucketAggregation imple
             terms.docCountError = thisAggDocCountError;
             for (Bucket bucket : terms.buckets) {
                 bucket.docCountError = thisAggDocCountError;
-                buckets.put(bucket.getKeyAsObject(), bucket);
+                buckets.put(bucket.getKey(), bucket);
             }
         }
 

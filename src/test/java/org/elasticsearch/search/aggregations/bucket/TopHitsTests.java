@@ -229,7 +229,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
     }
 
     private String key(Terms.Bucket bucket) {
-        return randomBoolean() ? bucket.getKey() : bucket.getKeyAsText().string();
+        return bucket.getKeyAsString();
     }
 
     @Test
@@ -857,7 +857,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
 
         Histogram histogram = searchResponse.getAggregations().get("dates");
         for (int i = 0; i < numArticles; i += 5) {
-            Histogram.Bucket bucket = histogram.getBucketByKey(i);
+            Histogram.Bucket bucket = histogram.getBuckets().get(i / 5);
             assertThat(bucket.getDocCount(), equalTo(5l));
 
             long numNestedDocs = 10 + (5 * i);

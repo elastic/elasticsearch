@@ -23,16 +23,18 @@ import com.google.common.collect.Lists;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.AggregationStreams;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
@@ -110,17 +112,12 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         }
 
         @Override
-        public String getKey() {
+        public String getKeyAsString() {
             return formatter != null ? formatter.format(key) : ValueFormatter.RAW.format(key);
         }
 
         @Override
-        public Text getKeyAsText() {
-            return new StringText(getKey());
-        }
-
-        @Override
-        public Number getKeyAsNumber() {
+        public Object getKey() {
             return key;
         }
 
@@ -157,7 +154,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                 builder.field(CommonFields.KEY_AS_STRING, keyTxt);
             } else {
                 if (keyed) {
-                    builder.startObject(String.valueOf(getKeyAsNumber()));
+                    builder.startObject(String.valueOf(getKey()));
                 } else {
                     builder.startObject();
                 }
@@ -270,22 +267,6 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     @Override
     public List<B> getBuckets() {
         return buckets;
-    }
-
-    @Override
-    public B getBucketByKey(String key) {
-        return getBucketByKey(Long.valueOf(key));
-    }
-
-    @Override
-    public B getBucketByKey(Number key) {
-        if (bucketsMap == null) {
-            bucketsMap = new LongObjectOpenHashMap<>(buckets.size());
-            for (B bucket : buckets) {
-                bucketsMap.put(bucket.key, bucket);
-            }
-        }
-        return bucketsMap.get(key.longValue());
     }
 
     protected Factory<B> getFactory() {

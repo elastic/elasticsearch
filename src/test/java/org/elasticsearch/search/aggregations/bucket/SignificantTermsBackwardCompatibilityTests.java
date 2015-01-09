@@ -27,11 +27,12 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -109,8 +110,8 @@ public class SignificantTermsBackwardCompatibilityTests extends ElasticsearchBac
             assertTrue(aggs.containsKey("sig_terms"));
             SignificantTerms agg = (SignificantTerms) aggs.get("sig_terms");
             assertThat(agg.getBuckets().size(), equalTo(1));
-            String term = agg.iterator().next().getKey();
-            String classTerm = classBucket.getKey();
+            String term = agg.iterator().next().getKeyAsString();
+            String classTerm = classBucket.getKeyAsString();
             assertTrue(term.equals(classTerm));
         }
     }

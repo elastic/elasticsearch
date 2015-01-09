@@ -19,12 +19,8 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.text.BytesText;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -99,11 +95,6 @@ public class SignificantStringTerms extends InternalSignificantTerms {
         }
 
         @Override
-        public Text getKeyAsText() {
-            return new BytesText(new BytesArray(termBytes));
-        }
-
-        @Override
         public Number getKeyAsNumber() {
             // this method is needed for scripted numeric aggregations
             return Double.parseDouble(termBytes.utf8ToString());
@@ -115,8 +106,13 @@ public class SignificantStringTerms extends InternalSignificantTerms {
         }
 
         @Override
-        public String getKey() {
+        public String getKeyAsString() {
             return termBytes.utf8ToString();
+        }
+
+        @Override
+        public String getKey() {
+            return getKeyAsString();
         }
 
         @Override

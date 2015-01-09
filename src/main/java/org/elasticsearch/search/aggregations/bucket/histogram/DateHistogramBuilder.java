@@ -63,7 +63,7 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
     /**
      * Set the interval.
      */
-    public DateHistogramBuilder interval(DateHistogram.Interval interval) {
+    public DateHistogramBuilder interval(DateHistogramInterval interval) {
         this.interval = interval;
         return this;
     }
@@ -71,7 +71,7 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
     /**
      * Set the order by which the buckets will be returned.
      */
-    public DateHistogramBuilder order(DateHistogram.Order order) {
+    public DateHistogramBuilder order(Histogram.Order order) {
         this.order = order;
         return this;
     }

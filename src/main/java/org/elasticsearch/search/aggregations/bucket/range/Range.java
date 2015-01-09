@@ -36,7 +36,7 @@ public interface Range extends MultiBucketsAggregation {
         /**
          * @return  The lower bound of the range
          */
-        Number getFrom();
+        Object getFrom();
 
         /**
          * @return The string value for the lower bound of the range
@@ -46,7 +46,7 @@ public interface Range extends MultiBucketsAggregation {
         /**
          * @return The upper bound of the range (excluding)
          */
-        Number getTo();
+        Object getTo();
 
         /**
          * @return The string value for the upper bound of the range (excluding)
@@ -58,8 +58,5 @@ public interface Range extends MultiBucketsAggregation {
      * Return the buckets of this range aggregation.
      */
     List<? extends Bucket> getBuckets();
-
-    @Override
-    Bucket getBucketByKey(String key);
 
 }

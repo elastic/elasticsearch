@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations;
 
 import com.carrotsearch.hppc.IntIntMap;
 import com.carrotsearch.hppc.IntIntOpenHashMap;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -34,7 +35,9 @@ import org.junit.Test;
 import java.util.Collection;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.missing;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -101,7 +104,7 @@ public class CombiTests extends ElasticsearchIntegrationTest {
         Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(values.size()));
         for (Terms.Bucket bucket : buckets) {
-            values.remove(bucket.getKeyAsNumber().intValue());
+            values.remove(((Number) bucket.getKey()).intValue());
         }
         assertTrue(values.isEmpty());
     }

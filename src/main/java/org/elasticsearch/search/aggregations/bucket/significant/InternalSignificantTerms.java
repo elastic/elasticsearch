@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import com.google.common.collect.Maps;
+
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -27,7 +28,12 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -143,7 +149,7 @@ public abstract class InternalSignificantTerms extends InternalMultiBucketAggreg
         if (bucketMap == null) {
             bucketMap = Maps.newHashMapWithExpectedSize(buckets.size());
             for (Bucket bucket : buckets) {
-                bucketMap.put(bucket.getKey(), bucket);
+                bucketMap.put(bucket.getKeyAsString(), bucket);
             }
         }
         return bucketMap.get(term);
@@ -169,7 +175,7 @@ public abstract class InternalSignificantTerms extends InternalMultiBucketAggreg
                 List<Bucket> existingBuckets = buckets.get(bucket.getKey());
                 if (existingBuckets == null) {
                     existingBuckets = new ArrayList<>(aggregations.size());
-                    buckets.put(bucket.getKey(), existingBuckets);
+                    buckets.put(bucket.getKeyAsString(), existingBuckets);
                 }
                 // Adjust the buckets with the global stats representing the
                 // total size of the pots from which the stats are drawn

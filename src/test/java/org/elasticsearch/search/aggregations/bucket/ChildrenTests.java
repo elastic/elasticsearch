@@ -30,7 +30,12 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -130,7 +135,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
         assertThat(categoryTerms.getBuckets().size(), equalTo(categoryToControl.size()));
         for (Map.Entry<String, Control> entry1 : categoryToControl.entrySet()) {
             Terms.Bucket categoryBucket = categoryTerms.getBucketByKey(entry1.getKey());
-            assertThat(categoryBucket.getKey(), equalTo(entry1.getKey()));
+            assertThat(categoryBucket.getKeyAsString(), equalTo(entry1.getKey()));
             assertThat(categoryBucket.getDocCount(), equalTo((long) entry1.getValue().articleIds.size()));
 
             Children childrenBucket = categoryBucket.getAggregations().get("to_comment");
@@ -143,7 +148,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
             assertThat(commentersTerms.getBuckets().size(), equalTo(entry1.getValue().commenterToCommentId.size()));
             for (Map.Entry<String, Set<String>> entry2 : entry1.getValue().commenterToCommentId.entrySet()) {
                 Terms.Bucket commentBucket = commentersTerms.getBucketByKey(entry2.getKey());
-                assertThat(commentBucket.getKey(), equalTo(entry2.getKey()));
+                assertThat(commentBucket.getKeyAsString(), equalTo(entry2.getKey()));
                 assertThat(commentBucket.getDocCount(), equalTo((long) entry2.getValue().size()));
 
                 TopHits topHits = commentBucket.getAggregations().get("top_comments");
@@ -179,7 +184,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
         }
 
         Terms.Bucket categoryBucket = categoryTerms.getBucketByKey("a");
-        assertThat(categoryBucket.getKey(), equalTo("a"));
+        assertThat(categoryBucket.getKeyAsString(), equalTo("a"));
         assertThat(categoryBucket.getDocCount(), equalTo(3l));
 
         Children childrenBucket = categoryBucket.getAggregations().get("to_comment");
@@ -195,7 +200,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
         assertThat(topHits.getHits().getAt(1).getType(), equalTo("comment"));
 
         categoryBucket = categoryTerms.getBucketByKey("b");
-        assertThat(categoryBucket.getKey(), equalTo("b"));
+        assertThat(categoryBucket.getKeyAsString(), equalTo("b"));
         assertThat(categoryBucket.getDocCount(), equalTo(2l));
 
         childrenBucket = categoryBucket.getAggregations().get("to_comment");
@@ -207,7 +212,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
         assertThat(topHits.getHits().getAt(0).getType(), equalTo("comment"));
 
         categoryBucket = categoryTerms.getBucketByKey("c");
-        assertThat(categoryBucket.getKey(), equalTo("c"));
+        assertThat(categoryBucket.getKeyAsString(), equalTo("c"));
         assertThat(categoryBucket.getDocCount(), equalTo(2l));
 
         childrenBucket = categoryBucket.getAggregations().get("to_comment");

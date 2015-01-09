@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import com.carrotsearch.hppc.LongOpenHashSet;
 import com.carrotsearch.hppc.LongSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -29,21 +30,26 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 
 
@@ -116,13 +122,12 @@ public class MinDocCountTests extends AbstractTermsTests {
         int size2 = 0;
         while (it1.hasNext()) {
             final Terms.Bucket bucket1 = it1.next();
-            if (bucket1.getDocCount() >= minDocCount && (matcher == null || matcher.reset(bucket1.getKey()).matches())) {
+            if (bucket1.getDocCount() >= minDocCount && (matcher == null || matcher.reset(bucket1.getKeyAsString()).matches())) {
                 if (size2++ == size) {
                     break;
                 }
                 assertTrue(it2.hasNext());
                 final Terms.Bucket bucket2 = it2.next();
-                assertEquals(bucket1.getKeyAsText(), bucket2.getKeyAsText());
                 assertEquals(bucket1.getDocCount(), bucket2.getDocCount());
             }
         }
@@ -134,18 +139,7 @@ public class MinDocCountTests extends AbstractTermsTests {
         for (Histogram.Bucket b1 : histo1.getBuckets()) {
             if (b1.getDocCount() >= minDocCount) {
                 final Histogram.Bucket b2 = it2.next();
-                assertEquals(b1.getKeyAsNumber(), b2.getKeyAsNumber());
-                assertEquals(b1.getDocCount(), b2.getDocCount());
-            }
-        }
-    }
-
-    private void assertSubset(DateHistogram histo1, DateHistogram histo2, long minDocCount) {
-        final Iterator<? extends DateHistogram.Bucket> it2 = histo2.getBuckets().iterator();
-        for (DateHistogram.Bucket b1 : histo1.getBuckets()) {
-            if (b1.getDocCount() >= minDocCount) {
-                final DateHistogram.Bucket b2 = it2.next();
-                assertEquals(b1.getKeyAsNumber(), b2.getKeyAsNumber());
+                assertEquals(b1.getKey(), b2.getKey());
                 assertEquals(b1.getDocCount(), b2.getDocCount());
             }
         }
@@ -378,18 +372,18 @@ public class MinDocCountTests extends AbstractTermsTests {
         final SearchResponse allResponse = client().prepareSearch("idx").setTypes("type")
                 .setSearchType(SearchType.COUNT)
                 .setQuery(QUERY)
-                .addAggregation(dateHistogram("histo").field("date").interval(DateHistogram.Interval.DAY).order(order).minDocCount(0))
+                .addAggregation(dateHistogram("histo").field("date").interval(DateHistogramInterval.DAY).order(order).minDocCount(0))
                 .execute().actionGet();
 
-        final DateHistogram allHisto = allResponse.getAggregations().get("histo");
+        final Histogram allHisto = allResponse.getAggregations().get("histo");
 
         for (long minDocCount = 0; minDocCount < 50; ++minDocCount) {
             final SearchResponse response = client().prepareSearch("idx").setTypes("type")
                     .setSearchType(SearchType.COUNT)
                     .setQuery(QUERY)
-                    .addAggregation(dateHistogram("histo").field("date").interval(DateHistogram.Interval.DAY).order(order).minDocCount(minDocCount))
+                    .addAggregation(dateHistogram("histo").field("date").interval(DateHistogramInterval.DAY).order(order).minDocCount(minDocCount))
                     .execute().actionGet();
-            assertSubset(allHisto, (DateHistogram) response.getAggregations().get("histo"), minDocCount);
+            assertSubset(allHisto, (Histogram) response.getAggregations().get("histo"), minDocCount);
         }
 
     }

@@ -78,12 +78,12 @@ public class FieldDataFilterIntegrationTests extends ElasticsearchIntegrationTes
         Aggregations aggs = searchResponse.getAggregations();
         Terms nameAgg = aggs.get("name");
         assertThat(nameAgg.getBuckets().size(), Matchers.equalTo(1));
-        assertThat(nameAgg.getBuckets().iterator().next().getKey(), Matchers.equalTo("bacon"));
+        assertThat(nameAgg.getBuckets().iterator().next().getKeyAsString(), Matchers.equalTo("bacon"));
         
         Terms notFilteredAgg = aggs.get("not_filtered");
         assertThat(notFilteredAgg.getBuckets().size(), Matchers.equalTo(2));
-        assertThat(notFilteredAgg.getBuckets().get(0).getKey(), Matchers.isOneOf("bacon", "bastards"));
-        assertThat(notFilteredAgg.getBuckets().get(1).getKey(), Matchers.isOneOf("bacon", "bastards"));
+        assertThat(notFilteredAgg.getBuckets().get(0).getKeyAsString(), Matchers.isOneOf("bacon", "bastards"));
+        assertThat(notFilteredAgg.getBuckets().get(1).getKeyAsString(), Matchers.isOneOf("bacon", "bastards"));
     }
 
 }

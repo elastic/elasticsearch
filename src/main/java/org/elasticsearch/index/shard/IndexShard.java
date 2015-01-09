@@ -1103,7 +1103,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexShar
                     }
                 }
             } finally {
-                IOUtils.closeWhileHandlingException(engineSafe()); // we need to close ourself - we failed all bets are off
+                // close the engine all bets are off... don't use engineSafe() here it can throw an exception
+                IOUtils.closeWhileHandlingException(currentEngineReference.get());
             }
         }
     }

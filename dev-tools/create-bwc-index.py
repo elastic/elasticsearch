@@ -37,10 +37,6 @@ except ImportError as e:
   print('Can\'t import elasticsearch please install `sudo pip install elasticsearch`')
   sys.exit(1)
 
-BLACK_LIST = {'1.2.0' : { 'reason': 'Contains a major bug where routing hashes are not consistent with previous version',
-                          'issue': 'https://github.com/elasticsearch/elasticsearch/pull/6393'},
-              '1.3.0' : { 'reason': 'Lucene Related bug prevents upgrades from 0.90.7 and some earlier versions ',
-                          'issue' : 'https://github.com/elasticsearch/elasticsearch/pull/7055'}}
 # sometimes returns True
 def rarely():
   return random.randint(0, 10) == 0
@@ -178,12 +174,6 @@ def parse_config():
   parser.add_argument('--http-port', default=9200, type=int,
                       help='The port to use as the minimum port for HTTP communication')
   cfg = parser.parse_args()
-
-  if cfg.version in BLACK_LIST:
-    entry = BLACK_LIST[cfg.version]
-    msg = 'Cannot use version %s\n  reason: %s\n  issue: %s' % \
-          (cfg.version, entry['reason'], entry['issue'])
-    parser.error(msg)
 
   cfg.release_dir = os.path.join(cfg.releases_dir, 'elasticsearch-%s' % cfg.version)
   if not os.path.exists(cfg.release_dir):

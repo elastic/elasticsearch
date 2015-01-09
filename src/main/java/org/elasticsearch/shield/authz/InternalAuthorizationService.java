@@ -10,11 +10,15 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.SearchScrollAction;
+import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestHelper;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.base.Predicates;
 import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -145,22 +149,44 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         assert !indexNames.isEmpty() || request instanceof AnalyzeRequest
                 : "no indices request other than the analyze api has optional indices thus the resolved indices must not be empty";
 
+        if (!authorizeIndices(action, indexNames, permission.indices())) {
+            throw denial(user, action, request);
+        }
+
+        //if we are creating an index we need to authorize potential aliases created at the same time
+        if (Privilege.Index.CREATE_INDEX.predicate().apply(action)) {
+            assert request instanceof CreateIndexRequest;
+            Set<Alias> aliases = CreateIndexRequestHelper.aliases((CreateIndexRequest) request);
+            if (!aliases.isEmpty()) {
+                Set<String> aliasesAndIndices = Sets.newHashSet(indexNames);
+                for (Alias alias : aliases) {
+                    aliasesAndIndices.add(alias.name());
+                }
+                if (!authorizeIndices("indices:admin/aliases", aliasesAndIndices, permission.indices())) {
+                    throw denial(user, "indices:admin/aliases", request);
+                }
+            }
+        }
+
+        grant(user, action, request);
+    }
+
+    private boolean authorizeIndices(String action, Set<String> requestIndices, Permission.Indices permission) {
         // now... every index that is associated with the request, must be granted
         // by at least one indices permission group
-        for (String index : indexNames) {
+        for (String index : requestIndices) {
             boolean granted = false;
-            for (Permission.Indices.Group group : permission.indices()) {
+            for (Permission.Indices.Group group : permission) {
                 if (group.check(action, index)) {
                     granted = true;
                     break;
                 }
             }
             if (!granted) {
-                throw denial(user, action, request);
+                return false;
             }
         }
-
-        grant(user, action, request);
+        return true;
     }
 
     private Permission.Global permission(User user) {

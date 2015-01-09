@@ -91,7 +91,7 @@ public class PrivilegeTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testCluster_InvalidNaem() throws Exception {
+    public void testCluster_InvalidName() throws Exception {
         thrown.expect(ElasticsearchIllegalArgumentException.class);
         Privilege.Name actionName = new Privilege.Name("foobar");
         Privilege.Cluster.get(actionName);

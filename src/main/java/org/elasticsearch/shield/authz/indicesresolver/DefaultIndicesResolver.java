@@ -9,10 +9,11 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.Sets;
+import org.elasticsearch.common.collect.*;
+import org.elasticsearch.common.hppc.ObjectLookupContainer;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
@@ -65,54 +66,84 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
         if (indicesRequest.indicesOptions().expandWildcardsOpen() || indicesRequest.indicesOptions().expandWildcardsClosed()) {
             if (indicesRequest instanceof IndicesRequest.Replaceable) {
                 ImmutableList<String> authorizedIndices = authzService.authorizedIndicesAndAliases(user, action);
-                List<String> indices = replaceWildcardsWithAuthorizedIndices(indicesRequest, metaData, authorizedIndices);
-                //ignore the IndicesOptions#allowNoIndices and just throw exception if the wildcards expansion to authorized
-                //indices resulted in no indices. This is important as we always need to replace wildcards for security reason,
-                //to make sure that the operation is executed on the indices that we authorized it to execute on.
-                //If we can't replace because we got an empty set, we can only throw exception.
-                //Downside of this is that a single item exception is going to make fail the composite request that holds it as a whole.
-                if (indices == null || indices.isEmpty()) {
-                    if (MetaData.isAllIndices(indicesRequest.indices())) {
-                        throw new IndexMissingException(new Index(MetaData.ALL));
-                    }
-                    throw new IndexMissingException(new Index(Arrays.toString(indicesRequest.indices())));
-                }
+                List<String> indices = replaceWildcardsWithAuthorizedIndices(indicesRequest.indices(), indicesRequest.indicesOptions(), metaData, authorizedIndices);
                 ((IndicesRequest.Replaceable) indicesRequest).indices(indices.toArray(new String[indices.size()]));
                 return Sets.newHashSet(indices);
             }
 
-            if (containsWildcards(indicesRequest)) {
-                //used for requests that support wildcards but don't allow to replace their indices (e.g. IndicesAliasesRequest)
-                //potentially insecure as cluster state may change hence we may end up resolving to different indices on different nodes
-                assert indicesRequest instanceof IndicesAliasesRequest
-                        : "IndicesAliasesRequest is the only request known to support wildcards that doesn't support replacing its indices";
-                return Sets.newHashSet(explodeWildcards(indicesRequest, metaData));
-            }
+            assert indicesRequest instanceof IndicesAliasesRequest || !containsWildcards(indicesRequest) :
+                    "IndicesAliasesRequest is the only external request known to support wildcards that doesn't support replacing its indices";
+
             //NOTE: shard level requests do support wildcards (as they hold the original indices options) but don't support replacing their indices.
             //That is fine though because they never contain wildcards, as they get replaced as part of the authorization of their
-            //corresponding parent request on the coordinating node. Hence wildcards don't get replaced nor exploded for shard level requests.
+            //corresponding parent request on the coordinating node. Hence wildcards don't need to get replaced nor exploded for shard level requests.
         }
+
+        if (indicesRequest instanceof IndicesAliasesRequest) {
+            //special treatment for IndicesAliasesRequest since we need to extract indices from indices() as well as aliases()
+            //Also, we need to replace wildcards in both with authorized indices and/or aliases (IndicesAliasesRequest doesn't implement Replaceable)
+            IndicesAliasesRequest request = (IndicesAliasesRequest) indicesRequest;
+
+            ImmutableList<String> authorizedIndices = authzService.authorizedIndicesAndAliases(user, action);
+            Set<String> finalIndices = Sets.newHashSet();
+
+            List<String> authorizedAliases = null;
+
+            for (IndicesAliasesRequest.AliasActions aliasActions : request.getAliasActions()) {
+                //replace indices with authorized ones if needed
+                if (indicesRequest.indicesOptions().expandWildcardsOpen() || indicesRequest.indicesOptions().expandWildcardsClosed()) {
+                    //Note: the indices that the alias operation maps to might end up containing aliases, since authorized indices can also be aliases.
+                    //This is fine as es core resolves them to concrete indices anyway before executing the actual operation.
+                    //Also es core already allows to specify aliases among indices, they will just be resolved (alias to alias is not supported).
+                    //e.g. index: foo* gets resolved in core to anything that matches the expression, aliases included, hence their corresponding indices.
+                    List<String> indices = replaceWildcardsWithAuthorizedIndices(aliasActions.indices(), indicesRequest.indicesOptions(), metaData, authorizedIndices);
+                    aliasActions.indices(indices.toArray(new String[indices.size()]));
+                }
+                Collections.addAll(finalIndices, aliasActions.indices());
+
+                //replace aliases with authorized ones if needed
+                if (aliasActions.actionType() == AliasAction.Type.REMOVE) {
+                    //lazily initialize a list of all the authorized aliases (filtering concrete indices out)
+                    if (authorizedAliases == null) {
+                        authorizedAliases = Lists.newArrayList();
+                        ObjectLookupContainer<String> existingAliases = metaData.aliases().keys();
+                        for (String authorizedIndex : authorizedIndices) {
+                            if (existingAliases.contains(authorizedIndex)) {
+                                authorizedAliases.add(authorizedIndex);
+                            }
+                        }
+                    }
+
+                    List<String> finalAliases = Lists.newArrayList();
+                    for (String aliasPattern : aliasActions.aliases()) {
+                        if (aliasPattern.equals(MetaData.ALL)) {
+                            finalAliases.addAll(authorizedAliases);
+                        } else if (Regex.isSimpleMatchPattern(aliasPattern)) {
+                            for (String authorizedAlias : authorizedAliases) {
+                                if (Regex.simpleMatch(aliasPattern, authorizedAlias)) {
+                                    finalAliases.add(authorizedAlias);
+                                }
+                            }
+                        } else {
+                            finalAliases.add(aliasPattern);
+                        }
+                    }
+
+                    //throw exception if the wildcards expansion to authorized aliases resulted in no indices.
+                    // This is important as we always need to replace wildcards for security reason,
+                    //to make sure that the operation is executed on the aliases that we authorized it to execute on.
+                    //If we can't replace because we got an empty set, we can only throw exception.
+                    if (finalAliases.isEmpty()) {
+                        throw new IndexMissingException(new Index(Arrays.toString(aliasActions.aliases())));
+                    }
+                    aliasActions.aliases(finalAliases.toArray(new String[finalAliases.size()]));
+                }
+                Collections.addAll(finalIndices, aliasActions.aliases());
+            }
+            return finalIndices;
+        }
+
         return Sets.newHashSet(indicesRequest.indices());
-    }
-
-    /*
-     * Explodes wildcards based on default core behaviour. Used for IndicesAliasesRequest only as it doesn't support
-     * replacing its indices. It will go away once that gets fixed.
-     */
-    private String[] explodeWildcards(IndicesRequest indicesRequest, MetaData metaData) {
-        //note that "_all" will map to concrete indices only, as the same happens in core
-        //which is different from "*" as the latter expands to all indices and aliases
-        if (MetaData.isAllIndices(indicesRequest.indices())) {
-            if (indicesRequest.indicesOptions().expandWildcardsOpen() && indicesRequest.indicesOptions().expandWildcardsClosed()) {
-                return metaData.concreteAllIndices();
-            }
-            if (indicesRequest.indicesOptions().expandWildcardsOpen()) {
-                return metaData.concreteAllOpenIndices();
-            }
-            return metaData.concreteAllClosedIndices();
-
-        }
-        return metaData.convertFromWildcards(indicesRequest.indices(), indicesRequest.indicesOptions());
     }
 
     private boolean containsWildcards(IndicesRequest indicesRequest) {
@@ -127,22 +158,22 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
         return false;
     }
 
-    private List<String> replaceWildcardsWithAuthorizedIndices(IndicesRequest indicesRequest, MetaData metaData, List<String> authorizedIndices) {
+    private List<String> replaceWildcardsWithAuthorizedIndices(String[] indices, IndicesOptions indicesOptions, MetaData metaData, List<String> authorizedIndices) {
 
-        if (MetaData.isAllIndices(indicesRequest.indices())) {
+        if (MetaData.isAllIndices(indices)) {
             List<String> visibleIndices = new ArrayList<>();
             for (String authorizedIndex : authorizedIndices) {
-                if (isIndexVisible(authorizedIndex, indicesRequest.indicesOptions(), metaData)) {
+                if (isIndexVisible(authorizedIndex, indicesOptions, metaData)) {
                     visibleIndices.add(authorizedIndex);
                 }
             }
-            return visibleIndices;
+            return throwExceptionIfNoIndicesWereResolved(indices, visibleIndices);
         }
 
         //the order matters when it comes to + and - (see MetaData#convertFromWildcards)
         List<String> finalIndices = new ArrayList<>();
-        for (int i = 0; i < indicesRequest.indices().length; i++) {
-            String index = indicesRequest.indices()[i];
+        for (int i = 0; i < indices.length; i++) {
+            String index = indices[i];
             String aliasOrIndex;
             boolean minus = false;
             if (index.charAt(0) == '+') {
@@ -152,7 +183,7 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
                     //mimic the MetaData#convertFromWilcards behaviour with "-index" syntax
                     //but instead of adding all the indices, add only the ones that the user is authorized for
                     for (String authorizedIndex : authorizedIndices) {
-                        if (isIndexVisible(authorizedIndex, indicesRequest.indicesOptions(), metaData)) {
+                        if (isIndexVisible(authorizedIndex, indicesOptions, metaData)) {
                             finalIndices.add(authorizedIndex);
                         }
                     }
@@ -169,7 +200,7 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
                         if (minus) {
                             finalIndices.remove(authorizedIndex);
                         } else {
-                            if (isIndexVisible(authorizedIndex, indicesRequest.indicesOptions(), metaData)) {
+                            if (isIndexVisible(authorizedIndex, indicesOptions, metaData)) {
                                 finalIndices.add(authorizedIndex);
                             }
                         }
@@ -188,7 +219,22 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
             }
         }
 
-        return finalIndices;
+        return throwExceptionIfNoIndicesWereResolved(indices, finalIndices);
+    }
+
+    private List<String> throwExceptionIfNoIndicesWereResolved(String[] originalIndices, List<String> resolvedIndices) {
+        //ignore the IndicesOptions#allowNoIndices and just throw exception if the wildcards expansion to authorized
+        //indices resulted in no indices. This is important as we always need to replace wildcards for security reason,
+        //to make sure that the operation is executed on the indices that we authorized it to execute on.
+        //If we can't replace because we got an empty set, we can only throw exception.
+        //Downside of this is that a single item exception is going to make fail the composite request that holds it as a whole.
+        if (resolvedIndices == null || resolvedIndices.isEmpty()) {
+            if (MetaData.isAllIndices(originalIndices)) {
+                throw new IndexMissingException(new Index(MetaData.ALL));
+            }
+            throw new IndexMissingException(new Index(Arrays.toString(originalIndices)));
+        }
+        return resolvedIndices;
     }
 
     private static boolean isIndexVisible(String index, IndicesOptions indicesOptions, MetaData metaData) {

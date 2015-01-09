@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.signature.InternalSignatureService;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -75,17 +76,27 @@ public class SystemKeyTool extends CliTool {
         @Override
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
             Path path = this.path;
-            if (path == null) {
-                path = InternalSignatureService.resolveFile(settings, env);
+            try {
+                if (path == null) {
+                    path = InternalSignatureService.resolveFile(settings, env);
+                }
+                terminal.println(Terminal.Verbosity.VERBOSE, "generating...");
+                byte[] key = InternalSignatureService.generateKey();
+                terminal.println("Storing generated key in [%s]...", path.toAbsolutePath());
+                Files.write(path, key, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+            } catch (IOException ioe) {
+                terminal.printError("Cannot generate and save system key file [%s]", path.toAbsolutePath());
+                return ExitStatus.IO_ERROR;
             }
-            terminal.println(Terminal.Verbosity.VERBOSE, "generating...");
-            byte[] key = InternalSignatureService.generateKey();
-            terminal.println("Storing generated key in [%s]", path.toAbsolutePath());
-            Files.write(path, key, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 
             boolean supportsPosixPermissions = Files.getFileStore(path).supportsFileAttributeView(PosixFileAttributeView.class);
             if (supportsPosixPermissions) {
-                Files.setPosixFilePermissions(path, PERMISSION_OWNER_READ_WRITE);
+                try {
+                    Files.setPosixFilePermissions(path, PERMISSION_OWNER_READ_WRITE);
+                } catch (IOException ioe) {
+                    terminal.printError("Cannot set owner read/write permissions to generated system key file [%s]", path.toAbsolutePath());
+                    return ExitStatus.IO_ERROR;
+                }
                 terminal.println("Ensure the generated key can be read by the user that Elasticsearch runs as, permissions are set to owner read/write only");
             }
 

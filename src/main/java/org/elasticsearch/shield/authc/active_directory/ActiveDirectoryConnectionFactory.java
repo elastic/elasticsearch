@@ -85,9 +85,9 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory {
             searchCtls.setSearchScope(SearchControls.SUBTREE_SCOPE);
             searchCtls.setReturningAttributes(Strings.EMPTY_ARRAY);
             searchCtls.setTimeLimit(timeoutMilliseconds);
-            String searchFilter = "(&(objectClass=user)(userPrincipalName={0}))";
+            String searchFilter = "(&(objectClass=user)(|(sAMAccountName={0})(userPrincipalName={1})))";
             try (ClosableNamingEnumeration<SearchResult> results = new ClosableNamingEnumeration(
-                    ctx.search(userSearchDN, searchFilter, new Object[] { userPrincipal }, searchCtls))) {
+                ctx.search(userSearchDN, searchFilter, new Object[] { userName, userPrincipal }, searchCtls))) {
 
                 if(results.hasMore()){
                     SearchResult entry = results.next();

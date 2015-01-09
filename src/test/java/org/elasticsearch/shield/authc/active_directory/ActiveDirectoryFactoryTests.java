@@ -125,6 +125,31 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
     }
 
     @Test @SuppressWarnings("unchecked")
+    public void testAdUpnLogin() {
+        Settings settings = buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com", false);
+        ActiveDirectoryConnectionFactory connectionFactory = new ActiveDirectoryConnectionFactory(settings);
+
+        //Login with the UserPrincipalName
+        String userDN;
+        try (AbstractLdapConnection ldap = connectionFactory.open("erik.selvig", SecuredStringTests.build(PASSWORD))) {
+            List<String> groups = ldap.groups();
+            userDN = ldap.authenticatedUserDn();
+            assertThat(groups, containsInAnyOrder(
+                    containsString("Geniuses"),
+                    containsString("Domain Users")));
+        }
+        //Same user but login with sAMAccountName
+        try (AbstractLdapConnection ldap = connectionFactory.open("selvig", SecuredStringTests.build(PASSWORD))) {
+            assertThat(ldap.authenticatedUserDn(), is(userDN));
+
+            List<String> groups = ldap.groups();
+            assertThat(groups, containsInAnyOrder(
+                    containsString("Geniuses"),
+                    containsString("Domain Users")));
+        }
+    }
+
+    @Test @SuppressWarnings("unchecked")
     public void testAD_standardLdapConnection(){
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";

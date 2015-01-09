@@ -19,6 +19,7 @@
 
 package org.elasticsearch.bwcompat;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -94,8 +95,15 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         assertBasicSearchWorks();
         assertRealtimeGetWorks();
         assertNewReplicasWork();
-        assertUpgradeWorks();
+        assertUpgradeWorks(isLatestLuceneVersion(index));
         unloadIndex();
+    }
+    
+    boolean isLatestLuceneVersion(String index) {
+        String versionStr = index.substring(index.indexOf('-') + 1, index.lastIndexOf('.'));
+        Version version = Version.fromString(versionStr);
+        return version.luceneVersion.major == Version.CURRENT.luceneVersion.major &&
+               version.luceneVersion.minor == Version.CURRENT.luceneVersion.minor;
     }
 
     void assertBasicSearchWorks() {
@@ -147,10 +155,12 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
             .execute().actionGet());
     }
     
-    void assertUpgradeWorks() throws Exception {
+    void assertUpgradeWorks(boolean alreadyLatest) throws Exception {
         HttpRequestBuilder httpClient = httpClient();
 
-        UpgradeTest.assertNotUpgraded(httpClient, "test");
+        if (alreadyLatest == false) {
+            UpgradeTest.assertNotUpgraded(httpClient, "test");
+        }
         UpgradeTest.runUpgrade(httpClient, "test", "wait_for_completion", "true");
         UpgradeTest.assertUpgraded(httpClient, "test");
     }

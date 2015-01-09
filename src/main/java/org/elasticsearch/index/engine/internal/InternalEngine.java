@@ -1010,7 +1010,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
         lastDeleteVersionPruneTimeMSec = timeMSec;
     }
-
+    
     @Override
     public void maybeMerge() throws EngineException {
         if (!possibleMergeNeeded()) {
@@ -1025,7 +1025,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
     }
     
-    private void waitForMerges(boolean flushAfter) {
+    private void waitForMerges(boolean flushAfter, boolean upgrade) {
         try {
             currentIndexWriter().waitForMerges();
         } catch (IOException e) {
@@ -1033,6 +1033,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
         if (flushAfter) {
             flush(new Flush().force(true).waitIfOngoing(true));
+        }
+        if (upgrade) {
+            logger.info("Finished upgrade of " + shardId);
         }
     }
 
@@ -1052,6 +1055,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 MergePolicy mp = writer.getConfig().getMergePolicy();
                 assert mp instanceof ElasticsearchMergePolicy : "MergePolicy is " + mp.getClass().getName();
                 if (optimize.upgrade()) {
+                    logger.info("Starting upgrade of " + shardId);
                     ((ElasticsearchMergePolicy)mp).setUpgradeInProgress(true);
                 }
                 
@@ -1073,14 +1077,16 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         
         // wait for the merges outside of the read lock
         if (optimize.waitForMerge()) {
-            waitForMerges(optimize.flush());
-        } else if (optimize.flush()) {
+            waitForMerges(optimize.flush(), optimize.upgrade());
+        } else if (optimize.flush() || optimize.upgrade()) {
+            final boolean flush = optimize.flush();
+            final boolean upgrade = optimize.upgrade();
             // we only need to monitor merges for async calls if we are going to flush
             threadPool.executor(ThreadPool.Names.OPTIMIZE).execute(new AbstractRunnable() {
                 @Override
                 public void run() {
                     try {
-                        waitForMerges(true);
+                        waitForMerges(flush, upgrade);
                     } catch (Exception e) {
                         logger.error("Exception while waiting for merges asynchronously after optimize", e);
                     }

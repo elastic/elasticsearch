@@ -205,9 +205,10 @@ public class ParentQueryTests extends AbstractChildTests {
             MockScorer mockScorer = new MockScorer(ScoreType.MAX); // just save one score per parent...
             mockScorer.scores = new FloatArrayList();
             TopScoreDocCollector expectedTopDocsCollector = TopScoreDocCollector.create(numHits, false);
-            expectedTopDocsCollector.setScorer(mockScorer);
             if (parentValueToChildIds.containsKey(parentValue)) {
                 LeafReader slowLeafReader = SlowCompositeReaderWrapper.wrap(indexReader);
+                final LeafCollector leafCollector = expectedTopDocsCollector.getLeafCollector(slowLeafReader.getContext());
+                leafCollector.setScorer(mockScorer);
                 Terms terms = slowLeafReader.terms(UidFieldMapper.NAME);
                 if (terms != null) {
                     NavigableMap<String, Float> childIdsAndScore = parentValueToChildIds.lget();
@@ -219,7 +220,7 @@ public class ParentQueryTests extends AbstractChildTests {
                             docsEnum = termsEnum.docs(slowLeafReader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
                             expectedResult.set(docsEnum.nextDoc());
                             mockScorer.scores.add(entry.getValue());
-                            expectedTopDocsCollector.collect(docsEnum.docID());
+                            leafCollector.collect(docsEnum.docID());
                             mockScorer.scores.clear();
                         } else if (seekStatus == TermsEnum.SeekStatus.END) {
                             break;

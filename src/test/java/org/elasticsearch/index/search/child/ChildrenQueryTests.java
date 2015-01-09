@@ -223,9 +223,10 @@ public class ChildrenQueryTests extends AbstractChildTests {
             FixedBitSet expectedResult = new FixedBitSet(indexReader.maxDoc());
             MockScorer mockScorer = new MockScorer(scoreType);
             TopScoreDocCollector expectedTopDocsCollector = TopScoreDocCollector.create(numHits, false);
-            expectedTopDocsCollector.setScorer(mockScorer);
             if (childValueToParentIds.containsKey(childValue)) {
                 LeafReader slowLeafReader = SlowCompositeReaderWrapper.wrap(indexReader);
+                final LeafCollector leafCollector = expectedTopDocsCollector.getLeafCollector(slowLeafReader.getContext());
+                leafCollector.setScorer(mockScorer);
                 Terms terms = slowLeafReader.terms(UidFieldMapper.NAME);
                 if (terms != null) {
                     NavigableMap<String, FloatArrayList> parentIdToChildScores = childValueToParentIds.lget();
@@ -239,7 +240,7 @@ public class ChildrenQueryTests extends AbstractChildTests {
                                 docsEnum = termsEnum.docs(slowLeafReader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
                                 expectedResult.set(docsEnum.nextDoc());
                                 mockScorer.scores = entry.getValue();
-                                expectedTopDocsCollector.collect(docsEnum.docID());
+                                leafCollector.collect(docsEnum.docID());
                             } else if (seekStatus == TermsEnum.SeekStatus.END) {
                                 break;
                             }

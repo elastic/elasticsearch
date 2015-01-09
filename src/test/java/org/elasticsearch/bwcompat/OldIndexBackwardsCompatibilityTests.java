@@ -34,10 +34,18 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.hamcrest.Matchers;
 
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -45,6 +53,8 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
     
     List<String> indexes = Arrays.asList(
         "index-0.20.6.zip",
+        "index-0.90.0.RC1.zip",
+        "index-0.90.0.RC2.zip",
         "index-0.90.0.zip",
         "index-0.90.1.zip",
         "index-0.90.2.zip",
@@ -56,9 +66,13 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         "index-0.90.8.zip",
         "index-0.90.9.zip",
         "index-0.90.10.zip",
-        /* skipping 0.90.12...ensureGreen always times out while loading the index...*/
+        "index-0.90.11.zip",
+        "index-0.90.12.zip",
         "index-0.90.13.zip",
         "index-1.0.0.Beta1.zip",
+        "index-1.0.0.Beta2.zip",
+        "index-1.0.0.RC1.zip",
+        "index-1.0.0.RC2.zip",
         "index-1.0.0.zip",
         "index-1.0.1.zip",
         "index-1.0.2.zip",
@@ -66,17 +80,54 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         "index-1.1.0.zip",
         "index-1.1.1.zip",
         "index-1.1.2.zip",
+        /* skipping 1.2.0...there was a major bug with routing, and it is not even downloadable */
         "index-1.2.1.zip",
         "index-1.2.2.zip",
         "index-1.2.3.zip",
         "index-1.2.4.zip",
+        "index-1.3.0.zip",
         "index-1.3.1.zip",
         "index-1.3.2.zip",
         "index-1.3.3.zip",
         "index-1.3.4.zip",
+        "index-1.3.5.zip",
+        "index-1.3.6.zip",
+        "index-1.3.7.zip",
         "index-1.4.0.Beta1.zip",
-        "index-1.4.0.zip"
+        "index-1.4.0.zip",
+        "index-1.4.1.zip",
+        "index-1.4.2.zip"
     );
+    
+    public void testAllVersionsTested() throws Exception {
+        SortedSet<String> expectedVersions = new TreeSet<>();
+        for (java.lang.reflect.Field field : Version.class.getDeclaredFields()) {
+            if (Modifier.isStatic(field.getModifiers()) && field.getType() == Version.class) {
+                Version v = (Version)field.get(Version.class);
+                if (v.snapshot()) continue;
+                if (v.onOrBefore(Version.V_0_20_6)) continue;
+                
+                // problematic indexes...see notes above
+                if (v.equals(Version.V_0_90_0_Beta1) ||
+                    v.equals(Version.V_1_2_0)) continue;
+
+                expectedVersions.add("index-" + v.toString() + ".zip");
+            }
+        }
+        
+        for (String index : indexes) {
+            if (expectedVersions.remove(index) == false) {
+                logger.warn("Old indexes tests contain extra index: " + index);
+            }
+        }
+        if (expectedVersions.isEmpty() == false) {
+            StringBuilder msg = new StringBuilder("Old index tests are missing indexes:");
+            for (String expected : expectedVersions) {
+                msg.append("\n" + expected);
+            }
+            fail(msg.toString());
+        }
+    }
 
     public void testOldIndexes() throws Exception {
         Collections.shuffle(indexes, getRandom());
@@ -98,9 +149,12 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         unloadIndex();
     }
     
+    Version extractVersion(String index) {
+        return Version.fromString(index.substring(index.indexOf('-') + 1, index.lastIndexOf('.')));
+    }
+    
     boolean isLatestLuceneVersion(String index) {
-        String versionStr = index.substring(index.indexOf('-') + 1, index.lastIndexOf('.'));
-        Version version = Version.fromString(versionStr);
+        Version version = extractVersion(index);
         return version.luceneVersion.major == Version.CURRENT.luceneVersion.major &&
                version.luceneVersion.minor == Version.CURRENT.luceneVersion.minor;
     }

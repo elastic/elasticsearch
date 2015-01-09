@@ -204,7 +204,9 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
                 for (ShardSegments segs : shard.getShards()) {
                     for (Segment seg : segs.getSegments()) {
                         assertEquals("Index " + indexSegments.getIndex() + " has unupgraded segment " + seg.toString(),
-                                     Version.CURRENT.luceneVersion, seg.version);
+                                     Version.CURRENT.luceneVersion.major, seg.version.major);
+                        assertEquals("Index " + indexSegments.getIndex() + " has unupgraded segment " + seg.toString(),
+                                     Version.CURRENT.luceneVersion.minor, seg.version.minor);
                     }
                 }
             }

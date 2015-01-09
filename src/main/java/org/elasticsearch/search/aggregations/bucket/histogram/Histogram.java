@@ -34,33 +34,12 @@ public interface Histogram extends MultiBucketsAggregation {
      */
     static interface Bucket extends MultiBucketsAggregation.Bucket {
 
-        /**
-         * @return The key associated with the bucket (all documents that fall in this bucket were rounded to this key)
-         */
-        Number getKeyAsNumber();
-
     }
 
     /**
      * @return  The buckets of this histogram (each bucket representing an interval in the histogram)
      */
     List<? extends Bucket> getBuckets();
-
-    /**
-     * Returns a bucket by the key associated with it.
-     *
-     * @param key The key of the bucket.
-     * @return The bucket that is associated with the given key.
-     */
-    Bucket getBucketByKey(String key);
-
-    /**
-     * Returns a bucket by the key associated with it.
-     *
-     * @param key The key of the bucket.
-     * @return The bucket that is associated with the given key.
-     */
-    Bucket getBucketByKey(Number key);
 
 
     /**

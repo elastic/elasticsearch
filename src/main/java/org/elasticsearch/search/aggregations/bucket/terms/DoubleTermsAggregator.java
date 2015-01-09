@@ -62,7 +62,7 @@ public class DoubleTermsAggregator extends LongTermsAggregator {
     }
 
     private static DoubleTerms.Bucket convertToDouble(InternalTerms.Bucket bucket) {
-        final long term = bucket.getKeyAsNumber().longValue();
+        final long term = ((Number) bucket.getKey()).longValue();
         final double value = NumericUtils.sortableLongToDouble(term);
         return new DoubleTerms.Bucket(value, bucket.docCount, bucket.aggregations, bucket.showDocCountError, bucket.docCountError, bucket.formatter);
     }

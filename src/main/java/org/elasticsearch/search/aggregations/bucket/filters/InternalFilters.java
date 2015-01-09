@@ -20,12 +20,15 @@
 package org.elasticsearch.search.aggregations.bucket.filters;
 
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.text.StringText;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.AggregationStreams;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 
@@ -91,13 +94,14 @@ public class InternalFilters extends InternalMultiBucketAggregation implements F
             this.keyed = keyed;
         }
 
+        @Override
         public String getKey() {
             return key;
         }
 
         @Override
-        public Text getKeyAsText() {
-            return new StringText(getKey());
+        public String getKeyAsString() {
+            return key;
         }
 
         @Override

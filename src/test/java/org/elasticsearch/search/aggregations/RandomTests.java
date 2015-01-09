@@ -21,6 +21,8 @@ package org.elasticsearch.search.aggregations;
 
 import com.carrotsearch.hppc.IntOpenHashSet;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -33,17 +35,30 @@ import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
+import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
 import org.elasticsearch.search.aggregations.bucket.range.RangeBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
+import java.util.HashMap;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.extendedStats;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -124,6 +139,12 @@ public class RandomTests extends ElasticsearchIntegrationTest {
 
         SearchResponse resp = reqBuilder.execute().actionGet();
         Range range = resp.getAggregations().get("range");
+        List<? extends Bucket> buckets = range.getBuckets();
+
+        HashMap<String, Bucket> bucketMap = Maps.newHashMapWithExpectedSize(buckets.size());
+        for (Bucket bucket : buckets) {
+            bucketMap.put(bucket.getKeyAsString(), bucket);
+        }
 
         for (int i = 0; i < ranges.length; ++i) {
 
@@ -137,8 +158,9 @@ public class RandomTests extends ElasticsearchIntegrationTest {
                 }
             }
 
-            final Range.Bucket bucket = range.getBucketByKey(Integer.toString(i));
-            assertEquals(bucket.getKey(), count, bucket.getDocCount());
+            final Range.Bucket bucket = bucketMap.get(Integer.toString(i));
+            assertEquals(bucket.getKeyAsString(), Integer.toString(i), bucket.getKeyAsString());
+            assertEquals(bucket.getKeyAsString(), count, bucket.getDocCount());
 
             final Filter filter = resp.getAggregations().get("filter" + i);
             assertThat(filter.getDocCount(), equalTo(count));
@@ -234,10 +256,10 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         assertEquals(valuesSet.size(), stringGlobalOrdinalsTerms.getBuckets().size());
         assertEquals(valuesSet.size(), stringGlobalOrdinalsDVTerms.getBuckets().size());
         for (Terms.Bucket bucket : longTerms.getBuckets()) {
-            final Terms.Bucket doubleBucket = doubleTerms.getBucketByKey(Double.toString(Long.parseLong(bucket.getKeyAsText().string())));
-            final Terms.Bucket stringMapBucket = stringMapTerms.getBucketByKey(bucket.getKeyAsText().string());
-            final Terms.Bucket stringGlobalOrdinalsBucket = stringGlobalOrdinalsTerms.getBucketByKey(bucket.getKeyAsText().string());
-            final Terms.Bucket stringGlobalOrdinalsDVBucket = stringGlobalOrdinalsDVTerms.getBucketByKey(bucket.getKeyAsText().string());
+            final Terms.Bucket doubleBucket = doubleTerms.getBucketByKey(Double.toString(Long.parseLong(bucket.getKeyAsString())));
+            final Terms.Bucket stringMapBucket = stringMapTerms.getBucketByKey(bucket.getKeyAsString());
+            final Terms.Bucket stringGlobalOrdinalsBucket = stringGlobalOrdinalsTerms.getBucketByKey(bucket.getKeyAsString());
+            final Terms.Bucket stringGlobalOrdinalsDVBucket = stringGlobalOrdinalsDVTerms.getBucketByKey(bucket.getKeyAsString());
             assertNotNull(doubleBucket);
             assertNotNull(stringMapBucket);
             assertNotNull(stringGlobalOrdinalsBucket);
@@ -288,10 +310,10 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         Histogram histo = resp.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(terms.getBuckets().size(), equalTo(histo.getBuckets().size()));
-        for (Terms.Bucket bucket : terms.getBuckets()) {
-            final long key = bucket.getKeyAsNumber().longValue() * interval;
-            final Histogram.Bucket histoBucket = histo.getBucketByKey(key);
-            assertEquals(bucket.getDocCount(), histoBucket.getDocCount());
+        for (Histogram.Bucket bucket : histo.getBuckets()) {
+            final double key = ((Number) bucket.getKey()).doubleValue() / interval;
+            final Terms.Bucket termsBucket = terms.getBucketByKey(String.valueOf(key));
+            assertEquals(bucket.getDocCount(), termsBucket.getDocCount());
         }
     }
 
@@ -336,22 +358,23 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         Range range = filter.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.getBuckets().size(), equalTo(2));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(2));
 
-        Range.Bucket bucket = range.getBucketByKey("*-6.0");
+        Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("*-6.0"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
-        assertThat(bucket.getTo().doubleValue(), equalTo(6.0));
+        assertThat((String) bucket.getKey(), equalTo("*-6.0"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(6.0));
         assertThat(bucket.getDocCount(), equalTo(value < 6 ? 1L : 0L));
         Sum sum = bucket.getAggregations().get("sum");
         assertEquals(value < 6 ? value : 0, sum.getValue(), 0d);
 
-        bucket = range.getBucketByKey("6.0-*");
+        bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("6.0-*"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo(6.0));
-        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat((String) bucket.getKey(), equalTo("6.0-*"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo(6.0));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getDocCount(), equalTo(value >= 6 ? 1L : 0L));
         sum = bucket.getAggregations().get("sum");
         assertEquals(value >= 6 ? value : 0, sum.getValue(), 0d);

@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
@@ -36,7 +37,7 @@ import java.util.Map;
 /**
  *
  */
-public class InternalDateHistogram extends InternalHistogram<InternalDateHistogram.Bucket> implements DateHistogram {
+public class InternalDateHistogram extends InternalHistogram<InternalDateHistogram.Bucket> {
 
     final static Type TYPE = new Type("date_histogram", "dhisto");
     final static Factory FACTORY = new Factory();
@@ -71,7 +72,7 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
         BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 
-    static class Bucket extends InternalHistogram.Bucket implements DateHistogram.Bucket {
+    static class Bucket extends InternalHistogram.Bucket {
 
         Bucket(boolean keyed, @Nullable ValueFormatter formatter) {
             super(keyed, formatter);
@@ -87,18 +88,18 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
         }
 
         @Override
-        public String getKey() {
+        public String getKeyAsString() {
             return formatter != null ? formatter.format(key) : ValueFormatter.DateTime.DEFAULT.format(key);
         }
 
         @Override
-        public DateTime getKeyAsDate() {
+        public DateTime getKey() {
             return new DateTime(key, DateTimeZone.UTC);
         }
 
         @Override
         public String toString() {
-            return getKey();
+            return getKeyAsString();
         }
     }
 
@@ -141,28 +142,6 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
     @Override
     protected InternalHistogram.Factory<Bucket> getFactory() {
         return FACTORY;
-    }
-
-    @Override
-    public Bucket getBucketByKey(String key) {
-        try {
-            long time = Long.parseLong(key);
-            return super.getBucketByKey(time);
-        } catch (NumberFormatException nfe) {
-            // it's not a number, so lets try to parse it as a date using the formatter.
-        }
-        if (bucketsMap == null) {
-            bucketsMap = new ObjectObjectOpenHashMap<>();
-            for (InternalDateHistogram.Bucket bucket : buckets) {
-                bucketsMap.put(bucket.getKey(), bucket);
-            }
-        }
-        return bucketsMap.get(key);
-    }
-
-    @Override
-    public DateHistogram.Bucket getBucketByKey(DateTime key) {
-        return getBucketByKey(key.getMillis());
     }
 
     @Override

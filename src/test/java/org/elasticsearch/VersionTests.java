@@ -26,7 +26,10 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
+import java.lang.reflect.Modifier;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.Version.V_0_20_0;
 import static org.elasticsearch.Version.V_0_90_0;
@@ -35,19 +38,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class VersionTests extends ElasticsearchTestCase {
-
-    @Test
-    public void testMavenVersion() {
-        // maven sets this property to ensure that the latest version
-        // we use here is the version that is actually set to the project.version
-        // in maven
-        String property = System.getProperty("tests.version", null);
-        assumeNotNull(property);
-        assertEquals(property, Version.CURRENT.toString());
-    }
-
-    @Test
-    public void testVersions() throws Exception {
+    
+    public void testVersionComparison() throws Exception {
         assertThat(V_0_20_0.before(V_0_90_0), is(true));
         assertThat(V_0_20_0.before(V_0_20_0), is(false));
         assertThat(V_0_90_0.before(V_0_20_0), is(false));
@@ -64,8 +56,7 @@ public class VersionTests extends ElasticsearchTestCase {
         assertThat(V_0_20_0.onOrAfter(V_0_20_0), is(true));
         assertThat(V_0_90_0.onOrAfter(V_0_20_0), is(true));
     }
-
-    @Test
+    
     public void testVersionConstantPresent() {
         assertThat(Version.CURRENT, sameInstance(Version.fromId(Version.CURRENT.id)));
         assertThat(Version.CURRENT.luceneVersion, equalTo(org.apache.lucene.util.Version.LATEST));
@@ -76,7 +67,7 @@ public class VersionTests extends ElasticsearchTestCase {
             assertThat(version.luceneVersion, sameInstance(Version.fromId(version.id).luceneVersion));
         }
     }
-    @Test
+
     public void testCURRENTIsLatest() {
         final int iters = scaledRandomIntBetween(100, 1000);
         for (int i = 0; i < iters; i++) {
@@ -86,8 +77,7 @@ public class VersionTests extends ElasticsearchTestCase {
             }
         }
     }
-
-    @Test
+    
     public void testVersionFromString() {
         final int iters = scaledRandomIntBetween(100, 1000);
         for (int i = 0; i < iters; i++) {
@@ -116,13 +106,12 @@ public class VersionTests extends ElasticsearchTestCase {
         Version.indexCreated(ImmutableSettings.builder().build());
     }
 
-    public void testVersion() {
+    public void testIndexCreatedVersion() {
         // an actual index has a IndexMetaData.SETTING_UUID
         final Version version = randomFrom(Version.V_0_18_0, Version.V_0_90_13, Version.V_1_3_0);
         assertEquals(version, Version.indexCreated(ImmutableSettings.builder().put(IndexMetaData.SETTING_UUID, "foo").put(IndexMetaData.SETTING_VERSION_CREATED, version).build()));
     }
-
-    @Test
+    
     public void testMinCompatVersion() {
         assertThat(Version.V_1_0_0.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0));
         assertThat(Version.V_1_3_0.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0));
@@ -130,15 +119,46 @@ public class VersionTests extends ElasticsearchTestCase {
         assertThat(Version.V_1_2_3.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0));
         assertThat(Version.V_1_0_0_RC2.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0_RC2));
     }
-
-    @Test
-    public void parseLenient() {
+    
+    public void testParseLenient() {
         // note this is just a silly sanity check, we test it in lucene
         for (Version version : allVersions()) {
             org.apache.lucene.util.Version luceneVersion = version.luceneVersion;
             String string = luceneVersion.toString().toUpperCase(Locale.ROOT)
                     .replaceFirst("^LUCENE_(\\d+)_(\\d+)$", "$1.$2");
             assertThat(luceneVersion, Matchers.equalTo(Lucene.parseVersionLenient(string, null)));
+        }
+    }
+    
+    public void testAllVersionsMatchId() throws Exception {
+        Map<String, Version> maxBranchVersions = new HashMap<>();
+        for (java.lang.reflect.Field field : Version.class.getDeclaredFields()) {
+            if (field.getName().endsWith("_ID")) {
+                assertTrue(field.getName() + " should be static", Modifier.isStatic(field.getModifiers()));
+                assertTrue(field.getName() + " should be final", Modifier.isFinal(field.getModifiers()));
+                int versionId = (Integer)field.get(Version.class);
+                
+                String constantName = field.getName().substring(0, field.getName().length() - 3);
+                java.lang.reflect.Field versionConstant = Version.class.getField(constantName);
+                assertTrue(constantName + " should be static", Modifier.isStatic(versionConstant.getModifiers()));
+                assertTrue(constantName + " should be final", Modifier.isFinal(versionConstant.getModifiers()));
+           
+                Version v = (Version) versionConstant.get(Version.class);
+                logger.info("Checking " + v);
+                assertEquals("Version id " + field.getName() + " does not point to " + constantName, v, Version.fromId(versionId));
+                assertEquals("Version " + constantName + " does not have correct id", versionId, v.id);
+                assertEquals("V_" + v.number().replace('.', '_'), constantName);
+                
+                // only the latest version for a branch should be a snapshot (ie unreleased)
+                String branchName = "" + v.major + "." + v.minor;
+                Version maxBranchVersion = maxBranchVersions.get(branchName);
+                if (maxBranchVersion == null) {
+                    maxBranchVersions.put(branchName, v);
+                } else if (v.after(maxBranchVersion)) {
+                    assertFalse("Version " + maxBranchVersion + " cannot be a snapshot because version " + v + " exists", maxBranchVersion.snapshot());
+                    maxBranchVersions.put(branchName, v);
+                }
+            }
         }
     }
 

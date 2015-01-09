@@ -12,6 +12,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
@@ -21,6 +22,7 @@ import org.elasticsearch.shield.transport.filter.ShieldIpFilterRule;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
 
+import java.io.IOException;
 import java.net.InetAddress;
 
 /**
@@ -53,13 +55,13 @@ public class LoggingAuditTrail implements AuditTrail {
         String indices = indices(message);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("ANONYMOUS_ACCESS\thost=[{}], action=[{}], indices=[{}], request=[{}]", message.remoteAddress(), action, indices, message);
+                logger.debug("ANONYMOUS_ACCESS\thost=[{}], action=[{}], indices=[{}], request=[{}]", message.remoteAddress(), action, indices, message.getClass().getSimpleName());
             } else {
                 logger.warn("ANONYMOUS_ACCESS\thost=[{}], action=[{}], indices=[{}]", message.remoteAddress(), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("ANONYMOUS_ACCESS\thost=[{}], action=[{}], request=[{}]", message.remoteAddress(), action, message);
+                logger.debug("ANONYMOUS_ACCESS\thost=[{}], action=[{}], request=[{}]", message.remoteAddress(), action, message.getClass().getSimpleName());
             } else {
                 logger.warn("ANONYMOUS_ACCESS\thost=[{}], action=[{}]", message.remoteAddress(), action);
             }
@@ -69,7 +71,7 @@ public class LoggingAuditTrail implements AuditTrail {
     @Override
     public void anonymousAccess(RestRequest request) {
         if (logger.isDebugEnabled()) {
-            logger.debug("ANONYMOUS_ACCESS\thost=[{}], URI=[{}], request=[{}]", request.getRemoteAddress(), request.uri(), request);
+            logger.debug("ANONYMOUS_ACCESS\thost=[{}], URI=[{}], request=[{}]", request.getRemoteAddress(), request.uri(), restRequestContent(request));
         } else {
             logger.warn("ANONYMOUS_ACCESS\thost=[{}], URI=[{}]", request.getRemoteAddress(), request.uri());
         }
@@ -80,13 +82,13 @@ public class LoggingAuditTrail implements AuditTrail {
         String indices = indices(message);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("AUTHENTICATION_FAILED\thost=[{}], principal=[{}], action=[{}], indices=[{}], request=[{}]", message.remoteAddress(), token.principal(), action, indices, message);
+                logger.debug("AUTHENTICATION_FAILED\thost=[{}], principal=[{}], action=[{}], indices=[{}], request=[{}]", message.remoteAddress(), token.principal(), action, indices, message.getClass().getSimpleName());
             } else {
                 logger.error("AUTHENTICATION_FAILED\thost=[{}], principal=[{}], action=[{}], indices=[{}]", message.remoteAddress(), token.principal(), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("AUTHENTICATION_FAILED\thost=[{}], principal=[{}], action=[{}], request=[{}]", message.remoteAddress(), token.principal(), action, message);
+                logger.debug("AUTHENTICATION_FAILED\thost=[{}], principal=[{}], action=[{}], request=[{}]", message.remoteAddress(), token.principal(), action, message.getClass().getSimpleName());
             } else {
                 logger.error("AUTHENTICATION_FAILED\thost=[{}], principal=[{}], action=[{}]", message.remoteAddress(), token.principal(), action);
             }
@@ -96,7 +98,7 @@ public class LoggingAuditTrail implements AuditTrail {
     @Override
     public void authenticationFailed(AuthenticationToken token, RestRequest request) {
         if (logger.isDebugEnabled()) {
-            logger.debug("AUTHENTICATION_FAILED\thost=[{}], principal=[{}], URI=[{}], request=[{}]", request.getRemoteAddress(), token.principal(), request.uri(), request);
+            logger.debug("AUTHENTICATION_FAILED\thost=[{}], principal=[{}], URI=[{}], request=[{}]", request.getRemoteAddress(), token.principal(), request.uri(), restRequestContent(request));
         } else {
             logger.error("AUTHENTICATION_FAILED\thost=[{}], principal=[{}], URI=[{}]", request.getRemoteAddress(), token.principal(), request.uri());
         }
@@ -107,9 +109,9 @@ public class LoggingAuditTrail implements AuditTrail {
         if (logger.isTraceEnabled()) {
             String indices = indices(message);
             if (indices != null) {
-                logger.trace("AUTHENTICATION_FAILED[{}]\thost=[{}], principal=[{}], action=[{}], indices=[{}], request=[{}]", realm, message.remoteAddress(), token.principal(), action, indices, message);
+                logger.trace("AUTHENTICATION_FAILED[{}]\thost=[{}], principal=[{}], action=[{}], indices=[{}], request=[{}]", realm, message.remoteAddress(), token.principal(), action, indices, message.getClass().getSimpleName());
             } else {
-                logger.trace("AUTHENTICATION_FAILED[{}]\thost=[{}], principal=[{}], action=[{}], request=[{}]", realm, message.remoteAddress(), token.principal(), action, message);
+                logger.trace("AUTHENTICATION_FAILED[{}]\thost=[{}], principal=[{}], action=[{}], request=[{}]", realm, message.remoteAddress(), token.principal(), action, message.getClass().getSimpleName());
             }
         }
     }
@@ -117,7 +119,7 @@ public class LoggingAuditTrail implements AuditTrail {
     @Override
     public void authenticationFailed(String realm, AuthenticationToken token, RestRequest request) {
         if (logger.isTraceEnabled()) {
-            logger.trace("AUTHENTICATION_FAILED[{}]\thost=[{}], principal=[{}], URI=[{}], request=[{}]", realm, request.getRemoteAddress(), token.principal(), request.uri(), request);
+            logger.trace("AUTHENTICATION_FAILED[{}]\thost=[{}], principal=[{}], URI=[{}], request=[{}]", realm, request.getRemoteAddress(), token.principal(), request.uri(), restRequestContent(request));
         }
     }
 
@@ -129,9 +131,9 @@ public class LoggingAuditTrail implements AuditTrail {
         if (SYSTEM_ACTION_MATCHER.apply(action)) {
             if (logger.isTraceEnabled()) {
                 if (indices != null) {
-                    logger.trace("ACCESS_GRANTED\thost=[{}], principal=[{}], action=[{}], indices=[{}], request=[{}]", message.remoteAddress(), user.principal(), action, indices, message);
+                    logger.trace("ACCESS_GRANTED\thost=[{}], principal=[{}], action=[{}], indices=[{}], request=[{}]", message.remoteAddress(), user.principal(), action, indices, message.getClass().getSimpleName());
                 } else {
-                    logger.trace("ACCESS_GRANTED\thost=[{}], principal=[{}], action=[{}], request=[{}]", message.remoteAddress(), user.principal(), action, message);
+                    logger.trace("ACCESS_GRANTED\thost=[{}], principal=[{}], action=[{}], request=[{}]", message.remoteAddress(), user.principal(), action, message.getClass().getSimpleName());
                 }
             }
             return;
@@ -139,13 +141,13 @@ public class LoggingAuditTrail implements AuditTrail {
 
         if (indices != null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("ACCESS_GRANTED\thost=[{}], principal=[{}], action=[{}], indices=[{}], request=[{}]", message.remoteAddress(), user.principal(), action, indices, message);
+                logger.debug("ACCESS_GRANTED\thost=[{}], principal=[{}], action=[{}], indices=[{}], request=[{}]", message.remoteAddress(), user.principal(), action, indices, message.getClass().getSimpleName());
             } else {
                 logger.info("ACCESS_GRANTED\thost=[{}], principal=[{}], action=[{}], indices=[{}]", message.remoteAddress(), user.principal(), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("ACCESS_GRANTED\thost=[{}], principal=[{}], action=[{}], request=[{}]", message.remoteAddress(), user.principal(), action, message);
+                logger.debug("ACCESS_GRANTED\thost=[{}], principal=[{}], action=[{}], request=[{}]", message.remoteAddress(), user.principal(), action, message.getClass().getSimpleName());
             } else {
                 logger.info("ACCESS_GRANTED\thost=[{}], principal=[{}], action=[{}]", message.remoteAddress(), user.principal(), action);
             }
@@ -157,13 +159,13 @@ public class LoggingAuditTrail implements AuditTrail {
         String indices = indices(message);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("ACCESS_DENIED\thost=[{}], principal=[{}], action=[{}], indices=[{}], request=[{}]", message.remoteAddress(), user.principal(), action, indices, message);
+                logger.debug("ACCESS_DENIED\thost=[{}], principal=[{}], action=[{}], indices=[{}], request=[{}]", message.remoteAddress(), user.principal(), action, indices, message.getClass().getSimpleName());
             } else {
                 logger.error("ACCESS_DENIED\thost=[{}], principal=[{}], action=[{}], indices=[{}]", message.remoteAddress(), user.principal(), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("ACCESS_DENIED\thost=[{}], principal=[{}], action=[{}], request=[{}]", message.remoteAddress(), user.principal(), action, message);
+                logger.debug("ACCESS_DENIED\thost=[{}], principal=[{}], action=[{}], request=[{}]", message.remoteAddress(), user.principal(), action, message.getClass().getSimpleName());
             } else {
                 logger.error("ACCESS_DENIED\thost=[{}], principal=[{}], action=[{}]", message.remoteAddress(), user.principal(), action);
             }
@@ -175,13 +177,13 @@ public class LoggingAuditTrail implements AuditTrail {
         String indices = indices(request);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("TAMPERED REQUEST\thost=[{}], principal=[{}], action=[{}], indices=[{}], request=[{}]", request.remoteAddress(), user.principal(), action, indices, request);
+                logger.debug("TAMPERED REQUEST\thost=[{}], principal=[{}], action=[{}], indices=[{}], request=[{}]", request.remoteAddress(), user.principal(), action, indices, request.getClass().getSimpleName());
             } else {
                 logger.error("TAMPERED REQUEST\thost=[{}], principal=[{}], action=[{}], indices=[{}]", request.remoteAddress(), user.principal(), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("TAMPERED REQUEST\thost=[{}], principal=[{}], action=[{}], request=[{}]", request.remoteAddress(), user.principal(), action, request);
+                logger.debug("TAMPERED REQUEST\thost=[{}], principal=[{}], action=[{}], request=[{}]", request.remoteAddress(), user.principal(), action, request.getClass().getSimpleName());
             } else {
                 logger.error("TAMPERED REQUEST\thost=[{}], principal=[{}], action=[{}]", request.remoteAddress(), user.principal(), action);
             }
@@ -205,5 +207,16 @@ public class LoggingAuditTrail implements AuditTrail {
             return Strings.arrayToCommaDelimitedString(((IndicesRequest) message).indices());
         }
         return null;
+    }
+
+    private static String restRequestContent(RestRequest request) {
+        if (request.hasContent()) {
+            try {
+                return XContentHelper.convertToJson(request.content(), false, false);
+            } catch (IOException ioe) {
+                return "Invalid Format: " + request.content().toUtf8();
+            }
+        }
+        return "";
     }
 }

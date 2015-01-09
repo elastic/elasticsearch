@@ -19,13 +19,15 @@
 
 package org.elasticsearch.common.unit;
 
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.joda.time.PeriodType;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -65,5 +67,23 @@ public class TimeValueTests extends ElasticsearchTestCase {
     @Test
     public void testMinusOne() {
         assertThat(new TimeValue(-1).nanos(), lessThan(0l));
+    }
+
+    private void assertEqualityAfterSerialize(TimeValue value) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        value.writeTo(out);
+
+        BytesStreamInput in = new BytesStreamInput(out.bytes());
+        TimeValue inValue = TimeValue.readTimeValue(in);
+
+        assertThat(inValue, equalTo(value));
+    }
+
+    @Test
+    public void testSerialize() throws Exception {
+        assertEqualityAfterSerialize(new TimeValue(100, TimeUnit.DAYS));
+        assertEqualityAfterSerialize(new TimeValue(-1));
+        assertEqualityAfterSerialize(new TimeValue(1, TimeUnit.NANOSECONDS));
+
     }
 }

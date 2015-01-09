@@ -1107,7 +1107,7 @@ public class InternalEngine implements Engine {
                 for (LeafReaderContext reader : searcher.reader().leaves()) {
                     final SegmentReader segmentReader = segmentReader(reader.reader());
                     stats.add(1, segmentReader.ramBytesUsed());
-                    stats.addTermsMemoryInBytes(guardedRamBytesUsed(segmentReader.fields()));
+                    stats.addTermsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPostingsReader()));
                     stats.addStoredFieldsMemoryInBytes(guardedRamBytesUsed(segmentReader.getFieldsReader()));
                     stats.addTermVectorsMemoryInBytes(guardedRamBytesUsed(segmentReader.getTermVectorsReader()));
                     stats.addNormsMemoryInBytes(guardedRamBytesUsed(segmentReader.getNormsReader()));

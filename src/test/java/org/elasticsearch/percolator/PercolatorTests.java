@@ -2039,7 +2039,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test")
                 .setSettings(settings));
         client().prepareIndex("test", PercolatorService.TYPE_NAME)
-                .setSource(jsonBuilder().startObject().field("query", queryStringQuery("VALUE")).endObject()).get();
+                .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "value")).endObject()).get();
         logger.info("--> Percolate doc with field1=value");
         PercolateResponse response1 = client().preparePercolate()
                 .setIndices("test").setDocumentType("type")

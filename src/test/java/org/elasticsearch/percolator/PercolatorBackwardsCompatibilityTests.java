@@ -22,18 +22,15 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.percolator.PercolatorException;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertMatchCount;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -73,4 +70,5 @@ public class PercolatorBackwardsCompatibilityTests extends ElasticsearchIntegrat
             assertThat(e.getRootCause(), instanceOf(QueryParsingException.class));
         }
     }
+
 }

@@ -178,11 +178,6 @@ public class MergePolicySettingsTest extends ElasticsearchTestCase {
             public Directory[] build() throws IOException {
                 return new Directory[] { new RAMDirectory() } ;
             }
-
-            @Override
-            public long throttleTimeInNanos() {
-                return 0;
-            }
         };
         return new Store(shardId, settings, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
     }

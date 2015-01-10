@@ -283,7 +283,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     public StoreStats stats() throws IOException {
         ensureOpen();
-        return new StoreStats(Directories.estimateSize(directory), directoryService.throttleTimeInNanos());
+        return new StoreStats(Directories.estimateSize(directory));
     }
 
     public void renameFile(String from, String to) throws IOException {

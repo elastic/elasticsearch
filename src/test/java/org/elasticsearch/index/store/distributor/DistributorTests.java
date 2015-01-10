@@ -150,11 +150,6 @@ public class DistributorTests extends ElasticsearchTestCase {
         public Directory[] build() throws IOException {
             return directories;
         }
-
-        @Override
-        public long throttleTimeInNanos() {
-            return 0;
-        }
     }
 
     public static class FakeFsDirectory extends FSDirectory {

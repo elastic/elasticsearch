@@ -633,11 +633,6 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
             asyncIndexThreads[i].join();
         }
 
-        logger.info("--> update index settings to back to normal");
-        assertAcked(client().admin().indices().prepareUpdateSettings("test-*").setSettings(ImmutableSettings.builder()
-                        .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "node")
-        ));
-
         // Make sure that snapshot finished - doesn't matter if it failed or succeeded
         try {
             CreateSnapshotResponse snapshotResponse = snapshotResponseFuture.get();
@@ -679,11 +674,6 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         for (int i = 0; i < between(10, 500); i++) {
             index(name, "doc", Integer.toString(i), "foo", "bar" + i);
         }
-
-        assertAcked(client().admin().indices().prepareUpdateSettings(name).setSettings(ImmutableSettings.builder()
-                        .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "all")
-                        .put(AbstractIndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, between(100, 50000))
-        ));
     }
 
     public static abstract class TestCustomMetaData implements MetaData.Custom {

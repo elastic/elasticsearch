@@ -34,9 +34,6 @@ import java.io.Closeable;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-/**
- *
- */
 public abstract class MergeSchedulerProvider extends AbstractIndexShardComponent implements IndexShardComponent, Closeable {
 
     public static interface FailureListener {

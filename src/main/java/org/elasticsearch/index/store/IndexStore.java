@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.store;
 
-import org.apache.lucene.store.StoreRateLimiting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -32,12 +31,6 @@ import java.nio.file.Path;
  * Index store is an index level information of the {@link Store} each shard will use.
  */
 public interface IndexStore extends Closeable {
-
-    /**
-     * Returns the rate limiting, either of the index is explicitly configured, or
-     * the node level one (defaults to the node level one).
-     */
-    StoreRateLimiting rateLimiting();
 
     /**
      * The shard store class that should be used for each shard.

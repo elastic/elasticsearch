@@ -46,6 +46,8 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     private final CounterMetric currentMerges = new CounterMetric();
     private final CounterMetric currentMergesNumDocs = new CounterMetric();
     private final CounterMetric currentMergesSizeInBytes = new CounterMetric();
+    private final CounterMetric totalMergeStoppedTime = new CounterMetric();
+    private final CounterMetric totalMergeThrottledTime = new CounterMetric();
 
     private final Set<OnGoingMerge> onGoingMerges = ConcurrentCollections.newConcurrentSet();
     private final Set<OnGoingMerge> readOnlyOnGoingMerges = Collections.unmodifiableSet(onGoingMerges);
@@ -83,6 +85,14 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         return currentMergesSizeInBytes.count();
     }
 
+    public long totalMergeStoppedTimeMillis() {
+        return totalMergeStoppedTime.count();
+    }
+
+    public long totalMergeThrottledTimeMillis() {
+        return totalMergeThrottledTime.count();
+    }
+
     public Set<OnGoingMerge> onGoingMerges() {
         return readOnlyOnGoingMerges;
     }
@@ -118,6 +128,10 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
             totalMergesNumDocs.inc(totalNumDocs);
             totalMergesSizeInBytes.inc(totalSizeInBytes);
             totalMerges.inc(took);
+
+            totalMergeStoppedTime.inc(merge.rateLimiter.getTotalStoppedNS()/1000000);
+            totalMergeThrottledTime.inc(merge.rateLimiter.getTotalPausedNS()/1000000);
+
             String message = String.format(Locale.ROOT,
                                            "merge segment [%s] done: took [%s], [%,.1f MB], [%,d docs]",
                                            merge.info == null ? "_na_" : merge.info.info.name,

@@ -448,6 +448,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
 
         // .tii: no version specified
         StoreFileMetaData tii = new StoreFileMetaData("foo.tii", 20, "boguschecksum", null);
+        assertTrue(Store.isUnreliableLegacyChecksum(tii));
         try (VerifyingIndexOutput output = (VerifyingIndexOutput) store.createVerifyingOutput("foo.temp", tii, IOContext.DEFAULT)) {
             output.writeBytes(new byte[20], 20);
             output.verify();
@@ -455,10 +456,20 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         
         // .tii: old version
         tii = new StoreFileMetaData("foo.tii", 20, "boguschecksum", Version.LUCENE_36);
+        assertTrue(Store.isUnreliableLegacyChecksum(tii));
         try (VerifyingIndexOutput output = (VerifyingIndexOutput) store.createVerifyingOutput("foo.temp2", tii, IOContext.DEFAULT)) {
             output.writeBytes(new byte[20], 20);
             output.verify();
         }
+        
+        // .tii: checkIntegrity
+        tii = new StoreFileMetaData("foo.tii", 20, "boguschecksum", Version.LUCENE_36);
+        assertTrue(Store.isUnreliableLegacyChecksum(tii));
+        try (VerifyingIndexOutput output = (VerifyingIndexOutput) store.createVerifyingOutput("foo.tii", tii, IOContext.DEFAULT)) {
+            output.writeBytes(new byte[20], 20);
+            output.verify();
+        }
+        assertTrue(store.checkIntegrity(tii));
         store.close();
     }
 
@@ -470,6 +481,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
 
         // .tis: no version specified
         StoreFileMetaData tis = new StoreFileMetaData("foo.tis", 20, "boguschecksum", null);
+        assertTrue(Store.isUnreliableLegacyChecksum(tis));
         try (VerifyingIndexOutput output = (VerifyingIndexOutput) store.createVerifyingOutput("foo.temp", tis, IOContext.DEFAULT)) {
             output.writeBytes(new byte[20], 20);
             output.verify();
@@ -477,10 +489,20 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
 
         // .tis: old version
         tis = new StoreFileMetaData("foo.tis", 20, "boguschecksum", Version.LUCENE_36);
+        assertTrue(Store.isUnreliableLegacyChecksum(tis));
         try (VerifyingIndexOutput output = (VerifyingIndexOutput) store.createVerifyingOutput("foo.temp", tis, IOContext.DEFAULT)) {
             output.writeBytes(new byte[20], 20);
             output.verify();
         };
+        
+        // .tis: checkIntegrity
+        tis = new StoreFileMetaData("foo.tis", 20, "boguschecksum", Version.LUCENE_36);
+        assertTrue(Store.isUnreliableLegacyChecksum(tis));
+        try (VerifyingIndexOutput output = (VerifyingIndexOutput) store.createVerifyingOutput("foo.tis", tis, IOContext.DEFAULT)) {
+            output.writeBytes(new byte[20], 20);
+            output.verify();
+        };
+        assertTrue(store.checkIntegrity(tis));
 
         store.close();
     }
@@ -493,6 +515,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
 
         // .cfs: unspecified version
         StoreFileMetaData cfs = new StoreFileMetaData("foo.cfs", 20, "boguschecksum", null);
+        assertTrue(Store.isUnreliableLegacyChecksum(cfs));
         try (VerifyingIndexOutput output = (VerifyingIndexOutput) store.createVerifyingOutput("foo.temp", cfs, IOContext.DEFAULT)) {
             output.writeBytes(new byte[20], 20);
             output.verify();
@@ -500,6 +523,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
 
         // .cfs: ancient affected version
         cfs = new StoreFileMetaData("foo.cfs", 20, "boguschecksum", Version.LUCENE_33);
+        assertTrue(Store.isUnreliableLegacyChecksum(cfs));
         try (VerifyingIndexOutput output = (VerifyingIndexOutput) store.createVerifyingOutput("foo.temp2", cfs, IOContext.DEFAULT)) {
             output.writeBytes(new byte[20], 20);
             output.verify();
@@ -507,6 +531,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
 
         // .cfs: should still be checksummed for an ok version
         cfs = new StoreFileMetaData("foo.cfs", 20, "boguschecksum", Version.LUCENE_34);
+        assertFalse(Store.isUnreliableLegacyChecksum(cfs));
         try (VerifyingIndexOutput output = (VerifyingIndexOutput) store.createVerifyingOutput("foo.temp3", cfs, IOContext.DEFAULT)) {
             output.writeBytes(new byte[20], 20);
             output.verify();
@@ -514,6 +539,15 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         } catch (CorruptIndexException expected) {
             assertTrue(expected.getMessage().startsWith("checksum failed"));
         }
+        
+        // .cfs: checkIntegrity
+        cfs = new StoreFileMetaData("foo.cfs", 20, "boguschecksum", Version.LUCENE_33);
+        assertTrue(Store.isUnreliableLegacyChecksum(cfs));
+        try (VerifyingIndexOutput output = (VerifyingIndexOutput) store.createVerifyingOutput("foo.cfs", cfs, IOContext.DEFAULT)) {
+            output.writeBytes(new byte[20], 20);
+            output.verify();
+        }
+        assertTrue(store.checkIntegrity(cfs));
 
         store.close();
     }
@@ -526,6 +560,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
 
         // segments_N: unspecified version
         StoreFileMetaData segments = new StoreFileMetaData("segments_1", 20, "boguschecksum", null);
+        assertTrue(Store.isUnreliableLegacyChecksum(segments));
         try (VerifyingIndexOutput output = (VerifyingIndexOutput) store.createVerifyingOutput("foo.temp", segments, IOContext.DEFAULT)) {
             output.writeBytes(new byte[20], 20);
             output.verify();
@@ -533,6 +568,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
 
         // segments_N: specified old version
         segments = new StoreFileMetaData("segments_2", 20, "boguschecksum", Version.LUCENE_33);
+        assertTrue(Store.isUnreliableLegacyChecksum(segments));
         try (VerifyingIndexOutput output = (VerifyingIndexOutput) store.createVerifyingOutput("foo.temp2", segments, IOContext.DEFAULT)) {
             output.writeBytes(new byte[20], 20);
             output.verify();
@@ -540,6 +576,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
 
         // segments_N: should still be checksummed for an ok version (lucene checksum)
         segments = new StoreFileMetaData("segments_3", 20, "boguschecksum", Version.LUCENE_48);
+        assertFalse(Store.isUnreliableLegacyChecksum(segments));
         try (VerifyingIndexOutput output = (VerifyingIndexOutput) store.createVerifyingOutput("foo.temp3", segments, IOContext.DEFAULT)) {
             output.writeBytes(new byte[20], 20);
             output.verify();
@@ -559,6 +596,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
 
         // segments.gen: unspecified version
         StoreFileMetaData segmentsGen = new StoreFileMetaData("segments.gen", 20, "boguschecksum", null);
+        assertTrue(Store.isUnreliableLegacyChecksum(segmentsGen));
         try (VerifyingIndexOutput output = (VerifyingIndexOutput) store.createVerifyingOutput("foo.temp", segmentsGen, IOContext.DEFAULT)) {
             output.writeBytes(new byte[20], 20);
             output.verify();
@@ -566,6 +604,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
 
         // segments.gen: specified old version
         segmentsGen = new StoreFileMetaData("segments.gen", 20, "boguschecksum", Version.LUCENE_33);
+        assertTrue(Store.isUnreliableLegacyChecksum(segmentsGen));
         try (VerifyingIndexOutput output = (VerifyingIndexOutput) store.createVerifyingOutput("foo.temp2", segmentsGen, IOContext.DEFAULT)) {
             output.writeBytes(new byte[20], 20);
             output.verify();
@@ -573,6 +612,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
 
         // segments.gen: should still be checksummed for an ok version (lucene checksum)
         segmentsGen = new StoreFileMetaData("segments.gen", 20, "boguschecksum", Version.LUCENE_48);
+        assertFalse(Store.isUnreliableLegacyChecksum(segmentsGen));
         try (VerifyingIndexOutput output = (VerifyingIndexOutput) store.createVerifyingOutput("foo.temp3", segmentsGen, IOContext.DEFAULT)) {
             output.writeBytes(new byte[20], 20);
             output.verify();

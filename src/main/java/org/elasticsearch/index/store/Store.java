@@ -326,6 +326,29 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         }
         return MetadataSnapshot.EMPTY;
     }
+    
+    /** 
+     * Returns true if the legacy checksum cannot be relied upon, because the file was not
+     * append only. This only impacts Lucene 3.x files for elasticsearch.
+     */
+    static boolean isUnreliableLegacyChecksum(StoreFileMetaData metadata) {
+        if (metadata.hasLegacyChecksum()) {
+            // Lucene's .tii and .tis files (3.x) were not actually append-only.
+            // this means the adler32 in ES 0.20.x releases is actually wrong, we can't use it.
+            boolean badTermInfo = metadata.name().endsWith(".tii") || metadata.name().endsWith(".tis");
+            // Lucene's .cfs (3.0-3.3) was not append-only, so old ES checksums (pre-0.18.x) are wrong.
+            // NOTE: if we don't know the version, then we don't trust the checksum. 
+            boolean badCFS = metadata.name().endsWith(".cfs") && 
+                    (metadata.writtenBy() == null || metadata.writtenBy().onOrAfter(Version.LUCENE_34) == false);
+            // Lucene's segments_N always had a checksum, and reasonably old versions of ES never added
+            // their own metadata for it. But it wasn't append-only, so be defensive and don't rely upon
+            // old versions omitting the checksum. NOTE: This logic also excludes segments.gen for the same reason.
+            boolean badCommit = metadata.name().startsWith(IndexFileNames.SEGMENTS);
+            
+            return badTermInfo || badCFS || badCommit;
+        }
+        return false;
+    }
 
     /**
      * The returned IndexOutput might validate the files checksum if the file has been written with a newer lucene version
@@ -340,19 +363,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         boolean success = false;
         try {
             if (metadata.hasLegacyChecksum()) {
-                // Lucene's .tii and .tis files (3.x) were not actually append-only.
-                // this means the adler32 in ES 0.20.x releases is actually wrong, we can't use it.
-                boolean badTermInfo = metadata.name().endsWith(".tii") || metadata.name().endsWith(".tis");
-                // Lucene's .cfs (3.0-3.3) was not append-only, so old ES checksums (pre-0.18.x) are wrong.
-                // NOTE: if we don't know the version, then we don't trust the checksum. 
-                boolean badCFS = metadata.name().endsWith(".cfs") && 
-                                 (metadata.writtenBy() == null || metadata.writtenBy().onOrAfter(Version.LUCENE_34) == false);
-                // Lucene's segments_N always had a checksum, and reasonably old versions of ES never added
-                // their own metadata for it. But it wasn't append-only, so be defensive and don't rely upon
-                // old versions omitting the checksum. NOTE: This logic also excludes segments.gen for the same reason.
-                boolean badCommit = metadata.name().startsWith(IndexFileNames.SEGMENTS);
-                        
-                if (badTermInfo || badCFS || badCommit) {
+                if (isUnreliableLegacyChecksum(metadata)) {
                     logger.debug("create legacy length-only output for non-write-once file {}", fileName);
                     output = new LegacyVerification.LengthVerifyingIndexOutput(output, metadata.length());
                 } else {
@@ -396,7 +407,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             }
             if (md.writtenBy() != null && md.writtenBy().onOrAfter(Version.LUCENE_48)) {
                 return Store.digestToString(CodecUtil.checksumEntireFile(input)).equals(md.checksum());
-            } else if (md.hasLegacyChecksum()) {
+            } else if (md.hasLegacyChecksum() && !isUnreliableLegacyChecksum(md)) {
                 // legacy checksum verification - no footer that we need to omit in the checksum!
                 final Checksum checksum = new Adler32();
                 final byte[] buffer = new byte[md.length() > 4096 ? 4096 : (int) md.length()];

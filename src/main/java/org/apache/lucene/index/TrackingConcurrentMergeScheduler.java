@@ -129,15 +129,22 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
             totalMergesSizeInBytes.inc(totalSizeInBytes);
             totalMerges.inc(took);
 
-            totalMergeStoppedTime.inc(merge.rateLimiter.getTotalStoppedNS()/1000000);
-            totalMergeThrottledTime.inc(merge.rateLimiter.getTotalPausedNS()/1000000);
+            long stoppedMS = merge.rateLimiter.getTotalStoppedNS()/1000000;
+            long throttledMS = merge.rateLimiter.getTotalPausedNS()/1000000;
+
+            totalMergeStoppedTime.inc(stoppedMS);
+            totalMergeThrottledTime.inc(throttledMS);
 
             String message = String.format(Locale.ROOT,
-                                           "merge segment [%s] done: took [%s], [%,.1f MB], [%,d docs]",
+                                           "merge segment [%s] done: took [%s], [%,.1f MB], [%,d docs], [%s stopped], [%s throttled], [%,.1f MB written], [%,.1f MB/sec throttle]",
                                            merge.info == null ? "_na_" : merge.info.info.name,
                                            TimeValue.timeValueMillis(took),
                                            totalSizeInBytes/1024f/1024f,
-                                           totalNumDocs);
+                                           totalNumDocs,
+                                           TimeValue.timeValueMillis(stoppedMS),
+                                           TimeValue.timeValueMillis(throttledMS),
+                                           merge.rateLimiter.getTotalBytesWritten()/1024f/1024f,
+                                           merge.rateLimiter.getMBPerSec());
 
             if (took > 20000) { // if more than 20 seconds, DEBUG log it
                 logger.debug(message);

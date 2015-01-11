@@ -442,6 +442,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         assertThat(stats.getTotal().getMerge().getTotal(), greaterThan(0l));
         assertThat(stats.getTotal().getMerge().getTotalStoppedTime(), notNullValue());
         assertThat(stats.getTotal().getMerge().getTotalThrottledTime(), notNullValue());
+        assertThat(stats.getTotal().getMerge().getTotalBytesPerSecAutoThrottle(), greaterThan(0l));
     }
 
     @Test

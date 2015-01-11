@@ -48,8 +48,6 @@ Will return, for example:
       "store": {
          "size": "5.6kb",
          "size_in_bytes": 5770,
-         "throttle_time": "0s",
-         "throttle_time_in_millis": 0
       },
       "fielddata": {
          "memory_size": "0b",

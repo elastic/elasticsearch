@@ -7,12 +7,6 @@ where the index data is stored, and are immutable up to delete markers.
 Segments are, periodically, merged into larger segments to keep the
 index size at bay and expunge deletes.
 
-The more segments one has in the Lucene index means slower searches and
-more memory used. Segment merging is used to reduce the number of segments,
-however merges can be expensive to perform, especially on low IO environments.
-Merges can be throttled using <<store-throttling,store level throttling>>.
-
-
 [float]
 [[policy]]
 === Policy
@@ -194,9 +188,20 @@ scheduler supports this setting:
 `index.merge.scheduler.max_thread_count`::
 
 The maximum number of threads that may be merging at once. Defaults to
-`Math.max(1, Math.min(3, Runtime.getRuntime().availableProcessors() / 2))`
+`Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors() / 2))`
 which works well for a good solid-state-disk (SSD).  If your index is on
 spinning platter drives instead, decrease this to 1.
+
+`index.merge.scheduler.auto_throttle`::
+
+If this is true (the default), then the merge scheduler will
+rate-limit IO (writes) for merges to an adaptive value depending on
+how many merges are requested over time.  An application with a low
+indexing rate that unluckily suddenly requires a large merge will see
+that merge aggressively throttled, while an application doing heavy
+indexing will see the throttle move higher to allow merges to keep up
+with ongoing indexing.  This is a dynamic setting (you can <<../indices/update-settings,change it
+at any time on a running index>>).
 
 [float]
 ==== SerialMergeScheduler

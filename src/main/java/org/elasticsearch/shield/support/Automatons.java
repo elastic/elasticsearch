@@ -9,6 +9,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.collect.ImmutableList;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -33,14 +34,7 @@ public final class Automatons {
      * Builds and returns an automaton that will represent the union of all the given patterns.
      */
     public static Automaton patterns(String... patterns) {
-        if (patterns.length == 0) {
-            return Automata.makeEmpty();
-        }
-        Automaton automaton = pattern(patterns[0]);
-        for (String pattern : patterns) {
-            automaton = union(automaton, pattern(pattern));
-        }
-        return determinize(minimize(automaton));
+        return patterns(ImmutableList.copyOf(patterns));
     }
 
     /**

@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.ObjectSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -52,6 +51,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -62,14 +62,14 @@ import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesWarmer;
-import org.elasticsearch.indices.IndicesWarmer.WarmerContext;
 import org.elasticsearch.indices.IndicesWarmer.TerminationHandle;
+import org.elasticsearch.indices.IndicesWarmer.WarmerContext;
+import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.dfs.CachedDfSource;
@@ -150,7 +150,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         indicesService.indicesLifecycle().addListener(new IndicesLifecycle.Listener() {
 
             @Override
-            public void afterIndexDeleted(Index index) {
+            public void afterIndexDeleted(Index index, @IndexSettings Settings indexSettings) {
                 // once an index is closed we can just clean up all the pending search context information
                 // to release memory and let references to the filesystem go etc.
                 freeAllContextForIndex(index);

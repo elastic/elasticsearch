@@ -246,27 +246,6 @@ public class RestSearchAction extends BaseRestHandler {
             }
         }
 
-        String sIndicesBoost = request.param("indices_boost");
-        if (sIndicesBoost != null) {
-            if (searchSourceBuilder == null) {
-                searchSourceBuilder = new SearchSourceBuilder();
-            }
-            String[] indicesBoost = Strings.splitStringByCommaToArray(sIndicesBoost);
-            for (String indexBoost : indicesBoost) {
-                int divisor = indexBoost.indexOf(',');
-                if (divisor == -1) {
-                    throw new ElasticsearchIllegalArgumentException("Illegal index boost [" + indexBoost + "], no ','");
-                }
-                String indexName = indexBoost.substring(0, divisor);
-                String sBoost = indexBoost.substring(divisor + 1);
-                try {
-                    searchSourceBuilder.indexBoost(indexName, Float.parseFloat(sBoost));
-                } catch (NumberFormatException e) {
-                    throw new ElasticsearchIllegalArgumentException("Illegal index boost [" + indexBoost + "], boost not a float number");
-                }
-            }
-        }
-
         String sStats = request.param("stats");
         if (sStats != null) {
             if (searchSourceBuilder == null) {

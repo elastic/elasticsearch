@@ -28,10 +28,10 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -71,7 +71,8 @@ public class RecoverySource extends AbstractComponent {
         this.clusterService = clusterService;
         this.indicesService.indicesLifecycle().addListener(new IndicesLifecycle.Listener() {
             @Override
-            public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard) {
+            public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
+                                               @IndexSettings Settings indexSettings) {
                 if (indexShard != null) {
                     ongoingRecoveries.cancel(indexShard, "shard is closed");
                 }

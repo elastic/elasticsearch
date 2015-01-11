@@ -35,7 +35,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.*;
 import org.elasticsearch.index.aliases.IndexAliasesServiceModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
@@ -70,8 +69,6 @@ import org.elasticsearch.plugins.PluginsService;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -268,7 +265,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         return indexService;
     }
 
-    public synchronized IndexService createIndex(String sIndexName, Settings settings, String localNodeId) throws ElasticsearchException {
+    public synchronized IndexService createIndex(String sIndexName, @IndexSettings Settings settings, String localNodeId) throws ElasticsearchException {
         if (!lifecycle.started()) {
             throw new ElasticsearchIllegalStateException("Can't create an index [" + sIndexName + "], node is closed");
         }
@@ -277,7 +274,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             throw new IndexAlreadyExistsException(index);
         }
 
-        indicesLifecycle.beforeIndexCreated(index);
+        indicesLifecycle.beforeIndexCreated(index, settings);
 
         logger.debug("creating Index [{}], shards [{}]/[{}]", sIndexName, settings.get(SETTING_NUMBER_OF_SHARDS), settings.get(SETTING_NUMBER_OF_REPLICAS));
 
@@ -391,9 +388,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             indexInjector.getInstance(IndexStore.class).close();
 
             logger.debug("[{}] closed... (reason [{}])", index, reason);
-            indicesLifecycle.afterIndexClosed(indexService.index());
+            indicesLifecycle.afterIndexClosed(indexService.index(), indexService.settingsService().getSettings());
             if (delete) {
-                indicesLifecycle.afterIndexDeleted(indexService.index());
+                indicesLifecycle.afterIndexDeleted(indexService.index(), indexService.settingsService().getSettings());
             }
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to remove index " + index, ex);
@@ -410,7 +407,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         final FlushStats flushStats = new FlushStats();
 
         @Override
-        public synchronized void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard) {
+        public synchronized void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
+                                                        @IndexSettings Settings indexSettings) {
             if (indexShard != null) {
                 getStats.add(indexShard.getStats());
                 indexingStats.add(indexShard.indexingStats(), false);

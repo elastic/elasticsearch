@@ -37,6 +37,7 @@ import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
+import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
@@ -99,7 +100,8 @@ public class RecoveryTarget extends AbstractComponent {
 
         indicesLifecycle.addListener(new IndicesLifecycle.Listener() {
             @Override
-            public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard) {
+            public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
+                                               @IndexSettings Settings indexSettings) {
                 if (indexShard != null) {
                     onGoingRecoveries.cancelRecoveriesForShard(shardId, "shard closed");
                 }

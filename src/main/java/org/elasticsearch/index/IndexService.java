@@ -41,7 +41,6 @@ import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCacheModule;
 import org.elasticsearch.index.cache.filter.ShardFilterCacheModule;
 import org.elasticsearch.index.cache.query.ShardQueryCacheModule;
 import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldDataModule;
 import org.elasticsearch.index.gateway.IndexShardGatewayModule;
@@ -295,7 +294,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                 throw new IndexShardAlreadyExistsException(shardId + " already exists");
             }
 
-            indicesLifecycle.beforeIndexShardCreated(shardId);
+            indicesLifecycle.beforeIndexShardCreated(shardId, indexSettings);
 
             logger.debug("creating shard_id {}", shardId);
 
@@ -368,7 +367,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     private void closeShardInjector(String reason, ShardId sId, Injector shardInjector, IndexShard indexShard) {
         final int shardId = sId.id();
         try {
-            indicesLifecycle.beforeIndexShardClosed(sId, indexShard);
+            indicesLifecycle.beforeIndexShardClosed(sId, indexShard, indexSettings);
             for (Class<? extends Closeable> closeable : pluginsService.shardServices()) {
                 try {
                     shardInjector.getInstance(closeable).close();
@@ -396,7 +395,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                     PercolatorQueriesRegistry.class);
 
             // call this before we close the store, so we can release resources for it
-            indicesLifecycle.afterIndexShardClosed(sId, indexShard);
+            indicesLifecycle.afterIndexShardClosed(sId, indexShard, indexSettings);
         } finally {
             try {
                 shardInjector.getInstance(Store.class).close();

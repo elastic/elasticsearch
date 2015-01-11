@@ -188,6 +188,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
                              .put(ConcurrentMergeSchedulerProvider.AUTO_THROTTLE, "no"))
                 .get();
 
+            // Make sure we log the change:
             assertTrue(mockAppender.sawUpdateAutoThrottle);
 
             // Make sure setting says it is in fact changed:
@@ -237,17 +238,9 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
             // Make sure we log the change:
             assertTrue(mockAppender.sawUpdateMaxThreadCount);
 
-            client()
-                .admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(ImmutableSettings.builder()
-                             .put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, "3")
-                             )
-                .get();
-
-            // Wait for merges to finish
-            client().admin().indices().prepareOptimize("test").setWaitForMerge(true).get();
+            // Make sure setting says it is in fact changed:
+            GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
+            assertThat(getSettingsResponse.getSetting("test", ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT), equalTo("1"));
 
         } finally {
             rootLogger.removeAppender(mockAppender);

@@ -47,12 +47,14 @@ public class MergeStats implements Streamable, ToXContent {
     /** Total millis that we slept during writes so merge IO is throttled. */
     private long totalThrottledTimeInMillis;
 
+    private long totalBytesPerSecAutoThrottle;
+
     public MergeStats() {
 
     }
 
     public void add(long totalMerges, long totalMergeTime, long totalNumDocs, long totalSizeInBytes, long currentMerges, long currentNumDocs, long currentSizeInBytes,
-                    long stoppedTimeMillis, long throttledTimeMillis) {
+                    long stoppedTimeMillis, long throttledTimeMillis, double mbPerSecAutoThrottle) {
         this.total += totalMerges;
         this.totalTimeInMillis += totalMergeTime;
         this.totalNumDocs += totalNumDocs;
@@ -62,6 +64,7 @@ public class MergeStats implements Streamable, ToXContent {
         this.currentSizeInBytes += currentSizeInBytes;
         this.totalStoppedTimeInMillis += stoppedTimeMillis;
         this.totalThrottledTimeInMillis += throttledTimeMillis;
+        this.totalBytesPerSecAutoThrottle += (long) (mbPerSecAutoThrottle * 1024 * 1024);
     }
 
     public void add(MergeStats mergeStats) {
@@ -77,6 +80,7 @@ public class MergeStats implements Streamable, ToXContent {
         this.currentSizeInBytes += mergeStats.currentSizeInBytes;
         this.totalStoppedTimeInMillis += mergeStats.totalStoppedTimeInMillis;
         this.totalThrottledTimeInMillis += mergeStats.totalThrottledTimeInMillis;
+        this.totalBytesPerSecAutoThrottle += mergeStats.totalBytesPerSecAutoThrottle;
     }
 
     /**
@@ -140,6 +144,10 @@ public class MergeStats implements Streamable, ToXContent {
         return new ByteSizeValue(totalSizeInBytes);
     }
 
+    public long getTotalBytesPerSecAutoThrottle() {
+        return totalBytesPerSecAutoThrottle;
+    }
+
     /**
      * The current number of merges executing.
      */
@@ -177,6 +185,7 @@ public class MergeStats implements Streamable, ToXContent {
         builder.byteSizeField(Fields.TOTAL_SIZE_IN_BYTES, Fields.TOTAL_SIZE, totalSizeInBytes);
         builder.timeValueField(Fields.TOTAL_STOPPED_TIME_IN_MILLIS, Fields.TOTAL_STOPPED_TIME, totalStoppedTimeInMillis);
         builder.timeValueField(Fields.TOTAL_THROTTLED_TIME_IN_MILLIS, Fields.TOTAL_THROTTLED_TIME, totalThrottledTimeInMillis);
+        builder.byteSizeField(Fields.TOTAL_THROTTLE_BYTES_PER_SEC_IN_BYTES, Fields.TOTAL_THROTTLE_BYTES_PER_SEC, totalBytesPerSecAutoThrottle);
         builder.endObject();
         return builder;
     }
@@ -197,6 +206,8 @@ public class MergeStats implements Streamable, ToXContent {
         static final XContentBuilderString TOTAL_DOCS = new XContentBuilderString("total_docs");
         static final XContentBuilderString TOTAL_SIZE = new XContentBuilderString("total_size");
         static final XContentBuilderString TOTAL_SIZE_IN_BYTES = new XContentBuilderString("total_size_in_bytes");
+        static final XContentBuilderString TOTAL_THROTTLE_BYTES_PER_SEC_IN_BYTES = new XContentBuilderString("total_auto_throttle_in_bytes");
+        static final XContentBuilderString TOTAL_THROTTLE_BYTES_PER_SEC = new XContentBuilderString("total_auto_throttle");
     }
 
     @Override
@@ -211,6 +222,7 @@ public class MergeStats implements Streamable, ToXContent {
         if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
             totalStoppedTimeInMillis = in.readVLong();
             totalThrottledTimeInMillis = in.readVLong();
+            totalBytesPerSecAutoThrottle = in.readVLong();
         }
     }
 
@@ -226,6 +238,7 @@ public class MergeStats implements Streamable, ToXContent {
         if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
             out.writeVLong(totalStoppedTimeInMillis);
             out.writeVLong(totalThrottledTimeInMillis);
+            out.writeVLong(totalBytesPerSecAutoThrottle);
         }
     }
 }

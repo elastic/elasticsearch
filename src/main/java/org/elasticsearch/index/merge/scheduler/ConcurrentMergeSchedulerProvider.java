@@ -86,11 +86,13 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
     @Override
     public MergeStats stats() {
         MergeStats mergeStats = new MergeStats();
+        // TODO: why would there be more than one CMS for a single shard...?
         for (CustomConcurrentMergeScheduler scheduler : schedulers) {
             mergeStats.add(scheduler.totalMerges(), scheduler.totalMergeTime(), scheduler.totalMergeNumDocs(), scheduler.totalMergeSizeInBytes(),
                            scheduler.currentMerges(), scheduler.currentMergesNumDocs(), scheduler.currentMergesSizeInBytes(),
                            scheduler.totalMergeStoppedTimeMillis(),
-                           scheduler.totalMergeThrottledTimeMillis());
+                           scheduler.totalMergeThrottledTimeMillis(),
+                           autoThrottle ? scheduler.getIORateLimitMBPerSec() : Double.POSITIVE_INFINITY);
         }
         return mergeStats;
     }

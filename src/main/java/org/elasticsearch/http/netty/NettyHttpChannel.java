@@ -51,13 +51,6 @@ import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.*;
  */
 public class NettyHttpChannel extends HttpChannel {
 
-    private static final ChannelBuffer END_JSONP;
-
-    static {
-        BytesRef U_END_JSONP = new BytesRef(");");
-        END_JSONP = ChannelBuffers.wrappedBuffer(U_END_JSONP.bytes, U_END_JSONP.offset, U_END_JSONP.length);
-    }
-
     private final NettyHttpServerTransport transport;
     private final Channel channel;
     private final org.jboss.netty.handler.codec.http.HttpRequest nettyRequest;
@@ -148,20 +141,6 @@ public class NettyHttpChannel extends HttpChannel {
                 buffer = content.toChannelBuffer();
             } else {
                 buffer = content.copyBytesArray().toChannelBuffer();
-            }
-            // handle JSONP
-            String callback = request.param("callback");
-            if (callback != null) {
-                final BytesRef callbackBytes = new BytesRef(callback);
-                callbackBytes.bytes[callbackBytes.length] = '(';
-                callbackBytes.length++;
-                buffer = ChannelBuffers.wrappedBuffer(NettyUtils.DEFAULT_GATHERING,
-                        ChannelBuffers.wrappedBuffer(callbackBytes.bytes, callbackBytes.offset, callbackBytes.length),
-                        buffer,
-                        ChannelBuffers.wrappedBuffer(END_JSONP)
-                );
-                // Add content-type header of "application/javascript"
-                resp.headers().add(HttpHeaders.Names.CONTENT_TYPE, "application/javascript");
             }
             resp.setContent(buffer);
 

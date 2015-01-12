@@ -30,7 +30,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
 import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
@@ -149,8 +148,7 @@ public class NestedQueryParser implements QueryParser {
             }
 
             if (innerHits != null) {
-                ObjectMapper parentObjectMapper = childDocumentMapper.findParentObjectMapper(nestedObjectMapper);
-                InnerHitsContext.NestedInnerHits nestedInnerHits = new InnerHitsContext.NestedInnerHits(innerHits.v2(), getInnerQuery(), null, parentObjectMapper, nestedObjectMapper);
+                InnerHitsContext.NestedInnerHits nestedInnerHits = new InnerHitsContext.NestedInnerHits(innerHits.v2(), getInnerQuery(), null, getParentObjectMapper(), nestedObjectMapper);
                 String name = innerHits.v1() != null ? innerHits.v1() : path;
                 parseContext.addInnerHits(name, nestedInnerHits);
             }

@@ -51,10 +51,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
+import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
@@ -173,7 +174,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         final CopyOnWriteArrayList<Throwable> exception = new CopyOnWriteArrayList<>();
         final IndicesLifecycle.Listener listener = new IndicesLifecycle.Listener() {
             @Override
-            public void beforeIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard) {
+            public void beforeIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard, @IndexSettings Settings indexSettings) {
                 if (indexShard != null) {
                     Store store = ((IndexShard) indexShard).store();
                     store.incRef();

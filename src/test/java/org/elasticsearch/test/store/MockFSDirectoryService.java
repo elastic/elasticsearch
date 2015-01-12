@@ -77,7 +77,8 @@ public class MockFSDirectoryService extends FsDirectoryService {
                 boolean canRun = false;
 
                 @Override
-                public void beforeIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard) {
+                public void beforeIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard,
+                                                   @IndexSettings Settings indexSettings) {
                     if (indexShard != null && shardId.equals(sid)) {
                         logger.info("Shard state before potentially flushing is {}", indexShard.state());
                         if (validCheckIndexStates.contains(indexShard.state())) {
@@ -85,17 +86,18 @@ public class MockFSDirectoryService extends FsDirectoryService {
                             // When the the internal engine closes we do a rollback, which removes uncommitted segments
                             // By doing a commit flush we perform a Lucene commit, but don't clear the translog,
                             // so that even in tests where don't flush we can check the integrity of the Lucene index
-                            ((IndexShard)indexShard).engine().flush(Engine.FlushType.COMMIT, false, true); // Keep translog for tests that rely on replaying it
+                            indexShard.engine().flush(Engine.FlushType.COMMIT, false, true); // Keep translog for tests that rely on replaying it
                             logger.info("flush finished in beforeIndexShardClosed");
                         }
                     }
                 }
 
                 @Override
-                public void afterIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard) {
+                public void afterIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard,
+                                                  @IndexSettings Settings indexSettings) {
                     if (shardId.equals(sid) && indexShard != null && canRun) {
                         assert indexShard.state() == IndexShardState.CLOSED : "Current state must be closed";
-                        checkIndex(((IndexShard) indexShard).store(), sid);
+                        checkIndex(indexShard.store(), sid);
                     }
                     service.indicesLifecycle().removeListener(this);
                 }

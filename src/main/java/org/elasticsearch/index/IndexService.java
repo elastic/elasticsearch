@@ -305,7 +305,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                 throw new IndexShardAlreadyExistsException(shardId + " already exists");
             }
 
-            indicesLifecycle.beforeIndexShardCreated(shardId);
+            indicesLifecycle.beforeIndexShardCreated(shardId, indexSettings);
 
             logger.debug("creating shard_id {}", shardId);
 
@@ -377,7 +377,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     private void closeShardInjector(String reason, ShardId sId, Injector shardInjector, IndexShard indexShard) {
         final int shardId = sId.id();
         try {
-            indicesLifecycle.beforeIndexShardClosed(sId, indexShard);
+            indicesLifecycle.beforeIndexShardClosed(sId, indexShard, indexSettings);
             for (Class<? extends CloseableIndexComponent> closeable : pluginsService.shardServices()) {
                 try {
                     shardInjector.getInstance(closeable).close();
@@ -405,7 +405,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                     PercolatorQueriesRegistry.class);
 
             // call this before we close the store, so we can release resources for it
-            indicesLifecycle.afterIndexShardClosed(sId, indexShard);
+            indicesLifecycle.afterIndexShardClosed(sId, indexShard, indexSettings);
         } finally {
             try {
                 shardInjector.getInstance(Store.class).close();

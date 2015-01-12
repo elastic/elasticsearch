@@ -445,6 +445,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", true)
                 .field("index", randomBoolean() ? "no" : "analyzed") // default is "not_analyzed" which will be omitted when building the source again
+                .field("doc_values", true)
                 .field("path", "foo")
                 .field("default", "1970-01-01")
                 .startObject("fielddata").field("format", "doc_values").endObject()

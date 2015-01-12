@@ -29,9 +29,9 @@ import java.util.Locale;
  */
 public interface CircuitBreaker {
 
-    public static final String PARENT = "PARENT";
-    public static final String FIELDDATA = "FIELDDATA";
-    public static final String REQUEST = "REQUEST";
+    public static final String PARENT = "parent";
+    public static final String FIELDDATA = "fielddata";
+    public static final String REQUEST = "request";
 
     public static enum Type {
         // A regular or child MemoryCircuitBreaker

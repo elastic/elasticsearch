@@ -60,6 +60,7 @@ public class NestedInnerQueryParseSupport {
 
     protected DocumentMapper childDocumentMapper;
     protected ObjectMapper nestedObjectMapper;
+    private ObjectMapper parentObjectMapper;
 
     public NestedInnerQueryParseSupport(XContentParser parser, SearchContext searchContext) {
         parseContext = searchContext.queryParserService().getParseContext();
@@ -187,6 +188,10 @@ public class NestedInnerQueryParseSupport {
         return filterFound;
     }
 
+    public ObjectMapper getParentObjectMapper() {
+        return parentObjectMapper;
+    }
+
     private void setPathLevel() {
         ObjectMapper objectMapper = parseContext.nestedScope().getObjectMapper();
         if (objectMapper == null) {
@@ -195,7 +200,7 @@ public class NestedInnerQueryParseSupport {
             parentFilter = parseContext.fixedBitSetFilter(objectMapper.nestedTypeFilter());
         }
         childFilter = parseContext.fixedBitSetFilter(nestedObjectMapper.nestedTypeFilter());
-        parseContext.nestedScope().nextLevel(nestedObjectMapper);
+        parentObjectMapper = parseContext.nestedScope().nextLevel(nestedObjectMapper);
     }
 
     private void resetPathLevel() {

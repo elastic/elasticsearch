@@ -861,7 +861,12 @@ public abstract class ShapeBuilder implements ToXContent {
              * are equivalent (they represent equivalent points). Though a LinearRing is not explicitly
              * represented as a GeoJSON geometry type, it is referred to in the Polygon geometry type definition.
              */
-            if (coordinates.children.size() < 4) {
+            if (coordinates.children == null) {
+                String error = "Invalid LinearRing found.";
+                error += (coordinates.coordinate == null) ?
+                        " No coordinate array provided" : " Found a single coordinate when expecting a coordinate array";
+                throw new ElasticsearchParseException(error);
+            } else if (coordinates.children.size() < 4) {
                 throw new ElasticsearchParseException("Invalid number of points in LinearRing (found " +
                         coordinates.children.size() + " - must be >= 4)");
             } else if (!coordinates.children.get(0).coordinate.equals(

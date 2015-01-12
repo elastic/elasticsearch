@@ -111,7 +111,7 @@ curl 'localhost:9200/twitter/tweet/_search?scroll=1m&search_type=scan' <1> -d '
 <1> Setting `search_type` to `scan` disables sorting and makes scrolling
     very efficient.
 
-A scanning scroll request differs from a standard scroll request in three
+A scanning scroll request differs from a standard scroll request in four
 ways:
 
 * Sorting is disabled. Results are returned in the order they appear in the index.

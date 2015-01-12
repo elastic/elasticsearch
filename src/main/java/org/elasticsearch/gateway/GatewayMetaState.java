@@ -33,8 +33,8 @@ import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.HashFunction;
 import org.elasticsearch.cluster.routing.DjbHashFunction;
+import org.elasticsearch.cluster.routing.HashFunction;
 import org.elasticsearch.cluster.routing.SimpleHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -55,7 +55,9 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.nio.file.*;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -267,7 +269,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                             // it may take a couple of seconds for outstanding shard reference
                             // to release their refs (for example, on going recoveries)
                             // we are working on a better solution see: https://github.com/elasticsearch/elasticsearch/pull/8608
-                            nodeEnv.deleteIndexDirectorySafe(idx, deleteTimeout.millis(), current.settings());
+                            nodeEnv.deleteIndexDirectorySafe(idx, deleteTimeout.millis(), current.settings(), false);
                         } catch (LockObtainFailedException ex) {
                             logger.debug("[{}] failed to delete index - at least one shards is still locked", ex, current.index());
                         } catch (Exception ex) {
@@ -318,7 +320,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                                     final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, 0);
                                     if (shardLocks.isEmpty()) {
                                         // no shards - try to remove the directory
-                                        nodeEnv.deleteIndexDirectorySafe(index, 0, indexMetaData.settings());
+                                        nodeEnv.deleteIndexDirectorySafe(index, 0, indexMetaData.settings(), false);
                                         continue;
                                     }
                                     IOUtils.closeWhileHandlingException(shardLocks);
@@ -332,7 +334,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                                 } else if (danglingTimeout.millis() == 0) {
                                     logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, timeout set to 0, deleting now", indexName);
                                     try {
-                                        nodeEnv.deleteIndexDirectorySafe(index, 0, indexMetaData.settings());
+                                        nodeEnv.deleteIndexDirectorySafe(index, 0, indexMetaData.settings(), false);
                                     } catch (LockObtainFailedException ex) {
                                         logger.debug("[{}] failed to delete index - at least one shards is still locked", ex, indexName);
                                     } catch (Exception ex) {
@@ -592,7 +594,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
                 try {
                     MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(index));
-                    nodeEnv.deleteIndexDirectorySafe(index, 0, indexSettings);
+                    nodeEnv.deleteIndexDirectorySafe(index, 0, indexSettings, true);
                 } catch (Exception ex) {
                     logger.debug("failed to delete dangling index", ex);
                 }

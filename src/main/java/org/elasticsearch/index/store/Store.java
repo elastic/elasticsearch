@@ -28,6 +28,7 @@ import org.apache.lucene.store.*;
 import org.apache.lucene.util.*;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -539,24 +540,34 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * This method deletes every file in this store that is not contained in the given source meta data or is a
      * legacy checksum file. After the delete it pulls the latest metadata snapshot from the store and compares it
-     * to the given snapshot. If the snapshots are inconsistent an illegal state exception is thrown
+     * to the given snapshot. If the snapshots are inconsistent an illegal state exception is thrown.
+     *
+     * If the store is part of a shadow replica, extra files are not cleaned up because they could be in use
+     * by a shared filesystem.
      *
      * @param reason         the reason for this cleanup operation logged for each deleted file
      * @param sourceMetaData the metadata used for cleanup. all files in this metadata should be kept around.
+     * @param indexSettings  the settings for the index that is being cleaned up
      * @throws IOException                        if an IOException occurs
      * @throws ElasticsearchIllegalStateException if the latest snapshot in this store differs from the given one after the cleanup.
      */
-    public void cleanupAndVerify(String reason, MetadataSnapshot sourceMetaData) throws IOException {
+    public void cleanupAndVerify(String reason, MetadataSnapshot sourceMetaData, @IndexSettings Settings indexSettings) throws IOException {
         failIfCorrupted();
         metadataLock.writeLock().lock();
         try {
             final StoreDirectory dir = directory;
+            final boolean shadowReplicasInUse = indexSettings.getAsBoolean(IndexMetaData.SETTING_SHADOW_REPLICAS, false);
             for (String existingFile : dir.listAll()) {
+                if (shadowReplicasInUse) {
+                    logger.debug("skipping store cleanup of [{}] because shadow replicas are in use", existingFile);
+                    continue;
+                }
                 // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete checksum)
-                if (!sourceMetaData.contains(existingFile) && !Store.isChecksum(existingFile)) {
+                // we also don't want to deleted IndexWriter's write.lock
+                // files, since it could be a shared filesystem
+                if (!sourceMetaData.contains(existingFile) && !Store.isChecksum(existingFile) && !Store.isEngineLock(existingFile)) {
                     try {
                         dir.deleteFile(reason, existingFile);
-                        dir.deleteFile(existingFile);
                     } catch (Exception e) {
                         // ignore, we don't really care, will get deleted later on
                     }
@@ -1081,6 +1092,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public static final boolean isChecksum(String name) {
         // TODO can we drowp .cks
         return name.startsWith(CHECKSUMS_PREFIX) || name.endsWith(".cks"); // bwcomapt - .cks used to be a previous checksum file
+    }
+
+    public static final boolean isEngineLock(String name) {
+        return name.equals("write.lock");
     }
 
     /**

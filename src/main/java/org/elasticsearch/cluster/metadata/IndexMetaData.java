@@ -157,6 +157,7 @@ public class IndexMetaData {
 
     public static final String SETTING_NUMBER_OF_SHARDS = "index.number_of_shards";
     public static final String SETTING_NUMBER_OF_REPLICAS = "index.number_of_replicas";
+    public static final String SETTING_SHADOW_REPLICAS = "index.shadow_replicas";
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
     public static final String SETTING_READ_ONLY = "index.blocks.read_only";
     public static final String SETTING_BLOCKS_READ = "index.blocks.read";

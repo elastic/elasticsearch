@@ -279,7 +279,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         return indexSettings.get(IndexMetaData.SETTING_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
     }
 
-    public synchronized IndexShard createShard(int sShardId) throws ElasticsearchException {
+    public synchronized IndexShard createShard(int sShardId, boolean primary) throws ElasticsearchException {
         /*
          * TODO: we execute this in parallel but it's a synced method. Yet, we might
          * be able to serialize the execution via the cluster state in the future. for now we just
@@ -304,7 +304,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new ShardsPluginsModule(indexSettings, pluginsService));
-            modules.add(new IndexShardModule(shardId, indexSettings));
+            modules.add(new IndexShardModule(shardId, primary, indexSettings));
             modules.add(new ShardIndexingModule());
             modules.add(new ShardSearchModule());
             modules.add(new ShardGetModule());

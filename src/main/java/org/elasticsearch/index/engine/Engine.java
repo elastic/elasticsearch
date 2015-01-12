@@ -32,17 +32,20 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.Closeable;
@@ -50,6 +53,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -59,8 +63,15 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public abstract class Engine implements Closeable {
 
+    protected final ShardId shardId;
     protected final ESLogger logger;
     protected final EngineConfig engineConfig;
+    protected final Store store;
+    protected final AtomicBoolean isClosed = new AtomicBoolean(false);
+    protected final FailedEngineListener failedEngineListener;
+    protected final SnapshotDeletionPolicy deletionPolicy;
+
+    protected volatile Throwable failedEngine = null;
 
     protected Engine(EngineConfig engineConfig) {
         Preconditions.checkNotNull(engineConfig.getStore(), "Store must be provided to the engine");
@@ -68,7 +79,11 @@ public abstract class Engine implements Closeable {
         Preconditions.checkNotNull(engineConfig.getTranslog(), "Translog must be provided to the engine");
 
         this.engineConfig = engineConfig;
+        this.shardId = engineConfig.getShardId();
+        this.store = engineConfig.getStore();
         this.logger = Loggers.getLogger(getClass(), engineConfig.getIndexSettings(), engineConfig.getShardId());
+        this.failedEngineListener = engineConfig.getFailedEngineListener();
+        this.deletionPolicy = engineConfig.getDeletionPolicy();
     }
 
     /** Returns 0 in the case where accountable is null, otherwise returns {@code ramBytesUsed()} */
@@ -181,6 +196,35 @@ public abstract class Engine implements Closeable {
 
     public abstract void delete(DeleteByQuery delete) throws EngineException;
 
+    protected GetResult getFromSearcher(Get get) throws EngineException {
+        final Searcher searcher = acquireSearcher("get");
+        final Versions.DocIdAndVersion docIdAndVersion;
+        try {
+            docIdAndVersion = Versions.loadDocIdAndVersion(searcher.reader(), get.uid());
+        } catch (Throwable e) {
+            Releasables.closeWhileHandlingException(searcher);
+            //TODO: A better exception goes here
+            throw new EngineException(shardId, "Couldn't resolve version", e);
+        }
+
+        if (docIdAndVersion != null) {
+            if (get.versionType().isVersionConflictForReads(docIdAndVersion.version, get.version())) {
+                Releasables.close(searcher);
+                Uid uid = Uid.createUid(get.uid().text());
+                throw new VersionConflictEngineException(shardId, uid.type(), uid.id(), docIdAndVersion.version, get.version());
+            }
+        }
+
+        if (docIdAndVersion != null) {
+            // don't release the searcher on this path, it is the
+            // responsibility of the caller to call GetResult.release
+            return new GetResult(searcher, docIdAndVersion);
+        } else {
+            Releasables.close(searcher);
+            return GetResult.NOT_EXISTS;
+        }
+    }
+
     public abstract GetResult get(Get get) throws EngineException;
 
     /**
@@ -191,6 +235,13 @@ public abstract class Engine implements Closeable {
      * @see Searcher#close()
      */
     public abstract Searcher acquireSearcher(String source) throws EngineException;
+
+
+    protected void ensureOpen() {
+        if (isClosed.get()) {
+            throw new EngineClosedException(shardId, failedEngine);
+        }
+    }
 
     /**
      * Global stats on segments.
@@ -232,7 +283,7 @@ public abstract class Engine implements Closeable {
     /**
      * Optimizes to 1 segment
      */
-    abstract void forceMerge(boolean flush, boolean waitForMerge);
+    public abstract void forceMerge(boolean flush, boolean waitForMerge);
 
     /**
      * Triggers a forced merge on this engine

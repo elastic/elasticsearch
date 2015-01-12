@@ -47,6 +47,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexShardAlreadyExistsException;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.aliases.IndexAlias;
@@ -56,18 +57,20 @@ import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.settings.IndexSettingsService;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -555,7 +558,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 continue;
             }
 
-            IndexShard indexShard = indexService.shard(shardId);
+            final IndexShard indexShard = indexService.shard(shardId);
             if (indexShard != null) {
                 ShardRouting currentRoutingEntry = indexShard.routingEntry();
                 // if the current and global routing are initializing, but are still not the same, its a different "shard" being allocated
@@ -574,7 +577,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                         // we have an ongoing recovery, find the source based on current routing and compare them
                         DiscoveryNode sourceNode = findSourceNodeForPeerRecovery(routingTable, nodes, shardRouting);
                         if (!recoveryState.getSourceNode().equals(sourceNode)) {
-                            logger.debug("[{}][{}] removing shard (recovery source changed), current [{}], global [{}])", shardRouting.index(), shardRouting.id(), currentRoutingEntry, shardRouting);
+                            logger.debug("[{}][{}] removing shard (recovery source changed), current [{}], global [{}])",
+                                    shardRouting.index(), shardRouting.id(), currentRoutingEntry, shardRouting);
                             // closing the shard will also cancel any ongoing recovery.
                             indexService.removeShard(shardRouting.id(), "removing shard (recovery source node changed)");
                             shardHasBeenRemoved = true;
@@ -587,9 +591,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     indexService.shardInjectorSafe(shardId).getInstance(IndexShardGatewayService.class).routingStateChanged();
                 }
             }
-
             if (shardRouting.initializing()) {
-                applyInitializingShard(routingTable, nodes, indexMetaData, routingTable.index(shardRouting.index()).shard(shardRouting.id()), shardRouting);
+                applyInitializingShard(routingTable, nodes, indexMetaData,
+                        routingTable.index(shardRouting.index()).shard(shardRouting.id()), shardRouting);
             }
         }
     }
@@ -688,7 +692,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 if (logger.isDebugEnabled()) {
                     logger.debug("[{}][{}] creating shard", shardRouting.index(), shardId);
                 }
-                IndexShard indexShard = indexService.createShard(shardId);
+                IndexShard indexShard = indexService.createShard(shardId, shardRouting.primary());
                 indexShard.routingEntry(shardRouting);
                 indexShard.addFailedEngineListener(failedEngineHandler);
             } catch (IndexShardAlreadyExistsException e) {

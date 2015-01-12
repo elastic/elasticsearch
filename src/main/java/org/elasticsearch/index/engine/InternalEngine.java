@@ -34,18 +34,14 @@ import org.elasticsearch.cluster.routing.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.math.MathUtils;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
-import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Uid;
@@ -54,8 +50,6 @@ import org.elasticsearch.index.merge.policy.ElasticsearchMergePolicy;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.search.nested.IncludeNestedDocsQuery;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -75,7 +69,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 public class InternalEngine extends Engine {
 
-    protected final ShardId shardId;
     private final FailEngineOnMergeFailure mergeSchedulerFailureListener;
     private final MergeSchedulerListener mergeSchedulerListener;
 
@@ -85,8 +78,6 @@ public class InternalEngine extends Engine {
     private final ShardIndexingService indexingService;
     @Nullable
     private final IndicesWarmer warmer;
-    private final Store store;
-    private final SnapshotDeletionPolicy deletionPolicy;
     private final Translog translog;
     private final MergePolicyProvider mergePolicyProvider;
     private final MergeSchedulerProvider mergeScheduler;
@@ -100,7 +91,6 @@ public class InternalEngine extends Engine {
     private final SearcherFactory searcherFactory;
     private final SearcherManager searcherManager;
 
-    private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final AtomicBoolean optimizeMutex = new AtomicBoolean();
     // we use flushNeeded here, since if there are no changes, then the commit won't write
     // will not really happen, and then the commitUserData and the new translog will not be reflected
@@ -114,9 +104,7 @@ public class InternalEngine extends Engine {
     private final LiveVersionMap versionMap;
 
     private final Object[] dirtyLocks;
-    private volatile Throwable failedEngine = null;
     private final ReentrantLock failEngineLock = new ReentrantLock();
-    private final FailedEngineListener failedEngineListener;
 
     private final AtomicLong translogIdGenerator = new AtomicLong();
     private final AtomicBoolean versionMapRefreshPending = new AtomicBoolean();
@@ -127,8 +115,6 @@ public class InternalEngine extends Engine {
 
     public InternalEngine(EngineConfig engineConfig) throws EngineException {
         super(engineConfig);
-        this.store = engineConfig.getStore();
-        this.shardId = engineConfig.getShardId();
         this.versionMap = new LiveVersionMap();
         store.incRef();
         IndexWriter writer = null;
@@ -139,7 +125,6 @@ public class InternalEngine extends Engine {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
             this.indexingService = engineConfig.getIndexingService();
             this.warmer = engineConfig.getWarmer();
-            this.deletionPolicy = engineConfig.getDeletionPolicy();
             this.translog = engineConfig.getTranslog();
             this.mergePolicyProvider = engineConfig.getMergePolicyProvider();
             this.mergeScheduler = engineConfig.getMergeScheduler();
@@ -148,7 +133,6 @@ public class InternalEngine extends Engine {
                 dirtyLocks[i] = new Object();
             }
 
-            this.failedEngineListener = engineConfig.getFailedEngineListener();
             throttle = new IndexThrottle();
             this.searcherFactory = new SearchFactory(engineConfig);
             try {
@@ -252,31 +236,7 @@ public class InternalEngine extends Engine {
             }
 
             // no version, get the version from the index, we know that we refresh on flush
-            final Searcher searcher = acquireSearcher("get");
-            final Versions.DocIdAndVersion docIdAndVersion;
-            try {
-                docIdAndVersion = Versions.loadDocIdAndVersion(searcher.reader(), get.uid());
-            } catch (Throwable e) {
-                Releasables.closeWhileHandlingException(searcher);
-                //TODO: A better exception goes here
-                throw new EngineException(shardId, "Couldn't resolve version", e);
-            }
-
-            if (docIdAndVersion != null) {
-                if (get.versionType().isVersionConflictForReads(docIdAndVersion.version, get.version())) {
-                    Releasables.close(searcher);
-                    Uid uid = Uid.createUid(get.uid().text());
-                    throw new VersionConflictEngineException(shardId, uid.type(), uid.id(), docIdAndVersion.version, get.version());
-                }
-            }
-
-            if (docIdAndVersion != null) {
-                // don't release the searcher on this path, it is the responsability of the caller to call GetResult.release
-                return new GetResult(searcher, docIdAndVersion);
-            } else {
-                Releasables.close(searcher);
-                return GetResult.NOT_EXISTS;
-            }
+            return getFromSearcher(get);
         }
     }
 
@@ -773,12 +733,6 @@ public class InternalEngine extends Engine {
         } finally {
             flushLock.unlock();
             flushing.decrementAndGet();
-        }
-    }
-
-    private void ensureOpen() {
-        if (isClosed.get()) {
-            throw new EngineClosedException(shardId, failedEngine);
         }
     }
 

@@ -34,6 +34,8 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
+import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Booleans;
@@ -44,12 +46,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.VersionType;
@@ -69,6 +71,7 @@ import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
+import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.indexing.IndexingStats;
@@ -89,9 +92,9 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.Store.MetadataSnapshot;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.store.StoreStats;
-import org.elasticsearch.index.store.Store.MetadataSnapshot;
 import org.elasticsearch.index.suggest.stats.ShardSuggestService;
 import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.index.termvectors.ShardTermVectorsService;
@@ -149,12 +152,14 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndexService indexService;
     private final ShardSuggestService shardSuggestService;
     private final ShardBitsetFilterCache shardBitsetFilterCache;
+    private final MappingUpdatedAction mappingUpdatedAction;
+    private final CancellableThreads cancellableThreads = new CancellableThreads();
 
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
     private final EngineConfig config;
-    private final EngineFactory engineFactory;
     private long checkIndexTook = 0;
+    private volatile EngineFactory engineFactory;
     private volatile IndexShardState state;
 
     private TimeValue refreshInterval;
@@ -176,11 +181,19 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final MapperAnalyzer mapperAnalyzer;
 
     @Inject
-    public IndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, MergeSchedulerProvider mergeScheduler, Translog translog,
-                      ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
-                      ShardFilterCache shardFilterCache, ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService,
-                      ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardBitsetFilterCache,
-                      @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, AnalysisService analysisService, SimilarityService similarityService, MergePolicyProvider mergePolicyProvider, EngineFactory factory) {
+    public IndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService,
+                      IndicesLifecycle indicesLifecycle, Store store, MergeSchedulerProvider mergeScheduler, Translog translog,
+                      ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService,
+                      IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService,
+                      ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
+                      ShardFilterCache shardFilterCache, ShardFieldData shardFieldData,
+                      PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService,
+                      CodecService codecService, ShardTermVectorsService termVectorsService,
+                      IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService,
+                      ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardBitsetFilterCache,
+                      @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, AnalysisService analysisService,
+                      SimilarityService similarityService, MergePolicyProvider mergePolicyProvider, EngineFactory factory,
+                      MappingUpdatedAction mappingUpdatedAction) {
         super(shardId, indexSettings);
         Preconditions.checkNotNull(store, "Store must be provided to the index shard");
         Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the index shard");
@@ -211,6 +224,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.codecService = codecService;
         this.shardSuggestService = shardSuggestService;
         this.shardBitsetFilterCache = shardBitsetFilterCache;
+        this.mappingUpdatedAction = mappingUpdatedAction;
         state = IndexShardState.CREATED;
         this.refreshInterval = indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, EngineConfig.DEFAULT_REFRESH_INTERVAL);
         indexSettingsService.addListener(applyRefreshSettings);
@@ -309,6 +323,22 @@ public class IndexShard extends AbstractIndexShardComponent {
             // if its the same routing, return
             if (currentRouting.equals(newRouting)) {
                 return this;
+            }
+
+            // check for a shadow replica that now needs to be transformed into
+            // a normal primary
+            if (currentRouting.primary() == false && // currently a replica
+                    newRouting.primary() == true && // becoming a primary
+                    indexSettings.getAsBoolean(IndexMetaData.SETTING_SHADOW_REPLICAS, false)) {
+                this.engineFactory = new InternalEngineFactory();
+
+                // Recovery creates a new engine, we only need to preset the
+                // state to RECOVERING
+                state = IndexShardState.RECOVERING;
+                IndexShardGateway.recover(this, this.logger, this.mappingUpdatedAction,
+                        this.cancellableThreads, true, new RecoveryState(shardId()),
+                        // TODO make this configurable, or get it from IndexShardGateway
+                        TimeValue.timeValueSeconds(30));
             }
         }
 
@@ -1144,7 +1174,8 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (state == IndexShardState.CLOSED) {
                 throw new EngineClosedException(shardId);
             }
-            assert this.currentEngineReference.get() == null;
+            // TODO we need to remove this assert, but should it be replaced with something?
+            // assert this.currentEngineReference.get() == null;
             this.currentEngineReference.set(engineFactory.newEngine(config));
         }
     }

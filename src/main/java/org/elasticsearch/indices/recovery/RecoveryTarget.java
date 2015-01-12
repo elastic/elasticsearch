@@ -24,6 +24,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.StopWatch;
@@ -397,7 +398,8 @@ public class RecoveryTarget extends AbstractComponent {
                 recoveryStatus.legacyChecksums().write(store);
                 Store.MetadataSnapshot sourceMetaData = request.sourceMetaSnapshot();
                 try {
-                    store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
+                    IndexMetaData indexMeta = clusterService.state().getMetaData().index(request.shardId().getIndex());
+                    store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData, indexMeta.settings());
                 } catch (Exception ex) {
                     throw new RecoveryFailedException(recoveryStatus.state(), "failed to clean after recovery", ex);
                 }

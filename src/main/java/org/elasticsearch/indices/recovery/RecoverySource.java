@@ -19,9 +19,11 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
@@ -101,6 +103,14 @@ public class RecoverySource extends AbstractComponent {
                 targetShardRouting = shardRouting;
                 break;
             }
+        }
+        if (shard.routingEntry().primary() &&
+                targetShardRouting.primary() && // must be primary-to-primary relocation
+                shard.indexSettings().getAsBoolean(IndexMetaData.SETTING_SHADOW_REPLICAS, false)) {
+            // TODO better exception here
+            logger.info("aborting recovery of shadow primary to shadow primary");
+            shard.engine().failEngine("attempted to relocate primary shard for shadow index",
+                    new ElasticsearchException("aborting recovery of shadow primary to shadow primary"));
         }
         if (targetShardRouting == null) {
             logger.debug("delaying recovery of {} as it is not listed as assigned to target node {}", request.shardId(), request.targetNode());

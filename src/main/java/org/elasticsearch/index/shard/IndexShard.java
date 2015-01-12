@@ -222,7 +222,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexShar
 
         logger.debug("state: [CREATED]");
 
-        this.checkIndexOnStartup = indexSettings.get("index.shard.check_on_startup", "checksum");
+        this.checkIndexOnStartup = indexSettings.get("index.shard.check_on_startup", "false");
     }
 
     public Store store() {

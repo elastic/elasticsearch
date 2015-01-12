@@ -55,7 +55,7 @@ otherwise it is written in non-compound format.
         more expensive in terms of CPU and memory usage.
         When `fix`, check for both physical and logical corruption, and segments 
         that were reported as corrupted will be automatically removed.
-        Default value is `checksum`, which checks for physical corruption only.
+        Default value is `false`, which performs no checks.
 
 NOTE: Checking shards may take a lot of time on large indices.
 

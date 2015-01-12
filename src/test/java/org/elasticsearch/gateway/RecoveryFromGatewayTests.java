@@ -354,7 +354,9 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
         // prevent any rebalance actions during the peer recovery
         // if we run into a relocation the reuse count will be 0 and this fails the test. We are testing here if
         // we reuse the files on disk after full restarts for replicas.
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put(indexSettings())));
+        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
+                .put(indexSettings())
+                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)));
         ensureGreen();
         logger.info("--> indexing docs");
         for (int i = 0; i < 1000; i++) {

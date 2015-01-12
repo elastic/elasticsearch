@@ -39,17 +39,19 @@ public final class NestedScope {
     }
 
     /**
-     * Sets the new current nested level and moves old current nested level down
+     * Sets the new current nested level and pushes old current nested level down the stack returns that level.
      */
-    public void nextLevel(ObjectMapper level) {
+    public ObjectMapper nextLevel(ObjectMapper level) {
+        ObjectMapper previous = levelStack.peek();
         levelStack.push(level);
+        return previous;
     }
 
     /**
-     * Sets the previous nested level as current nested level and removes the current nested level.
+     * Sets the previous nested level as current nested level and removes and returns the current nested level.
      */
-    public void previousLevel() {
-        ObjectMapper level = levelStack.pop();
+    public ObjectMapper previousLevel() {
+        return levelStack.pop();
     }
 
 }

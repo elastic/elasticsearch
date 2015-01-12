@@ -30,8 +30,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static com.google.common.collect.Lists.newArrayList;
@@ -42,7 +42,7 @@ import static com.google.common.collect.Lists.newArrayList;
  */
 public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
-    private final Map<String, CircuitBreaker> breakers = new ConcurrentHashMap();
+    private final ConcurrentMap<String, CircuitBreaker> breakers = new ConcurrentHashMap();
 
     // Old pre-1.4.0 backwards compatible settings
     public static final String OLD_CIRCUIT_BREAKER_MAX_BYTES_SETTING = "indices.fielddata.breaker.limit";
@@ -220,7 +220,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         long parentLimit = this.parentSettings.getLimit();
         if (totalUsed > parentLimit) {
             this.parentTripCount.incrementAndGet();
-            throw new CircuitBreakingException("[PARENT] Data too large, data for [" +
+            throw new CircuitBreakingException("[parent] Data too large, data for [" +
                     label + "] would be larger than limit of [" +
                     parentLimit + "/" + new ByteSizeValue(parentLimit) + "]",
                     totalUsed, parentLimit);
@@ -238,15 +238,27 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         // Validate the settings
         validateSettings(new BreakerSettings[] {breakerSettings});
 
-        CircuitBreaker breaker;
         if (breakerSettings.getType() == CircuitBreaker.Type.NOOP) {
-            breaker = new NoopCircuitBreaker(breakerSettings.getName());
+            CircuitBreaker breaker = new NoopCircuitBreaker(breakerSettings.getName());
+            breakers.put(breakerSettings.getName(), breaker);
         } else {
-            CircuitBreaker oldBreaker = breakers.get(breakerSettings.getName());
-            breaker = new ChildMemoryCircuitBreaker(breakerSettings,
-                    (ChildMemoryCircuitBreaker)oldBreaker, logger, this, breakerSettings.getName());
+            CircuitBreaker oldBreaker;
+            CircuitBreaker breaker = new ChildMemoryCircuitBreaker(breakerSettings,
+                    logger, this, breakerSettings.getName());
+
+            for (;;) {
+                oldBreaker = breakers.putIfAbsent(breakerSettings.getName(), breaker);
+                if (oldBreaker == null) {
+                    return;
+                }
+                breaker = new ChildMemoryCircuitBreaker(breakerSettings,
+                        (ChildMemoryCircuitBreaker)oldBreaker, logger, this, breakerSettings.getName());
+
+                if (breakers.replace(breakerSettings.getName(), oldBreaker, breaker)) {
+                    return;
+                }
+            }
         }
 
-        breakers.put(breakerSettings.getName(), breaker);
     }
 }

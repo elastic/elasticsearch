@@ -905,15 +905,6 @@ public class MapperService extends AbstractIndexComponent  {
         return this.searchQuoteAnalyzer;
     }
 
-    public Analyzer fieldSearchAnalyzer(String field) {
-        return this.searchAnalyzer.getWrappedAnalyzer(field);
-    }
-
-    public Analyzer fieldSearchQuoteAnalyzer(String field) {
-        return this.searchQuoteAnalyzer.getWrappedAnalyzer(field);
-    }
-
-
     /**
      * Resolves the closest inherited {@link ObjectMapper} that is nested.
      */

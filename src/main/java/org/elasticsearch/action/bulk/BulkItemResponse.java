@@ -20,7 +20,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -104,7 +104,7 @@ public class BulkItemResponse implements Streamable {
 
     private String opType;
 
-    private ActionResponse response;
+    private ActionWriteResponse response;
 
     private Failure failure;
 
@@ -112,7 +112,7 @@ public class BulkItemResponse implements Streamable {
 
     }
 
-    public BulkItemResponse(int id, String opType, ActionResponse response) {
+    public BulkItemResponse(int id, String opType, ActionWriteResponse response) {
         this.id = id;
         this.opType = opType;
         this.response = response;
@@ -210,7 +210,7 @@ public class BulkItemResponse implements Streamable {
      * The actual response ({@link IndexResponse} or {@link DeleteResponse}). <tt>null</tt> in
      * case of failure.
      */
-    public <T extends ActionResponse> T getResponse() {
+    public <T extends ActionWriteResponse> T getResponse() {
         return (T) response;
     }
 

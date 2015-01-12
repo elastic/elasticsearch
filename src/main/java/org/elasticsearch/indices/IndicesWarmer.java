@@ -17,9 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.warmer;
+package org.elasticsearch.indices;
 
 import com.google.common.collect.Lists;
+import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -27,6 +28,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -37,7 +40,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  */
-public class InternalIndicesWarmer extends AbstractComponent implements IndicesWarmer {
+public final class IndicesWarmer extends AbstractComponent {
 
     public static final String INDEX_WARMER_ENABLED = "index.warmer.enabled";
 
@@ -50,19 +53,17 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
     private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
 
     @Inject
-    public InternalIndicesWarmer(Settings settings, ThreadPool threadPool, ClusterService clusterService, IndicesService indicesService) {
+    public IndicesWarmer(Settings settings, ThreadPool threadPool, ClusterService clusterService, IndicesService indicesService) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
     }
 
-    @Override
     public void addListener(Listener listener) {
         listeners.add(listener);
     }
 
-    @Override
     public void removeListener(Listener listener) {
         listeners.remove(listener);
     }
@@ -100,7 +101,7 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
         }
         indexShard.warmerService().onPreWarm();
         long time = System.nanoTime();
-        final List<IndicesWarmer.Listener.TerminationHandle> terminationHandles = Lists.newArrayList();
+        final List<TerminationHandle> terminationHandles = Lists.newArrayList();
         // get a handle on pending tasks
         for (final Listener listener : listeners) {
             if (topReader) {
@@ -110,7 +111,7 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
             }
         }
         // wait for termination
-        for (IndicesWarmer.Listener.TerminationHandle terminationHandle : terminationHandles) {
+        for (TerminationHandle terminationHandle : terminationHandles) {
             try {
                 terminationHandle.awaitTermination();
             } catch (InterruptedException e) {
@@ -134,4 +135,55 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
         }
     }
 
+    /** A handle on the execution of  warm-up action. */
+    public interface TerminationHandle {
+
+        public static TerminationHandle NO_WAIT = new TerminationHandle() {
+            @Override
+            public void awaitTermination() {}
+        };
+
+        /** Wait until execution of the warm-up action completes. */
+        void awaitTermination() throws InterruptedException;
+    }
+    public static abstract class Listener {
+
+        public String executor() {
+            return ThreadPool.Names.WARMER;
+        }
+
+        /** Queue tasks to warm-up the given segments and return handles that allow to wait for termination of the execution of those tasks. */
+        public abstract TerminationHandle warmNewReaders(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool);
+
+        public abstract TerminationHandle warmTopReader(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool);
+    }
+
+    public static final class WarmerContext {
+
+        private final ShardId shardId;
+        private final Engine.Searcher searcher;
+
+        public WarmerContext(ShardId shardId, Engine.Searcher searcher) {
+            this.shardId = shardId;
+            this.searcher = searcher;
+        }
+
+        public ShardId shardId() {
+            return shardId;
+        }
+
+        /** Return a searcher instance that only wraps the segments to warm. */
+        public Engine.Searcher searcher() {
+            return searcher;
+        }
+
+        public IndexReader reader() {
+            return searcher.reader();
+        }
+
+        @Override
+        public String toString() {
+            return "WarmerContext: " + searcher.reader();
+        }
+    }
 }

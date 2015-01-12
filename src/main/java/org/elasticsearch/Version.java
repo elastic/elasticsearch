@@ -30,17 +30,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
-import java.io.Serializable;
 
 /**
  */
 @SuppressWarnings("deprecation")
-public class Version implements Serializable {
+public class Version {
 
     // The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is Beta/RC indicator
     // AA values below 50 are beta builds, and below 99 are RC builds, with 99 indicating a release
     // the (internal) format of the id is there so we can easily do after/before checks on the id
-    
+
     // NOTE: indexes created with 3.6 use this constant for e.g. analysis chain emulation (imperfect)
     public static final org.apache.lucene.util.Version LUCENE_3_EMULATION_VERSION = org.apache.lucene.util.Version.LUCENE_4_0_0;
 
@@ -222,7 +221,7 @@ public class Version implements Serializable {
     public static final int V_1_4_3_ID = /*00*/1040399;
     public static final Version V_1_4_3 = new Version(V_1_4_3_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_2);
     public static final int V_1_5_0_ID = /*00*/1050099;
-    public static final Version V_1_5_0 = new Version(V_1_5_0_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_2);
+    public static final Version V_1_5_0 = new Version(V_1_5_0_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_3);
     public static final int V_2_0_0_ID = /*00*/2000099;
     public static final Version V_2_0_0 = new Version(V_2_0_0_ID, true, org.apache.lucene.util.Version.LUCENE_5_0_0);
 
@@ -423,6 +422,7 @@ public class Version implements Serializable {
 
     /**
      * Return the {@link Version} of Elasticsearch that has been used to create an index given its settings.
+     *
      * @throws ElasticsearchIllegalStateException if the given index settings doesn't contain a value for the key {@value IndexMetaData#SETTING_VERSION_CREATED}
      */
     public static Version indexCreated(Settings indexSettings) {
@@ -485,7 +485,7 @@ public class Version implements Serializable {
             }
             return versionFromId;
 
-        } catch(NumberFormatException e) {
+        } catch (NumberFormatException e) {
             throw new IllegalArgumentException("unable to parse version " + version, e);
         }
     }

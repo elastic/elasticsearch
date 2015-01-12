@@ -682,7 +682,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
                 IndexShard indexShard = indexService.createShard(shardId);
                 indexShard.routingEntry(shardRouting);
-                indexShard.engine().addFailedEngineListener(failedEngineHandler);
+                indexShard.addFailedEngineListener(failedEngineHandler);
             } catch (IndexShardAlreadyExistsException e) {
                 // ignore this, the method call can happen several times
             } catch (Throwable e) {

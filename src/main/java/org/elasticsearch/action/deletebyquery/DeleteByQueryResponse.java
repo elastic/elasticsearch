@@ -64,18 +64,8 @@ public class DeleteByQueryResponse extends ActionResponse implements Iterable<In
     public RestStatus status() {
         RestStatus status = RestStatus.OK;
         for (IndexDeleteByQueryResponse indexResponse : indices.values()) {
-            if (indexResponse.getFailedShards() > 0) {
-                RestStatus indexStatus = indexResponse.getFailures()[0].status();
-                if (indexResponse.getFailures().length > 1) {
-                    for (int i = 1; i < indexResponse.getFailures().length; i++) {
-                        if (indexResponse.getFailures()[i].status().getStatus() >= 500) {
-                            indexStatus = indexResponse.getFailures()[i].status();
-                        }
-                    }
-                }
-                if (status.getStatus() < indexStatus.getStatus()) {
-                    status = indexStatus;
-                }
+            if (indexResponse.getShardInfo().status().getStatus() > status.getStatus()) {
+                status = indexResponse.getShardInfo().status();
             }
         }
         return status;

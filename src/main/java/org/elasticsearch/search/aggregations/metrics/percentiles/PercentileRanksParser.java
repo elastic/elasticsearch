@@ -29,6 +29,10 @@ import org.elasticsearch.search.internal.SearchContext;
  */
 public class PercentileRanksParser extends AbstractPercentilesParser {
 
+    public PercentileRanksParser() {
+        super(false);
+    }
+
     @Override
     public String type() {
         return InternalPercentileRanks.TYPE.name();

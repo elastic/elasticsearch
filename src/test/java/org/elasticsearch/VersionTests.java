@@ -76,6 +76,7 @@ public class VersionTests extends ElasticsearchTestCase {
             assertThat(version.luceneVersion, sameInstance(Version.fromId(version.id).luceneVersion));
         }
     }
+
     @Test
     public void testCURRENTIsLatest() {
         final int iters = scaledRandomIntBetween(100, 1000);

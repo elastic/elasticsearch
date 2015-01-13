@@ -21,17 +21,27 @@ package org.elasticsearch.search.aggregations.transformer.derivative;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.ValuesSourceAggregationBuilder;
+import org.elasticsearch.search.aggregations.transformer.derivative.Derivative.GapPolicy;
 
 import java.io.IOException;
 
 public class DerivativeBuilder extends ValuesSourceAggregationBuilder<DerivativeBuilder> {
 
+    private GapPolicy gapPolicy;
+
     public DerivativeBuilder(String name) {
         super(name, InternalDerivative.TYPE.name());
     }
 
+    public void gapPolicy(GapPolicy gapPolicy) {
+        this.gapPolicy = gapPolicy;
+    }
+
     @Override
     protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
+        if (gapPolicy != null) {
+            builder.field("gap_policy", gapPolicy.name());
+        }
         return builder;
     }
 

@@ -19,13 +19,30 @@
 
 package org.elasticsearch.search.aggregations.transformer.derivative;
 
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 
-public interface Derivative extends Aggregation {
+import java.util.List;
+
+public interface Derivative extends MultiBucketsAggregation {
 
     public static enum GapPolicy {
         insert_zeros,
         interpolate, 
         ignore;
     }
+
+    /**
+     * @return The buckets of this aggregation.
+     */
+    List<? extends Histogram.Bucket> getBuckets();
+
+    /**
+     * The bucket that is associated with the given key.
+     * 
+     * @param key
+     *            The key of the requested bucket.
+     * @return The bucket
+     */
+    Histogram.Bucket getBucketByKey(String key);
 }

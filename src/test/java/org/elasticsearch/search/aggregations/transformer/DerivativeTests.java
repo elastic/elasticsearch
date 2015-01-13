@@ -19,9 +19,11 @@
 
 package org.elasticsearch.search.aggregations.transformer;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.transformer.derivative.Derivative;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -129,13 +131,13 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         assertSearchResponse(response);
 
-        Histogram deriv = response.getAggregations().get("deriv");
+        Derivative deriv = response.getAggregations().get("deriv");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("deriv"));
         assertThat(deriv.getBuckets().size(), equalTo(numFirstDerivValueBuckets));
 
         for (int i = 0; i < numFirstDerivValueBuckets; ++i) {
-            Histogram.Bucket bucket = deriv.getBucketByKey(i * interval);
+            Histogram.Bucket bucket = deriv.getBucketByKey(String.valueOf(i * interval));
             assertThat(bucket, notNullValue());
             assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
             assertThat(bucket.getDocCount(), equalTo(0l));
@@ -156,7 +158,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         assertSearchResponse(response);
 
-        Histogram deriv = response.getAggregations().get("deriv");
+        Derivative deriv = response.getAggregations().get("deriv");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("deriv"));
         assertThat(deriv.getBuckets().size(), equalTo(numFirstDerivValueBuckets));
@@ -204,13 +206,13 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         assertSearchResponse(response);
 
-        Histogram deriv = response.getAggregations().get("deriv");
+        Derivative deriv = response.getAggregations().get("deriv");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("deriv"));
         assertThat(deriv.getBuckets().size(), equalTo(numFirstDerivValuesBuckets));
 
         for (int i = 0; i < numFirstDerivValuesBuckets; ++i) {
-            Histogram.Bucket bucket = deriv.getBucketByKey(i * interval);
+            Histogram.Bucket bucket = deriv.getBucketByKey(String.valueOf(i * interval));
             assertThat(bucket, notNullValue());
             assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
             assertThat(bucket.getDocCount(), equalTo(0l));
@@ -228,7 +230,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         assertSearchResponse(response);
 
-        Histogram deriv = response.getAggregations().get("deriv");
+        Derivative deriv = response.getAggregations().get("deriv");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("deriv"));
         assertThat(deriv.getBuckets().size(), equalTo(0));
@@ -242,13 +244,13 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         assertSearchResponse(response);
 
-        Histogram deriv = response.getAggregations().get("deriv");
+        Derivative deriv = response.getAggregations().get("deriv");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("deriv"));
         assertThat(deriv.getBuckets().size(), equalTo(numFirstDerivValueBuckets));
 
         for (int i = 0; i < numFirstDerivValueBuckets; ++i) {
-            Histogram.Bucket bucket = deriv.getBucketByKey(i * interval);
+            Histogram.Bucket bucket = deriv.getBucketByKey(String.valueOf(i * interval));
             assertThat(bucket, notNullValue());
             assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
             assertThat(bucket.getDocCount(), equalTo(0l));
@@ -258,6 +260,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    @AwaitsFix(bugUrl = "Needs properly thought out tests for gapPolicy testing")
     @Test
     public void emptyAggregation() throws Exception {
         SearchResponse searchResponse = client()
@@ -270,11 +273,11 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
 
-        Histogram deriv = searchResponse.getAggregations().get("deriv");
+        Derivative deriv = searchResponse.getAggregations().get("deriv");
         assertThat(deriv, Matchers.notNullValue());
         assertThat(deriv.getName(), equalTo("deriv"));
         assertThat(deriv.getBuckets().size(), equalTo(2));
-        Histogram.Bucket bucket = deriv.getBucketByKey(0l);
+        Histogram.Bucket bucket = deriv.getBucketByKey(String.valueOf(0l));
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsNumber().longValue(), equalTo(0l));
         assertThat(bucket.getDocCount(), equalTo(0l));
@@ -282,7 +285,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         assertThat(docCountDeriv, notNullValue());
         assertThat(docCountDeriv.value(), equalTo(-1d));
 
-        bucket = deriv.getBucketByKey(1l);
+        bucket = deriv.getBucketByKey(String.valueOf(1l));
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsNumber().longValue(), equalTo(1l));
         assertThat(bucket.getDocCount(), equalTo(0l));

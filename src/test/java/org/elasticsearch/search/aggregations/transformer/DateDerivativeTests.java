@@ -21,9 +21,10 @@ package org.elasticsearch.search.aggregations.transformer;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.transformer.derivative.Derivative;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -98,40 +99,35 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
         internalCluster().wipeIndices("idx2");
     }
 
-    private static DateHistogram.Bucket getBucket(DateHistogram histogram, DateTime key) {
+    private static Histogram.Bucket getBucket(Derivative histogram, DateTime key) {
         return getBucket(histogram, key, DateFieldMapper.Defaults.DATE_TIME_FORMATTER.format());
     }
 
-    private static DateHistogram.Bucket getBucket(DateHistogram histogram, DateTime key, String format) {
+    private static Histogram.Bucket getBucket(Derivative histogram, DateTime key, String format) {
         if (randomBoolean()) {
-            if (randomBoolean()) {
-                return histogram.getBucketByKey(key);
-            }
-            return histogram.getBucketByKey(key.getMillis());
-        }
-        if (randomBoolean()) {
+            return histogram.getBucketByKey(String.valueOf(key));
+        } else {
             return histogram.getBucketByKey("" + key.getMillis());
         }
-        return histogram.getBucketByKey(Joda.forPattern(format).printer().print(key));
     }
 
     @Test
     public void singleValuedField() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
+        SearchResponse response = client()
+                .prepareSearch("idx")
                 .addAggregation(
                         derivative("deriv").subAggregation(dateHistogram("histo").field("date").interval(DateHistogram.Interval.MONTH)))
                 .execute().actionGet();
 
         assertSearchResponse(response);
 
-
-        DateHistogram deriv = response.getAggregations().get("deriv");
+        Derivative deriv = response.getAggregations().get("deriv");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("deriv"));
         assertThat(deriv.getBuckets().size(), equalTo(2));
 
         DateTime key = new DateTime(2012, 1, 1, 0, 0, DateTimeZone.UTC);
-        DateHistogram.Bucket bucket = getBucket(deriv, key);
+        Histogram.Bucket bucket = getBucket(deriv, key);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key.getMillis()));
         assertThat(bucket.getDocCount(), equalTo(0l));
@@ -160,7 +156,7 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
 
         assertSearchResponse(response);
 
-        DateHistogram deriv = response.getAggregations().get("deriv");
+        Derivative deriv = response.getAggregations().get("deriv");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("deriv"));
         assertThat(deriv.getBuckets().size(), equalTo(2));
@@ -170,7 +166,7 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
         Object[] propertiesCounts = (Object[]) deriv.getProperty("sum.value");
 
         long key = new DateTime(2012, 1, 1, 0, 0, DateTimeZone.UTC).getMillis();
-        DateHistogram.Bucket bucket = deriv.getBucketByKey(key);
+        Histogram.Bucket bucket = deriv.getBucketByKey(String.valueOf(key));
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
         assertThat(bucket.getDocCount(), equalTo(0l));
@@ -187,7 +183,7 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
         assertThat((double) propertiesCounts[0], equalTo(4.0));
 
         key = new DateTime(2012, 2, 1, 0, 0, DateTimeZone.UTC).getMillis();
-        bucket = deriv.getBucketByKey(key);
+        bucket = deriv.getBucketByKey(String.valueOf(key));
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
         assertThat(bucket.getDocCount(), equalTo(0l));
@@ -214,13 +210,13 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
 
         assertSearchResponse(response);
 
-        DateHistogram deriv = response.getAggregations().get("deriv");
+        Derivative deriv = response.getAggregations().get("deriv");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("deriv"));
         assertThat(deriv.getBuckets().size(), equalTo(3));
 
         long key = new DateTime(2012, 1, 1, 0, 0, DateTimeZone.UTC).getMillis();
-        DateHistogram.Bucket bucket = deriv.getBucketByKey(key);
+        Histogram.Bucket bucket = deriv.getBucketByKey(String.valueOf(key));
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
         assertThat(bucket.getDocCount(), equalTo(0l));
@@ -230,7 +226,7 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
         assertThat(docCountDeriv.value(), equalTo(2.0));
 
         key = new DateTime(2012, 2, 1, 0, 0, DateTimeZone.UTC).getMillis();
-        bucket = deriv.getBucketByKey(key);
+        bucket = deriv.getBucketByKey(String.valueOf(key));
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
         assertThat(bucket.getDocCount(), equalTo(0l));
@@ -240,7 +236,7 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
         assertThat(docCountDeriv.value(), equalTo(2.0));
 
         key = new DateTime(2012, 3, 1, 0, 0, DateTimeZone.UTC).getMillis();
-        bucket = deriv.getBucketByKey(key);
+        bucket = deriv.getBucketByKey(String.valueOf(key));
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
         assertThat(bucket.getDocCount(), equalTo(0l));
@@ -260,7 +256,7 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
 
         assertSearchResponse(response);
 
-        DateHistogram deriv = response.getAggregations().get("deriv");
+        Derivative deriv = response.getAggregations().get("deriv");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("deriv"));
         assertThat(deriv.getBuckets().size(), equalTo(0));
@@ -268,20 +264,21 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void partiallyUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
+        SearchResponse response = client()
+                .prepareSearch("idx", "idx_unmapped")
                 .addAggregation(
                         derivative("deriv").subAggregation(dateHistogram("histo").field("date").interval(DateHistogram.Interval.MONTH)))
                 .execute().actionGet();
 
         assertSearchResponse(response);
 
-        DateHistogram deriv = response.getAggregations().get("deriv");
+        Derivative deriv = response.getAggregations().get("deriv");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("deriv"));
         assertThat(deriv.getBuckets().size(), equalTo(2));
 
         long key = new DateTime(2012, 1, 1, 0, 0, DateTimeZone.UTC).getMillis();
-        DateHistogram.Bucket bucket = deriv.getBucketByKey(key);
+        Histogram.Bucket bucket = deriv.getBucketByKey(String.valueOf(key));
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
         assertThat(bucket.getDocCount(), equalTo(0l));
@@ -291,7 +288,7 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
         assertThat(docCountDeriv.value(), equalTo(1.0));
 
         key = new DateTime(2012, 2, 1, 0, 0, DateTimeZone.UTC).getMillis();
-        bucket = deriv.getBucketByKey(key);
+        bucket = deriv.getBucketByKey(String.valueOf(key));
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
         assertThat(bucket.getDocCount(), equalTo(0l));

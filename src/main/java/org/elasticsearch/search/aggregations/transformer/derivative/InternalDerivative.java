@@ -29,12 +29,12 @@ import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 import org.elasticsearch.search.aggregations.transformer.InternalSimpleValue;
-import org.elasticsearch.search.aggregations.transformer.derivative.Derivative.GapPolicy;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-public class InternalDerivative<B extends InternalHistogram.Bucket> extends InternalMultiBucketAggregation {
+public class InternalDerivative<B extends InternalHistogram.Bucket> extends InternalMultiBucketAggregation implements Derivative {
 
     final static Type TYPE = new Type("derivative", "deriv");
 
@@ -66,7 +66,7 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
     private GapPolicy gapPolicy;
     private InternalAggregations aggregations;
 
-    private InternalHistogram<?> derivativeResult;
+    private InternalHistogram<? extends Histogram.Bucket> derivativeResult;
 
     InternalDerivative() {
     }
@@ -81,7 +81,7 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
     }
 
     public InternalDerivative(String name, boolean keyed, @Nullable ValueFormatter formatter, GapPolicy gapPolicy,
-            Map<String, Object> metaData, InternalHistogram<?> derivativeResult) {
+            Map<String, Object> metaData, InternalHistogram<? extends Histogram.Bucket> derivativeResult) {
         this(name, keyed, formatter, gapPolicy, null, metaData);
         this.derivativeResult = derivativeResult;
     }
@@ -92,13 +92,13 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
     }
 
     @Override
-    public List<? extends Bucket> getBuckets() {
+    public List<? extends Histogram.Bucket> getBuckets() {
         return derivativeResult.getBuckets();
     }
 
     @Override
-    public <B extends Bucket> B getBucketByKey(String key) {
-        return getBucketByKey(key);
+    public Histogram.Bucket getBucketByKey(String key) {
+        return derivativeResult.getBucketByKey(key);
     }
 
     @Override
@@ -165,7 +165,7 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
 
     @Override
     public Object getProperty(List<String> path) {
-        return null;
+        return derivativeResult.getProperty(path);
     }
 
     @Override
@@ -181,9 +181,19 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
         //        InternalOrder.Streams.writeOrder(order, out); // NOCOMMIT implement order
         ValueFormatterStreams.writeOptional(formatter, out);
         out.writeBoolean(keyed);
-        aggregations.writeTo(out);
-        out.writeBytesReference(derivativeResult.type().stream());
-        derivativeResult.writeTo(out);
+        if (aggregations == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            aggregations.writeTo(out);
+        }
+        if (derivativeResult == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeBytesReference(derivativeResult.type().stream());
+            derivativeResult.writeTo(out);
+        }
     }
 
     @Override
@@ -191,9 +201,17 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
         //        order = InternalOrder.Streams.readOrder(in); // NOCOMMIT implement order
         formatter = ValueFormatterStreams.readOptional(in);
         keyed = in.readBoolean();
-        aggregations = InternalAggregations.readAggregations(in);
-        BytesReference type = in.readBytesReference();
-        derivativeResult = (InternalHistogram<?>) AggregationStreams.stream(type).readResult(in);
+        if (in.readBoolean()) {
+            aggregations = InternalAggregations.readAggregations(in);
+        } else {
+            aggregations = null;
+        }
+        if (in.readBoolean()) {
+            BytesReference type = in.readBytesReference();
+            derivativeResult = (InternalHistogram<?>) AggregationStreams.stream(type).readResult(in);
+        } else {
+            derivativeResult = null;
+        }
     }
 
 }

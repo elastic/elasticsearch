@@ -219,11 +219,10 @@ public class MergeStats implements Streamable, ToXContent {
         current = in.readVLong();
         currentNumDocs = in.readVLong();
         currentSizeInBytes = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
-            totalStoppedTimeInMillis = in.readVLong();
-            totalThrottledTimeInMillis = in.readVLong();
-            totalBytesPerSecAutoThrottle = in.readVLong();
-        }
+        // Added in 2.0:
+        totalStoppedTimeInMillis = in.readVLong();
+        totalThrottledTimeInMillis = in.readVLong();
+        totalBytesPerSecAutoThrottle = in.readVLong();
     }
 
     @Override
@@ -235,10 +234,9 @@ public class MergeStats implements Streamable, ToXContent {
         out.writeVLong(current);
         out.writeVLong(currentNumDocs);
         out.writeVLong(currentSizeInBytes);
-        if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
-            out.writeVLong(totalStoppedTimeInMillis);
-            out.writeVLong(totalThrottledTimeInMillis);
-            out.writeVLong(totalBytesPerSecAutoThrottle);
-        }
+        // Added in 2.0:
+        out.writeVLong(totalStoppedTimeInMillis);
+        out.writeVLong(totalThrottledTimeInMillis);
+        out.writeVLong(totalBytesPerSecAutoThrottle);
     }
 }

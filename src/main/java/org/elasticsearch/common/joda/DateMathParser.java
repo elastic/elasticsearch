@@ -25,6 +25,7 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 import org.joda.time.format.DateTimeFormatter;
 
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -46,15 +47,22 @@ public class DateMathParser {
         this.timeUnit = timeUnit;
     }
 
-    public long parse(String text, long now) {
+    public long parse(String text, Callable<Long> now) {
         return parse(text, now, false, null);
     }
 
-    public long parse(String text, long now, boolean roundUp, DateTimeZone timeZone) {
+    // Note: we take a callable here for the timestamp in order to be able to figure out
+    // if it has been used. For instance, the query cache does not cache queries that make
+    // use of `now`.
+    public long parse(String text, Callable<Long> now, boolean roundUp, DateTimeZone timeZone) {
         long time;
         String mathString;
         if (text.startsWith("now")) {
-            time = now;
+            try {
+                time = now.call();
+            } catch (Exception e) {
+                throw new ElasticsearchParseException("Could not read the current timestamp", e);
+            }
             mathString = text.substring("now".length());
         } else {
             int index = text.indexOf("||");

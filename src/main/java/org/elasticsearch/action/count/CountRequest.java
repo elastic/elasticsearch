@@ -36,11 +36,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 
-import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
+
+import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
 /**
  * A request to count the number of documents matching a specific query. Best created with
@@ -101,7 +101,7 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
     /**
      * The minimum score of the documents to include in the count.
      */
-    float minScore() {
+    public float minScore() {
         return minScore;
     }
 
@@ -117,7 +117,7 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
     /**
      * The source to execute.
      */
-    BytesReference source() {
+    public BytesReference source() {
         return source;
     }
 

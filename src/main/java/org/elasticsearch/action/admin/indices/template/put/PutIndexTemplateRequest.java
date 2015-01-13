@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.template.put;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -179,7 +178,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
         return this;
     }
 
-    Settings settings() {
+    public Settings settings() {
         return this.settings;
     }
 
@@ -250,7 +249,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
         return this;
     }
 
-    Map<String, String> mappings() {
+    public Map<String, String> mappings() {
         return this.mappings;
     }
 
@@ -352,11 +351,11 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
         return this;
     }
 
-    Map<String, IndexMetaData.Custom> customs() {
+    public Map<String, IndexMetaData.Custom> customs() {
         return this.customs;
     }
        
-    Set<Alias> aliases() {
+    public Set<Alias> aliases() {
         return this.aliases;
     }
 

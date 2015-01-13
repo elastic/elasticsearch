@@ -46,16 +46,12 @@ public class PageCacheRecycler extends AbstractComponent {
     private final Recycler<byte[]> bytePage;
     private final Recycler<int[]> intPage;
     private final Recycler<long[]> longPage;
-    private final Recycler<float[]> floatPage;
-    private final Recycler<double[]> doublePage;
     private final Recycler<Object[]> objectPage;
 
     public void close() {
         bytePage.close();
         intPage.close();
         longPage.close();
-        floatPage.close();
-        doublePage.close();
         objectPage.close();
     }
 
@@ -104,12 +100,10 @@ public class PageCacheRecycler extends AbstractComponent {
         final double bytesWeight = componentSettings.getAsDouble(WEIGHT + ".bytes", 1d);
         final double intsWeight = componentSettings.getAsDouble(WEIGHT + ".ints", 1d);
         final double longsWeight = componentSettings.getAsDouble(WEIGHT + ".longs", 1d);
-        final double floatsWeight = componentSettings.getAsDouble(WEIGHT + ".floats", 1d);
-        final double doublesWeight = componentSettings.getAsDouble(WEIGHT + ".doubles", 1d);
         // object pages are less useful to us so we give them a lower weight by default
         final double objectsWeight = componentSettings.getAsDouble(WEIGHT + ".objects", 0.1d);
 
-        final double totalWeight = bytesWeight + intsWeight + longsWeight + doublesWeight + objectsWeight;
+        final double totalWeight = bytesWeight + intsWeight + longsWeight + objectsWeight;
 
         bytePage = build(type, maxCount(limit, BigArrays.BYTE_PAGE_SIZE, bytesWeight, totalWeight), searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<byte[]>() {
             @Override
@@ -139,26 +133,6 @@ public class PageCacheRecycler extends AbstractComponent {
             @Override
             public void recycle(long[] value) {
                 // nothing to do               
-            }
-        });
-        floatPage = build(type, maxCount(limit, BigArrays.FLOAT_PAGE_SIZE, floatsWeight, totalWeight), searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<float[]>() {
-            @Override
-            public float[] newInstance(int sizing) {
-                return new float[BigArrays.FLOAT_PAGE_SIZE];
-            }
-            @Override
-            public void recycle(float[] value) {
-                // nothing to do
-            }
-        });
-        doublePage = build(type, maxCount(limit, BigArrays.DOUBLE_PAGE_SIZE, doublesWeight, totalWeight), searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<double[]>() {
-            @Override
-            public double[] newInstance(int sizing) {
-                return new double[BigArrays.DOUBLE_PAGE_SIZE];
-            }
-            @Override
-            public void recycle(double[] value) {
-                // nothing to do
             }
         });
         objectPage = build(type, maxCount(limit, BigArrays.OBJECT_PAGE_SIZE, objectsWeight, totalWeight), searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<Object[]>() {
@@ -197,22 +171,6 @@ public class PageCacheRecycler extends AbstractComponent {
         return v;
     }
 
-    public Recycler.V<float[]> floatPage(boolean clear) {
-        final Recycler.V<float[]> v = floatPage.obtain();
-        if (v.isRecycled() && clear) {
-            Arrays.fill(v.v(), 0f);
-        }
-        return v;
-    }
-
-    public Recycler.V<double[]> doublePage(boolean clear) {
-        final Recycler.V<double[]> v = doublePage.obtain();
-        if (v.isRecycled() && clear) {
-            Arrays.fill(v.v(), 0d);
-        }
-        return v;
-    }
-
     public Recycler.V<Object[]> objectPage() {
         // object pages are cleared on release anyway
         return objectPage.obtain();
@@ -233,12 +191,6 @@ public class PageCacheRecycler extends AbstractComponent {
             @Override
             <T> Recycler<T> build(Recycler.C<T> c, int limit, int estimatedThreadPoolSize, int availableProcessors) {
                 return concurrentDeque(c, limit);
-            }
-        },
-        SOFT_CONCURRENT {
-            @Override
-            <T> Recycler<T> build(Recycler.C<T> c, int limit, int estimatedThreadPoolSize, int availableProcessors) {
-                return concurrent(softFactory(dequeFactory(c, limit / availableProcessors)), availableProcessors);
             }
         },
         CONCURRENT {

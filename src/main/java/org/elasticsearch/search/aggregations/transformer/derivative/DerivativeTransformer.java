@@ -29,48 +29,52 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.transformer.Transformer;
+import org.elasticsearch.search.aggregations.transformer.derivative.Derivative.GapPolicy;
 
 import java.util.Map;
 
 public class DerivativeTransformer extends Transformer {
 
     private boolean keyed;
-    private @Nullable
-    ValueFormatter formatter;
+    private @Nullable ValueFormatter formatter;
+    private GapPolicy gapPolicy;
 
-    protected DerivativeTransformer(String name, boolean keyed, @Nullable ValueFormatter formatter, AggregatorFactories factories,
+    protected DerivativeTransformer(String name, boolean keyed, @Nullable ValueFormatter formatter, GapPolicy gapPolicy, AggregatorFactories factories,
             AggregationContext aggregationContext, Aggregator parent,
             Map<String, Object> metaData) {
         super(name, factories, aggregationContext, parent, metaData);
         this.keyed = keyed;
         this.formatter = formatter;
+        this.gapPolicy = gapPolicy;
     }
 
     @Override
     protected InternalAggregation buildAggregation(String name, int bucketDocCount, InternalAggregations bucketAggregations) {
-        return new InternalDerivative<InternalHistogram.Bucket>(name, keyed, formatter, bucketAggregations, getMetaData());
+        return new InternalDerivative<InternalHistogram.Bucket>(name, keyed, formatter, gapPolicy, bucketAggregations, getMetaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalDerivative<InternalHistogram.Bucket>(name, keyed, formatter, InternalAggregations.EMPTY, getMetaData());
+        return new InternalDerivative<InternalHistogram.Bucket>(name, keyed, formatter, gapPolicy, InternalAggregations.EMPTY, getMetaData());
     }
 
     public static class Factory extends AggregatorFactory {
 
         private boolean keyed;
         private ValueFormatter formatter;
+        private GapPolicy gapPolicy;
 
-        public Factory(String name, boolean keyed, @Nullable ValueFormatter formatter) {
+        public Factory(String name, boolean keyed, @Nullable ValueFormatter formatter, GapPolicy gapPolicy) {
             super(name, InternalDerivative.TYPE.name());
             this.keyed = keyed;
             this.formatter = formatter;
+            this.gapPolicy = gapPolicy;
         }
 
         @Override
         protected Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount,
                 Map<String, Object> metaData) {
-            return new DerivativeTransformer(name, keyed, formatter, factories, context, parent, metaData);
+            return new DerivativeTransformer(name, keyed, formatter, gapPolicy, factories, context, parent, metaData);
         }
 
     }

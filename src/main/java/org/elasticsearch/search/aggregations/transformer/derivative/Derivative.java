@@ -23,4 +23,9 @@ import org.elasticsearch.search.aggregations.Aggregation;
 
 public interface Derivative extends Aggregation {
 
+    public static enum GapPolicy {
+        insert_zeros,
+        interpolate, 
+        ignore;
+    }
 }

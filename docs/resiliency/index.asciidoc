@@ -125,6 +125,11 @@ While we are working on a longer term solution, we introduced a minimum weight o
 == Completed
 
 [float]
+=== Make recovery be more resilient to partial network partitions
+
+When a node is experience network issues, the master detects it and removes the node from the cluster. That causes all ongoing recoveries from and to that nodes to be stopped and a new location is found for the relevant shards. However, in the of case partial network partition, where there are connectivity issues between the source and target nodes of a recovery but not between those nodes and the current master things may go wrong. While the nodes successfully restore the connection, the on going recoveries may have encounter issues. In {GIT}8720[#8720], we added test simulations for these solved several issues that were flagged by them.
+
+[float]
 === Don't allow unsupported codecs (STATUS: DONE, v1.4.0.Beta1)
 
 Lucene 4 added a number of alternative codecs for experimentation purposes, and Elasticsearch exposed the ability to change codecs.  Since then, Lucene has settled on the best choice of codec and provides backwards compatibility only for the default codec.  {GIT}7566[#7566] removes the ability to set alternate codecs.

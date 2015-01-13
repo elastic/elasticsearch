@@ -354,7 +354,7 @@ public class MappingMetaData {
                     path = fieldNode.toString();
                 } else if (fieldName.equals("format")) {
                     format = fieldNode.toString();
-                } else if (fieldName.equals("default")) {
+                } else if (fieldName.equals("default") && fieldNode != null) {
                     defaultTimestamp = fieldNode.toString();
                 }
             }

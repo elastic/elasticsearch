@@ -611,6 +611,22 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(mergeResult.hasConflicts(), is(true));
     }
 
+    /**
+     * Test for issue #9223
+     */
+    @Test
+    public void testInitMappers() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("_timestamp")
+                        .field("enabled", true)
+                        .field("default", (String) null)
+                    .endObject()
+                .endObject().endObject().string();
+        // This was causing a NPE
+        new MappingMetaData(new CompressedString(mapping));
+    }
+
     @Test
     public void testMergePaths() throws Exception {
         String[] possiblePathValues = {"some_path", "anotherPath", null};

@@ -9,12 +9,14 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.PreProcessModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheAction;
+import org.elasticsearch.shield.action.authc.cache.TransportClearRealmCacheAction;
 import org.elasticsearch.shield.support.AbstractShieldModule;
 
 /**
  *
  */
-public class ShieldActionModule extends AbstractShieldModule.Node implements PreProcessModule {
+public class ShieldActionModule extends AbstractShieldModule implements PreProcessModule {
 
     public ShieldActionModule(Settings settings) {
         super(settings);
@@ -22,14 +24,23 @@ public class ShieldActionModule extends AbstractShieldModule.Node implements Pre
 
     @Override
     public void processModule(Module module) {
-        if (!clientMode && module instanceof ActionModule) {
-            ((ActionModule) module).registerFilter(ShieldActionFilter.class);
+        if (module instanceof ActionModule) {
+
+            // registering the security filter only for nodes
+            if (!clientMode) {
+                ((ActionModule) module).registerFilter(ShieldActionFilter.class);
+            }
+
+            // registering all shield actions
+            ((ActionModule) module).registerAction(ClearRealmCacheAction.INSTANCE, TransportClearRealmCacheAction.class);
         }
     }
 
     @Override
-    protected void configureNode() {
-        // we need to ensure that there's only a single instance of this filter.
-        bind(ShieldActionFilter.class).asEagerSingleton();
+    protected void configure(boolean clientMode) {
+        if (!clientMode) {
+            // we need to ensure that there's only a single instance of this filter.
+            bind(ShieldActionFilter.class).asEagerSingleton();
+        }
     }
 }

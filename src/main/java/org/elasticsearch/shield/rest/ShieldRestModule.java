@@ -10,6 +10,7 @@ import org.elasticsearch.common.inject.PreProcessModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.shield.rest.action.RestShieldInfoAction;
+import org.elasticsearch.shield.rest.action.authc.cache.RestClearRealmCacheAction;
 import org.elasticsearch.shield.support.AbstractShieldModule;
 
 /**
@@ -30,6 +31,7 @@ public class ShieldRestModule extends AbstractShieldModule.Node implements PrePr
     public void processModule(Module module) {
         if (module instanceof RestModule) {
             ((RestModule) module).addRestAction(RestShieldInfoAction.class);
+            ((RestModule) module).addRestAction(RestClearRealmCacheAction.class);
         }
     }
 }

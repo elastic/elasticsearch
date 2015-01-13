@@ -35,6 +35,7 @@ public class ShieldModule extends AbstractShieldModule.Spawn {
         // spawn needed parts in client mode
         if (clientMode) {
             return ImmutableList.<Module>of(
+                    new ShieldActionModule(settings),
                     new SecuredTransportModule(settings),
                     new SSLModule(settings));
         }

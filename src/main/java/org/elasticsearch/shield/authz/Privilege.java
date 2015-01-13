@@ -204,13 +204,14 @@ public abstract class Privilege<P extends Privilege<P>> {
 
     public static class Cluster extends AutomatonPrivilege<Cluster> {
 
-        public static final Cluster NONE    = new Cluster(Name.NONE,    Automata.makeEmpty());
-        public static final Cluster ALL     = new Cluster(Name.ALL,     "cluster:*", "indices:admin/template/*");
-        public static final Cluster MONITOR = new Cluster("monitor",    "cluster:monitor/*");
+        public static final Cluster NONE    = new Cluster(Name.NONE,                Automata.makeEmpty());
+        public static final Cluster ALL     = new Cluster(Name.ALL,                 "cluster:*", "indices:admin/template/*");
+        public static final Cluster MONITOR = new Cluster("monitor",                "cluster:monitor/*");
+        public static final Cluster MANAGE_SHIELD = new Cluster("manage_shield",    "cluster:admin/shield/*");
 
         final static Predicate<String> ACTION_MATCHER = Privilege.Cluster.ALL.predicate();
 
-        private static final Cluster[] values = new Cluster[] { NONE, ALL, MONITOR };
+        private static final Cluster[] values = new Cluster[] { NONE, ALL, MONITOR, MANAGE_SHIELD };
 
         static Cluster[] values() {
             return values;

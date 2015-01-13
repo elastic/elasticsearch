@@ -92,27 +92,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
             throw denial(user, action, request);
         }
 
-        String[] roleNames = user.roles();
-        if (roleNames.length == 0) {
-            throw denial(user, action, request);
-        }
-
-        Permission.Global permission;
-        if (roleNames.length == 1) {
-            permission = rolesStore.role(roleNames[0]);
-        } else {
-
-            // we'll take all the roles and combine their associated permissions
-
-            Permission.Global.Compound.Builder roles = Permission.Global.Compound.builder();
-            for (String roleName : roleNames) {
-                Permission.Global role = rolesStore.role(roleName);
-                if (role != null) {
-                    roles.add(role);
-                }
-            }
-            permission = roles.build();
-        }
+        Permission.Global permission = permission(user);
 
         // permission can be null as it might be that the user's role
         // is unknown
@@ -166,6 +146,29 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         }
 
         grant(user, action, request);
+    }
+
+    private Permission.Global permission(User user) {
+        String[] roleNames = user.roles();
+        if (roleNames.length == 0) {
+            return Permission.Global.NONE;
+        }
+
+        if (roleNames.length == 1) {
+            Permission.Global.Role role = rolesStore.role(roleNames[0]);
+            return role == null ? Permission.Global.NONE : role;
+        }
+
+        // we'll take all the roles and combine their associated permissions
+
+        Permission.Global.Compound.Builder roles = Permission.Global.Compound.builder();
+        for (String roleName : roleNames) {
+            Permission.Global role = rolesStore.role(roleName);
+            if (role != null) {
+                roles.add(role);
+            }
+        }
+        return roles.build();
     }
 
     private AuthorizationException denial(User user, String action, TransportRequest request) {

@@ -6,6 +6,8 @@ cluster:monitor/nodes/hot_threads[n]
 cluster:monitor/nodes/info[n]
 cluster:monitor/nodes/stats[n]
 cluster:monitor/stats[n]
+cluster:admin/shield/realm/cache/clear
+cluster:admin/shield/realm/cache/clear[n]
 indices:admin/analyze[s]
 indices:admin/cache/clear[s]
 indices:admin/flush[s]

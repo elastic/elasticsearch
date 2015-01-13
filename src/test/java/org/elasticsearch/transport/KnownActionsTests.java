@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.Callback;
+import org.elasticsearch.shield.action.ShieldActionModule;
 import org.elasticsearch.test.ShieldIntegrationTest;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.junit.BeforeClass;
@@ -29,17 +30,17 @@ public class KnownActionsTests extends ShieldIntegrationTest {
 
     private static ImmutableSet<String> knownActions;
     private static ImmutableSet<String> knownHandlers;
-    private static ImmutableSet<String> externalActions;
+    private static ImmutableSet<String> codeActions;
 
     @BeforeClass
     public static void init() throws Exception {
         knownActions = loadKnownActions();
         knownHandlers = loadKnownHandlers();
-        externalActions = loadExternalActions();
+        codeActions = loadCodeActions();
     }
 
     @Test
-    public void testAllExternalTransportHandlersAreKnown() {
+    public void testAllTransportHandlersAreKnown() {
         TransportService transportService = internalCluster().getDataNodeInstance(TransportService.class);
         for (String handler : transportService.serverHandlers.keySet()) {
             if (!knownActions.contains(handler)) {
@@ -49,8 +50,8 @@ public class KnownActionsTests extends ShieldIntegrationTest {
     }
 
     @Test
-    public void testAllExternalActionsAreKnown() throws Exception {
-        for (String action : externalActions) {
+    public void testAllCodeActionsAreKnown() throws Exception {
+        for (String action : codeActions) {
             assertThat("elasticsearch core action [" + action + "] is unknown to shield", knownActions, hasItem(action));
         }
     }
@@ -58,7 +59,7 @@ public class KnownActionsTests extends ShieldIntegrationTest {
     @Test
     public void testAllKnownActionsAreValid() {
         for (String knownAction : knownActions) {
-            assertThat("shield known action [" + knownAction + "] is unknown to core", externalActions, hasItems(knownAction));
+            assertThat("shield known action [" + knownAction + "] is unknown to core", codeActions, hasItems(knownAction));
         }
     }
 
@@ -100,12 +101,16 @@ public class KnownActionsTests extends ShieldIntegrationTest {
         return knownHandlersBuilder.build();
     }
 
-    private static ImmutableSet<String> loadExternalActions() throws IOException, IllegalAccessException {
+    private static ImmutableSet<String> loadCodeActions() throws IOException, IllegalAccessException {
         ImmutableSet.Builder<String> actions = ImmutableSet.builder();
 
         // loading es core actions
         ClassPath classPath = ClassPath.from(Action.class.getClassLoader());
         loadActions(classPath, Action.class.getPackage().getName(), actions);
+
+        // loading shield actions
+        classPath = ClassPath.from(ShieldActionModule.class.getClassLoader());
+        loadActions(classPath, ShieldActionModule.class.getPackage().getName(), actions);
 
         // also loading all actions from the licensing plugin
         classPath = ClassPath.from(LicensePlugin.class.getClassLoader());

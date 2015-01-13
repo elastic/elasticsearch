@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit;
 
 public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm {
 
-    private static final TimeValue DEFAULT_TTL = TimeValue.timeValueHours(1);
+    private static final TimeValue DEFAULT_TTL = TimeValue.timeValueMinutes(20);
     private static final int DEFAULT_MAX_USERS = 100000; //100k users
     public static final String CACHE_TTL = "cache.ttl";
     public static final String CACHE_MAX_USERS = "cache.max_users";
@@ -41,13 +41,13 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         }
     }
 
-    protected final void expire(String username) {
+    public final void expire(String username) {
         if (cache != null) {
             cache.invalidate(username);
         }
     }
 
-    protected final void expireAll() {
+    public final void expireAll() {
         if (cache != null) {
             cache.invalidateAll();
         }

@@ -38,7 +38,9 @@ public interface Permission {
 
     boolean isEmpty();
 
-    static abstract class Global implements Permission {
+    static class Global implements Permission {
+
+        public static Global NONE = new Global(Cluster.Core.NONE, Indices.Core.NONE);
 
         private final Cluster cluster;
         private final Indices indices;

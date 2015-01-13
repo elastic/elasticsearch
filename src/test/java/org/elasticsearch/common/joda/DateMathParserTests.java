@@ -23,11 +23,22 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.joda.time.DateTimeZone;
 
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class DateMathParserTests extends ElasticsearchTestCase {
     FormatDateTimeFormatter formatter = Joda.forPattern("dateOptionalTime");
     DateMathParser parser = new DateMathParser(formatter, TimeUnit.MILLISECONDS);
+
+    private static Callable<Long> callable(final long value) {
+        return new Callable<Long>() {
+            @Override
+            public Long call() throws Exception {
+                return value;
+            }
+        };
+    }
 
     void assertDateMathEquals(String toTest, String expected) {
         assertDateMathEquals(toTest, expected, 0, false, null);
@@ -35,8 +46,8 @@ public class DateMathParserTests extends ElasticsearchTestCase {
     
     void assertDateMathEquals(String toTest, String expected, long now, boolean roundUp, DateTimeZone timeZone) {
         DateMathParser parser = new DateMathParser(Joda.forPattern("dateOptionalTime"), TimeUnit.MILLISECONDS);
-        long gotMillis = parser.parse(toTest, now, roundUp, null);
-        long expectedMillis = parser.parse(expected, 0);
+        long gotMillis = parser.parse(toTest, callable(now), roundUp, null);
+        long expectedMillis = parser.parse(expected, callable(0));
         if (gotMillis != expectedMillis) {
             fail("Date math not equal\n" +
                  "Original              : " + toTest + "\n" +
@@ -92,7 +103,8 @@ public class DateMathParserTests extends ElasticsearchTestCase {
 
 
     public void testNow() {
-        long now = parser.parse("2014-11-18T14:27:32", 0, false, null);
+        final long now = parser.parse("2014-11-18T14:27:32", callable(0), false, null);
+        
         assertDateMathEquals("now", "2014-11-18T14:27:32", now, false, null);
         assertDateMathEquals("now+M", "2014-12-18T14:27:32", now, false, null);
         assertDateMathEquals("now-2d", "2014-11-16T14:27:32", now, false, null);
@@ -142,7 +154,7 @@ public class DateMathParserTests extends ElasticsearchTestCase {
     
     void assertParseException(String msg, String date) {
         try {
-            parser.parse(date, 0);
+            parser.parse(date, callable(0));
             fail("Date: " + date + "\n" + msg);
         } catch (ElasticsearchParseException e) {
             // expected
@@ -155,5 +167,20 @@ public class DateMathParserTests extends ElasticsearchTestCase {
         assertParseException("Expected date math illegal unit type exception", "2014-11-18||+2a");
         assertParseException("Expected date math truncation exception", "2014-11-18||+12");
         assertParseException("Expected date math truncation exception", "2014-11-18||-");
+    }
+
+    public void testOnlyCallsNowIfNecessary() {
+        final AtomicBoolean called = new AtomicBoolean();
+        final Callable<Long> now = new Callable<Long>() {
+            @Override
+            public Long call() throws Exception {
+                called.set(true);
+                return 42L;
+            }
+        };
+        parser.parse("2014-11-18T14:27:32", now, false, null);
+        assertFalse(called.get());
+        parser.parse("now/d", now, false, null);
+        assertTrue(called.get());
     }
 }

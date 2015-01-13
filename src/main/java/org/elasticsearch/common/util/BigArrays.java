@@ -37,7 +37,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicLong;
 
 /** Utility class to work with arrays. */
 public class BigArrays extends AbstractComponent {
@@ -48,9 +47,7 @@ public class BigArrays extends AbstractComponent {
     public static final int PAGE_SIZE_IN_BYTES = 1 << 14;
     public static final int BYTE_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_BYTE;
     public static final int INT_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_INT;
-    public static final int FLOAT_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_FLOAT;
     public static final int LONG_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_LONG;
-    public static final int DOUBLE_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_DOUBLE;
     public static final int OBJECT_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_OBJECT_REF;
 
     /** Returns the next size to grow when working with parallel arrays that may have different page sizes or number of bytes per element. */
@@ -247,9 +244,9 @@ public class BigArrays extends AbstractComponent {
 
     private static class DoubleArrayWrapper extends AbstractArrayWrapper implements DoubleArray {
 
-        private final double[] array;
+        private final long[] array;
 
-        DoubleArrayWrapper(BigArrays bigArrays, double[] array, long size, Recycler.V<double[]> releasable, boolean clearOnResize) {
+        DoubleArrayWrapper(BigArrays bigArrays, long[] array, long size, Recycler.V<long[]> releasable, boolean clearOnResize) {
             super(bigArrays, size, releasable, clearOnResize);
             this.array = array;
         }
@@ -262,37 +259,37 @@ public class BigArrays extends AbstractComponent {
         @Override
         public double get(long index) {
             assert indexIsInt(index);
-            return array[(int) index];
+            return Double.longBitsToDouble(array[(int) index]);
         }
 
         @Override
         public double set(long index, double value) {
             assert indexIsInt(index);
-            double ret = array[(int) index];
-            array[(int) index] = value;
+            double ret = Double.longBitsToDouble(array[(int) index]);
+            array[(int) index] = Double.doubleToRawLongBits(value);
             return ret;
         }
 
         @Override
         public double increment(long index, double inc) {
             assert indexIsInt(index);
-            return array[(int) index] += inc;
+            return array[(int) index] = Double.doubleToRawLongBits(Double.longBitsToDouble(array[(int) index]) + inc);
         }
 
         @Override
         public void fill(long fromIndex, long toIndex, double value) {
             assert indexIsInt(fromIndex);
             assert indexIsInt(toIndex);
-            Arrays.fill(array, (int) fromIndex, (int) toIndex, value);
+            Arrays.fill(array, (int) fromIndex, (int) toIndex, Double.doubleToRawLongBits(value));
         }
 
     }
 
     private static class FloatArrayWrapper extends AbstractArrayWrapper implements FloatArray {
 
-        private final float[] array;
+        private final int[] array;
 
-        FloatArrayWrapper(BigArrays bigArrays, float[] array, long size, Recycler.V<float[]> releasable, boolean clearOnResize) {
+        FloatArrayWrapper(BigArrays bigArrays, int[] array, long size, Recycler.V<int[]> releasable, boolean clearOnResize) {
             super(bigArrays, size, releasable, clearOnResize);
             this.array = array;
         }
@@ -305,28 +302,28 @@ public class BigArrays extends AbstractComponent {
         @Override
         public float get(long index) {
             assert indexIsInt(index);
-            return array[(int) index];
+            return Float.intBitsToFloat(array[(int) index]);
         }
 
         @Override
         public float set(long index, float value) {
             assert indexIsInt(index);
-            float ret = array[(int) index];
-            array[(int) index] = value;
+            float ret = Float.intBitsToFloat(array[(int) index]);
+            array[(int) index] = Float.floatToRawIntBits(value);
             return ret;
         }
 
         @Override
         public float increment(long index, float inc) {
             assert indexIsInt(index);
-            return array[(int) index] += inc;
+            return array[(int) index] = Float.floatToRawIntBits(Float.intBitsToFloat(array[(int) index]) + inc);
         }
 
         @Override
         public void fill(long fromIndex, long toIndex, float value) {
             assert indexIsInt(fromIndex);
             assert indexIsInt(toIndex);
-            Arrays.fill(array, (int) fromIndex, (int) toIndex, value);
+            Arrays.fill(array, (int) fromIndex, (int) toIndex, Float.floatToRawIntBits(value));
         }
 
     }
@@ -629,13 +626,13 @@ public class BigArrays extends AbstractComponent {
      */
     public DoubleArray newDoubleArray(long size, boolean clearOnResize) {
         final DoubleArray arr;
-        if (size > DOUBLE_PAGE_SIZE) {
+        if (size > LONG_PAGE_SIZE) {
             arr = new BigDoubleArray(size, this, clearOnResize);
-        } else if (size >= DOUBLE_PAGE_SIZE / 2 && recycler != null) {
-            final Recycler.V<double[]> page = recycler.doublePage(clearOnResize);
+        } else if (size >= LONG_PAGE_SIZE / 2 && recycler != null) {
+            final Recycler.V<long[]> page = recycler.longPage(clearOnResize);
             arr = new DoubleArrayWrapper(this, page.v(), size, page, clearOnResize);
         } else {
-            arr = new DoubleArrayWrapper(this, new double[(int) size], size, null, clearOnResize);
+            arr = new DoubleArrayWrapper(this, new long[(int) size], size, null, clearOnResize);
         }
         return validate(arr);
     }
@@ -665,7 +662,7 @@ public class BigArrays extends AbstractComponent {
         if (minSize <= array.size()) {
             return array;
         }
-        final long newSize = overSize(minSize, DOUBLE_PAGE_SIZE, RamUsageEstimator.NUM_BYTES_DOUBLE);
+        final long newSize = overSize(minSize, LONG_PAGE_SIZE, RamUsageEstimator.NUM_BYTES_LONG);
         return resize(array, newSize);
     }
 
@@ -676,13 +673,13 @@ public class BigArrays extends AbstractComponent {
      */
     public FloatArray newFloatArray(long size, boolean clearOnResize) {
         final FloatArray array;
-        if (size > FLOAT_PAGE_SIZE) {
+        if (size > INT_PAGE_SIZE) {
             array = new BigFloatArray(size, this, clearOnResize);
-        } else if (size >= FLOAT_PAGE_SIZE / 2 && recycler != null) {
-            final Recycler.V<float[]> page = recycler.floatPage(clearOnResize);
+        } else if (size >= INT_PAGE_SIZE / 2 && recycler != null) {
+            final Recycler.V<int[]> page = recycler.intPage(clearOnResize);
             array = new FloatArrayWrapper(this, page.v(), size, page, clearOnResize);
         } else {
-            array = new FloatArrayWrapper(this, new float[(int) size], size, null, clearOnResize);
+            array = new FloatArrayWrapper(this, new int[(int) size], size, null, clearOnResize);
         }
         return validate(array);
     }
@@ -712,7 +709,7 @@ public class BigArrays extends AbstractComponent {
         if (minSize <= array.size()) {
             return array;
         }
-        final long newSize = overSize(minSize, FLOAT_PAGE_SIZE, RamUsageEstimator.NUM_BYTES_FLOAT);
+        final long newSize = overSize(minSize, INT_PAGE_SIZE, RamUsageEstimator.NUM_BYTES_FLOAT);
         return resize(array, newSize);
     }
 

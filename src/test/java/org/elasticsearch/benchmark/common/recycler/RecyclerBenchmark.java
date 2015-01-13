@@ -93,8 +93,7 @@ public class RecyclerBenchmark {
                 .put("none", none(c))
                 .put("concurrent-queue", concurrentDeque(c, limit))
                 .put("locked", locked(deque(c, limit)))
-                .put("concurrent", concurrent(dequeFactory(c, limit), Runtime.getRuntime().availableProcessors()))
-                .put("soft-concurrent", concurrent(softFactory(dequeFactory(c, limit)), Runtime.getRuntime().availableProcessors())).build();
+                .put("concurrent", concurrent(dequeFactory(c, limit), Runtime.getRuntime().availableProcessors())).build();
 
         // warmup
         final long start = System.nanoTime();

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.transport.netty;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.netty.bootstrap.ClientBootstrap;
 import org.elasticsearch.common.netty.bootstrap.ServerBootstrap;
 import org.elasticsearch.common.netty.buffer.ChannelBuffer;
@@ -122,6 +123,7 @@ public class HandshakeWaitingHandlerTests extends ElasticsearchTestCase {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-shield/issues/533")
     public void testWriteBeforeHandshakePassesWithHandshakeWaitingHandler() throws Exception {
         clientBootstrap.setPipelineFactory(new ChannelPipelineFactory() {
 

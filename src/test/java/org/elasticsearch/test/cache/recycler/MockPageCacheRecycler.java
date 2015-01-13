@@ -145,15 +145,6 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
     }
 
     @Override
-    public V<double[]> doublePage(boolean clear) {
-        final V<double[]> page = super.doublePage(clear);
-        if (!clear) {
-            Arrays.fill(page.v(), 0, page.v().length, random.nextDouble() - 0.5);
-        }
-        return wrap(page);
-    }
-
-    @Override
     public V<Object[]> objectPage() {
         return wrap(super.objectPage());
     }

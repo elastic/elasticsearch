@@ -27,19 +27,27 @@ public class DiskUsage {
     final long totalBytes;
     final long freeBytes;
 
+    /**
+     * Create a new DiskUsage, if {@code totalBytes} is 0, {@get getFreeDiskAsPercentage}
+     * will always return 100.0% free
+     */
     public DiskUsage(String nodeId, long totalBytes, long freeBytes) {
-        if ((totalBytes < freeBytes) || (totalBytes < 0)) {
-            throw new IllegalStateException("Free bytes [" + freeBytes +
-                    "] cannot be less than 0 or greater than total bytes [" + totalBytes + "]");
-        }
         this.nodeId = nodeId;
-        this.totalBytes = totalBytes;
         this.freeBytes = freeBytes;
+        this.totalBytes = totalBytes;
+    }
+
+    public String getNodeId() {
+        return nodeId;
     }
 
     public double getFreeDiskAsPercentage() {
-        double freePct = 100.0 * ((double)freeBytes / totalBytes);
-        return freePct;
+        // We return 100.0% in order to fail "open", in that if we have invalid
+        // numbers for the total bytes, it's as if we don't know disk usage.
+        if (totalBytes == 0) {
+            return 100.0;
+        }
+        return 100.0 * ((double)freeBytes / totalBytes);
     }
 
     public long getFreeBytes() {

@@ -340,6 +340,9 @@ public class DiskThresholdDecider extends AllocationDecider {
      * @return DiskUsage representing given node using the average disk usage
      */
     public DiskUsage averageUsage(RoutingNode node, Map<String, DiskUsage> usages) {
+        if (usages.size() == 0) {
+            return new DiskUsage(node.nodeId(), 0, 0);
+        }
         long totalBytes = 0;
         long freeBytes = 0;
         for (DiskUsage du : usages.values()) {
@@ -358,7 +361,9 @@ public class DiskThresholdDecider extends AllocationDecider {
      */
     public double freeDiskPercentageAfterShardAssigned(DiskUsage usage, Long shardSize) {
         shardSize = (shardSize == null) ? 0 : shardSize;
-        return 100.0 - (((double)(usage.getUsedBytes() + shardSize) / usage.getTotalBytes()) * 100.0);
+        DiskUsage newUsage = new DiskUsage(usage.getNodeId(),
+                usage.getTotalBytes(), usage.getFreeBytes() - shardSize);
+        return newUsage.getFreeDiskAsPercentage();
     }
 
     /**

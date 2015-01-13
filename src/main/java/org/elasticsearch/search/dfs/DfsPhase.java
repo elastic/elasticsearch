@@ -60,9 +60,6 @@ public class DfsPhase implements SearchPhase {
                 context.updateRewriteQuery(context.searcher().rewrite(context.query()));
             }
 
-            if (!termsSet.isEmpty()) {
-                termsSet.clear();
-            }
             context.query().extractTerms(new DelegateSet(termsSet));
             for (RescoreSearchContext rescoreContext : context.rescore()) {
                 rescoreContext.rescorer().extractTerms(context, rescoreContext, new DelegateSet(termsSet));

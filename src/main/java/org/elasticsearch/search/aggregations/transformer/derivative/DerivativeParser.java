@@ -48,7 +48,7 @@ public class DerivativeParser implements Aggregator.Parser {
 
         boolean keyed = false;
         String format = null;
-        GapPolicy gapPolicy = GapPolicy.insert_zeros;
+        GapPolicy gapPolicy = GapPolicy.ignore;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -66,7 +66,7 @@ public class DerivativeParser implements Aggregator.Parser {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: ["
                             + currentFieldName + "].");
                 }
-                // NOCOMMIT implement order
+                // NOCOMMIT implement order?
                 // } else if (token == XContentParser.Token.START_OBJECT) {
                 // if ("order".equals(currentFieldName)) {
                 // while ((token = parser.nextToken()) !=

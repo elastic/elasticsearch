@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
@@ -75,6 +76,13 @@ public class DerivativeTransformer extends Transformer {
         protected Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount,
                 Map<String, Object> metaData) {
             return new DerivativeTransformer(name, keyed, formatter, gapPolicy, factories, context, parent, metaData);
+        }
+
+        @Override
+        public AggregatorFactory subFactories(AggregatorFactories subFactories) {
+            AggregatorFactory[] factories = subFactories.factories();
+            ((HistogramAggregator.Factory) factories[0]).minDocCount(0);
+            return super.subFactories(subFactories);
         }
 
     }

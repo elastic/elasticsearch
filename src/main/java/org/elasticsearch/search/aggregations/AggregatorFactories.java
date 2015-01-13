@@ -49,6 +49,10 @@ public class AggregatorFactories {
         this.factories = factories;
     }
 
+    public AggregatorFactory[] factories() {
+        return factories;
+    }
+
     private static Aggregator createAndRegisterContextAware(AggregationContext context, AggregatorFactory factory, Aggregator parent, long estimatedBucketsCount) {
         final Aggregator aggregator = factory.create(context, parent, estimatedBucketsCount);
         if (aggregator.shouldCollect()) {

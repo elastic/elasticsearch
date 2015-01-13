@@ -142,7 +142,7 @@ public class HistogramAggregator extends BucketsAggregator {
         private final Rounding rounding;
         private final InternalOrder order;
         private final boolean keyed;
-        private final long minDocCount;
+        private long minDocCount;
         private final ExtendedBounds extendedBounds;
         private final InternalHistogram.Factory<?> histogramFactory;
 
@@ -157,6 +157,10 @@ public class HistogramAggregator extends BucketsAggregator {
             this.minDocCount = minDocCount;
             this.extendedBounds = extendedBounds;
             this.histogramFactory = histogramFactory;
+        }
+
+        public void minDocCount(long minDocCount) {
+            this.minDocCount = minDocCount;
         }
 
         @Override

@@ -44,8 +44,8 @@ public class AggregatorFactories {
         this.factories = factories;
     }
 
-    private static Aggregator createAndRegisterContextAware(AggregationContext context, AggregatorFactory factory, Aggregator parent, boolean collectsSingleBucket) throws IOException {
-        final Aggregator aggregator = factory.create(context, parent, collectsSingleBucket);
+    private static Aggregator createAndRegisterContextAware(AggregationContext context, AggregatorFactory factory, Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
+        final Aggregator aggregator = factory.create(context, parent, collectsFromSingleBucket);
         if (aggregator.shouldCollect()) {
             context.registerReaderContextAware(aggregator);
         }
@@ -66,8 +66,8 @@ public class AggregatorFactories {
             // you have a terms agg under a top-level filter agg. We should have a way to
             // propagate the fact that only bucket 0 will be collected with single-bucket
             // aggs
-            final boolean collectsSingleBucket = false;
-            aggregators[i] = createAndRegisterContextAware(parent.context(), factories[i], parent, collectsSingleBucket);
+            final boolean collectsFromSingleBucket = false;
+            aggregators[i] = createAndRegisterContextAware(parent.context(), factories[i], parent, collectsFromSingleBucket);
         }
         return aggregators;
     }
@@ -77,8 +77,8 @@ public class AggregatorFactories {
         Aggregator[] aggregators = new Aggregator[factories.length];
         for (int i = 0; i < factories.length; i++) {
             // top-level aggs only get called with bucket 0
-            final boolean collectsSingleBucket = true;
-            aggregators[i] = createAndRegisterContextAware(ctx, factories[i], null, collectsSingleBucket);
+            final boolean collectsFromSingleBucket = true;
+            aggregators[i] = createAndRegisterContextAware(ctx, factories[i], null, collectsFromSingleBucket);
         }
         return aggregators;
     }

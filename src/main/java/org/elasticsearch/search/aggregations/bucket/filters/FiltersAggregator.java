@@ -124,7 +124,7 @@ public class FiltersAggregator extends BucketsAggregator {
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
             return new FiltersAggregator(name, factories, filters, keyed, context, parent, metaData);
         }
     }

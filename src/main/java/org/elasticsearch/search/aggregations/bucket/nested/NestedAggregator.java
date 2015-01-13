@@ -171,7 +171,7 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
             return new NestedAggregator(name, factories, path, context, parent, metaData, filterCachingPolicy);
         }
     }

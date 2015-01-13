@@ -151,7 +151,7 @@ public class StatsAggegator extends NumericMetricsAggregator.MultiValue {
         }
 
         @Override
-        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
+        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
             return new StatsAggegator(name, valuesSource, aggregationContext, parent, metaData);
         }
     }

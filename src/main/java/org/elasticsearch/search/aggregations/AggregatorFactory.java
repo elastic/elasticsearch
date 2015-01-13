@@ -77,20 +77,20 @@ public abstract class AggregatorFactory {
         return parent;
     }
 
-    protected abstract Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException;
+    protected abstract Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException;
 
     /**
      * Creates the aggregator
      *
      * @param context               The aggregation context
      * @param parent                The parent aggregator (if this is a top level factory, the parent will be {@code null})
-     * @param collectsSingleBucket  If true then the created aggregator will only be collected with <tt>0</tt> as a bucket ordinal.
+     * @param collectsFromSingleBucket  If true then the created aggregator will only be collected with <tt>0</tt> as a bucket ordinal.
      *                              Some factories can take advantage of this in order to return more optimized implementations.
      *
      * @return                      The created aggregator
      */
-    public final Aggregator create(AggregationContext context, Aggregator parent, boolean collectsSingleBucket) throws IOException {
-        Aggregator aggregator = createInternal(context, parent, collectsSingleBucket, this.metaData);
+    public final Aggregator create(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
+        Aggregator aggregator = createInternal(context, parent, collectsFromSingleBucket, this.metaData);
         return aggregator;
     }
 

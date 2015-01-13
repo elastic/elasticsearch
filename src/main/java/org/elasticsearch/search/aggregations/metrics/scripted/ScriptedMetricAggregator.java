@@ -144,8 +144,8 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
-            if (collectsSingleBucket == false) {
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
+            if (collectsFromSingleBucket == false) {
                 return asMultiBucketAggregator(this, context, parent);
             }
             Map<String, Object> params = null;

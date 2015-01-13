@@ -173,8 +173,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
-        if (collectsSingleBucket == false) {
+    protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
+        if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, aggregationContext, parent);
         }
 
@@ -189,7 +189,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 execution = ExecutionMode.MAP;
             }
             if (execution == null) {
-                if (Aggregator.hasParentBucketsAggregator(parent)) {
+                if (Aggregator.descendsFromBucketAggregator(parent)) {
                     execution = ExecutionMode.GLOBAL_ORDINALS_HASH;
                 } else {
                     execution = ExecutionMode.GLOBAL_ORDINALS;

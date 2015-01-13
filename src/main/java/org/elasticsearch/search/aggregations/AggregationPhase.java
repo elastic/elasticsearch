@@ -142,7 +142,7 @@ public class AggregationPhase implements SearchPhase {
             try {
                 aggregations.add(aggregator.buildAggregation(0));
             } catch (IOException e) {
-                throw new AggregationExecutionException("Failed to build aggregation", e);
+                throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);
             }
         }
         context.queryResult().aggregations(new InternalAggregations(aggregations));

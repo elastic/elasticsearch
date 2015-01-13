@@ -64,12 +64,12 @@ public class GlobalAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
             if (parent != null) {
                 throw new AggregationExecutionException("Aggregation [" + parent.name() + "] cannot have a global " +
                         "sub-aggregation [" + name + "]. Global aggregations can only be defined as top level aggregations");
             }
-            if (collectsSingleBucket == false) {
+            if (collectsFromSingleBucket == false) {
                 throw new ElasticsearchIllegalStateException();
             }
             return new GlobalAggregator(name, factories, context, metaData);

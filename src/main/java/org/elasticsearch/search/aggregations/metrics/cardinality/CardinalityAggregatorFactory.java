@@ -51,7 +51,7 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<V
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext context, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
+    protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
         if (!(valuesSource instanceof ValuesSource.Numeric) && !rehash) {
             throw new AggregationExecutionException("Turning off rehashing for cardinality aggregation [" + name + "] on non-numeric values in not allowed");
         }

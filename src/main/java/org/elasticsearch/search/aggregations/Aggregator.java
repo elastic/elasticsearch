@@ -48,7 +48,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     /**
      * Returns whether one of the parents is a {@link BucketsAggregator}.
      */
-    public static boolean hasParentBucketsAggregator(Aggregator parent) {
+    public static boolean descendsFromBucketAggregator(Aggregator parent) {
         while (parent != null) {
             if (parent instanceof BucketsAggregator) {
                 return true;

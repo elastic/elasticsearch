@@ -161,8 +161,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
-        if (collectsSingleBucket == false) {
+    protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
+        if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, aggregationContext, parent);
         }
         if (valuesSource instanceof ValuesSource.Bytes) {
@@ -193,7 +193,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                 // if there is a parent bucket aggregator the number of instances of this aggregator is going
                 // to be unbounded and most instances may only aggregate few documents, so use hashed based
                 // global ordinals to keep the bucket ords dense.
-                if (Aggregator.hasParentBucketsAggregator(parent)) {
+                if (Aggregator.descendsFromBucketAggregator(parent)) {
                     execution = ExecutionMode.GLOBAL_ORDINALS_HASH;
                 } else {
                     if (factories == AggregatorFactories.EMPTY) {

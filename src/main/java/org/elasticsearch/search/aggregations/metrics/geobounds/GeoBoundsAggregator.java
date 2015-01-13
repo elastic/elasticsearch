@@ -175,7 +175,7 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
 
         @Override
         protected Aggregator doCreateInternal(ValuesSource.GeoPoint valuesSource, AggregationContext aggregationContext,
-                Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
+                Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
             return new GeoBoundsAggregator(name, aggregationContext, parent, valuesSource, wrapLongitude, metaData);
         }
 

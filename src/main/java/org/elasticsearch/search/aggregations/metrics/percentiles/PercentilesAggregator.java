@@ -82,7 +82,7 @@ public class PercentilesAggregator extends AbstractPercentilesAggregator {
         }
 
         @Override
-        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsSingleBucket, Map<String, Object> metaData) throws IOException {
+        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
             return new PercentilesAggregator(name, valuesSource, aggregationContext, parent, percents, compression, keyed, metaData);
         }
     }

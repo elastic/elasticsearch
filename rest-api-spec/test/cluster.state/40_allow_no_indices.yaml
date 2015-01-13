@@ -1,0 +1,18 @@
+---
+"Test allow_no_indices parameter":
+
+  - do:
+      cluster.state:
+        metric: [ metadata ]
+        index: test*
+
+  - match: {metadata.indices: {}}
+  
+  - do:
+      catch: missing
+      cluster.state:
+        metric: [ metadata ]
+        index: test*
+        allow_no_indices: false
+
+  - is_false: metadata

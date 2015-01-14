@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.test;
 
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
+
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
@@ -379,7 +381,7 @@ public final class InternalTestCluster extends TestCluster {
         }
         builder.put("type", RandomPicks.randomFrom(random, CacheRecycler.Type.values()));
         if (random.nextBoolean()) {
-            builder.put("cache.recycler.page.type", RandomPicks.randomFrom(random, CacheRecycler.Type.values()));
+            builder.put("cache.recycler.page.type", RandomPicks.randomFrom(random, PageCacheRecycler.Type.values()));
         }
         if (random.nextInt(10) == 0) { // 10% of the nodes have a very frequent check interval
             builder.put(SearchService.KEEPALIVE_INTERVAL_KEY, TimeValue.timeValueMillis(10 + random.nextInt(2000)));

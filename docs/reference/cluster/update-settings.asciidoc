@@ -184,15 +184,6 @@ due to forced awareness or allocation filtering.
      See <<modules-indices>>
 
 [float]
-==== Store level throttling
-
-`indices.store.throttle.type`::
-      See <<index-modules-store>>
-
-`indices.store.throttle.max_bytes_per_sec`::
-      See <<index-modules-store>>
-
-[float]
 [[logger]]
 === Logger
 

@@ -1361,6 +1361,12 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         refresh();
         assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(100L));
 
+        // Update settings to make sure that relocation is slow so we can start snapshot before relocation is finished
+        assertAcked(client.admin().indices().prepareUpdateSettings("test-idx").setSettings(ImmutableSettings.builder()
+                        .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "all")
+                        .put(AbstractIndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, 100)
+        ));
+
         logger.info("--> start relocations");
         allowNodes("test-idx", internalCluster().numDataNodes());
 
@@ -1370,6 +1376,11 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
         logger.info("--> snapshot");
         client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
+
+        // Update settings to back to normal
+        assertAcked(client.admin().indices().prepareUpdateSettings("test-idx").setSettings(ImmutableSettings.builder()
+                        .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "node")
+        ));
 
         logger.info("--> wait for snapshot to complete");
         SnapshotInfo snapshotInfo = waitForCompletion("test-repo", "test-snap", TimeValue.timeValueSeconds(600));

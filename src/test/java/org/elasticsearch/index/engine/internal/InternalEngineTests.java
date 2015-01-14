@@ -179,6 +179,11 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             public Directory[] build() throws IOException {
                 return new Directory[]{ directory };
             }
+
+            @Override
+            public long throttleTimeInNanos() {
+                return 0;
+            }
         };
         return new Store(shardId, EMPTY_SETTINGS, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
     }

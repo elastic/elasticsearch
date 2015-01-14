@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.store;
 
+import org.apache.lucene.store.StoreRateLimiting;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -59,9 +60,33 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class IndicesStore extends AbstractComponent implements ClusterStateListener, Closeable {
 
+    public static final String INDICES_STORE_THROTTLE_TYPE = "indices.store.throttle.type";
+    public static final String INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC = "indices.store.throttle.max_bytes_per_sec";
+
     public static final String ACTION_SHARD_EXISTS = "internal:index/shard/exists";
 
     private static final EnumSet<IndexShardState> ACTIVE_STATES = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED);
+
+    class ApplySettings implements NodeSettingsService.Listener {
+        @Override
+        public void onRefreshSettings(Settings settings) {
+            String rateLimitingType = settings.get(INDICES_STORE_THROTTLE_TYPE, IndicesStore.this.rateLimitingType);
+            // try and parse the type
+            StoreRateLimiting.Type.fromString(rateLimitingType);
+            if (!rateLimitingType.equals(IndicesStore.this.rateLimitingType)) {
+                logger.info("updating indices.store.throttle.type from [{}] to [{}]", IndicesStore.this.rateLimitingType, rateLimitingType);
+                IndicesStore.this.rateLimitingType = rateLimitingType;
+                IndicesStore.this.rateLimiting.setType(rateLimitingType);
+            }
+
+            ByteSizeValue rateLimitingThrottle = settings.getAsBytesSize(INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC, IndicesStore.this.rateLimitingThrottle);
+            if (!rateLimitingThrottle.equals(IndicesStore.this.rateLimitingThrottle)) {
+                logger.info("updating indices.store.throttle.max_bytes_per_sec from [{}] to [{}], note, type is [{}]", IndicesStore.this.rateLimitingThrottle, rateLimitingThrottle, IndicesStore.this.rateLimitingType);
+                IndicesStore.this.rateLimitingThrottle = rateLimitingThrottle;
+                IndicesStore.this.rateLimiting.setMaxRate(rateLimitingThrottle);
+            }
+        }
+    }
 
     private final NodeEnvironment nodeEnv;
 
@@ -71,6 +96,12 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
     private final ClusterService clusterService;
     private final TransportService transportService;
+
+    private volatile String rateLimitingType;
+    private volatile ByteSizeValue rateLimitingThrottle;
+    private final StoreRateLimiting rateLimiting = new StoreRateLimiting();
+
+    private final ApplySettings applySettings = new ApplySettings();
 
     @Inject
     public IndicesStore(Settings settings, NodeEnvironment nodeEnv, NodeSettingsService nodeSettingsService, IndicesService indicesService,
@@ -83,6 +114,15 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         this.transportService = transportService;
         transportService.registerHandler(ACTION_SHARD_EXISTS, new ShardActiveRequestHandler());
 
+        // we don't limit by default (we default to CMS's auto throttle instead):
+        this.rateLimitingType = componentSettings.get("throttle.type", StoreRateLimiting.Type.NONE.name());
+        rateLimiting.setType(rateLimitingType);
+        this.rateLimitingThrottle = componentSettings.getAsBytesSize("throttle.max_bytes_per_sec", new ByteSizeValue(10240, ByteSizeUnit.MB));
+        rateLimiting.setMaxRate(rateLimitingThrottle);
+
+        logger.debug("using indices.store.throttle.type [{}], with index.store.throttle.max_bytes_per_sec [{}]", rateLimitingType, rateLimitingThrottle);
+
+        nodeSettingsService.addListener(applySettings);
         clusterService.addLast(this);
     }
 
@@ -95,8 +135,13 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         this.transportService = null;
     }
 
+    public StoreRateLimiting rateLimiting() {
+        return this.rateLimiting;
+    }
+
     @Override
     public void close() {
+        nodeSettingsService.removeListener(applySettings);
         clusterService.remove(this);
     }
 

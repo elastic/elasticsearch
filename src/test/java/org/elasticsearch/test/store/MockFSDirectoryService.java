@@ -24,6 +24,7 @@ import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
+import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
@@ -148,6 +149,21 @@ public class MockFSDirectoryService extends FsDirectoryService {
                 store.decRef();
             }
         }
+    }
+
+    @Override
+    public void onPause(long nanos) {
+        delegateService.onPause(nanos);
+    }
+
+    @Override
+    public StoreRateLimiting rateLimiting() {
+        return delegateService.rateLimiting();
+    }
+
+    @Override
+    public long throttleTimeInNanos() {
+        return delegateService.throttleTimeInNanos();
     }
 
     @Override

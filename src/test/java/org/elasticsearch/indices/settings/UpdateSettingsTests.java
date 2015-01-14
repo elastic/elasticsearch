@@ -125,6 +125,140 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
 
     }
 
+    // #6626: make sure we can update throttle settings and the changes take effect
+    @Test
+    @Slow
+    public void testUpdateThrottleSettings() {
+
+        // No throttling at first, only 1 non-replicated shard, force lots of merging:
+        assertAcked(prepareCreate("test")
+                    .setSettings(ImmutableSettings.builder()
+                                 .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "none")
+                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
+                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
+                                 .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
+                                 .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
+                                 .put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, "1")
+                                 .put(ConcurrentMergeSchedulerProvider.MAX_MERGE_COUNT, "2")
+                                 ));
+        ensureGreen();
+        long termUpto = 0;
+        for(int i=0;i<100;i++) {
+            // Provoke slowish merging by making many unique terms:
+            StringBuilder sb = new StringBuilder();
+            for(int j=0;j<100;j++) {
+                sb.append(' ');
+                sb.append(termUpto++);
+            }
+            client().prepareIndex("test", "type", ""+termUpto).setSource("field" + (i%10), sb.toString()).get();
+            if (i % 2 == 0) {
+                refresh();
+            }
+        }
+
+        // No merge IO throttling should have happened:
+        NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
+        for(NodeStats stats : nodesStats.getNodes()) {
+            assertThat(stats.getIndices().getStore().getThrottleTime().getMillis(), equalTo(0l));
+        }
+
+        logger.info("test: set low merge throttling");
+
+        // Now updates settings to turn on merge throttling lowish rate
+        client()
+            .admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(ImmutableSettings.builder()
+                         .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
+                         .put(AbstractIndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, "1mb"))
+            .get();
+
+        // Make sure setting says it is in fact changed:
+        GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
+        assertThat(getSettingsResponse.getSetting("test", AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE), equalTo("merge"));
+
+        // Also make sure we see throttling kicking in:
+        boolean done = false;
+        while (done == false) {
+            // Provoke slowish merging by making many unique terms:
+            for(int i=0;i<5;i++) {
+                StringBuilder sb = new StringBuilder();
+                for(int j=0;j<100;j++) {
+                    sb.append(' ');
+                    sb.append(termUpto++);
+                    sb.append(" some random text that keeps repeating over and over again hambone");
+                }
+                client().prepareIndex("test", "type", ""+termUpto).setSource("field" + (i%10), sb.toString()).get();
+            }
+            refresh();
+            nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
+            for(NodeStats stats : nodesStats.getNodes()) {
+                long throttleMillis = stats.getIndices().getStore().getThrottleTime().getMillis();
+                if (throttleMillis > 0) {
+                    done = true;
+                    break;
+                }
+            }
+        }
+
+        logger.info("test: disable merge throttling");
+        
+        // Now updates settings to disable merge throttling
+        client()
+            .admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(ImmutableSettings.builder()
+                         .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "none"))
+            .get();
+
+        // Optimize does a waitForMerges, which we must do to make sure all in-flight (throttled) merges finish:
+        logger.info("test: optimize");
+        client().admin().indices().prepareOptimize("test").setWaitForMerge(true).get();
+        logger.info("test: optimize done");
+
+        // Record current throttling so far
+        long sumThrottleTime = 0;
+        nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
+        for(NodeStats stats : nodesStats.getNodes()) {
+            sumThrottleTime += stats.getIndices().getStore().getThrottleTime().getMillis();
+        }
+
+        // Make sure no further throttling happens:
+        for(int i=0;i<100;i++) {
+            // Provoke slowish merging by making many unique terms:
+            StringBuilder sb = new StringBuilder();
+            for(int j=0;j<100;j++) {
+                sb.append(' ');
+                sb.append(termUpto++);
+            }
+            client().prepareIndex("test", "type", ""+termUpto).setSource("field" + (i%10), sb.toString()).get();
+            if (i % 2 == 0) {
+                refresh();
+            }
+        }
+        logger.info("test: done indexing after disabling throttling");
+
+        long newSumThrottleTime = 0;
+        nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
+        for(NodeStats stats : nodesStats.getNodes()) {
+            newSumThrottleTime += stats.getIndices().getStore().getThrottleTime().getMillis();
+        }
+
+        // No additional merge IO throttling should have happened:
+        assertEquals(sumThrottleTime, newSumThrottleTime);
+
+        // Optimize & flush and wait; else we sometimes get a "Delete Index failed - not acked"
+        // when ElasticsearchIntegrationTest.after tries to remove indices created by the test:
+
+        // Wait for merges to finish
+        client().admin().indices().prepareOptimize("test").setWaitForMerge(true).get();
+        flush();
+
+        logger.info("test: test done");
+    }
+
     private static class MockAppender extends AppenderSkeleton {
         public boolean sawIndexWriterMessage;
         public boolean sawFlushDeletes;

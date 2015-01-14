@@ -39,6 +39,8 @@ public abstract class DirectoryService extends AbstractIndexShardComponent {
 
     public abstract Directory[] build() throws IOException;
 
+    public abstract long throttleTimeInNanos();
+
     /**
      * Creates a new Directory from the given distributor.
      * The default implementation returns a new {@link org.elasticsearch.index.store.DistributorDirectory}

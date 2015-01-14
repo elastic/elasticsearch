@@ -54,48 +54,63 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
         String storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
         Path[] dataPaths = dataPaths();
-        assertThat(storeString.toLowerCase(Locale.ROOT), startsWith("store(least_used[niofs(" + dataPaths[0].toAbsolutePath().toString().toLowerCase(Locale.ROOT)));
+        assertThat(storeString.toLowerCase(Locale.ROOT), startsWith("store(least_used[rate_limited(niofs(" + dataPaths[0].toAbsolutePath().toString().toLowerCase(Locale.ROOT)));
         if (dataPaths.length > 1) {
-            assertThat(storeString.toLowerCase(Locale.ROOT), containsString("), niofs(" + dataPaths[1].toAbsolutePath().toString().toLowerCase(Locale.ROOT)));
+            assertThat(storeString.toLowerCase(Locale.ROOT), containsString("), rate_limited(niofs(" + dataPaths[1].toAbsolutePath().toString().toLowerCase(Locale.ROOT)));
         }
+        assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
 
         createIndexWithStoreType("test", IndexStoreModule.Type.NIOFS, "random");
         storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
         dataPaths = dataPaths();
-        assertThat(storeString.toLowerCase(Locale.ROOT), startsWith("store(random[niofs(" + dataPaths[0].toAbsolutePath().toString().toLowerCase(Locale.ROOT)));
+        assertThat(storeString.toLowerCase(Locale.ROOT), startsWith("store(random[rate_limited(niofs(" + dataPaths[0].toAbsolutePath().toString().toLowerCase(Locale.ROOT)));
         if (dataPaths.length > 1) {
-            assertThat(storeString.toLowerCase(Locale.ROOT), containsString("), niofs(" + dataPaths[1].toAbsolutePath().toString().toLowerCase(Locale.ROOT)));
+            assertThat(storeString.toLowerCase(Locale.ROOT), containsString("), rate_limited(niofs(" + dataPaths[1].toAbsolutePath().toString().toLowerCase(Locale.ROOT)));
         }
+        assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
 
         createIndexWithStoreType("test", IndexStoreModule.Type.MMAPFS, "least_used");
         storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
         dataPaths = dataPaths();
-        assertThat(storeString.toLowerCase(Locale.ROOT), startsWith("store(least_used[mmapfs(" + dataPaths[0].toAbsolutePath().toString().toLowerCase(Locale.ROOT)));
+        assertThat(storeString.toLowerCase(Locale.ROOT), startsWith("store(least_used[rate_limited(mmapfs(" + dataPaths[0].toAbsolutePath().toString().toLowerCase(Locale.ROOT)));
         if (dataPaths.length > 1) {
-            assertThat(storeString.toLowerCase(Locale.ROOT), containsString("), mmapfs(" + dataPaths[1].toAbsolutePath().toString().toLowerCase(Locale.ROOT)));
+            assertThat(storeString.toLowerCase(Locale.ROOT), containsString("), rate_limited(mmapfs(" + dataPaths[1].toAbsolutePath().toString().toLowerCase(Locale.ROOT)));
         }
+        assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
 
         createIndexWithStoreType("test", IndexStoreModule.Type.SIMPLEFS, "least_used");
         storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
         dataPaths = dataPaths();
-        assertThat(storeString.toLowerCase(Locale.ROOT), startsWith("store(least_used[simplefs(" + dataPaths[0].toAbsolutePath().toString().toLowerCase(Locale.ROOT)));
+        assertThat(storeString.toLowerCase(Locale.ROOT), startsWith("store(least_used[rate_limited(simplefs(" + dataPaths[0].toAbsolutePath().toString().toLowerCase(Locale.ROOT)));
         if (dataPaths.length > 1) {
-            assertThat(storeString.toLowerCase(Locale.ROOT), containsString("), simplefs(" + dataPaths[1].toAbsolutePath().toString().toLowerCase(Locale.ROOT)));
+            assertThat(storeString.toLowerCase(Locale.ROOT), containsString("), rate_limited(simplefs(" + dataPaths[1].toAbsolutePath().toString().toLowerCase(Locale.ROOT)));
         }
+        assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
 
         createIndexWithStoreType("test", IndexStoreModule.Type.DEFAULT, "least_used");
         storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
         dataPaths = dataPaths();
-        assertThat(storeString.toLowerCase(Locale.ROOT), startsWith("store(least_used[default(mmapfs(" + dataPaths[0].toAbsolutePath().toString().toLowerCase(Locale.ROOT)));
+        assertThat(storeString.toLowerCase(Locale.ROOT), startsWith("store(least_used[rate_limited(default(mmapfs(" + dataPaths[0].toAbsolutePath().toString().toLowerCase(Locale.ROOT)));
         assertThat(storeString.toLowerCase(Locale.ROOT), containsString("),niofs(" + dataPaths[0].toAbsolutePath().toString().toLowerCase(Locale.ROOT)));
 
         if (dataPaths.length > 1) {
-            assertThat(storeString.toLowerCase(Locale.ROOT), containsString("), default(mmapfs(" + dataPaths[1].toAbsolutePath().toString().toLowerCase(Locale.ROOT)));
+            assertThat(storeString.toLowerCase(Locale.ROOT), containsString("), rate_limited(default(mmapfs(" + dataPaths[1].toAbsolutePath().toString().toLowerCase(Locale.ROOT)));
         }
+        assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
+
+        createIndexWithoutRateLimitingStoreType("test", IndexStoreModule.Type.NIOFS, "least_used");
+        storeString = getStoreDirectory("test", 0).toString();
+        logger.info(storeString);
+        dataPaths = dataPaths();
+        assertThat(storeString.toLowerCase(Locale.ROOT), startsWith("store(least_used[niofs(" + dataPaths[0].toAbsolutePath().toString().toLowerCase(Locale.ROOT)));
+        if (dataPaths.length > 1) {
+            assertThat(storeString.toLowerCase(Locale.ROOT), containsString("), niofs(" + dataPaths[1].toAbsolutePath().toString().toLowerCase(Locale.ROOT)));
+        }
+        assertThat(storeString, endsWith(")])"));
     }
 
     private void createIndexWithStoreType(String index, IndexStoreModule.Type storeType, String distributor) {
@@ -106,10 +121,27 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
                         .put("index.store.type", storeType.name())
                         .put("index.number_of_replicas", 0)
                         .put("index.number_of_shards", 1)
+                        .put("index.store.throttle.type", "merge")
+                        .put("index.store.throttle.max_bytes_per_sec", "20mb")
                 )
                 .execute().actionGet();
         assertThat(client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet().isTimedOut(), equalTo(false));
     }
+
+    private void createIndexWithoutRateLimitingStoreType(String index, IndexStoreModule.Type storeType, String distributor) {
+        cluster().wipeIndices(index);
+        client().admin().indices().prepareCreate(index)
+                .setSettings(settingsBuilder()
+                        .put("index.store.distributor", distributor)
+                        .put("index.store.type", storeType)
+                        .put("index.store.throttle.type", "none")
+                        .put("index.number_of_replicas", 0)
+                        .put("index.number_of_shards", 1)
+                )
+                .execute().actionGet();
+        assertThat(client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet().isTimedOut(), equalTo(false));
+    }
+
 
     private Path[] dataPaths() {
         Set<String> nodes = internalCluster().nodesInclude("test");

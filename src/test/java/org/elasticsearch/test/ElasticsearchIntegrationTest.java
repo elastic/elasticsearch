@@ -27,6 +27,7 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
 
+import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
@@ -429,11 +430,23 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         setRandomTranslogSettings(random, builder);
         setRandomNormsLoading(random, builder);
         setRandomScriptingSettings(random, builder);
+        if (random.nextBoolean()) {
+            if (random.nextInt(10) == 0) { // do something crazy slow here
+                builder.put(IndicesStore.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 10), ByteSizeUnit.MB));
+            } else {
+                builder.put(IndicesStore.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 10, 200), ByteSizeUnit.MB));
+            }
+        }
+        if (random.nextBoolean()) {
+            builder.put(IndicesStore.INDICES_STORE_THROTTLE_TYPE, RandomPicks.randomFrom(random, StoreRateLimiting.Type.values()));
+        }
 
         if (random.nextBoolean()) {
             builder.put(StoreModule.DISTIBUTOR_KEY, random.nextBoolean() ? StoreModule.LEAST_USED_DISTRIBUTOR : StoreModule.RANDOM_WEIGHT_DISTRIBUTOR);
         }
-
+        if (random.nextBoolean()) {
+            builder.put(ConcurrentMergeSchedulerProvider.AUTO_THROTTLE, false);
+        }
 
         if (random.nextBoolean()) {
             if (random.nextInt(10) == 0) { // do something crazy slow here

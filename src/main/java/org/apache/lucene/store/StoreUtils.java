@@ -16,17 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-package org.elasticsearch.index.store;
+package org.apache.lucene.store;
 
 import java.util.Arrays;
 
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FileSwitchDirectory;
-import org.apache.lucene.store.MMapDirectory;
-import org.apache.lucene.store.NIOFSDirectory;
-import org.apache.lucene.store.SimpleFSDirectory;
-
+/**
+ */
 public final class StoreUtils {
 
     private StoreUtils() {

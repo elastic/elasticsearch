@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.merge;
 
-import java.io.IOException;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,6 +29,11 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
+import java.io.IOException;
+
+/**
+ *
+ */
 public class MergeStats implements Streamable, ToXContent {
 
     private long total;
@@ -64,7 +67,12 @@ public class MergeStats implements Streamable, ToXContent {
         this.currentSizeInBytes += currentSizeInBytes;
         this.totalStoppedTimeInMillis += stoppedTimeMillis;
         this.totalThrottledTimeInMillis += throttledTimeMillis;
-        this.totalBytesPerSecAutoThrottle += (long) (mbPerSecAutoThrottle * 1024 * 1024);
+        long bytesPerSecAutoThrottle = (long) (mbPerSecAutoThrottle * 1024 * 1024);
+        if (this.totalBytesPerSecAutoThrottle == Long.MAX_VALUE || bytesPerSecAutoThrottle == Long.MAX_VALUE) {
+            this.totalBytesPerSecAutoThrottle = Long.MAX_VALUE;
+        } else {
+            this.totalBytesPerSecAutoThrottle += bytesPerSecAutoThrottle;
+        }
     }
 
     public void add(MergeStats mergeStats) {
@@ -80,7 +88,11 @@ public class MergeStats implements Streamable, ToXContent {
         this.currentSizeInBytes += mergeStats.currentSizeInBytes;
         this.totalStoppedTimeInMillis += mergeStats.totalStoppedTimeInMillis;
         this.totalThrottledTimeInMillis += mergeStats.totalThrottledTimeInMillis;
-        this.totalBytesPerSecAutoThrottle += mergeStats.totalBytesPerSecAutoThrottle;
+        if (this.totalBytesPerSecAutoThrottle == Long.MAX_VALUE || mergeStats.totalBytesPerSecAutoThrottle == Long.MAX_VALUE) {
+            this.totalBytesPerSecAutoThrottle = Long.MAX_VALUE;
+        } else {
+            this.totalBytesPerSecAutoThrottle += mergeStats.totalBytesPerSecAutoThrottle;
+        }
     }
 
     /**

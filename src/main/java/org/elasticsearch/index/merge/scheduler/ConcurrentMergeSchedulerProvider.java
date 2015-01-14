@@ -41,6 +41,9 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
+/**
+ *
+ */
 public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
 
     private final IndexSettingsService indexSettingsService;

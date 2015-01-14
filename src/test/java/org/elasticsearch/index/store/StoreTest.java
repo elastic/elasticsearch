@@ -710,6 +710,11 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         public Directory[] build() throws IOException {
             return dirs;
         }
+
+        @Override
+        public long throttleTimeInNanos() {
+            return random.nextInt(1000);
+        }
     }
 
     public static void assertConsistent(Store store, Store.MetadataSnapshot metadata) throws IOException {

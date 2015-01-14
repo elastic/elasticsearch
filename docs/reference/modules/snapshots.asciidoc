@@ -251,6 +251,24 @@ restored in this case and all missing shards will be recreated empty.
 
 
 [float]
+=== Changing index settings during restore
+
+Most of index settings can be overridden during the restore process. For example, the following command will restore
+the index `index_1` without creating any replicas while switching back to default refresh interval:
+
+[source,js]
+-----------------------------------
+$ curl -XPOST "localhost:9200/_snapshot/my_backup/snapshot_1/_restore" -d '{
+    "indices": "index_1",
+    "index_settings" : {
+        "index.number_of_replicas": 0
+    },
+    "ignore_index_settings": ["index.refresh_interval"]
+}'
+-----------------------------------
+
+
+[float]
 === Snapshot status
 
 A list of currently running snapshots with their detailed status information can be obtained using the following command:

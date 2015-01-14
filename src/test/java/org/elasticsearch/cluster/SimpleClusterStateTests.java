@@ -21,13 +21,16 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.hamcrest.CollectionAssertions;
 import org.junit.Before;
@@ -156,5 +159,52 @@ public class SimpleClusterStateTests extends ElasticsearchIntegrationTest {
             assertThat(mappingMetadata.source().string(), equalTo(masterMappingMetaData.source().string()));
             assertThat(mappingMetadata, equalTo(masterMappingMetaData));
         }
+    }
+
+    @Test
+    public void testIndicesOptions() throws Exception {
+        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("f*")
+                .get();
+        assertThat(clusterStateResponse.getState().metaData().indices().size(), is(2));
+
+        // close one index
+        client().admin().indices().close(Requests.closeIndexRequest("fuu")).get();
+        clusterStateResponse = client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("f*").get();
+        assertThat(clusterStateResponse.getState().metaData().indices().size(), is(1));
+        assertThat(clusterStateResponse.getState().metaData().index("foo").state(), equalTo(IndexMetaData.State.OPEN));
+
+        // expand_wildcards_closed should toggle return only closed index fuu
+        IndicesOptions expandCloseOptions = IndicesOptions.fromOptions(false, true, false, true);
+        clusterStateResponse = client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("f*")
+                .setIndicesOptions(expandCloseOptions).get();
+        assertThat(clusterStateResponse.getState().metaData().indices().size(), is(1));
+        assertThat(clusterStateResponse.getState().metaData().index("fuu").state(), equalTo(IndexMetaData.State.CLOSE));
+
+        // ignore_unavailable set to true should not raise exception on fzzbzz
+        IndicesOptions ignoreUnavailabe = IndicesOptions.fromOptions(true, true, true, false);
+        clusterStateResponse = client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("fzzbzz")
+                .setIndicesOptions(ignoreUnavailabe).get();
+        assertTrue(clusterStateResponse.getState().metaData().indices().isEmpty());
+
+        // empty wildcard expansion result should work when allowNoIndices is
+        // turned on
+        IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, true, true, false);
+        clusterStateResponse = client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("a*")
+                .setIndicesOptions(allowNoIndices).get();
+        assertTrue(clusterStateResponse.getState().metaData().indices().isEmpty());
+    }
+
+    @Test(expected=IndexMissingException.class)
+    public void testIndicesOptionsOnAllowNoIndicesFalse() throws Exception {
+        // empty wildcard expansion throws exception when allowNoIndices is turned off
+        IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, false, true, false);
+        client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("a*").setIndicesOptions(allowNoIndices).get();
+    }
+
+    @Test(expected=IndexMissingException.class)
+    public void testIndicesIgnoreUnavailableFalse() throws Exception {
+        // ignore_unavailable set to false throws exception when allowNoIndices is turned off
+        IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, true, true, false);
+        client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("fzzbzz").setIndicesOptions(allowNoIndices).get();
     }
 }

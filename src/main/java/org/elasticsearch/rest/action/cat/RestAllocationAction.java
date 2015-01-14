@@ -115,6 +115,9 @@ public class RestAllocationAction extends AbstractCatAction {
         for (NodeStats nodeStats : stats.getNodes()) {
             DiscoveryNode node = nodeStats.getNode();
 
+            if (!node.dataNode()) {
+                continue;
+            }
             int shardCount = 0;
             if (allocs.containsKey(node.id())) {
                 shardCount = allocs.lget();

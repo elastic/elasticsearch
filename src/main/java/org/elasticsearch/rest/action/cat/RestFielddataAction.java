@@ -94,6 +94,9 @@ public class RestFielddataAction extends AbstractCatAction {
 
         // Collect all the field names so a new table can be built
         for (NodeStats ns : nodeStatses.getNodes()) {
+            if (!ns.getNode().dataNode()) {
+                continue;
+            }
             ObjectLongOpenHashMap<String> fields = ns.getIndices().getFieldData().getFields();
             nodesFields.put(ns, fields);
             if (fields != null) {

@@ -40,7 +40,11 @@ public class AzureDiscoveryModule extends ZenDiscoveryModule {
         super();
         this.logger = Loggers.getLogger(getClass(), settings);
         this.settings = settings;
+        if (AzureModule.isDiscoveryReady(settings, logger)) {
+            addUnicastHostProvider(AzureUnicastHostsProvider.class);
+        }
     }
+
     @Override
     protected void bindDiscovery() {
         if (AzureModule.isDiscoveryReady(settings, logger)) {

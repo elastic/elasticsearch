@@ -5,3 +5,11 @@ A token filter of type `standard` that normalizes tokens extracted with
 the
 <<analysis-standard-tokenizer,Standard
 Tokenizer>>.
+
+[TIP]
+==================================================
+
+Since Elasticsearch 0.16, the `standard` token filter is a 
+no-op token filter that https://github.com/apache/lucene-solr/blob/lucene_solr_4_3/lucene/analysis/common/src/java/org/apache/lucene/analysis/standard/StandardFilter.java#L49[does nothing].
+
+==================================================

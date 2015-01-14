@@ -264,7 +264,7 @@ public class MinDocCountTests extends AbstractTermsTests {
     private void testMinDocCountOnTerms(String field, Script script, Terms.Order order, String include, boolean retryOnFailure) throws Exception {
         // all terms
         final SearchResponse allTermsResponse = client().prepareSearch("idx").setTypes("type")
-                .setSearchType(SearchType.COUNT)
+                .setSize(0)
                 .setQuery(QUERY)
                 .addAggregation(script.apply(terms("terms"), field)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -281,7 +281,7 @@ public class MinDocCountTests extends AbstractTermsTests {
         for (long minDocCount = 0; minDocCount < 20; ++minDocCount) {
             final int size = randomIntBetween(1, cardinality + 2);
             final SearchRequest request = client().prepareSearch("idx").setTypes("type")
-                    .setSearchType(SearchType.COUNT)
+                    .setSize(0)
                     .setQuery(QUERY)
                     .addAggregation(script.apply(terms("terms"), field)
                             .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -349,7 +349,7 @@ public class MinDocCountTests extends AbstractTermsTests {
     private void testMinDocCountOnHistogram(Histogram.Order order) throws Exception {
         final int interval = randomIntBetween(1, 3);
         final SearchResponse allResponse = client().prepareSearch("idx").setTypes("type")
-                .setSearchType(SearchType.COUNT)
+                .setSize(0)
                 .setQuery(QUERY)
                 .addAggregation(histogram("histo").field("d").interval(interval).order(order).minDocCount(0))
                 .execute().actionGet();
@@ -358,7 +358,7 @@ public class MinDocCountTests extends AbstractTermsTests {
 
         for (long minDocCount = 0; minDocCount < 50; ++minDocCount) {
             final SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                    .setSearchType(SearchType.COUNT)
+                    .setSize(0)
                     .setQuery(QUERY)
                     .addAggregation(histogram("histo").field("d").interval(interval).order(order).minDocCount(minDocCount))
                     .execute().actionGet();
@@ -370,7 +370,7 @@ public class MinDocCountTests extends AbstractTermsTests {
     private void testMinDocCountOnDateHistogram(Histogram.Order order) throws Exception {
         final int interval = randomIntBetween(1, 3);
         final SearchResponse allResponse = client().prepareSearch("idx").setTypes("type")
-                .setSearchType(SearchType.COUNT)
+                .setSize(0)
                 .setQuery(QUERY)
                 .addAggregation(dateHistogram("histo").field("date").interval(DateHistogramInterval.DAY).order(order).minDocCount(0))
                 .execute().actionGet();
@@ -379,7 +379,7 @@ public class MinDocCountTests extends AbstractTermsTests {
 
         for (long minDocCount = 0; minDocCount < 50; ++minDocCount) {
             final SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                    .setSearchType(SearchType.COUNT)
+                    .setSize(0)
                     .setQuery(QUERY)
                     .addAggregation(dateHistogram("histo").field("date").interval(DateHistogramInterval.DAY).order(order).minDocCount(minDocCount))
                     .execute().actionGet();

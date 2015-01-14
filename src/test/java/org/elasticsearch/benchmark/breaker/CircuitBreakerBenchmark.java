@@ -76,7 +76,7 @@ public class CircuitBreakerBenchmark {
                             terms("myterms")
                                     .size(AGG_SIZE)
                                     .field("num")
-                    ).setSearchType(SearchType.COUNT).get();
+                    ).setSize(0).get();
             Terms terms = resp.getAggregations().get("myterms");
             assertNotNull("term aggs were calculated", terms);
             totalTime += resp.getTookInMillis();
@@ -103,7 +103,7 @@ public class CircuitBreakerBenchmark {
                                         terms("myterms")
                                                 .size(AGG_SIZE)
                                                 .field("num")
-                                ).setSearchType(SearchType.COUNT).get();
+                                ).setSize(0).get();
                         Terms terms = resp.getAggregations().get("myterms");
                         assertNotNull("term aggs were calculated", terms);
                         totalThreadedTime.addAndGet(resp.getTookInMillis());
@@ -153,7 +153,7 @@ public class CircuitBreakerBenchmark {
             }
             bulkBuilder.get();
             client.admin().indices().prepareRefresh(INDEX).get();
-            SearchResponse countResp = client.prepareSearch(INDEX).setQuery(matchAllQuery()).setSearchType(SearchType.COUNT).get();
+            SearchResponse countResp = client.prepareSearch(INDEX).setQuery(matchAllQuery()).setSize(0).get();
             assert countResp.getHits().getTotalHits() == NUM_DOCS : "all docs should be indexed";
 
             final int warmupCount = 100;
@@ -166,7 +166,7 @@ public class CircuitBreakerBenchmark {
                                 terms("myterms")
                                         .size(AGG_SIZE)
                                         .field("num")
-                        ).setSearchType(SearchType.COUNT).get();
+                        ).setSize(0).get();
                 Terms terms = resp.getAggregations().get("myterms");
                 assertNotNull("term aggs were calculated", terms);
             }

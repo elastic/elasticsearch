@@ -89,7 +89,7 @@
         },
         "search_type": {
           "type" : "string",
-          "description" : "Specific search type (eg. `dfs_then_fetch`, `count`, etc)"
+          "description" : "Specific search type (eg. `dfs_then_fetch`, `scan`, etc)"
         },
         "search_types": {
           "type" : "list",

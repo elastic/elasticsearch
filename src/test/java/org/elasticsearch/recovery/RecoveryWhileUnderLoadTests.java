@@ -275,7 +275,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
         SearchResponse[] iterationResults = new SearchResponse[iterations];
         boolean error = false;
         for (int i = 0; i < iterations; i++) {
-            SearchResponse searchResponse = client().prepareSearch().setSearchType(SearchType.COUNT).setQuery(matchAllQuery()).get();
+            SearchResponse searchResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
             logSearchResponse(numberOfShards, numberOfDocs, i, searchResponse);
             iterationResults[i] = searchResponse;
             if (searchResponse.getHits().totalHits() != numberOfDocs) {
@@ -298,7 +298,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
                 public boolean apply(Object o) {
                     boolean error = false;
                     for (int i = 0; i < iterations; i++) {
-                        SearchResponse searchResponse = client().prepareSearch().setSearchType(SearchType.COUNT).setQuery(matchAllQuery()).get();
+                        SearchResponse searchResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
                         if (searchResponse.getHits().totalHits() != numberOfDocs) {
                             error = true;
                         }

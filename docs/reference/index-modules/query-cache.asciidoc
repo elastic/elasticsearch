@@ -16,7 +16,7 @@ results from older indices will be served directly from the cache.
 ==================================
 
 For now, the query cache will only cache the results of search requests
-where <<count,`?search_type=count`>>, so it will not cache `hits`,
+where `size=0`, so it will not cache `hits`,
 but it will cache `hits.total`,  <<search-aggregations,aggregations>>, and
 <<search-suggesters,suggestions>>.
 
@@ -80,8 +80,9 @@ caching on a *per-query* basis.  If set, it overrides the index-level setting:
 
 [source,json]
 -----------------------------
-curl 'localhost:9200/my_index/_search?search_type=count&query_cache=true' -d'
+curl 'localhost:9200/my_index/_search?query_cache=true' -d'
 {
+  "size": 0,
   "aggs": {
     "popular_colors": {
       "terms": {

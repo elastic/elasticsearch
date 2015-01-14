@@ -226,17 +226,21 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     public QuerySearchResult executeScan(ShardSearchRequest request) throws ElasticsearchException {
         final SearchContext context = createAndPutContext(request);
+        final int originalSize = context.size();
         try {
             if (context.aggregations() != null) {
                 throw new ElasticsearchIllegalArgumentException("aggregations are not supported with search_type=scan");
             }
-            assert context.searchType() == SearchType.SCAN;
-            context.searchType(SearchType.COUNT); // move to COUNT, and then, when scrolling, move to SCAN
-            assert context.searchType() == SearchType.COUNT;
 
             if (context.scroll() == null) {
                 throw new ElasticsearchException("Scroll must be provided when scanning...");
             }
+
+            assert context.searchType() == SearchType.SCAN;
+            context.searchType(SearchType.QUERY_THEN_FETCH); // move to QUERY_THEN_FETCH, and then, when scrolling, move to SCAN
+            context.size(0); // set size to 0 so that we only count matches
+            assert context.searchType() == SearchType.QUERY_THEN_FETCH;
+
             contextProcessing(context);
             queryPhase.execute(context);
             contextProcessedSuccessfully(context);
@@ -246,6 +250,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             freeContext(context.id());
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
+            context.size(originalSize);
             cleanContext(context);
         }
     }
@@ -255,7 +260,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         contextProcessing(context);
         try {
             processScroll(request, context);
-            if (context.searchType() == SearchType.COUNT) {
+            if (context.searchType() == SearchType.QUERY_THEN_FETCH) {
                 // first scanning, reset the from to 0
                 context.searchType(SearchType.SCAN);
                 context.from(0);
@@ -300,7 +305,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
             loadOrExecuteQueryPhase(request, context, queryPhase);
 
-            if (context.searchType() == SearchType.COUNT) {
+            if (context.queryResult().topDocs().scoreDocs.length == 0) {
                 freeContext(context.id());
             } else {
                 contextProcessedSuccessfully(context);
@@ -357,7 +362,12 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             context.indexShard().searchService().onPreQueryPhase(context);
             long time = System.nanoTime();
             queryPhase.execute(context);
-            contextProcessedSuccessfully(context);
+            if (context.queryResult().topDocs().scoreDocs.length == 0) {
+                // no hits, we can release the context since there will be no fetch phase
+                freeContext(context.id());
+            } else {
+                contextProcessedSuccessfully(context);
+            }
             context.indexShard().searchService().onQueryPhase(context, System.nanoTime() - time);
             return context.queryResult();
         } catch (Throwable e) {
@@ -377,7 +387,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             context.indexShard().searchService().onPreQueryPhase(context);
             long time = System.nanoTime();
             try {
-                queryPhase.execute(context);
+                loadOrExecuteQueryPhase(request, context, queryPhase);
             } catch (Throwable e) {
                 context.indexShard().searchService().onFailedQueryPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
@@ -564,7 +574,12 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             if (context.from() == -1) {
                 context.from(0);
             }
-            if (context.size() == -1) {
+            if (context.searchType() == SearchType.COUNT) {
+                // so that the optimizations we apply to size=0 also apply to search_type=COUNT
+                // and that we close contexts when done with the query phase
+                context.searchType(SearchType.QUERY_THEN_FETCH);
+                context.size(0);
+            } else if (context.size() == -1) {
                 context.size(10);
             }
 
@@ -992,9 +1007,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                                     SearchType.QUERY_THEN_FETCH, entry.source(), entry.types(), entry.queryCache());
                             context = createContext(request, warmerContext.searcher());
                             // if we use sort, we need to do query to sort on it and load relevant field data
-                            // if not, we might as well use COUNT (and cache if needed)
+                            // if not, we might as well set size=0 (and cache if needed)
                             if (context.sort() == null) {
-                                context.searchType(SearchType.COUNT);
+                                context.size(0);
                             }
                             boolean canCache = indicesQueryCache.canCache(request, context);
                             // early terminate when we can cache, since we can only do proper caching on top level searcher

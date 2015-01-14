@@ -50,7 +50,7 @@ public class SearchPreferenceTests extends ElasticsearchIntegrationTest {
         client().admin().cluster().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).execute().actionGet();
         String[] preferences = new String[] {"_primary", "_local", "_primary_first", "_prefer_node:somenode", "_prefer_node:server2"};
         for (String pref : preferences) {
-            SearchResponse searchResponse = client().prepareSearch().setSearchType(SearchType.COUNT).setPreference(pref).execute().actionGet();
+            SearchResponse searchResponse = client().prepareSearch().setSize(0).setPreference(pref).execute().actionGet();
             assertThat(RestStatus.OK, equalTo(searchResponse.status()));
             assertThat(pref, searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
             searchResponse = client().prepareSearch().setPreference(pref).execute().actionGet();
@@ -59,7 +59,7 @@ public class SearchPreferenceTests extends ElasticsearchIntegrationTest {
         }
 
         //_only_local is a stricter preference, we need to send the request to a data node
-        SearchResponse searchResponse = dataNodeClient().prepareSearch().setSearchType(SearchType.COUNT).setPreference("_only_local").execute().actionGet();
+        SearchResponse searchResponse = dataNodeClient().prepareSearch().setSize(0).setPreference("_only_local").execute().actionGet();
         assertThat(RestStatus.OK, equalTo(searchResponse.status()));
         assertThat("_only_local", searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
         searchResponse = dataNodeClient().prepareSearch().setPreference("_only_local").execute().actionGet();

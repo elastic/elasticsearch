@@ -664,7 +664,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
                 logger.info("Now testing GeoDistance={}, distance={}, origin=({}, {})", geoDistance, distance, originLat, originLon);
                 long matches = -1;
                 for (String optimizeBbox : Arrays.asList("none", "memory", "indexed")) {
-                    SearchResponse resp = client().prepareSearch("index").setSearchType(SearchType.COUNT).setQuery(QueryBuilders.constantScoreQuery(
+                    SearchResponse resp = client().prepareSearch("index").setSize(0).setQuery(QueryBuilders.constantScoreQuery(
                             FilterBuilders.geoDistanceFilter("location").point(originLat, originLon).distance(distance).geoDistance(geoDistance).optimizeBbox(optimizeBbox))).execute().actionGet();
                     assertSearchResponse(resp);
                     logger.info("{} -> {} hits", optimizeBbox, resp.getHits().totalHits());

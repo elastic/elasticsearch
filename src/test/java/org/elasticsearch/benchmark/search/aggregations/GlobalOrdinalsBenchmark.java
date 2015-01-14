@@ -211,7 +211,7 @@ public class GlobalOrdinalsBenchmark {
         // run just the child query, warm up first
         for (int j = 0; j < QUERY_WARMUP; j++) {
             SearchResponse searchResponse = client.prepareSearch(INDEX_NAME)
-                    .setSearchType(SearchType.COUNT)
+                    .setSize(0)
                     .setQuery(matchAllQuery())
                     .addAggregation(AggregationBuilders.terms(name).field(field).executionHint(executionHint))
                     .get();
@@ -229,7 +229,7 @@ public class GlobalOrdinalsBenchmark {
         totalQueryTime = 0;
         for (int j = 0; j < QUERY_COUNT; j++) {
             SearchResponse searchResponse = client.prepareSearch(INDEX_NAME)
-                    .setSearchType(SearchType.COUNT)
+                    .setSize(0)
                     .setQuery(matchAllQuery())
                     .addAggregation(AggregationBuilders.terms(name).field(field).executionHint(executionHint))
                     .get();

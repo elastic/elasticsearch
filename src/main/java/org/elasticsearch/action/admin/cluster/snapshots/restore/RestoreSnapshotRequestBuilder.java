@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -229,6 +230,68 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
         request.includeAliases(restoreAliases);
         return this;
     }
+
+    /**
+     * Sets index settings that should be added or replaced during restore
+
+     * @param settings index settings
+     * @return this builder
+     */
+    public RestoreSnapshotRequestBuilder setIndexSettings(Settings settings) {
+        request.indexSettings(settings);
+        return this;
+    }
+
+    /**
+     * Sets index settings that should be added or replaced during restore
+
+     * @param settings index settings
+     * @return this builder
+     */
+    public RestoreSnapshotRequestBuilder setIndexSettings(Settings.Builder settings) {
+        request.indexSettings(settings);
+        return this;
+    }
+
+    /**
+     * Sets index settings that should be added or replaced during restore
+
+     * @param source index settings
+     * @return this builder
+     */
+    public RestoreSnapshotRequestBuilder setIndexSettings(String source) {
+        request.indexSettings(source);
+        return this;
+    }
+
+    /**
+     * Sets index settings that should be added or replaced during restore
+
+     * @param source index settings
+     * @return this builder
+     */
+    public RestoreSnapshotRequestBuilder setIndexSettings(Map<String, Object> source) {
+        request.indexSettings(source);
+        return this;
+    }
+
+
+    /**
+     * Sets the list of index settings and index settings groups that shouldn't be restored from snapshot
+     */
+    public RestoreSnapshotRequestBuilder setIgnoreIndexSettings(String... ignoreIndexSettings) {
+        request.ignoreIndexSettings(ignoreIndexSettings);
+        return this;
+    }
+
+    /**
+     * Sets the list of index settings and index settings groups that shouldn't be restored from snapshot
+     */
+    public RestoreSnapshotRequestBuilder setIgnoreIndexSettings(List<String> ignoreIndexSettings) {
+        request.ignoreIndexSettings(ignoreIndexSettings);
+        return this;
+    }
+
 
     @Override
     protected void doExecute(ActionListener<RestoreSnapshotResponse> listener) {

@@ -34,9 +34,7 @@ public class SecuredMessageChannelHandler extends MessageChannelHandler {
 
     // TODO ADD PREPROCESSING
 
-    /**
-     * This is just here to create VisibleNettyTransportChannel() and should be removed after core refactoring
-     */
+    //TODO This is just here to create VisibleNettyTransportChannel() and should be removed after upgrading to es core 1.5
     @Override
     protected String handleRequest(Channel channel, StreamInput buffer, long requestId, Version version) throws IOException {
         final String action = buffer.readString();
@@ -67,9 +65,7 @@ public class SecuredMessageChannelHandler extends MessageChannelHandler {
         return action;
     }
 
-    /**
-     * should be removed after upgrade
-     */
+    //TODO should be removed after upgrading es core dependency to 1.5
     public static class VisibleNettyTransportChannel extends NettyTransportChannel {
 
         private final String profile;
@@ -84,9 +80,7 @@ public class SecuredMessageChannelHandler extends MessageChannelHandler {
         }
     }
 
-    /**
-     * This is just here to make this class visible
-     */
+    // TODO  This is just here to make this class visible, remove after upgrading es core dependency to 1.5
     class RequestHandler extends AbstractRunnable {
         private final TransportRequestHandler handler;
         private final TransportRequest request;

@@ -20,6 +20,7 @@ import java.util.Map;
  *
  * See <a href="https://github.com/elasticsearch/elasticsearch/pull/9134">https://github.com/elasticsearch/elasticsearch/pull/9134</a>
  */
+//TODO remove the reflection shenanigans (actually this class as a whole) once es core dependency is upgraded for 1.5
 public class TransportProfileUtil {
 
     private TransportProfileUtil() {}

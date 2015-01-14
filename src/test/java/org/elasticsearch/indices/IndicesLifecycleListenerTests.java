@@ -20,6 +20,8 @@ package org.elasticsearch.indices;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Maps;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -59,6 +61,17 @@ public class IndicesLifecycleListenerTests extends ElasticsearchIntegrationTest 
         IndexShardStateChangeListener stateChangeListenerNode1 = new IndexShardStateChangeListener();
         //add a listener that keeps track of the shard state changes
         internalCluster().getInstance(IndicesLifecycle.class, node1).addListener(stateChangeListenerNode1);
+
+        //create an index that should fail
+        try {
+            client().admin().indices().prepareCreate("failed").setSettings(SETTING_NUMBER_OF_SHARDS, 1, "index.fail", true).get();
+            fail("should have thrown an exception");
+        } catch (ElasticsearchException e) {
+            assertTrue(e.getMessage().contains("failing on purpose"));
+            ClusterStateResponse resp = client().admin().cluster().prepareState().get();
+            assertFalse(resp.getState().routingTable().indicesRouting().keySet().contains("failed"));
+        }
+
 
         //create an index
         assertAcked(client().admin().indices().prepareCreate("test")
@@ -160,6 +173,9 @@ public class IndicesLifecycleListenerTests extends ElasticsearchIntegrationTest 
         @Override
         public void beforeIndexCreated(Index index, @IndexSettings Settings indexSettings) {
             this.creationSettings = indexSettings;
+            if (indexSettings.getAsBoolean("index.fail", false)) {
+                throw new ElasticsearchException("failing on purpose");
+            }
         }
 
         @Override

@@ -32,11 +32,11 @@ import org.junit.Test;
 
 import java.util.*;
 
+import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -256,6 +256,66 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
             assertThat(updateResponse.getVersion(), greaterThan(1l));
             refresh();
         }
+    }
+
+    @Test
+    public void testPostCollection() throws Exception {
+        String indexName = "prodcatalog";
+        String masterType = "masterprod";
+        String childType = "variantsku";
+        assertAcked(
+                prepareCreate(indexName)
+                        .addMapping(masterType, "brand", "type=string", "name", "type=string", "material", "type=string")
+                        .addMapping(childType, "_parent", "type=masterprod", "color", "type=string", "size", "type=string")
+        );
+
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        requests.add(client().prepareIndex(indexName, masterType, "1").setSource("brand", "Levis", "name", "Style 501", "material", "Denim"));
+        requests.add(client().prepareIndex(indexName, childType, "0").setParent("1").setSource("color", "blue", "size", "32"));
+        requests.add(client().prepareIndex(indexName, childType, "1").setParent("1").setSource("color", "blue", "size", "34"));
+        requests.add(client().prepareIndex(indexName, childType, "2").setParent("1").setSource("color", "blue", "size", "36"));
+        requests.add(client().prepareIndex(indexName, childType, "3").setParent("1").setSource("color", "black", "size", "38"));
+        requests.add(client().prepareIndex(indexName, childType, "4").setParent("1").setSource("color", "black", "size", "40"));
+        requests.add(client().prepareIndex(indexName, childType, "5").setParent("1").setSource("color", "gray", "size", "36"));
+
+        requests.add(client().prepareIndex(indexName, masterType, "2").setSource("brand", "Wrangler", "name", "Regular Cut", "material", "Leather"));
+        requests.add(client().prepareIndex(indexName, childType, "6").setParent("2").setSource("color", "blue", "size", "32"));
+        requests.add(client().prepareIndex(indexName, childType, "7").setParent("2").setSource("color", "blue", "size", "34"));
+        requests.add(client().prepareIndex(indexName, childType, "8").setParent("2").setSource("color", "black", "size", "36"));
+        requests.add(client().prepareIndex(indexName, childType, "9").setParent("2").setSource("color", "black", "size", "38"));
+        requests.add(client().prepareIndex(indexName, childType, "10").setParent("2").setSource("color", "black", "size", "40"));
+        requests.add(client().prepareIndex(indexName, childType, "11").setParent("2").setSource("color", "orange", "size", "36"));
+        requests.add(client().prepareIndex(indexName, childType, "12").setParent("2").setSource("color", "green", "size", "44"));
+        indexRandom(true, requests);
+
+        SearchResponse response = client().prepareSearch(indexName).setTypes(masterType)
+                .setQuery(hasChildQuery(childType, termQuery("color", "orange")))
+                .addAggregation(children("my-refinements")
+                                .childType(childType)
+                                .subAggregation(terms("my-colors").field(childType + ".color"))
+                                .subAggregation(terms("my-sizes").field(childType + ".size"))
+                ).get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+
+        Children childrenAgg = response.getAggregations().get("my-refinements");
+        assertThat(childrenAgg.getDocCount(), equalTo(7l));
+
+        Terms termsAgg = childrenAgg.getAggregations().get("my-colors");
+        assertThat(termsAgg.getBuckets().size(), equalTo(4));
+        assertThat(termsAgg.getBucketByKey("black").getDocCount(), equalTo(3l));
+        assertThat(termsAgg.getBucketByKey("blue").getDocCount(), equalTo(2l));
+        assertThat(termsAgg.getBucketByKey("green").getDocCount(), equalTo(1l));
+        assertThat(termsAgg.getBucketByKey("orange").getDocCount(), equalTo(1l));
+
+        termsAgg = childrenAgg.getAggregations().get("my-sizes");
+        assertThat(termsAgg.getBuckets().size(), equalTo(6));
+        assertThat(termsAgg.getBucketByKey("36").getDocCount(), equalTo(2l));
+        assertThat(termsAgg.getBucketByKey("32").getDocCount(), equalTo(1l));
+        assertThat(termsAgg.getBucketByKey("34").getDocCount(), equalTo(1l));
+        assertThat(termsAgg.getBucketByKey("38").getDocCount(), equalTo(1l));
+        assertThat(termsAgg.getBucketByKey("40").getDocCount(), equalTo(1l));
+        assertThat(termsAgg.getBucketByKey("44").getDocCount(), equalTo(1l));
     }
 
     private static final class Control {

@@ -188,18 +188,20 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
         //replay any deferred collections
         runDeferredCollections(survivingBucketOrds);
-        
+
         //Now build the aggs
         for (int i = 0; i < list.length; i++) {
-          Bucket bucket = list[i];
-          bucket.aggregations = bucket.docCount == 0 ? bucketEmptyAggregations() : bucketAggregations(bucket.bucketOrd);
-          bucket.docCountError = 0;
+            Bucket bucket = list[i];
+            bucket.aggregations = bucket.docCount == 0 ? bucketEmptyAggregations() : bucketAggregations(bucket.bucketOrd);
+            bucket.docCountError = 0;
         }
 
         return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError, 0, otherDocCount);
     }
-    
-    /** This is used internally only, just for compare using global ordinal instead of term bytes in the PQ */
+
+    /**
+     * This is used internally only, just for compare using global ordinal instead of term bytes in the PQ
+     */
     static class OrdBucket extends InternalTerms.Bucket {
         long globalOrd;
 
@@ -210,7 +212,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         int compareTerm(Terms.Bucket other) {
-            return Long.compare(globalOrd, ((OrdBucket)other).globalOrd);
+            return Long.compare(globalOrd, ((OrdBucket) other).globalOrd);
         }
 
         @Override
@@ -282,17 +284,17 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     public void collect(int doc) throws IOException {
                         ords.setDocument(doc);
                         final int numOrds = ords.cardinality();
-            for (int i = 0; i < numOrds; i++) {
+                        for (int i = 0; i < numOrds; i++) {
                             final long globalOrd = ords.ordAt(i);
-                long bucketOrd = bucketOrds.add(globalOrd);
-                if (bucketOrd < 0) {
-                    bucketOrd = -1 - bucketOrd;
-                    collectExistingBucket(doc, bucketOrd);
-                } else {
-                    collectBucket(doc, bucketOrd);
-                }
-            }
-        }
+                            long bucketOrd = bucketOrds.add(globalOrd);
+                            if (bucketOrd < 0) {
+                                bucketOrd = -1 - bucketOrd;
+                                collectExistingBucket(doc, bucketOrd);
+                            } else {
+                                collectBucket(doc, bucketOrd);
+                            }
+                        }
+                    }
                 };
             }
         }
@@ -332,7 +334,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             final SortedDocValues singleValues = DocValues.unwrapSingleton(segmentOrds);
             if (singleValues != null) {
                 return new Collector() {
-        @Override
+                    @Override
                     public void collect(int doc) throws IOException {
                         final int ord = singleValues.getOrd(doc);
                         segmentDocCounts.increment(ord + 1, 1);
@@ -343,7 +345,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     public void collect(int doc) throws IOException {
                         segmentOrds.setDocument(doc);
                         final int numOrds = segmentOrds.cardinality();
-            for (int i = 0; i < numOrds; i++) {
+                        for (int i = 0; i < numOrds; i++) {
                             final long segmentOrd = segmentOrds.ordAt(i);
                             segmentDocCounts.increment(segmentOrd + 1, 1);
                         }
@@ -361,7 +363,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             globalOrds = valuesSource.globalOrdinalsValues();
             segmentOrds = valuesSource.ordinalsValues();
             collector = newCollector(segmentOrds);
-            }
+        }
 
         @Override
         protected void doPostCollection() {
@@ -387,6 +389,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 mapping = null;
             }
             for (long i = 1; i < segmentDocCounts.size(); i++) {
+                // We use set(...) here, because we need to reset the slow to 0.
+                // segmentDocCounts get reused over the segments and otherwise counts would be too high.
                 final int inc = segmentDocCounts.set(i, 0);
                 if (inc == 0) {
                     continue;
@@ -437,8 +441,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 if (accepted.get(ord)) {
                     ords[cardinality++] = ord;
                 }
-                }
             }
+        }
 
         @Override
         public int cardinality() {

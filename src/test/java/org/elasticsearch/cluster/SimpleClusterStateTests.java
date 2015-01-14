@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.apache.tools.ant.taskdefs.condition.IsTrue;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -184,14 +185,14 @@ public class SimpleClusterStateTests extends ElasticsearchIntegrationTest {
         IndicesOptions ignoreUnavailabe = IndicesOptions.fromOptions(true, true, true, false);
         clusterStateResponse = client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("fzzbzz")
                 .setIndicesOptions(ignoreUnavailabe).get();
-        assertTrue(clusterStateResponse.getState().metaData().indices().isEmpty());
+        assertThat(clusterStateResponse.getState().metaData().indices().isEmpty(), is(true));
 
         // empty wildcard expansion result should work when allowNoIndices is
         // turned on
         IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, true, true, false);
         clusterStateResponse = client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("a*")
                 .setIndicesOptions(allowNoIndices).get();
-        assertTrue(clusterStateResponse.getState().metaData().indices().isEmpty());
+        assertThat(clusterStateResponse.getState().metaData().indices().isEmpty(), is(true));
     }
 
     @Test(expected=IndexMissingException.class)

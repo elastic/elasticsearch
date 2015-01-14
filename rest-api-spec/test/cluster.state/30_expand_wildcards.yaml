@@ -74,4 +74,19 @@ setup:
         index: foobla
         ignore_unavailable: false
 
-  - is_false: metadata
+---
+"Test allow_no_indices parameter":
+
+  - do:
+      cluster.state:
+        metric: [ metadata ]
+        index: not_there*
+
+  - match: {metadata.indices: {}}
+  
+  - do:
+      catch: missing
+      cluster.state:
+        metric: [ metadata ]
+        index: not_there*
+        allow_no_indices: false

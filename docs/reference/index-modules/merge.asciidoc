@@ -7,12 +7,6 @@ where the index data is stored, and are immutable up to delete markers.
 Segments are, periodically, merged into larger segments to keep the
 index size at bay and expunge deletes.
 
-The more segments one has in the Lucene index means slower searches and
-more memory used. Segment merging is used to reduce the number of segments,
-however merges can be expensive to perform, especially on low IO environments.
-Merges can be throttled using <<store-throttling,store level throttling>>.
-
-
 [float]
 [[policy]]
 === Policy

@@ -178,6 +178,10 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
                 }
             }
         }
+        // Need to invoke post collection on all aggs that the children agg is wrapping,
+        // otherwise any post work that is required, because we started to collect buckets
+        // in the method will not be performed.
+        collectableSubAggregators.postCollection();
     }
 
     @Override

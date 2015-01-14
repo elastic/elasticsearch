@@ -191,7 +191,7 @@ public class GeoDistanceSearchBenchmark {
 
     public static void run(Client client, GeoDistance geoDistance, String optimizeBbox) {
         client.prepareSearch() // from NY
-                .setSearchType(SearchType.COUNT)
+                .setSize(0)
                 .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location")
                         .distance("2km")
                         .optimizeBbox(optimizeBbox)

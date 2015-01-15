@@ -18,7 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationInitializationException;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 
 import java.util.Map;
@@ -35,8 +39,13 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, M e
         }
 
         @Override
-        public AggregatorFactory subFactories(AggregatorFactories subFactories) {
-            throw new AggregationInitializationException("Aggregator [" + name + "] of type [" + type + "] cannot accept sub-aggregations");
+        public AggregatorFactories subFactories() {
+            if (factories != AggregatorFactories.EMPTY) {
+                throw new AggregationInitializationException("Aggregator [" + name + "] of type [" + type
+                        + "] cannot accept sub-aggregations");
+            } else {
+                return super.subFactories();
+            }
         }
     }
 

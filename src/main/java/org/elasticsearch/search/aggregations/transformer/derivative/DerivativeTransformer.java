@@ -20,11 +20,13 @@
 package org.elasticsearch.search.aggregations.transformer.derivative;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.NumericMetricsAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -81,10 +83,34 @@ public class DerivativeTransformer extends Transformer {
         @Override
         public AggregatorFactory subFactories(AggregatorFactories subFactories) {
             AggregatorFactory[] factories = subFactories.factories();
-            ((HistogramAggregator.Factory) factories[0]).minDocCount(0);
+            if (factories[0] instanceof HistogramAggregator.Factory) {
+                ((HistogramAggregator.Factory) factories[0]).minDocCount(0);
+            }
             return super.subFactories(subFactories);
         }
 
-    }
+        @Override
+        public void doValidate() {
+            AggregatorFactory[] subFactories = factories.factories();
+            if (subFactories.length != 1) {
+                throw new AggregationInitializationException("Derivative aggregations just have a single sub-aggregation. Found ["
+                        + subFactories.length + "] in [" + name + "]");
+            } else {
+                if (subFactories[0] instanceof HistogramAggregator.Factory || subFactories[0] instanceof DerivativeTransformer.Factory) {
+                    AggregatorFactory aggregator = subFactories[0];
+                    AggregatorFactory[] subAggregatorFactories = aggregator.subFactories().factories();
+                    for (AggregatorFactory subAggregator : subAggregatorFactories) {
+                        if (!(subAggregator instanceof NumericMetricsAggregatorFactory)) {
+                            throw new AggregationInitializationException("Sub-aggregation of [" + aggregator.name()
+                                    + "] must be numeric metric aggregations when used in a derivative.");
+                        }
+                    }
+                } else {
+                    throw new AggregationInitializationException("Sub-aggregation of [" + name
+                            + "] must be one of [histogram, date_histogram, derivative]");
+                }
+            }
+        }
 
+    }
 }

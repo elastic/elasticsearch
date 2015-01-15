@@ -54,5 +54,4 @@ public abstract class Transformer extends SingleBucketAggregator {
     }
 
     protected abstract InternalAggregation buildAggregation(String name, int bucketDocCount, InternalAggregations bucketAggregations);
-
 }

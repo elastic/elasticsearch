@@ -30,7 +30,7 @@ public abstract class AggregatorFactory {
     protected String name;
     protected String type;
     protected AggregatorFactory parent;
-    protected AggregatorFactories factories = AggregatorFactories.EMPTY;
+    protected AggregatorFactories factories = null;
     protected Map<String, Object> metaData;
 
     /**
@@ -44,6 +44,10 @@ public abstract class AggregatorFactory {
         this.type = type;
     }
 
+    public String name() {
+        return name;
+    }
+
     /**
      * Registers sub-factories with this factory. The sub-factory will be responsible for the creation of sub-aggregators under the
      * aggregator created by this factory.
@@ -55,6 +59,13 @@ public abstract class AggregatorFactory {
         this.factories = subFactories;
         this.factories.setParent(this);
         return this;
+    }
+
+    public AggregatorFactories subFactories() {
+        if (this.factories == null) {
+            throw new IllegalStateException("subFactories have not been set for aggregator factory [" + name + "]");
+        }
+        return this.factories;
     }
 
     /**

@@ -149,7 +149,7 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
                     InternalSimpleValue metricAgg = new InternalSimpleValue(entry.getKey(), metricDeriv, null);
                     metricsAggregations.add(metricAgg);
                 }
-                InternalSimpleValue docCountDerivAgg = new InternalSimpleValue("_doc_count", docCountDeriv, null);
+                InternalSimpleValue docCountDerivAgg = new InternalSimpleValue("_doc_count", docCountDeriv, null); // NOCOMMIT change the name of this to something less confusing
                 metricsAggregations.add(docCountDerivAgg);
                 InternalAggregations metricsAggs = new InternalAggregations(metricsAggregations);
                 newBuckets.add(factory.createBucket(newBucketKey, 0, metricsAggs, keyed, formatter));

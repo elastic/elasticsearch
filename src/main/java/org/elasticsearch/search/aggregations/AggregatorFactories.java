@@ -198,6 +198,11 @@ public class AggregatorFactories {
             return EMPTY_AGGREGATORS;
         }
 
+        @Override
+        void setParent(AggregatorFactory parent) {
+            // Do Nothing
+        }
+
     }
 
     public static class Builder {

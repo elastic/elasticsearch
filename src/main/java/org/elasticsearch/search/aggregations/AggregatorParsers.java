@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -145,7 +146,9 @@ public class AggregatorParsers {
                 factory.setMetaData(metaData);
             }
 
-            if (subFactories != null) {
+            if (subFactories == null) {
+                factory.subFactories(AggregatorFactories.EMPTY);
+            } else {
                 factory.subFactories(subFactories);
             }
 

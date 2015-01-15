@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.metrics.cardinality;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
+import org.elasticsearch.search.aggregations.NumericMetricsAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -29,7 +30,8 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.util.Map;
 
-final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, Map<String, Object>> {
+final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, Map<String, Object>> implements
+        NumericMetricsAggregatorFactory {
 
     private final long precisionThreshold;
     private final boolean rehash;

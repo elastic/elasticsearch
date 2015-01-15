@@ -22,12 +22,12 @@ package org.elasticsearch.common.geo.builders;
 import com.spatial4j.core.context.jts.JtsSpatialContext;
 import com.spatial4j.core.shape.Shape;
 import com.spatial4j.core.shape.jts.JtsGeometry;
-import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
-import org.apache.commons.lang3.tuple.Pair;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.DistanceUnit.Distance;
@@ -57,7 +57,7 @@ public abstract class ShapeBuilder implements ToXContent {
         DEBUG = debug;
     }
 
-    public static final double DATELINE = 180;
+    public static final double DATELINE = GeoUtils.DATELINE;
     // TODO how might we use JtsSpatialContextFactory to configure the context (esp. for non-geo)?
     public static final JtsSpatialContext SPATIAL_CONTEXT = JtsSpatialContext.GEO;
     public static final GeometryFactory FACTORY = SPATIAL_CONTEXT.getGeometryFactory();
@@ -84,8 +84,8 @@ public abstract class ShapeBuilder implements ToXContent {
         this.orientation = orientation;
     }
 
-    protected static Coordinate coordinate(double longitude, double latitude) {
-        return new Coordinate(longitude, latitude);
+    protected static GeoPoint coordinate(double longitude, double latitude) {
+        return new GeoPoint(latitude, longitude);
     }
 
     protected JtsGeometry jtsGeometry(Geometry geom) {
@@ -106,15 +106,15 @@ public abstract class ShapeBuilder implements ToXContent {
      * @return a new {@link PointBuilder}
      */
     public static PointBuilder newPoint(double longitude, double latitude) {
-        return newPoint(new Coordinate(longitude, latitude));
+        return newPoint(new GeoPoint(latitude, longitude));
     }
 
     /**
-     * Create a new {@link PointBuilder} from a {@link Coordinate}
+     * Create a new {@link PointBuilder} from a {@link GeoPoint}
      * @param coordinate coordinate defining the position of the point
      * @return a new {@link PointBuilder}
      */
-    public static PointBuilder newPoint(Coordinate coordinate) {
+    public static PointBuilder newPoint(GeoPoint coordinate) {
         return new PointBuilder().coordinate(coordinate);
     }
 
@@ -250,7 +250,7 @@ public abstract class ShapeBuilder implements ToXContent {
             token = parser.nextToken();
             double lat = parser.doubleValue();
             token = parser.nextToken();
-            return new CoordinateNode(new Coordinate(lon, lat));
+            return new CoordinateNode(new GeoPoint(lat, lon));
         } else if (token == XContentParser.Token.VALUE_NULL) {
             throw new ElasticsearchIllegalArgumentException("coordinates cannot contain NULL values)");
         }
@@ -289,7 +289,7 @@ public abstract class ShapeBuilder implements ToXContent {
         return GeoShapeType.parse(parser, geoDocMapper);
     }
 
-    protected static XContentBuilder toXContent(XContentBuilder builder, Coordinate coordinate) throws IOException {
+    protected static XContentBuilder toXContent(XContentBuilder builder, GeoPoint coordinate) throws IOException {
         return builder.startArray().value(coordinate.x).value(coordinate.y).endArray();
     }
 
@@ -309,11 +309,11 @@ public abstract class ShapeBuilder implements ToXContent {
         }
     }
 
-    protected static Coordinate shift(Coordinate coordinate, double dateline) {
+    protected static GeoPoint shift(GeoPoint coordinate, double dateline) {
         if (dateline == 0) {
             return coordinate;
         } else {
-            return new Coordinate(-2 * dateline + coordinate.x, coordinate.y);
+            return new GeoPoint(coordinate.y, -2 * dateline + coordinate.x);
         }
     }
 
@@ -325,7 +325,7 @@ public abstract class ShapeBuilder implements ToXContent {
 
     /**
      * Calculate the intersection of a line segment and a vertical dateline.
-     * 
+     *
      * @param p1
      *            start-point of the line segment
      * @param p2
@@ -336,7 +336,7 @@ public abstract class ShapeBuilder implements ToXContent {
      *         segment intersects with the line segment. Otherwise this method
      *         returns {@link Double#NaN}
      */
-    protected static final double intersection(Coordinate p1, Coordinate p2, double dateline) {
+    protected static final double intersection(GeoPoint p1, GeoPoint p2, double dateline) {
         if (p1.x == p2.x && p1.x != dateline) {
             return Double.NaN;
         } else if (p1.x == p2.x && p1.x == dateline) {
@@ -366,8 +366,8 @@ public abstract class ShapeBuilder implements ToXContent {
         int numIntersections = 0;
         assert !Double.isNaN(dateline);
         for (int i = 0; i < edges.length; i++) {
-            Coordinate p1 = edges[i].coordinate;
-            Coordinate p2 = edges[i].next.coordinate;
+            GeoPoint p1 = edges[i].coordinate;
+            GeoPoint p2 = edges[i].next.coordinate;
             assert !Double.isNaN(p2.x) && !Double.isNaN(p1.x);  
             edges[i].intersect = Edge.MAX_COORDINATE;
 
@@ -384,21 +384,21 @@ public abstract class ShapeBuilder implements ToXContent {
     /**
      * Node used to represent a tree of coordinates.
      * <p/>
-     * Can either be a leaf node consisting of a Coordinate, or a parent with
+     * Can either be a leaf node consisting of a GeoPoint, or a parent with
      * children
      */
     protected static class CoordinateNode implements ToXContent {
 
-        protected final Coordinate coordinate;
+        protected final GeoPoint coordinate;
         protected final List<CoordinateNode> children;
 
         /**
          * Creates a new leaf CoordinateNode
          * 
          * @param coordinate
-         *            Coordinate for the Node
+         *            GeoPoint for the Node
          */
-        protected CoordinateNode(Coordinate coordinate) {
+        protected CoordinateNode(GeoPoint coordinate) {
             this.coordinate = coordinate;
             this.children = null;
         }
@@ -434,17 +434,17 @@ public abstract class ShapeBuilder implements ToXContent {
     }
 
     /**
-     * This helper class implements a linked list for {@link Coordinate}. It contains
+     * This helper class implements a linked list for {@link GeoPoint}. It contains
      * fields for a dateline intersection and component id 
      */
     protected static final class Edge {
-        Coordinate coordinate; // coordinate of the start point
+        GeoPoint coordinate; // coordinate of the start point
         Edge next; // next segment
-        Coordinate intersect; // potential intersection with dateline
+        GeoPoint intersect; // potential intersection with dateline
         int component = -1; // id of the component this edge belongs to
-        public static final Coordinate MAX_COORDINATE = new Coordinate(Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY);
+        public static final GeoPoint MAX_COORDINATE = new GeoPoint(Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY);
 
-        protected Edge(Coordinate coordinate, Edge next, Coordinate intersection) {
+        protected Edge(GeoPoint coordinate, Edge next, GeoPoint intersection) {
             this.coordinate = coordinate;
             this.next = next;
             this.intersect = intersection;
@@ -453,11 +453,11 @@ public abstract class ShapeBuilder implements ToXContent {
             }
         }
 
-        protected Edge(Coordinate coordinate, Edge next) {
+        protected Edge(GeoPoint coordinate, Edge next) {
             this(coordinate, next, Edge.MAX_COORDINATE);
         }
 
-        private static final int top(Coordinate[] points, int offset, int length) {
+        private static final int top(GeoPoint[] points, int offset, int length) {
             int top = 0; // we start at 1 here since top points to 0
             for (int i = 1; i < length; i++) {
                 if (points[offset + i].y < points[offset + top].y) {
@@ -471,29 +471,6 @@ public abstract class ShapeBuilder implements ToXContent {
             return top;
         }
 
-        private static final Pair range(Coordinate[] points, int offset, int length) {
-            double minX = points[0].x;
-            double maxX = points[0].x;
-            double minY = points[0].y;
-            double maxY = points[0].y;
-            // compute the bounding coordinates (@todo: cleanup brute force)
-            for (int i = 1; i < length; ++i) {
-                if (points[offset + i].x < minX) {
-                    minX = points[offset + i].x;
-                }
-                if (points[offset + i].x > maxX) {
-                    maxX = points[offset + i].x;
-                }
-                if (points[offset + i].y < minY) {
-                    minY = points[offset + i].y;
-                }
-                if (points[offset + i].y > maxY) {
-                    maxY = points[offset + i].y;
-                }
-            }
-            return Pair.of(Pair.of(minX, maxX), Pair.of(minY, maxY));
-        }
-
         /**
          * Concatenate a set of points to a polygon
          * 
@@ -503,8 +480,6 @@ public abstract class ShapeBuilder implements ToXContent {
          *            direction of the ring
          * @param points
          *            list of points to concatenate
-         * @param pointOffset
-         *            index of the first point
          * @param edges
          *            Array of edges to write the result to
          * @param edgeOffset
@@ -513,27 +488,29 @@ public abstract class ShapeBuilder implements ToXContent {
          *            number of points to use
          * @return the edges creates
          */
-        private static Edge[] concat(int component, boolean direction, Coordinate[] points, final int pointOffset, Edge[] edges, final int edgeOffset,
-                int length) {
+        private static Edge[] concat(int component, boolean direction, GeoPoint[] points, Edge[] edges, final int edgeOffset,
+                                     int length) {
             assert edges.length >= length+edgeOffset;
-            assert points.length >= length+pointOffset;
-            edges[edgeOffset] = new Edge(points[pointOffset], null);
-            for (int i = 1; i < length; i++) {
+            assert points.length >= length;
+            edges[edgeOffset] = new Edge(points[0], null);
+            int edgeEnd = edgeOffset + length;
+
+            for (int i = edgeOffset+1, p = 1; i < edgeEnd; ++i, ++p) {
                 if (direction) {
-                    edges[edgeOffset + i] = new Edge(points[pointOffset + i], edges[edgeOffset + i - 1]);
-                    edges[edgeOffset + i].component = component;
+                    edges[i] = new Edge(points[p], edges[i - 1]);
+                    edges[i].component = component;
                 } else {
-                    edges[edgeOffset + i - 1].next = edges[edgeOffset + i] = new Edge(points[pointOffset + i], null);
-                    edges[edgeOffset + i - 1].component = component;
+                    edges[i - 1].next = edges[i] = new Edge(points[p], null);
+                    edges[i - 1].component = component;
                 }
             }
 
             if (direction) {
-                edges[edgeOffset].next = edges[edgeOffset + length - 1];
+                edges[edgeOffset].next = edges[edgeEnd - 1];
                 edges[edgeOffset].component = component;
             } else {
-                edges[edgeOffset + length - 1].next = edges[edgeOffset];
-                edges[edgeOffset + length - 1].component = component;
+                edges[edgeEnd - 1].next = edges[edgeOffset];
+                edges[edgeEnd - 1].component = component;
             }
 
             return edges;
@@ -544,60 +521,25 @@ public abstract class ShapeBuilder implements ToXContent {
          * 
          * @param points
          *            array of point
-         * @param offset
-         *            index of the first point
          * @param length
          *            number of points
          * @return Array of edges
          */
         protected static Edge[] ring(int component, boolean direction, boolean handedness, BaseLineStringBuilder<?> shell,
-                                     Coordinate[] points, int offset, Edge[] edges, int toffset, int length) {
+                                     GeoPoint[] points, Edge[] edges, int edgeOffset, int length) {
             // calculate the direction of the points:
-            // find the point a the top of the set and check its
-            // neighbors orientation. So direction is equivalent
-            // to clockwise/counterclockwise
-            final int top = top(points, offset, length);
-            final int prev = (offset + ((top + length - 1) % length));
-            final int next = (offset + ((top + 1) % length));
-            boolean orientation = points[offset + prev].x > points[offset + next].x;
+            boolean orientation = GeoUtils.computePolyOrientation(points, length);
+            boolean corrected = GeoUtils.correctPolyAmbiguity(points, handedness, orientation, component, length,
+                    shell.translated);
 
-            // OGC requires shell as ccw (Right-Handedness) and holes as cw (Left-Handedness) 
-            // since GeoJSON doesn't specify (and doesn't need to) GEO core will assume OGC standards
-            // thus if orientation is computed as cw, the logic will translate points across dateline
-            // and convert to a right handed system
-
-            // compute the bounding box and calculate range
-            Pair<Pair, Pair> range = range(points, offset, length);
-            final double rng = (Double)range.getLeft().getRight() - (Double)range.getLeft().getLeft();
-            // translate the points if the following is true
-            //   1.  shell orientation is cw and range is greater than a hemisphere (180 degrees) but not spanning 2 hemispheres 
-            //       (translation would result in a collapsed poly)
-            //   2.  the shell of the candidate hole has been translated (to preserve the coordinate system)
-            boolean incorrectOrientation = component == 0 && handedness != orientation;
-            if ( (incorrectOrientation && (rng > DATELINE && rng != 2*DATELINE)) || (shell.translated && component != 0)) {
-                translate(points);
-                // flip the translation bit if the shell is being translated
+            // correct the orientation post translation (ccw for shell, cw for holes)
+            if (corrected && (component == 0 || (component != 0 && handedness == orientation))) {
                 if (component == 0) {
-                    shell.translated = true;
+                    shell.translated = corrected;
                 }
-                // correct the orientation post translation (ccw for shell, cw for holes)
-                if (component == 0 || (component != 0 && handedness == orientation)) {
-                    orientation = !orientation;
-                }
+                orientation = !orientation;
             }
-            return concat(component, direction ^ orientation, points, offset, edges, toffset, length);
-        }
-
-        /**
-         * Transforms coordinates in the eastern hemisphere (-180:0) to a (180:360) range 
-         * @param points
-         */
-        protected static void translate(Coordinate[] points) {
-            for (Coordinate c : points) {
-                if (c.x < 0) {
-                    c.x += 2*DATELINE;
-                }
-            }
+            return concat(component, direction ^ orientation, points, edges, edgeOffset, length);
         }
 
         /**
@@ -605,13 +547,13 @@ public abstract class ShapeBuilder implements ToXContent {
          * 
          * @param position
          *            position of the intersection [0..1]
-         * @return the {@link Coordinate} of the intersection
+         * @return the {@link GeoPoint} of the intersection
          */
-        protected Coordinate intersection(double position) {
+        protected GeoPoint intersection(double position) {
             return intersect = position(coordinate, next.coordinate, position);
         }
 
-        public static Coordinate position(Coordinate p1, Coordinate p2, double position) {
+        public static GeoPoint position(GeoPoint p1, GeoPoint p2, double position) {
             if (position == 0) {
                 return p1;
             } else if (position == 1) {
@@ -619,7 +561,7 @@ public abstract class ShapeBuilder implements ToXContent {
             } else {
                 final double x = p1.x + position * (p2.x - p1.x);
                 final double y = p1.y + position * (p2.y - p1.y);
-                return new Coordinate(x, y);
+                return new GeoPoint(y, x);
             }
         }
 
@@ -793,12 +735,12 @@ public abstract class ShapeBuilder implements ToXContent {
                         "geo_shape ('envelope') when expecting an array of 2 coordinates");
             }
             // verify coordinate bounds, correct if necessary
-            Coordinate uL = coordinates.children.get(0).coordinate;
-            Coordinate lR = coordinates.children.get(1).coordinate;
+            GeoPoint uL = coordinates.children.get(0).coordinate;
+            GeoPoint lR = coordinates.children.get(1).coordinate;
             if (((lR.x < uL.x) || (uL.y < lR.y))) {
-                Coordinate uLtmp = uL;
-                uL = new Coordinate(Math.min(uL.x, lR.x), Math.max(uL.y, lR.y));
-                lR = new Coordinate(Math.max(uLtmp.x, lR.x), Math.min(uLtmp.y, lR.y));
+                GeoPoint uLtmp = uL;
+                uL = new GeoPoint(Math.max(uL.y, lR.y), Math.min(uL.x, lR.x));
+                lR = new GeoPoint(Math.min(uLtmp.y, lR.y), Math.max(uLtmp.x, lR.x));
             }
             return newEnvelope(orientation).topLeft(uL).bottomRight(lR);
         }

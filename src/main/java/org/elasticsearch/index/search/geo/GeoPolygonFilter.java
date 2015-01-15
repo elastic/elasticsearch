@@ -26,6 +26,7 @@ import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 
@@ -93,15 +94,27 @@ public class GeoPolygonFilter extends Filter {
 
         private static boolean pointInPolygon(GeoPoint[] points, double lat, double lon) {
             boolean inPoly = false;
+            // @TODO handedness will be an option provided by the parser
+            boolean corrected = GeoUtils.correctPolyAmbiguity(points, false);
+            GeoPoint p = (corrected) ?
+                    GeoUtils.convertToGreatCircle(lat, lon) :
+                    new GeoPoint(lat, lon);
 
+            GeoPoint pp0 = (corrected) ? GeoUtils.convertToGreatCircle(points[0]) : points[0] ;
+            GeoPoint pp1;
+            // simple even-odd PIP computation
+            //   1.  Determine if point is contained in the longitudinal range
+            //   2.  Determine whether point crosses the edge by computing the latitudinal delta
+            //       between the end-point of a parallel vector (originating at the point) and the
+            //       y-component of the edge sink
             for (int i = 1; i < points.length; i++) {
-                if (points[i].lon() < lon && points[i-1].lon() >= lon
-                        || points[i-1].lon() < lon && points[i].lon() >= lon) {
-                    if (points[i].lat() + (lon - points[i].lon()) /
-                            (points[i-1].lon() - points[i].lon()) * (points[i-1].lat() - points[i].lat()) < lat) {
+                pp1 = points[i];
+                if (pp1.x < p.x && pp0.x >= p.x || pp0.x < p.x && pp1.x >= p.x) {
+                    if (pp1.y + (p.x - pp1.x) / (pp0.x - pp1.x) * (pp0.y - pp1.y) < p.y) {
                         inPoly = !inPoly;
                     }
                 }
+                pp0 = pp1;
             }
             return inPoly;
         }

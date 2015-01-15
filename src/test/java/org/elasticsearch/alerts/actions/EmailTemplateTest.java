@@ -7,34 +7,38 @@ package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.alerts.AbstractAlertingTests;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.AlertAckState;
 import org.elasticsearch.alerts.triggers.ScriptedTrigger;
 import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.mustache.MustacheScriptEngineService;
+import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 
 /**
 */
-public class EmailTemplateTest extends AbstractAlertingTests {
+public class EmailTemplateTest extends ElasticsearchTestCase {
 
     public void testEmailTemplateRender() throws IOException {
-        createIndex("my-trigger-index");
-
-        SearchRequest triggerRequest = createTriggerSearchRequest("my-trigger-index").source(searchSource().query(matchAllQuery()));
+        //createIndex("my-trigger-index");
+        SearchRequest triggerRequest = new SearchRequest();
 
         List<AlertAction> actions = new ArrayList<>();
 
@@ -49,7 +53,8 @@ public class EmailTemplateTest extends AbstractAlertingTests {
                 new TimeValue(0),
                 AlertAckState.NOT_TRIGGERED);
 
-        SearchResponse searchResponse = client().prepareSearch("my-trigger-index").get();
+        SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(),"",0,0,0L, new ShardSearchFailure[0]);
+
         XContentBuilder responseBuilder = jsonBuilder().startObject().value(searchResponse).endObject();
         Map<String, Object> responseMap = XContentHelper.convertToMap(responseBuilder.bytes(), false).v2();
 
@@ -57,9 +62,16 @@ public class EmailTemplateTest extends AbstractAlertingTests {
 
         String template = "{{alert_name}} triggered with {{response.hits.total}} hits";
 
+        Settings settings = ImmutableSettings.settingsBuilder().build();
+        MustacheScriptEngineService mustacheScriptEngineService = new MustacheScriptEngineService(settings);
+        ThreadPool tp;
+        tp = new ThreadPool(ThreadPool.Names.SAME);
+        Set<ScriptEngineService> engineServiceSet = new HashSet<>();
+        engineServiceSet.add(mustacheScriptEngineService);
 
-        ScriptService scriptService = internalTestCluster().getInstance(ScriptService.class);
+        ScriptService scriptService = new ScriptService(settings, new Environment(), engineServiceSet, new ResourceWatcherService(settings, tp));
         String parsedTemplate = SmtpAlertActionFactory.renderTemplate(template, alert, result, scriptService);
+        tp.shutdownNow();
         assertEquals("test-email-template triggered with 0 hits", parsedTemplate);
 
     }

@@ -57,7 +57,6 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
             parentFilter = SearchContext.current().bitsetFilterCache().getBitDocIdSetFilter(objectMapper.nestedTypeFilter());
         }
         bucketOrdToLastCollectedParentDoc = new LongIntOpenHashMap(32);
-        aggregationContext.ensureScoreDocsInOrder();
     }
 
     @Override

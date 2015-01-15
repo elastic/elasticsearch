@@ -51,7 +51,7 @@ public class DeferringBucketCollector extends BucketCollector implements Releasa
 
     public DeferringBucketCollector(BucketCollector deferred, AggregationContext context) {
         this.deferred = deferred;
-        this.recording = new RecordingPerReaderBucketCollector(context);
+        this.recording = new RecordingPerReaderBucketCollector();
         this.context = context;
     }
 

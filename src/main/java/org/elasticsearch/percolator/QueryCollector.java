@@ -120,12 +120,6 @@ abstract class QueryCollector extends SimpleCollector {
         }
     }
 
-    @Override
-    public boolean acceptsDocsOutOfOrder() {
-        return true;
-    }
-
-
     static Match match(ESLogger logger, PercolateContext context, HighlightPhase highlightPhase, boolean isNestedDoc) throws IOException {
         return new Match(logger, context, highlightPhase, isNestedDoc);
     }
@@ -231,7 +225,7 @@ abstract class QueryCollector extends SimpleCollector {
         MatchAndSort(ESLogger logger, PercolateContext context, boolean isNestedDoc) throws IOException {
             super(logger, context, isNestedDoc);
             // TODO: Use TopFieldCollector.create(...) for ascending and descending scoring?
-            topDocsCollector = TopScoreDocCollector.create(context.size(), false);
+            topDocsCollector = TopScoreDocCollector.create(context.size());
         }
 
         @Override

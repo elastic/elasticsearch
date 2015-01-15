@@ -132,11 +132,6 @@ public class ScanContext {
             this.readerState = new ReaderState();
         }
 
-        @Override
-        public boolean acceptsDocsOutOfOrder() {
-            return false;
-        }
-
         public static final RuntimeException StopCollectingException = new StopCollectingException();
 
         static class StopCollectingException extends RuntimeException {

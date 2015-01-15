@@ -216,13 +216,13 @@ public class ChildrenQueryTests extends AbstractChildTests {
             Query query = parseQuery(queryBuilder);
             BitSetCollector collector = new BitSetCollector(indexReader.maxDoc());
             int numHits = 1 + random().nextInt(25);
-            TopScoreDocCollector actualTopDocsCollector = TopScoreDocCollector.create(numHits, false);
+            TopScoreDocCollector actualTopDocsCollector = TopScoreDocCollector.create(numHits);
             searcher.search(query, MultiCollector.wrap(collector, actualTopDocsCollector));
             FixedBitSet actualResult = collector.getResult();
 
             FixedBitSet expectedResult = new FixedBitSet(indexReader.maxDoc());
             MockScorer mockScorer = new MockScorer(scoreType);
-            TopScoreDocCollector expectedTopDocsCollector = TopScoreDocCollector.create(numHits, false);
+            TopScoreDocCollector expectedTopDocsCollector = TopScoreDocCollector.create(numHits);
             if (childValueToParentIds.containsKey(childValue)) {
                 LeafReader slowLeafReader = SlowCompositeReaderWrapper.wrap(indexReader);
                 final LeafCollector leafCollector = expectedTopDocsCollector.getLeafCollector(slowLeafReader.getContext());

@@ -114,12 +114,12 @@ public final class InnerHitsContext {
             int topN = from() + size();
             if (sort() != null) {
                 try {
-                    topDocsCollector = TopFieldCollector.create(sort(), topN, true, trackScores(), trackScores(), true);
+                    topDocsCollector = TopFieldCollector.create(sort(), topN, true, trackScores(), trackScores());
                 } catch (IOException e) {
                     throw ExceptionsHelper.convertToElastic(e);
                 }
             } else {
-                topDocsCollector = TopScoreDocCollector.create(topN, true);
+                topDocsCollector = TopScoreDocCollector.create(topN);
             }
 
             Filter rawParentFilter;
@@ -249,12 +249,12 @@ public final class InnerHitsContext {
             int topN = from() + size();
             if (sort() != null) {
                 try {
-                    topDocsCollector = TopFieldCollector.create(sort(), topN, true, trackScores(), trackScores(), false);
+                    topDocsCollector = TopFieldCollector.create(sort(), topN, true, trackScores(), trackScores());
                 } catch (IOException e) {
                     throw ExceptionsHelper.convertToElastic(e);
                 }
             } else {
-                topDocsCollector = TopScoreDocCollector.create(topN, false);
+                topDocsCollector = TopScoreDocCollector.create(topN);
             }
 
             String field;

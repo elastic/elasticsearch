@@ -15,6 +15,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,11 +26,13 @@ public class AlertActionRegistry extends AbstractComponent {
     private volatile ImmutableOpenMap<String, AlertActionFactory> actionImplemented;
 
     @Inject
-    public AlertActionRegistry(Settings settings, Client client, ConfigurationManager configurationManager) {
+    public AlertActionRegistry(Settings settings, Client client, ConfigurationManager configurationManager,
+                               ScriptService scriptService) {
         super(settings);
         actionImplemented = ImmutableOpenMap.<String, AlertActionFactory>builder()
                 .fPut("email", new SmtpAlertActionFactory(configurationManager))
                 .fPut("index", new IndexAlertActionFactory(client, configurationManager))
+                .fPut("webhook", new WebhookAlertActionFactory(scriptService))
                 .build();
     }
 

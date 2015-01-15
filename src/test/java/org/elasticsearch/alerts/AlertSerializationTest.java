@@ -8,8 +8,10 @@ package org.elasticsearch.alerts;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.alerts.actions.AlertAction;
 import org.elasticsearch.alerts.actions.SmtpAlertAction;
+import org.elasticsearch.alerts.actions.WebhookAlertAction;
 import org.elasticsearch.alerts.triggers.ScriptedTrigger;
 import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.netty.handler.codec.http.HttpMethod;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,6 +37,7 @@ public class AlertSerializationTest extends AbstractAlertingTests {
 
         List<AlertAction> actions = new ArrayList<>();
         actions.add(new SmtpAlertAction("message", "foo@bar.com"));
+        actions.add(new WebhookAlertAction("http://localhost/foobarbaz/{{alert_name}}", HttpMethod.GET, ""));
         Alert alert = new Alert("test-serialization",
                 triggerRequest,
                 new ScriptedTrigger("return true", ScriptService.ScriptType.INLINE, "groovy"),

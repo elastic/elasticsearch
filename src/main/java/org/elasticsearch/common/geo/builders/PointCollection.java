@@ -24,23 +24,22 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-
-import com.vividsolutions.jts.geom.Coordinate;
 
 /**
  * The {@link PointCollection} is an abstract base implementation for all GeoShapes. It simply handles a set of points. 
  */
 public abstract class PointCollection<E extends PointCollection<E>> extends ShapeBuilder {
 
-    protected final ArrayList<Coordinate> points;
+    protected final ArrayList<GeoPoint> points;
     protected boolean translated = false;
 
     protected PointCollection() {
-        this(new ArrayList<Coordinate>());
+        this(new ArrayList<GeoPoint>());
     }
 
-    protected PointCollection(ArrayList<Coordinate> points) {
+    protected PointCollection(ArrayList<GeoPoint> points) {
         this.points = points;
     }
     
@@ -64,7 +63,7 @@ public abstract class PointCollection<E extends PointCollection<E>> extends Shap
      * @param coordinate coordinate of the point
      * @return this
      */
-    public E point(Coordinate coordinate) {
+    public E point(GeoPoint coordinate) {
         this.points.add(coordinate);
         return thisRef();
     }
@@ -72,20 +71,20 @@ public abstract class PointCollection<E extends PointCollection<E>> extends Shap
     /**
      * Add a array of points to the collection
      * 
-     * @param coordinates array of {@link Coordinate}s to add
+     * @param coordinates array of {@link GeoPoint}s to add
      * @return this
      */
-    public E points(Coordinate...coordinates) {
+    public E points(GeoPoint...coordinates) {
         return this.points(Arrays.asList(coordinates));
     }
 
     /**
      * Add a collection of points to the collection
      * 
-     * @param coordinates array of {@link Coordinate}s to add
+     * @param coordinates array of {@link GeoPoint}s to add
      * @return this
      */
-    public E points(Collection<? extends Coordinate> coordinates) {
+    public E points(Collection<? extends GeoPoint> coordinates) {
         this.points.addAll(coordinates);
         return thisRef();
     }
@@ -96,8 +95,8 @@ public abstract class PointCollection<E extends PointCollection<E>> extends Shap
      * @param closed if set to true the first point of the array is repeated as last element
      * @return Array of coordinates
      */
-    protected Coordinate[] coordinates(boolean closed) {
-        Coordinate[] result = points.toArray(new Coordinate[points.size() + (closed?1:0)]);
+    protected GeoPoint[] coordinates(boolean closed) {
+        GeoPoint[] result = points.toArray(new GeoPoint[points.size() + (closed?1:0)]);
         if(closed) {
             result[result.length-1] = result[0];
         }
@@ -114,12 +113,12 @@ public abstract class PointCollection<E extends PointCollection<E>> extends Shap
      */
     protected XContentBuilder coordinatesToXcontent(XContentBuilder builder, boolean closed) throws IOException {
         builder.startArray();
-        for(Coordinate point : points) {
+        for(GeoPoint point : points) {
             toXContent(builder, point);
         }
         if(closed) {
-            Coordinate start = points.get(0);
-            Coordinate end = points.get(points.size()-1);
+            GeoPoint start = points.get(0);
+            GeoPoint end = points.get(points.size()-1);
             if(start.x != end.x || start.y != end.y) {
                 toXContent(builder, points.get(0));
             }

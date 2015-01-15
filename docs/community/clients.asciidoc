@@ -53,6 +53,9 @@ See the {client}/ruby-api/current/index.html[official Elasticsearch Ruby client]
   
 * https://github.com/printercu/elastics-rb[elastics]:
   Tiny client with built-in zero-downtime migrations and ActiveRecord integration.
+  
+* https://github.com/toptal/chewy[chewy]:
+  Chewy is ODM and wrapper for official elasticsearch client 
 
 
 [[community-php]]

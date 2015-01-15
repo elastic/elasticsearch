@@ -22,6 +22,7 @@ import com.carrotsearch.hppc.FloatArrayList;
 import com.carrotsearch.hppc.IntOpenHashSet;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
+
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoubleField;
@@ -216,17 +217,15 @@ public class ChildrenQueryTests extends AbstractChildTests {
             Query query = parseQuery(queryBuilder);
             BitSetCollector collector = new BitSetCollector(indexReader.maxDoc());
             int numHits = 1 + random().nextInt(25);
-            TopScoreDocCollector actualTopDocsCollector = TopScoreDocCollector.create(numHits, false);
+            TopScoreDocCollector actualTopDocsCollector = TopScoreDocCollector.create(numHits);
             searcher.search(query, MultiCollector.wrap(collector, actualTopDocsCollector));
             FixedBitSet actualResult = collector.getResult();
 
             FixedBitSet expectedResult = new FixedBitSet(indexReader.maxDoc());
-            MockScorer mockScorer = new MockScorer(scoreType);
-            TopScoreDocCollector expectedTopDocsCollector = TopScoreDocCollector.create(numHits, false);
+            TopScoreDocCollector expectedTopDocsCollector = TopScoreDocCollector.create(numHits);
             if (childValueToParentIds.containsKey(childValue)) {
                 LeafReader slowLeafReader = SlowCompositeReaderWrapper.wrap(indexReader);
-                final LeafCollector leafCollector = expectedTopDocsCollector.getLeafCollector(slowLeafReader.getContext());
-                leafCollector.setScorer(mockScorer);
+                final FloatArrayList[] scores = new FloatArrayList[slowLeafReader.maxDoc()];
                 Terms terms = slowLeafReader.terms(UidFieldMapper.NAME);
                 if (terms != null) {
                     NavigableMap<String, FloatArrayList> parentIdToChildScores = childValueToParentIds.lget();
@@ -239,13 +238,19 @@ public class ChildrenQueryTests extends AbstractChildTests {
                             if (seekStatus == TermsEnum.SeekStatus.FOUND) {
                                 docsEnum = termsEnum.docs(slowLeafReader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
                                 expectedResult.set(docsEnum.nextDoc());
-                                mockScorer.scores = entry.getValue();
-                                leafCollector.collect(docsEnum.docID());
+                                scores[docsEnum.docID()] = new FloatArrayList(entry.getValue());
                             } else if (seekStatus == TermsEnum.SeekStatus.END) {
                                 break;
                             }
                         }
                     }
+                }
+                MockScorer mockScorer = new MockScorer(scoreType);
+                final LeafCollector leafCollector = expectedTopDocsCollector.getLeafCollector(slowLeafReader.getContext());
+                leafCollector.setScorer(mockScorer);
+                for (int doc = expectedResult.nextSetBit(0); doc < slowLeafReader.maxDoc(); doc = doc + 1 >= expectedResult.length() ? DocIdSetIterator.NO_MORE_DOCS : expectedResult.nextSetBit(doc + 1)) {
+                    mockScorer.scores = scores[doc];
+                    leafCollector.collect(doc);
                 }
             }
 

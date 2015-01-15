@@ -117,7 +117,7 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
         if (collectors == null) {
             Sort sort = subSearchContext.sort();
             int topN = subSearchContext.from() + subSearchContext.size();
-            TopDocsCollector<?> topLevelCollector = sort != null ? TopFieldCollector.create(sort, topN, true, subSearchContext.trackScores(), subSearchContext.trackScores(), false) : TopScoreDocCollector.create(topN, false);
+            TopDocsCollector<?> topLevelCollector = sort != null ? TopFieldCollector.create(sort, topN, true, subSearchContext.trackScores(), subSearchContext.trackScores()) : TopScoreDocCollector.create(topN);
             collectors = new TopDocsAndLeafCollector(topLevelCollector);
             collectors.leafCollector = collectors.topLevelCollector.getLeafCollector(currentContext);
             collectors.leafCollector.setScorer(currentScorer);

@@ -19,11 +19,10 @@
 
 package org.elasticsearch.common.geo.builders;
 
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import com.spatial4j.core.shape.Shape;
-import com.spatial4j.core.shape.jts.JtsGeometry;
-import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.LineString;
 
@@ -48,8 +47,8 @@ public class MultiLineStringBuilder extends ShapeBuilder {
         return this;
     }
 
-    public Coordinate[][] coordinates() {
-        Coordinate[][] result = new Coordinate[lines.size()][];
+    public GeoPoint[][] coordinates() {
+        GeoPoint[][] result = new GeoPoint[lines.size()][];
         for (int i = 0; i < result.length; i++) {
             result[i] = lines.get(i).coordinates(false);
         }
@@ -113,7 +112,7 @@ public class MultiLineStringBuilder extends ShapeBuilder {
             return collection;
         }
 
-        public Coordinate[] coordinates() {
+        public GeoPoint[] coordinates() {
             return super.coordinates(false);
         }
 

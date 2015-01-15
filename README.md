@@ -17,7 +17,8 @@ The `hadoop2` version contains the plugin jar plus the Hadoop 2.x (Yarn) depende
 The `light` version contains just the plugin jar, without any Hadoop dependencies.
 
 ### What version to use?
-It depends on whether you have Hadoop installed on your nodes or not. If you do, then we recommend exposing Hadoop to the Elasticsearch classpath (typically through an environment variable - see the Elasticsearch [reference](http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.x/setup-configuration.html0) for more info) and using the `light` version. This guarantees the existing libraries and configuration are being picked up by the plugin.
+It depends on whether you have Hadoop installed on your nodes or not. If you do, then we recommend exposing Hadoop to the Elasticsearch classpath (typically through an environment variable such as +ES_CLASSPATH+ - see the Elasticsearch [reference](http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.x/setup-configuration.html) for more info) and using the `light` version. 
+This guarantees the existing libraries and configuration are being picked up by the plugin.
 If you do not have Hadoop installed, then select either the default version (for Hadoop stable/1.x) or, if you are using Hadoop 2, the `hadoop2` version.
 
 ## Installation

@@ -21,18 +21,18 @@ package org.elasticsearch.common.geo.builders;
 
 import java.io.IOException;
 
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import com.spatial4j.core.shape.Point;
-import com.vividsolutions.jts.geom.Coordinate;
 
 public class PointBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.POINT;
 
-    private Coordinate coordinate;
+    private GeoPoint coordinate;
 
-    public PointBuilder coordinate(Coordinate coordinate) {
+    public PointBuilder coordinate(GeoPoint coordinate) {
         this.coordinate = coordinate;
         return this;
     }

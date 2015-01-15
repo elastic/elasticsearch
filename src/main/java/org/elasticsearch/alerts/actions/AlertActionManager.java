@@ -115,18 +115,21 @@ public class AlertActionManager extends AbstractComponent {
             doStart();
             return true;
         }
+        int numPrimaryShards = 0;
         for (String index : indices) {
             IndexMetaData indexMetaData = state.getMetaData().index(index);
             if (indexMetaData != null) {
                 if (!state.routingTable().index(index).allPrimaryShardsActive()) {
                     logger.warn("Not all primary shards of the [{}] index are started. Schedule to retry alert action loading..", index);
                     return false;
+                } else {
+                    numPrimaryShards += indexMetaData.numberOfShards();
                 }
             }
         }
 
         try {
-            loadQueue();
+            loadQueue(numPrimaryShards);
         } catch (Exception e) {
             logger.warn("Failed to load unfinished alert actions. Schedule to retry alert action loading...", e);
             actionsToBeProcessed.clear();
@@ -165,10 +168,10 @@ public class AlertActionManager extends AbstractComponent {
         return ALERT_HISTORY_INDEX_PREFIX + alertHistoryIndexTimeFormat.print(time);
     }
 
-    private void loadQueue() {
+    private void loadQueue(int numPrimaryShards) {
         assert actionsToBeProcessed.isEmpty() : "Queue should be empty, but contains " + actionsToBeProcessed.size() + " elements.";
         RefreshResponse refreshResponse = client.admin().indices().refresh(new RefreshRequest(ALERT_HISTORY_INDEX_PREFIX + "*")).actionGet();
-        if (refreshResponse.getTotalShards() != refreshResponse.getSuccessfulShards()) {
+        if (refreshResponse.getSuccessfulShards() < numPrimaryShards) {
             throw new ElasticsearchException("Not all shards have been refreshed");
         }
 
@@ -178,6 +181,7 @@ public class AlertActionManager extends AbstractComponent {
                 .setScroll(scrollTimeout)
                 .setSize(scrollSize)
                 .setTypes(ALERT_HISTORY_TYPE)
+                .setPreference("_primary")
                 .get();
         try {
             if (response.getTotalShards() != response.getSuccessfulShards()) {

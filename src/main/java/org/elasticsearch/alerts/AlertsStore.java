@@ -156,7 +156,7 @@ public class AlertsStore extends AbstractComponent {
             if (state.routingTable().index(ALERT_INDEX).allPrimaryShardsActive()) {
                 logger.debug("Previous alerting index with active primary shards");
                 try {
-                    loadAlerts();
+                    loadAlerts(alertIndexMetaData.numberOfShards());
                 } catch (Exception e) {
                     logger.warn("Failed to load previously stored alerts. Schedule to retry alert loading...", e);
                     alertMap.clear();
@@ -195,15 +195,16 @@ public class AlertsStore extends AbstractComponent {
         return indexRequest;
     }
 
-    private void loadAlerts() {
+    private void loadAlerts(int numPrimaryShards) {
         assert alertMap.isEmpty() : "No alerts should reside, but there are " + alertMap.size() + " alerts.";
         RefreshResponse refreshResponse = client.admin().indices().refresh(new RefreshRequest(ALERT_INDEX)).actionGet();
-        if (refreshResponse.getTotalShards() != refreshResponse.getSuccessfulShards()) {
-            throw new ElasticsearchException("Not all shards have been refreshed");
+        if (refreshResponse.getSuccessfulShards() < numPrimaryShards) {
+            throw new ElasticsearchException("Not all required shards have been refreshed");
         }
 
         SearchResponse response = client.prepareSearch(ALERT_INDEX)
                 .setTypes(ALERT_TYPE)
+                .setPreference("_primary")
                 .setSearchType(SearchType.SCAN)
                 .setScroll(scrollTimeout)
                 .setSize(scrollSize)

@@ -63,7 +63,7 @@ SearchResponse scrollResp = client.prepareSearch(test)
 //Scroll until no hits are returned
 while (true) {
 
-    for (SearchHit hit : scrollResp.getHits()) {
+    for (SearchHit hit : scrollResp.getHits().getHits()) {
         //Handle the hit...
     }
     scrollResp = client.prepareSearchScroll(scrollResp.getScrollId()).setScroll(new TimeValue(600000)).execute().actionGet();

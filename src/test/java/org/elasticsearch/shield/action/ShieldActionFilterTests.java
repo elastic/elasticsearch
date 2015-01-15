@@ -47,7 +47,7 @@ public class ShieldActionFilterTests extends ElasticsearchTestCase {
         signatureService = mock(SignatureService.class);
         auditTrail = mock(AuditTrail.class);
         licenseEventsNotifier = new MockLicenseEventsNotifier();
-        filter = new ShieldActionFilter(ImmutableSettings.EMPTY, authcService, authzService, signatureService, auditTrail, licenseEventsNotifier);
+        filter = new ShieldActionFilter(ImmutableSettings.EMPTY, authcService, authzService, signatureService, auditTrail, licenseEventsNotifier, new ShieldActionMapper());
     }
 
     @Test

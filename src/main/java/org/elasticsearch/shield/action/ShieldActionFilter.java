@@ -46,16 +46,19 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
     private final AuthorizationService authzService;
     private final SignatureService signatureService;
     private final AuditTrail auditTrail;
+    private final ShieldActionMapper actionMapper;
 
     private volatile boolean licenseEnabled;
 
     @Inject
-    public ShieldActionFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService, SignatureService signatureService, AuditTrail auditTrail, LicenseEventsNotifier licenseEventsNotifier) {
+    public ShieldActionFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService, SignatureService signatureService,
+                              AuditTrail auditTrail, LicenseEventsNotifier licenseEventsNotifier, ShieldActionMapper actionMapper) {
         super(settings);
         this.authcService = authcService;
         this.authzService = authzService;
         this.signatureService = signatureService;
         this.auditTrail = auditTrail;
+        this.actionMapper = actionMapper;
         licenseEventsNotifier.register(new LicensesClientService.Listener() {
             @Override
             public void onEnabled() {
@@ -92,9 +95,11 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
              the {@link Rest} filter and the {@link ServerTransport} filter respectively), it's safe to assume a system user
              here if a request is not associated with any other user.
              */
-            User user = authcService.authenticate(action, request, User.SYSTEM);
-            authzService.authorize(user, action, request);
-            request = unsign(user, action, request);
+
+            String shieldAction = actionMapper.action(action, request);
+            User user = authcService.authenticate(shieldAction, request, User.SYSTEM);
+            authzService.authorize(user, shieldAction, request);
+            request = unsign(user, shieldAction, request);
             chain.proceed(action, request, new SigningListener(this, listener));
         } catch (Throwable t) {
             listener.onFailure(t);
@@ -125,9 +130,7 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
             if (request instanceof ClearScrollRequest) {
                 ClearScrollRequest clearScrollRequest = (ClearScrollRequest) request;
                 boolean isClearAllScrollRequest = clearScrollRequest.scrollIds().contains("_all");
-                if (isClearAllScrollRequest) {
-                    authzService.authorize(user, CLUSTER_PERMISSION_SCROLL_CLEAR_ALL_NAME, request);
-                } else {
+                if (!isClearAllScrollRequest) {
                     List<String> signedIds = clearScrollRequest.scrollIds();
                     List<String> unsignedIds = new ArrayList<>(signedIds.size());
                     for (String signedId : signedIds) {

@@ -14,7 +14,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authz.AuthorizationException;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -24,6 +24,7 @@ import java.util.List;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -77,8 +78,13 @@ public class ShieldClearScrollTests extends ShieldIntegrationTest {
         scrollIds = getScrollIds(multiSearchResponse);
     }
 
+    @After
+    public void clearScrolls() {
+        //clear all scroll ids from the default admin user, just in case any of test fails
+        client().prepareClearScroll().addScrollId("_all").get();
+    }
+
     @Test
-    @TestLogging("shield:TRACE")
     public void testThatClearingAllScrollIdsWorks() throws Exception {
         String shieldUser = "allowed_user:change_me";
         String basicAuth = basicAuthHeaderValue("allowed_user", new SecuredString("change_me".toCharArray()));
@@ -95,15 +101,11 @@ public class ShieldClearScrollTests extends ShieldIntegrationTest {
     public void testThatClearingAllScrollIdsRequirePermissions() throws Exception {
         String shieldUser = "denied_user:change_me";
         String basicAuth = basicAuthHeaderValue("denied_user", new SecuredString("change_me".toCharArray()));
-        try {
-            internalCluster().transportClient().prepareClearScroll()
+
+        assertThrows(internalCluster().transportClient().prepareClearScroll()
                 .putHeader("shield.user", shieldUser)
                 .putHeader("Authorization", basicAuth)
-                .addScrollId("_all").get();
-            fail("Expected AuthorizationException but did not happen");
-        } catch (AuthorizationException exc) {
-            // yay, we weren't allowed!
-        }
+                .addScrollId("_all"), AuthorizationException.class, "action [cluster:admin/indices/scroll/clear_all] is unauthorized for user [denied_user]");
 
         // deletion of scroll ids should work
         ClearScrollResponse clearByIdScrollResponse = client().prepareClearScroll().setScrollIds(scrollIds).get();

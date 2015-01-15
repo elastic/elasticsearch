@@ -7,6 +7,9 @@ package org.elasticsearch.shield.authz;
 
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
+import org.elasticsearch.action.search.ClearScrollAction;
+import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.base.Predicate;
@@ -15,6 +18,7 @@ import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authz.indicesresolver.DefaultIndicesResolver;
@@ -22,7 +26,6 @@ import org.elasticsearch.shield.authz.indicesresolver.IndicesResolver;
 import org.elasticsearch.shield.authz.store.RolesStore;
 import org.elasticsearch.transport.TransportRequest;
 
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.Set;
 
@@ -99,7 +102,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         }
 
         // first, we'll check if the action is a cluster action. If it is, we'll only check it
-        // agaist the cluster permissions
+        // against the cluster permissions
         if (Privilege.Cluster.ACTION_MATCHER.apply(action)) {
             Permission.Cluster cluster = permission.cluster();
             if (cluster != null && cluster.check(action)) {
@@ -114,25 +117,39 @@ public class InternalAuthorizationService extends AbstractComponent implements A
             throw denial(user, action, request);
         }
 
-        Set<String> indexNames = resolveIndices(user, action, request);
-        if (indexNames == null) {
-            // the only time this will be null, is for those requests that are
-            // categorized as indices request but they're actully not (for example, scroll)
-            // in these cases, we only grant/deny based on the action name (performed above)
-            grant(user, action, request);
-            return;
-        }
-
-        Permission.Indices indices = permission.indices();
-        if (indices == null || indices.isEmpty()) {
+        // some APIs are indices requests that are not actually associated with indices. For example,
+        // search scroll request, is categorized under the indices context, but doesn't hold indices names
+        // (in this case, the security check on the indices was done on the search request that initialized
+        // the scroll... and we rely on the signed scroll id to provide security over this request).
+        // so we only check indices if indeed the request is an actual IndicesRequest, if it's not,
+        // we just grant it if it's a scroll, deny otherwise
+        if (!(request instanceof IndicesRequest) && !(request instanceof CompositeIndicesRequest)) {
+            if (isScrollRelatedAction(action)) {
+                //note that clear scroll shard level actions can originate from a clear scroll all, which doesn't require any
+                //indices permission as it's categorized under cluster. This is why the scroll check is performed
+                //even before checking if the user has any indices permission.
+                grant(user, action, request);
+                return;
+            }
+            assert false : "only scroll related requests are known indices api that don't support retrieving the indices they relate to";
             throw denial(user, action, request);
         }
+
+        if (permission.indices() == null || permission.indices().isEmpty()) {
+            throw denial(user, action, request);
+        }
+
+        Set<String> indexNames = resolveIndices(user, action, request);
+        //Note: some APIs (e.g. analyze) are categorized under indices, but their indices are optional.
+        //In that case the resolved indices set is empty (for now). See https://github.com/elasticsearch/elasticsearch-shield/issues/566
+        assert !indexNames.isEmpty() || request instanceof AnalyzeRequest
+                : "no indices request other than the analyze api has optional indices thus the resolved indices must not be empty";
 
         // now... every index that is associated with the request, must be granted
         // by at least one indices permission group
         for (String index : indexNames) {
             boolean granted = false;
-            for (Permission.Indices.Group group : indices) {
+            for (Permission.Indices.Group group : permission.indices()) {
                 if (group.check(action, index)) {
                     granted = true;
                     break;
@@ -180,25 +197,23 @@ public class InternalAuthorizationService extends AbstractComponent implements A
 
     private Set<String> resolveIndices(User user, String action, TransportRequest request) {
         MetaData metaData = clusterService.state().metaData();
-
-        // some APIs are indices requests that are not actually associated with indices. For example,
-        // search scroll request, is categorized under the indices context, but doesn't hold indices names
-        // (in this case, the security check on the indices was done on the search request that initialized
-        // the scroll... and we rely on the signed scroll id to provide security over this request).
-
-        // so we only check indices if indeed the request is an actual IndicesRequest, if it's not, we only
-        // perform the check on the action name.
-        Set<String> indices = null;
-
-        if (request instanceof IndicesRequest || request instanceof CompositeIndicesRequest) {
-            indices = Collections.emptySet();
-            for (IndicesResolver resolver : indicesResolvers) {
-                if (resolver.requestType().isInstance(request)) {
-                    indices = resolver.resolve(user, action, request, metaData);
-                    break;
-                }
+        for (IndicesResolver resolver : indicesResolvers) {
+            if (resolver.requestType().isInstance(request)) {
+                return resolver.resolve(user, action, request, metaData);
             }
         }
-        return indices;
+        assert false : "we should be able to resolve indices for any known request that requires indices privileges";
+        throw denial(user, action, request);
+    }
+
+    private static boolean isScrollRelatedAction(String action) {
+        return action.equals(SearchScrollAction.NAME) ||
+                action.equals(SearchServiceTransportAction.SCAN_SCROLL_ACTION_NAME) ||
+                action.equals(SearchServiceTransportAction.FETCH_ID_SCROLL_ACTION_NAME) ||
+                action.equals(SearchServiceTransportAction.QUERY_FETCH_SCROLL_ACTION_NAME) ||
+                action.equals(SearchServiceTransportAction.QUERY_SCROLL_ACTION_NAME) ||
+                action.equals(SearchServiceTransportAction.FREE_CONTEXT_SCROLL_ACTION_NAME) ||
+                action.equals(ClearScrollAction.NAME) ||
+                action.equals(SearchServiceTransportAction.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
     }
 }

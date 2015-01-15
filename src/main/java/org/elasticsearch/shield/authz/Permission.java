@@ -348,7 +348,6 @@ public interface Permission {
         }
 
         public static class Group {
-
             private final Privilege.Index privilege;
             private final Predicate<String> actionMatcher;
             private final String[] indices;
@@ -371,10 +370,9 @@ public interface Permission {
             }
 
             public boolean check(String action, String index) {
-                return actionMatcher.apply(action) && !(index != null && !indexNameMatcher.apply(index));
+                assert index != null;
+                return actionMatcher.apply(action) && indexNameMatcher.apply(index);
             }
-
-
         }
     }
 

@@ -39,6 +39,7 @@ public class ShieldActionModule extends AbstractShieldModule implements PreProce
     @Override
     protected void configure(boolean clientMode) {
         if (!clientMode) {
+            bind(ShieldActionMapper.class).asEagerSingleton();
             // we need to ensure that there's only a single instance of this filter.
             bind(ShieldActionFilter.class).asEagerSingleton();
         }

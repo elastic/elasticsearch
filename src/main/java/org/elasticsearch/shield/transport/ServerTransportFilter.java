@@ -7,6 +7,7 @@ package org.elasticsearch.shield.transport;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.action.ShieldActionMapper;
 import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
@@ -35,25 +36,28 @@ public interface ServerTransportFilter {
 
         private final AuthenticationService authcService;
         private final AuthorizationService authzService;
+        private final ShieldActionMapper actionMapper;
 
         @Inject
-        public NodeProfile(AuthenticationService authcService, AuthorizationService authzService) {
+        public NodeProfile(AuthenticationService authcService, AuthorizationService authzService, ShieldActionMapper actionMapper) {
             this.authcService = authcService;
             this.authzService = authzService;
+            this.actionMapper = actionMapper;
         }
 
         @Override
         public void inbound(String action, TransportRequest request) {
-            /**
-                here we don't have a fallback user, as all incoming request are
-                expected to have a user attached (either in headers or in context)
-                We can make this assumption because in nodes we also have the
-                {@link ClientTransportFilter.Node} that makes sure all outgoing requsts
-                from all the nodes are attached with a user (either a serialize user
-                an authentication token
+            /*
+             here we don't have a fallback user, as all incoming request are
+             expected to have a user attached (either in headers or in context)
+             We can make this assumption because in nodes we also have the
+             {@link ClientTransportFilter.Node} that makes sure all outgoing requsts
+             from all the nodes are attached with a user (either a serialize user
+             an authentication token
              */
-            User user = authcService.authenticate(action, request, null);
-            authzService.authorize(user, action, request);
+            String shieldAction = actionMapper.action(action, request);
+            User user = authcService.authenticate(shieldAction, request, null);
+            authzService.authorize(user, shieldAction, request);
         }
     }
 
@@ -66,8 +70,8 @@ public interface ServerTransportFilter {
     public static class ClientProfile extends NodeProfile {
 
         @Inject
-        public ClientProfile(AuthenticationService authcService, AuthorizationService authzService) {
-            super(authcService, authzService);
+        public ClientProfile(AuthenticationService authcService, AuthorizationService authzService, ShieldActionMapper actionMapper) {
+            super(authcService, authzService, actionMapper);
         }
 
         @Override

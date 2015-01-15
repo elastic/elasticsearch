@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.transport;
 
 import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.action.ShieldActionMapper;
 import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationException;
@@ -31,7 +32,7 @@ public class ServerTransportFilterTests extends ElasticsearchTestCase {
     public void init() throws Exception {
         authcService = mock(AuthenticationService.class);
         authzService = mock(AuthorizationService.class);
-        filter = new ServerTransportFilter.NodeProfile(authcService, authzService);
+        filter = new ServerTransportFilter.NodeProfile(authcService, authzService, new ShieldActionMapper());
     }
 
     @Test

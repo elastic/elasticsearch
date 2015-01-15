@@ -12,18 +12,17 @@ import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.ConfigurableComponentListener;
 import org.elasticsearch.alerts.ConfigurationManager;
 import org.elasticsearch.alerts.triggers.TriggerResult;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptService;
 
 import javax.mail.*;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 
 public class SmtpAlertActionFactory implements AlertActionFactory, ConfigurableComponentListener {
 
@@ -32,11 +31,20 @@ public class SmtpAlertActionFactory implements AlertActionFactory, ConfigurableC
     private static final String FROM_SETTING = "alerts.action.email.from.address";
     private static final String PASSWD_SETTING = "alerts.action.email.from.passwd";
 
+    private static final String ALERT_NAME_VARIABLE_NAME = "alert_name";
+    private static final String RESPONSE_VARIABLE_NAME = "response";
+
+    private static final String DEFAULT_SUBJECT = "Elasticsearch Alert {{alert_name}} triggered";
+    private static final String DEFAULT_MESSAGE = "{{alert_name}} triggered with {{response.hits.total}} results";
+
     private final ConfigurationManager configurationManager;
+    private final ScriptService scriptService;
+
     private volatile Settings settings;
 
-    public SmtpAlertActionFactory(ConfigurationManager configurationManager) {
+    public SmtpAlertActionFactory(ConfigurationManager configurationManager, ScriptService scriptService) {
         this.configurationManager = configurationManager;
+        this.scriptService = scriptService;
     }
 
     @Override
@@ -46,7 +54,9 @@ public class SmtpAlertActionFactory implements AlertActionFactory, ConfigurableC
             configurationManager.registerListener(this);
         }
 
-        String display = null;
+        String messageTemplate = DEFAULT_MESSAGE;
+        String subjectTemplate = DEFAULT_SUBJECT;
+
         List<String> addresses = new ArrayList<>();
 
         String currentFieldName = null;
@@ -56,8 +66,11 @@ public class SmtpAlertActionFactory implements AlertActionFactory, ConfigurableC
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 switch (currentFieldName) {
-                    case "display":
-                        display = parser.text();
+                    case "subject":
+                        subjectTemplate = parser.text();
+                        break;
+                    case "message":
+                        messageTemplate = parser.text();
                         break;
                     default:
                         throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
@@ -76,7 +89,7 @@ public class SmtpAlertActionFactory implements AlertActionFactory, ConfigurableC
                 throw new ElasticsearchIllegalArgumentException("Unexpected token [" + token + "]");
             }
         }
-        return new SmtpAlertAction(display, addresses.toArray(new String[addresses.size()]));
+        return new SmtpAlertAction(subjectTemplate, messageTemplate, addresses.toArray(new String[addresses.size()]));
     }
 
     @Override
@@ -114,39 +127,17 @@ public class SmtpAlertActionFactory implements AlertActionFactory, ConfigurableC
             message.setRecipients(Message.RecipientType.TO,
                     smtpAlertAction.getEmailAddresses().toArray(new Address[1]));
 
-            message.setSubject("Elasticsearch Alert " + alert.getAlertName() + " triggered");
-
-            StringBuilder output = new StringBuilder();
-            output.append("The following query triggered because ").append(result.getTrigger().toString()).append("\n");
-            Object totalHits = XContentMapValues.extractValue("hits.total", result.getTriggerResponse());
-            output.append("The total number of hits returned : ").append(totalHits).append("\n");
-            output.append("For query : ").append(result.getActionRequest());
-            output.append("\n");
-            output.append("Indices : ");
-            for (String index : result.getActionRequest().indices()) {
-                output.append(index);
-                output.append("/");
-            }
-            output.append("\n");
-            output.append("\n");
-
-
-            if (smtpAlertAction.getDisplayField() != null) {
-                List<Map<String, Object>> hits = (List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", result.getActionResponse());
-                for (Map<String, Object> hit : hits) {
-                    Map<String, Object> _source = (Map<String, Object>) hit.get("_source");
-                    if (_source.containsKey(smtpAlertAction.getDisplayField())) {
-                        output.append(_source.get(smtpAlertAction.getDisplayField()).toString());
-                    } else {
-                        output.append(_source);
-                    }
-                    output.append("\n");
-                }
+            if (smtpAlertAction.getSubjectTemplate() != null) {
+                message.setSubject(renderTemplate(smtpAlertAction.getSubjectTemplate(), alert, result, scriptService));
             } else {
-                output.append(result.getActionResponse().toString());
+                throw new ElasticsearchException("Subject Template not found");
             }
 
-            message.setText(output.toString());
+            if (smtpAlertAction.getMessageTemplate() != null) {
+                message.setText(renderTemplate(smtpAlertAction.getMessageTemplate(), alert, result, scriptService));
+            } else {
+                throw new ElasticsearchException("Email Message Template not found");
+            }
             Transport.send(message);
         } catch (Exception e){
             throw new ElasticsearchException("Failed to send mail", e);
@@ -154,9 +145,17 @@ public class SmtpAlertActionFactory implements AlertActionFactory, ConfigurableC
         return true;
     }
 
-
     @Override
     public void receiveConfigurationUpdate(Settings settings) {
         this.settings = settings;
     }
+
+    public static String renderTemplate(String template, Alert alert, TriggerResult result, ScriptService scriptService) {
+        Map<String, Object> templateParams = new HashMap<>();
+        templateParams.put(ALERT_NAME_VARIABLE_NAME, alert.getAlertName());
+        templateParams.put(RESPONSE_VARIABLE_NAME, result.getActionResponse());
+        ExecutableScript script = scriptService.executable("mustache", template, ScriptService.ScriptType.INLINE, templateParams);
+        return ((BytesReference) script.run()).toUtf8();
+    }
+
 }

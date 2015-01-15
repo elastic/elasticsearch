@@ -17,14 +17,16 @@ import java.util.List;
 
 public class SmtpAlertAction implements AlertAction {
 
-    private final String displayField;
     private final List<Address> emailAddresses = new ArrayList<>();
+    private final String subjectTemplate;
+    private final String messageTemplate;
 
-    public SmtpAlertAction(String displayField, String... addresses){
+    public SmtpAlertAction(String subjectTemplate, String messageTemplate, String... addresses){
         for (String address : addresses) {
             addEmailAddress(address);
         }
-        this.displayField = displayField;
+        this.subjectTemplate = subjectTemplate;
+        this.messageTemplate = messageTemplate;
     }
 
     public void addEmailAddress(String address) {
@@ -35,13 +37,16 @@ public class SmtpAlertAction implements AlertAction {
         }
     }
 
-   public String getDisplayField() {
-        return displayField;
-    }
-
-
     public List<Address> getEmailAddresses() {
         return new ArrayList<>(emailAddresses);
+    }
+
+    public String getMessageTemplate() {
+        return messageTemplate;
+    }
+
+    public String getSubjectTemplate() {
+        return subjectTemplate;
     }
 
     @Override
@@ -58,12 +63,19 @@ public class SmtpAlertAction implements AlertAction {
             builder.value(emailAddress.toString());
         }
         builder.endArray();
-        if (displayField != null) {
-            builder.field("display", displayField);
+
+        if (subjectTemplate != null) {
+            builder.field("subject", subjectTemplate);
         }
+
+        if (messageTemplate != null) {
+            builder.field("message", messageTemplate);
+        }
+
         builder.endObject();
         return builder;
     }
+
 
     @Override
     public boolean equals(Object o) {
@@ -72,18 +84,22 @@ public class SmtpAlertAction implements AlertAction {
 
         SmtpAlertAction that = (SmtpAlertAction) o;
 
-        if (displayField != null ? !displayField.equals(that.displayField) : that.displayField != null) return false;
         if (emailAddresses != null ? !emailAddresses.equals(that.emailAddresses) : that.emailAddresses != null)
             return false;
+        if (!messageTemplate.equals(that.messageTemplate)) return false;
+        if (!subjectTemplate.equals(that.subjectTemplate)) return false;
 
         return true;
     }
 
     @Override
     public int hashCode() {
-        int result = displayField != null ? displayField.hashCode() : 0;
-        result = 31 * result + (emailAddresses != null ? emailAddresses.hashCode() : 0);
+        int result = emailAddresses != null ? emailAddresses.hashCode() : 0;
+        result = 31 * result + subjectTemplate.hashCode();
+        result = 31 * result + messageTemplate.hashCode();
         return result;
     }
+
+
 
 }

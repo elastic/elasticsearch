@@ -36,8 +36,11 @@ public class AlertSerializationTest extends AbstractAlertingTests {
         SearchRequest payloadRequest = createTriggerSearchRequest("my-payload-index").source(searchSource().query(matchAllQuery()));
 
         List<AlertAction> actions = new ArrayList<>();
-        actions.add(new SmtpAlertAction("message", "foo@bar.com"));
+
+
         actions.add(new WebhookAlertAction("http://localhost/foobarbaz/{{alert_name}}", HttpMethod.GET, ""));
+        actions.add(new SmtpAlertAction("{ALERT_NAME} triggered", "{ALERT_NAME} triggered", "foo@bar.com"));
+
         Alert alert = new Alert("test-serialization",
                 triggerRequest,
                 new ScriptedTrigger("return true", ScriptService.ScriptType.INLINE, "groovy"),

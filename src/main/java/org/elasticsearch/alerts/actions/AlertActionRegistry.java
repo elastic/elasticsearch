@@ -30,7 +30,7 @@ public class AlertActionRegistry extends AbstractComponent {
                                ScriptService scriptService) {
         super(settings);
         actionImplemented = ImmutableOpenMap.<String, AlertActionFactory>builder()
-                .fPut("email", new SmtpAlertActionFactory(configurationManager))
+                .fPut("email", new SmtpAlertActionFactory(configurationManager, scriptService))
                 .fPut("index", new IndexAlertActionFactory(client, configurationManager))
                 .fPut("webhook", new WebhookAlertActionFactory(scriptService))
                 .build();

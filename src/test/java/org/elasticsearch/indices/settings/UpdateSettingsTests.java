@@ -311,6 +311,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
                                      .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
                                      .put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, "1")
                                      .put(ConcurrentMergeSchedulerProvider.MAX_MERGE_COUNT, "2")
+                                     .put(ConcurrentMergeSchedulerProvider.AUTO_THROTTLE, "true")
                                      ));
 
             // Disable auto throttle:

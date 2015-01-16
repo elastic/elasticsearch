@@ -83,15 +83,8 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
     }
 
     @Override
-    public BloomFilteredFieldsConsumer fieldsConsumer(SegmentWriteState state)
-            throws IOException {
-        if (delegatePostingsFormat == null) {
-            throw new UnsupportedOperationException("Error - " + getClass().getName()
-                    + " has been constructed without a choice of PostingsFormat");
-        }
-        return new BloomFilteredFieldsConsumer(
-                delegatePostingsFormat.fieldsConsumer(state), state,
-                delegatePostingsFormat);
+    public BloomFilteredFieldsConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
+        throw new UnsupportedOperationException("this codec can only be used for reading");
     }
 
     @Override

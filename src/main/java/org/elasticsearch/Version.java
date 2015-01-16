@@ -448,6 +448,10 @@ public class Version {
      * Returns the version given its string representation, current version if the argument is null or empty
      */
     public static Version fromString(String version) {
+        // the parsing logic here is insanely complicated: make sure what we need to support works.
+        if ("0.90.0-Beta1".equals(version)) {
+            return Version.V_0_90_0_Beta1;
+        }
         if (!Strings.hasLength(version)) {
             return Version.CURRENT;
         }

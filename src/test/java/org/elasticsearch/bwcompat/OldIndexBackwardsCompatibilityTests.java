@@ -46,6 +46,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
     // We have a 0.20.6.zip etc for this.
     
     List<String> indexes = Arrays.asList(
+        "index-0.90.0-Beta1.zip",
         "index-0.90.0.zip",
         "index-0.90.1.zip",
         "index-0.90.2.zip",

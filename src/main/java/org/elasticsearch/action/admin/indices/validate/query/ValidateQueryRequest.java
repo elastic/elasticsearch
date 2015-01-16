@@ -85,7 +85,7 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
     /**
      * The source to execute.
      */
-    BytesReference source() {
+    public BytesReference source() {
         return source;
     }
 

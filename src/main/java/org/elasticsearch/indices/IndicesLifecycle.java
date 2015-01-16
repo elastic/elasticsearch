@@ -26,6 +26,8 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.common.settings.Settings;
 
 /**
  * A global component allowing to register for lifecycle of an index (create/closed) and
@@ -62,7 +64,7 @@ public interface IndicesLifecycle {
         /**
          * Called before the index gets created.
          */
-        public void beforeIndexCreated(Index index) {
+        public void beforeIndexCreated(Index index, @IndexSettings Settings indexSettings) {
 
         }
 
@@ -76,7 +78,7 @@ public interface IndicesLifecycle {
         /**
          * Called before the index shard gets created.
          */
-        public void beforeIndexShardCreated(ShardId shardId) {
+        public void beforeIndexShardCreated(ShardId shardId, @IndexSettings Settings indexSettings) {
 
         }
 
@@ -112,7 +114,7 @@ public interface IndicesLifecycle {
          *
          * @param index The index
          */
-        public void afterIndexClosed(Index index) {
+        public void afterIndexClosed(Index index, @IndexSettings Settings indexSettings) {
 
         }
 
@@ -121,7 +123,8 @@ public interface IndicesLifecycle {
          *
          * @param indexShard The index shard
          */
-        public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard) {
+        public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
+                                           @IndexSettings Settings indexSettings) {
 
         }
 
@@ -130,7 +133,8 @@ public interface IndicesLifecycle {
          *
          * @param shardId The shard id
          */
-        public void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard) {
+        public void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
+                                          @IndexSettings Settings indexSettings) {
 
         }
 
@@ -149,12 +153,12 @@ public interface IndicesLifecycle {
 
         /**
          * Called after the index has been deleted.
-         * This listener method is invoked after {@link #afterIndexClosed(org.elasticsearch.index.Index)}
+         * This listener method is invoked after {@link #afterIndexClosed(org.elasticsearch.index.Index, org.elasticsearch.common.settings.Settings)}
          * when an index is deleted
          *
          * @param index The index
          */
-        public void afterIndexDeleted(Index index) {
+        public void afterIndexDeleted(Index index, @IndexSettings Settings indexSettings) {
 
         }
 

@@ -47,24 +47,23 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
     private DoubleArray negRights;
     private MultiGeoPointValues values;
 
-    protected GeoBoundsAggregator(String name, long estimatedBucketsCount,
-            AggregationContext aggregationContext, Aggregator parent, ValuesSource.GeoPoint valuesSource, boolean wrapLongitude, Map<String, Object> metaData) {
-        super(name, estimatedBucketsCount, aggregationContext, parent, metaData);
+    protected GeoBoundsAggregator(String name, AggregationContext aggregationContext,
+            Aggregator parent, ValuesSource.GeoPoint valuesSource, boolean wrapLongitude, Map<String, Object> metaData) throws IOException {
+        super(name, aggregationContext, parent, metaData);
         this.valuesSource = valuesSource;
         this.wrapLongitude = wrapLongitude;
         if (valuesSource != null) {
-            final long initialSize = estimatedBucketsCount < 2 ? 1 : estimatedBucketsCount;
-            tops = bigArrays.newDoubleArray(initialSize, false);
+            tops = bigArrays.newDoubleArray(1, false);
             tops.fill(0, tops.size(), Double.NEGATIVE_INFINITY);
-            bottoms = bigArrays.newDoubleArray(initialSize, false);
+            bottoms = bigArrays.newDoubleArray(1, false);
             bottoms.fill(0, bottoms.size(), Double.POSITIVE_INFINITY);
-            posLefts = bigArrays.newDoubleArray(initialSize, false);
+            posLefts = bigArrays.newDoubleArray(1, false);
             posLefts.fill(0, posLefts.size(), Double.POSITIVE_INFINITY);
-            posRights = bigArrays.newDoubleArray(initialSize, false);
+            posRights = bigArrays.newDoubleArray(1, false);
             posRights.fill(0, posRights.size(), Double.NEGATIVE_INFINITY);
-            negLefts = bigArrays.newDoubleArray(initialSize, false);
+            negLefts = bigArrays.newDoubleArray(1, false);
             negLefts.fill(0, negLefts.size(), Double.POSITIVE_INFINITY);
-            negRights = bigArrays.newDoubleArray(initialSize, false);
+            negRights = bigArrays.newDoubleArray(1, false);
             negRights.fill(0, negRights.size(), Double.NEGATIVE_INFINITY);
         }
     }
@@ -90,13 +89,13 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
         double posRight = posRights.get(owningBucketOrdinal);
         double negLeft = negLefts.get(owningBucketOrdinal);
         double negRight = negRights.get(owningBucketOrdinal);
-        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, getMetaData());
+        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalGeoBounds(name, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
-                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, wrapLongitude, getMetaData());
+                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, wrapLongitude, metaData());
     }
 
     @Override
@@ -160,7 +159,7 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
         Releasables.close(tops, bottoms, posLefts, posRights, negLefts, negRights);
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, Map<String, Object>> {
+    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
 
         private final boolean wrapLongitude;
 
@@ -170,14 +169,14 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new GeoBoundsAggregator(name, 0, aggregationContext, parent, null, wrapLongitude, metaData);
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
+            return new GeoBoundsAggregator(name, aggregationContext, parent, null, wrapLongitude, metaData);
         }
 
         @Override
-        protected Aggregator create(ValuesSource.GeoPoint valuesSource, long expectedBucketsCount, AggregationContext aggregationContext,
-                Aggregator parent, Map<String, Object> metaData) {
-            return new GeoBoundsAggregator(name, expectedBucketsCount, aggregationContext, parent, valuesSource, wrapLongitude, metaData);
+        protected Aggregator doCreateInternal(ValuesSource.GeoPoint valuesSource, AggregationContext aggregationContext,
+                Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
+            return new GeoBoundsAggregator(name, aggregationContext, parent, valuesSource, wrapLongitude, metaData);
         }
 
     }

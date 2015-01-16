@@ -24,7 +24,9 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.joda.time.DateTimeZone;
 
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -32,17 +34,26 @@ public class DateMathParserTests extends ElasticsearchTestCase {
     FormatDateTimeFormatter formatter = Joda.forPattern("dateOptionalTime");
     DateMathParser parser = new DateMathParser(formatter, TimeUnit.MILLISECONDS);
 
+    private static Callable<Long> callable(final long value) {
+        return new Callable<Long>() {
+            @Override
+            public Long call() throws Exception {
+                return value;
+            }
+        };
+    }
+
     void assertDateMathEquals(String toTest, String expected) {
         assertDateMathEquals(toTest, expected, 0, false, null);
     }
     
-    void assertDateMathEquals(String toTest, String expected, long now, boolean roundUp, DateTimeZone timeZone) {
-        long gotMillis = parser.parse(toTest, now, roundUp, timeZone);
+    void assertDateMathEquals(String toTest, String expected, final long now, boolean roundUp, DateTimeZone timeZone) {
+        long gotMillis = parser.parse(toTest, callable(now), roundUp, timeZone);
         assertDateEquals(gotMillis, toTest, expected);
     }
     
     void assertDateEquals(long gotMillis, String original, String expected) {
-        long expectedMillis = parser.parse(expected, 0);
+        long expectedMillis = parser.parse(expected, callable(0));
         if (gotMillis != expectedMillis) {
             fail("Date math not equal\n" +
                 "Original              : " + original + "\n" +
@@ -119,7 +130,8 @@ public class DateMathParserTests extends ElasticsearchTestCase {
 
 
     public void testNow() {
-        long now = parser.parse("2014-11-18T14:27:32", 0, false, null);
+        final long now = parser.parse("2014-11-18T14:27:32", callable(0), false, null);
+        
         assertDateMathEquals("now", "2014-11-18T14:27:32", now, false, null);
         assertDateMathEquals("now+M", "2014-12-18T14:27:32", now, false, null);
         assertDateMathEquals("now-2d", "2014-11-16T14:27:32", now, false, null);
@@ -181,7 +193,7 @@ public class DateMathParserTests extends ElasticsearchTestCase {
         
         // also check other time units
         DateMathParser parser = new DateMathParser(Joda.forPattern("dateOptionalTime"), TimeUnit.SECONDS);
-        long datetime = parser.parse("1418248078", 0);
+        long datetime = parser.parse("1418248078", callable(0));
         assertDateEquals(datetime, "1418248078", "2014-12-10T21:47:58.000");
         
         // a timestamp before 10000 is a year
@@ -194,7 +206,7 @@ public class DateMathParserTests extends ElasticsearchTestCase {
     
     void assertParseException(String msg, String date, String exc) {
         try {
-            parser.parse(date, 0);
+            parser.parse(date, callable(0));
             fail("Date: " + date + "\n" + msg);
         } catch (ElasticsearchParseException e) {
             assertThat(ExceptionsHelper.detailedMessage(e).contains(exc), equalTo(true));
@@ -212,5 +224,20 @@ public class DateMathParserTests extends ElasticsearchTestCase {
     public void testIllegalDateFormat() {
         assertParseException("Expected bad timestamp exception", Long.toString(Long.MAX_VALUE) + "0", "timestamp");
         assertParseException("Expected bad date format exception", "123bogus", "with format");
+    }
+
+    public void testOnlyCallsNowIfNecessary() {
+        final AtomicBoolean called = new AtomicBoolean();
+        final Callable<Long> now = new Callable<Long>() {
+            @Override
+            public Long call() throws Exception {
+                called.set(true);
+                return 42L;
+            }
+        };
+        parser.parse("2014-11-18T14:27:32", now, false, null);
+        assertFalse(called.get());
+        parser.parse("now/d", now, false, null);
+        assertTrue(called.get());
     }
 }

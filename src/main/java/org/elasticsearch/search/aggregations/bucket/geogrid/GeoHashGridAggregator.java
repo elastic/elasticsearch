@@ -41,8 +41,6 @@ import java.util.Map;
 
 public class GeoHashGridAggregator extends BucketsAggregator {
 
-    private static final int INITIAL_CAPACITY = 50; // TODO sizing
-
     private final int requiredSize;
     private final int shardSize;
     private final ValuesSource.Numeric valuesSource;
@@ -50,12 +48,12 @@ public class GeoHashGridAggregator extends BucketsAggregator {
     private SortedNumericDocValues values;
 
     public GeoHashGridAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource,
-                              int requiredSize, int shardSize, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-        super(name, BucketAggregationMode.PER_BUCKET, factories, INITIAL_CAPACITY, aggregationContext, parent, metaData);
+                              int requiredSize, int shardSize, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
+        super(name, factories, aggregationContext, parent, metaData);
         this.valuesSource = valuesSource;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
-        bucketOrds = new LongHash(INITIAL_CAPACITY, aggregationContext.bigArrays());
+        bucketOrds = new LongHash(1, aggregationContext.bigArrays());
     }
 
     @Override
@@ -102,7 +100,7 @@ public class GeoHashGridAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalGeoHashGrid buildAggregation(long owningBucketOrdinal) {
+    public InternalGeoHashGrid buildAggregation(long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
         final int size = (int) Math.min(bucketOrds.size(), shardSize);
 
@@ -125,12 +123,12 @@ public class GeoHashGridAggregator extends BucketsAggregator {
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
-        return new InternalGeoHashGrid(name, requiredSize, Arrays.asList(list), getMetaData());
+        return new InternalGeoHashGrid(name, requiredSize, Arrays.asList(list), metaData());
     }
 
     @Override
     public InternalGeoHashGrid buildEmptyAggregation() {
-        return new InternalGeoHashGrid(name, requiredSize, Collections.<InternalGeoHashGrid.Bucket>emptyList(), getMetaData());
+        return new InternalGeoHashGrid(name, requiredSize, Collections.<InternalGeoHashGrid.Bucket>emptyList(), metaData());
     }
 
 

@@ -16,14 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.test.engine;
 
-package org.elasticsearch.common.recycler;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineFactory;
 
-public class SoftConcurrentRecyclerTests extends AbstractRecyclerTests {
-
+/**
+ *
+ */
+public final class MockEngineFactory implements EngineFactory {
     @Override
-    protected Recycler<byte[]> newRecycler(int limit) {
-        return Recyclers.concurrent(Recyclers.softFactory(Recyclers.dequeFactory(RECYCLER_C, limit)), randomIntBetween(1, 5));
+    public Engine newEngine(EngineConfig config) {
+        return new MockInternalEngine(config);
     }
-
 }

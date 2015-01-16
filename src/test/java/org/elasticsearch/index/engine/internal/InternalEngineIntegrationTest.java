@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
@@ -43,13 +44,13 @@ public class InternalEngineIntegrationTest extends ElasticsearchIntegrationTest 
         refresh();
         assertTotalCompoundSegments(1, 1, "test");
         client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(ImmutableSettings.builder().put(InternalEngineHolder.INDEX_COMPOUND_ON_FLUSH, false)).get();
+                .setSettings(ImmutableSettings.builder().put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, false)).get();
         client().prepareIndex("test", "foo").setSource("field", "foo").get();
         refresh();
         assertTotalCompoundSegments(1, 2, "test");
 
         client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(ImmutableSettings.builder().put(InternalEngineHolder.INDEX_COMPOUND_ON_FLUSH, true)).get();
+                .setSettings(ImmutableSettings.builder().put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, true)).get();
         client().prepareIndex("test", "foo").setSource("field", "foo").get();
         refresh();
         assertTotalCompoundSegments(2, 3, "test");

@@ -117,24 +117,24 @@ public class RestGetIndicesAction extends BaseRestHandler {
             }
 
             private void writeAliases(ImmutableList<AliasMetaData> aliases, XContentBuilder builder, Params params) throws IOException {
+                builder.startObject(Fields.ALIASES);
                 if (aliases != null) {
-                    builder.startObject(Fields.ALIASES);
                     for (AliasMetaData alias : aliases) {
                         AliasMetaData.Builder.toXContent(alias, builder, params);
                     }
-                    builder.endObject();
                 }
+                builder.endObject();
             }
 
             private void writeMappings(ImmutableOpenMap<String, MappingMetaData> mappings, XContentBuilder builder, Params params) throws IOException {
+                builder.startObject(Fields.MAPPINGS);
                 if (mappings != null) {
-                    builder.startObject(Fields.MAPPINGS);
                     for (ObjectObjectCursor<String, MappingMetaData> typeEntry : mappings) {
                         builder.field(typeEntry.key);
                         builder.map(typeEntry.value.sourceAsMap());
                     }
-                    builder.endObject();
                 }
+                builder.endObject();
             }
 
             private void writeSettings(Settings settings, XContentBuilder builder, Params params) throws IOException {
@@ -144,13 +144,13 @@ public class RestGetIndicesAction extends BaseRestHandler {
             }
 
             private void writeWarmers(ImmutableList<IndexWarmersMetaData.Entry> warmers, XContentBuilder builder, Params params) throws IOException {
+                builder.startObject(Fields.WARMERS);
                 if (warmers != null) {
-                    builder.startObject(Fields.WARMERS);
                     for (IndexWarmersMetaData.Entry warmer : warmers) {
                         IndexWarmersMetaData.FACTORY.toXContent(warmer, builder, params);
                     }
-                    builder.endObject();
                 }
+                builder.endObject();
             }
         });
     }

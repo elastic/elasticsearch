@@ -26,9 +26,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
 
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -62,10 +63,10 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
         }
     }
 
-    public void beforeIndexCreated(Index index) {
+    public void beforeIndexCreated(Index index, @IndexSettings Settings indexSettings) {
         for (Listener listener : listeners) {
             try {
-                listener.beforeIndexCreated(index);
+                listener.beforeIndexCreated(index, indexSettings);
             } catch (Throwable t) {
                 logger.warn("[{}] failed to invoke before index created callback", t, index.name());
             }
@@ -82,10 +83,10 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
         }
     }
 
-    public void beforeIndexShardCreated(ShardId shardId) {
+    public void beforeIndexShardCreated(ShardId shardId, @IndexSettings Settings indexSettings) {
         for (Listener listener : listeners) {
             try {
-                listener.beforeIndexShardCreated(shardId);
+                listener.beforeIndexShardCreated(shardId, indexSettings);
             } catch (Throwable t) {
                 logger.warn("{} failed to invoke before shard created callback", t, shardId);
             }
@@ -142,40 +143,42 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
         }
     }
 
-    public void afterIndexDeleted(Index index) {
+    public void afterIndexDeleted(Index index, @IndexSettings Settings indexSettings) {
         for (Listener listener : listeners) {
             try {
-                listener.afterIndexDeleted(index);
+                listener.afterIndexDeleted(index, indexSettings);
             } catch (Throwable t) {
                 logger.warn("[{}] failed to invoke after index deleted callback", t, index.name());
             }
         }
     }
 
-    public void afterIndexClosed(Index index) {
+    public void afterIndexClosed(Index index, @IndexSettings Settings indexSettings) {
         for (Listener listener : listeners) {
             try {
-                listener.afterIndexClosed(index);
+                listener.afterIndexClosed(index, indexSettings);
             } catch (Throwable t) {
                 logger.warn("[{}] failed to invoke after index closed callback", t, index.name());
             }
         }
     }
 
-    public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard) {
+    public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
+                                       @IndexSettings Settings indexSettings) {
         for (Listener listener : listeners) {
             try {
-                listener.beforeIndexShardClosed(shardId, indexShard);
+                listener.beforeIndexShardClosed(shardId, indexShard, indexSettings);
             } catch (Throwable t) {
                 logger.warn("{} failed to invoke before shard closed callback", t, shardId);
             }
         }
     }
 
-    public void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard) {
+    public void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
+                                      @IndexSettings Settings indexSettings) {
         for (Listener listener : listeners) {
             try {
-                listener.afterIndexShardClosed(shardId, indexShard);
+                listener.afterIndexShardClosed(shardId, indexShard, indexSettings);
             } catch (Throwable t) {
                 logger.warn("{} failed to invoke after shard closed callback", t, shardId);
             }

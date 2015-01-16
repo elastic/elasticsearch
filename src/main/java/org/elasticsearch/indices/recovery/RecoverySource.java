@@ -28,10 +28,10 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -58,8 +58,6 @@ public class RecoverySource extends AbstractComponent {
 
     private final ClusterService clusterService;
 
-    private final TimeValue internalActionTimeout;
-    private final TimeValue internalActionLongTimeout;
     private final OngoingRecoveres ongoingRecoveries = new OngoingRecoveres();
 
 
@@ -73,7 +71,8 @@ public class RecoverySource extends AbstractComponent {
         this.clusterService = clusterService;
         this.indicesService.indicesLifecycle().addListener(new IndicesLifecycle.Listener() {
             @Override
-            public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard) {
+            public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
+                                               @IndexSettings Settings indexSettings) {
                 if (indexShard != null) {
                     ongoingRecoveries.cancel(indexShard, "shard is closed");
                 }
@@ -83,8 +82,6 @@ public class RecoverySource extends AbstractComponent {
         this.recoverySettings = recoverySettings;
 
         transportService.registerHandler(Actions.START_RECOVERY, new StartRecoveryTransportRequestHandler());
-        this.internalActionTimeout = componentSettings.getAsTime("internal_action_timeout", TimeValue.timeValueMinutes(15));
-        this.internalActionLongTimeout = new TimeValue(internalActionTimeout.millis() * 2);
     }
 
     private RecoveryResponse recover(final StartRecoveryRequest request) {
@@ -117,8 +114,7 @@ public class RecoverySource extends AbstractComponent {
 
         logger.trace("[{}][{}] starting recovery to {}, mark_as_relocated {}", request.shardId().index().name(), request.shardId().id(), request.targetNode(), request.markAsRelocated());
 
-        final ShardRecoveryHandler handler = new ShardRecoveryHandler(shard, request, recoverySettings, transportService, internalActionTimeout,
-                internalActionLongTimeout, clusterService, indicesService, mappingUpdatedAction, logger);
+        final ShardRecoveryHandler handler = new ShardRecoveryHandler(shard, request, recoverySettings, transportService, clusterService, indicesService, mappingUpdatedAction, logger);
         ongoingRecoveries.add(shard, handler);
         try {
             shard.recover(handler);

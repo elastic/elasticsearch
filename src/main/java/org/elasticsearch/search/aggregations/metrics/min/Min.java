@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.search.aggregations.metrics.min;
 
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 
 /**
  * An aggregation that computes the minimum of the values in the current bucket.
  */
-public interface Min extends Aggregation {
+public interface Min extends NumericMetricsAggregation.SingleValue {
 
     /**
      * The minimum.

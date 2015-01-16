@@ -51,7 +51,7 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
     private DocIdSetIterator childDocs;
     private BitSet parentDocs;
 
-    public NestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper, AggregationContext aggregationContext, Aggregator parentAggregator, Map<String, Object> metaData, FilterCachingPolicy filterCachingPolicy) {
+    public NestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper, AggregationContext aggregationContext, Aggregator parentAggregator, Map<String, Object> metaData, FilterCachingPolicy filterCachingPolicy) throws IOException {
         super(name, factories, aggregationContext, parentAggregator, metaData);
         this.parentAggregator = parentAggregator;
         childFilter = aggregationContext.searchContext().filterCache().cache(objectMapper.nestedTypeFilter(), null, filterCachingPolicy);
@@ -117,13 +117,13 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        return new InternalNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), getMetaData());
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
+        return new InternalNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metaData());
     }
 
         @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalNested(name, 0, buildEmptySubAggregations(), getMetaData());
+        return new InternalNested(name, 0, buildEmptySubAggregations(), metaData());
     }
 
     private static Filter findClosestNestedPath(Aggregator parent) {
@@ -149,7 +149,7 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData) {
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
             MapperService.SmartNameObjectMapper mapper = context.searchContext().smartNameObjectMapper(path);
             if (mapper == null) {
                 return new Unmapped(name, context, parent, metaData);
@@ -166,13 +166,13 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
 
         private final static class Unmapped extends NonCollectingAggregator {
 
-            public Unmapped(String name, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
+            public Unmapped(String name, AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
                 super(name, context, parent, metaData);
             }
 
             @Override
             public InternalAggregation buildEmptyAggregation() {
-                return new InternalNested(name, 0, buildEmptySubAggregations(), getMetaData());
+                return new InternalNested(name, 0, buildEmptySubAggregations(), metaData());
             }
         }
     }

@@ -87,6 +87,20 @@ public class MaxTests extends AbstractNumericTests {
     }
 
     @Test
+    public void testSingleValuedField_WithFormatter() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(max("max").format("0000.0").field("value")).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Max max = searchResponse.getAggregations().get("max");
+        assertThat(max, notNullValue());
+        assertThat(max.getName(), equalTo("max"));
+        assertThat(max.getValue(), equalTo(10.0));
+        assertThat(max.getValueAsString(), equalTo("0010.0"));
+    }
+
+    @Test
     public void testSingleValuedField_getProperty() throws Exception {
 
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())

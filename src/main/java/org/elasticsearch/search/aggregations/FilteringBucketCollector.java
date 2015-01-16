@@ -30,16 +30,16 @@ import org.elasticsearch.common.util.LongHash;
 import java.io.IOException;
 
 /**
- * Filters a collection stream of docIds and related buckets using a sorted 
+ * Filters a collection stream of docIds and related buckets using a sorted
  * list of valid bucket ordinals.
  */
 public class FilteringBucketCollector extends BucketCollector implements Releasable {
-    
+
     private final LongHash denseMap;
     private final BucketCollector delegate;
-    
+
     /**
-     * 
+     *
      * @param the  valid BucketOrds
      * @param delegate The collector that will be called for any buckets listed in sortedBucketOrds
      */
@@ -52,7 +52,7 @@ public class FilteringBucketCollector extends BucketCollector implements Releasa
     }
 
     @Override
-    public final void setNextReader(LeafReaderContext reader) {
+    public final void setNextReader(LeafReaderContext reader) throws IOException {
         delegate.setNextReader(reader);
     }
 
@@ -62,6 +62,11 @@ public class FilteringBucketCollector extends BucketCollector implements Releasa
         if (ordinal >= 0) {
             delegate.collect(docId, ordinal);
         }
+    }
+
+    @Override
+    public void preCollection() throws IOException {
+        delegate.preCollection();
     }
 
     @Override
@@ -75,7 +80,7 @@ public class FilteringBucketCollector extends BucketCollector implements Releasa
     }
 
     @Override
-    public void gatherAnalysis(BucketAnalysisCollector analysisCollector, long bucketOrdinal){        
+    public void gatherAnalysis(BucketAnalysisCollector analysisCollector, long bucketOrdinal) throws IOException{
         long ordinal = denseMap.find(bucketOrdinal);
         if (ordinal >= 0) {
             delegate.gatherAnalysis(analysisCollector, ordinal);

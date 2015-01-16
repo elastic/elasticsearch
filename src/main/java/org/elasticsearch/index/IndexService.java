@@ -41,8 +41,6 @@ import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCacheModule;
 import org.elasticsearch.index.cache.filter.ShardFilterCacheModule;
 import org.elasticsearch.index.cache.query.ShardQueryCacheModule;
 import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineModule;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldDataModule;
 import org.elasticsearch.index.gateway.IndexShardGatewayModule;
@@ -296,13 +294,13 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                 throw new IndexShardAlreadyExistsException(shardId + " already exists");
             }
 
-            indicesLifecycle.beforeIndexShardCreated(shardId);
+            indicesLifecycle.beforeIndexShardCreated(shardId, indexSettings);
 
             logger.debug("creating shard_id {}", shardId);
 
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new ShardsPluginsModule(indexSettings, pluginsService));
-            modules.add(new IndexShardModule(shardId));
+            modules.add(new IndexShardModule(shardId, indexSettings));
             modules.add(new ShardIndexingModule());
             modules.add(new ShardSearchModule());
             modules.add(new ShardGetModule());
@@ -316,7 +314,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             modules.add(new ShardBitsetFilterCacheModule());
             modules.add(new ShardFieldDataModule());
             modules.add(new TranslogModule(indexSettings));
-            modules.add(new EngineModule(indexSettings));
             modules.add(new IndexShardGatewayModule());
             modules.add(new PercolatorShardModule());
             modules.add(new ShardTermVectorsModule());
@@ -370,7 +367,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     private void closeShardInjector(String reason, ShardId sId, Injector shardInjector, IndexShard indexShard) {
         final int shardId = sId.id();
         try {
-            indicesLifecycle.beforeIndexShardClosed(sId, indexShard);
+            indicesLifecycle.beforeIndexShardClosed(sId, indexShard, indexSettings);
             for (Class<? extends Closeable> closeable : pluginsService.shardServices()) {
                 try {
                     shardInjector.getInstance(closeable).close();
@@ -391,7 +388,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                 }
             }
             closeInjectorResource(sId, shardInjector,
-                    Engine.class,
                     MergeSchedulerProvider.class,
                     MergePolicyProvider.class,
                     IndexShardGatewayService.class,
@@ -399,7 +395,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                     PercolatorQueriesRegistry.class);
 
             // call this before we close the store, so we can release resources for it
-            indicesLifecycle.afterIndexShardClosed(sId, indexShard);
+            indicesLifecycle.afterIndexShardClosed(sId, indexShard, indexSettings);
         } finally {
             try {
                 shardInjector.getInstance(Store.class).close();

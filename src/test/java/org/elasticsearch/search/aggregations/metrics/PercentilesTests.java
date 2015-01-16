@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.search.aggregations.bucket.global.Global;

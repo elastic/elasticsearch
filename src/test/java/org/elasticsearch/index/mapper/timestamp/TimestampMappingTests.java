@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.timestamp;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.TimestampParsingException;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -31,11 +32,13 @@ import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -110,6 +113,8 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 assertThat(docMapper.timestampFieldMapper().fieldType().indexOptions(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.indexOptions()));
                 assertThat(docMapper.timestampFieldMapper().path(), equalTo(TimestampFieldMapper.Defaults.PATH));
                 assertThat(docMapper.timestampFieldMapper().dateTimeFormatter().format(), equalTo(TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT));
+                assertThat(docMapper.timestampFieldMapper().hasDocValues(), equalTo(false));
+                assertThat(docMapper.timestampFieldMapper().docValuesFormatProvider(), equalTo(null));
                 assertAcked(client().admin().indices().prepareDelete("test").execute().get());
             }
         }
@@ -122,6 +127,8 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject("_timestamp")
                 .field("enabled", "yes").field("store", "no").field("index", "no")
                 .field("path", "timestamp").field("format", "year")
+                .field("doc_values", true)
+                .field("doc_values_format", Lucene.LATEST_DOC_VALUES_FORMAT)
                 .endObject()
                 .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -130,6 +137,8 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         assertEquals(IndexOptions.NONE, docMapper.timestampFieldMapper().fieldType().indexOptions());
         assertThat(docMapper.timestampFieldMapper().path(), equalTo("timestamp"));
         assertThat(docMapper.timestampFieldMapper().dateTimeFormatter().format(), equalTo("year"));
+        assertThat(docMapper.timestampFieldMapper().hasDocValues(), equalTo(true));
+        assertThat(docMapper.timestampFieldMapper().docValuesFormatProvider().name(), equalTo(Lucene.LATEST_DOC_VALUES_FORMAT));
     }
 
     @Test
@@ -436,6 +445,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", true)
                 .field("index", randomBoolean() ? "no" : "analyzed") // default is "not_analyzed" which will be omitted when building the source again
+                .field("doc_values", true)
                 .field("path", "foo")
                 .field("default", "1970-01-01")
                 .startObject("fielddata").field("format", "doc_values").endObject()
@@ -539,6 +549,103 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         for (String conflict : mergeResult.conflicts()) {
             assertThat(conflict, isIn(expectedConflicts));
         }
+    }
+
+    /**
+     * Test case for #9204
+     */
+    @Test
+    public void testMergingNullValues() throws Exception {
+        // From trying to add another field with default = null
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                .startObject("_timestamp")
+                    .field("enabled", true)
+                    .field("default", (String) null)
+                .endObject()
+                .endObject().endObject().string();
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+
+        DocumentMapper docMapper = parser.parse(mapping);
+        mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("_timestamp")
+                        .field("enabled", true)
+                        .field("default", (String) null)
+                    .endObject()
+                    .startObject("properties")
+                        .startObject("foo")
+                            .field("type", "string")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
+        assertThat(mergeResult.hasConflicts(), is(false));
+
+        client().admin().indices().delete(new DeleteIndexRequest("test")).get();
+
+        // From trying to update from null to non null
+        mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                .startObject("_timestamp")
+                    .field("enabled", true)
+                    .field("default", (String) null)
+                .endObject()
+                .endObject().endObject().string();
+        parser = createIndex("test").mapperService().documentMapperParser();
+
+        docMapper = parser.parse(mapping);
+        mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("_timestamp")
+                        .field("enabled", true)
+                        .field("default", "now")
+                    .endObject()
+                .endObject().endObject().string();
+
+        mergeResult = docMapper.merge(parser.parse(mapping), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
+        assertThat(mergeResult.hasConflicts(), is(true));
+
+        client().admin().indices().delete(new DeleteIndexRequest("test")).get();
+
+        // From trying to update from non null to null
+        mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                .startObject("_timestamp")
+                    .field("enabled", true)
+                    .field("default", "now")
+                .endObject()
+                .endObject().endObject().string();
+        parser = createIndex("test").mapperService().documentMapperParser();
+
+        docMapper = parser.parse(mapping);
+        mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("_timestamp")
+                .field("enabled", true)
+                .field("default", (String) null)
+                    .endObject()
+                .endObject().endObject().string();
+
+        mergeResult = docMapper.merge(parser.parse(mapping), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
+        assertThat(mergeResult.hasConflicts(), is(true));
+    }
+
+    /**
+     * Test for issue #9223
+     */
+    @Test
+    public void testInitMappers() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("_timestamp")
+                        .field("enabled", true)
+                        .field("default", (String) null)
+                    .endObject()
+                .endObject().endObject().string();
+        // This was causing a NPE
+        new MappingMetaData(new CompressedString(mapping));
     }
 
     @Test

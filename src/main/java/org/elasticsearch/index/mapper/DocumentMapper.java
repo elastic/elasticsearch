@@ -259,8 +259,6 @@ public class DocumentMapper implements ToXContent {
         }
     };
 
-    public static final String ALLOW_TYPE_WRAPPER = "index.mapping.allow_type_wrapper";
-
     private final String index;
 
     private final Settings indexSettings;
@@ -526,16 +524,6 @@ public class DocumentMapper implements ToXContent {
             } else if (token != XContentParser.Token.FIELD_NAME) {
                 throw new MapperParsingException("Malformed content, after first object, either the type field or the actual properties should exist");
             }
-            // first field is the same as the type, this might be because the
-            // type is provided, and the object exists within it or because
-            // there is a valid field that by chance is named as the type.
-            // Because of this, by default wrapping a document in a type is
-            // disabled, but can be enabled by setting
-            // index.mapping.allow_type_wrapper to true
-            if (type.equals(parser.currentName()) && indexSettings.getAsBoolean(ALLOW_TYPE_WRAPPER, false)) {
-                parser.nextToken();
-                countDownTokens++;
-            }
 
             for (RootMapper rootMapper : rootMappersOrdered) {
                 rootMapper.preParse(context);
@@ -666,11 +654,8 @@ public class DocumentMapper implements ToXContent {
         }
     }
 
-    public void addFieldMapperListener(FieldMapperListener fieldMapperListener, boolean includeExisting) {
+    public void addFieldMapperListener(FieldMapperListener fieldMapperListener) {
         fieldMapperListeners.add(fieldMapperListener);
-        if (includeExisting) {
-            traverse(fieldMapperListener);
-        }
     }
 
     public void traverse(FieldMapperListener listener) {
@@ -702,11 +687,8 @@ public class DocumentMapper implements ToXContent {
         }
     }
 
-    public void addObjectMapperListener(ObjectMapperListener objectMapperListener, boolean includeExisting) {
+    public void addObjectMapperListener(ObjectMapperListener objectMapperListener) {
         objectMapperListeners.add(objectMapperListener);
-        if (includeExisting) {
-            traverse(objectMapperListener);
-        }
     }
 
     public void traverse(ObjectMapperListener listener) {

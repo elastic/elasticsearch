@@ -96,7 +96,7 @@ public class DerivativeTransformer extends Transformer {
                 throw new AggregationInitializationException("Derivative aggregations just have a single sub-aggregation. Found ["
                         + subFactories.length + "] in [" + name + "]");
             } else {
-                if (subFactories[0] instanceof HistogramAggregator.Factory || subFactories[0] instanceof DerivativeTransformer.Factory) {
+                if (subFactories[0] instanceof HistogramAggregator.Factory) {
                     AggregatorFactory aggregator = subFactories[0];
                     AggregatorFactory[] subAggregatorFactories = aggregator.subFactories().factories();
                     for (AggregatorFactory subAggregator : subAggregatorFactories) {
@@ -105,7 +105,7 @@ public class DerivativeTransformer extends Transformer {
                                     + "] must be numeric metric aggregations when used in a derivative.");
                         }
                     }
-                } else {
+                } else if (!(subFactories[0] instanceof DerivativeTransformer.Factory)) {
                     throw new AggregationInitializationException("Sub-aggregation of [" + name
                             + "] must be one of [histogram, date_histogram, derivative]");
                 }

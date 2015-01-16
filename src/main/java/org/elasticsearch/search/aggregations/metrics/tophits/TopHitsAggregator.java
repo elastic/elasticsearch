@@ -20,13 +20,25 @@
 package org.elasticsearch.search.aggregations.metrics.tophits;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopDocsCollector;
+import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopScoreDocCollector;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.AggregationInitializationException;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -173,7 +185,12 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
 
         @Override
         public AggregatorFactory subFactories(AggregatorFactories subFactories) {
-            throw new AggregationInitializationException("Aggregator [" + name + "] of type [" + type + "] cannot accept sub-aggregations");
+            if (subFactories == AggregatorFactories.EMPTY) {
+                return super.subFactories(subFactories);
+            } else {
+                throw new AggregationInitializationException("Aggregator [" + name + "] of type [" + type
+                        + "] cannot accept sub-aggregations");
+            }
         }
 
     }

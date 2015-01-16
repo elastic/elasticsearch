@@ -106,7 +106,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
             if (Modifier.isStatic(field.getModifiers()) && field.getType() == Version.class) {
                 Version v = (Version)field.get(Version.class);
                 if (v.snapshot()) continue;
-                if (v.onOrBefore(Version.V_0_20_6)) continue;
+                if (v.onOrBefore(Version.V_0_20_5)) continue;
                 
                 // problematic indexes...see notes above
                 if (v.equals(Version.V_1_2_0)) continue;

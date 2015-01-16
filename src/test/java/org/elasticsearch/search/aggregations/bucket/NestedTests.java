@@ -21,8 +21,10 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
@@ -39,11 +41,13 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -346,5 +350,103 @@ public class NestedTests extends ElasticsearchIntegrationTest {
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.getMessage(), containsString("[nested] nested path [incorrect] is not nested"));
         }
+    }
+
+    @Test
+    // Test based on: https://github.com/elasticsearch/elasticsearch/issues/9280
+    public void testParentFilterResolvedCorrectly() throws Exception {
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("provider").startObject("properties")
+                    .startObject("comments")
+                        .field("type", "nested")
+                        .startObject("properties")
+                            .startObject("cid").field("type", "long").endObject()
+                            .startObject("identifier").field("type", "string").field("index", "not_analyzed").endObject()
+                            .startObject("tags")
+                                .field("type", "nested")
+                                .startObject("properties")
+                                    .startObject("tid").field("type", "long").endObject()
+                                    .startObject("name").field("type", "string").field("index", "not_analyzed").endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                    .startObject("dates")
+                        .field("type", "object")
+                        .startObject("properties")
+                            .startObject("day").field("type", "date").field("format", "dateOptionalTime").endObject()
+                            .startObject("month")
+                                .field("type", "object")
+                                .startObject("properties")
+                                    .startObject("end").field("type", "date").field("format", "dateOptionalTime").endObject()
+                                    .startObject("start").field("type", "date").field("format", "dateOptionalTime").endObject()
+                                    .startObject("label").field("type", "string").field("index", "not_analyzed").endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().endObject();
+        assertAcked(prepareCreate("idx2")
+                .setSettings(ImmutableSettings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+                .addMapping("provider", mapping));
+
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>(2);
+        indexRequests.add(client().prepareIndex("idx2", "provider", "1").setSource("{\"dates\": {\"month\": {\"label\": \"2014-11\", \"end\": \"2014-11-30\", \"start\": \"2014-11-01\"}, \"day\": \"2014-11-30\"}, \"comments\": [{\"cid\": 3,\"identifier\": \"29111\"}, {\"cid\": 4,\"tags\": [{\"tid\" :44,\"name\": \"Roles\"}], \"identifier\": \"29101\"}]}"));
+        indexRequests.add(client().prepareIndex("idx2", "provider", "2").setSource("{\"dates\": {\"month\": {\"label\": \"2014-12\", \"end\": \"2014-12-31\", \"start\": \"2014-12-01\"}, \"day\": \"2014-12-03\"}, \"comments\": [{\"cid\": 1, \"identifier\": \"29111\"}, {\"cid\": 2,\"tags\": [{\"tid\" : 22, \"name\": \"DataChannels\"}], \"identifier\": \"29101\"}]}"));
+        indexRandom(true, indexRequests);
+
+        SearchResponse response = client().prepareSearch("idx2").setTypes("provider")
+                .addAggregation(
+                        terms("startDate").field("dates.month.start").subAggregation(
+                                terms("endDate").field("dates.month.end").subAggregation(
+                                        terms("period").field("dates.month.label").subAggregation(
+                                                nested("ctxt_idfier_nested").path("comments").subAggregation(
+                                                        filter("comment_filter").filter(termFilter("comments.identifier", "29111")).subAggregation(
+                                                                nested("nested_tags").path("comments.tags").subAggregation(
+                                                                        terms("tag").field("comments.tags.name")
+                                                                )
+                                                        )
+                                                )
+                                        )
+                                )
+                        )
+                ).get();
+        assertNoFailures(response);
+        assertHitCount(response, 2);
+
+        Terms startDate = response.getAggregations().get("startDate");
+        assertThat(startDate.getBuckets().size(), equalTo(2));
+        Terms.Bucket bucket = startDate.getBucketByKey("1414800000000"); // 2014-11-01T00:00:00.000Z
+        assertThat(bucket.getDocCount(), equalTo(1l));
+        Terms endDate = bucket.getAggregations().get("endDate");
+        bucket = endDate.getBucketByKey("1417305600000"); // 2014-11-30T00:00:00.000Z
+        assertThat(bucket.getDocCount(), equalTo(1l));
+        Terms period = bucket.getAggregations().get("period");
+        bucket = period.getBucketByKey("2014-11");
+        assertThat(bucket.getDocCount(), equalTo(1l));
+        Nested comments = bucket.getAggregations().get("ctxt_idfier_nested");
+        assertThat(comments.getDocCount(), equalTo(2l));
+        Filter filter = comments.getAggregations().get("comment_filter");
+        assertThat(filter.getDocCount(), equalTo(1l));
+        Nested nestedTags = filter.getAggregations().get("nested_tags");
+        assertThat(nestedTags.getDocCount(), equalTo(0l)); // This must be 0
+        Terms tags = nestedTags.getAggregations().get("tag");
+        assertThat(tags.getBuckets().size(), equalTo(0)); // and this must be empty
+
+        bucket = startDate.getBucketByKey("1417392000000"); // 2014-12-01T00:00:00.000Z
+        assertThat(bucket.getDocCount(), equalTo(1l));
+        endDate = bucket.getAggregations().get("endDate");
+        bucket = endDate.getBucketByKey("1419984000000"); // 2014-12-31T00:00:00.000Z
+        assertThat(bucket.getDocCount(), equalTo(1l));
+        period = bucket.getAggregations().get("period");
+        bucket = period.getBucketByKey("2014-12");
+        assertThat(bucket.getDocCount(), equalTo(1l));
+        comments = bucket.getAggregations().get("ctxt_idfier_nested");
+        assertThat(comments.getDocCount(), equalTo(2l));
+        filter = comments.getAggregations().get("comment_filter");
+        assertThat(filter.getDocCount(), equalTo(1l));
+        nestedTags = filter.getAggregations().get("nested_tags");
+        assertThat(nestedTags.getDocCount(), equalTo(0l)); // This must be 0
+        tags = nestedTags.getAggregations().get("tag");
+        assertThat(tags.getBuckets().size(), equalTo(0)); // and this must be empty
     }
 }

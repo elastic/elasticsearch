@@ -23,13 +23,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Priority;
@@ -60,19 +58,19 @@ public class ShardStateAction extends AbstractComponent {
     private final TransportService transportService;
     private final ClusterService clusterService;
     private final AllocationService allocationService;
-    private final ThreadPool threadPool;
+    private final RoutingService routingService;
 
     private final BlockingQueue<ShardRoutingEntry> startedShardsQueue = ConcurrentCollections.newBlockingQueue();
     private final BlockingQueue<ShardRoutingEntry> failedShardQueue = ConcurrentCollections.newBlockingQueue();
 
     @Inject
     public ShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                            AllocationService allocationService, ThreadPool threadPool) {
+                            AllocationService allocationService, RoutingService routingService) {
         super(settings);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.allocationService = allocationService;
-        this.threadPool = threadPool;
+        this.routingService = routingService;
 
         transportService.registerHandler(SHARD_STARTED_ACTION_NAME, new ShardStartedTransportHandler());
         transportService.registerHandler(SHARD_FAILED_ACTION_NAME, new ShardFailedTransportHandler());
@@ -104,11 +102,11 @@ public class ShardStateAction extends AbstractComponent {
         } else {
             transportService.sendRequest(masterNode,
                     SHARD_FAILED_ACTION_NAME, shardRoutingEntry, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
-                @Override
-                public void handleException(TransportException exp) {
-                    logger.warn("failed to send failed shard to {}", exp, masterNode);
-                }
-            });
+                        @Override
+                        public void handleException(TransportException exp) {
+                            logger.warn("failed to send failed shard to {}", exp, masterNode);
+                        }
+                    });
         }
     }
 
@@ -132,18 +130,19 @@ public class ShardStateAction extends AbstractComponent {
         } else {
             transportService.sendRequest(masterNode,
                     SHARD_STARTED_ACTION_NAME, new ShardRoutingEntry(shardRouting, indexUUID, reason), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
-                @Override
-                public void handleException(TransportException exp) {
-                    logger.warn("failed to send shard started to [{}]", exp, masterNode);
-                }
-            });
+                        @Override
+                        public void handleException(TransportException exp) {
+                            logger.warn("failed to send shard started to [{}]", exp, masterNode);
+                        }
+                    });
         }
     }
 
     private void innerShardFailed(final ShardRoutingEntry shardRoutingEntry) {
         logger.warn("{} received shard failed for {}", shardRoutingEntry.shardRouting.shardId(), shardRoutingEntry);
         failedShardQueue.add(shardRoutingEntry);
-        clusterService.submitStateUpdateTask("shard-failed (" + shardRoutingEntry.shardRouting + "), reason [" + shardRoutingEntry.reason + "]", Priority.HIGH, new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("shard-failed (" + shardRoutingEntry.shardRouting + "), reason [" + shardRoutingEntry.reason + "]", Priority.HIGH, new ProcessedClusterStateUpdateTask() {
+
             @Override
             public ClusterState execute(ClusterState currentState) {
                 if (shardRoutingEntry.processed) {
@@ -190,6 +189,14 @@ public class ShardStateAction extends AbstractComponent {
             @Override
             public void onFailure(String source, Throwable t) {
                 logger.error("unexpected failure during [{}]", t, source);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                if (oldState != newState && newState.getRoutingNodes().hasUnassigned()) {
+                    logger.trace("unassigned shards after shard failures. scheduling a reroute.");
+                    routingService.scheduleReroute();
+                }
             }
         });
     }

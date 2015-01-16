@@ -63,7 +63,7 @@ abstract class QueryCollector extends SimpleCollector {
 
     List<LeafCollector> aggregatorLeafCollectors;
 
-    QueryCollector(ESLogger logger, PercolateContext context, boolean isNestedDoc) {
+    QueryCollector(ESLogger logger, PercolateContext context, boolean isNestedDoc) throws IOException {
         this.logger = logger;
         this.queries = context.percolateQueries();
         this.searcher = context.docSearcher();
@@ -126,19 +126,19 @@ abstract class QueryCollector extends SimpleCollector {
     }
 
 
-    static Match match(ESLogger logger, PercolateContext context, HighlightPhase highlightPhase, boolean isNestedDoc) {
+    static Match match(ESLogger logger, PercolateContext context, HighlightPhase highlightPhase, boolean isNestedDoc) throws IOException {
         return new Match(logger, context, highlightPhase, isNestedDoc);
     }
 
-    static Count count(ESLogger logger, PercolateContext context, boolean isNestedDoc) {
+    static Count count(ESLogger logger, PercolateContext context, boolean isNestedDoc) throws IOException {
         return new Count(logger, context, isNestedDoc);
     }
 
-    static MatchAndScore matchAndScore(ESLogger logger, PercolateContext context, HighlightPhase highlightPhase, boolean isNestedDoc) {
+    static MatchAndScore matchAndScore(ESLogger logger, PercolateContext context, HighlightPhase highlightPhase, boolean isNestedDoc) throws IOException {
         return new MatchAndScore(logger, context, highlightPhase, isNestedDoc);
     }
 
-    static MatchAndSort matchAndSort(ESLogger logger, PercolateContext context, boolean isNestedDoc) {
+    static MatchAndSort matchAndSort(ESLogger logger, PercolateContext context, boolean isNestedDoc) throws IOException {
         return new MatchAndSort(logger, context, isNestedDoc);
     }
 
@@ -167,7 +167,7 @@ abstract class QueryCollector extends SimpleCollector {
         final int size;
         long counter = 0;
 
-        Match(ESLogger logger, PercolateContext context, HighlightPhase highlightPhase, boolean isNestedDoc) {
+        Match(ESLogger logger, PercolateContext context, HighlightPhase highlightPhase, boolean isNestedDoc) throws IOException {
             super(logger, context, isNestedDoc);
             this.limit = context.limit;
             this.size = context.size();
@@ -226,8 +226,9 @@ abstract class QueryCollector extends SimpleCollector {
     final static class MatchAndSort extends QueryCollector {
 
         private final TopScoreDocCollector topDocsCollector;
+        private LeafCollector topDocsLeafCollector;
 
-        MatchAndSort(ESLogger logger, PercolateContext context, boolean isNestedDoc) {
+        MatchAndSort(ESLogger logger, PercolateContext context, boolean isNestedDoc) throws IOException {
             super(logger, context, isNestedDoc);
             // TODO: Use TopFieldCollector.create(...) for ascending and descending scoring?
             topDocsCollector = TopScoreDocCollector.create(context.size(), false);
@@ -248,7 +249,7 @@ abstract class QueryCollector extends SimpleCollector {
                     Lucene.exists(searcher, query, collector);
                 }
                 if (collector.exists()) {
-                    topDocsCollector.collect(doc);
+                    topDocsLeafCollector.collect(doc);
                     postMatch(doc);
                 }
             } catch (IOException e) {
@@ -259,13 +260,12 @@ abstract class QueryCollector extends SimpleCollector {
         @Override
         public void doSetNextReader(LeafReaderContext context) throws IOException {
             super.doSetNextReader(context);
-            LeafCollector leafCollector = topDocsCollector.getLeafCollector(context);
-            assert leafCollector == topDocsCollector : "TopDocsCollector returns itself as leaf collector";
+            topDocsLeafCollector = topDocsCollector.getLeafCollector(context);
         }
 
         @Override
         public void setScorer(Scorer scorer) throws IOException {
-            topDocsCollector.setScorer(scorer);
+            topDocsLeafCollector.setScorer(scorer);
         }
 
         TopDocs topDocs() {
@@ -289,7 +289,7 @@ abstract class QueryCollector extends SimpleCollector {
 
         private Scorer scorer;
 
-        MatchAndScore(ESLogger logger, PercolateContext context, HighlightPhase highlightPhase, boolean isNestedDoc) {
+        MatchAndScore(ESLogger logger, PercolateContext context, HighlightPhase highlightPhase, boolean isNestedDoc) throws IOException {
             super(logger, context, isNestedDoc);
             this.limit = context.limit;
             this.size = context.size();
@@ -358,7 +358,7 @@ abstract class QueryCollector extends SimpleCollector {
 
         private long counter = 0;
 
-        Count(ESLogger logger, PercolateContext context, boolean isNestedDoc) {
+        Count(ESLogger logger, PercolateContext context, boolean isNestedDoc) throws IOException {
             super(logger, context, isNestedDoc);
         }
 

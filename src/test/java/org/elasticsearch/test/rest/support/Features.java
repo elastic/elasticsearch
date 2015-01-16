@@ -48,6 +48,9 @@ public final class Features {
             if ("benchmark".equals(feature) && ElasticsearchIntegrationTest.cluster().numBenchNodes() > 0) {
                 continue;
             }
+            if ("requires_replica".equals(feature) && ElasticsearchIntegrationTest.cluster().numDataNodes() >= 2) {
+                continue;
+            }
             if (!SUPPORTED.contains(feature)) {
                 return false;
             }

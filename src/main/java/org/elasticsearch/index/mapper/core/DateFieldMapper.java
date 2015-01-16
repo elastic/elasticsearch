@@ -68,6 +68,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.dateField;
@@ -271,9 +272,21 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         return value.toString();
     }
 
+    private static Callable<Long> now() {
+        return new Callable<Long>() {
+            @Override
+            public Long call() {
+                final SearchContext context = SearchContext.current();
+                return context != null
+                    ? context.nowInMillis()
+                    : System.currentTimeMillis();
+            }
+        };
+    }
+
     @Override
     public Query fuzzyQuery(String value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-        long iValue = dateMathParser.parse(value, System.currentTimeMillis());
+        long iValue = dateMathParser.parse(value, now());
         long iSim;
         try {
             iSim = fuzziness.asTimeValue().millis();
@@ -306,13 +319,11 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
 
     public long parseToMilliseconds(String value, boolean inclusive, @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser) {
-        SearchContext sc = SearchContext.current();
-        long now = sc == null ? System.currentTimeMillis() : sc.nowInMillis();
         DateMathParser dateParser = dateMathParser;
         if (forcedDateParser != null) {
             dateParser = forcedDateParser;
         }
-        return dateParser.parse(value, now, inclusive, zone);
+        return dateParser.parse(value, now(), inclusive, zone);
     }
 
     @Override

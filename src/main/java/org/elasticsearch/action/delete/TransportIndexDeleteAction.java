@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.delete;
 
-import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportIndexReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -34,7 +34,7 @@ import java.util.List;
  * Internal transport action that broadcasts a delete request to all of the shards that belongs to an index.
  * Used when routing is required but not specified within the delete request.
  */
-public class TransportIndexDeleteAction extends TransportIndexReplicationOperationAction<IndexDeleteRequest, IndexDeleteResponse, ShardDeleteRequest, ShardDeleteRequest, ShardDeleteResponse> {
+public class TransportIndexDeleteAction extends TransportIndexReplicationOperationAction<IndexDeleteRequest, IndexDeleteResponse, ShardDeleteRequest, ShardDeleteResponse> {
 
     private static final String ACTION_NAME = DeleteAction.NAME + "[index]";
 
@@ -45,13 +45,10 @@ public class TransportIndexDeleteAction extends TransportIndexReplicationOperati
     }
 
     @Override
-    protected IndexDeleteResponse newResponseInstance(IndexDeleteRequest request, List<ShardDeleteResponse> shardDeleteResponses, int failuresCount, List<ShardOperationFailedException> shardFailures) {
-        return new IndexDeleteResponse(request.index(), failuresCount, shardDeleteResponses.toArray(new ShardDeleteResponse[shardDeleteResponses.size()]));
-    }
-
-    @Override
-    protected boolean accumulateExceptions() {
-        return false;
+    protected IndexDeleteResponse newResponseInstance(IndexDeleteRequest request, List<ShardDeleteResponse> shardDeleteResponses, ActionWriteResponse.ShardInfo shardInfo) {
+        IndexDeleteResponse indexDeleteResponse = new IndexDeleteResponse(request.index(), shardDeleteResponses.toArray(new ShardDeleteResponse[shardDeleteResponses.size()]));
+        indexDeleteResponse.setShardInfo(shardInfo);
+        return indexDeleteResponse;
     }
 
     @Override

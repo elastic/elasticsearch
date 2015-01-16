@@ -22,9 +22,13 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -42,6 +46,7 @@ import static org.elasticsearch.index.shard.IndexShardState.*;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndicesLifecycleListenerTests extends ElasticsearchIntegrationTest {
@@ -59,6 +64,8 @@ public class IndicesLifecycleListenerTests extends ElasticsearchIntegrationTest 
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(SETTING_NUMBER_OF_SHARDS, 6, SETTING_NUMBER_OF_REPLICAS, 0));
         ensureGreen();
+        assertThat(stateChangeListenerNode1.creationSettings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1), equalTo(6));
+        assertThat(stateChangeListenerNode1.creationSettings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1), equalTo(0));
 
         //new shards got started
         assertShardStatesMatch(stateChangeListenerNode1, 6, CREATED, RECOVERING, POST_RECOVERY, STARTED);
@@ -96,6 +103,9 @@ public class IndicesLifecycleListenerTests extends ElasticsearchIntegrationTest 
 
         //close the index
         assertAcked(client().admin().indices().prepareClose("test"));
+
+        assertThat(stateChangeListenerNode1.afterCloseSettings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1), equalTo(6));
+        assertThat(stateChangeListenerNode1.afterCloseSettings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1), equalTo(0));
 
         assertShardStatesMatch(stateChangeListenerNode1, 6, CLOSED);
         assertShardStatesMatch(stateChangeListenerNode2, 6, CLOSED);
@@ -135,6 +145,8 @@ public class IndicesLifecycleListenerTests extends ElasticsearchIntegrationTest 
     private static class IndexShardStateChangeListener extends IndicesLifecycle.Listener {
         //we keep track of all the states (ordered) a shard goes through
         final ConcurrentMap<ShardId, List<IndexShardState>> shardStates = Maps.newConcurrentMap();
+        Settings creationSettings = ImmutableSettings.EMPTY;
+        Settings afterCloseSettings = ImmutableSettings.EMPTY;
 
         @Override
         public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, IndexShardState newState, @Nullable String reason) {
@@ -143,6 +155,16 @@ public class IndicesLifecycleListenerTests extends ElasticsearchIntegrationTest 
             if (shardStates != null) {
                 shardStates.add(newState);
             }
+        }
+
+        @Override
+        public void beforeIndexCreated(Index index, @IndexSettings Settings indexSettings) {
+            this.creationSettings = indexSettings;
+        }
+
+        @Override
+        public void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, @IndexSettings Settings indexSettings) {
+            this.afterCloseSettings = indexSettings;
         }
 
         @Override

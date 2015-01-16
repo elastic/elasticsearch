@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -111,7 +112,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
     @Override
     protected BulkShardRequest newReplicaRequestInstance() {
-        return new BulkShardRequest();
+        return newRequestInstance();
     }
 
     @Override
@@ -130,7 +131,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     }
 
     @Override
-    protected PrimaryResponse<BulkShardResponse, BulkShardRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
+    protected Tuple<BulkShardResponse, BulkShardRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         final BulkShardRequest request = shardRequest.request;
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
@@ -242,7 +243,6 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                         updateResult = new UpdateResult(null, null, false, t, null);
                     }
                     if (updateResult.success()) {
-
                         switch (updateResult.result.operation()) {
                             case UPSERT:
                             case INDEX:
@@ -251,7 +251,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                 BytesReference indexSourceAsBytes = indexRequest.source();
                                 // add the response
                                 IndexResponse indexResponse = result.response();
-                                UpdateResponse updateResponse = new UpdateResponse(indexResponse.getIndex(), indexResponse.getType(), indexResponse.getId(), indexResponse.getVersion(), indexResponse.isCreated());
+                                UpdateResponse updateResponse = new UpdateResponse(indexResponse.getShardInfo(), indexResponse.getIndex(), indexResponse.getType(), indexResponse.getId(), indexResponse.getVersion(), indexResponse.isCreated());
                                 if (updateRequest.fields() != null && updateRequest.fields().length > 0) {
                                     Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(indexSourceAsBytes, true);
                                     updateResponse.setGetResult(updateHelper.extractGetResult(updateRequest, shardRequest.request.index(), indexResponse.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), indexSourceAsBytes));
@@ -272,7 +272,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                             case DELETE:
                                 DeleteResponse response = updateResult.writeResult.response();
                                 DeleteRequest deleteRequest = updateResult.request();
-                                updateResponse = new UpdateResponse(response.getIndex(), response.getType(), response.getId(), response.getVersion(), false);
+                                updateResponse = new UpdateResponse(response.getShardInfo(), response.getIndex(), response.getType(), response.getId(), response.getVersion(), false);
                                 updateResponse.setGetResult(updateHelper.extractGetResult(updateRequest, shardRequest.request.index(), response.getVersion(), updateResult.result.updatedSourceAsMap(), updateResult.result.updateSourceContentType(), null));
                                 // Replace the update request to the translated delete request to execute on the replica.
                                 item = request.items()[requestIndex] = new BulkItemRequest(request.items()[requestIndex].id(), deleteRequest);
@@ -365,8 +365,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         for (int i = 0; i < items.length; i++) {
             responses[i] = items[i].getPrimaryResponse();
         }
-        BulkShardResponse response = new BulkShardResponse(shardRequest.shardId, responses);
-        return new PrimaryResponse<>(shardRequest.request, response, ops);
+        return new Tuple<>(new BulkShardResponse(shardRequest.shardId, responses), shardRequest.request);
     }
 
     private void setResponse(BulkItemRequest request, BulkItemResponse response) {
@@ -378,18 +377,21 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
     static class WriteResult {
 
-        final Object response;
+        final ActionWriteResponse response;
         final String mappingTypeToUpdate;
         final Engine.IndexingOperation op;
 
-        WriteResult(Object response, String mappingTypeToUpdate, Engine.IndexingOperation op) {
+        WriteResult(ActionWriteResponse response, String mappingTypeToUpdate, Engine.IndexingOperation op) {
             this.response = response;
             this.mappingTypeToUpdate = mappingTypeToUpdate;
             this.op = op;
         }
 
         @SuppressWarnings("unchecked")
-        <T> T response() {
+        <T extends ActionWriteResponse> T response() {
+            // this sets total, pending and failed to 0 and this is ok, because we will embed this into the replica
+            // request and not use it
+            response.setShardInfo(new ActionWriteResponse.ShardInfo());
             return (T) response;
         }
 

@@ -39,7 +39,8 @@ Controls whether to fail if a wildcard indices expressions results into no
 concrete indices. Either `true` or `false` can be specified. For example if
 the wildcard expression `foo*` is specified and no indices are available that
 start with `foo` then depending on this setting the request will fail. This
-setting is also applicable when `_all`, `*` or no index has been specified.
+setting is also applicable when `_all`, `*` or no index has been specified. This
+settings also applies for aliases, in case an alias points to a closed index.
 
 `expand_wildcards`::
 

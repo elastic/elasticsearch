@@ -273,16 +273,10 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
     }
 
-    private static final ThreadLocal<List<Field>> FIELD_LIST = new ThreadLocal<List<Field>>() {
-        protected List<Field> initialValue() {
-            return new ArrayList<>(2);
-        }
-    };
-
     protected final Names names;
     protected float boost;
     protected FieldType fieldType;
-    private final boolean docValues;
+    protected final boolean docValues;
     protected final NamedAnalyzer indexAnalyzer;
     protected NamedAnalyzer searchAnalyzer;
     protected PostingsFormatProvider postingsFormat;
@@ -419,8 +413,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     @Override
     public void parse(ParseContext context) throws IOException {
-        final List<Field> fields = FIELD_LIST.get();
-        assert fields.isEmpty();
+        final List<Field> fields = new ArrayList<>(2);
         try {
             parseCreateField(context, fields);
             for (Field field : fields) {
@@ -433,8 +426,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             }
         } catch (Exception e) {
             throw new MapperParsingException("failed to parse [" + names.fullName() + "]", e);
-        } finally {
-            fields.clear();
         }
         multiFields.parse(this, context);
         if (copyTo != null) {

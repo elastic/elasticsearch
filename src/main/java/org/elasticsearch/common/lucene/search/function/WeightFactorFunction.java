@@ -24,6 +24,8 @@ import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
+import java.io.IOException;
+
 /**
  *
  */
@@ -53,7 +55,7 @@ public class WeightFactorFunction extends ScoreFunction {
     }
 
     @Override
-    public void setNextReader(LeafReaderContext context) {
+    public void setNextReader(LeafReaderContext context) throws IOException {
         scoreFunction.setNextReader(context);
     }
 

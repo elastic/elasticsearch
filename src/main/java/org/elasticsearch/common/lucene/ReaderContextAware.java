@@ -20,10 +20,12 @@ package org.elasticsearch.common.lucene;
 
 import org.apache.lucene.index.LeafReaderContext;
 
+import java.io.IOException;
+
 /**
  *
  */
 public interface ReaderContextAware {
 
-    public void setNextReader(LeafReaderContext reader);
+    public void setNextReader(LeafReaderContext reader) throws IOException;
 }

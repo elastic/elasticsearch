@@ -352,12 +352,12 @@ public class MapperService extends AbstractIndexComponent  {
                 FieldMapperListener.Aggregator fieldMappersAgg = new FieldMapperListener.Aggregator();
                 mapper.traverse(fieldMappersAgg);
                 addFieldMappers(fieldMappersAgg.mappers);
-                mapper.addFieldMapperListener(fieldMapperListener, false);
+                mapper.addFieldMapperListener(fieldMapperListener);
 
                 ObjectMapperListener.Aggregator objectMappersAgg = new ObjectMapperListener.Aggregator();
                 mapper.traverse(objectMappersAgg);
                 addObjectMappers(objectMappersAgg.mappers.toArray(new ObjectMapper[objectMappersAgg.mappers.size()]));
-                mapper.addObjectMapperListener(objectMapperListener, false);
+                mapper.addObjectMapperListener(objectMapperListener);
 
                 for (DocumentTypeListener typeListener : typeListeners) {
                     typeListener.beforeCreate(mapper);
@@ -904,15 +904,6 @@ public class MapperService extends AbstractIndexComponent  {
     public Analyzer searchQuoteAnalyzer() {
         return this.searchQuoteAnalyzer;
     }
-
-    public Analyzer fieldSearchAnalyzer(String field) {
-        return this.searchAnalyzer.getWrappedAnalyzer(field);
-    }
-
-    public Analyzer fieldSearchQuoteAnalyzer(String field) {
-        return this.searchQuoteAnalyzer.getWrappedAnalyzer(field);
-    }
-
 
     /**
      * Resolves the closest inherited {@link ObjectMapper} that is nested.

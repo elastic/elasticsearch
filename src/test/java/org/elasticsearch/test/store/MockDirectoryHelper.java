@@ -141,6 +141,7 @@ public class MockDirectoryHelper {
                 synchronized (lock) {
                     lock.notifyAll();
                 }
+                wrappers.remove(this);
             }
         }
 

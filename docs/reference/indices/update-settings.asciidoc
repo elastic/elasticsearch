@@ -90,6 +90,9 @@ settings API:
     All the settings for the merge policy currently configured.
     A different merge policy can't be set.
 
+`index.merge.scheduler.*`::
+    All the settings for the merge scheduler.
+
 `index.routing.allocation.include.*`::
     A node matching any rule will be allowed to host shards from the index.
 

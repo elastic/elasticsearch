@@ -49,14 +49,13 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
     private final IndexSettingsService indexSettingsService;
     private final ApplySettings applySettings = new ApplySettings();
 
-    private static final String MAX_THREAD_COUNT_KEY = "max_thread_count";
-    private static final String MAX_MERGE_COUNT_KEY = "max_merge_count";
-
-    public static final String MAX_THREAD_COUNT = "index.merge.scheduler." + MAX_THREAD_COUNT_KEY;
-    public static final String MAX_MERGE_COUNT = "index.merge.scheduler." + MAX_MERGE_COUNT_KEY;
+    public static final String MAX_THREAD_COUNT = "index.merge.scheduler.max_thread_count";
+    public static final String MAX_MERGE_COUNT = "index.merge.scheduler.max_merge_count";
+    public static final String AUTO_THROTTLE = "index.merge.scheduler.auto_throttle";
 
     private volatile int maxThreadCount;
     private volatile int maxMergeCount;
+    private volatile boolean autoThrottle;
 
     private Set<CustomConcurrentMergeScheduler> schedulers = new CopyOnWriteArraySet<>();
 
@@ -64,10 +63,10 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
     public ConcurrentMergeSchedulerProvider(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool, IndexSettingsService indexSettingsService) {
         super(shardId, indexSettings, threadPool);
         this.indexSettingsService = indexSettingsService;
-        // TODO LUCENE MONITOR this will change in Lucene 4.0
-        this.maxThreadCount = componentSettings.getAsInt(MAX_THREAD_COUNT_KEY, Math.max(1, Math.min(3, EsExecutors.boundedNumberOfProcessors(indexSettings) / 2)));
-        this.maxMergeCount = componentSettings.getAsInt(MAX_MERGE_COUNT_KEY, maxThreadCount + 2);
-        logger.debug("using [concurrent] merge scheduler with max_thread_count[{}], max_merge_count[{}]", maxThreadCount, maxMergeCount);
+        this.maxThreadCount = indexSettings.getAsInt(MAX_THREAD_COUNT, Math.max(1, Math.min(4, EsExecutors.boundedNumberOfProcessors(indexSettings) / 2)));
+        this.maxMergeCount = indexSettings.getAsInt(MAX_MERGE_COUNT, maxThreadCount + 5);
+        this.autoThrottle = indexSettings.getAsBoolean(AUTO_THROTTLE, true);
+        logger.debug("using [concurrent] merge scheduler with max_thread_count[{}], max_merge_count[{}], auto_throttle[{}]", maxThreadCount, maxMergeCount, autoThrottle);
 
         indexSettingsService.addListener(applySettings);
     }
@@ -75,10 +74,14 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
     @Override
     public MergeScheduler newMergeScheduler() {
         CustomConcurrentMergeScheduler concurrentMergeScheduler = new CustomConcurrentMergeScheduler(logger, shardId, this);
-        // which would then stall if there are 2 merges in flight, and unstall once we are back to 1 or 0 merges
         // NOTE: we pass maxMergeCount+1 here so that CMS will allow one too many merges to kick off which then allows
         // InternalEngine.IndexThrottle to detect too-many-merges and throttle:
         concurrentMergeScheduler.setMaxMergesAndThreads(maxMergeCount+1, maxThreadCount);
+        if (autoThrottle) {
+            concurrentMergeScheduler.enableAutoIOThrottle();
+        } else {
+            concurrentMergeScheduler.disableAutoIOThrottle();
+        }
         schedulers.add(concurrentMergeScheduler);
         return concurrentMergeScheduler;
     }
@@ -86,9 +89,13 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
     @Override
     public MergeStats stats() {
         MergeStats mergeStats = new MergeStats();
+        // TODO: why would there be more than one CMS for a single shard...?
         for (CustomConcurrentMergeScheduler scheduler : schedulers) {
             mergeStats.add(scheduler.totalMerges(), scheduler.totalMergeTime(), scheduler.totalMergeNumDocs(), scheduler.totalMergeSizeInBytes(),
-                    scheduler.currentMerges(), scheduler.currentMergesNumDocs(), scheduler.currentMergesSizeInBytes());
+                           scheduler.currentMerges(), scheduler.currentMergesNumDocs(), scheduler.currentMergesSizeInBytes(),
+                           scheduler.totalMergeStoppedTimeMillis(),
+                           scheduler.totalMergeThrottledTimeMillis(),
+                           autoThrottle ? scheduler.getIORateLimitMBPerSec() : Double.POSITIVE_INFINITY);
         }
         return mergeStats;
     }
@@ -165,7 +172,7 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
         public void onRefreshSettings(Settings settings) {
             int maxThreadCount = settings.getAsInt(MAX_THREAD_COUNT, ConcurrentMergeSchedulerProvider.this.maxThreadCount);
             if (maxThreadCount != ConcurrentMergeSchedulerProvider.this.maxThreadCount) {
-                logger.info("updating [{}] from [{}] to [{}]", MAX_THREAD_COUNT_KEY, ConcurrentMergeSchedulerProvider.this.maxThreadCount, maxThreadCount);
+                logger.info("updating [{}] from [{}] to [{}]", MAX_THREAD_COUNT, ConcurrentMergeSchedulerProvider.this.maxThreadCount, maxThreadCount);
                 ConcurrentMergeSchedulerProvider.this.maxThreadCount = maxThreadCount;
                 for (CustomConcurrentMergeScheduler scheduler : schedulers) {
                     scheduler.setMaxMergesAndThreads(ConcurrentMergeSchedulerProvider.this.maxMergeCount, maxThreadCount);
@@ -174,10 +181,23 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
 
             int maxMergeCount = settings.getAsInt(MAX_MERGE_COUNT, ConcurrentMergeSchedulerProvider.this.maxMergeCount);
             if (maxMergeCount != ConcurrentMergeSchedulerProvider.this.maxMergeCount) {
-                logger.info("updating [{}] from [{}] to [{}]", MAX_MERGE_COUNT_KEY, ConcurrentMergeSchedulerProvider.this.maxMergeCount, maxMergeCount);
+                logger.info("updating [{}] from [{}] to [{}]", MAX_MERGE_COUNT, ConcurrentMergeSchedulerProvider.this.maxMergeCount, maxMergeCount);
                 ConcurrentMergeSchedulerProvider.this.maxMergeCount = maxMergeCount;
                 for (CustomConcurrentMergeScheduler scheduler : schedulers) {
                     scheduler.setMaxMergesAndThreads(maxMergeCount, ConcurrentMergeSchedulerProvider.this.maxThreadCount);
+                }
+            }
+
+            boolean autoThrottle = settings.getAsBoolean(AUTO_THROTTLE, ConcurrentMergeSchedulerProvider.this.autoThrottle);
+            if (autoThrottle != ConcurrentMergeSchedulerProvider.this.autoThrottle) {
+                logger.info("updating [{}] from [{}] to [{}]", AUTO_THROTTLE, ConcurrentMergeSchedulerProvider.this.autoThrottle, autoThrottle);
+                ConcurrentMergeSchedulerProvider.this.autoThrottle = autoThrottle;
+                for (CustomConcurrentMergeScheduler scheduler : schedulers) {
+                    if (autoThrottle) {
+                        scheduler.enableAutoIOThrottle();
+                    } else {
+                        scheduler.disableAutoIOThrottle();
+                    }
                 }
             }
         }

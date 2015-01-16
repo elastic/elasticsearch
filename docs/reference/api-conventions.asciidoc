@@ -224,8 +224,8 @@ the maximum allowed Levenshtein Edit Distance (or number of edits)
 generates an edit distance based on the length of the term. For lengths:
 
 `0..1`:: must match exactly
-`1..4`:: one edit allowed
-`>4`:: two edits allowed
+`1..5`:: one edit allowed
+`>5`:: two edits allowed
 
 `AUTO` should generally be the preferred value for `fuzziness`.
 --

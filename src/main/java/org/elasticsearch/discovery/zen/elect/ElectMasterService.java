@@ -21,12 +21,13 @@ package org.elasticsearch.discovery.zen.elect;
 
 import com.carrotsearch.hppc.ObjectContainer;
 import com.google.common.collect.Lists;
+
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.MasterService;
+import org.elasticsearch.discovery.zen.MasterService;
 
 import java.util.*;
 

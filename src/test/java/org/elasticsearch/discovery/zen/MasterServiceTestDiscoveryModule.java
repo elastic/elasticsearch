@@ -19,47 +19,26 @@
 
 package org.elasticsearch.discovery.zen;
 
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
-import org.elasticsearch.discovery.zen.ping.ZenPingService;
+import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
-
+import com.google.common.collect.Lists;
 import java.util.List;
 
-/**
- */
-public class ZenDiscoveryModule extends AbstractModule {
+
+public class MasterServiceTestDiscoveryModule extends AbstractModule {
 
     private final List<Class<? extends UnicastHostsProvider>> unicastHostProviders = Lists.newArrayList();
 
-    /**
-     * Adds a custom unicast hosts provider to build a dynamic list of unicast hosts list when doing unicast discovery.
-     */
-    public ZenDiscoveryModule addUnicastHostProvider(Class<? extends UnicastHostsProvider> unicastHostProvider) {
-        unicastHostProviders.add(unicastHostProvider);
-        return this;
-    }
-
+    
     @Override
     protected void configure() {
-        bind(ZenPingService.class).asEagerSingleton();
+        bind(MasterService.class).to(TestMasterService.class).asEagerSingleton();
+        bind(Discovery.class).to(ZenDiscovery.class).asEagerSingleton();
         Multibinder<UnicastHostsProvider> unicastHostsProviderMultibinder = Multibinder.newSetBinder(binder(), UnicastHostsProvider.class);
         for (Class<? extends UnicastHostsProvider> unicastHostProvider : unicastHostProviders) {
             unicastHostsProviderMultibinder.addBinding().to(unicastHostProvider);
         }
-        bindMasterService();
-        bindDiscovery();
-    }
-    
-    protected void bindMasterService() {
-        bind(MasterService.class).to(ElectMasterService.class).asEagerSingleton();
-    }
-
-    protected void bindDiscovery() {
-        bind(Discovery.class).to(ZenDiscovery.class).asEagerSingleton();
     }
 }

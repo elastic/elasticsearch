@@ -22,6 +22,7 @@ package org.elasticsearch.discovery.zen;
 import com.google.common.base.Objects;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -53,7 +54,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
-import org.elasticsearch.discovery.MasterService;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.fd.MasterFaultDetection;
 import org.elasticsearch.discovery.zen.fd.NodesFaultDetection;
@@ -98,6 +98,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     public static final String DISCOVERY_REJOIN_ACTION_NAME = "internal:discovery/zen/rejoin";
 
+    protected final MasterService electMaster;
+
     private final TransportService transportService;
     private final ClusterService clusterService;
     private AllocationService allocationService;
@@ -123,8 +125,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     // a flag that should be used only for testing
     private final boolean sendLeaveRequest;
-
-    protected final MasterService electMaster;
 
     private final boolean masterElectionFilterClientNodes;
     private final boolean masterElectionFilterDataNodes;

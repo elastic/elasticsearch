@@ -26,7 +26,7 @@ import java.util.*;
 
 public class SmtpAlertActionFactory implements AlertActionFactory, ConfigurableComponentListener {
 
-    private static final String PORT_SETTING = "alerts.action.smpt.server.port";
+    private static final String PORT_SETTING = "alerts.action.email.server.port";
     private static final String SERVER_SETTING = "alerts.action.email.server.name";
     private static final String FROM_SETTING = "alerts.action.email.from.address";
     private static final String PASSWD_SETTING = "alerts.action.email.from.passwd";

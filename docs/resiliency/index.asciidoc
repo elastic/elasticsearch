@@ -127,7 +127,7 @@ While we are working on a longer term solution, we introduced a minimum weight o
 [float]
 === Make recovery be more resilient to partial network partitions (STATUS: DONE, v1.5.0)
 
-When a node is experience network issues, the master detects it and removes the node from the cluster. That causes all ongoing recoveries from and to that nodes to be stopped and a new location is found for the relevant shards. However, in the of case partial network partition, where there are connectivity issues between the source and target nodes of a recovery but not between those nodes and the current master things may go wrong. While the nodes successfully restore the connection, the on going recoveries may have encounter issues. In {GIT}8720[#8720], we added test simulations for these solved several issues that were flagged by them.
+When a node is experience network issues, the master detects it and removes the node from the cluster. That causes all ongoing recoveries from and to that node to be stopped and a new location is found for the relevant shards. However, in the of case partial network partition, where there are connectivity issues between the source and target nodes of a recovery but not between those nodes and the current master things may go wrong. While the nodes successfully restore the connection, the on going recoveries may have encountered issues. In {GIT}8720[#8720], we added test simulations for these and solved several issues that were flagged by them.
 
 [float]
 === Don't allow unsupported codecs (STATUS: DONE, v1.4.0.Beta1)

@@ -32,8 +32,14 @@ import java.util.Hashtable;
 public class LdapConnectionFactory extends ConnectionFactory<LdapConnection> {
 
     public static final String USER_DN_TEMPLATES_SETTING = "user_dn_templates";
-    public static final String GROUP_SEARCH_SUBTREE_SETTING = "group_search.subtree_search";
-    public static final String GROUP_SEARCH_BASEDN_SETTING = "group_search.group_search_dn";
+    public static final String GROUP_SEARCH_SUBTREE_SETTING = "group_search.subtree";
+    public static final String GROUP_SEARCH_BASEDN_SETTING = "group_search.base_dn";
+    public static final String GROUP_SEARCH_FILTER_SETTING = "group_search.filter";
+    public static final String GROUP_SEARCH_USER_ATTRIBUTE_SETTING = "group_search.user_attribute";
+
+    private static final String GROUP_SEARCH_DEFAULT_FILTER = "(&" +
+            "(|(objectclass=groupOfNames)(objectclass=groupOfUniqueNames)(objectclass=group))" +
+            "(|(uniqueMember={0})(member={0})))";
 
     private final ImmutableMap<String, Serializable> sharedLdapEnv;
     private final String[] userDnTemplates;
@@ -41,6 +47,8 @@ public class LdapConnectionFactory extends ConnectionFactory<LdapConnection> {
     protected final boolean groupSubTreeSearch;
     protected final boolean findGroupsByAttribute;
     private final int timeoutMilliseconds;
+    private final String groupFilter;
+    private final String groupSearchUserAttribute;
 
     @Inject()
     public LdapConnectionFactory(RealmConfig config) {
@@ -69,7 +77,10 @@ public class LdapConnectionFactory extends ConnectionFactory<LdapConnection> {
         sharedLdapEnv = builder.build();
         groupSearchDN = settings.get(GROUP_SEARCH_BASEDN_SETTING);
         findGroupsByAttribute = groupSearchDN == null;
-        groupSubTreeSearch = settings.getAsBoolean(GROUP_SEARCH_SUBTREE_SETTING, false);
+        groupSubTreeSearch = settings.getAsBoolean(GROUP_SEARCH_SUBTREE_SETTING, true);
+        groupFilter = settings.get(GROUP_SEARCH_FILTER_SETTING, GROUP_SEARCH_DEFAULT_FILTER);
+        groupSearchUserAttribute = settings.get(GROUP_SEARCH_FILTER_SETTING) == null ?
+                null : settings.get(GROUP_SEARCH_USER_ATTRIBUTE_SETTING);  //if filter isn't set we don't want to change from using the DN
     }
 
     /**
@@ -93,7 +104,8 @@ public class LdapConnectionFactory extends ConnectionFactory<LdapConnection> {
                 DirContext ctx = new InitialDirContext(ldapEnv);
 
                 //return the first good connection
-                return new LdapConnection(connectionLogger, ctx, dn, findGroupsByAttribute, groupSubTreeSearch, groupSearchDN, timeoutMilliseconds);
+                return new LdapConnection(connectionLogger, ctx, dn, timeoutMilliseconds, findGroupsByAttribute, groupSubTreeSearch,
+                        groupFilter, groupSearchDN, groupSearchUserAttribute);
 
             } catch (NamingException e) {
                 logger.warn("failed LDAP authentication with user template [{}] and DN [{}]", e, template, dn);

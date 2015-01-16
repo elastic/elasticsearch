@@ -114,7 +114,7 @@ public class LdapConnectionTests extends LdapTest {
         SecuredString userPass = SecuredStringTests.build("pass");
 
         try (LdapConnection ldap = ldapFac.open(user, userPass)) {
-            List<String> groups = ldap.getGroupsFromSearch(ldap.authenticatedUserDn());
+            List<String> groups = ldap.getGroupsFromSearch();
             assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
         }
     }
@@ -129,8 +129,29 @@ public class LdapConnectionTests extends LdapTest {
 
         String user = "Horatio Hornblower";
         try (LdapConnection ldap = ldapFac.open(user, SecuredStringTests.build("pass"))) {
-            List<String> groups = ldap.getGroupsFromSearch(ldap.authenticatedUserDn());
+            List<String> groups = ldap.getGroupsFromSearch();
             assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
+        }
+    }
+
+    @Test
+    public void testUserAttributeLookup() {
+        String groupSearchBase = "ou=crews,ou=groups,o=sevenSeas";
+        String userTemplate = "cn={0},ou=people,o=sevenSeas";
+        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, false));
+        LdapConnectionFactory ldapFac = new LdapConnectionFactory(config);
+
+
+        String user = "Horatio Hornblower";
+        try (LdapConnection ldap = ldapFac.open(user, SecuredStringTests.build("pass"))) {
+            assertThat(ldap.readUserAttribute("mail"), is("hhornblo@royalnavy.mod.uk"));
+            assertThat(ldap.readUserAttribute("uid"), is("hhornblo"));
+            try {
+                ldap.readUserAttribute("nonexistentAttribute");
+                fail("reading a non existent attribute should throw an LDAPException");
+            } catch (LdapException e) {
+                assertThat(e.getMessage(), containsString("No results"));
+            }
         }
     }
 }

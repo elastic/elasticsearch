@@ -34,12 +34,16 @@ import java.util.Hashtable;
 public class ActiveDirectoryConnectionFactory extends ConnectionFactory<ActiveDirectoryConnection> {
 
     public static final String AD_DOMAIN_NAME_SETTING = "domain_name";
-    public static final String AD_USER_SEARCH_BASEDN_SETTING = "user_search_dn";
+    public static final String AD_USER_SEARCH_BASEDN_SETTING = "user_search.base_dn";
+    public static final String AD_USER_SEARCH_FILTER_SETTING = "user_search.filter";
+    public static final String AD_USER_SEARCH_SUBTREE_SETTING = "user_search.subtree";
 
     private final ImmutableMap<String, Serializable> sharedLdapEnv;
     private final String userSearchDN;
     private final String domainName;
+    private final String userSearchFilter;
     private final int timeoutMilliseconds;
+    private final Boolean userSearchSubtree;
 
     @Inject
     public ActiveDirectoryConnectionFactory(RealmConfig config) {
@@ -50,6 +54,8 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory<ActiveDi
             throw new ShieldSettingsException("missing [" + AD_DOMAIN_NAME_SETTING + "] setting for active directory");
         }
         userSearchDN = settings.get(AD_USER_SEARCH_BASEDN_SETTING, buildDnFromDomain(domainName));
+        userSearchFilter = settings.get(AD_USER_SEARCH_FILTER_SETTING, "(&(objectClass=user)(|(sAMAccountName={0})(userPrincipalName={0}@" + domainName + ")))");
+        userSearchSubtree = settings.getAsBoolean(AD_USER_SEARCH_SUBTREE_SETTING, true);
         timeoutMilliseconds = (int) settings.getAsTime(TIMEOUT_LDAP_SETTING, TIMEOUT_DEFAULT).millis();
         String[] ldapUrls = settings.getAsArray(URLS_SETTING, new String[] { "ldaps://" + domainName + ":636" });
 
@@ -74,7 +80,7 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory<ActiveDi
      */
     @Override
     public ActiveDirectoryConnection open(String userName, SecuredString password) {
-        String userPrincipal = userName + "@" + this.domainName;
+        String userPrincipal = userName + "@" + domainName;
         Hashtable<String, Serializable> ldapEnv = new Hashtable<>(this.sharedLdapEnv);
         ldapEnv.put(Context.SECURITY_AUTHENTICATION, "simple");
         ldapEnv.put(Context.SECURITY_PRINCIPAL, userPrincipal);
@@ -84,12 +90,11 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory<ActiveDi
         try {
             ctx = new InitialDirContext(ldapEnv);
             SearchControls searchCtls = new SearchControls();
-            searchCtls.setSearchScope(SearchControls.SUBTREE_SCOPE);
+            searchCtls.setSearchScope(userSearchSubtree ? SearchControls.SUBTREE_SCOPE : SearchControls.ONELEVEL_SCOPE);
             searchCtls.setReturningAttributes(Strings.EMPTY_ARRAY);
             searchCtls.setTimeLimit(timeoutMilliseconds);
-            String searchFilter = "(&(objectClass=user)(|(sAMAccountName={0})(userPrincipalName={1})))";
-            try (ClosableNamingEnumeration<SearchResult> results = new ClosableNamingEnumeration(
-                ctx.search(userSearchDN, searchFilter, new Object[] { userName, userPrincipal }, searchCtls))) {
+            try (ClosableNamingEnumeration<SearchResult> results = new ClosableNamingEnumeration<>(
+                ctx.search(userSearchDN, userSearchFilter, new Object[] { userName }, searchCtls))) {
 
                 if(results.hasMore()){
                     SearchResult entry = results.next();
@@ -98,11 +103,12 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory<ActiveDi
                     if (!results.hasMore()) {
                         return new ActiveDirectoryConnection(connectionLogger, ctx, name, userSearchDN, timeoutMilliseconds);
                     }
+                    ctx.close();
                     throw new ActiveDirectoryException("search for user [" + userName + "] by principle name yielded multiple results");
+                } else {
+                    ctx.close();
+                    throw new ActiveDirectoryException("search for user [" + userName + "] by principle name yielded no results");
                 }
-
-                ctx.close();
-                throw new ActiveDirectoryException("search for user [" + userName + "] by principle name yielded multiple results");
             }
         } catch (NamingException | LdapException e) {
             if (ctx != null) {

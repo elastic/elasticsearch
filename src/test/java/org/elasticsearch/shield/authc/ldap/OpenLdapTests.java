@@ -71,6 +71,23 @@ public class OpenLdapTests extends ElasticsearchTestCase {
         }
     }
 
+    @Test
+    public void testCustomFilter() {
+        String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
+        String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
+        Settings settings = ImmutableSettings.builder()
+                .put(LdapConnectionTests.buildLdapSettings(OPEN_LDAP_URL, userTemplate,groupSearchBase, true, false))
+                .put(LdapConnectionFactory.GROUP_SEARCH_FILTER_SETTING, "(&(objectclass=posixGroup)(memberUID={0}))")
+                .put(LdapConnectionFactory.GROUP_SEARCH_USER_ATTRIBUTE_SETTING, "uid")
+                .build();
+        RealmConfig config = new RealmConfig("oldap-test", settings);
+        LdapConnectionFactory connectionFactory = new LdapConnectionFactory(config);
+
+        try (LdapConnection ldap = connectionFactory.open("selvig", SecuredStringTests.build(PASSWORD))){
+            assertThat(ldap.groups(), hasItem(containsString("Geniuses")));
+        }
+    }
+
     @Test @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-shield/issues/499")
     public void testTcpTimeout() {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";

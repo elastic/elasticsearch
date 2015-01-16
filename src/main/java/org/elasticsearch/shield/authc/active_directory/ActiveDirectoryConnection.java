@@ -63,12 +63,12 @@ public class ActiveDirectoryConnection extends AbstractLdapConnection {
         groupsSearchCtls.setTimeLimit(timeoutMilliseconds);
 
         ImmutableList.Builder<String> groups = ImmutableList.builder();
-        try (ClosableNamingEnumeration groupsAnswer = new ClosableNamingEnumeration(
+        try (ClosableNamingEnumeration<SearchResult> groupsAnswer = new ClosableNamingEnumeration<>(
                 jndiContext.search(groupSearchDN, groupsSearchFilter, groupsSearchCtls))) {
 
             //Loop through the search results
             while (groupsAnswer.hasMoreElements()) {
-                SearchResult sr = (SearchResult) groupsAnswer.next();
+                SearchResult sr = groupsAnswer.next();
                 groups.add(sr.getNameInNamespace());
             }
         } catch (NamingException | LdapException ne) {
@@ -91,19 +91,19 @@ public class ActiveDirectoryConnection extends AbstractLdapConnection {
             String userSearchFilter = "(objectClass=user)";
             String userReturnedAtts[] = { "tokenGroups" };
             userSearchCtls.setReturningAttributes(userReturnedAtts);
-            try (ClosableNamingEnumeration userAnswer = new ClosableNamingEnumeration(
+            try (ClosableNamingEnumeration<SearchResult> userAnswer = new ClosableNamingEnumeration<>(
                     jndiContext.search(authenticatedUserDn(), userSearchFilter, userSearchCtls))) {
 
                 //Loop through the search results
                 while (userAnswer.hasMoreElements()) {
 
-                    SearchResult sr = (SearchResult) userAnswer.next();
+                    SearchResult sr = userAnswer.next();
                     Attributes attrs = sr.getAttributes();
 
                     if (attrs != null) {
                         try (ClosableNamingEnumeration<? extends Attribute> ae = new ClosableNamingEnumeration<>(attrs.getAll())) {
                             while (ae.hasMore() ) {
-                                Attribute attr = (Attribute) ae.next();
+                                Attribute attr = ae.next();
                                 for (NamingEnumeration e = attr.getAll(); e.hasMore(); ) {
                                     byte[] sid = (byte[]) e.next();
                                     groupsSearchFilter.append("(objectSid=");

@@ -81,7 +81,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         "index-1.1.0.zip",
         "index-1.1.1.zip",
         "index-1.1.2.zip",
-        /* skipping 1.2.0...there was a major bug with routing, and it is not even downloadable */
+        "index-1.2.0.zip",
         "index-1.2.1.zip",
         "index-1.2.2.zip",
         "index-1.2.3.zip",
@@ -107,9 +107,6 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
                 Version v = (Version)field.get(Version.class);
                 if (v.snapshot()) continue;
                 if (v.onOrBefore(Version.V_0_20_5)) continue;
-                
-                // problematic indexes...see notes above
-                if (v.equals(Version.V_1_2_0)) continue;
 
                 expectedVersions.add("index-" + v.toString() + ".zip");
             }

@@ -76,8 +76,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     private static final ConcurrentMap<ClusterName, ClusterGroup> clusterGroups = ConcurrentCollections.newConcurrentMap();
 
-    private volatile ClusterState lastProcessedClusterState;
-
     @Inject
     public LocalDiscovery(Settings settings, ClusterName clusterName, TransportService transportService, ClusterService clusterService,
                           DiscoveryNodeService discoveryNodeService, Version version, DiscoverySettings discoverySettings) {
@@ -275,13 +273,13 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         return clusterName.value() + "/" + localNode.id();
     }
 
-    public void publish(ClusterState clusterState, final Discovery.AckListener ackListener) {
+    public void publish(ClusterChangedEvent clusterChangedEvent, final Discovery.AckListener ackListener) {
         if (!master) {
             throw new ElasticsearchIllegalStateException("Shouldn't publish state when not master");
         }
         LocalDiscovery[] members = members();
         if (members.length > 0) {
-            publish(members, clusterState, new AckClusterStatePublishResponseHandler(members.length - 1, ackListener));
+            publish(members, clusterChangedEvent, new AckClusterStatePublishResponseHandler(members.length - 1, ackListener));
         }
     }
 
@@ -294,21 +292,22 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         return members.toArray(new LocalDiscovery[members.size()]);
     }
 
-    private void publish(LocalDiscovery[] members, ClusterState clusterState, final ClusterStatePublishResponseHandler publishResponseHandler) {
+    private void publish(LocalDiscovery[] members, ClusterChangedEvent clusterChangedEvent, final ClusterStatePublishResponseHandler publishResponseHandler) {
 
         try {
             byte[] clusterStateBytes = null;
             byte[] clusterStateDiffBytes = null;
 
+            ClusterState clusterState = clusterChangedEvent.state();
             for (final LocalDiscovery discovery : members) {
                 if (discovery.master) {
                     continue;
                 }
                 ClusterState newNodeSpecificClusterState = null;
                 // we do the marshaling intentionally, to check it works well...
-                if (lastProcessedClusterState != null && lastProcessedClusterState.nodes().nodeExists(discovery.localNode.id())) {
+                if (clusterChangedEvent.previousState() != null && clusterChangedEvent.previousState().nodes().nodeExists(discovery.localNode.id())) {
                     if (clusterStateDiffBytes == null) {
-                        clusterStateDiffBytes = Builder.toDiffBytes(lastProcessedClusterState, clusterState);
+                        clusterStateDiffBytes = Builder.toDiffBytes(clusterChangedEvent.previousState(), clusterState);
                     }
                     ClusterState.ClusterStateDiff diff = ClusterState.Builder.readDiffFrom(new BytesStreamInput(clusterStateDiffBytes, false), discovery.localNode);
                     try {
@@ -386,8 +385,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                     Thread.currentThread().interrupt();
                 }
             }
-            lastProcessedClusterState = clusterState;
-
         } catch (Exception e) {
             // failure to marshal or un-marshal
             throw new ElasticsearchIllegalStateException("Cluster state failed to serialize", e);

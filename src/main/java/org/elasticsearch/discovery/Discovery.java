@@ -19,7 +19,7 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Nullable;
@@ -59,7 +59,7 @@ public interface Discovery extends LifecycleComponent<Discovery> {
      * The {@link AckListener} allows to keep track of the ack received from nodes, and verify whether
      * they updated their own cluster state or not.
      */
-    void publish(ClusterState clusterState, AckListener ackListener);
+    void publish(ClusterChangedEvent clusterChangedEvent, AckListener ackListener);
 
     public static interface AckListener {
         void onNodeAck(DiscoveryNode node, @Nullable Throwable t);

@@ -434,7 +434,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 // we don't want to notify
                 if (newClusterState.nodes().localNodeMaster()) {
                     logger.debug("publishing cluster state version {}", newClusterState.version());
-                    discoveryService.publish(newClusterState, ackListener);
+                    discoveryService.publish(clusterChangedEvent, ackListener);
                 }
 
                 // update the current cluster state

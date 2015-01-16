@@ -88,11 +88,13 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> implem
     }
 
     public static class ClusterStateDiff {
-        private long version;
+        private String previousUuid;
+        private String uuid;
         private ClusterState.Diff<ClusterState> diff;
 
-        public ClusterStateDiff(long version, ClusterState.Diff<ClusterState> diff) {
-            this.version = version;
+        public ClusterStateDiff(String previousUuid, String uuid, ClusterState.Diff<ClusterState> diff) {
+            this.previousUuid = previousUuid;
+            this.uuid = uuid;
             this.diff = diff;
         }
 
@@ -100,9 +102,14 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> implem
             return diff.apply(previous);
         }
 
-        public long version() {
-            return version;
+        public String uuid() {
+            return uuid;
         }
+
+        public String previousUuid() {
+            return previousUuid;
+        }
+
     }
 
     public static final long UNKNOWN_VERSION = -1;
@@ -460,18 +467,20 @@ public class ClusterState extends CompositeClusterStatePart<ClusterState> implem
         }
 
         public static ClusterStateDiff readDiffFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
-            long version = in.readVLong();
+            String previousUuid = in.readString();
+            String uuid = in.readString();
             LocalContext localContext = new LocalContext(localNode);
-            return new ClusterStateDiff(version, FACTORY.readDiffFrom(in, localContext));
+            return new ClusterStateDiff(previousUuid, uuid, FACTORY.readDiffFrom(in, localContext));
         }
 
         public static void writeDiffTo(ClusterStateDiff diff, StreamOutput out) throws IOException {
-            out.writeVLong(diff.version);
+            out.writeString(diff.previousUuid);
+            out.writeString(diff.uuid);
             FACTORY.writeDiffsTo(diff.diff, out);
         }
 
         public static ClusterStateDiff diff(ClusterState before, ClusterState after) {
-            return new ClusterStateDiff(after.version(), ClusterState.FACTORY.diff(before, after) );
+            return new ClusterStateDiff(before.uuid(), after.uuid(), ClusterState.FACTORY.diff(before, after) );
         }
 
         public static byte[] toDiffBytes(ClusterState before, ClusterState after) throws IOException {

@@ -82,7 +82,7 @@ public class ShieldPlugin extends AbstractPlugin {
         }
         int i = user.indexOf(":");
         if (i < 0 || i == user.length() - 1) {
-            throw new ShieldSettingsException("Invalid [shield.user] settings. Must be in the form of \"<username>:<password>\"");
+            throw new ShieldSettingsException("invalid [shield.user] settings. must be in the form of \"<username>:<password>\"");
         }
         String username = user.substring(0, i);
         String password = user.substring(i + 1);

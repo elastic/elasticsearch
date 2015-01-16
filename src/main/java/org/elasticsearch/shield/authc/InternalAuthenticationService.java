@@ -49,11 +49,11 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         AuthenticationToken token = token(request);
         if (token == null) {
             auditTrail.anonymousAccess(request);
-            throw new AuthenticationException("Missing authentication token");
+            throw new AuthenticationException("missing authentication token");
         }
         User user = authenticate(request, token);
         if (user == null) {
-            throw new AuthenticationException("Unable to authenticate user for request");
+            throw new AuthenticationException("unable to authenticate user for request");
         }
         request.putInContext(USER_KEY, user);
         return user;
@@ -104,7 +104,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
             BytesStreamInput input = new BytesStreamInput(bytes, true);
             return User.readFrom(input);
         } catch (IOException ioe) {
-            throw new AuthenticationException("Could not read authenticated user", ioe);
+            throw new AuthenticationException("could not read authenticated user", ioe);
         }
     }
 
@@ -116,7 +116,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
             return Base64.encodeBase64String(bytes);
         } catch (IOException ioe) {
             if (logger != null) {
-                logger.error("Could not encode authenticated user in message header... falling back to token headers", ioe);
+                logger.error("could not encode authenticated user in message header... falling back to token headers", ioe);
             }
             return null;
         }
@@ -147,7 +147,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         if (token == null) {
             if (fallbackUser == null) {
                 auditTrail.anonymousAccess(action, message);
-                throw new AuthenticationException("Missing authentication token for request [" + action + "]");
+                throw new AuthenticationException("missing authentication token for request [" + action + "]");
             }
             return fallbackUser;
         }
@@ -163,7 +163,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
                 }
             }
             auditTrail.authenticationFailed(token, action, message);
-            throw new AuthenticationException("Unable to authenticate user for request");
+            throw new AuthenticationException("unable to authenticate user for request [" + action + "]");
         } finally {
             token.clearCredentials();
         }
@@ -210,7 +210,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
             if (token != null) {
 
                 if (logger.isTraceEnabled()) {
-                    logger.trace("Realm [{}] resolved auth token [{}] from transport request with action [{}]", realm.type(), token.principal(), action);
+                    logger.trace("realm [{}] resolved authentication token [{}] from transport request with action [{}]", realm, token.principal(), action);
                 }
 
                 message.putInContext(TOKEN_KEY, token);

@@ -31,13 +31,13 @@ public class LicenseModule extends AbstractShieldModule.Node {
         try {
             getClass().getClassLoader().loadClass("org.elasticsearch.license.plugin.LicensePlugin");
         } catch (ClassNotFoundException cnfe) {
-            throw new ElasticsearchIllegalStateException("Shield plugin requires the elasticsearch-license plugin to be installed");
+            throw new ElasticsearchIllegalStateException("shield plugin requires the elasticsearch-license plugin to be installed");
         }
 
         if (LicenseVersion.CURRENT.before(ShieldVersion.CURRENT.minLicenseCompatibilityVersion)) {
-            throw new ElasticsearchIllegalStateException("Shield [" + ShieldVersion.CURRENT +
-                    "] requires minumum License plugin version [" + ShieldVersion.CURRENT.minLicenseCompatibilityVersion +
-                    "], but installed License plugin version is [" + LicenseVersion.CURRENT + "]");
+            throw new ElasticsearchIllegalStateException("shield [" + ShieldVersion.CURRENT +
+                    "] requires minumum elasticsearch-license plugin version [" + ShieldVersion.CURRENT.minLicenseCompatibilityVersion +
+                    "], but installed elasticsearch-license plugin version is [" + LicenseVersion.CURRENT + "]");
         }
     }
 

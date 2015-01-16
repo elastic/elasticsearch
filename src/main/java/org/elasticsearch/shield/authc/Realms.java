@@ -74,16 +74,16 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
             Settings realmSettings = realmsSettings.getAsSettings(name);
             String type = realmSettings.get("type");
             if (type == null) {
-                throw new ShieldSettingsException("Missing realm type for in [" + name + "] realm");
+                throw new ShieldSettingsException("missing realm type for [" + name + "] realm");
             }
             Realm.Factory factory = factories.get(type);
             if (factory == null) {
-                throw new ShieldSettingsException("Unknown realm type [" + type + "] set for realm [" + name + "]");
+                throw new ShieldSettingsException("unknown realm type [" + type + "] set for realm [" + name + "]");
             }
             RealmConfig config = new RealmConfig(name, realmSettings, settings, env);
             if (!config.enabled()) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("realm [{}] type [{}] is disabled", name, type);
+                    logger.debug("realm [{}/{}] is disabled", type, name);
                 }
                 continue;
             }
@@ -91,7 +91,7 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
                 // this is an internal realm factory, let's make sure we didn't already registered one
                 // (there can only be one instance of an internal realm)
                 if (internalTypes.contains(type)) {
-                    throw new ShieldSettingsException("Multiple [" + type + "] realms are configured. [" + type +
+                    throw new ShieldSettingsException("multiple [" + type + "] realms are configured. [" + type +
                             "] is an internal realm and therefore there can only be one such realm configured");
                 }
                 internalTypes.add(type);
@@ -122,11 +122,11 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
             Settings realmSettings = realmsSettings.getAsSettings(name);
             String type = realmSettings.get("type");
             if (type == null) {
-                throw new ShieldSettingsException("Missing realm type for in [" + name + "] realm");
+                throw new ShieldSettingsException("missing realm type for [" + name + "] realm");
             }
             if (type.equals(realmType)) {
                 if (result != null) {
-                    throw new ShieldSettingsException("Multiple [" + realmType + "] are configured. Only one [" + realmType + "] may be configured");
+                    throw new ShieldSettingsException("multiple [" + realmType + "] realms are configured. only one [" + realmType + "] may be configured");
                 }
                 result = realmSettings;
             }

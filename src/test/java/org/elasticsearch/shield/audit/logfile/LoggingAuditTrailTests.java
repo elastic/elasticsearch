@@ -82,7 +82,7 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
 
             @Override
             protected BytesReference content() {
-                throw new RuntimeException("Should never be called");
+                throw new RuntimeException("should never be called");
             }
 
             @Override

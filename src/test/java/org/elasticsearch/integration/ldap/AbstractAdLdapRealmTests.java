@@ -64,7 +64,7 @@ abstract public class AbstractAdLdapRealmTests extends ShieldIntegrationTest {
     @BeforeClass
     public static void setupRealm() {
         realmConfig = randomFrom(RealmConfig.values());
-        ESLoggerFactory.getLogger("test").info("Running test with realm configuration [{}], with direct group to role mapping [{}]",
+        ESLoggerFactory.getLogger("test").info("running test with realm configuration [{}], with direct group to role mapping [{}]",
                 realmConfig, realmConfig.mapGroupsAsRoles);
     }
 

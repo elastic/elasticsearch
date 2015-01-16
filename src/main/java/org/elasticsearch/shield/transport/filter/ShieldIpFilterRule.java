@@ -99,7 +99,7 @@ public class ShieldIpFilterRule implements IpFilterRule {
             try {
                 return new IpSubnetFilterRule(isAllowRule, value);
             } catch (UnknownHostException e) {
-                throw new ShieldException("Unable to subnet shield filter for [" + value + "] with rule[" + isAllowRule + "]", e);
+                throw new ShieldException("unable to create shield filter for rule [" + (isAllowRule ? "allow " : "deny ") + value + "]", e);
             }
         }
 

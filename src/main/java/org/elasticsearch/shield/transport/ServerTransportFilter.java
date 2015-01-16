@@ -75,7 +75,7 @@ public interface ServerTransportFilter {
             // TODO is ']' sufficient to mark as shard action?
             boolean isInternalOrShardAction = action.startsWith("internal:") || action.endsWith("]");
             if (isInternalOrShardAction) {
-                throw new AuthenticationException("Not allowed to execute internal/shard actions");
+                throw new AuthenticationException("executing internal/shard actions is considered malicious and forbidden");
             }
             super.inbound(action, request);
         }

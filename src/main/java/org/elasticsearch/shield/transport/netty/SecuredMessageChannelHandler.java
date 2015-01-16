@@ -60,8 +60,8 @@ public class SecuredMessageChannelHandler extends MessageChannelHandler {
             try {
                 transportChannel.sendResponse(e);
             } catch (IOException e1) {
-                logger.warn("Failed to send error message back to client for action [" + action + "]", e);
-                logger.warn("Actual Exception", e1);
+                logger.warn("failed to send error message [{}] back to client for action [{}]", e1, e.getMessage(), action);
+                logger.warn("actual excpetion: ", e);
             }
         }
         return action;

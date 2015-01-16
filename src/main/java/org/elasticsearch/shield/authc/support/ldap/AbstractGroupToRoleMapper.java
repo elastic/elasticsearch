@@ -101,7 +101,7 @@ public abstract class AbstractGroupToRoleMapper {
                         }
                         groupRoles.add(role);
                     } catch (InvalidNameException e) {
-                        logger.error("Invalid group DN [{}] found in [{}] group to role mappings [{}] for realm [{}]. Skipping... ", e, ldapDN, realmType, path, realmName);
+                        logger.error("invalid group DN [{}] found in [{}] group to role mappings [{}] for realm [{}]. skipping... ", e, ldapDN, realmType, path.toAbsolutePath(), realmName);
                     }
                 }
 
@@ -127,7 +127,7 @@ public abstract class AbstractGroupToRoleMapper {
             }
         }
         if (logger.isDebugEnabled()) {
-            logger.debug("The roles [{}], are mapped from these [{}] groups [{}] for realm [{}]", roles, realmType, groupDns, config.name());
+            logger.debug("the roles [{}], are mapped from these [{}] groups [{}] for realm [{}]", roles, realmType, groupDns, config.name());
         }
         return roles;
     }
@@ -160,7 +160,7 @@ public abstract class AbstractGroupToRoleMapper {
                     groupRoles = parseFile(file.toPath(), logger, realmType, config.name());
                     logger.info("updated role mappings (role mappings file [{}] changed) for realm [{}]", file.getAbsolutePath(), config.name());
                 } catch (Throwable t) {
-                    logger.error("could not reload role mappings file [{}] for realm [{}]. Current role mappings remain unmodified", t, file.getAbsolutePath(), config.name());
+                    logger.error("could not reload role mappings file [{}] for realm [{}]. current role mappings remain unmodified", t, file.getAbsolutePath(), config.name());
                     return;
                 }
                 notifyRefresh();

@@ -61,9 +61,9 @@ public final class Automatons {
     static Automaton pattern(String pattern) {
         if (pattern.startsWith("/")) { // it's a lucene regexp
             if (pattern.length() == 1 || !pattern.endsWith("/")) {
-                throw new IllegalArgumentException("Invalid pattern [" + pattern + "]. Patterns starting with '/' " +
+                throw new IllegalArgumentException("invalid pattern [" + pattern + "]. patterns starting with '/' " +
                         "indicate regular expression pattern and therefore must also end with '/'." +
-                        " Other patterns (those that do not start with '/') will be treated as simple wildcard patterns");
+                        " other patterns (those that do not start with '/') will be treated as simple wildcard patterns");
             }
             String regex = pattern.substring(1, pattern.length() - 1);
             return new RegExp(regex).toAutomaton();

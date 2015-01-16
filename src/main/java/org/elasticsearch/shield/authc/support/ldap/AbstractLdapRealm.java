@@ -45,7 +45,7 @@ public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm {
             return new User.Simple(token.principal(), roles.toArray(new String[roles.size()]));
         } catch (Throwable e) {
             if (logger.isDebugEnabled()) {
-                logger.debug("Authentication Failed for user [{}]", e, token.principal());
+                logger.debug("authentication failed for user [{}]", e, token.principal());
             }
             return null;
         }

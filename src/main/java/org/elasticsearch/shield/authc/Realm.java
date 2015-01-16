@@ -85,6 +85,10 @@ public abstract class Realm<T extends AuthenticationToken> implements Comparable
      */
     public abstract User authenticate(T token);
 
+    @Override
+    public String toString() {
+        return type + "/" + config.name;
+    }
 
     /**
      * A factory for a specific realm type. Knows how to create a new realm given the appropriate

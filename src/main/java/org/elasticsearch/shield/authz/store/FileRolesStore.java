@@ -100,7 +100,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
             logger = NoOpLogger.INSTANCE;
         }
 
-        logger.trace("reading roles file located at [{}]", path);
+        logger.trace("reading roles file located at [{}]", path.toAbsolutePath());
 
         if (!Files.exists(path)) {
             return ImmutableMap.of();

@@ -39,7 +39,7 @@ public abstract class User {
         if (input.readBoolean()) {
             String name = input.readString();
             if (!System.NAME.equals(name)) {
-                throw new ShieldException("Invalid system user");
+                throw new ShieldException("invalid system user");
             }
             return SYSTEM;
         }

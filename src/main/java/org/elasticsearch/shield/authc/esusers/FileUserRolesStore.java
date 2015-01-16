@@ -90,7 +90,7 @@ public class FileUserRolesStore {
      */
     public static ImmutableMap<String, String[]> parseFile(Path path, @Nullable ESLogger logger) {
         if (logger != null) {
-            logger.trace("reading users roles file located at [{}]", path);
+            logger.trace("reading users roles file located at [{}]", path.toAbsolutePath());
         }
 
         if (!Files.exists(path)) {
@@ -101,7 +101,7 @@ public class FileUserRolesStore {
         try {
             lines = Files.readAllLines(path, Charsets.UTF_8);
         } catch (IOException ioe) {
-            throw new ElasticsearchException("Could not read users file [" + path.toAbsolutePath() + "]", ioe);
+            throw new ElasticsearchException("could not read users file [" + path.toAbsolutePath() + "]", ioe);
         }
 
         Map<String, List<String>> userToRoles = new HashMap<>();
@@ -115,7 +115,7 @@ public class FileUserRolesStore {
             int i = line.indexOf(":");
             if (i <= 0 || i == line.length() - 1) {
                 if (logger != null) {
-                    logger.error("Invalid entry in users_roles file [" + path.toAbsolutePath() + "], line [" + lineNr + "]. Skipping...");
+                    logger.error("invalid entry in users_roles file [{}], line [{}]. skipping...", path.toAbsolutePath(), lineNr);
                 }
                 continue;
             }
@@ -123,21 +123,21 @@ public class FileUserRolesStore {
             Validation.Error validationError = Validation.Roles.validateRoleName(role);
             if (validationError != null) {
                 if (logger != null) {
-                    logger.error("Invalid role entry in users_roles file [" + path.toAbsolutePath() + "], line [" + lineNr + "]. Skipping... (" + validationError + ")");
+                    logger.error("invalid role entry in users_roles file [{}], line [{}] - {}. skipping...",  path.toAbsolutePath(), lineNr, validationError);
                 }
                 continue;
             }
             String usersStr = line.substring(i + 1).trim();
             if (Strings.isEmpty(usersStr)) {
                 if (logger != null) {
-                    logger.error("Invalid roles entry in users_roles file [" + path.toAbsolutePath() + "], line [" + lineNr + "]. Skipping...");
+                    logger.error("invalid entry for role [{}] in users_roles file [{}], line [{}]. no users found. skipping...", role, path.toAbsolutePath(), lineNr);
                 }
                 continue;
             }
             String[] roleUsers = USERS_DELIM.split(usersStr);
             if (roleUsers.length == 0) {
                 if (logger != null) {
-                    logger.error("Invalid roles entry in users_roles file [" + path.toAbsolutePath() + "], line [" + lineNr + "]. Skipping...");
+                    logger.error("invalid entry for role [{}] in users_roles file [{}], line [{}]. no users found. skipping...", role, path.toAbsolutePath(), lineNr);
                 }
                 continue;
             }
@@ -181,7 +181,7 @@ public class FileUserRolesStore {
                 writer.printf(Locale.ROOT, "%s:%s%s", entry.getKey(), Strings.collectionToCommaDelimitedString(entry.getValue()), System.lineSeparator());
             }
         } catch (IOException ioe) {
-            throw new ElasticsearchException("Could not write file [" + path.toAbsolutePath() + "], please check file permissions", ioe);
+            throw new ElasticsearchException("could not write file [" + path.toAbsolutePath() + "], please check file permissions", ioe);
         }
     }
 
@@ -209,7 +209,7 @@ public class FileUserRolesStore {
                     userRoles = parseFile(file.toPath(), logger);
                     logger.info("updated users (users_roles file [{}] changed)", file.getAbsolutePath());
                 } catch (Throwable t) {
-                    logger.error("failed to parse users_roles file [{}]. Current users_roles remain unmodified", t, file.getAbsolutePath());
+                    logger.error("failed to parse users_roles file [{}]. current users_roles remain unmodified", t, file.getAbsolutePath());
                     return;
                 }
                 notifyRefresh();

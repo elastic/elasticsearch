@@ -75,10 +75,10 @@ public class SSLService extends AbstractComponent {
         }
 
         if (keyStorePath == null) {
-            throw new ShieldSettingsException("No keystore configured");
+            throw new ShieldSettingsException("no keystore configured");
         }
         if (keyStorePassword == null) {
-            throw new ShieldSettingsException("No keystore password configured");
+            throw new ShieldSettingsException("no keystore password configured");
         }
 
         //protocols supported: https://docs.oracle.com/javase/7/docs/technotes/guides/security/StandardNames.html#SSLContext
@@ -97,7 +97,7 @@ public class SSLService extends AbstractComponent {
             sslContext = createSslContext(keyManagerFactory, trustFactory, sslProtocol);
             sslContexts.put(key, sslContext);
         } else {
-            logger.trace("Found keystore[{}], trustStore[{}], TLS protocol[{}] in SSL context cache, reusing", keyStorePath, trustStorePath, sslProtocol);
+            logger.trace("found keystore[{}], trustStore[{}], TLS protocol[{}] in SSL context cache, reusing", keyStorePath, trustStorePath, sslProtocol);
         }
 
         return sslContext;
@@ -108,7 +108,7 @@ public class SSLService extends AbstractComponent {
         try {
             sslEngine.setEnabledCipherSuites(ciphers);
         } catch (Throwable t) {
-            throw new ElasticsearchSSLException("Error loading cipher suites [" + Arrays.asList(ciphers) + "]", t);
+            throw new ElasticsearchSSLException("failed loading cipher suites [" + Arrays.asList(ciphers) + "]", t);
         }
         return sslEngine;
     }
@@ -124,7 +124,7 @@ public class SSLService extends AbstractComponent {
             kmf.init(ks, keyPassword.toCharArray());
             return kmf;
         } catch (Exception e) {
-            throw new ElasticsearchSSLException("Failed to initialize a KeyManagerFactory", e);
+            throw new ElasticsearchSSLException("failed to initialize a KeyManagerFactory", e);
         }
     }
 
@@ -135,7 +135,7 @@ public class SSLService extends AbstractComponent {
             sslContext.init(keyManagerFactory.getKeyManagers(), trustFactory.getTrustManagers(), null);
             return sslContext;
         } catch (Exception e) {
-            throw new ElasticsearchSSLException("Failed to initialize the SSLContext", e);
+            throw new ElasticsearchSSLException("failed to initialize the SSLContext", e);
         }
     }
 
@@ -150,7 +150,7 @@ public class SSLService extends AbstractComponent {
             trustFactory.init(ks);
             return trustFactory;
         } catch (Exception e) {
-            throw new ElasticsearchException("Failed to initialize a TrustManagerFactory", e);
+            throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
         }
     }
 }

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.shield.authc.support.ldap;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.shield.authc.ldap.LdapException;
 
 import javax.naming.InvalidNameException;
 import javax.naming.ldap.LdapName;
@@ -19,7 +19,7 @@ public final class LdapUtils {
         try {
             return new LdapName(dn);
         } catch (InvalidNameException e) {
-            throw new ElasticsearchException("Invalid group DN is set [" + dn + "]", e);
+            throw new LdapException("invalid group DN [" + dn + "]", e);
         }
     }
 }

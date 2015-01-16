@@ -181,7 +181,7 @@ public class ClearRealmsCacheTests extends ShieldIntegrationTest {
         }
 
         if (error.get() != null) {
-            logger.error("Failed to clear realm caches", error.get());
+            logger.error("failed to clear realm caches", error.get());
             fail("failed to clear realm caches");
         }
 

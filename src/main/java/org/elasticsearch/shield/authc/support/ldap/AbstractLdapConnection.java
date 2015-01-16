@@ -44,7 +44,7 @@ public abstract class AbstractLdapConnection implements Closeable {
         try {
             jndiContext.close();
         } catch (NamingException e) {
-            throw new SecurityException("Could not close the LDAP connection", e);
+            throw new SecurityException("could not close the LDAP connection", e);
         }
     }
 

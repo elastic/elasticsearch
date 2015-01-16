@@ -131,6 +131,6 @@ public class FileUserPasswdStoreTests extends ElasticsearchTestCase {
         log = spy(log);
         Map<String, char[]> users = FileUserPasswdStore.parseFile(empty.toPath(), log);
 
-        verify(log, times(1)).warn(contains("No users found"));
+        verify(log, times(1)).warn(contains("no users found"), eq(empty.toPath().toAbsolutePath()));
     }
 }

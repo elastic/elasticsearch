@@ -47,7 +47,7 @@ public class AuditTrailModule extends AbstractShieldModule.Node {
                     binder.addBinding().to(LoggingAuditTrail.class);
                     break;
                 default:
-                    throw new ElasticsearchException("Unknown audit trail output [" + output + "]");
+                    throw new ElasticsearchException("unknown audit trail output [" + output + "]");
             }
         }
     }

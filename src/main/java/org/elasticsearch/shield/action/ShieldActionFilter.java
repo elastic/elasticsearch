@@ -77,7 +77,7 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
             to operate normally, except all read operations will be blocked.
          */
         if (!licenseEnabled && READ_ACTION_MATCHER.apply(action)) {
-            logger.error("Blocking read operation [" + action + "] due to disabled license");
+            logger.error("blocking read operation [{}] due to disabled license", action);
             throw new LicenseExpiredException(LicenseService.FEATURE_NAME);
         }
 
@@ -142,7 +142,7 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
 
         } catch (SignatureException se) {
             auditTrail.tamperedRequest(user, action, request);
-            throw new AuthorizationException("Invalid request: " + se.getMessage());
+            throw new AuthorizationException("invalid request: " + se.getMessage());
         }
     }
 

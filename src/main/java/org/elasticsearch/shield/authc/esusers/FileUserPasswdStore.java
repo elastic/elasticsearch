@@ -59,7 +59,7 @@ public class FileUserPasswdStore {
         file = resolveFile(config.settings(), config.env());
         esUsers = parseFile(file, logger);
         if (esUsers.isEmpty() && logger.isDebugEnabled()) {
-            logger.debug("Realm [esusers] has no users");
+            logger.debug("realm [esusers] has no users");
         }
         FileWatcher watcher = new FileWatcher(file.getParent().toFile());
         watcher.addListener(new FileListener());
@@ -99,7 +99,7 @@ public class FileUserPasswdStore {
      */
     public static ImmutableMap<String, char[]> parseFile(Path path, @Nullable ESLogger logger) {
         if (logger != null) {
-            logger.trace("Reading users file located at [{}]", path);
+            logger.trace("reading users file located at [{}]", path.toAbsolutePath());
         }
         if (!Files.exists(path)) {
             return ImmutableMap.of();
@@ -109,7 +109,7 @@ public class FileUserPasswdStore {
         try {
             lines = Files.readAllLines(path, Charsets.UTF_8);
         } catch (IOException ioe) {
-            throw new ShieldException("Could not read users file [" + path.toAbsolutePath() + "]", ioe);
+            throw new ShieldException("could not read users file [" + path.toAbsolutePath() + "]", ioe);
         }
 
         ImmutableMap.Builder<String, char[]> users = ImmutableMap.builder();
@@ -123,7 +123,7 @@ public class FileUserPasswdStore {
             int i = line.indexOf(":");
             if (i <= 0 || i == line.length() - 1) {
                 if (logger != null) {
-                    logger.error("Invalid entry in users file [" + path.toAbsolutePath() + "], line [" + lineNr + "]. Skipping...");
+                    logger.error("invalid entry in users file [{}], line [{}]. skipping...", path.toAbsolutePath(), lineNr);
                 }
                 continue;
             }
@@ -131,7 +131,7 @@ public class FileUserPasswdStore {
             Validation.Error validationError = Validation.ESUsers.validateUsername(username);
             if (validationError != null) {
                 if (logger != null) {
-                    logger.error("Invalid username [{}], skipping... ({})", username, validationError);
+                    logger.error("invalid username [{}] in users file [{}], skipping... ({})", username, path.toAbsolutePath(), validationError);
                 }
                 continue;
             }
@@ -141,7 +141,7 @@ public class FileUserPasswdStore {
 
         ImmutableMap<String, char[]> usersMap = users.build();
         if (logger != null && usersMap.isEmpty()){
-            logger.warn("No users found in file [" + path.toAbsolutePath() + "].  Use bin/shield/esusers to add users and role mappings");
+            logger.warn("no users found in users file [{}]. use bin/shield/esusers to add users and role mappings", path.toAbsolutePath());
         }
         return usersMap;
     }
@@ -152,7 +152,7 @@ public class FileUserPasswdStore {
                 writer.printf(Locale.ROOT, "%s:%s%s", entry.getKey(), new String(entry.getValue()), System.lineSeparator());
             }
         } catch (IOException ioe) {
-            throw new ElasticsearchException("Could not write file [" + path.toAbsolutePath() + "], please check file permissions", ioe);
+            throw new ElasticsearchException("could not write file [" + path.toAbsolutePath() + "], please check file permissions", ioe);
         }
     }
 
@@ -180,7 +180,7 @@ public class FileUserPasswdStore {
                     esUsers = parseFile(file.toPath(), logger);
                     logger.info("updated users (users file [{}] changed)", file.getAbsolutePath());
                 } catch (Throwable t) {
-                    logger.error("failed to parse users file [{}]. Current users remain unmodified", t, file.getAbsolutePath());
+                    logger.error("failed to parse users file [{}]. current users remain unmodified", t, file.getAbsolutePath());
                     return;
                 }
                 notifyRefresh();

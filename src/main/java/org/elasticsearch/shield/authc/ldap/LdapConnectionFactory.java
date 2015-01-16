@@ -48,11 +48,11 @@ public class LdapConnectionFactory extends ConnectionFactory<LdapConnection> {
         Settings settings = config.settings();
         userDnTemplates = settings.getAsArray(USER_DN_TEMPLATES_SETTING);
         if (userDnTemplates == null) {
-            throw new ShieldSettingsException("Missing required ldap setting [" + USER_DN_TEMPLATES_SETTING + "]");
+            throw new ShieldSettingsException("missing required LDAP setting [" + USER_DN_TEMPLATES_SETTING + "]");
         }
         String[] ldapUrls = settings.getAsArray(URLS_SETTING);
         if (ldapUrls == null) {
-            throw new ShieldSettingsException("Missing required ldap setting [" + URLS_SETTING + "]");
+            throw new ShieldSettingsException("missing required LDAP setting [" + URLS_SETTING + "]");
         }
 
         timeoutMilliseconds = (int) settings.getAsTime(TIMEOUT_LDAP_SETTING, TIMEOUT_DEFAULT).millis();
@@ -96,11 +96,11 @@ public class LdapConnectionFactory extends ConnectionFactory<LdapConnection> {
                 return new LdapConnection(connectionLogger, ctx, dn, findGroupsByAttribute, groupSubTreeSearch, groupSearchDN, timeoutMilliseconds);
 
             } catch (NamingException e) {
-                logger.warn("Failed ldap authentication with user template [{}], dn [{}]", e, template, dn);
+                logger.warn("failed LDAP authentication with user template [{}] and DN [{}]", e, template, dn);
             }
         }
 
-        throw new LdapException("Failed ldap authentication");
+        throw new LdapException("failed LDAP authentication");
     }
 
     /**

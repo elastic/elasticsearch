@@ -77,7 +77,7 @@ public class IpFilteringIntegrationTests extends ShieldIntegrationTest {
     }
 
     private void trySocketConnection(Socket socket, InetSocketAddress address) throws IOException {
-        logger.info("Connecting to {}", address);
+        logger.info("connecting to {}", address);
         socket.connect(address, 500);
 
         assertThat(socket.isConnected(), is(true));

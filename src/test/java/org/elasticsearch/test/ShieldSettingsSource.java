@@ -172,11 +172,11 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
         //the directory might exist e.g. if the global cluster gets restarted, then we recreate the directory as well
         if (createdFolder.exists()) {
             if (!FileSystemUtils.deleteRecursively(createdFolder)) {
-                throw new RuntimeException("Could not delete existing temporary folder: " + createdFolder.getAbsolutePath());
+                throw new RuntimeException("could not delete existing temporary folder: " + createdFolder.getAbsolutePath());
             }
         }
         if (!createdFolder.mkdir()) {
-            throw new RuntimeException("Could not create temporary folder: " + createdFolder.getAbsolutePath());
+            throw new RuntimeException("could not create temporary folder: " + createdFolder.getAbsolutePath());
         }
         return createdFolder;
     }

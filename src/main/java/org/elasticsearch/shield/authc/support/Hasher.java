@@ -160,7 +160,7 @@ public enum Hasher {
     public static Hasher resolve(String name) {
         Hasher hasher = resolve(name, null);
         if (hasher == null) {
-            throw new ShieldSettingsException("Unknown hash function [" + name + "]");
+            throw new ShieldSettingsException("unknown hash function [" + name + "]");
         }
         return hasher;
     }

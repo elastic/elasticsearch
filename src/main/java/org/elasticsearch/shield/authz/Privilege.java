@@ -195,8 +195,8 @@ public abstract class Privilege<P extends Privilege<P>> {
                     return index;
                 }
             }
-            throw new ElasticsearchIllegalArgumentException("Unknown index privilege [" + name + "]. A privilege must either " +
-                    "on of the predefined fixed indices privileges [" + Strings.arrayToCommaDelimitedString(values) +
+            throw new ElasticsearchIllegalArgumentException("unknown index privilege [" + name + "]. a privilege must be either " +
+                    "one of the predefined fixed indices privileges [" + Strings.arrayToCommaDelimitedString(values) +
                     "] or a pattern over one of the available index actions");
         }
 
@@ -275,8 +275,8 @@ public abstract class Privilege<P extends Privilege<P>> {
                     return cluster;
                 }
             }
-            throw new ElasticsearchIllegalArgumentException("Unknown cluster privilege [" + name + "]. A privilege must either " +
-                    "on of the predefined fixed cluster privileges [" + Strings.arrayToCommaDelimitedString(values) +
+            throw new ElasticsearchIllegalArgumentException("unknown cluster privilege [" + name + "]. a privilege must be either " +
+                    "one of the predefined fixed cluster privileges [" + Strings.arrayToCommaDelimitedString(values) +
                     "] or a pattern over one of the available cluster actions");
         }
     }

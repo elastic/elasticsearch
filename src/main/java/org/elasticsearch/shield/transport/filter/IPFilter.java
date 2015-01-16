@@ -107,10 +107,10 @@ public class IPFilter extends AbstractComponent {
             }
 
         } catch (IOException | YAMLException e) {
-            throw new ElasticsearchParseException("Failed to read & parse rules from settings", e);
+            throw new ElasticsearchParseException("failed to read & parse rules from settings", e);
         }
 
-        logger.debug("Loaded ip filtering profiles: {}", profileRules.keySet());
+        logger.debug("loaded ip filtering profiles: {}", profileRules.keySet());
         return ImmutableMap.copyOf(profileRules);
     }
 

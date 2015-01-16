@@ -173,7 +173,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
 
     private AuthorizationException denial(User user, String action, TransportRequest request) {
         auditTrail.accessDenied(user, action, request);
-        return new AuthorizationException("Action [" + action + "] is unauthorized for user [" + user.principal() + "]");
+        return new AuthorizationException("action [" + action + "] is unauthorized for user [" + user.principal() + "]");
     }
 
     private void grant(User user, String action, TransportRequest request) {

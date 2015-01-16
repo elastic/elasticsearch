@@ -71,11 +71,11 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             @Override
             public UserWithHash call() throws Exception {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("User not found in cache, proceeding with normal authentication");
+                    logger.debug("user not found in cache, proceeding with normal authentication");
                 }
                 User user = doAuthenticate(token);
                 if (user == null) {
-                    throw new AuthenticationException("Could not authenticate [" + token.principal() + "]");
+                    throw new AuthenticationException("could not authenticate [" + token.principal() + "]");
                 }
                 return new UserWithHash(user, token.credentials(), hasher);
             }
@@ -85,7 +85,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             UserWithHash userWithHash = cache.get(token.principal(), callback);
             if (userWithHash.verify(token.credentials())) {
                 if(logger.isDebugEnabled()) {
-                    logger.debug("Authenticated user [{}], with roles [{}]", token.principal(), userWithHash.user.roles());
+                    logger.debug("authenticated user [{}], with roles [{}]", token.principal(), userWithHash.user.roles());
                 }
                 return userWithHash.user;
             }
@@ -94,15 +94,15 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             userWithHash = cache.get(token.principal(), callback);
 
             if (logger.isDebugEnabled()) {
-                logger.debug("Cached user's password changed. Authenticated user [{}], with roles [{}]", token.principal(), userWithHash.user.roles());
+                logger.debug("cached user's password changed. authenticated user [{}], with roles [{}]", token.principal(), userWithHash.user.roles());
             }
             return userWithHash.user;
             
         } catch (ExecutionException | UncheckedExecutionException ee) {
             if (logger.isTraceEnabled()) {
-                logger.trace("Realm [" + type() + "] could not authenticate [" + token.principal() + "]", ee);
+                logger.trace("realm [" + type() + "] could not authenticate [" + token.principal() + "]", ee);
             } else if (logger.isDebugEnabled()) {
-                logger.debug("Realm [" + type() + "] could not authenticate [" + token.principal() + "]");
+                logger.debug("realm [" + type() + "] could not authenticate [" + token.principal() + "]");
             }
             return null;
         }

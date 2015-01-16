@@ -47,7 +47,7 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory<ActiveDi
         Settings settings = config.settings();
         domainName = settings.get(AD_DOMAIN_NAME_SETTING);
         if (domainName == null) {
-            throw new ShieldSettingsException("Missing [" + AD_DOMAIN_NAME_SETTING + "] setting for active directory");
+            throw new ShieldSettingsException("missing [" + AD_DOMAIN_NAME_SETTING + "] setting for active directory");
         }
         userSearchDN = settings.get(AD_USER_SEARCH_BASEDN_SETTING, buildDnFromDomain(domainName));
         timeoutMilliseconds = (int) settings.getAsTime(TIMEOUT_LDAP_SETTING, TIMEOUT_DEFAULT).millis();
@@ -98,21 +98,21 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory<ActiveDi
                     if (!results.hasMore()) {
                         return new ActiveDirectoryConnection(connectionLogger, ctx, name, userSearchDN, timeoutMilliseconds);
                     }
-                    throw new ActiveDirectoryException("Search for user [" + userName + "] by principle name yielded multiple results");
+                    throw new ActiveDirectoryException("search for user [" + userName + "] by principle name yielded multiple results");
                 }
 
                 ctx.close();
-                throw new ActiveDirectoryException("Search for user [" + userName + "] by principle name yielded multiple results");
+                throw new ActiveDirectoryException("search for user [" + userName + "] by principle name yielded multiple results");
             }
         } catch (NamingException | LdapException e) {
             if (ctx != null) {
                 try {
                     ctx.close();
-                } catch (NamingException closeException) {
-                    logger.error("An unexpected error occurred closing an LDAP exception", closeException);
+                } catch (NamingException ne) {
+                    logger.trace("an unexpected error occurred closing an LDAP context", ne);
                 }
             }
-            throw new ActiveDirectoryException("Unable to authenticate user [" + userName + "] to active directory domain [" + domainName + "]", e);
+            throw new ActiveDirectoryException("unable to authenticate user [" + userName + "] to active directory domain [" + domainName + "]", e);
         }
     }
 

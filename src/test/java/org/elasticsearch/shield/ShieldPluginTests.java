@@ -29,11 +29,11 @@ public class ShieldPluginTests extends ShieldIntegrationTest {
     public void testThatPluginIsLoaded() throws IOException {
         HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            logger.info("Executing unauthorized request to /_shield infos");
+            logger.info("executing unauthorized request to /_shield infos");
             HttpResponse response = new HttpRequestBuilder(httpClient).httpTransport(httpServerTransport).method("GET").path("/_shield").execute();
             assertThat(response.getStatusCode(), is(UNAUTHORIZED.getStatus()));
 
-            logger.info("Executing authorized request to /_shield infos");
+            logger.info("executing authorized request to /_shield infos");
             response = new HttpRequestBuilder(httpClient).httpTransport(httpServerTransport).method("GET").path("/_shield").addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                     basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME, new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))).execute();
             assertThat(response.getStatusCode(), is(OK.getStatus()));

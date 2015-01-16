@@ -101,7 +101,7 @@ public abstract class ConnectionFactory<Connection extends AbstractLdapConnectio
 
         if (!allSecure && !allClear) {
             //No mixing is allowed because LdapSSLSocketFactory produces only SSL sockets and not clear text sockets
-            throw new ShieldSettingsException("Configured ldap protocols are not all equal " +
+            throw new ShieldSettingsException("configured LDAP protocols are not all equal " +
                     "(ldaps://.. and ldap://..): [" + Strings.arrayToCommaDelimitedString(ldapUrls) + "]");
         }
         return allSecure;

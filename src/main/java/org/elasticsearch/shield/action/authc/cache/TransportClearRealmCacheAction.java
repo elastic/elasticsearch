@@ -87,7 +87,7 @@ public class TransportClearRealmCacheAction extends TransportNodesOperationActio
         for (String realmName : nodeRequest.realms) {
             Realm realm = realms.realm(realmName);
             if (realm == null) {
-                throw new RealmMissingException("Could not find active realm [" + realmName + "]");
+                throw new RealmMissingException("could not find active realm [" + realmName + "]");
             }
             clearCache(realm, nodeRequest.usernames);
         }

@@ -46,7 +46,7 @@ public class HandshakeWaitingHandler extends SimpleChannelHandler {
             @Override
             public void operationComplete(ChannelFuture channelFuture) throws Exception {
                 if (handshakeFuture.isSuccess()) {
-                    logger.debug("SSL / TLS handshake completed for channel");
+                    logger.debug("SSL/TLS handshake completed for channel");
 
                     // We synchronize here to allow all pending writes to be processed prior to any writes coming from
                     // another thread
@@ -63,9 +63,9 @@ public class HandshakeWaitingHandler extends SimpleChannelHandler {
                 } else {
                     Throwable cause = handshakeFuture.getCause();
                     if (logger.isDebugEnabled()) {
-                        logger.debug("SSL / TLS handshake failed, closing channel: {}", cause, cause.getMessage());
+                        logger.debug("SSL/TLS handshake failed, closing channel: {}", cause, cause.getMessage());
                     } else {
-                        logger.error("SSL / TLS handshake failed, closing channel: {}", cause.getMessage());
+                        logger.error("SSL/TLS handshake failed, closing channel: {}", cause.getMessage());
                     }
 
                     synchronized (HandshakeWaitingHandler.this) {

@@ -7,6 +7,7 @@ package org.elasticsearch.shield.authc.ldap;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.ldap.ConnectionFactory;
@@ -40,7 +41,8 @@ public class LdapConnectionTests extends LdapTest {
                     .put(buildLdapSettings(ldapUrls, userTemplates, groupSearchBase, true))
                     .put(ConnectionFactory.TIMEOUT_TCP_CONNECTION_SETTING, "1ms") //1 millisecond
                     .build();
-            LdapConnectionFactory connectionFactory = new LdapConnectionFactory(settings);
+            RealmConfig config = new RealmConfig("ldap_realm", settings);
+            LdapConnectionFactory connectionFactory = new LdapConnectionFactory(config);
             String user = "Horatio Hornblower";
             SecuredString userPass = SecuredStringTests.build("pass");
 
@@ -65,8 +67,9 @@ public class LdapConnectionTests extends LdapTest {
                 "wrongname={0},ou=people,o=sevenSeas",
                 "cn={0},ou=people,o=sevenSeas", //this last one should work
         };
-        LdapConnectionFactory connectionFactory = new LdapConnectionFactory(
-                buildLdapSettings(ldapUrls, userTemplates, groupSearchBase, true));
+        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrls, userTemplates, groupSearchBase, true));
+
+        LdapConnectionFactory connectionFactory = new LdapConnectionFactory(config);
 
         String user = "Horatio Hornblower";
         SecuredString userPass = SecuredStringTests.build("pass");
@@ -89,8 +92,9 @@ public class LdapConnectionTests extends LdapTest {
                 "wrongname={0},ou=people,o=sevenSeas",
                 "asdf={0},ou=people,o=sevenSeas", //none of these should work
         };
-        LdapConnectionFactory ldapFac = new LdapConnectionFactory(
-                buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, isSubTreeSearch));
+        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, isSubTreeSearch));
+
+        LdapConnectionFactory ldapFac = new LdapConnectionFactory(config);
 
         String user = "Horatio Hornblower";
         SecuredString userPass = SecuredStringTests.build("pass");
@@ -102,9 +106,9 @@ public class LdapConnectionTests extends LdapTest {
     public void testGroupLookup_Subtree() {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
+        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, true));
 
-        LdapConnectionFactory ldapFac = new LdapConnectionFactory(
-                buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, true));
+        LdapConnectionFactory ldapFac = new LdapConnectionFactory(config);
 
         String user = "Horatio Hornblower";
         SecuredString userPass = SecuredStringTests.build("pass");
@@ -119,8 +123,9 @@ public class LdapConnectionTests extends LdapTest {
     public void testGroupLookup_OneLevel() {
         String groupSearchBase = "ou=crews,ou=groups,o=sevenSeas";
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
-        LdapConnectionFactory ldapFac = new LdapConnectionFactory(
-                buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, false));
+        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, false));
+
+        LdapConnectionFactory ldapFac = new LdapConnectionFactory(config);
 
         String user = "Horatio Hornblower";
         try (LdapConnection ldap = ldapFac.open(user, SecuredStringTests.build("pass"))) {

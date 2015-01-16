@@ -5,8 +5,7 @@
  */
 package org.elasticsearch.shield.authc.active_directory;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.ldap.AbstractGroupToRoleMapper;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
@@ -15,7 +14,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
  */
 public class ActiveDirectoryGroupToRoleMapper extends AbstractGroupToRoleMapper {
 
-    public ActiveDirectoryGroupToRoleMapper(Settings settings, String realmName, Environment env, ResourceWatcherService watcherService) {
-        super(settings, ActiveDirectoryRealm.TYPE, realmName, env, watcherService, null);
+    public ActiveDirectoryGroupToRoleMapper(RealmConfig config, ResourceWatcherService watcherService) {
+        super(ActiveDirectoryRealm.TYPE, config, watcherService, null);
     }
 }

@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.transport.netty;
 
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.netty.channel.*;
 import org.elasticsearch.common.netty.handler.ssl.SslHandler;
 
@@ -25,10 +24,18 @@ import java.util.Queue;
  * is the way that NettyTransport currently works
  */
 public class HandshakeWaitingHandler extends SimpleChannelHandler {
-    private static final ESLogger logger = Loggers.getLogger(HandshakeWaitingHandler.class);
+
+    private final ESLogger logger;
 
     private boolean handshaken = false;
     private Queue<MessageEvent> pendingWrites = new LinkedList<>();
+
+    /**
+     * @param logger    We pass a context aware logger here (logger that is aware of the node name & env)
+     */
+    public HandshakeWaitingHandler(ESLogger logger) {
+        this.logger = logger;
+    }
 
     @Override
     public void channelConnected(final ChannelHandlerContext ctx, final ChannelStateEvent e) throws Exception {

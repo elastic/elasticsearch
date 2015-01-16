@@ -10,9 +10,9 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldSettingsException;
+import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.ldap.ConnectionFactory;
-import org.elasticsearch.shield.authc.support.ldap.AbstractLdapSslSocketFactory;
 
 import javax.naming.Context;
 import javax.naming.NamingException;
@@ -29,7 +29,7 @@ import java.util.Hashtable;
  * Note that even though there is a separate factory for Active Directory, this factory would work against AD.  A template
  * for each user context would need to be supplied.
  */
-public class LdapConnectionFactory extends ConnectionFactory {
+public class LdapConnectionFactory extends ConnectionFactory<LdapConnection> {
 
     public static final String USER_DN_TEMPLATES_SETTING = "user_dn_templates";
     public static final String GROUP_SEARCH_SUBTREE_SETTING = "group_search.subtree_search";
@@ -43,8 +43,9 @@ public class LdapConnectionFactory extends ConnectionFactory {
     private final int timeoutMilliseconds;
 
     @Inject()
-    public LdapConnectionFactory(Settings settings) {
-        super(settings);
+    public LdapConnectionFactory(RealmConfig config) {
+        super(LdapConnection.class, config);
+        Settings settings = config.settings();
         userDnTemplates = settings.getAsArray(USER_DN_TEMPLATES_SETTING);
         if (userDnTemplates == null) {
             throw new ShieldSettingsException("Missing required ldap setting [" + USER_DN_TEMPLATES_SETTING + "]");
@@ -92,7 +93,7 @@ public class LdapConnectionFactory extends ConnectionFactory {
                 DirContext ctx = new InitialDirContext(ldapEnv);
 
                 //return the first good connection
-                return new LdapConnection(ctx, dn, findGroupsByAttribute, groupSubTreeSearch, groupSearchDN, timeoutMilliseconds);
+                return new LdapConnection(connectionLogger, ctx, dn, findGroupsByAttribute, groupSubTreeSearch, groupSearchDN, timeoutMilliseconds);
 
             } catch (NamingException e) {
                 logger.warn("Failed ldap authentication with user template [{}], dn [{}]", e, template, dn);

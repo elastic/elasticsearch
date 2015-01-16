@@ -8,18 +8,13 @@ package org.elasticsearch.shield.authc.support.ldap;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.shield.ShieldSettingsException;
-import org.elasticsearch.shield.authc.ldap.LdapConnectionTests;
+import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.shield.ssl.SSLService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.io.File;
 import java.io.Serializable;
-import java.net.URISyntaxException;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -104,7 +99,8 @@ public class ConnectionFactoryTests extends ElasticsearchTestCase {
     }
 
     private ConnectionFactory createConnectionFactoryWithoutHostnameVerification() {
-        return new ConnectionFactory(ImmutableSettings.builder().put("hostname_verification", false).build()) {
+        RealmConfig config = new RealmConfig("_name", ImmutableSettings.builder().put("hostname_verification", false).build());
+        return new ConnectionFactory<AbstractLdapConnection>(AbstractLdapConnection.class, config) {
             @Override
             public AbstractLdapConnection open(String user, SecuredString password) {
                 return null;
@@ -113,7 +109,7 @@ public class ConnectionFactoryTests extends ElasticsearchTestCase {
     }
 
     private ConnectionFactory createConnectionFactoryWithHostnameVerification() {
-        return new ConnectionFactory(ImmutableSettings.EMPTY) {
+        return new ConnectionFactory<AbstractLdapConnection>(AbstractLdapConnection.class, new RealmConfig("_name")) {
             @Override
             public AbstractLdapConnection open(String user, SecuredString password) {
                 return null;

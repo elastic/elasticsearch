@@ -9,6 +9,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.Realm;
+import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -68,7 +69,7 @@ public class CachingUsernamePasswordRealmTests extends ElasticsearchTestCase {
     static class FailingAuthenticationRealm extends CachingUsernamePasswordRealm {
 
         FailingAuthenticationRealm(Settings settings) {
-            super("failing", "failing-test", settings);
+            super("failing", new RealmConfig("failing-test", settings));
         }
 
         @Override
@@ -80,7 +81,7 @@ public class CachingUsernamePasswordRealmTests extends ElasticsearchTestCase {
     static class ThrowingAuthenticationRealm extends CachingUsernamePasswordRealm {
 
         ThrowingAuthenticationRealm(Settings settings) {
-            super("throwing", "throwing-test", settings);
+            super("throwing", new RealmConfig("throwing-test", settings));
         }
 
         @Override
@@ -95,7 +96,7 @@ public class CachingUsernamePasswordRealmTests extends ElasticsearchTestCase {
         public final AtomicInteger INVOCATION_COUNTER = new AtomicInteger(0);
 
         AlwaysAuthenticateCachingRealm() {
-            super("always", "always-test", ImmutableSettings.EMPTY);
+            super("always", new RealmConfig("always-test", ImmutableSettings.EMPTY));
         }
 
         @Override

@@ -6,8 +6,6 @@
 package org.elasticsearch.shield.authc.support.ldap;
 
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.shield.ssl.SSLService;
 
 import javax.net.SocketFactory;
@@ -21,7 +19,6 @@ import java.net.InetAddress;
  */
 public abstract class AbstractLdapSslSocketFactory extends SocketFactory {
 
-    protected static ESLogger logger = Loggers.getLogger(AbstractLdapSslSocketFactory.class);
     protected static SSLService sslService;
 
     private final SSLSocketFactory socketFactory;
@@ -81,6 +78,5 @@ public abstract class AbstractLdapSslSocketFactory extends SocketFactory {
      * @param sslSocket
      */
     protected void configureSSLSocket(SSLSocket sslSocket) {
-
     }
 }

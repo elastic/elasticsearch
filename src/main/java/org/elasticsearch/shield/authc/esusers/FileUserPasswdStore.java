@@ -10,11 +10,11 @@ import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.authc.support.SecuredString;
@@ -41,7 +41,7 @@ import static org.elasticsearch.shield.support.ShieldFiles.openAtomicMoveWriter;
  */
 public class FileUserPasswdStore {
 
-    private static final ESLogger logger = Loggers.getLogger(FileUserPasswdStore.class);
+    private final ESLogger logger;
 
     private final Path file;
     final Hasher hasher = Hasher.HTPASSWD;
@@ -50,12 +50,13 @@ public class FileUserPasswdStore {
 
     private CopyOnWriteArrayList<RefreshListener> listeners;
 
-    public FileUserPasswdStore(Settings settings, Environment env, ResourceWatcherService watcherService) {
-        this(settings, env, watcherService, null);
+    public FileUserPasswdStore(RealmConfig config, ResourceWatcherService watcherService) {
+        this(config, watcherService, null);
     }
 
-    FileUserPasswdStore(Settings settings, Environment env, ResourceWatcherService watcherService, RefreshListener listener) {
-        file = resolveFile(settings, env);
+    FileUserPasswdStore(RealmConfig config, ResourceWatcherService watcherService, RefreshListener listener) {
+        logger = config.logger(FileUserPasswdStore.class);
+        file = resolveFile(config.settings(), config.env());
         esUsers = parseFile(file, logger);
         if (esUsers.isEmpty() && logger.isDebugEnabled()) {
             logger.debug("Realm [esusers] has no users");

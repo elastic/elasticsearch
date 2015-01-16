@@ -7,6 +7,7 @@ package org.elasticsearch.shield.authc;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.User;
@@ -51,7 +52,9 @@ public class RealmsTests extends ElasticsearchTestCase {
             builder.put("shield.authc.realms.realm_" + i + ".order", orders.get(i));
             orderToIndex.put(orders.get(i), i);
         }
-        Realms realms = new Realms(builder.build(), factories);
+        Settings settings = builder.build();
+        Environment env = new Environment(settings);
+        Realms realms = new Realms(settings, env, factories);
         realms.start();
         int i = 0;
         for (Realm realm : realms) {
@@ -65,17 +68,19 @@ public class RealmsTests extends ElasticsearchTestCase {
 
     @Test(expected = ShieldSettingsException.class)
     public void testWithSettings_WithMultipleInternalRealmsOfSameType() throws Exception {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder();
-        builder.put("shield.authc.realms.realm_1.type", ESUsersRealm.TYPE);
-        builder.put("shield.authc.realms.realm_1.order", 0);
-        builder.put("shield.authc.realms.realm_2.type", ESUsersRealm.TYPE);
-        builder.put("shield.authc.realms.realm_2.order", 1);
-        new Realms(builder.build(), factories).start();
+        Settings settings = ImmutableSettings.builder()
+                .put("shield.authc.realms.realm_1.type", ESUsersRealm.TYPE)
+                .put("shield.authc.realms.realm_1.order", 0)
+                .put("shield.authc.realms.realm_2.type", ESUsersRealm.TYPE)
+                .put("shield.authc.realms.realm_2.order", 1)
+                .build();
+        Environment env = new Environment(settings);
+        new Realms(settings, env, factories).start();
     }
 
     @Test
     public void testWithEmptySettings() throws Exception {
-        Realms realms = new Realms(ImmutableSettings.EMPTY, factories);
+        Realms realms = new Realms(ImmutableSettings.EMPTY, new Environment(ImmutableSettings.EMPTY), factories);
         realms.start();
         Iterator<Realm> iter = realms.iterator();
         assertThat(iter.hasNext(), is(true));
@@ -105,9 +110,9 @@ public class RealmsTests extends ElasticsearchTestCase {
                 logger.error("put [{}] -> [{}]", orders.get(i), i);
             }
         }
-
         Settings settings = builder.build();
-        Realms realms = new Realms(settings, factories);
+        Environment env = new Environment(settings);
+        Realms realms = new Realms(settings, env, factories);
         realms.start();
         Iterator<Realm> iterator = realms.iterator();
 
@@ -133,8 +138,8 @@ public class RealmsTests extends ElasticsearchTestCase {
 
     static class DummyRealm extends Realm {
 
-        public DummyRealm(String type, String name, Settings settings) {
-            super(type, name, settings);
+        public DummyRealm(String type, RealmConfig config) {
+            super(type, config);
         }
 
         @Override
@@ -164,13 +169,13 @@ public class RealmsTests extends ElasticsearchTestCase {
             }
 
             @Override
-            public DummyRealm create(String name, Settings settings) {
-                return new DummyRealm(type(), name, settings);
+            public DummyRealm create(RealmConfig config) {
+                return new DummyRealm(type(), config);
             }
 
             @Override
             public DummyRealm createDefault(String name) {
-                return type().equals("esusers") ? new DummyRealm("esusers", name, ImmutableSettings.EMPTY) : null;
+                return type().equals("esusers") ? new DummyRealm("esusers", new RealmConfig(name)) : null;
             }
         }
     }

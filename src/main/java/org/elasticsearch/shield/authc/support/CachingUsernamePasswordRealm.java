@@ -7,11 +7,11 @@ package org.elasticsearch.shield.authc.support;
 
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.UncheckedExecutionException;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationException;
+import org.elasticsearch.shield.authc.RealmConfig;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -27,14 +27,14 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     private final Cache<String, UserWithHash> cache;
     private final Hasher hasher;
 
-    protected CachingUsernamePasswordRealm(String type, String name, Settings settings) {
-        super(type, name, settings);
-        hasher = Hasher.resolve(settings.get("cache.hash_algo", null), Hasher.SHA2);
-        TimeValue ttl = settings.getAsTime(CACHE_TTL, DEFAULT_TTL);
+    protected CachingUsernamePasswordRealm(String type, RealmConfig config) {
+        super(type, config);
+        hasher = Hasher.resolve(config.settings().get("cache.hash_algo", null), Hasher.SHA2);
+        TimeValue ttl = config.settings().getAsTime(CACHE_TTL, DEFAULT_TTL);
         if (ttl.millis() > 0) {
             cache = CacheBuilder.newBuilder()
                     .expireAfterWrite(ttl.getMillis(), TimeUnit.MILLISECONDS)
-                    .maximumSize(settings.getAsInt(CACHE_MAX_USERS, DEFAULT_MAX_USERS))
+                    .maximumSize(config.settings().getAsInt(CACHE_MAX_USERS, DEFAULT_MAX_USERS))
                     .build();
         } else {
             cache = null;

@@ -7,7 +7,6 @@ package org.elasticsearch.shield.authc.ldap;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.shield.authc.support.ldap.AbstractLdapConnection;
 import org.elasticsearch.shield.authc.support.ldap.ClosableNamingEnumeration;
 
@@ -30,8 +29,6 @@ import java.util.List;
  */
 public class LdapConnection extends AbstractLdapConnection {
 
-    private static final ESLogger logger = Loggers.getLogger(LdapConnection.class);
-
     private final String groupSearchDN;
     private final boolean isGroupSubTreeSearch;
     private final boolean isFindGroupsByAttribute;
@@ -41,8 +38,8 @@ public class LdapConnection extends AbstractLdapConnection {
     /**
      * This object is intended to be constructed by the LdapConnectionFactory
      */
-    LdapConnection(DirContext ctx, String boundName, boolean isFindGroupsByAttribute, boolean isGroupSubTreeSearch, String groupSearchDN, int timeoutMilliseconds) {
-        super(ctx, boundName);
+    LdapConnection(ESLogger logger, DirContext ctx, String boundName, boolean isFindGroupsByAttribute, boolean isGroupSubTreeSearch, String groupSearchDN, int timeoutMilliseconds) {
+        super(logger, ctx, boundName);
         this.isGroupSubTreeSearch = isGroupSubTreeSearch;
         this.groupSearchDN = groupSearchDN;
         this.isFindGroupsByAttribute = isFindGroupsByAttribute;

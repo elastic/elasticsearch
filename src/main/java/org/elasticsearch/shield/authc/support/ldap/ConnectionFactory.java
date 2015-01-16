@@ -8,10 +8,9 @@ package org.elasticsearch.shield.authc.support.ldap;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.ShieldSettingsException;
+import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.SecuredString;
 
 import java.io.Serializable;
@@ -33,7 +32,7 @@ import static org.elasticsearch.common.collect.Iterables.all;
     }
  </pre>
  */
-public abstract class ConnectionFactory {
+public abstract class ConnectionFactory<Connection extends AbstractLdapConnection> {
 
     public static final String URLS_SETTING = "url";
     public static final String JNDI_LDAP_READ_TIMEOUT = "com.sun.jndi.ldap.read.timeout";
@@ -47,11 +46,14 @@ public abstract class ConnectionFactory {
     private static final Pattern STARTS_WITH_LDAPS = Pattern.compile("^ldaps:.*", Pattern.CASE_INSENSITIVE);
     private static final Pattern STARTS_WITH_LDAP = Pattern.compile("^ldap:.*", Pattern.CASE_INSENSITIVE);
 
-    protected final ESLogger logger = Loggers.getLogger(getClass());
-    private final Settings settings;
+    protected final ESLogger logger;
+    protected final ESLogger connectionLogger;
+    protected final RealmConfig config;
 
-    protected ConnectionFactory(Settings settings) {
-        this.settings = settings;
+    protected ConnectionFactory(Class<Connection> connectionClass, RealmConfig config) {
+        this.config = config;
+        this.logger = config.logger(getClass());
+        this.connectionLogger = config.logger(connectionClass);
     }
 
     /**
@@ -61,7 +63,7 @@ public abstract class ConnectionFactory {
      * @param user      The name of the user to authenticate the connection with.
      * @param password  The password of the user
      */
-    public abstract AbstractLdapConnection open(String user, SecuredString password) ;
+    public abstract Connection open(String user, SecuredString password) ;
 
     /**
      * If one of the ldapUrls are SSL this will set the LdapSslSocketFactory as a socket provider on the builder
@@ -73,7 +75,7 @@ public abstract class ConnectionFactory {
     protected void configureJndiSSL(String[] ldapUrls, ImmutableMap.Builder<String, Serializable> builder) {
         boolean secureProtocol = secureUrls(ldapUrls);
         if (secureProtocol) {
-            if (settings.getAsBoolean(HOSTNAME_VERIFICATION_SETTING, true)) {
+            if (config.settings().getAsBoolean(HOSTNAME_VERIFICATION_SETTING, true)) {
                 builder.put(JAVA_NAMING_LDAP_FACTORY_SOCKET, HostnameVerifyingLdapSslSocketFactory.class.getName());
                 logger.debug("using encryption for LDAP connections with hostname verification");
             } else {

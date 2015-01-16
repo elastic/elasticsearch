@@ -27,6 +27,7 @@ import java.net.InetSocketAddress;
  *
  */
 public class NettySecuredTransport extends NettyTransport {
+
     public static final String HOSTNAME_VERIFICATION_SETTING = "shield.ssl.hostname_verification";
 
     private final SSLService sslService;
@@ -123,7 +124,7 @@ public class NettySecuredTransport extends NettyTransport {
 
                 sslEngine.setUseClientMode(true);
                 ctx.getPipeline().replace(this, "ssl", new SslHandler(sslEngine));
-                ctx.getPipeline().addAfter("ssl", "handshake", new HandshakeWaitingHandler());
+                ctx.getPipeline().addAfter("ssl", "handshake", new HandshakeWaitingHandler(logger));
 
                 ctx.sendDownstream(e);
             }

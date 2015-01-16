@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.transport.netty;
 
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.netty.bootstrap.ClientBootstrap;
 import org.elasticsearch.common.netty.bootstrap.ServerBootstrap;
 import org.elasticsearch.common.netty.buffer.ChannelBuffer;
@@ -16,7 +17,10 @@ import org.elasticsearch.common.netty.channel.socket.nio.NioServerSocketChannelF
 import org.elasticsearch.common.netty.handler.ssl.SslHandler;
 import org.elasticsearch.shield.ssl.SSLService;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -28,7 +32,10 @@ import java.nio.file.Paths;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -133,7 +140,7 @@ public class HandshakeWaitingHandlerTests extends ElasticsearchTestCase {
                 engine.setUseClientMode(true);
                 return Channels.pipeline(
                         new SslHandler(engine),
-                        new HandshakeWaitingHandler());
+                        new HandshakeWaitingHandler(Loggers.getLogger(HandshakeWaitingHandler.class)));
             }
         });
 

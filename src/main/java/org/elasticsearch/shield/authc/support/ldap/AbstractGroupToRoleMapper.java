@@ -9,11 +9,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -39,24 +39,24 @@ public abstract class AbstractGroupToRoleMapper {
     public static final String ROLE_MAPPING_FILE_SETTING = "files.role_mapping";
     public static final String USE_UNMAPPED_GROUPS_AS_ROLES_SETTING = "unmapped_groups_as_roles";
 
-    protected final ESLogger logger = Loggers.getLogger(getClass());
-    protected final Settings settings;
+    protected final ESLogger logger;
+    protected final RealmConfig config;
+
+    private final String realmType;
     private final Path file;
     private final boolean useUnmappedGroupsAsRoles;
-    private final String realmName;
-    private final String realmType;
     private volatile ImmutableMap<LdapName, Set<String>> groupRoles;
 
     private CopyOnWriteArrayList<RefreshListener> listeners;
 
-    protected AbstractGroupToRoleMapper(Settings settings, String realmType, String realmName, Environment env,
-                                        ResourceWatcherService watcherService, @Nullable RefreshListener listener) {
-        this.settings = settings;
+    protected AbstractGroupToRoleMapper(String realmType, RealmConfig config, ResourceWatcherService watcherService, @Nullable RefreshListener listener) {
         this.realmType = realmType;
-        this.realmName = realmName;
-        useUnmappedGroupsAsRoles = settings.getAsBoolean(USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, false);
-        file = resolveFile(settings, env);
-        groupRoles = parseFile(file, logger, realmType, realmName);
+        this.config = config;
+        this.logger = config.logger(getClass());
+
+        useUnmappedGroupsAsRoles = config.settings().getAsBoolean(USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, false);
+        file = resolveFile(config.settings(), config.env());
+        groupRoles = parseFile(file, logger, realmType, config.name());
         FileWatcher watcher = new FileWatcher(file.getParent().toFile());
         watcher.addListener(new FileListener());
         watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
@@ -127,7 +127,7 @@ public abstract class AbstractGroupToRoleMapper {
             }
         }
         if (logger.isDebugEnabled()) {
-            logger.debug("The roles [{}], are mapped from these [{}] groups [{}] for realm [{}]", roles, realmType, groupDns, realmName);
+            logger.debug("The roles [{}], are mapped from these [{}] groups [{}] for realm [{}]", roles, realmType, groupDns, config.name());
         }
         return roles;
     }
@@ -157,10 +157,10 @@ public abstract class AbstractGroupToRoleMapper {
         public void onFileChanged(File file) {
             if (file.equals(AbstractGroupToRoleMapper.this.file.toFile())) {
                 try {
-                    groupRoles = parseFile(file.toPath(), logger, realmType, realmName);
-                    logger.info("updated role mappings (role mappings file [{}] changed) for realm [{}]", file.getAbsolutePath(), realmName);
+                    groupRoles = parseFile(file.toPath(), logger, realmType, config.name());
+                    logger.info("updated role mappings (role mappings file [{}] changed) for realm [{}]", file.getAbsolutePath(), config.name());
                 } catch (Throwable t) {
-                    logger.error("could not reload role mappings file [{}] for realm [{}]. Current role mappings remain unmodified", t, file.getAbsolutePath(), realmName);
+                    logger.error("could not reload role mappings file [{}] for realm [{}]. Current role mappings remain unmodified", t, file.getAbsolutePath(), config.name());
                     return;
                 }
                 notifyRefresh();

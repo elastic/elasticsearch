@@ -8,7 +8,6 @@ package org.elasticsearch.shield.authc.active_directory;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.shield.authc.ldap.LdapException;
 import org.elasticsearch.shield.authc.support.ldap.AbstractLdapConnection;
 import org.elasticsearch.shield.authc.support.ldap.ClosableNamingEnumeration;
@@ -23,16 +22,14 @@ import java.util.List;
  */
 public class ActiveDirectoryConnection extends AbstractLdapConnection {
 
-    private static final ESLogger logger = Loggers.getLogger(ActiveDirectoryConnection.class);
-
     private final String groupSearchDN;
     private final int timeoutMilliseconds;
 
     /**
      * This object is intended to be constructed by the LdapConnectionFactory
      */
-    ActiveDirectoryConnection(DirContext ctx, String boundName, String groupSearchDN, int timeoutMilliseconds) {
-        super(ctx, boundName);
+    ActiveDirectoryConnection(ESLogger logger, DirContext ctx, String boundName, String groupSearchDN, int timeoutMilliseconds) {
+        super(logger, ctx, boundName);
         this.groupSearchDN = groupSearchDN;
         this.timeoutMilliseconds = timeoutMilliseconds;
     }

@@ -13,6 +13,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 
@@ -24,12 +25,15 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class Realms extends AbstractLifecycleComponent<Realms> implements Iterable<Realm> {
 
+    private final Environment env;
     private final Map<String, Realm.Factory> factories;
+
     private List<Realm> realms = Collections.emptyList();
 
     @Inject
-    public Realms(Settings settings, Map<String, Realm.Factory> factories) {
+    public Realms(Settings settings, Environment env, Map<String, Realm.Factory> factories) {
         super(settings);
+        this.env = env;
         this.factories = factories;
     }
 
@@ -51,7 +55,7 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
 
     public Realm realm(String name) {
         for (Realm realm : realms) {
-            if (name.equals(realm.name)) {
+            if (name.equals(realm.config.name)) {
                 return realm;
             }
         }
@@ -76,7 +80,8 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
             if (factory == null) {
                 throw new ShieldSettingsException("Unknown realm type [" + type + "] set for realm [" + name + "]");
             }
-            if (!realmSettings.getAsBoolean("enabled", true)) {
+            RealmConfig config = new RealmConfig(name, realmSettings, settings, env);
+            if (!config.enabled()) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("realm [{}] type [{}] is disabled", name, type);
                 }
@@ -91,7 +96,7 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
                 }
                 internalTypes.add(type);
             }
-            realms.add(factory.create(name, realmSettings));
+            realms.add(factory.create(config));
         }
 
         if (!realms.isEmpty()) {

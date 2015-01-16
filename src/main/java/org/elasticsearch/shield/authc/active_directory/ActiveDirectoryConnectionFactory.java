@@ -10,6 +10,7 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldSettingsException;
+import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.LdapException;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.ldap.ClosableNamingEnumeration;
@@ -30,7 +31,7 @@ import java.util.Hashtable;
  * user entry in Active Directory that matches the user name).  This eliminates the need for user templates, and simplifies
  * the configuration for windows admins that may not be familiar with LDAP concepts.
  */
-public class ActiveDirectoryConnectionFactory extends ConnectionFactory {
+public class ActiveDirectoryConnectionFactory extends ConnectionFactory<ActiveDirectoryConnection> {
 
     public static final String AD_DOMAIN_NAME_SETTING = "domain_name";
     public static final String AD_USER_SEARCH_BASEDN_SETTING = "user_search_dn";
@@ -41,8 +42,9 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory {
     private final int timeoutMilliseconds;
 
     @Inject
-    public ActiveDirectoryConnectionFactory(Settings settings) {
-        super(settings);
+    public ActiveDirectoryConnectionFactory(RealmConfig config) {
+        super(ActiveDirectoryConnection.class, config);
+        Settings settings = config.settings();
         domainName = settings.get(AD_DOMAIN_NAME_SETTING);
         if (domainName == null) {
             throw new ShieldSettingsException("Missing [" + AD_DOMAIN_NAME_SETTING + "] setting for active directory");
@@ -94,7 +96,7 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory {
                     String name = entry.getNameInNamespace();
 
                     if (!results.hasMore()) {
-                        return new ActiveDirectoryConnection(ctx, name, userSearchDN, timeoutMilliseconds);
+                        return new ActiveDirectoryConnection(connectionLogger, ctx, name, userSearchDN, timeoutMilliseconds);
                     }
                     throw new ActiveDirectoryException("Search for user [" + userName + "] by principle name yielded multiple results");
                 }

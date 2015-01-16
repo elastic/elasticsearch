@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.shield.authc.support;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.authc.Realm;
+import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.transport.TransportMessage;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
@@ -19,8 +19,8 @@ import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC
  */
 public abstract class UsernamePasswordRealm extends Realm<UsernamePasswordToken> {
 
-    public UsernamePasswordRealm(String type, String name, Settings settings) {
-        super(type, name, settings);
+    public UsernamePasswordRealm(String type, RealmConfig config) {
+        super(type, config);
     }
 
     @Override

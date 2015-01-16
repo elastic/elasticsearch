@@ -11,10 +11,10 @@ import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.support.Validation;
 import org.elasticsearch.watcher.FileChangesListener;
@@ -38,20 +38,21 @@ import static org.elasticsearch.shield.support.ShieldFiles.openAtomicMoveWriter;
  */
 public class FileUserRolesStore {
 
-    private static final ESLogger logger = Loggers.getLogger(FileUserPasswdStore.class);
-
     private static final Pattern USERS_DELIM = Pattern.compile("\\s*,\\s*");
+
+    private final ESLogger logger;
 
     private final Path file;
     private CopyOnWriteArrayList<RefreshListener> listeners;
     private volatile ImmutableMap<String, String[]> userRoles;
 
-    public FileUserRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService) {
-        this(settings, env, watcherService, null);
+    public FileUserRolesStore(RealmConfig config, ResourceWatcherService watcherService) {
+        this(config, watcherService, null);
     }
 
-    FileUserRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, RefreshListener listener) {
-        file = resolveFile(settings, env);
+    FileUserRolesStore(RealmConfig config, ResourceWatcherService watcherService, RefreshListener listener) {
+        logger = config.logger(FileUserRolesStore.class);
+        file = resolveFile(config.settings(), config.env());
         userRoles = parseFile(file, logger);
         FileWatcher watcher = new FileWatcher(file.getParent().toFile());
         watcher.addListener(new FileListener());
@@ -89,7 +90,7 @@ public class FileUserRolesStore {
      */
     public static ImmutableMap<String, String[]> parseFile(Path path, @Nullable ESLogger logger) {
         if (logger != null) {
-            logger.trace("Reading users roles file located at [{}]", path);
+            logger.trace("reading users roles file located at [{}]", path);
         }
 
         if (!Files.exists(path)) {

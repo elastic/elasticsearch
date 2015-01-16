@@ -10,6 +10,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -69,10 +70,12 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
                     .build();
 
             Environment env = new Environment(settings);
+            RealmConfig config = new RealmConfig("esusers-test", esusersSettings, settings, env);
             threadPool = new ThreadPool("test");
             watcherService = new ResourceWatcherService(settings, threadPool);
             final CountDownLatch latch = new CountDownLatch(1);
-            FileUserRolesStore store = new FileUserRolesStore(esusersSettings, env, watcherService, new RefreshListener() {
+
+            FileUserRolesStore store = new FileUserRolesStore(config, watcherService, new RefreshListener() {
                 @Override
                 public void onRefresh() {
                     latch.countDown();
@@ -127,8 +130,9 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
                     .build();
 
             Environment env = new Environment(settings);
+            RealmConfig config = new RealmConfig("esusers-test", ImmutableSettings.EMPTY, settings, env);
             ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
-            FileUserRolesStore store = new FileUserRolesStore(esusersSettings, env, watcherService);
+            FileUserRolesStore store = new FileUserRolesStore(config, watcherService);
             assertThat(store.roles("user"), equalTo(Strings.EMPTY_ARRAY));
         } finally {
             if (threadPool != null) {

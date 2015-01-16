@@ -12,6 +12,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.Realm;
+import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
@@ -27,8 +28,8 @@ public class ESUsersRealm extends CachingUsernamePasswordRealm {
     final FileUserPasswdStore userPasswdStore;
     final FileUserRolesStore userRolesStore;
 
-    public ESUsersRealm(String name, Settings settings, FileUserPasswdStore userPasswdStore, FileUserRolesStore userRolesStore) {
-        super(name, TYPE, settings);
+    public ESUsersRealm(RealmConfig config, FileUserPasswdStore userPasswdStore, FileUserRolesStore userRolesStore) {
+        super(TYPE, config);
         Listener listener = new Listener();
         this.userPasswdStore = userPasswdStore;
         userPasswdStore.addListener(listener);
@@ -54,27 +55,30 @@ public class ESUsersRealm extends CachingUsernamePasswordRealm {
 
     public static class Factory extends Realm.Factory<ESUsersRealm> {
 
+        private final Settings settings;
         private final Environment env;
         private final ResourceWatcherService watcherService;
 
         @Inject
-        public Factory(Environment env, ResourceWatcherService watcherService, RestController restController) {
+        public Factory(Settings settings, Environment env, ResourceWatcherService watcherService, RestController restController) {
             super(TYPE, true);
+            this.settings = settings;
             this.env = env;
             this.watcherService = watcherService;
             restController.registerRelevantHeaders(UsernamePasswordToken.BASIC_AUTH_HEADER);
         }
 
         @Override
-        public ESUsersRealm create(String name, Settings settings) {
-            FileUserPasswdStore userPasswdStore = new FileUserPasswdStore(settings, env, watcherService);
-            FileUserRolesStore userRolesStore = new FileUserRolesStore(settings, env, watcherService);
-            return new ESUsersRealm(name, settings, userPasswdStore, userRolesStore);
+        public ESUsersRealm create(RealmConfig config) {
+            FileUserPasswdStore userPasswdStore = new FileUserPasswdStore(config, watcherService);
+            FileUserRolesStore userRolesStore = new FileUserRolesStore(config, watcherService);
+            return new ESUsersRealm(config, userPasswdStore, userRolesStore);
         }
 
         @Override
         public ESUsersRealm createDefault(String name) {
-            return create(name, ImmutableSettings.EMPTY);
+            RealmConfig config = new RealmConfig(name, ImmutableSettings.EMPTY, settings, env);
+            return create(config);
         }
     }
 }

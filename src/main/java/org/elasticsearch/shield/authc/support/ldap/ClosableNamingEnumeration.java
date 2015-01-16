@@ -15,6 +15,7 @@ import java.io.Closeable;
  * ClosableNamingEnumeration wraps a NamingEnumeration so it can be used in a try with resources block and auto-closed.
  */
 public class ClosableNamingEnumeration<T> implements Closeable, NamingEnumeration<T> {
+
     private final NamingEnumeration<T> namingEnumeration;
 
     public ClosableNamingEnumeration(NamingEnumeration<T> namingEnumeration) {

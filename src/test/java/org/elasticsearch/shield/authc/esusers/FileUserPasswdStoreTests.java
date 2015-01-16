@@ -11,6 +11,7 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
@@ -77,10 +78,12 @@ public class FileUserPasswdStoreTests extends ElasticsearchTestCase {
 
 
             Environment env = new Environment(settings);
+            RealmConfig config = new RealmConfig("esusers-test", esusersSettings, settings, env);
             threadPool = new ThreadPool("test");
             watcherService = new ResourceWatcherService(settings, threadPool);
             final CountDownLatch latch = new CountDownLatch(1);
-            FileUserPasswdStore store = new FileUserPasswdStore(esusersSettings, env, watcherService, new RefreshListener() {
+
+            FileUserPasswdStore store = new FileUserPasswdStore(config, watcherService, new RefreshListener() {
                 @Override
                 public void onRefresh() {
                     latch.countDown();

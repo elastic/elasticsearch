@@ -14,9 +14,9 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.base.Predicate;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.core.LicenseExpiredException;
 import org.elasticsearch.license.plugin.core.LicensesClientService;
 import org.elasticsearch.shield.User;
@@ -36,11 +36,9 @@ import java.util.List;
 /**
  *
  */
-public class ShieldActionFilter implements ActionFilter {
+public class ShieldActionFilter extends AbstractComponent implements ActionFilter {
 
     public static final String CLUSTER_PERMISSION_SCROLL_CLEAR_ALL_NAME = "cluster:admin/indices/scroll/clear_all";
-
-    private static final ESLogger logger = Loggers.getLogger(ShieldActionFilter.class);
 
     private static final Predicate<String> READ_ACTION_MATCHER = Privilege.Index.READ.predicate();
 
@@ -52,7 +50,8 @@ public class ShieldActionFilter implements ActionFilter {
     private volatile boolean licenseEnabled;
 
     @Inject
-    public ShieldActionFilter(AuthenticationService authcService, AuthorizationService authzService, SignatureService signatureService, AuditTrail auditTrail, LicenseEventsNotifier licenseEventsNotifier) {
+    public ShieldActionFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService, SignatureService signatureService, AuditTrail auditTrail, LicenseEventsNotifier licenseEventsNotifier) {
+        super(settings);
         this.authcService = authcService;
         this.authzService = authzService;
         this.signatureService = signatureService;

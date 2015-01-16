@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.shield.authc.support.ldap;
 
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+
 import javax.net.SocketFactory;
 import javax.net.ssl.SSLSocketFactory;
 
@@ -17,6 +20,8 @@ import javax.net.ssl.SSLSocketFactory;
  * http://docs.oracle.com/javase/tutorial/jndi/ldap/ssl.html
  */
 public class LdapSslSocketFactory extends AbstractLdapSslSocketFactory {
+
+    private static final ESLogger logger = Loggers.getLogger(LdapSslSocketFactory.class);
 
     private static LdapSslSocketFactory instance;
 

@@ -7,7 +7,7 @@ package org.elasticsearch.shield.authc.ldap;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.ldap.AbstractGroupToRoleMapper;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -57,11 +57,9 @@ public class LdapGroupToRoleMapperTest extends ElasticsearchTestCase {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put(LdapGroupToRoleMapper.ROLE_MAPPING_FILE_SETTING, file.getCanonicalPath())
                 .build();
+        RealmConfig config = new RealmConfig("ldap1", settings);
 
-        AbstractGroupToRoleMapper mapper = new LdapGroupToRoleMapper(settings,
-                "ldap1",
-                new Environment(settings),
-                new ResourceWatcherService(settings, threadPool));
+        AbstractGroupToRoleMapper mapper = new LdapGroupToRoleMapper(config, new ResourceWatcherService(settings, threadPool));
 
         Set<String> roles = mapper.mapRoles( Arrays.asList(starkGroupDns) );
 
@@ -74,11 +72,9 @@ public class LdapGroupToRoleMapperTest extends ElasticsearchTestCase {
         Settings settings = ImmutableSettings.builder()
                 .put(AbstractGroupToRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
                 .build();
+        RealmConfig config = new RealmConfig("ldap1", settings);
 
-        AbstractGroupToRoleMapper mapper = new LdapGroupToRoleMapper(settings,
-                "ldap1",
-                new Environment(settings),
-                new ResourceWatcherService(settings, threadPool));
+        AbstractGroupToRoleMapper mapper = new LdapGroupToRoleMapper(config, new ResourceWatcherService(settings, threadPool));
 
         Set<String> roles = mapper.mapRoles(Arrays.asList(starkGroupDns));
         assertThat(roles, hasItems("genius", "billionaire", "playboy", "philanthropist", "shield", "avengers"));

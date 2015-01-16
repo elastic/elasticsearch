@@ -54,7 +54,6 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
     // We have a 0.20.6.zip etc for this.
     
     List<String> indexes = Arrays.asList(
-        /* skipping 0.90.0.Beta1...fails to load with "java.lang.IllegalArgumentException: An SPI class of type org.apache.lucene.codecs.PostingsFormat with name 'XBloomFilter' does not exist" */
         "index-0.90.0.Beta1.zip",
         "index-0.90.0.RC1.zip",
         "index-0.90.0.RC2.zip",

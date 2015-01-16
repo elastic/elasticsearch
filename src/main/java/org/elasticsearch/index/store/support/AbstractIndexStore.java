@@ -95,7 +95,7 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
         this.indexService = indexService;
         this.indicesStore = indicesStore;
 
-        this.rateLimitingType = indexSettings.get(INDEX_STORE_THROTTLE_TYPE, "node");
+        this.rateLimitingType = indexSettings.get(INDEX_STORE_THROTTLE_TYPE, "none");
         if (rateLimitingType.equalsIgnoreCase("node")) {
             nodeRateLimiting = true;
         } else {

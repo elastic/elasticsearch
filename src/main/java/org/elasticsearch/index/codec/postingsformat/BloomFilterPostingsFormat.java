@@ -43,7 +43,7 @@ import java.util.Map.Entry;
  * @deprecated only for reading old segments
  */
 @Deprecated
-public final class BloomFilterPostingsFormat extends PostingsFormat {
+public class BloomFilterPostingsFormat extends PostingsFormat {
 
     public static final String BLOOM_CODEC_NAME = "XBloomFilter"; // the Lucene one is named BloomFilter
     public static final int BLOOM_CODEC_VERSION = 1;

@@ -43,7 +43,7 @@ import java.util.Map.Entry;
  * @deprecated only for reading old segments
  */
 @Deprecated
-public final class BloomFilterPostingsFormat extends PostingsFormat {
+public class BloomFilterPostingsFormat extends PostingsFormat {
 
     public static final String BLOOM_CODEC_NAME = "XBloomFilter"; // the Lucene one is named BloomFilter
     public static final int BLOOM_CODEC_VERSION = 1;
@@ -83,15 +83,8 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
     }
 
     @Override
-    public BloomFilteredFieldsConsumer fieldsConsumer(SegmentWriteState state)
-            throws IOException {
-        if (delegatePostingsFormat == null) {
-            throw new UnsupportedOperationException("Error - " + getClass().getName()
-                    + " has been constructed without a choice of PostingsFormat");
-        }
-        return new BloomFilteredFieldsConsumer(
-                delegatePostingsFormat.fieldsConsumer(state), state,
-                delegatePostingsFormat);
+    public BloomFilteredFieldsConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
+        throw new UnsupportedOperationException("this codec can only be used for reading");
     }
 
     @Override

@@ -32,7 +32,6 @@ import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -48,6 +47,8 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
 
     private Bits childDocs;
     private FixedBitSet parentDocs;
+
+    private AtomicReaderContext reader;
 
     public NestedAggregator(String name, AggregatorFactories factories, String nestedPath, AggregationContext aggregationContext, Aggregator parentAggregator) {
         super(name, factories, aggregationContext, parentAggregator);
@@ -70,29 +71,12 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
 
     @Override
     public void setNextReader(AtomicReaderContext reader) {
-        if (parentFilter == null) {
-            // The aggs are instantiated in reverse, first the most inner nested aggs and lastly the top level aggs
-            // So at the time a nested 'nested' aggs is parsed its closest parent nested aggs hasn't been constructed.
-            // So the trick to set at the last moment just before needed and we can use its child filter as the
-            // parent filter.
-            Filter parentFilterNotCached = findClosestNestedPath(parentAggregator);
-            if (parentFilterNotCached == null) {
-                parentFilterNotCached = NonNestedDocsFilter.INSTANCE;
-            }
-            parentFilter = SearchContext.current().filterCache().cache(parentFilterNotCached);
-            // if the filter cache is disabled, we still need to produce bit sets
-            parentFilter = new FixedBitSetCachingWrapperFilter(parentFilter);
-        }
-
+        // Reset parentFilter, so we resolve the parentDocs for each new segment being searched
+        this.parentFilter = null;
+        this.reader = reader;
         try {
-            DocIdSet docIdSet = parentFilter.getDocIdSet(reader, null);
             // In ES if parent is deleted, then also the children are deleted. Therefore acceptedDocs can also null here.
             childDocs = DocIdSets.toSafeBits(reader.reader(), childFilter.getDocIdSet(reader, null));
-            if (DocIdSets.isEmpty(docIdSet)) {
-                parentDocs = null;
-            } else {
-                parentDocs = (FixedBitSet) docIdSet;
-            }
         } catch (IOException ioe) {
             throw new AggregationExecutionException("Failed to aggregate [" + name + "]", ioe);
         }
@@ -100,11 +84,38 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
 
     @Override
     public void collect(int parentDoc, long bucketOrd) throws IOException {
-        // here we translate the parent doc to a list of its nested docs, and then call super.collect for evey one of them
-        // so they'll be collected
-        if (parentDoc == 0 || parentDocs == null) {
+        // here we translate the parent doc to a list of its nested docs, and then call super.collect for evey one of them so they'll be collected
+
+        // if parentDoc is 0 then this means that this parent doesn't have child docs (b/c these appear always before the parent doc), so we can skip:
+        if (parentDoc == 0 || childDocs == null) {
             return;
         }
+        if (parentFilter == null) {
+            // The aggs are instantiated in reverse, first the most inner nested aggs and lastly the top level aggs
+            // So at the time a nested 'nested' aggs is parsed its closest parent nested aggs hasn't been constructed.
+            // So the trick is to set at the last moment just before needed and we can use its child filter as the
+            // parent filter.
+
+            // Additional NOTE: Before this logic was performed in the setNextReader(...) method, but the the assumption
+            // that aggs instances are constructed in reverse doesn't hold when buckets are constructed lazily during
+            // aggs execution
+            Filter parentFilterNotCached = findClosestNestedPath(parentAggregator);
+            if (parentFilterNotCached == null) {
+                parentFilterNotCached = NonNestedDocsFilter.INSTANCE;
+            }
+            parentFilter = context.searchContext().filterCache().cache(parentFilterNotCached);
+            // if the filter cache is disabled, we still need to produce bit sets
+            parentFilter = new FixedBitSetCachingWrapperFilter(parentFilter);
+            DocIdSet docIdSet = parentFilter.getDocIdSet(reader, null);
+            if (DocIdSets.isEmpty(docIdSet)) {
+                // There are no parentDocs in the segment, so return and set childDocs to null, so we exit early for future invocations.
+                childDocs = null;
+                return;
+            } else {
+                parentDocs = (FixedBitSet) docIdSet;
+            }
+        }
+
         int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
         int numChildren = 0;
         for (int childDocId = prevParentDoc + 1; childDocId < parentDoc; childDocId++) {

@@ -6,7 +6,9 @@
 package org.elasticsearch.shield.authz.store;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -16,10 +18,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authz.Permission;
 import org.elasticsearch.shield.authz.Privilege;
+import org.elasticsearch.shield.support.NoOpLogger;
 import org.elasticsearch.shield.support.Validation;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -27,12 +29,12 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -42,6 +44,8 @@ import java.util.regex.Pattern;
 public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> implements RolesStore {
 
     private static final Pattern COMMA_DELIM = Pattern.compile("\\s*,\\s*");
+    private static final Pattern IN_SEGMENT_LINE = Pattern.compile("^\\s+.+");
+    private static final Pattern SKIP_LINE = Pattern.compile("(^#.*|^\\s*)");
 
     private final Path file;
     private final Listener listener;
@@ -92,114 +96,174 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
     }
 
     public static ImmutableMap<String, Permission.Global.Role> parseFile(Path path, ESLogger logger) {
-        if (logger != null) {
-            logger.trace("Reading roles file located at [{}]", path);
+        if (logger == null) {
+            logger = NoOpLogger.INSTANCE;
         }
+
+        logger.trace("reading roles file located at [{}]", path);
 
         if (!Files.exists(path)) {
             return ImmutableMap.of();
         }
 
         ImmutableMap.Builder<String, Permission.Global.Role> roles = ImmutableMap.builder();
-        try (InputStream input = Files.newInputStream(path, StandardOpenOption.READ)) {
-            XContentParser parser = YamlXContent.yamlXContent.createParser(input);
-            XContentParser.Token token;
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT && token != null) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
-                    String roleName = currentFieldName;
-                    Validation.Error validationError = Validation.Roles.validateRoleName(roleName);
-                    if (validationError != null) {
-                        throw new ShieldException("Invalid role name [" + roleName + "]... " + validationError);
-                    }
-                    Permission.Global.Role.Builder permission = Permission.Global.Role.builder(roleName);
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if ("cluster".equals(currentFieldName)) {
-                            Privilege.Name name = null;
-                            if (token == XContentParser.Token.VALUE_STRING) {
-                                String namesStr = parser.text().trim();
-                                if (Strings.hasLength(namesStr)) {
-                                    String[] names = COMMA_DELIM.split(namesStr);
-                                    name = new Privilege.Name(names);
-                                }
-                            } else if (token == XContentParser.Token.START_ARRAY) {
-                                Set<String> names = new HashSet<>();
-                                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                    if (token == XContentParser.Token.VALUE_STRING) {
-                                        names.add(parser.text());
-                                    }
-                                }
-                                if (!names.isEmpty()) {
-                                    name = new Privilege.Name(names);
-                                }
-                            } else {
-                                throw new ShieldException("Invalid roles file format [" + path.toAbsolutePath() +
-                                        "]. [cluster] field value can either be a string or a list of strings, but [" + token + "] was found instead in role [" + roleName + "]");
-                            }
-                            if (name != null) {
-                                permission.set(Privilege.Cluster.get(name));
-                            }
-                        } else if ("indices".equals(currentFieldName)) {
-                            if (token == XContentParser.Token.START_OBJECT) {
-                                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                                    if (token == XContentParser.Token.FIELD_NAME) {
-                                        currentFieldName = parser.currentName();
-                                    } else if (Strings.hasLength(currentFieldName)) {
-                                        String[] indices = COMMA_DELIM.split(currentFieldName);
-                                        Privilege.Name name = null;
-                                        if (token == XContentParser.Token.VALUE_STRING) {
-                                            String namesStr = parser.text().trim();
-                                            if (Strings.hasLength(namesStr)) {
-                                                String[] names = COMMA_DELIM.split(parser.text());
-                                                name = new Privilege.Name(names);
-                                            }
-                                        } else if (token == XContentParser.Token.START_ARRAY) {
-                                            Set<String> names = new HashSet<>();
-                                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                                if (token == XContentParser.Token.VALUE_STRING) {
-                                                    names.add(parser.text());
-                                                } else {
-                                                    throw new ShieldException("Invalid roles file format [" + path.toAbsolutePath() +
-                                                            "]. Could not parse [" + token + "] as index privilege in role[" + roleName + "]. Privilege names must be strings");
-                                                }
-                                            }
-                                            if (!names.isEmpty()) {
-                                                name = new Privilege.Name(names);
-                                            }
-                                        } else {
-                                            throw new ShieldException("Invalid roles file format [" + path.toAbsolutePath() +
-                                                    "]. Could not parse [" + token + "] as index privileges list in role [" + roleName + "]. Privilege lists must either " +
-                                                    "be a comma delimited string or an array of strings");
-                                        }
-                                        if (name != null) {
-                                            permission.add(Privilege.Index.get(name), indices);
-                                        }
-                                    }
-                                }
-                            } else {
-                                throw new ShieldException("Invalid roles file format [" + path.toAbsolutePath() +
-                                        "]. [indices] field value must be an array of indices-privileges mappings defined as a string" +
-                                        " in the form <comma-separated list of index name patterns>::<comma-separated list of privileges> , but [" + token + "] was found instead in role [" + roleName + "]");
-                            }
-                        } else {
-                            throw new ShieldException("Invalid roles file format [" + path.toAbsolutePath() +
-                                    "]. each role may have [cluster] field (holding a list of cluster permissions) and/or " +
-                                    "[indices] field (holding a list of indices permissions. But [" + token + "] was found instead in role [" + roleName + "]");
-                        }
-                    }
-                    roles.put(roleName, permission.build());
+
+        try {
+
+            List<String> roleSegments = roleSegments(path);
+            for (String segment : roleSegments) {
+                Permission.Global.Role role = parseRole(segment, path, logger);
+                if (role != null) {
+                    roles.put(role.name(), role);
                 }
             }
 
-            return roles.build();
-
-        } catch (YAMLException | IOException ioe) {
-            throw new ElasticsearchException("Failed to read roles file [" + path.toAbsolutePath() + "]", ioe);
+        } catch (IOException ioe) {
+            logger.error("failed to read roles file [{}]. skipping all roles...", ioe, path.toAbsolutePath());
         }
+        return roles.build();
+    }
+
+    private static Permission.Global.Role parseRole(String segment, Path path, ESLogger logger) {
+        String roleName = null;
+        try {
+            XContentParser parser = YamlXContent.yamlXContent.createParser(segment);
+            XContentParser.Token token = parser.nextToken();
+            if (token == XContentParser.Token.START_OBJECT) {
+                token = parser.nextToken();
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    roleName = parser.currentName();
+                    Validation.Error validationError = Validation.Roles.validateRoleName(roleName);
+                    if (validationError != null) {
+                        logger.error("invalid role definition [{}] in roles file [{}]. invalid role name - {}. skipping role... ", roleName, path.toAbsolutePath(), validationError);
+                        return null;
+                    }
+                    Permission.Global.Role.Builder permission = Permission.Global.Role.builder(roleName);
+                    token = parser.nextToken();
+                    if (token == XContentParser.Token.START_OBJECT) {
+                        String currentFieldName = null;
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                            } else if ("cluster".equals(currentFieldName)) {
+                                Privilege.Name name = null;
+                                if (token == XContentParser.Token.VALUE_STRING) {
+                                    String namesStr = parser.text().trim();
+                                    if (Strings.hasLength(namesStr)) {
+                                        String[] names = COMMA_DELIM.split(namesStr);
+                                        name = new Privilege.Name(names);
+                                    }
+                                } else if (token == XContentParser.Token.START_ARRAY) {
+                                    Set<String> names = new HashSet<>();
+                                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                        if (token == XContentParser.Token.VALUE_STRING) {
+                                            names.add(parser.text());
+                                        }
+                                    }
+                                    if (!names.isEmpty()) {
+                                        name = new Privilege.Name(names);
+                                    }
+                                } else {
+                                    logger.error("invalid role definition [{}] in roles file [{}]. [cluster] field value can either " +
+                                                    "be a string or a list of strings, but [{}] was found instead. skipping role...",
+                                            roleName, path.toAbsolutePath(), token);
+                                    return null;
+                                }
+                                if (name != null) {
+                                    try {
+                                        permission.set(Privilege.Cluster.get(name));
+                                    } catch (ElasticsearchIllegalArgumentException e) {
+                                        logger.error("invalid role definition [{}] in roles file [{}]. could not resolve cluster privileges [{}]. skipping role...", roleName, path.toAbsolutePath(), name);
+                                        return null;
+                                    }
+                                }
+                            } else if ("indices".equals(currentFieldName)) {
+                                if (token == XContentParser.Token.START_OBJECT) {
+                                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                        if (token == XContentParser.Token.FIELD_NAME) {
+                                            currentFieldName = parser.currentName();
+                                        } else if (Strings.hasLength(currentFieldName)) {
+                                            String[] indices = COMMA_DELIM.split(currentFieldName);
+                                            Privilege.Name name = null;
+                                            if (token == XContentParser.Token.VALUE_STRING) {
+                                                String namesStr = parser.text().trim();
+                                                if (Strings.hasLength(namesStr)) {
+                                                    String[] names = COMMA_DELIM.split(parser.text());
+                                                    name = new Privilege.Name(names);
+                                                }
+                                            } else if (token == XContentParser.Token.START_ARRAY) {
+                                                Set<String> names = new HashSet<>();
+                                                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                                    if (token == XContentParser.Token.VALUE_STRING) {
+                                                        names.add(parser.text());
+                                                    } else {
+                                                        logger.error("invalid role definition [{}] in roles file [{}]. could not parse " +
+                                                                "[{}] as index privilege. privilege names must be strings. skipping role...", roleName, path.toAbsolutePath(), token);
+                                                        return null;
+                                                    }
+                                                }
+                                                if (!names.isEmpty()) {
+                                                    name = new Privilege.Name(names);
+                                                }
+                                            } else {
+                                                logger.error("invalid role definition [{}] in roles file [{}]. could not parse [{}] as index privileges. privilege lists must either " +
+                                                        "be a comma delimited string or an array of strings. skipping role...", roleName, path.toAbsolutePath(), token);
+                                                return null;
+                                            }
+                                            if (name != null) {
+                                                try {
+                                                    permission.add(Privilege.Index.get(name), indices);
+                                                } catch (ElasticsearchIllegalArgumentException e) {
+                                                    logger.error("invalid role definition [{}] in roles file [{}]. could not resolve indices privileges [{}]. skipping role...", roleName, path.toAbsolutePath(), name);
+                                                    return null;
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    logger.error("invalid role definition [{}] in roles file [{}]. [indices] field value must be an array of indices-privileges mappings defined as a string" +
+                                                    " in the form <comma-separated list of index name patterns>::<comma-separated list of privileges> , but [{}] was found instead. skipping role...",
+                                            roleName, path.toAbsolutePath(), token);
+                                    return null;
+                                }
+                            }
+                        }
+                        return permission.build();
+                    }
+                    logger.error("invalid role definition [{}] in roles file [{}]. skipping role...", roleName, path.toAbsolutePath());
+                }
+            }
+        } catch (YAMLException | IOException e) {
+            if (roleName != null) {
+                logger.error("invalid role definition [{}] in roles file [{}]. skipping role...", e, roleName, path);
+            } else {
+                logger.error("invalid role definition in roles file [{}]. skipping role...", e, path);
+            }
+        }
+        return null;
+    }
+
+    private static List<String> roleSegments(Path path) throws IOException {
+        List<String> segments = new ArrayList<>();
+        StringBuilder builder = null;
+        for (String line : Files.readAllLines(path, Charsets.UTF_8)) {
+            if (!SKIP_LINE.matcher(line).matches()) {
+                if (IN_SEGMENT_LINE.matcher(line).matches()) {
+                    if (builder != null) {
+                        builder.append(line).append("\n");
+                    }
+                } else {
+                    if (builder != null) {
+                        segments.add(builder.toString());
+                    }
+                    builder = new StringBuilder(line).append("\n");
+                }
+            }
+        }
+        if (builder != null) {
+            segments.add(builder.toString());
+        }
+        return segments;
     }
 
     static interface Listener {

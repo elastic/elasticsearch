@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.shield.authz.store;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldException;
+import org.elasticsearch.shield.audit.logfile.CapturingLogger;
 import org.elasticsearch.shield.authz.Permission;
 import org.elasticsearch.shield.authz.Privilege;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -24,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -118,15 +119,6 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
         assertThat(roles, hasKey("marvel_agent"));
     }
 
-    @Test(expected = ShieldException.class)
-    public void testInvalidRoleName() throws Exception {
-        String roles = "\"$dlk39\":\n" +
-                "  cluster: all";
-        Path file = newTempFile().toPath();
-        Files.write(file, roles.getBytes(UTF8));
-        FileRolesStore.parseFile(file, null);
-    }
-
     @Test
     public void testAutoReload() throws Exception {
         ThreadPool threadPool = null;
@@ -196,10 +188,23 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
         assertThat(roles.keySet(), is(empty()));
     }
 
-    @Test(expected = ElasticsearchException.class)
-    public void testThatInvalidYAMLThrowsElasticsearchException() throws Exception {
-        File file = newTempFile();
-        com.google.common.io.Files.write("user: cluster: ALL indices: '*': ALL".getBytes(Charsets.UTF_8), file);
-        FileRolesStore.parseFile(file.toPath(), logger);
+    @Test
+    public void testThatInvalidRoleDefinitions() throws Exception {
+        Path path = Paths.get(getClass().getResource("invalid_roles.yml").toURI());
+        CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.ERROR);
+        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, logger);
+        assertThat(roles.size(), is(1));
+        assertThat(roles, hasKey("valid_role"));
+        Permission.Global.Role role = roles.get("valid_role");
+        assertThat(role, notNullValue());
+        assertThat(role.name(), equalTo("valid_role"));
+
+        List<CapturingLogger.Msg> entries = logger.output(CapturingLogger.Level.ERROR);
+        assertThat(entries, hasSize(5));
+        assertThat(entries.get(0).text, startsWith("invalid role definition [$dlk39] in roles file [" + path.toAbsolutePath() + "]. invalid role name"));
+        assertThat(entries.get(1).text, startsWith("invalid role definition [role1] in roles file [" + path.toAbsolutePath() + "]"));
+        assertThat(entries.get(2).text, startsWith("invalid role definition [role2] in roles file [" + path.toAbsolutePath() + "]. could not resolve cluster privileges [blkjdlkd]"));
+        assertThat(entries.get(3).text, startsWith("invalid role definition [role3] in roles file [" + path.toAbsolutePath() + "]. [indices] field value must be an array"));
+        assertThat(entries.get(4).text, startsWith("invalid role definition [role4] in roles file [" + path.toAbsolutePath() + "]. could not resolve indices privileges [al;kjdlkj;lkj]"));
     }
 }

@@ -11,9 +11,11 @@ role3:
   indices:
     '/.*_.*/': READ, WRITE
 
+#dadfad
 role4:
   cluster:
   indices:
+    #adfldkkd
     'idx2':
     '': READ
     'idx1': []

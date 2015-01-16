@@ -256,7 +256,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                         String markedTribeName = index.settings().get(TRIBE_NAME);
                         if (markedTribeName != null && markedTribeName.equals(tribeName)) {
                             IndexMetaData tribeIndex = tribeState.metaData().index(index.index());
-                            if (tribeIndex == null) {
+                            if (tribeIndex == null || tribeIndex.state() == IndexMetaData.State.CLOSE) {
                                 logger.info("[{}] removing index [{}]", tribeName, index.index());
                                 removeIndex(blocks, metaData, routingTable, index);
                             } else {

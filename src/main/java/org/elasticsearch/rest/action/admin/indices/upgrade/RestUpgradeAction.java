@@ -112,7 +112,8 @@ public class RestUpgradeAction extends BaseRestHandler {
             for (ShardSegments segs : shard.getShards()) {
                 for (Segment seg : segs.getSegments()) {
                     total_bytes += seg.sizeInBytes;
-                    if (seg.version.minor != Version.CURRENT.luceneVersion.minor) {
+                    if (seg.version.major != Version.CURRENT.luceneVersion.major ||
+                        seg.version.minor != Version.CURRENT.luceneVersion.minor) {
                         // TODO: this comparison is bogus! it would cause us to upgrade even with the same format
                         // instead, we should check if the codec has changed
                         to_upgrade_bytes += seg.sizeInBytes;

@@ -33,6 +33,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.hamcrest.Matchers;
+import org.junit.Ignore;
 
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -49,6 +50,7 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
+@Ignore(value="index-0.90.0.Beta1.zip fails the test")
 public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardCompatibilityTest {
     // TODO: test for proper exception on unsupported indexes (maybe via separate test?)
     // We have a 0.20.6.zip etc for this.

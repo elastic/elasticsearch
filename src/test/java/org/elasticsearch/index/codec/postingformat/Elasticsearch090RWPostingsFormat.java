@@ -27,9 +27,12 @@ import com.google.common.base.Predicates;
 import com.google.common.collect.Iterators;
 
 import org.apache.lucene.codecs.FieldsConsumer;
+import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.common.util.BloomFilter;
 import org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat.BloomFilteredFieldsConsumer;
+import org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postingsformat.Elasticsearch090PostingsFormat;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
@@ -40,7 +43,13 @@ import java.util.Iterator;
 public class Elasticsearch090RWPostingsFormat extends Elasticsearch090PostingsFormat {
     @Override
     public FieldsConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        final BloomFilteredFieldsConsumer fieldsConsumer = bloomPostings.fieldsConsumer(state);
+        final PostingsFormat delegate = getDefaultWrapped();
+        final BloomFilteredFieldsConsumer fieldsConsumer = new BloomFilterPostingsFormat(delegate, BloomFilter.Factory.DEFAULT) {
+            @Override
+            public BloomFilteredFieldsConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
+                return new BloomFilteredFieldsConsumer(delegate.fieldsConsumer(state), state,delegate);
+            } 
+        }.fieldsConsumer(state);
         return new FieldsConsumer() {
 
             @Override

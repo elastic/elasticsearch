@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc.support.ldap;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.logging.ESLogger;
@@ -13,6 +12,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.watcher.FileChangesListener;
@@ -45,7 +45,7 @@ public abstract class AbstractGroupToRoleMapper {
     private final String realmType;
     private final Path file;
     private final boolean useUnmappedGroupsAsRoles;
-    private volatile ImmutableMap<LdapName, Set<String>> groupRoles;
+    protected volatile ImmutableMap<LdapName, Set<String>> groupRoles;
 
     private CopyOnWriteArrayList<RefreshListener> listeners;
 
@@ -56,7 +56,7 @@ public abstract class AbstractGroupToRoleMapper {
 
         useUnmappedGroupsAsRoles = config.settings().getAsBoolean(USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, false);
         file = resolveFile(config.settings(), config.env());
-        groupRoles = parseFile(file, logger, realmType, config.name());
+        groupRoles = parseFileLenient(file, logger, realmType, config.name());
         FileWatcher watcher = new FileWatcher(file.getParent().toFile());
         watcher.addListener(new FileListener());
         watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
@@ -78,7 +78,24 @@ public abstract class AbstractGroupToRoleMapper {
         return Paths.get(location);
     }
 
+    /**
+     * Internally in this class, we try to load the file, but if for some reason we can't, we're being more lenient by
+     * logging the error and skipping/removing all mappings. This is aligned with how we handle other auto-loaded files
+     * in shield.
+     */
+    public static ImmutableMap<LdapName, Set<String>> parseFileLenient(Path path, ESLogger logger, String realmType, String realmName) {
+        try {
+            return parseFile(path, logger, realmType, realmName);
+        } catch (Throwable t) {
+            logger.error("failed to parse role mappings file [{}]. skipping/removing all mappings...", t, path.toAbsolutePath());
+            return ImmutableMap.of();
+        }
+    }
+
     public static ImmutableMap<LdapName, Set<String>> parseFile(Path path, ESLogger logger, String realmType, String realmName) {
+
+        logger.trace("reading realm [{}/{}] role mappings file [{}]...", realmType, realmName, path.toAbsolutePath());
+
         if (!Files.exists(path)) {
             return ImmutableMap.of();
         }
@@ -101,16 +118,25 @@ public abstract class AbstractGroupToRoleMapper {
                         }
                         groupRoles.add(role);
                     } catch (InvalidNameException e) {
-                        logger.error("invalid group DN [{}] found in [{}] group to role mappings [{}] for realm [{}]. skipping... ", e, ldapDN, realmType, path.toAbsolutePath(), realmName);
+                        logger.error("invalid group DN [{}] found in [{}] group to role mappings [{}] for realm [{}/{}]. skipping... ", e, ldapDN, realmType, path.toAbsolutePath(), realmType, realmName);
                     }
                 }
 
             }
+
+            if (groupToRoles.isEmpty()){
+                logger.warn("no mappings found in role mappings file [{}] for realm [{}/{}]", path.toAbsolutePath(), realmType, realmName);
+            }
+
             return ImmutableMap.copyOf(groupToRoles);
 
         } catch (IOException e) {
-            throw new ElasticsearchException("unable to load [" + realmName + "] role mapper file [" + path.toAbsolutePath() + "]", e);
+            throw new ShieldSettingsException("could not read realm [" + realmType + "/" + realmName + "] role mappings file [" + path.toAbsolutePath() + "]", e);
         }
+    }
+
+    int mappingsCount() {
+        return groupRoles.size();
     }
 
     /**
@@ -127,7 +153,7 @@ public abstract class AbstractGroupToRoleMapper {
             }
         }
         if (logger.isDebugEnabled()) {
-            logger.debug("the roles [{}], are mapped from these [{}] groups [{}] for realm [{}]", roles, realmType, groupDns, config.name());
+            logger.debug("the roles [{}], are mapped from these [{}] groups [{}] for realm [{}/{}]", roles, realmType, groupDns, realmType, config.name());
         }
         return roles;
     }
@@ -156,13 +182,8 @@ public abstract class AbstractGroupToRoleMapper {
         @Override
         public void onFileChanged(File file) {
             if (file.equals(AbstractGroupToRoleMapper.this.file.toFile())) {
-                try {
-                    groupRoles = parseFile(file.toPath(), logger, realmType, config.name());
-                    logger.info("updated role mappings (role mappings file [{}] changed) for realm [{}]", file.getAbsolutePath(), config.name());
-                } catch (Throwable t) {
-                    logger.error("could not reload role mappings file [{}] for realm [{}]. current role mappings remain unmodified", t, file.getAbsolutePath(), config.name());
-                    return;
-                }
+                logger.info("role mappings file [{}] changed for realm [{}/{}]. updating mappings...", file.getAbsolutePath(), realmType, config.name());
+                groupRoles = parseFileLenient(file.toPath(), logger, realmType, config.name());
                 notifyRefresh();
             }
         }

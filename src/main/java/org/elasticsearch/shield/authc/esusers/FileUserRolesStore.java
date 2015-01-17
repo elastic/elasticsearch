@@ -16,6 +16,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.RefreshListener;
+import org.elasticsearch.shield.support.NoOpLogger;
 import org.elasticsearch.shield.support.Validation;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -53,7 +54,7 @@ public class FileUserRolesStore {
     FileUserRolesStore(RealmConfig config, ResourceWatcherService watcherService, RefreshListener listener) {
         logger = config.logger(FileUserRolesStore.class);
         file = resolveFile(config.settings(), config.env());
-        userRoles = parseFile(file, logger);
+        userRoles = parseFileLenient(file, logger);
         FileWatcher watcher = new FileWatcher(file.getParent().toFile());
         watcher.addListener(new FileListener());
         watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
@@ -65,6 +66,10 @@ public class FileUserRolesStore {
 
     synchronized void addListener(RefreshListener listener) {
         listeners.add(listener);
+    }
+
+    int entriesCount() {
+        return userRoles.size();
     }
 
     public String[] roles(String username) {
@@ -84,14 +89,29 @@ public class FileUserRolesStore {
     }
 
     /**
+     * Internally in this class, we try to load the file, but if for some reason we can't, we're being more lenient by
+     * logging the error and skipping all enries. This is aligned with how we handle other auto-loaded files in shield.
+     */
+    static ImmutableMap<String, String[]> parseFileLenient(Path path, ESLogger logger) {
+        try {
+            return parseFile(path, logger);
+        } catch (Throwable t) {
+            logger.error("failed to parse users_roles file [{}]. skipping/removing all entries...", t, path.toAbsolutePath());
+            return ImmutableMap.of();
+        }
+    }
+
+    /**
      * parses the users_roles file. Should never return return {@code null}, if the file doesn't exist
      * an empty map is returned. The read file holds a mapping per line of the form "role -> users" while the returned
      * map holds entries of the form  "user -> roles".
      */
     public static ImmutableMap<String, String[]> parseFile(Path path, @Nullable ESLogger logger) {
-        if (logger != null) {
-            logger.trace("reading users roles file located at [{}]", path.toAbsolutePath());
+        if (logger == null) {
+            logger = NoOpLogger.INSTANCE;
         }
+        logger.trace("reading users_roles file [{}]...", path.toAbsolutePath());
+
 
         if (!Files.exists(path)) {
             return ImmutableMap.of();
@@ -114,31 +134,23 @@ public class FileUserRolesStore {
             }
             int i = line.indexOf(":");
             if (i <= 0 || i == line.length() - 1) {
-                if (logger != null) {
-                    logger.error("invalid entry in users_roles file [{}], line [{}]. skipping...", path.toAbsolutePath(), lineNr);
-                }
+                logger.error("invalid entry in users_roles file [{}], line [{}]. skipping...", path.toAbsolutePath(), lineNr);
                 continue;
             }
             String role = line.substring(0, i).trim();
             Validation.Error validationError = Validation.Roles.validateRoleName(role);
             if (validationError != null) {
-                if (logger != null) {
-                    logger.error("invalid role entry in users_roles file [{}], line [{}] - {}. skipping...",  path.toAbsolutePath(), lineNr, validationError);
-                }
+                logger.error("invalid role entry in users_roles file [{}], line [{}] - {}. skipping...",  path.toAbsolutePath(), lineNr, validationError);
                 continue;
             }
             String usersStr = line.substring(i + 1).trim();
             if (Strings.isEmpty(usersStr)) {
-                if (logger != null) {
-                    logger.error("invalid entry for role [{}] in users_roles file [{}], line [{}]. no users found. skipping...", role, path.toAbsolutePath(), lineNr);
-                }
+                logger.error("invalid entry for role [{}] in users_roles file [{}], line [{}]. no users found. skipping...", role, path.toAbsolutePath(), lineNr);
                 continue;
             }
             String[] roleUsers = USERS_DELIM.split(usersStr);
             if (roleUsers.length == 0) {
-                if (logger != null) {
-                    logger.error("invalid entry for role [{}] in users_roles file [{}], line [{}]. no users found. skipping...", role, path.toAbsolutePath(), lineNr);
-                }
+                logger.error("invalid entry for role [{}] in users_roles file [{}], line [{}]. no users found. skipping...", role, path.toAbsolutePath(), lineNr);
                 continue;
             }
 
@@ -152,12 +164,17 @@ public class FileUserRolesStore {
             }
         }
 
-        ImmutableMap.Builder<String, String[]> usersRoles = ImmutableMap.builder();
+        ImmutableMap.Builder<String, String[]> builder = ImmutableMap.builder();
         for (Map.Entry<String, List<String>> entry : userToRoles.entrySet()) {
-            usersRoles.put(entry.getKey(), entry.getValue().toArray(new String[entry.getValue().size()]));
+            builder.put(entry.getKey(), entry.getValue().toArray(new String[entry.getValue().size()]));
         }
 
-        return usersRoles.build();
+        ImmutableMap<String, String[]> usersRoles = builder.build();
+        if (usersRoles.isEmpty()){
+            logger.warn("no entries found in users_roles file [{}]. use bin/shield/esusers to add users and role mappings", path.toAbsolutePath());
+        }
+
+        return usersRoles;
     }
 
     /**
@@ -205,13 +222,8 @@ public class FileUserRolesStore {
         @Override
         public void onFileChanged(File file) {
             if (file.equals(FileUserRolesStore.this.file.toFile())) {
-                try {
-                    userRoles = parseFile(file.toPath(), logger);
-                    logger.info("updated users (users_roles file [{}] changed)", file.getAbsolutePath());
-                } catch (Throwable t) {
-                    logger.error("failed to parse users_roles file [{}]. current users_roles remain unmodified", t, file.getAbsolutePath());
-                    return;
-                }
+                logger.info("users_roles file [{}] changed. updating users roles...", file.getAbsolutePath());
+                userRoles = parseFileLenient(file.toPath(), logger);
                 notifyRefresh();
             }
         }

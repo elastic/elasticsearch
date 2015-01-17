@@ -18,6 +18,7 @@ import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.support.NoOpLogger;
 import org.elasticsearch.shield.support.Validation;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -46,7 +47,7 @@ public class FileUserPasswdStore {
     private final Path file;
     final Hasher hasher = Hasher.HTPASSWD;
 
-    private volatile ImmutableMap<String, char[]> esUsers;
+    private volatile ImmutableMap<String, char[]> users;
 
     private CopyOnWriteArrayList<RefreshListener> listeners;
 
@@ -57,8 +58,8 @@ public class FileUserPasswdStore {
     FileUserPasswdStore(RealmConfig config, ResourceWatcherService watcherService, RefreshListener listener) {
         logger = config.logger(FileUserPasswdStore.class);
         file = resolveFile(config.settings(), config.env());
-        esUsers = parseFile(file, logger);
-        if (esUsers.isEmpty() && logger.isDebugEnabled()) {
+        users = parseFileLenient(file, logger);
+        if (users.isEmpty() && logger.isDebugEnabled()) {
             logger.debug("realm [esusers] has no users");
         }
         FileWatcher watcher = new FileWatcher(file.getParent().toFile());
@@ -74,15 +75,16 @@ public class FileUserPasswdStore {
         listeners.add(listener);
     }
 
+    int usersCount() {
+        return users.size();
+    }
+
     public boolean verifyPassword(String username, SecuredString password) {
-        if (esUsers == null) {
+        if (users == null) {
             return false;
         }
-        char[] hash = esUsers.get(username);
-        if (hash == null) {
-            return false;
-        }
-        return hasher.verify(password, hash);
+        char[] hash = users.get(username);
+        return hash != null && hasher.verify(password, hash);
     }
 
     public static Path resolveFile(Settings settings, Environment env) {
@@ -94,13 +96,28 @@ public class FileUserPasswdStore {
     }
 
     /**
+     * Internally in this class, we try to load the file, but if for some reason we can't, we're being more lenient by
+     * logging the error and skipping all users. This is aligned with how we handle other auto-loaded files in shield.
+     */
+    static ImmutableMap<String, char[]> parseFileLenient(Path path, ESLogger logger) {
+        try {
+            return parseFile(path, logger);
+        } catch (Throwable t) {
+            logger.error("failed to parse users file [{}]. skipping/removing all users...", t, path.toAbsolutePath());
+            return ImmutableMap.of();
+        }
+    }
+
+    /**
      * parses the esusers file. Should never return {@code null}, if the file doesn't exist an
      * empty map is returned
      */
     public static ImmutableMap<String, char[]> parseFile(Path path, @Nullable ESLogger logger) {
-        if (logger != null) {
-            logger.trace("reading users file located at [{}]", path.toAbsolutePath());
+        if (logger == null) {
+            logger = NoOpLogger.INSTANCE;
         }
+        logger.trace("reading users file [{}]...", path.toAbsolutePath());
+
         if (!Files.exists(path)) {
             return ImmutableMap.of();
         }
@@ -122,17 +139,13 @@ public class FileUserPasswdStore {
             }
             int i = line.indexOf(":");
             if (i <= 0 || i == line.length() - 1) {
-                if (logger != null) {
-                    logger.error("invalid entry in users file [{}], line [{}]. skipping...", path.toAbsolutePath(), lineNr);
-                }
+                logger.error("invalid entry in users file [{}], line [{}]. skipping...", path.toAbsolutePath(), lineNr);
                 continue;
             }
             String username = line.substring(0, i).trim();
             Validation.Error validationError = Validation.ESUsers.validateUsername(username);
             if (validationError != null) {
-                if (logger != null) {
-                    logger.error("invalid username [{}] in users file [{}], skipping... ({})", username, path.toAbsolutePath(), validationError);
-                }
+                logger.error("invalid username [{}] in users file [{}], skipping... ({})", username, path.toAbsolutePath(), validationError);
                 continue;
             }
             String hash = line.substring(i + 1).trim();
@@ -140,7 +153,7 @@ public class FileUserPasswdStore {
         }
 
         ImmutableMap<String, char[]> usersMap = users.build();
-        if (logger != null && usersMap.isEmpty()){
+        if (usersMap.isEmpty()){
             logger.warn("no users found in users file [{}]. use bin/shield/esusers to add users and role mappings", path.toAbsolutePath());
         }
         return usersMap;
@@ -176,13 +189,8 @@ public class FileUserPasswdStore {
         @Override
         public void onFileChanged(File file) {
             if (file.equals(FileUserPasswdStore.this.file.toFile())) {
-                try {
-                    esUsers = parseFile(file.toPath(), logger);
-                    logger.info("updated users (users file [{}] changed)", file.getAbsolutePath());
-                } catch (Throwable t) {
-                    logger.error("failed to parse users file [{}]. current users remain unmodified", t, file.getAbsolutePath());
-                    return;
-                }
+                logger.info("users file [{}] changed. updating users... )", file.getAbsolutePath());
+                users = parseFileLenient(file.toPath(), logger);
                 notifyRefresh();
             }
         }

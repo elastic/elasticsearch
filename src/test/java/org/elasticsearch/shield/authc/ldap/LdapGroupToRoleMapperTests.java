@@ -9,23 +9,20 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.ldap.AbstractGroupToRoleMapper;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.shield.authc.support.ldap.AbstractGroupToRoleMapperTests;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.hasItems;
 
-public class LdapGroupToRoleMapperTest extends ElasticsearchTestCase {
+public class LdapGroupToRoleMapperTests extends AbstractGroupToRoleMapperTests {
 
-    private final String tonyStarkDN = "cn=tstark,ou=marvel,o=superheros";
     private final String[] starkGroupDns = new String[] {
             //groups can be named by different attributes, depending on the directory,
             //we don't care what it is named by
@@ -36,47 +33,43 @@ public class LdapGroupToRoleMapperTest extends ElasticsearchTestCase {
             "gid = playboy , dc = example , dc = com",
             "groupid=philanthropist,ou=groups,dc=unitedway,dc=org"
     };
-    private final String roleShield = "shield";
-    private final String roleAvenger = "avenger";
-    private ThreadPool threadPool;
 
-    @Before
-    public void init() {
-        threadPool = new ThreadPool("test");
+    @Override
+    protected AbstractGroupToRoleMapper createMapper(Path file, ResourceWatcherService watcherService) {
+        Settings ldapSettings = ImmutableSettings.builder()
+                .put("files.role_mapping", file.toAbsolutePath())
+                .build();
+        RealmConfig config = new RealmConfig("ldap-group-mapper-test", ldapSettings, settings, env);
+        return new LdapGroupToRoleMapper(config, watcherService);
     }
-
-    @After
-    public void shutdown() {
-        threadPool.shutdownNow();
-    }
-
 
     @Test
     public void testYaml() throws IOException {
         File file = this.getResource("../support/ldap/role_mapping.yml");
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings ldapSettings = ImmutableSettings.settingsBuilder()
                 .put(LdapGroupToRoleMapper.ROLE_MAPPING_FILE_SETTING, file.getCanonicalPath())
                 .build();
-        RealmConfig config = new RealmConfig("ldap1", settings);
+        RealmConfig config = new RealmConfig("ldap1", ldapSettings);
 
         AbstractGroupToRoleMapper mapper = new LdapGroupToRoleMapper(config, new ResourceWatcherService(settings, threadPool));
 
         Set<String> roles = mapper.mapRoles( Arrays.asList(starkGroupDns) );
 
         //verify
-        assertThat(roles, hasItems(roleShield, roleAvenger));
+        assertThat(roles, hasItems("shield", "avenger"));
     }
 
     @Test
     public void testRelativeDN() {
-        Settings settings = ImmutableSettings.builder()
+        Settings ldapSettings = ImmutableSettings.builder()
                 .put(AbstractGroupToRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
                 .build();
-        RealmConfig config = new RealmConfig("ldap1", settings);
+        RealmConfig config = new RealmConfig("ldap1", ldapSettings);
 
         AbstractGroupToRoleMapper mapper = new LdapGroupToRoleMapper(config, new ResourceWatcherService(settings, threadPool));
 
         Set<String> roles = mapper.mapRoles(Arrays.asList(starkGroupDns));
         assertThat(roles, hasItems("genius", "billionaire", "playboy", "philanthropist", "shield", "avengers"));
     }
+
 }

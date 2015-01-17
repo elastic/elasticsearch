@@ -9,9 +9,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.authc.support.ldap.AbstractLdapConnection;
 import org.elasticsearch.shield.authc.support.ldap.ConnectionFactory;
 
 import javax.naming.Context;
@@ -32,25 +34,13 @@ import java.util.Hashtable;
 public class LdapConnectionFactory extends ConnectionFactory<LdapConnection> {
 
     public static final String USER_DN_TEMPLATES_SETTING = "user_dn_templates";
-    public static final String GROUP_SEARCH_SUBTREE_SETTING = "group_search.subtree";
-    public static final String GROUP_SEARCH_BASEDN_SETTING = "group_search.base_dn";
-    public static final String GROUP_SEARCH_FILTER_SETTING = "group_search.filter";
-    public static final String GROUP_SEARCH_USER_ATTRIBUTE_SETTING = "group_search.user_attribute";
-
-    private static final String GROUP_SEARCH_DEFAULT_FILTER = "(&" +
-            "(|(objectclass=groupOfNames)(objectclass=groupOfUniqueNames)(objectclass=group))" +
-            "(|(uniqueMember={0})(member={0})))";
 
     private final ImmutableMap<String, Serializable> sharedLdapEnv;
     private final String[] userDnTemplates;
-    protected final String groupSearchDN;
-    protected final boolean groupSubTreeSearch;
-    protected final boolean findGroupsByAttribute;
-    private final int timeoutMilliseconds;
-    private final String groupFilter;
-    private final String groupSearchUserAttribute;
+    private final AbstractLdapConnection.GroupsResolver groupResolver;
+    private final TimeValue timeout;
 
-    @Inject()
+    @Inject
     public LdapConnectionFactory(RealmConfig config) {
         super(LdapConnection.class, config);
         Settings settings = config.settings();
@@ -59,11 +49,10 @@ public class LdapConnectionFactory extends ConnectionFactory<LdapConnection> {
             throw new ShieldSettingsException("missing required LDAP setting [" + USER_DN_TEMPLATES_SETTING + "]");
         }
         String[] ldapUrls = settings.getAsArray(URLS_SETTING);
-        if (ldapUrls == null) {
+        if (ldapUrls == null || ldapUrls.length == 0) {
             throw new ShieldSettingsException("missing required LDAP setting [" + URLS_SETTING + "]");
         }
-
-        timeoutMilliseconds = (int) settings.getAsTime(TIMEOUT_LDAP_SETTING, TIMEOUT_DEFAULT).millis();
+        timeout = settings.getAsTime(TIMEOUT_LDAP_SETTING, TIMEOUT_DEFAULT);
 
         ImmutableMap.Builder<String, Serializable> builder = ImmutableMap.<String, Serializable>builder()
                 .put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory")
@@ -75,12 +64,8 @@ public class LdapConnectionFactory extends ConnectionFactory<LdapConnection> {
         configureJndiSSL(ldapUrls, builder);
 
         sharedLdapEnv = builder.build();
-        groupSearchDN = settings.get(GROUP_SEARCH_BASEDN_SETTING);
-        findGroupsByAttribute = groupSearchDN == null;
-        groupSubTreeSearch = settings.getAsBoolean(GROUP_SEARCH_SUBTREE_SETTING, true);
-        groupFilter = settings.get(GROUP_SEARCH_FILTER_SETTING, GROUP_SEARCH_DEFAULT_FILTER);
-        groupSearchUserAttribute = settings.get(GROUP_SEARCH_FILTER_SETTING) == null ?
-                null : settings.get(GROUP_SEARCH_USER_ATTRIBUTE_SETTING);  //if filter isn't set we don't want to change from using the DN
+
+        groupResolver = groupResolver(settings);
     }
 
     /**
@@ -104,8 +89,7 @@ public class LdapConnectionFactory extends ConnectionFactory<LdapConnection> {
                 DirContext ctx = new InitialDirContext(ldapEnv);
 
                 //return the first good connection
-                return new LdapConnection(connectionLogger, ctx, dn, timeoutMilliseconds, findGroupsByAttribute, groupSubTreeSearch,
-                        groupFilter, groupSearchDN, groupSearchUserAttribute);
+                return new LdapConnection(connectionLogger, ctx, dn, groupResolver, timeout);
 
             } catch (NamingException e) {
                 logger.warn("failed LDAP authentication with user template [{}] and DN [{}]", e, template, dn);
@@ -125,5 +109,13 @@ public class LdapConnectionFactory extends ConnectionFactory<LdapConnection> {
         //this value must be escaped to avoid manipulation of the template DN.
         String escapedUsername = Rdn.escapeValue(username);
         return MessageFormat.format(template, escapedUsername);
+    }
+
+    static AbstractLdapConnection.GroupsResolver groupResolver(Settings settings) {
+        Settings searchSettings = settings.getAsSettings("group_search");
+        if (!searchSettings.names().isEmpty()) {
+            return new SearchGroupsResolver(searchSettings);
+        }
+        return new UserAttributeGroupsResolver(settings);
     }
 }

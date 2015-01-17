@@ -9,12 +9,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.LdapException;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.ldap.ClosableNamingEnumeration;
 import org.elasticsearch.shield.authc.support.ldap.ConnectionFactory;
+import org.elasticsearch.shield.authc.support.ldap.SearchScope;
 
 import javax.naming.Context;
 import javax.naming.NamingException;
@@ -36,14 +38,14 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory<ActiveDi
     public static final String AD_DOMAIN_NAME_SETTING = "domain_name";
     public static final String AD_USER_SEARCH_BASEDN_SETTING = "user_search.base_dn";
     public static final String AD_USER_SEARCH_FILTER_SETTING = "user_search.filter";
-    public static final String AD_USER_SEARCH_SUBTREE_SETTING = "user_search.subtree";
+    public static final String AD_USER_SEARCH_SCOPE_SETTING = "user_search.scope";
 
     private final ImmutableMap<String, Serializable> sharedLdapEnv;
     private final String userSearchDN;
     private final String domainName;
     private final String userSearchFilter;
-    private final int timeoutMilliseconds;
-    private final Boolean userSearchSubtree;
+    private final SearchScope userSearchScope;
+    private final TimeValue timeout;
 
     @Inject
     public ActiveDirectoryConnectionFactory(RealmConfig config) {
@@ -55,8 +57,8 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory<ActiveDi
         }
         userSearchDN = settings.get(AD_USER_SEARCH_BASEDN_SETTING, buildDnFromDomain(domainName));
         userSearchFilter = settings.get(AD_USER_SEARCH_FILTER_SETTING, "(&(objectClass=user)(|(sAMAccountName={0})(userPrincipalName={0}@" + domainName + ")))");
-        userSearchSubtree = settings.getAsBoolean(AD_USER_SEARCH_SUBTREE_SETTING, true);
-        timeoutMilliseconds = (int) settings.getAsTime(TIMEOUT_LDAP_SETTING, TIMEOUT_DEFAULT).millis();
+        userSearchScope = SearchScope.resolve(settings.get(AD_USER_SEARCH_SCOPE_SETTING), SearchScope.SUB_TREE);
+        timeout = settings.getAsTime(TIMEOUT_LDAP_SETTING, TIMEOUT_DEFAULT);
         String[] ldapUrls = settings.getAsArray(URLS_SETTING, new String[] { "ldaps://" + domainName + ":636" });
 
         ImmutableMap.Builder<String, Serializable> builder = ImmutableMap.<String, Serializable>builder()
@@ -90,9 +92,9 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory<ActiveDi
         try {
             ctx = new InitialDirContext(ldapEnv);
             SearchControls searchCtls = new SearchControls();
-            searchCtls.setSearchScope(userSearchSubtree ? SearchControls.SUBTREE_SCOPE : SearchControls.ONELEVEL_SCOPE);
+            searchCtls.setSearchScope(userSearchScope.scope());
             searchCtls.setReturningAttributes(Strings.EMPTY_ARRAY);
-            searchCtls.setTimeLimit(timeoutMilliseconds);
+            searchCtls.setTimeLimit((int) timeout.millis());
             try (ClosableNamingEnumeration<SearchResult> results = new ClosableNamingEnumeration<>(
                 ctx.search(userSearchDN, userSearchFilter, new Object[] { userName }, searchCtls))) {
 
@@ -101,16 +103,16 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory<ActiveDi
                     String name = entry.getNameInNamespace();
 
                     if (!results.hasMore()) {
-                        return new ActiveDirectoryConnection(connectionLogger, ctx, name, userSearchDN, timeoutMilliseconds);
+                        return new ActiveDirectoryConnection(connectionLogger, ctx, name, userSearchDN, timeout);
                     }
-                    ctx.close();
                     throw new ActiveDirectoryException("search for user [" + userName + "] by principle name yielded multiple results");
                 } else {
-                    ctx.close();
                     throw new ActiveDirectoryException("search for user [" + userName + "] by principle name yielded no results");
                 }
             }
         } catch (NamingException | LdapException e) {
+            throw new ActiveDirectoryException("unable to authenticate user [" + userName + "] to active directory domain [" + domainName + "]", e);
+        } finally {
             if (ctx != null) {
                 try {
                     ctx.close();
@@ -118,7 +120,6 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory<ActiveDi
                     logger.trace("an unexpected error occurred closing an LDAP context", ne);
                 }
             }
-            throw new ActiveDirectoryException("unable to authenticate user [" + userName + "] to active directory domain [" + domainName + "]", e);
         }
     }
 

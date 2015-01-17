@@ -10,12 +10,16 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
+import org.elasticsearch.shield.rest.RemoteHostHeader;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.shield.transport.filter.ShieldIpFilterRule;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -115,6 +119,7 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
             CapturingLogger logger = new CapturingLogger(level);
             LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, logger);
             TransportMessage message = randomBoolean() ? new MockMessage() : new MockIndicesRequest();
+            String origins = LoggingAuditTrail.originAttributes(message);
             auditTrail.anonymousAccess("_action", message);
             switch (level) {
                 case ERROR:
@@ -123,17 +128,17 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
                 case WARN:
                 case INFO:
                     if (message instanceof IndicesRequest) {
-                        assertMsg(logger, Level.WARN, prefix + "ANONYMOUS_ACCESS\thost=[local[_host]], action=[_action], indices=[idx1,idx2]");
+                        assertMsg(logger, Level.WARN, prefix + "[transport] [anonymous_access]\t" + origins + ", action=[_action], indices=[idx1,idx2]");
                     } else {
-                        assertMsg(logger, Level.WARN, prefix + "ANONYMOUS_ACCESS\thost=[local[_host]], action=[_action]");
+                        assertMsg(logger, Level.WARN, prefix + "[transport] [anonymous_access]\t"  + origins + ", action=[_action]");
                     }
                     break;
                 case DEBUG:
                 case TRACE:
                     if (message instanceof IndicesRequest) {
-                        assertMsg(logger, Level.DEBUG, prefix + "ANONYMOUS_ACCESS\thost=[local[_host]], action=[_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [anonymous_access]\t"  + origins + ", action=[_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
                     } else {
-                        assertMsg(logger, Level.DEBUG, prefix + "ANONYMOUS_ACCESS\thost=[local[_host]], action=[_action], request=[MockMessage]");
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [anonymous_access]\t"  + origins + ", action=[_action], request=[MockMessage]");
                     }
             }
         }
@@ -156,11 +161,11 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
                     break;
                 case WARN:
                 case INFO:
-                    assertMsg(logger, Level.WARN, prefix + "ANONYMOUS_ACCESS\thost=[_hostname:9200], URI=[_uri]");
+                    assertMsg(logger, Level.WARN, prefix + "[rest] [anonymous_access]\torigin_address=[_hostname:9200], uri=[_uri]");
                     break;
                 case DEBUG:
                 case TRACE:
-                    assertMsg(logger, Level.DEBUG, prefix + "ANONYMOUS_ACCESS\thost=[_hostname:9200], URI=[_uri], request=[" + expectedMessage + "]");
+                    assertMsg(logger, Level.DEBUG, prefix + "[rest] [anonymous_access]\torigin_address=[_hostname:9200], uri=[_uri], request_body=[" + expectedMessage + "]");
             }
         }
     }
@@ -171,23 +176,24 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
             CapturingLogger logger = new CapturingLogger(level);
             LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, logger);
             TransportMessage message = randomBoolean() ? new MockMessage() : new MockIndicesRequest();
+            String origins = LoggingAuditTrail.originAttributes(message);
             auditTrail.authenticationFailed(new MockToken(), "_action", message);
             switch (level) {
                 case ERROR:
                 case WARN:
                 case INFO:
                     if (message instanceof IndicesRequest) {
-                        assertMsg(logger, Level.ERROR, prefix + "AUTHENTICATION_FAILED\thost=[local[_host]], principal=[_principal], action=[_action], indices=[idx1,idx2]");
+                        assertMsg(logger, Level.ERROR, prefix + "[transport] [authentication_failed]\t" + origins + ", principal=[_principal], action=[_action], indices=[idx1,idx2]");
                     } else {
-                        assertMsg(logger, Level.ERROR, prefix + "AUTHENTICATION_FAILED\thost=[local[_host]], principal=[_principal], action=[_action]");
+                        assertMsg(logger, Level.ERROR, prefix + "[transport] [authentication_failed]\t" + origins + ", principal=[_principal], action=[_action]");
                     }
                     break;
                 case DEBUG:
                 case TRACE:
                     if (message instanceof IndicesRequest) {
-                        assertMsg(logger, Level.DEBUG, prefix + "AUTHENTICATION_FAILED\thost=[local[_host]], principal=[_principal], action=[_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [authentication_failed]\t" + origins + ", principal=[_principal], action=[_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
                     } else {
-                        assertMsg(logger, Level.DEBUG, prefix + "AUTHENTICATION_FAILED\thost=[local[_host]], principal=[_principal], action=[_action], request=[MockMessage]");
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [authentication_failed]\t" + origins + ", principal=[_principal], action=[_action], request=[MockMessage]");
                     }
             }
         }
@@ -207,11 +213,11 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
                 case ERROR:
                 case WARN:
                 case INFO:
-                    assertMsg(logger, Level.ERROR, prefix + "AUTHENTICATION_FAILED\thost=[_hostname:9200], principal=[_principal], URI=[_uri]");
+                    assertMsg(logger, Level.ERROR, prefix + "[rest] [authentication_failed]\torigin_address=[_hostname:9200], principal=[_principal], uri=[_uri]");
                     break;
                 case DEBUG:
                 case TRACE:
-                    assertMsg(logger, Level.DEBUG, prefix + "AUTHENTICATION_FAILED\thost=[_hostname:9200], principal=[_principal], URI=[_uri], request=[" + expectedMessage + "]");
+                    assertMsg(logger, Level.DEBUG, prefix + "[rest] [authentication_failed]\torigin_address=[_hostname:9200], principal=[_principal], uri=[_uri], request_body=[" + expectedMessage + "]");
             }
         }
     }
@@ -222,6 +228,7 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
             CapturingLogger logger = new CapturingLogger(level);
             LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, logger);
             TransportMessage message = randomBoolean() ? new MockMessage() : new MockIndicesRequest();
+            String origins = LoggingAuditTrail.originAttributes(message);
             auditTrail.authenticationFailed("_realm", new MockToken(), "_action", message);
             switch (level) {
                 case ERROR:
@@ -232,9 +239,9 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
                     break;
                 case TRACE:
                     if (message instanceof IndicesRequest) {
-                        assertMsg(logger, Level.TRACE, prefix + "AUTHENTICATION_FAILED[_realm]\thost=[local[_host]], principal=[_principal], action=[_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
+                        assertMsg(logger, Level.TRACE, prefix + "[transport] [authentication_failed]\trealm=[_realm], " + origins + ", principal=[_principal], action=[_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
                     } else {
-                        assertMsg(logger, Level.TRACE, prefix + "AUTHENTICATION_FAILED[_realm]\thost=[local[_host]], principal=[_principal], action=[_action], request=[MockMessage]");
+                        assertMsg(logger, Level.TRACE, prefix + "[transport] [authentication_failed]\trealm=[_realm], " + origins + ", principal=[_principal], action=[_action], request=[MockMessage]");
                     }
             }
         }
@@ -258,7 +265,7 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
                     assertEmptyLog(logger);
                     break;
                 case TRACE:
-                    assertMsg(logger, Level.TRACE, prefix + "AUTHENTICATION_FAILED[_realm]\thost=[_hostname:9200], principal=[_principal], URI=[_uri], request=[" + expectedMessage + "]");
+                    assertMsg(logger, Level.TRACE, prefix + "[rest] [authentication_failed]\trealm=[_realm], origin_address=[_hostname:9200], principal=[_principal], uri=[_uri], request_body=[" + expectedMessage + "]");
             }
         }
     }
@@ -269,6 +276,7 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
             CapturingLogger logger = new CapturingLogger(level);
             LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, logger);
             TransportMessage message = randomBoolean() ? new MockMessage() : new MockIndicesRequest();
+            String origins = LoggingAuditTrail.originAttributes(message);
             auditTrail.accessGranted(new User.Simple("_username", "r1"), "_action", message);
             switch (level) {
                 case ERROR:
@@ -277,17 +285,17 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
                     break;
                 case INFO:
                     if (message instanceof IndicesRequest) {
-                        assertMsg(logger, Level.INFO, prefix + "ACCESS_GRANTED\thost=[local[_host]], principal=[_username], action=[_action], indices=[idx1,idx2]");
+                        assertMsg(logger, Level.INFO, prefix + "[transport] [access_granted]\t" + origins + ", principal=[_username], action=[_action], indices=[idx1,idx2]");
                     } else {
-                        assertMsg(logger, Level.INFO, prefix + "ACCESS_GRANTED\thost=[local[_host]], principal=[_username], action=[_action]");
+                        assertMsg(logger, Level.INFO, prefix + "[transport] [access_granted]\t" + origins + ", principal=[_username], action=[_action]");
                     }
                     break;
                 case DEBUG:
                 case TRACE:
                     if (message instanceof IndicesRequest) {
-                        assertMsg(logger, Level.DEBUG, prefix + "ACCESS_GRANTED\thost=[local[_host]], principal=[_username], action=[_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [access_granted]\t" + origins + ", principal=[_username], action=[_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
                     } else {
-                        assertMsg(logger, Level.DEBUG, prefix + "ACCESS_GRANTED\thost=[local[_host]], principal=[_username], action=[_action], request=[MockMessage]");
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [access_granted]\t" + origins + ", principal=[_username], action=[_action], request=[MockMessage]");
                     }
             }
         }
@@ -299,6 +307,7 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
             CapturingLogger logger = new CapturingLogger(level);
             LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, logger);
             TransportMessage message = randomBoolean() ? new MockMessage() : new MockIndicesRequest();
+            String origins = LoggingAuditTrail.originAttributes(message);
             auditTrail.accessGranted(new User.Simple("_username", "r1"), "internal:_action", message);
             switch (level) {
                 case ERROR:
@@ -309,9 +318,9 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
                     break;
                 case TRACE:
                     if (message instanceof IndicesRequest) {
-                        assertMsg(logger, Level.TRACE, prefix + "ACCESS_GRANTED\thost=[local[_host]], principal=[_username], action=[internal:_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
+                        assertMsg(logger, Level.TRACE, prefix + "[transport] [access_granted]\t" + origins + ", principal=[_username], action=[internal:_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
                     } else {
-                        assertMsg(logger, Level.TRACE, prefix + "ACCESS_GRANTED\thost=[local[_host]], principal=[_username], action=[internal:_action], request=[MockMessage]");
+                        assertMsg(logger, Level.TRACE, prefix + "[transport] [access_granted]\t" + origins + ", principal=[_username], action=[internal:_action], request=[MockMessage]");
                     }
             }
         }
@@ -323,23 +332,24 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
             CapturingLogger logger = new CapturingLogger(level);
             LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, logger);
             TransportMessage message = randomBoolean() ? new MockMessage() : new MockIndicesRequest();
+            String origins = LoggingAuditTrail.originAttributes(message);
             auditTrail.accessDenied(new User.Simple("_username", "r1"), "_action", message);
             switch (level) {
                 case ERROR:
                 case WARN:
                 case INFO:
                     if (message instanceof IndicesRequest) {
-                        assertMsg(logger, Level.ERROR, prefix + "ACCESS_DENIED\thost=[local[_host]], principal=[_username], action=[_action], indices=[idx1,idx2]");
+                        assertMsg(logger, Level.ERROR, prefix + "[transport] [access_denied]\t" + origins + ", principal=[_username], action=[_action], indices=[idx1,idx2]");
                     } else {
-                        assertMsg(logger, Level.ERROR, prefix + "ACCESS_DENIED\thost=[local[_host]], principal=[_username], action=[_action]");
+                        assertMsg(logger, Level.ERROR, prefix + "[transport] [access_denied]\t"  + origins + ", principal=[_username], action=[_action]");
                     }
                     break;
                 case DEBUG:
                 case TRACE:
                     if (message instanceof IndicesRequest) {
-                        assertMsg(logger, Level.DEBUG, prefix + "ACCESS_DENIED\thost=[local[_host]], principal=[_username], action=[_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [access_denied]\t" + origins + ", principal=[_username], action=[_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
                     } else {
-                        assertMsg(logger, Level.DEBUG, prefix + "ACCESS_DENIED\thost=[local[_host]], principal=[_username], action=[_action], request=[MockMessage]");
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [access_denied]\t" + origins + ", principal=[_username], action=[_action], request=[MockMessage]");
                     }
             }
         }
@@ -355,7 +365,7 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
             auditTrail.connectionDenied(inetAddress, "default", rule);
             switch (level) {
                 case ERROR:
-                    assertMsg(logger, Level.ERROR, String.format(Locale.ROOT, prefix + "CONNECTION_DENIED\thost=[%s], profile=[%s], rule=[deny %s]",
+                    assertMsg(logger, Level.ERROR, String.format(Locale.ROOT, prefix + "[ip_filter] [connection_denied]\torigin_address=[%s], transport_profile=[%s], rule=[deny %s]",
                             inetAddress.getHostAddress(), "default", "_all"));
                     break;
                 case WARN:
@@ -383,9 +393,31 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
                     break;
                 case TRACE:
                     assertMsg(logger, Level.TRACE, String.format(Locale.ROOT,
-                            prefix + "CONNECTION_GRANTED\thost=[%s], profile=[default], rule=[allow default:accept_all]",
+                            prefix + "[ip_filter] [connection_granted]\torigin_address=[%s], transport_profile=[default], rule=[allow default:accept_all]",
                             inetAddress.getHostAddress()));
             }
+        }
+    }
+
+    @Test @Repeat(iterations = 10)
+    public void testOriginAttributes() throws Exception {
+        MockMessage message = new MockMessage();
+        String text = LoggingAuditTrail.originAttributes(message);
+        InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(message);
+        if (restAddress != null) {
+            assertThat(text, equalTo("origin_type=[rest], origin_address=[" + restAddress + "]"));
+            return;
+        }
+        TransportAddress address = message.remoteAddress();
+        if (address == null) {
+            assertThat(text, equalTo("origin_type=[local_node], origin_address=[" + NetworkUtils.getLocalHostAddress("_local") + "]"));
+            return;
+        }
+
+        if (address instanceof InetSocketTransportAddress) {
+            assertThat(text, equalTo("origin_type=[transport], origin_address=[" + ((InetSocketTransportAddress) address).address() + "]"));
+        } else {
+            assertThat(text, equalTo("origin_type=[transport], origin_address=[" + address + "]"));
         }
     }
 
@@ -411,14 +443,28 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
     private static class MockMessage extends TransportMessage<MockMessage> {
 
         private MockMessage() {
-            remoteAddress(new LocalTransportAddress("_host"));
+            if (randomBoolean()) {
+                if (randomBoolean()) {
+                    remoteAddress(new LocalTransportAddress("local_host"));
+                } else {
+                    remoteAddress(new InetSocketTransportAddress("remote_host", 1234));
+                }
+            }
+            if (randomBoolean()) {
+                RemoteHostHeader.putRestRemoteAddress(this, InetSocketAddress.createUnresolved("localhost", 1234));
+            }
         }
     }
 
     private static class MockIndicesRequest extends TransportMessage<MockIndicesRequest> implements IndicesRequest {
 
         private MockIndicesRequest() {
-            remoteAddress(new LocalTransportAddress("_host"));
+            if (randomBoolean()) {
+                remoteAddress(new LocalTransportAddress("_host"));
+            }
+            if (randomBoolean()) {
+                RemoteHostHeader.putRestRemoteAddress(this, InetSocketAddress.createUnresolved("localhost", 1234));
+            }
         }
 
         @Override

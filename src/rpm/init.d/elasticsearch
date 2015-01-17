@@ -16,19 +16,15 @@
 # Description: Elasticsearch is a very scalable, schema-free and high-performance search solution supporting multi-tenancy and near realtime search.
 ### END INIT INFO
 
-#
-# init.d / servicectl compatibility (openSUSE)
-#
+# source SUSE function libraries
 if [ -f /etc/rc.status ]; then
     . /etc/rc.status
     rc_reset
-fi
-
-#
-# Source function library.
-#
-if [ -f /etc/rc.d/init.d/functions ]; then
+    platform="SUSE"
+# source RedHat function libraries
+elif [ -f /etc/rc.d/init.d/functions ]; then
     . /etc/rc.d/init.d/functions
+    platform="RedHat"
 fi
 
 exec="/usr/share/elasticsearch/bin/elasticsearch"
@@ -43,28 +39,23 @@ export ES_DIRECT_SIZE
 export ES_JAVA_OPTS
 export JAVA_HOME
 
-lockfile=/var/lock/subsys/$prog
-
 # backwards compatibility for old config sysconfig files, pre 0.90.1
 if [ -n $USER ] && [ -z $ES_USER ] ; then 
-   ES_USER=$USER
+    ES_USER=$USER
 fi
 
-checkJava() {
-    if [ -x "$JAVA_HOME/bin/java" ]; then
-        JAVA="$JAVA_HOME/bin/java"
-    else
-        JAVA=`which java`
-    fi
+if [ -x "$JAVA_HOME/bin/java" ]; then
+    JAVA="$JAVA_HOME/bin/java"
+else
+    JAVA=`which java`
+fi
 
-    if [ ! -x "$JAVA" ]; then
-        echo "Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"
-        exit 1
-    fi
-}
+if [ ! -x "$JAVA" ]; then
+    echo "Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"
+    exit 1
+fi
 
 start() {
-    checkJava
     [ -x $exec ] || exit 5
     [ -f $CONF_FILE ] || exit 6
     if [ -n "$MAX_LOCKED_MEMORY" -a -z "$ES_HEAP_SIZE" ]; then
@@ -85,22 +76,31 @@ start() {
         chown "$ES_USER":"$ES_GROUP" "$WORK_DIR"
     fi
     echo -n $"Starting $prog: "
-    # if not running, start it up here, usually something like "daemon $exec"
-    daemon --user $ES_USER --pidfile $pidfile $exec -p $pidfile -d -Des.default.path.home=$ES_HOME -Des.default.path.logs=$LOG_DIR -Des.default.path.data=$DATA_DIR -Des.default.path.work=$WORK_DIR -Des.default.path.conf=$CONF_DIR
-    retval=$?
-    echo
-    [ $retval -eq 0 ] && touch $lockfile
-    return $retval
+    # if not running, start it up here
+    if [ $platform == "SUSE" ]; then
+    	rc_reset
+	su -s /bin/bash -c "$exec -d -p $pidfile -Des.default.path.home=$ES_HOME -Des.default.path.logs=$LOG_DIR -Des.default.path.data=$DATA_DIR -Des.default.path.work=$WORK_DIR -Des.default.path.conf=$CONF_DIR" $ES_USER
+	rc_status -v
+    elif [ $platform == "RedHat" ]; then
+        daemon --user $ES_USER --pidfile $pidfile $exec -p $pidfile -d -Des.default.path.home=$ES_HOME -Des.default.path.logs=$LOG_DIR -Des.default.path.data=$DATA_DIR -Des.default.path.work=$WORK_DIR -Des.default.path.conf=$CONF_DIR
+        retval=$?
+        echo
+        return $retval
+    fi
 }
 
 stop() {
     echo -n $"Stopping $prog: "
     # stop it here, often "killproc $prog"
-    killproc -p $pidfile -d 20 $prog
-    retval=$?
-    echo
-    [ $retval -eq 0 ] && rm -f $lockfile
-    return $retval
+    if [ $platform == "SUSE" ]; then
+        killproc -p $pidfile -t20 $JAVA
+        rc_status -v
+    elif [ $platform == "RedHat" ]; then
+        killproc -p $pidfile -d 20 $prog
+        retval=$?
+        echo
+        return $retval
+    fi
 }
 
 restart() {
@@ -118,7 +118,13 @@ force_reload() {
 
 rh_status() {
     # run checks to determine if the service is running or use generic status
-    status -p $pidfile $prog
+    if [ $platform == "SUSE" ]; then
+    	echo -n $"Checking for service elasticsearch "
+        checkproc -p $pidfile $JAVA
+        rc_status -v
+    elif [ $platform == "RedHat" ]; then
+        status -p $pidfile $prog
+    fi
 }
 
 rh_status_q() {
@@ -156,4 +162,9 @@ case "$1" in
         echo $"Usage: $0 {start|stop|status|restart|condrestart|try-restart|reload|force-reload}"
         exit 2
 esac
-exit $?
+
+if [ $platform == "SUSE" ]; then
+    rc_exit
+elif [ $platform == "RedHat" ]; then
+    exit $?
+fi

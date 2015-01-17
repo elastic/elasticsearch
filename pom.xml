@@ -1057,7 +1057,7 @@
                             </sources>
                         </mapping>
                         <mapping>
-                            <directory>/etc/rc.d/init.d/</directory>
+                            <directory>/etc/init.d/</directory>
                             <filemode>755</filemode>
                             <configuration>true</configuration>
                             <sources>

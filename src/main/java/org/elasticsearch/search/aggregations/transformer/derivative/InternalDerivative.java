@@ -20,30 +20,26 @@
 package org.elasticsearch.search.aggregations.transformer.derivative;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 import org.elasticsearch.search.aggregations.transformer.InternalSimpleValue;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-public class InternalDerivative<B extends InternalHistogram.Bucket> extends InternalMultiBucketAggregation implements Derivative {
+public class InternalDerivative<B extends InternalHistogram.Bucket> extends InternalHistogram<B> implements Derivative {
 
     final static Type TYPE = new Type("derivative", "deriv");
 
@@ -60,45 +56,29 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
         AggregationStreams.registerStream(STREAM, TYPE.stream());
     }
 
-    private boolean keyed;
-    private @Nullable
-    ValueFormatter formatter;
     private GapPolicy gapPolicy;
     private InternalAggregations aggregations;
 
-    private InternalHistogram<? extends Histogram.Bucket> derivativeResult;
-
     InternalDerivative() {
+        super();
     }
 
     public InternalDerivative(String name, boolean keyed, @Nullable ValueFormatter formatter, GapPolicy gapPolicy,
             InternalAggregations subAggregations, Map<String, Object> metaData) {
-        super(name, metaData);
-        this.keyed = keyed;
-        this.formatter = formatter;
+        super(name, Collections.EMPTY_LIST, null, 1, null, formatter, keyed, metaData);
         this.gapPolicy = gapPolicy;
         this.aggregations = subAggregations;
     }
 
-    public InternalDerivative(String name, boolean keyed, @Nullable ValueFormatter formatter, GapPolicy gapPolicy,
-            Map<String, Object> metaData, InternalHistogram<? extends Histogram.Bucket> derivativeResult) {
-        this(name, keyed, formatter, gapPolicy, null, metaData);
-        this.derivativeResult = derivativeResult;
+    public InternalDerivative(String name, List<B> buckets, @Nullable ValueFormatter formatter, boolean keyed, GapPolicy gapPolicy,
+            Map<String, Object> metaData) {
+        super(name, buckets, null, 1, null, formatter, keyed, metaData);
+        this.gapPolicy = gapPolicy;
     }
 
     @Override
     public Type type() {
         return TYPE;
-    }
-
-    @Override
-    public List<? extends Histogram.Bucket> getBuckets() {
-        return derivativeResult.getBuckets();
-    }
-
-    @Override
-    public Histogram.Bucket getBucketByKey(String key) {
-        return derivativeResult.getBucketByKey(key);
     }
 
     @Override
@@ -142,76 +122,46 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
                 // NOCOMMIT implement this for multi-value metrics
             }
             if (newBucketKey != null) {
-                double docCountDeriv = (thisbucketDocCount - lastValue) / xValue;
                 List<InternalAggregation> metricsAggregations = new ArrayList<>();
+                double docCountDeriv = (thisbucketDocCount - lastValue) / xValue;
+                InternalSimpleValue docCountDerivAgg = new InternalSimpleValue("_doc_count", docCountDeriv, null); // NOCOMMIT change the name of this to something less confusing
+                metricsAggregations.add(docCountDerivAgg);
                 for (Entry<String, Double> entry : thisBucketMetricValues.entrySet()) {
                     double metricDeriv = (entry.getValue() - lastMetricValues.get(entry.getKey())) / xValue;
                     InternalSimpleValue metricAgg = new InternalSimpleValue(entry.getKey(), metricDeriv, null);
                     metricsAggregations.add(metricAgg);
                 }
-                InternalSimpleValue docCountDerivAgg = new InternalSimpleValue("_doc_count", docCountDeriv, null); // NOCOMMIT change the name of this to something less confusing
-                metricsAggregations.add(docCountDerivAgg);
                 InternalAggregations metricsAggs = new InternalAggregations(metricsAggregations);
-                newBuckets.add(factory.createBucket(newBucketKey, 0, metricsAggs, keyed, formatter));
+                newBuckets.add(factory.createBucket(newBucketKey, 0, metricsAggs, keyed(), formatter()));
             }
             lastValue = thisbucketDocCount;
             lastMetricValues = thisBucketMetricValues;
             newBucketKey = histoBucket.getKeyAsNumber().longValue();
         }
-        InternalHistogram<InternalHistogram.Bucket> derivativeHisto = factory.create(name, newBuckets, null, 1, null, formatter, keyed,
-                null);
-        return new InternalDerivative<>(getName(), keyed, formatter, gapPolicy, metaData, derivativeHisto);
-    }
-
-    @Override
-    public Object getProperty(List<String> path) {
-        return derivativeResult.getProperty(path);
-    }
-
-    @Override
-    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        if (this.derivativeResult != null) {
-            this.derivativeResult.doXContentBody(builder, params);
-        }
-        return builder;
+        return new InternalDerivative<>(getName(), newBuckets, formatter(), keyed(), gapPolicy, metaData);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        //        InternalOrder.Streams.writeOrder(order, out); // NOCOMMIT implement order
-        ValueFormatterStreams.writeOptional(formatter, out);
-        out.writeBoolean(keyed);
+        super.doWriteTo(out);
         if (aggregations == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
             aggregations.writeTo(out);
         }
-        if (derivativeResult == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeBytesReference(derivativeResult.type().stream());
-            derivativeResult.writeTo(out);
-        }
+        gapPolicy.writeTo(out);
     }
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
-        //        order = InternalOrder.Streams.readOrder(in); // NOCOMMIT implement order
-        formatter = ValueFormatterStreams.readOptional(in);
-        keyed = in.readBoolean();
+        super.doReadFrom(in);
         if (in.readBoolean()) {
             aggregations = InternalAggregations.readAggregations(in);
         } else {
             aggregations = null;
         }
-        if (in.readBoolean()) {
-            BytesReference type = in.readBytesReference();
-            derivativeResult = (InternalHistogram<?>) AggregationStreams.stream(type).readResult(in);
-        } else {
-            derivativeResult = null;
-        }
+        gapPolicy = GapPolicy.readFrom(in);
     }
 
 }

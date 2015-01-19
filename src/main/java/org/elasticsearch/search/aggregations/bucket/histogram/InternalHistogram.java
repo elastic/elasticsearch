@@ -23,14 +23,12 @@ import com.google.common.collect.Lists;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -252,7 +250,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     private long minDocCount;
     private EmptyBucketInfo emptyBucketInfo;
 
-    InternalHistogram() {} // for serialization
+    protected InternalHistogram() {
+    } // for serialization
 
     public InternalHistogram(String name, List<B> buckets, InternalOrder order, long minDocCount,
                       EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {

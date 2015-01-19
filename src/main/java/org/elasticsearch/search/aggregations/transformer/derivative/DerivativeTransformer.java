@@ -58,7 +58,8 @@ public class DerivativeTransformer extends Transformer {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalDerivative<InternalHistogram.Bucket>(name, keyed, formatter, gapPolicy, InternalAggregations.EMPTY, getMetaData());
+        return new InternalDerivative<InternalHistogram.Bucket>(name, keyed, formatter, gapPolicy, InternalAggregations.EMPTY,
+                getMetaData());
     }
 
     public static class Factory extends AggregatorFactory {

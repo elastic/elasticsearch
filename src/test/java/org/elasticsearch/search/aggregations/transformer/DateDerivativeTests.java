@@ -104,11 +104,7 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
     }
 
     private static Histogram.Bucket getBucket(Derivative histogram, DateTime key, String format) {
-        if (randomBoolean()) {
-            return histogram.getBucketByKey(String.valueOf(key));
-        } else {
-            return histogram.getBucketByKey("" + key.getMillis());
-        }
+        return histogram.getBucketByKey("" + key.getMillis());
     }
 
     @Test

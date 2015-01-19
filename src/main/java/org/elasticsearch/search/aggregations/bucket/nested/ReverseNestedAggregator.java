@@ -20,10 +20,11 @@ package org.elasticsearch.search.aggregations.bucket.nested;
 
 import com.carrotsearch.hppc.LongIntOpenHashMap;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.index.mapper.MapperService;
@@ -33,7 +34,6 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -44,7 +44,7 @@ import java.util.Map;
 public class ReverseNestedAggregator extends SingleBucketAggregator implements ReaderContextAware {
 
     private final BitDocIdSetFilter parentFilter;
-    private DocIdSetIterator parentDocs;
+    private BitSet parentDocs;
 
     // TODO: Add LongIntPagedHashMap?
     private final LongIntOpenHashMap bucketOrdToLastCollectedParentDoc;
@@ -52,9 +52,9 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
     public ReverseNestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, metaData);
         if (objectMapper == null) {
-            parentFilter = SearchContext.current().bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE);
+            parentFilter = context.searchContext().bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE);
         } else {
-            parentFilter = SearchContext.current().bitsetFilterCache().getBitDocIdSetFilter(objectMapper.nestedTypeFilter());
+            parentFilter = context.searchContext().bitsetFilterCache().getBitDocIdSetFilter(objectMapper.nestedTypeFilter());
         }
         bucketOrdToLastCollectedParentDoc = new LongIntOpenHashMap(32);
     }
@@ -65,11 +65,11 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
         try {
             // In ES if parent is deleted, then also the children are deleted, so the child docs this agg receives
             // must belong to parent docs that is alive. For this reason acceptedDocs can be null here.
-            DocIdSet docIdSet = parentFilter.getDocIdSet(reader, null);
+            BitDocIdSet docIdSet = parentFilter.getDocIdSet(reader);
             if (DocIdSets.isEmpty(docIdSet)) {
                 parentDocs = null;
             } else {
-                parentDocs = docIdSet.iterator();
+                parentDocs = docIdSet.bits();
             }
         } catch (IOException ioe) {
             throw new AggregationExecutionException("Failed to aggregate [" + name + "]", ioe);
@@ -83,12 +83,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
         }
 
         // fast forward to retrieve the parentDoc this childDoc belongs to
-        final int parentDoc;
-        if (parentDocs.docID() < childDoc) {
-            parentDoc = parentDocs.advance(childDoc);
-        } else {
-            parentDoc = parentDocs.docID();
-        }
+        final int parentDoc = parentDocs.nextSetBit(childDoc);
         assert childDoc <= parentDoc && parentDoc != DocIdSetIterator.NO_MORE_DOCS;
         if (bucketOrdToLastCollectedParentDoc.containsKey(bucketOrd)) {
             int lastCollectedParentDoc = bucketOrdToLastCollectedParentDoc.lget();
@@ -148,7 +143,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
 
             final ObjectMapper objectMapper;
             if (path != null) {
-                MapperService.SmartNameObjectMapper mapper = SearchContext.current().smartNameObjectMapper(path);
+                MapperService.SmartNameObjectMapper mapper = context.searchContext().smartNameObjectMapper(path);
                 if (mapper == null) {
                     return new Unmapped(name, context, parent, metaData);
                 }

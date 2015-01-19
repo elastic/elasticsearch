@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.nested;
 
+import com.carrotsearch.hppc.IntArrayList;
+import com.carrotsearch.hppc.IntObjectOpenHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -46,8 +48,11 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
 
     private DocIdSetIterator childDocs;
     private FixedBitSet parentDocs;
-
     private AtomicReaderContext reader;
+
+    private FixedBitSet rootDocs;
+    private int currentRootDoc = -1;
+    private final IntObjectOpenHashMap<IntArrayList> childDocIdBuffers = new IntObjectOpenHashMap<>();
 
     public NestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper, AggregationContext aggregationContext, Aggregator parentAggregator) {
         super(name, factories, aggregationContext, parentAggregator);
@@ -79,6 +84,7 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
             } else {
                 childDocs = childDocIdSet.iterator();
             }
+            rootDocs = context.searchContext().fixedBitSetFilterCache().getFixedBitSetFilter(NonNestedDocsFilter.INSTANCE).getDocIdSet(reader, null);
         } catch (IOException ioe) {
             throw new AggregationExecutionException("Failed to aggregate [" + name + "]", ioe);
         }
@@ -109,20 +115,20 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
             parentDocs = parentFilter.getDocIdSet(reader, null);
         }
 
-        int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
-        int childDocId;
-        if (childDocs.docID() > prevParentDoc) {
-            childDocId = childDocs.docID();
-        } else {
-            childDocId = childDocs.advance(prevParentDoc + 1);
-        }
-
         int numChildren = 0;
-        for (; childDocId < parentDoc; childDocId = childDocs.nextDoc()) {
+        IntArrayList iterator = getChildren(parentDoc);
+        final int[] buffer =  iterator.buffer;
+        final int size = iterator.size();
+        for (int i = 0; i < size; i++) {
             numChildren++;
-            collectBucketNoCounts(childDocId, bucketOrd);
+            collectBucketNoCounts(buffer[i], bucketOrd);
         }
         incrementBucketDocCount(bucketOrd, numChildren);
+    }
+
+    @Override
+    protected void doClose() {
+        childDocIdBuffers.clear();
     }
 
     @Override
@@ -181,6 +187,44 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
             public InternalAggregation buildEmptyAggregation() {
                 return new InternalNested(name, 0, buildEmptySubAggregations());
             }
+        }
+    }
+
+    // The aggs framework can collect buckets for the same parent doc id more than once and because the children docs
+    // can only be consumed once we need to buffer the child docs. We only need to buffer child docs in the scope
+    // of the current root doc.
+
+    // Examples:
+    // 1) nested agg wrapped is by terms agg and multiple buckets per document are emitted
+    // 2) Multiple nested fields are defined. A nested agg joins back to another nested agg via the reverse_nested agg.
+    //      For each child in the first nested agg the second nested agg gets invoked with the same buckets / docids
+    private IntArrayList getChildren(final int parentDocId) throws IOException {
+        int rootDocId = rootDocs.nextSetBit(parentDocId);
+        if (currentRootDoc == rootDocId) {
+            final IntArrayList childDocIdBuffer = childDocIdBuffers.get(parentDocId);
+            if (childDocIdBuffer != null) {
+                return childDocIdBuffer;
+            } else {
+                // here we translate the parent doc to a list of its nested docs,
+                // and then collect buckets for every one of them so they'll be collected
+                final IntArrayList newChildDocIdBuffer = new IntArrayList();
+                childDocIdBuffers.put(parentDocId, newChildDocIdBuffer);
+                int prevParentDoc = parentDocs.prevSetBit(parentDocId - 1);
+                int childDocId;
+                if (childDocs.docID() > prevParentDoc) {
+                    childDocId = childDocs.docID();
+                } else {
+                    childDocId = childDocs.advance(prevParentDoc + 1);
+                }
+                for (; childDocId < parentDocId; childDocId = childDocs.nextDoc()) {
+                    newChildDocIdBuffer.add(childDocId);
+                }
+                return newChildDocIdBuffer;
+            }
+        } else {
+            this.currentRootDoc = rootDocId;
+            childDocIdBuffers.clear();
+            return getChildren(parentDocId);
         }
     }
 }

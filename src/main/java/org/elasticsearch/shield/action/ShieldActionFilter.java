@@ -18,7 +18,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.core.LicenseExpiredException;
-import org.elasticsearch.license.plugin.core.LicensesClientService;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
@@ -38,7 +37,7 @@ import java.util.List;
  */
 public class ShieldActionFilter extends AbstractComponent implements ActionFilter {
 
-    private static final Predicate<String> READ_ACTION_MATCHER = Privilege.Index.READ.predicate();
+    private static final Predicate<String> LICESE_EXPIRATION_ACTION_MATCHER = Privilege.HEALTH_AND_STATS.predicate();
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
@@ -57,14 +56,14 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
         this.signatureService = signatureService;
         this.auditTrail = auditTrail;
         this.actionMapper = actionMapper;
-        licenseEventsNotifier.register(new LicensesClientService.Listener() {
+        licenseEventsNotifier.register(new LicenseEventsNotifier.Listener() {
             @Override
-            public void onEnabled() {
+            public void enabled() {
                 licenseEnabled = true;
             }
 
             @Override
-            public void onDisabled() {
+            public void disabled() {
                 licenseEnabled = false;
             }
         });
@@ -77,8 +76,10 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
             A functional requirement - when the license of shield is disabled (invalid/expires), shield will continue
             to operate normally, except all read operations will be blocked.
          */
-        if (!licenseEnabled && READ_ACTION_MATCHER.apply(action)) {
-            logger.error("blocking read operation [{}] due to disabled license", action);
+        if (!licenseEnabled && LICESE_EXPIRATION_ACTION_MATCHER.apply(action)) {
+            logger.error("blocking [{}] operation due to expired license. Cluster health, cluster stats and indices stats \n" +
+                    "operations are blocked on shield license expiration. All data operations (read and write) continue to work. \n" +
+                    "If you have a new license, please update it. Otherwise, please reach out to your support contact.", action);
             throw new LicenseExpiredException(LicenseService.FEATURE_NAME);
         }
 

@@ -18,6 +18,7 @@ import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.signature.InternalSignatureService;
+import org.elasticsearch.shield.test.ShieldTestUtils;
 import org.elasticsearch.shield.transport.netty.NettySecuredTransport;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 
@@ -107,7 +108,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
 
     @Override
     public Settings node(int nodeOrdinal) {
-        File folder = createFolder(parentFolder, subfolderPrefix + "-" + nodeOrdinal);
+        File folder = ShieldTestUtils.createFolder(parentFolder, subfolderPrefix + "-" + nodeOrdinal);
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put(super.node(nodeOrdinal))
                 .put("plugin.types", ShieldPlugin.class.getName() + "," + licensePluginClass().getName())
                 .put("shield.audit.enabled", randomBoolean())
@@ -182,20 +183,6 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
         } else {
             builder.put("shield.user", username + ":" + new String(password.internalChars()));
         }
-    }
-
-    private static File createFolder(File parent, String name) {
-        File createdFolder = new File(parent, name);
-        //the directory might exist e.g. if the global cluster gets restarted, then we recreate the directory as well
-        if (createdFolder.exists()) {
-            if (!FileSystemUtils.deleteRecursively(createdFolder)) {
-                throw new RuntimeException("could not delete existing temporary folder: " + createdFolder.getAbsolutePath());
-            }
-        }
-        if (!createdFolder.mkdir()) {
-            throw new RuntimeException("could not create temporary folder: " + createdFolder.getAbsolutePath());
-        }
-        return createdFolder;
     }
 
     private static byte[] generateKey() {

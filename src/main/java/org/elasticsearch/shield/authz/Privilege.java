@@ -40,6 +40,7 @@ public abstract class Privilege<P extends Privilege<P>> {
     static final String SUB_ACTION_SUFFIX_PATTERN = "*";
 
     public static final System SYSTEM = new System();
+    public static final General HEALTH_AND_STATS = new General("health_and_stats", "cluster:monitor/health*", "cluster:monitor/stats*", "indices:monitor/stats*");
 
     protected final Name name;
 
@@ -105,6 +106,34 @@ public abstract class Privilege<P extends Privilege<P>> {
             return true;
         }
     }
+
+    public static class General extends AutomatonPrivilege<General> {
+
+        private static final General NONE = new General(Name.NONE, Automata.makeEmpty());
+
+        public General(String name, String... patterns) {
+            super(name, patterns);
+        }
+
+        public General(Name name, String... patterns) {
+            super(name, patterns);
+        }
+
+        public General(Name name, Automaton automaton) {
+            super(name, automaton);
+        }
+
+        @Override
+        protected General create(Name name, Automaton automaton) {
+            return new General(name, automaton);
+        }
+
+        @Override
+        protected General none() {
+            return NONE;
+        }
+    }
+
 
     public static class Index extends AutomatonPrivilege<Index> {
 

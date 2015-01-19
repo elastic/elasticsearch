@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 // no client nodes, no transport clients, as they all get rejected on network connections
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 1, numClientNodes = 0, transportClientRatio = 0.0)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class IpFilteringIntegrationTests extends ShieldIntegrationTest {
 
     private static int randomClientPort;

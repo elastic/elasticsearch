@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.integration;
 
-import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsIndices;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -15,6 +17,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.LicenseExpiredException;
 import org.elasticsearch.license.plugin.core.LicensesClientService;
 import org.elasticsearch.license.plugin.core.LicensesService;
@@ -31,18 +34,28 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
 @ClusterScope(scope = SUITE)
 public class LicensingTests extends ShieldIntegrationTest {
+
+    static final License DUMMY_LICENSE = License.builder()
+            .feature(LicenseService.FEATURE_NAME)
+            .expiryDate(System.currentTimeMillis())
+            .issueDate(System.currentTimeMillis())
+            .issuedTo("LicensingTests")
+            .issuer("test")
+            .maxNodes(Integer.MAX_VALUE)
+            .signature("_signature")
+            .type("test_license_for_shield")
+            .subscriptionType("all_is_good")
+            .uid(String.valueOf(CHILD_JVM_ID) + System.identityHashCode(LicensingTests.class))
+            .build();
 
     public static final String ROLES =
             ShieldSettingsSource.DEFAULT_ROLE + ":\n" +
@@ -116,17 +129,26 @@ public class LicensingTests extends ShieldIntegrationTest {
         Client client = internalCluster().transportClient();
 
         disableLicensing();
+
         try {
-            client.prepareSearch().setQuery(matchAllQuery()).get();
-            fail("expected an license expired exception when running a search with disabled license");
+            client.admin().indices().prepareStats().get();
+            fail("expected an license expired exception when executing an index stats action");
         } catch (LicenseExpiredException lee) {
             // expected
             assertThat(lee.feature(), equalTo(LicenseService.FEATURE_NAME));
         }
 
         try {
-            client.prepareGet("test1", "type", indexResponse.getId()).get();
-            fail("expected an license expired exception when running a get with disabled license");
+            client.admin().cluster().prepareClusterStats().get();
+            fail("expected an license expired exception when executing cluster stats action");
+        } catch (LicenseExpiredException lee) {
+            // expected
+            assertThat(lee.feature(), equalTo(LicenseService.FEATURE_NAME));
+        }
+
+        try {
+            client.admin().cluster().prepareHealth().get();
+            fail("expected an license expired exception when executing cluster health action");
         } catch (LicenseExpiredException lee) {
             // expected
             assertThat(lee.feature(), equalTo(LicenseService.FEATURE_NAME));
@@ -134,27 +156,17 @@ public class LicensingTests extends ShieldIntegrationTest {
 
         enableLicensing();
 
-        SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery()).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 2);
+        IndicesStatsResponse indicesStatsResponse = client.admin().indices().prepareStats().get();
+        assertNoFailures(indicesStatsResponse);
 
-        GetResponse getResponse = client.prepareGet("test1", "type", indexResponse.getId()).get();
-        assertThat(getResponse.getId(), equalTo(indexResponse.getId()));
+        ClusterStatsResponse clusterStatsNodeResponse = client.admin().cluster().prepareClusterStats().get();
+        assertThat(clusterStatsNodeResponse, notNullValue());
+        ClusterStatsIndices indices = clusterStatsNodeResponse.getIndicesStats();
+        assertThat(indices, notNullValue());
+        assertThat(indices.getIndexCount(), is(2));
 
-        enableLicensing();
-        indexResponse = index("test", "type", jsonBuilder()
-                .startObject()
-                .field("name", "value2")
-                .endObject());
-        assertThat(indexResponse.isCreated(), is(true));
-
-        disableLicensing();
-
-        indexResponse = index("test", "type", jsonBuilder()
-                .startObject()
-                .field("name", "value3")
-                .endObject());
-        assertThat(indexResponse.isCreated(), is(true));
+        ClusterHealthResponse clusterIndexHealth = client.admin().cluster().prepareHealth().get();
+        assertThat(clusterIndexHealth, notNullValue());
     }
 
     public static void disableLicensing() {
@@ -208,20 +220,20 @@ public class LicensingTests extends ShieldIntegrationTest {
         }
 
         @Override
-        public void register(String feature, LicensesService.TrialLicenseOptions trialLicenseOptions, Listener listener) {
+        public void register(String s, LicensesService.TrialLicenseOptions trialLicenseOptions, Collection<LicensesService.ExpirationCallback> collection, Listener listener) {
             listeners.add(listener);
             enable();
         }
 
         void enable() {
             for (Listener listener : listeners) {
-                listener.onEnabled();
+                listener.onEnabled(DUMMY_LICENSE);
             }
         }
 
         void disable() {
             for (Listener listener : listeners) {
-                listener.onDisabled();
+                listener.onDisabled(DUMMY_LICENSE);
             }
         }
     }

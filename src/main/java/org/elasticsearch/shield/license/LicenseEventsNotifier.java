@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.shield.license;
 
-import org.elasticsearch.license.plugin.core.LicensesClientService;
-
 import java.util.HashSet;
 import java.util.Set;
 
@@ -22,22 +20,28 @@ import java.util.Set;
  */
 public class LicenseEventsNotifier {
 
-    private final Set<LicensesClientService.Listener> listeners = new HashSet<>();
+    private final Set<Listener> listeners = new HashSet<>();
 
-    public void register(LicensesClientService.Listener listener) {
+    public void register(Listener listener) {
         listeners.add(listener);
     }
 
     protected void notifyEnabled() {
-        for (LicensesClientService.Listener listener : listeners) {
-            listener.onEnabled();
+        for (Listener listener : listeners) {
+            listener.enabled();
         }
     }
 
     protected void notifyDisabled() {
-        for (LicensesClientService.Listener listener : listeners) {
-            listener.onDisabled();
+        for (Listener listener : listeners) {
+            listener.disabled();
         }
     }
 
+    public static interface Listener {
+
+        void enabled();
+
+        void disabled();
+    }
 }

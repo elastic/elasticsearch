@@ -49,7 +49,7 @@
         <lucene.version>4.10.2</lucene.version>
         <lucene.maven.version>4.10.2</lucene.maven.version>
         <elasticsearch.version>1.4.2</elasticsearch.version>
-        <license.plugin.version>1.0.0-beta2</license.plugin.version>
+        <license.plugin.version>1.0.0-SNAPSHOT</license.plugin.version>
 
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>

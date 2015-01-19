@@ -10,15 +10,14 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.license.plugin.core.LicensesClientService;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationException;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.license.LicenseEventsNotifier;
-import org.elasticsearch.shield.signature.SignatureService;
 import org.elasticsearch.shield.signature.SignatureException;
+import org.elasticsearch.shield.signature.SignatureService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
 import org.junit.Test;
@@ -110,8 +109,8 @@ public class ShieldActionFilterTests extends ElasticsearchTestCase {
 
     private class MockLicenseEventsNotifier extends LicenseEventsNotifier {
         @Override
-        public void register(LicensesClientService.Listener listener) {
-            listener.onEnabled();
+        public void register(MockLicenseEventsNotifier.Listener listener) {
+            listener.enabled();
         }
     }
 }

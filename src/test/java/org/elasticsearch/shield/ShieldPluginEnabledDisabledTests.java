@@ -26,6 +26,7 @@ import org.elasticsearch.test.rest.json.JsonPath;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matcher;
+import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -47,6 +48,15 @@ public class ShieldPluginEnabledDisabledTests extends ShieldIntegrationTest {
     @BeforeClass
     public static void init() {
         enabled = randomBoolean();
+    }
+
+    @After
+    public void cleanup() throws Exception {
+        // now that on a disabled license we block cluster health/stats and indices stats, we need
+        // to make sure that after the tests (which disable the license for testing purposes) we
+        // reenabled the license, so the internal cluster will be cleaned appropriately.
+        logger.info("cleanup: enabling licensing...");
+        LicensingTests.enableLicensing();
     }
 
     @Override

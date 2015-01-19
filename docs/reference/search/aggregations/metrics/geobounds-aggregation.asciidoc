@@ -21,8 +21,8 @@ Example:
     "aggs" : {
         "viewport" : {
             "geo_bounds" : {
-                "field" : "location" <1>
-                "wrap_longitude" : "true" <2>
+                "field" : "location", <1>
+                "wrap_longitude" : true <2>
             }
         }
     }

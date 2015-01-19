@@ -45,8 +45,8 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -77,7 +77,7 @@ public class ExplainableScriptTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh().execute().actionGet();
         ensureYellow();
         SearchResponse response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                searchSource().explain(true).query(functionScoreQuery(termQuery("text", "text")).add(scriptFunction("native_explainable_script", "native")).boostMode("sum")))).actionGet();
+                searchSource().explain(true).query(functionScoreQuery(termFilter("text", "text")).add(scriptFunction("native_explainable_script", "native")).boostMode("sum")))).actionGet();
 
         ElasticsearchAssertions.assertNoFailures(response);
         SearchHits hits = response.getHits();

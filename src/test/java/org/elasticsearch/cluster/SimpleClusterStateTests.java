@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import org.apache.tools.ant.taskdefs.condition.IsTrue;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.support.IndicesOptions;

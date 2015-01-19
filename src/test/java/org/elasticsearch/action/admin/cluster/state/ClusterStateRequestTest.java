@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -38,10 +39,13 @@ public class ClusterStateRequestTest extends ElasticsearchTestCase {
             ClusterStateRequest clusterStateRequest = new ClusterStateRequest().routingTable(randomBoolean()).metaData(randomBoolean())
                     .nodes(randomBoolean()).blocks(randomBoolean()).indices("testindex", "testindex2").indicesOptions(indicesOptions);
 
+            Version testVersion = randomVersionBetween(Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
             BytesStreamOutput output = new BytesStreamOutput();
+            output.setVersion(testVersion);
             clusterStateRequest.writeTo(output);
 
             BytesStreamInput bytesStreamInput = new BytesStreamInput(output.bytes());
+            bytesStreamInput.setVersion(testVersion);
             ClusterStateRequest deserializedCSRequest = new ClusterStateRequest();
             deserializedCSRequest.readFrom(bytesStreamInput);
 
@@ -51,15 +55,20 @@ public class ClusterStateRequestTest extends ElasticsearchTestCase {
             assertThat(deserializedCSRequest.blocks(), equalTo(clusterStateRequest.blocks()));
             assertThat(deserializedCSRequest.indices(), equalTo(clusterStateRequest.indices()));
 
-            assertThat(deserializedCSRequest.indicesOptions().ignoreUnavailable(), equalTo(clusterStateRequest.indicesOptions()
-                    .ignoreUnavailable()));
-            assertThat(deserializedCSRequest.indicesOptions().expandWildcardsOpen(), equalTo(clusterStateRequest.indicesOptions()
-                    .expandWildcardsOpen()));
-            assertThat(deserializedCSRequest.indicesOptions().expandWildcardsClosed(), equalTo(clusterStateRequest.indicesOptions()
-                    .expandWildcardsClosed()));
-            assertThat(deserializedCSRequest.indicesOptions().allowNoIndices(), equalTo(clusterStateRequest.indicesOptions()
-                    .allowNoIndices()));
+            if (testVersion.onOrAfter(Version.V_1_5_0)) {
+                assertOptionsMatch(deserializedCSRequest.indicesOptions(), clusterStateRequest.indicesOptions());
+            } else {
+                // versions before V_1_5_0 use
+                // IndicesOptions.lenientExpandOpen()
+                assertOptionsMatch(deserializedCSRequest.indicesOptions(), IndicesOptions.lenientExpandOpen());
+            }
         }
     }
 
+    private void assertOptionsMatch(IndicesOptions in, IndicesOptions out) {
+        assertThat(in.ignoreUnavailable(), equalTo(out.ignoreUnavailable()));
+        assertThat(in.expandWildcardsClosed(), equalTo(out.expandWildcardsClosed()));
+        assertThat(in.expandWildcardsOpen(), equalTo(out.expandWildcardsOpen()));
+        assertThat(in.allowNoIndices(), equalTo(out.allowNoIndices()));
+    }
 }

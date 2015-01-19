@@ -19,18 +19,13 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
-import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.IndicesOptionsTests;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.junit.Assert.*;
 
 public class ClusterStateRequestTest extends ElasticsearchTestCase {
 
@@ -44,30 +39,26 @@ public class ClusterStateRequestTest extends ElasticsearchTestCase {
                     .nodes(randomBoolean()).blocks(randomBoolean()).indices("testindex", "testindex2").indicesOptions(indicesOptions);
 
             BytesStreamOutput output = new BytesStreamOutput();
-            Version outputVersion = randomVersion();
-            output.setVersion(outputVersion);
             clusterStateRequest.writeTo(output);
 
             BytesStreamInput bytesStreamInput = new BytesStreamInput(output.bytes());
-            bytesStreamInput.setVersion(randomVersion());
-            ClusterStateRequest clusterStateRequest2 = new ClusterStateRequest();
-            clusterStateRequest2.readFrom(bytesStreamInput);
+            ClusterStateRequest deserializedCSRequest = new ClusterStateRequest();
+            deserializedCSRequest.readFrom(bytesStreamInput);
 
-            assertThat(clusterStateRequest2.routingTable(), equalTo(clusterStateRequest.routingTable()));
-            assertThat(clusterStateRequest2.metaData(), equalTo(clusterStateRequest.metaData()));
-            assertThat(clusterStateRequest2.nodes(), equalTo(clusterStateRequest.nodes()));
-            assertThat(clusterStateRequest2.blocks(), equalTo(clusterStateRequest.blocks()));
-            assertThat(clusterStateRequest2.indices(), equalTo(clusterStateRequest.indices()));
+            assertThat(deserializedCSRequest.routingTable(), equalTo(clusterStateRequest.routingTable()));
+            assertThat(deserializedCSRequest.metaData(), equalTo(clusterStateRequest.metaData()));
+            assertThat(deserializedCSRequest.nodes(), equalTo(clusterStateRequest.nodes()));
+            assertThat(deserializedCSRequest.blocks(), equalTo(clusterStateRequest.blocks()));
+            assertThat(deserializedCSRequest.indices(), equalTo(clusterStateRequest.indices()));
 
-            assertThat(clusterStateRequest2.indicesOptions().ignoreUnavailable(), equalTo(clusterStateRequest.indicesOptions()
+            assertThat(deserializedCSRequest.indicesOptions().ignoreUnavailable(), equalTo(clusterStateRequest.indicesOptions()
                     .ignoreUnavailable()));
-            assertThat(clusterStateRequest2.indicesOptions().expandWildcardsOpen(), equalTo(clusterStateRequest.indicesOptions()
+            assertThat(deserializedCSRequest.indicesOptions().expandWildcardsOpen(), equalTo(clusterStateRequest.indicesOptions()
                     .expandWildcardsOpen()));
-            assertThat(clusterStateRequest2.indicesOptions().expandWildcardsClosed(), equalTo(clusterStateRequest.indicesOptions()
+            assertThat(deserializedCSRequest.indicesOptions().expandWildcardsClosed(), equalTo(clusterStateRequest.indicesOptions()
                     .expandWildcardsClosed()));
-            assertThat(clusterStateRequest2.indicesOptions().allowNoIndices(), equalTo(clusterStateRequest.indicesOptions()
+            assertThat(deserializedCSRequest.indicesOptions().allowNoIndices(), equalTo(clusterStateRequest.indicesOptions()
                     .allowNoIndices()));
-
         }
     }
 

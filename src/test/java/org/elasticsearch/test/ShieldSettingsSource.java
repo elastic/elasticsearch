@@ -67,6 +67,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     private final byte[] systemKey;
     private final boolean sslTransportEnabled;
     private final boolean hostnameVerificationEnabled;
+    private final boolean hostnameVerificationResolveNameEnabled;
 
     /**
      * Creates a new {@link org.elasticsearch.test.SettingsSource} for the shield configuration.
@@ -85,7 +86,8 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
         this.parentFolder = parentFolder;
         this.subfolderPrefix = scope.name();
         this.sslTransportEnabled = sslTransportEnabled;
-        hostnameVerificationEnabled = randomBoolean();
+        this.hostnameVerificationEnabled = randomBoolean();
+        this.hostnameVerificationResolveNameEnabled = randomBoolean();
     }
 
     @Override
@@ -190,11 +192,11 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     }
 
     private Settings getNodeSSLSettings() {
-        return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode", sslTransportEnabled, hostnameVerificationEnabled);
+        return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode", sslTransportEnabled, hostnameVerificationEnabled, hostnameVerificationResolveNameEnabled);
     }
 
     private Settings getClientSSLSettings() {
-        return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient", sslTransportEnabled, hostnameVerificationEnabled);
+        return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient", sslTransportEnabled, hostnameVerificationEnabled, hostnameVerificationResolveNameEnabled);
     }
 
     /**
@@ -205,10 +207,10 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
      * @return the configuration settings
      */
     public static Settings getSSLSettingsForStore(String resourcePathToStore, String password) {
-        return getSSLSettingsForStore(resourcePathToStore, password, true, true);
+        return getSSLSettingsForStore(resourcePathToStore, password, true, true, true);
     }
 
-    private static Settings getSSLSettingsForStore(String resourcePathToStore, String password, boolean sslTransportEnabled, boolean hostnameVerificationEnabled) {
+    private static Settings getSSLSettingsForStore(String resourcePathToStore, String password, boolean sslTransportEnabled, boolean hostnameVerificationEnabled, boolean hostnameVerificationResolveNameEnabled) {
         File store;
         try {
             store = new File(ShieldSettingsSource.class.getResource(resourcePathToStore).toURI());
@@ -227,7 +229,8 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
         if (sslTransportEnabled) {
             builder.put("shield.ssl.keystore.path", store.getPath())
                     .put("shield.ssl.keystore.password", password)
-                    .put(NettySecuredTransport.HOSTNAME_VERIFICATION_SETTING, hostnameVerificationEnabled);
+                    .put(NettySecuredTransport.HOSTNAME_VERIFICATION_SETTING, hostnameVerificationEnabled)
+                    .put(NettySecuredTransport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING, hostnameVerificationResolveNameEnabled);
         }
 
         if (sslTransportEnabled && randomBoolean()) {

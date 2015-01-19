@@ -29,6 +29,7 @@ import java.net.InetSocketAddress;
 public class NettySecuredTransport extends NettyTransport {
 
     public static final String HOSTNAME_VERIFICATION_SETTING = "shield.ssl.hostname_verification";
+    public static final String HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING = "shield.ssl.hostname_verification.resolve_name";
 
     private final SSLService sslService;
     private final @Nullable IPFilter authenticator;
@@ -112,9 +113,7 @@ public class NettySecuredTransport extends NettyTransport {
                 SSLEngine sslEngine;
                 if (settings.getAsBoolean(HOSTNAME_VERIFICATION_SETTING, true)) {
                     InetSocketAddress inetSocketAddress = (InetSocketAddress) e.getValue();
-                    String hostname = inetSocketAddress.getHostName();
-                    int port = inetSocketAddress.getPort();
-                    sslEngine = sslService.createSSLEngine(ImmutableSettings.EMPTY, hostname, port);
+                    sslEngine = sslService.createSSLEngine(ImmutableSettings.EMPTY, getHostname(inetSocketAddress), inetSocketAddress.getPort());
                     SSLParameters parameters = new SSLParameters();
                     parameters.setEndpointIdentificationAlgorithm("HTTPS");
                     sslEngine.setSSLParameters(parameters);
@@ -127,6 +126,20 @@ public class NettySecuredTransport extends NettyTransport {
                 ctx.getPipeline().addAfter("ssl", "handshake", new HandshakeWaitingHandler(logger));
 
                 ctx.sendDownstream(e);
+            }
+
+            private String getHostname(InetSocketAddress inetSocketAddress) {
+                String hostname;
+                if (settings.getAsBoolean(HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING, true)) {
+                    hostname = inetSocketAddress.getHostName();
+                } else {
+                    hostname = inetSocketAddress.getHostString();
+                }
+
+                if (logger.isTraceEnabled()) {
+                    logger.trace("resolved hostname [{}] for address [{}] to be used in ssl hostname verification", hostname, inetSocketAddress);
+                }
+                return hostname;
             }
         }
     }

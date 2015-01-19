@@ -123,6 +123,11 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
         public InternalDateHistogram.Bucket createBucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
             return new Bucket(key, docCount, aggregations, keyed, formatter);
         }
+
+        @Override
+        public Bucket createEmptyBucket(boolean keyed, @Nullable ValueFormatter formatter) {
+            return new Bucket(keyed, formatter);
+        }
     }
 
     private ObjectObjectOpenHashMap<String, InternalDateHistogram.Bucket> bucketsMap;
@@ -164,17 +169,6 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
     @Override
     public DateHistogram.Bucket getBucketByKey(DateTime key) {
         return getBucketByKey(key.getMillis());
-    }
-
-    @Override
-    public InternalDateHistogram.Bucket createBucket(long key, long docCount, InternalAggregations aggregations, boolean keyed,
-            ValueFormatter formatter) {
-        return new Bucket(key, docCount, aggregations, keyed, formatter);
-    }
-    
-    @Override
-    public Bucket createEmptyBucket(boolean keyed, ValueFormatter formatter) {
-        return new Bucket(keyed, formatter);
     }
 
     @Override

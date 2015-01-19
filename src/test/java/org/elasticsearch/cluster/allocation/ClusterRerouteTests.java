@@ -71,7 +71,6 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
     public void rerouteWithCommands_enableAllocationSettings() throws Exception {
         Settings commonSettings = settingsBuilder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE.name())
-                .put("gateway.type", "local")
                 .build();
         rerouteWithCommands(commonSettings);
     }
@@ -142,7 +141,6 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         Settings commonSettings = settingsBuilder()
                 .put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION, true)
                 .put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true)
-                .put("gateway.type", "local")
                 .build();
         rerouteWithAllocateLocalGateway(commonSettings);
     }
@@ -151,7 +149,6 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
     public void rerouteWithAllocateLocalGateway_enableAllocationSettings() throws Exception {
         Settings commonSettings = settingsBuilder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE.name())
-                .put("gateway.type", "local")
                 .build();
         rerouteWithAllocateLocalGateway(commonSettings);
     }

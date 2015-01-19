@@ -20,11 +20,14 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.nested.ReverseNested;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -32,10 +35,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -447,5 +452,164 @@ public class ReverseNestedTests extends ElasticsearchIntegrationTest {
                                                 )
                                 )
                 ).get();
+    }
+
+    @Test
+    public void testSameParentDocHavingMultipleBuckets() throws Exception {
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("product").field("dynamic", "strict").startObject("properties")
+                .startObject("id").field("type", "long").endObject()
+                .startObject("category")
+                    .field("type", "nested")
+                    .startObject("properties")
+                        .startObject("name").field("type", "string").endObject()
+                    .endObject()
+                .endObject()
+                .startObject("sku")
+                    .field("type", "nested")
+                    .startObject("properties")
+                        .startObject("sku_type").field("type", "string").endObject()
+                            .startObject("colors")
+                                .field("type", "nested")
+                                .startObject("properties")
+                                    .startObject("name").field("type", "string").endObject()
+                                .endObject()
+                            .endObject()
+                    .endObject()
+                .endObject()
+                .endObject().endObject().endObject();
+        assertAcked(
+                prepareCreate("idx3")
+                        .setSettings(ImmutableSettings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+                        .addMapping("product", mapping)
+        );
+
+        client().prepareIndex("idx3", "product", "1").setRefresh(true).setSource(
+                jsonBuilder().startObject()
+                        .startArray("sku")
+                            .startObject()
+                                .field("sku_type", "bar1")
+                                .startArray("colors")
+                                    .startObject().field("name", "red").endObject()
+                                    .startObject().field("name", "green").endObject()
+                                    .startObject().field("name", "yellow").endObject()
+                                .endArray()
+                            .endObject()
+                            .startObject()
+                                .field("sku_type", "bar1")
+                                .startArray("colors")
+                                .startObject().field("name", "red").endObject()
+                                .startObject().field("name", "blue").endObject()
+                                .startObject().field("name", "white").endObject()
+                                .endArray()
+                            .endObject()
+                            .startObject()
+                                .field("sku_type", "bar1")
+                                .startArray("colors")
+                                .startObject().field("name", "black").endObject()
+                                .startObject().field("name", "blue").endObject()
+                                .endArray()
+                            .endObject()
+                            .startObject()
+                                .field("sku_type", "bar2")
+                                .startArray("colors")
+                                .startObject().field("name", "orange").endObject()
+                                .endArray()
+                            .endObject()
+                            .startObject()
+                                .field("sku_type", "bar2")
+                                .startArray("colors")
+                                .startObject().field("name", "pink").endObject()
+                                .endArray()
+                            .endObject()
+                        .endArray()
+                        .startArray("category")
+                            .startObject().field("name", "abc").endObject()
+                            .startObject().field("name", "klm").endObject()
+                            .startObject().field("name", "xyz").endObject()
+                        .endArray()
+                        .endObject()
+        ).get();
+
+        SearchResponse response = client().prepareSearch("idx3")
+                .addAggregation(
+                        nested("nested_0").path("category").subAggregation(
+                                terms("group_by_category").field("category.name").subAggregation(
+                                        reverseNested("to_root").subAggregation(
+                                                nested("nested_1").path("sku").subAggregation(
+                                                        filter("filter_by_sku").filter(termFilter("sku.sku_type", "bar1")).subAggregation(
+                                                                count("sku_count").field("sku_type")
+                                                        )
+                                                )
+                                        )
+                                )
+                        )
+                ).get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+
+        Nested nested0 = response.getAggregations().get("nested_0");
+        assertThat(nested0.getDocCount(), equalTo(3l));
+        Terms terms = nested0.getAggregations().get("group_by_category");
+        assertThat(terms.getBuckets().size(), equalTo(3));
+        for (String bucketName : new String[]{"abc", "klm", "xyz"}) {
+            logger.info("Checking results for bucket {}", bucketName);
+            Terms.Bucket bucket = terms.getBucketByKey(bucketName);
+            assertThat(bucket.getDocCount(), equalTo(1l));
+            ReverseNested toRoot = bucket.getAggregations().get("to_root");
+            assertThat(toRoot.getDocCount(), equalTo(1l));
+            Nested nested1 = toRoot.getAggregations().get("nested_1");
+            assertThat(nested1.getDocCount(), equalTo(5l));
+            Filter filterByBar = nested1.getAggregations().get("filter_by_sku");
+            assertThat(filterByBar.getDocCount(), equalTo(3l));
+            ValueCount barCount = filterByBar.getAggregations().get("sku_count");
+            assertThat(barCount.getValue(), equalTo(3l));
+        }
+
+        response = client().prepareSearch("idx3")
+                .addAggregation(
+                        nested("nested_0").path("category").subAggregation(
+                                terms("group_by_category").field("category.name").subAggregation(
+                                        reverseNested("to_root").subAggregation(
+                                                nested("nested_1").path("sku").subAggregation(
+                                                        filter("filter_by_sku").filter(termFilter("sku.sku_type", "bar1")).subAggregation(
+                                                                nested("nested_2").path("sku.colors").subAggregation(
+                                                                        filter("filter_sku_color").filter(termFilter("sku.colors.name", "red")).subAggregation(
+                                                                                reverseNested("reverse_to_sku").path("sku").subAggregation(
+                                                                                        count("sku_count").field("sku_type")
+                                                                                )
+                                                                        )
+                                                                )
+                                                        )
+                                                )
+                                        )
+                                )
+                        )
+                ).get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+
+        nested0 = response.getAggregations().get("nested_0");
+        assertThat(nested0.getDocCount(), equalTo(3l));
+        terms = nested0.getAggregations().get("group_by_category");
+        assertThat(terms.getBuckets().size(), equalTo(3));
+        for (String bucketName : new String[]{"abc", "klm", "xyz"}) {
+            logger.info("Checking results for bucket {}", bucketName);
+            Terms.Bucket bucket = terms.getBucketByKey(bucketName);
+            assertThat(bucket.getDocCount(), equalTo(1l));
+            ReverseNested toRoot = bucket.getAggregations().get("to_root");
+            assertThat(toRoot.getDocCount(), equalTo(1l));
+            Nested nested1 = toRoot.getAggregations().get("nested_1");
+            assertThat(nested1.getDocCount(), equalTo(5l));
+            Filter filterByBar = nested1.getAggregations().get("filter_by_sku");
+            assertThat(filterByBar.getDocCount(), equalTo(3l));
+            Nested nested2 = filterByBar.getAggregations().get("nested_2");
+            assertThat(nested2.getDocCount(), equalTo(8l));
+            Filter filterBarColor = nested2.getAggregations().get("filter_sku_color");
+            assertThat(filterBarColor.getDocCount(), equalTo(2l));
+            ReverseNested reverseToBar = filterBarColor.getAggregations().get("reverse_to_sku");
+            assertThat(reverseToBar.getDocCount(), equalTo(2l));
+            ValueCount barCount = reverseToBar.getAggregations().get("sku_count");
+            assertThat(barCount.getValue(), equalTo(2l));
+        }
     }
 }

@@ -451,4 +451,90 @@ public class NestedTests extends ElasticsearchIntegrationTest {
         tags = nestedTags.getAggregations().get("tag");
         assertThat(tags.getBuckets().size(), equalTo(0)); // and this must be empty
     }
+
+    @Test
+    public void nestedSameDocIdProcessedMultipleTime() throws Exception {
+        assertAcked(
+                prepareCreate("idx4")
+                        .setSettings(ImmutableSettings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+                        .addMapping("product", "categories", "type=string", "name", "type=string", "property", "type=nested")
+        );
+
+        client().prepareIndex("idx4", "product", "1").setSource(jsonBuilder().startObject()
+                    .field("name", "product1")
+                    .field("categories", "1", "2", "3", "4")
+                    .startArray("property")
+                        .startObject().field("id", 1).endObject()
+                        .startObject().field("id", 2).endObject()
+                        .startObject().field("id", 3).endObject()
+                    .endArray()
+                .endObject()).get();
+        client().prepareIndex("idx4", "product", "2").setSource(jsonBuilder().startObject()
+                .field("name", "product2")
+                .field("categories", "1", "2")
+                .startArray("property")
+                .startObject().field("id", 1).endObject()
+                .startObject().field("id", 5).endObject()
+                .startObject().field("id", 4).endObject()
+                .endArray()
+                .endObject()).get();
+        refresh();
+
+        SearchResponse response = client().prepareSearch("idx4").setTypes("product")
+                .addAggregation(terms("category").field("categories").subAggregation(
+                        nested("property").path("property").subAggregation(
+                                terms("property_id").field("property.id")
+                        )
+                ))
+                .get();
+        assertNoFailures(response);
+        assertHitCount(response, 2);
+
+        Terms category = response.getAggregations().get("category");
+        assertThat(category.getBuckets().size(), equalTo(4));
+
+        Terms.Bucket bucket = category.getBucketByKey("1");
+        assertThat(bucket.getDocCount(), equalTo(2l));
+        Nested property = bucket.getAggregations().get("property");
+        assertThat(property.getDocCount(), equalTo(6l));
+        Terms propertyId = property.getAggregations().get("property_id");
+        assertThat(propertyId.getBuckets().size(), equalTo(5));
+        assertThat(propertyId.getBucketByKey("1").getDocCount(), equalTo(2l));
+        assertThat(propertyId.getBucketByKey("2").getDocCount(), equalTo(1l));
+        assertThat(propertyId.getBucketByKey("3").getDocCount(), equalTo(1l));
+        assertThat(propertyId.getBucketByKey("4").getDocCount(), equalTo(1l));
+        assertThat(propertyId.getBucketByKey("5").getDocCount(), equalTo(1l));
+
+        bucket = category.getBucketByKey("2");
+        assertThat(bucket.getDocCount(), equalTo(2l));
+        property = bucket.getAggregations().get("property");
+        assertThat(property.getDocCount(), equalTo(6l));
+        propertyId = property.getAggregations().get("property_id");
+        assertThat(propertyId.getBuckets().size(), equalTo(5));
+        assertThat(propertyId.getBucketByKey("1").getDocCount(), equalTo(2l));
+        assertThat(propertyId.getBucketByKey("2").getDocCount(), equalTo(1l));
+        assertThat(propertyId.getBucketByKey("3").getDocCount(), equalTo(1l));
+        assertThat(propertyId.getBucketByKey("4").getDocCount(), equalTo(1l));
+        assertThat(propertyId.getBucketByKey("5").getDocCount(), equalTo(1l));
+
+        bucket = category.getBucketByKey("3");
+        assertThat(bucket.getDocCount(), equalTo(1l));
+        property = bucket.getAggregations().get("property");
+        assertThat(property.getDocCount(), equalTo(3l));
+        propertyId = property.getAggregations().get("property_id");
+        assertThat(propertyId.getBuckets().size(), equalTo(3));
+        assertThat(propertyId.getBucketByKey("1").getDocCount(), equalTo(1l));
+        assertThat(propertyId.getBucketByKey("2").getDocCount(), equalTo(1l));
+        assertThat(propertyId.getBucketByKey("3").getDocCount(), equalTo(1l));
+
+        bucket = category.getBucketByKey("4");
+        assertThat(bucket.getDocCount(), equalTo(1l));
+        property = bucket.getAggregations().get("property");
+        assertThat(property.getDocCount(), equalTo(3l));
+        propertyId = property.getAggregations().get("property_id");
+        assertThat(propertyId.getBuckets().size(), equalTo(3));
+        assertThat(propertyId.getBucketByKey("1").getDocCount(), equalTo(1l));
+        assertThat(propertyId.getBucketByKey("2").getDocCount(), equalTo(1l));
+        assertThat(propertyId.getBucketByKey("3").getDocCount(), equalTo(1l));
+    }
 }

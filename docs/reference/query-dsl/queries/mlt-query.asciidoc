@@ -1,55 +1,59 @@
 [[query-dsl-mlt-query]]
 === More Like This Query
 
-More like this query find documents that are "like" provided text by
-running it against one or more fields.
+The More Like This Query (MLT Query) finds documents that are "like" a given
+set of documents. In order to do so, MLT selects a set of representative terms
+of these input documents, forms a query using these terms, executes the query
+and returns the results. The user controls the input documents, how the terms
+should be selected and how the query is formed. `more_like_this` can be
+shortened to `mlt`.
+
+The simplest use case consists of asking for documents that are similar to a
+provided piece of text. Here, we are asking for all movies that have some text
+similar to "Once upon a time" in their "title" and in their "description"
+fields, limiting the number of selected terms to 12.
 
 [source,js]
 --------------------------------------------------
 {
     "more_like_this" : {
-        "fields" : ["name.first", "name.last"],
-        "like_text" : "text like this one",
+        "fields" : ["title", "description"],
+        "like_text" : "Once upon a time",
         "min_term_freq" : 1,
         "max_query_terms" : 12
     }
 }
 --------------------------------------------------
 
-More Like This can find documents that are "like" a set of
-chosen documents. The syntax to specify one or more documents is similar to
-the <<docs-multi-get,Multi GET API>>, and supports the `ids` or `docs` array.
-If only one document is specified, the query behaves the same as the
-<<search-more-like-this,More Like This API>>.
+Another use case consists of asking for similar documents to ones already
+existing in the index. In this case, the syntax to specify a document is
+similar to the one used in the <<docs-multi-get,Multi GET API>>.
 
 [source,js]
 --------------------------------------------------
 {
     "more_like_this" : {
-        "fields" : ["name.first", "name.last"],
+        "fields" : ["title", "description"],
         "docs" : [
         {
-            "_index" : "test",
-            "_type" : "type",
+            "_index" : "imdb",
+            "_type" : "movies",
             "_id" : "1"
         },
         {
-            "_index" : "test",
-            "_type" : "type",
+            "_index" : "imdb",
+            "_type" : "movies",
             "_id" : "2"
-        }
-        ],
-        "ids" : ["3", "4"],
+        }],
         "min_term_freq" : 1,
         "max_query_terms" : 12
     }
 }
 --------------------------------------------------
 
-Additionally coming[1.5.0], the `doc` syntax of the
-<<docs-multi-termvectors,Multi Term Vectors API>> is also supported. This is useful in
-order to specify one or more documents not present in the index, and in
-this case should be preferred over only using `like_text`.
+coming[1.5.0] Finally, users can also provide documents not necessarily
+present in the index using a syntax is similar to
+<<docs-termvectors-artificial-doc,artificial documents>>.
 
 [source,js]
 --------------------------------------------------
@@ -58,8 +62,8 @@ this case should be preferred over only using `like_text`.
         "fields" : ["name.first", "name.last"],
         "docs" : [
         {
-            "_index" : "test",
-            "_type" : "type",
+            "_index" : "marvel",
+            "_type" : "quotes",
             "doc" : {
                 "name": {
                     "first": "Ben",
@@ -70,8 +74,8 @@ this case should be preferred over only using `like_text`.
             }
         },
         {
-            "_index" : "test",
-            "_type" : "type",
+            "_index" : "marvel",
+            "_type" : "quotes",
             "_id" : "2"
         }
         ],
@@ -81,89 +85,156 @@ this case should be preferred over only using `like_text`.
 }
 --------------------------------------------------
 
-`more_like_this` can be shortened to `mlt`.
+==== How it Works
 
-Under the hood, `more_like_this` simply creates multiple `should` clauses in a `bool` query of
-interesting terms extracted from some provided text. The interesting terms are
-selected with respect to their tf-idf scores. These are controlled by
-`min_term_freq`, `min_doc_freq`, and `max_doc_freq`. The number of interesting
-terms is controlled by `max_query_terms`. While the minimum number of clauses
-that must be satisfied is controlled by `minimum_should_match`. The terms
-are extracted from `like_text` which is analyzed by the analyzer associated
-with the field, unless specified by `analyzer`. There are other parameters,
-such as `min_word_length`, `max_word_length` or `stop_words`, to control what
-terms should be considered as interesting. In order to give more weight to
-more interesting terms, each boolean clause associated with a term could be
-boosted by the term tf-idf score times some boosting factor `boost_terms`.
-When a search for multiple `docs` is issued, More Like This generates a
-`more_like_this` query per document field in `fields`. These `fields` are
-specified as a top level parameter or within each `doc`.
+Suppose we wanted to find all documents similar to a given input document.
+Obviously, the input document itself should be its best match for that type of
+query. And the reason would be mostly, according to
+link:https://lucene.apache.org/core/4_9_0/core/org/apache/lucene/search/similarities/TFIDFSimilarity.html[Lucene scoring formula],
+due to the terms with the highest tf-idf. Therefore, the terms of the input
+document that have the highest tf-idf are good representatives of that
+document, and could be used within a disjunctive query (or `OR`) to retrieve
+similar documents. The MLT query simply extracts the text from the input
+document, analyzes it, usually using the same analyzer as the field, then
+selects the top K terms with highest tf-idf to form a disjunctive query of
+these terms.
 
-IMPORTANT: The fields must be indexed and of type `string`. Additionally, when
-using `ids` or `docs`, the fields must be either `stored`, store `term_vector`
-or `_source` must be enabled.
+IMPORTANT: The fields on which to perform MLT must be indexed and of type
+`string`. Additionally, when using `like` with documents, either `_source`
+must be enabled or the fields must be `stored` or have `term_vector` enabled.
+In order to speed up analysis, it could help to store term vectors at index
+time, but at the expense of disk usage.
 
-The `more_like_this` top level parameters include:
+For example, if we wish to perform MLT on the "title" and "tags.raw" fields,
+we can explicitly store their `term_vector` at index time. We can still
+perform MLT on the "description" and "tags" fields, as `_source` is enabled by
+default, but there will be no speed up on analysis for these fields.
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Parameter |Description
-|`fields` |A list of the fields to run the more like this query against.
-Defaults to the `_all` field for `like_text` and to all possible fields
-for `ids` or `docs`.
+[source,js]
+--------------------------------------------------
+curl -s -XPUT 'http://localhost:9200/imdb/' -d '{
+  "mappings": {
+    "movies": {
+      "properties": {
+        "title": {
+          "type": "string",
+          "term_vector": "yes"
+         },
+         "description": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "string",
+          "fields" : {
+            "raw": {
+              "type" : "string",
+              "index" : "not_analyzed",
+              "term_vector" : "yes"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
 
-|`like_text` |The text to find documents like it, *required* if `ids` or `docs` are
-not specified.
+==== Parameters
 
-|`ids` or `docs` |A list of documents following the same syntax as the
-<<docs-multi-get,Multi GET API>> or <<docs-multi-termvectors,Multi Term Vectors API>>.
-The text is fetched from `fields` unless specified otherwise in each `doc`.
-The text is analyzed by the default analyzer at the field, unless specified by the
-`per_field_analyzer` parameter of the <<docs-termvectors-per-field-analyzer,Term Vectors API>>.
+The only required parameters are either `docs`, `ids` or `like_text`, all
+other parameters have sensible defaults. There are three types of parameters:
+one to specify the document input, the other one for term selection and for
+query formation.
 
-|`include` | When using `ids` or `docs`, specifies whether the documents should be
-included from the search. Defaults to `false`.
+[float]
+==== Document Input Parameters
 
-|`minimum_should_match`| coming[1.5.0] From the generated query, the number of terms that
-must match following the <<query-dsl-minimum-should-match,minimum should
-syntax>>. (Defaults to `"30%"`).
+[horizontal]
+`docs`::
+The list of documents to find documents like it. The syntax to specify
+documents is similar to the one used by the <<docs-multi-get,Multi GET API>>.
+The text is fetched from `fields` unless overridden in each document request.
+The text is analyzed by the analyzer at the field, but could also be
+overridden. The syntax to override the analyzer at the field follows a similar
+syntax to the `per_field_analyzer` parameter of the
+<<docs-termvectors-per-field-analyzer,Term Vectors API>>. Additionally, to
+provide documents not necessarily present in the index,
+<<docs-termvectors-artificial-doc,artificial documents>> are also supported.
 
-|`percent_terms_to_match` | deprecated[1.5.0,Replaced by `minimum_should_match`]
+`ids`::
+A list of document ids, shortcut to `docs` if `_index` and `_type` are the
+same as the request.
+
+`like_text`::
+The text to find documents like it. *required* if `ids` or `docs` are not
+specified.
+
+`fields`::
+A list of the fields to run the more like this query against. Defaults to the
+`_all` field for `like_text` and to all possible fields for `ids` or `docs`.
+
+[float]
+==== Term Selection Parameters
+
+[horizontal]
+`max_query_terms`::
+The maximum number of query terms that will be selected. Increasing this value
+gives greater accuracy at the expense of query execution speed. Defaults to
+`25`.
+
+`min_term_freq`::
+The minimum term frequency below which the terms will be ignored from the
+input document. Defaults to `2`.
+
+`min_doc_freq`::
+The minimum document frequency below which the terms will be ignored from the
+input document. Defaults to `5`.
+
+`max_doc_freq`::
+The maximum document frequency above which the terms will be ignored from the
+input document. This could be useful in order to ignore highly frequent words
+such as stop words. Defaults to unbounded (`0`).
+
+`min_word_length`::
+The minimum word length below which the terms will be ignored. The old name
+`min_word_len` is deprecated. Defaults to `0`.
+
+`max_word_length`::
+The maximum word length above which the terms will be ignored. The old name
+`max_word_len` is deprecated. Defaults to unbounded (`0`).
+
+`stop_words`::
+An array of stop words. Any word in this set is considered "uninteresting" and
+ignored. If the analyzer allows for stop words, you might want to tell MLT to
+explicitly ignore them, as for the purposes of document similarity it seems
+reasonable to assume that "a stop word is never interesting".
+
+`analyzer`::
+The analyzer that is used to analyze the free form text. Defaults to the
+analyzer associated with the first field in `fields`.
+
+[float]
+==== Query Formation Parameters
+
+[horizontal]
+`minimum_should_match`::
+After the disjunctive query has been formed, this parameter controls the
+number of terms that must match. The syntax is the same as the
+<<query-dsl-minimum-should-match,minimum should match>>. (Defaults to `"30%"`).
+
+`percent_terms_to_match`:: deprecated[1.5.0,Replaced by `minimum_should_match`]
 From the generated query, the percentage of terms that must match (float value
 between 0 and 1). Defaults to `0.3` (30 percent).
 
-|`min_term_freq` |The frequency below which terms will be ignored in the
-source doc. The default frequency is `2`.
+`boost_terms`::
+Each term in the formed query could be further boosted by their tf-idf score.
+This sets the boost factor to use when using this feature. Defaults to
+deactivated (`0`). Any other positive value activates terms boosting with the
+given boost factor.
 
-|`max_query_terms` |The maximum number of query terms that will be
-included in any generated query. Defaults to `25`.
+`include`::
+Specifies whether the input documents should also be included in the search
+results returned. Defaults to `false`.
 
-|`stop_words` |An array of stop words. Any word in this set is
-considered "uninteresting" and ignored. Even if your Analyzer allows
-stopwords, you might want to tell the MoreLikeThis code to ignore them,
-as for the purposes of document similarity it seems reasonable to assume
-that "a stop word is never interesting".
-
-|`min_doc_freq` |The frequency at which words will be ignored which do
-not occur in at least this many docs. Defaults to `5`.
-
-|`max_doc_freq` |The maximum frequency in which words may still appear.
-Words that appear in more than this many docs will be ignored. Defaults
-to unbounded.
-
-|`min_word_length` |The minimum word length below which words will be
-ignored. Defaults to `0`.(Old name "min_word_len" is deprecated)
-
-|`max_word_length` |The maximum word length above which words will be
-ignored. Defaults to unbounded (`0`). (Old name "max_word_len" is deprecated)
-
-|`boost_terms` |Sets the boost factor to use when boosting terms.
-Defaults to deactivated (`0`). Any other value activates boosting with given
-boost factor.
-
-|`boost` |Sets the boost value of the query. Defaults to `1.0`.
-
-|`analyzer` |The analyzer that will be used to analyze the `like text`.
-Defaults to the analyzer associated with the first field in `fields`.
-|=======================================================================
-
+`boost`::
+Sets the boost value of the whole query. Defaults to `1.0`.

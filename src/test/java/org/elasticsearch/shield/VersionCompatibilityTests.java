@@ -6,6 +6,10 @@
 package org.elasticsearch.shield;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.Test;
+
+import static org.hamcrest.CoreMatchers.is;
 
 /**
  * This class is used to keep track of changes that we might have to make once we upgrade versions of dependencies, especially elasticsearch core.
@@ -16,12 +20,13 @@ import org.elasticsearch.Version;
  * In many cases we will just have to bump the version of the assert then, unless we want to break backwards compatibility, but the idea is that this class
  * helps keeping track of this and eventually making changes when needed.
  */
-public class VersionCompatibilityChecks {
+public class VersionCompatibilityTests extends ElasticsearchTestCase {
 
-    static {
+    @Test
+    public void testCompatibility() {
         //see https://github.com/elasticsearch/elasticsearch/pull/8634
-        assert Version.CURRENT.onOrBefore(Version.V_1_4_2) : "Remove ClusterDiscoveryConfiguration or bump the version, fixed in es core 1.5";
-        assert Version.CURRENT.onOrBefore(Version.V_1_4_2) : "Remove TransportProfileUtil class or bump the version, fixed in es core 1.5";
-        assert Version.CURRENT.onOrBefore(Version.V_1_4_2) : "Cleanup SecuredMessageChannelHandler class and remove needless code, fixed in es core 1.5";
+        assertThat("Remove ClusterDiscoveryConfiguration or bump the version, fixed in es core 1.5", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
+        assertThat("Remove TransportProfileUtil class or bump the version, fixed in es core 1.5", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
+        assertThat("Cleanup SecuredMessageChannelHandler class and remove needless code, fixed in es core 1.5", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
     }
 }

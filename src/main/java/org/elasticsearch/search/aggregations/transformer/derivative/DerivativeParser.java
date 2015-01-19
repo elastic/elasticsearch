@@ -36,7 +36,9 @@ import java.io.IOException;
  */
 public class DerivativeParser implements Aggregator.Parser {
 
-    static final ParseField EXTENDED_BOUNDS = new ParseField("extended_bounds");
+    static final ParseField KEYED = new ParseField("keyed");
+    static final ParseField FORMAT = new ParseField("format");
+    static final ParseField GAP_POLICY = new ParseField("gap_policy");
 
     @Override
     public String type() {
@@ -56,11 +58,11 @@ public class DerivativeParser implements Aggregator.Parser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if ("keyed".equals(currentFieldName)) {
+                if (KEYED.match(currentFieldName)) {
                     keyed = parser.booleanValue();
-                } else if ("format".equals(currentFieldName)) {
+                } else if (FORMAT.match(currentFieldName)) {
                     format = parser.text();
-                } else if ("gap_policy".equals(currentFieldName)) {
+                } else if (GAP_POLICY.match(currentFieldName)) {
                     gapPolicy = GapPolicy.valueOf(parser.text());
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: ["

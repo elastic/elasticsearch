@@ -28,6 +28,8 @@ import java.io.IOException;
 public class DerivativeBuilder extends ValuesSourceAggregationBuilder<DerivativeBuilder> {
 
     private GapPolicy gapPolicy;
+    private String format;
+    private Boolean keyed;
 
     public DerivativeBuilder(String name) {
         super(name, InternalDerivative.TYPE.name());
@@ -37,10 +39,24 @@ public class DerivativeBuilder extends ValuesSourceAggregationBuilder<Derivative
         this.gapPolicy = gapPolicy;
     }
 
+    public void format(String format) {
+        this.format = format;
+    }
+
+    public void keyed(boolean keyed) {
+        this.keyed = keyed;
+    }
+
     @Override
     protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
         if (gapPolicy != null) {
-            builder.field("gap_policy", gapPolicy.name());
+            builder.field(DerivativeParser.GAP_POLICY.getPreferredName(), gapPolicy.name());
+        }
+        if (format != null) {
+            builder.field(DerivativeParser.FORMAT.getPreferredName(), format);
+        }
+        if (keyed != null) {
+            builder.field(DerivativeParser.KEYED.getPreferredName(), keyed);
         }
         return builder;
     }

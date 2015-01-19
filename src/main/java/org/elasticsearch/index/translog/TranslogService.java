@@ -81,7 +81,7 @@ public class TranslogService extends AbstractIndexShardComponent implements Clos
         this.indexShard = indexShard;
         this.translog = translog;
         this.flushThresholdOperations = componentSettings.getAsInt(FLUSH_THRESHOLD_OPS_KEY, componentSettings.getAsInt("flush_threshold", Integer.MAX_VALUE));
-        this.flushThresholdSize = componentSettings.getAsBytesSize(FLUSH_THRESHOLD_SIZE_KEY, new ByteSizeValue(200, ByteSizeUnit.MB));
+        this.flushThresholdSize = componentSettings.getAsBytesSize(FLUSH_THRESHOLD_SIZE_KEY, new ByteSizeValue(512, ByteSizeUnit.MB));
         this.flushThresholdPeriod = componentSettings.getAsTime(FLUSH_THRESHOLD_PERIOD_KEY, TimeValue.timeValueMinutes(30));
         this.interval = componentSettings.getAsTime(FLUSH_THRESHOLD_INTERVAL_KEY, timeValueMillis(5000));
         this.disableFlush = componentSettings.getAsBoolean(FLUSH_THRESHOLD_DISABLE_FLUSH_KEY, false);

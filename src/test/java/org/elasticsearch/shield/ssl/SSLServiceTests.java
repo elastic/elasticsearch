@@ -14,6 +14,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
@@ -88,5 +89,15 @@ public class SSLServiceTests extends ElasticsearchTestCase {
                 .put("shield.ssl.keystore.path", differentPasswordsStore)
                 .put("shield.ssl.keystore.password", "testnode")
                 .build()).createSSLEngine();
+    }
+
+    @Test
+    public void testThatSSLv3IsNotEnabled() throws Exception {
+        SSLService sslService = new SSLService(settingsBuilder()
+                .put("shield.ssl.keystore.path", testnodeStore)
+                .put("shield.ssl.keystore.password", "testnode")
+                .build());
+        SSLEngine engine = sslService.createSSLEngine();
+        assertThat(Arrays.asList(engine.getEnabledProtocols()), not(hasItem("SSLv3")));
     }
 }

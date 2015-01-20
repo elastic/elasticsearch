@@ -26,6 +26,7 @@ import java.util.Map;
 public class SSLService extends AbstractComponent {
 
     static final String[] DEFAULT_CIPHERS = new String[]{ "TLS_RSA_WITH_AES_128_CBC_SHA256", "TLS_RSA_WITH_AES_128_CBC_SHA", "TLS_DHE_RSA_WITH_AES_128_CBC_SHA", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA" };
+    static final String[] DEFAULT_SUPPORTED_PROTOCOLS = new String[] {"TLSv1", "TLSv1.1", "TLSv1.2"};
 
     private Map<String, SSLContext> sslContexts = ConcurrentCollections.newConcurrentMap();
 
@@ -41,6 +42,14 @@ public class SSLService extends AbstractComponent {
         return getSslContext(ImmutableSettings.EMPTY).getSocketFactory();
     }
 
+    public String[] supportedProtocols() {
+        return componentSettings.getAsArray("supported_protocols", DEFAULT_SUPPORTED_PROTOCOLS);
+    }
+
+    public String[] ciphers() {
+        return componentSettings.getAsArray("ciphers", DEFAULT_CIPHERS);
+    }
+
     public SSLEngine createSSLEngine() {
         return createSSLEngine(ImmutableSettings.EMPTY);
     }
@@ -50,8 +59,9 @@ public class SSLService extends AbstractComponent {
     }
 
     public SSLEngine createSSLEngine(Settings settings, String host, int port) {
-        String[] ciphers = settings.getAsArray("ciphers", componentSettings.getAsArray("ciphers", DEFAULT_CIPHERS));
-        return createSSLEngine(getSslContext(settings), ciphers, host, port);
+        String[] ciphers = settings.getAsArray("ciphers", ciphers());
+        String[] supportedProtocols = settings.getAsArray("supported_protocols", supportedProtocols());
+        return createSSLEngine(getSslContext(settings), ciphers, supportedProtocols, host, port);
     }
 
     public SSLContext getSslContext() {
@@ -103,12 +113,18 @@ public class SSLService extends AbstractComponent {
         return sslContext;
     }
 
-    private SSLEngine createSSLEngine(SSLContext sslContext, String[] ciphers, String host, int port) {
+    private SSLEngine createSSLEngine(SSLContext sslContext, String[] ciphers, String[] supportedProtocols, String host, int port) {
         SSLEngine sslEngine = sslContext.createSSLEngine(host, port);
         try {
             sslEngine.setEnabledCipherSuites(ciphers);
         } catch (Throwable t) {
             throw new ElasticsearchSSLException("failed loading cipher suites [" + Arrays.asList(ciphers) + "]", t);
+        }
+
+        try {
+            sslEngine.setEnabledProtocols(supportedProtocols);
+        } catch (IllegalArgumentException e) {
+            throw new ElasticsearchSSLException("failed setting supported protocols [" + Arrays.asList(supportedProtocols) + "]", e);
         }
         return sslEngine;
     }

@@ -112,7 +112,7 @@ export ES_DIRECT_SIZE
 export ES_JAVA_OPTS
 
 # Check DAEMON exists
-test -x $DAEMON || exit 0
+test -x $DAEMON || exit 1
 
 checkJava() {
 	if [ -x "$JAVA_HOME/bin/java" ]; then

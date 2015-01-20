@@ -42,7 +42,7 @@ public abstract class ConnectionFactory<Connection extends AbstractLdapConnectio
     public static final String TIMEOUT_LDAP_SETTING = "timeout.ldap_search";
     public static final String HOSTNAME_VERIFICATION_SETTING = "hostname_verification";
     public static final TimeValue TIMEOUT_DEFAULT = TimeValue.timeValueSeconds(5);
-    static final String JAVA_NAMING_LDAP_FACTORY_SOCKET = "java.naming.ldap.factory.socket";
+    public static final String JAVA_NAMING_LDAP_FACTORY_SOCKET = "java.naming.ldap.factory.socket";
     private static final Pattern STARTS_WITH_LDAPS = Pattern.compile("^ldaps:.*", Pattern.CASE_INSENSITIVE);
     private static final Pattern STARTS_WITH_LDAP = Pattern.compile("^ldap:.*", Pattern.CASE_INSENSITIVE);
 

@@ -95,15 +95,49 @@ query. And the reason would be mostly, according to
 link:https://lucene.apache.org/core/4_9_0/core/org/apache/lucene/search/similarities/TFIDFSimilarity.html[Lucene scoring formula],
 due to the terms with the highest tf-idf. Therefore, the terms of the input
 document that have the highest tf-idf are good representatives of that
-document, and could be used within a disjunctive query to retrieve similar
+document, and could be used within a disjunctive query (or `OR`) to retrieve similar
 documents. The MLT query simply extracts the text from the input document,
 analyzes it, usually using the same analyzer at the field, then selects the
 top K terms with highest tf-idf to form a disjunctive query of these terms.
 
 IMPORTANT: The fields on which to perform MLT must be indexed and of type
-`string`. Additionally, when using `like` with documents, the fields must be
-either `stored`, store `term_vector` or `_source` must be enabled. In order to
-speed up analysis, it could help to store term vectors at the fields.
+`string`. Additionally, when using `like` with documents, either `_source`
+must be enabled or the fields must be `stored` or store `term_vector`. In
+order to speed up analysis, it could help to store term vectors at index time.
+
+For example, if we wish to perform MLT on the "title" and "tags.raw" fields,
+we can explicitly store their `term_vector` at index time. We can still
+perform MLT on the "description" and "tags" fields, as `_source` is enabled by
+default, but there will be no speed up on analysis for these fields.
+
+[source,js]
+--------------------------------------------------
+curl -s -XPUT 'http://localhost:9200/imdb/' -d '{
+  "mappings": {
+    "movies": {
+      "properties": {
+        "title": {
+          "type": "string",
+          "term_vector": "yes"
+         },
+         "description": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "string",
+          "fields" : {
+            "raw": {
+              "type" : "string",
+              "index" : "not_analyzed",
+              "term_vector" : "yes"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
 
 ==== Parameters
 

@@ -11,14 +11,14 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.RealmConfig;
-import org.elasticsearch.shield.authc.ldap.LdapConnectionFactory;
 import org.elasticsearch.shield.authc.ldap.LdapGroupToRoleMapper;
-import org.elasticsearch.shield.authc.ldap.LdapRealm;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
+
+import static org.elasticsearch.shield.authc.ldap.LdapConnectionFactory.*;
 
 @Ignore
 @ThreadLeakFilters(defaultFilters = true, filters = { LdapTest.ApachedsThreadLeakFilter.class })
@@ -42,36 +42,24 @@ public abstract class LdapTest extends ElasticsearchTestCase {
         return ldap.getUrl();
     }
 
-    public static Settings buildLdapSettings(String ldapUrl, String userTemplate, String groupSearchBase, boolean isSubTreeSearch) {
-        return buildLdapSettings( new String[]{ldapUrl}, new String[]{userTemplate}, groupSearchBase, isSubTreeSearch );
+    public static Settings buildLdapSettings(String ldapUrl, String userTemplate, String groupSearchBase, SearchScope scope) {
+        return buildLdapSettings(ldapUrl, new String[] { userTemplate }, groupSearchBase, scope);
     }
 
-    public static Settings buildLdapSettings(String ldapUrl, String userTemplate, String groupSearchBase, boolean isSubTreeSearch, boolean hostnameVerification) {
-        return buildLdapSettings( new String[]{ldapUrl}, new String[]{userTemplate}, groupSearchBase, isSubTreeSearch, hostnameVerification );
-    }
-
-    public static Settings buildLdapSettings(String[] ldapUrl, String[] userTemplate, String groupSearchBase, boolean isSubTreeSearch) {
-        return buildLdapSettings(ldapUrl, userTemplate, groupSearchBase, isSubTreeSearch, true);
-    }
-
-    public static Settings buildLdapSettings(String[] ldapUrl, String[] userTemplate, String groupSearchBase, boolean isSubTreeSearch, boolean hostnameVerification) {
+    public static Settings buildLdapSettings(String ldapUrl, String[] userTemplate, String groupSearchBase, SearchScope scope) {
         return ImmutableSettings.builder()
-                .putArray(LdapConnectionFactory.URLS_SETTING, ldapUrl)
-                .putArray(LdapConnectionFactory.USER_DN_TEMPLATES_SETTING, userTemplate)
-                .put(LdapConnectionFactory.GROUP_SEARCH_BASEDN_SETTING, groupSearchBase)
-                .put(LdapConnectionFactory.GROUP_SEARCH_SUBTREE_SETTING, isSubTreeSearch)
-                .put(LdapConnectionFactory.HOSTNAME_VERIFICATION_SETTING, hostnameVerification).build();
+                .putArray(URLS_SETTING, ldapUrl)
+                .putArray(USER_DN_TEMPLATES_SETTING, userTemplate)
+                .put("group_search.base_dn", groupSearchBase)
+                .put("group_search.scope", scope)
+                .put(HOSTNAME_VERIFICATION_SETTING, false).build();
     }
 
-    protected Settings buildNonCachingSettings() {
+    public static Settings buildLdapSettings(String ldapUrl, String userTemplate, boolean hostnameVerification) {
         return ImmutableSettings.builder()
-                .put(LdapRealm.CACHE_TTL, -1)
-                .build();
-    }
-
-    protected Settings buildCachingSettings() {
-        return ImmutableSettings.builder()
-                .build();
+                .putArray(URLS_SETTING, ldapUrl)
+                .putArray(USER_DN_TEMPLATES_SETTING, userTemplate)
+                .put(HOSTNAME_VERIFICATION_SETTING, hostnameVerification).build();
     }
 
     protected LdapGroupToRoleMapper buildGroupAsRoleMapper(ResourceWatcherService resourceWatcherService) {

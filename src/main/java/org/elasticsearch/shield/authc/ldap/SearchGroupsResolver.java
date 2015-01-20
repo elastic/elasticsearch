@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.authc.ldap;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.authc.support.ldap.AbstractLdapConnection;
@@ -38,18 +39,11 @@ class SearchGroupsResolver implements AbstractLdapConnection.GroupsResolver {
         scope = SearchScope.resolve(settings.get("scope"), SearchScope.SUB_TREE);
     }
 
-    public SearchGroupsResolver(String baseDn, String filter, String userAttribute, SearchScope scope) {
-        this.baseDn = baseDn;
-        this.filter = filter;
-        this.userAttribute = userAttribute;
-        this.scope = scope;
-    }
-
     @Override
-    public List<String> resolve(DirContext ctx, String userDn, TimeValue timeout) {
+    public List<String> resolve(DirContext ctx, String userDn, TimeValue timeout, ESLogger logger) {
         List<String> groups = new LinkedList<>();
 
-        String userId = userAttribute != null ? readUserAttribute(ctx, userDn, userDn) : userDn;
+        String userId = userAttribute != null ? readUserAttribute(ctx, userDn) : userDn;
         SearchControls search = new SearchControls();
         search.setReturningAttributes(Strings.EMPTY_ARRAY);
         search.setSearchScope(scope.scope());
@@ -66,7 +60,7 @@ class SearchGroupsResolver implements AbstractLdapConnection.GroupsResolver {
         return groups;
     }
 
-    String readUserAttribute(DirContext ctx, String userDn, String userAttribute) {
+    String readUserAttribute(DirContext ctx, String userDn) {
         try {
             Attributes results = ctx.getAttributes(userDn, new String[]{userAttribute});
             Attribute attribute = results.get(userAttribute);

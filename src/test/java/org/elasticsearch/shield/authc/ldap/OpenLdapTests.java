@@ -10,10 +10,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
-import org.elasticsearch.shield.authc.support.ldap.AbstractLdapSslSocketFactory;
-import org.elasticsearch.shield.authc.support.ldap.ConnectionFactory;
-import org.elasticsearch.shield.authc.support.ldap.HostnameVerifyingLdapSslSocketFactory;
-import org.elasticsearch.shield.authc.support.ldap.LdapSslSocketFactory;
+import org.elasticsearch.shield.authc.support.ldap.*;
 import org.elasticsearch.shield.ssl.SSLService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
@@ -35,7 +32,7 @@ public class OpenLdapTests extends ElasticsearchTestCase {
 
     @Before
     public void initializeSslSocketFactory() throws Exception {
-        Path keystore = Paths.get(LdapConnectionTests.class.getResource("../support/ldap/ldaptrust.jks").toURI()).toAbsolutePath();
+        Path keystore = Paths.get(OpenLdapTests.class.getResource("../support/ldap/ldaptrust.jks").toURI()).toAbsolutePath();
 
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
@@ -60,7 +57,24 @@ public class OpenLdapTests extends ElasticsearchTestCase {
 
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-        RealmConfig config = new RealmConfig("oldap-test", LdapConnectionTests.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, true, false));
+        RealmConfig config = new RealmConfig("oldap-test", LdapTest.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, SearchScope.ONE_LEVEL));
+        LdapConnectionFactory connectionFactory = new LdapConnectionFactory(config);
+
+        String[] users = new String[] { "blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor" };
+        for (String user : users) {
+            LdapConnection ldap = connectionFactory.open(user, SecuredStringTests.build(PASSWORD));
+            assertThat(ldap.groups(), hasItem(containsString("Avengers")));
+            ldap.close();
+        }
+    }
+
+    @Test
+    public void testGroupSearchScopeBase() {
+        //base search on a groups means that the user can be in just one group
+
+        String groupSearchBase = "cn=Avengers,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
+        String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
+        RealmConfig config = new RealmConfig("oldap-test", LdapTest.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, SearchScope.BASE));
         LdapConnectionFactory connectionFactory = new LdapConnectionFactory(config);
 
         String[] users = new String[] { "blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor" };
@@ -76,9 +90,9 @@ public class OpenLdapTests extends ElasticsearchTestCase {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         Settings settings = ImmutableSettings.builder()
-                .put(LdapConnectionTests.buildLdapSettings(OPEN_LDAP_URL, userTemplate,groupSearchBase, true, false))
-                .put(LdapConnectionFactory.GROUP_SEARCH_FILTER_SETTING, "(&(objectclass=posixGroup)(memberUID={0}))")
-                .put(LdapConnectionFactory.GROUP_SEARCH_USER_ATTRIBUTE_SETTING, "uid")
+                .put(LdapTest.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, SearchScope.ONE_LEVEL))
+                .put("group_search.filter", "(&(objectclass=posixGroup)(memberUID={0}))")
+                .put("group_search.user_attribute", "uid")
                 .build();
         RealmConfig config = new RealmConfig("oldap-test", settings);
         LdapConnectionFactory connectionFactory = new LdapConnectionFactory(config);
@@ -93,7 +107,7 @@ public class OpenLdapTests extends ElasticsearchTestCase {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         Settings settings = ImmutableSettings.builder()
-                .put(LdapConnectionTests.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, true))
+                .put(LdapTest.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, SearchScope.ONE_LEVEL))
                 .put(ConnectionFactory.HOSTNAME_VERIFICATION_SETTING, false)
                 .put(ConnectionFactory.TIMEOUT_TCP_READ_SETTING, "1ms") //1 millisecond
                 .build();
@@ -113,7 +127,7 @@ public class OpenLdapTests extends ElasticsearchTestCase {
         String groupSearchBase = "dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         Settings settings = ImmutableSettings.builder()
-                .put(LdapConnectionTests.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, true))
+                .put(LdapTest.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, SearchScope.SUB_TREE))
                 .put(ConnectionFactory.HOSTNAME_VERIFICATION_SETTING, false)
                 .put(ConnectionFactory.TIMEOUT_LDAP_SETTING, "1ms") //1 millisecond
                 .build();
@@ -134,7 +148,12 @@ public class OpenLdapTests extends ElasticsearchTestCase {
         //openldap does not use cn as naming attributes by default
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-        RealmConfig config = new RealmConfig("oldap-test", LdapConnectionTests.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, true));
+        Settings settings = ImmutableSettings.builder()
+                .put(LdapTest.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, SearchScope.ONE_LEVEL))
+                .put(LdapConnectionFactory.HOSTNAME_VERIFICATION_SETTING, true)
+                .build();
+
+        RealmConfig config = new RealmConfig("oldap-test", settings);
         LdapConnectionFactory connectionFactory = new LdapConnectionFactory(config);
 
         String user = "blackwidow";
@@ -142,4 +161,6 @@ public class OpenLdapTests extends ElasticsearchTestCase {
             fail("OpenLDAP certificate does not contain the correct hostname/ip so hostname verification should fail on open");
         }
     }
+
+
 }

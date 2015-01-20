@@ -27,10 +27,10 @@ public abstract class AbstractLdapConnection implements Closeable {
     /**
      * This object is intended to be constructed by the LdapConnectionFactory
      *
-     * This constructor accepts a logger with wich the connection can log. Since this connection
+     * This constructor accepts a logger with which the connection can log. Since this connection
      * can be instantiated very frequently, it's best to have the logger for this connection created
      * outside of and be reused across all connections. We can't keep a static logger in this class
-     * since we want the logger to be contextual (i.e. aware of the settings and its enviorment).
+     * since we want the logger to be contextual (i.e. aware of the settings and its environment).
      */
     public AbstractLdapConnection(ESLogger logger, DirContext ctx, String boundName, GroupsResolver groupsResolver, TimeValue timeout) {
         this.logger = logger;
@@ -64,12 +64,12 @@ public abstract class AbstractLdapConnection implements Closeable {
      * @return List of fully distinguished group names
      */
     public List<String> groups() {
-        return groupsResolver.resolve(jndiContext, bindDn, timeout);
+        return groupsResolver.resolve(jndiContext, bindDn, timeout, logger);
     }
 
     public static interface GroupsResolver {
 
-        List<String> resolve(DirContext ctx, String userDn, TimeValue timeout);
+        List<String> resolve(DirContext ctx, String userDn, TimeValue timeout, ESLogger logger);
 
     }
 }

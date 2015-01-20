@@ -19,8 +19,8 @@ public class ActiveDirectoryConnection extends AbstractLdapConnection {
     /**
      * This object is intended to be constructed by the LdapConnectionFactory
      */
-    ActiveDirectoryConnection(ESLogger logger, DirContext ctx, String boundName, String groupSearchDN, TimeValue timeout) {
-        super(logger, ctx, boundName, new ActiveDirectoryGroupsResolver(logger, groupSearchDN), timeout);
+    ActiveDirectoryConnection(ESLogger logger, DirContext ctx, String boundName, GroupsResolver resolver, TimeValue timeout) {
+        super(logger, ctx, boundName, resolver, timeout);
     }
 
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.ldap.ConnectionFactory;
 import org.elasticsearch.shield.authc.support.ldap.LdapTest;
+import org.elasticsearch.shield.authc.support.ldap.SearchScope;
 import org.junit.Test;
 
 import java.net.InetSocketAddress;
@@ -21,7 +22,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.*;
 
-public class LdapConnectionTests extends LdapTest {
+public class LdapConnectionFactoryTests extends LdapTest {
 
     public void testBindWithTimeout() throws Exception {
         int randomPort = randomIntBetween(49152, 65525); // ephemeral port
@@ -32,13 +33,13 @@ public class LdapConnectionTests extends LdapTest {
             serverSocket.setReuseAddress(true);
             serverSocket.bind(sa);
 
-            String[] ldapUrls = new String[] { "ldap://localhost:" + randomPort };
+            String ldapUrl = "ldap://localhost:" + randomPort ;
             String groupSearchBase = "o=sevenSeas";
             String[] userTemplates = new String[] {
                     "cn={0},ou=people,o=sevenSeas",
             };
             Settings settings = ImmutableSettings.builder()
-                    .put(buildLdapSettings(ldapUrls, userTemplates, groupSearchBase, true))
+                    .put(buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, SearchScope.SUB_TREE))
                     .put(ConnectionFactory.TIMEOUT_TCP_CONNECTION_SETTING, "1ms") //1 millisecond
                     .build();
             RealmConfig config = new RealmConfig("ldap_realm", settings);
@@ -60,14 +61,13 @@ public class LdapConnectionTests extends LdapTest {
 
     @Test
     public void testBindWithTemplates() {
-        String[] ldapUrls = new String[] { ldapUrl() };
         String groupSearchBase = "o=sevenSeas";
         String[] userTemplates = new String[] {
                 "cn={0},ou=something,ou=obviously,ou=incorrect,o=sevenSeas",
                 "wrongname={0},ou=people,o=sevenSeas",
                 "cn={0},ou=people,o=sevenSeas", //this last one should work
         };
-        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrls, userTemplates, groupSearchBase, true));
+        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplates, groupSearchBase, SearchScope.SUB_TREE));
 
         LdapConnectionFactory connectionFactory = new LdapConnectionFactory(config);
 
@@ -77,22 +77,19 @@ public class LdapConnectionTests extends LdapTest {
         try (LdapConnection ldap = connectionFactory.open(user, userPass)) {
             String dn = ldap.authenticatedUserDn();
             assertThat(dn, containsString(user));
-            //assertThat( attrs.get("uid"), arrayContaining("hhornblo"));
         }
     }
 
 
     @Test(expected = LdapException.class)
     public void testBindWithBogusTemplates() {
-        String[] ldapUrl = new String[] { ldapUrl() };
         String groupSearchBase = "o=sevenSeas";
-        boolean isSubTreeSearch = true;
         String[] userTemplates = new String[] {
                 "cn={0},ou=something,ou=obviously,ou=incorrect,o=sevenSeas",
                 "wrongname={0},ou=people,o=sevenSeas",
                 "asdf={0},ou=people,o=sevenSeas", //none of these should work
         };
-        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, isSubTreeSearch));
+        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplates, groupSearchBase, SearchScope.SUB_TREE));
 
         LdapConnectionFactory ldapFac = new LdapConnectionFactory(config);
 
@@ -106,7 +103,7 @@ public class LdapConnectionTests extends LdapTest {
     public void testGroupLookup_Subtree() {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
-        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, true));
+        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, SearchScope.SUB_TREE));
 
         LdapConnectionFactory ldapFac = new LdapConnectionFactory(config);
 
@@ -114,8 +111,8 @@ public class LdapConnectionTests extends LdapTest {
         SecuredString userPass = SecuredStringTests.build("pass");
 
         try (LdapConnection ldap = ldapFac.open(user, userPass)) {
-            List<String> groups = ldap.getGroupsFromSearch();
-            assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
+            List<String> groups = ldap.groups();
+            assertThat(groups, containsInAnyOrder("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
         }
     }
 
@@ -123,35 +120,32 @@ public class LdapConnectionTests extends LdapTest {
     public void testGroupLookup_OneLevel() {
         String groupSearchBase = "ou=crews,ou=groups,o=sevenSeas";
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
-        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, false));
+        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, SearchScope.ONE_LEVEL));
 
         LdapConnectionFactory ldapFac = new LdapConnectionFactory(config);
 
         String user = "Horatio Hornblower";
         try (LdapConnection ldap = ldapFac.open(user, SecuredStringTests.build("pass"))) {
-            List<String> groups = ldap.getGroupsFromSearch();
-            assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
+            List<String> groups = ldap.groups();
+            assertThat(groups, containsInAnyOrder("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
         }
     }
 
     @Test
-    public void testUserAttributeLookup() {
-        String groupSearchBase = "ou=crews,ou=groups,o=sevenSeas";
+    public void testGroupLookup_Base() {
+        String groupSearchBase = "cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas";
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
-        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, false));
+        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, SearchScope.BASE));
+
         LdapConnectionFactory ldapFac = new LdapConnectionFactory(config);
 
-
         String user = "Horatio Hornblower";
-        try (LdapConnection ldap = ldapFac.open(user, SecuredStringTests.build("pass"))) {
-            assertThat(ldap.readUserAttribute("mail"), is("hhornblo@royalnavy.mod.uk"));
-            assertThat(ldap.readUserAttribute("uid"), is("hhornblo"));
-            try {
-                ldap.readUserAttribute("nonexistentAttribute");
-                fail("reading a non existent attribute should throw an LDAPException");
-            } catch (LdapException e) {
-                assertThat(e.getMessage(), containsString("No results"));
-            }
+        SecuredString userPass = SecuredStringTests.build("pass");
+
+        try (LdapConnection ldap = ldapFac.open(user, userPass)) {
+            List<String> groups = ldap.groups();
+            assertThat(groups.size(), is(1));
+            assertThat(groups, containsInAnyOrder("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
         }
     }
 }

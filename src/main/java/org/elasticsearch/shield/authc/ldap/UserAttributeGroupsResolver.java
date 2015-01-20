@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.authc.support.ldap.AbstractLdapConnection;
@@ -34,7 +35,7 @@ class UserAttributeGroupsResolver implements AbstractLdapConnection.GroupsResolv
     }
 
     @Override
-    public List<String> resolve(DirContext ctx, String userDn, TimeValue timeout) {
+    public List<String> resolve(DirContext ctx, String userDn, TimeValue timeout, ESLogger logger) {
         List<String> groupDns = new LinkedList<>();
         try {
             Attributes results = ctx.getAttributes(userDn, new String[] { attribute });

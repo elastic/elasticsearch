@@ -8,6 +8,7 @@ package org.elasticsearch.shield.authc.active_directory;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.authc.ldap.LdapException;
 import org.elasticsearch.shield.authc.support.ldap.AbstractLdapConnection;
@@ -24,15 +25,15 @@ import java.util.List;
  */
 public class ActiveDirectoryGroupsResolver implements AbstractLdapConnection.GroupsResolver {
 
-    private final ESLogger logger;
     private final String baseDn;
+    private final SearchScope scope;
 
-    public ActiveDirectoryGroupsResolver(ESLogger logger, String baseDn) {
-        this.logger = logger;
-        this.baseDn = baseDn;
+    public ActiveDirectoryGroupsResolver(Settings settings, String baseDnDefault) {
+        this.baseDn = settings.get("base_dn", baseDnDefault);
+        this.scope = SearchScope.resolve(settings.get("scope"), SearchScope.SUB_TREE);
     }
 
-    public List<String> resolve(DirContext ctx, String userDn, TimeValue timeout) {
+    public List<String> resolve(DirContext ctx, String userDn, TimeValue timeout, ESLogger logger) {
 
         String groupsSearchFilter = buildGroupQuery(ctx, userDn, timeout);
         logger.debug("group SID to DN search filter: [{}]", groupsSearchFilter);
@@ -42,7 +43,7 @@ public class ActiveDirectoryGroupsResolver implements AbstractLdapConnection.Gro
         SearchControls groupsSearchCtls = new SearchControls();
 
         //Specify the search scope
-        groupsSearchCtls.setSearchScope(SearchScope.SUB_TREE.scope());
+        groupsSearchCtls.setSearchScope(scope.scope());
         groupsSearchCtls.setReturningAttributes(Strings.EMPTY_ARRAY);  //we only need the entry DN
         groupsSearchCtls.setTimeLimit((int) timeout.millis());
 

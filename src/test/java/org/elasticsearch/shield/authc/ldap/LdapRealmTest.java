@@ -14,6 +14,7 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.authc.support.ldap.LdapTest;
+import org.elasticsearch.shield.authc.support.ldap.SearchScope;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
@@ -58,12 +59,10 @@ public class LdapRealmTest extends LdapTest {
     @Test
     public void testAuthenticate_SubTreeGroupSearch(){
         String groupSearchBase = "o=sevenSeas";
-        boolean isSubTreeSearch = true;
         String userTemplate = VALID_USER_TEMPLATE;
-        Settings settings = buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, isSubTreeSearch);
+        Settings settings = buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, SearchScope.SUB_TREE);
         RealmConfig config = new RealmConfig("test-ldap-realm", settings);
         LdapConnectionFactory ldapFactory = new LdapConnectionFactory(config);
-        config = new RealmConfig("test-ldap-realm", buildNonCachingSettings());
         LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService));
 
         User user = ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
@@ -74,11 +73,9 @@ public class LdapRealmTest extends LdapTest {
     @Test
     public void testAuthenticate_OneLevelGroupSearch(){
         String groupSearchBase = "ou=crews,ou=groups,o=sevenSeas";
-        boolean isSubTreeSearch = false;
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = ImmutableSettings.builder()
-                .put(buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, isSubTreeSearch))
-                .put(buildNonCachingSettings())
+                .put(buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, SearchScope.ONE_LEVEL))
                 .build();
         RealmConfig config = new RealmConfig("test-ldap-realm", settings);
 
@@ -93,19 +90,17 @@ public class LdapRealmTest extends LdapTest {
     @Test
     public void testAuthenticate_Caching(){
         String groupSearchBase = "o=sevenSeas";
-        boolean isSubTreeSearch = true;
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = ImmutableSettings.builder()
-                .put(buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, isSubTreeSearch))
-                .put(buildCachingSettings())
+                .put(buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, SearchScope.SUB_TREE))
                 .build();
         RealmConfig config = new RealmConfig("test-ldap-realm", settings);
 
         LdapConnectionFactory ldapFactory = new LdapConnectionFactory(config);
         ldapFactory = spy(ldapFactory);
         LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService));
-        User user = ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
-        user = ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
+        ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
+        ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
 
         //verify one and only one open -> caching is working
         verify(ldapFactory, times(1)).open(anyString(), any(SecuredString.class));
@@ -114,11 +109,9 @@ public class LdapRealmTest extends LdapTest {
     @Test
     public void testAuthenticate_Caching_Refresh(){
         String groupSearchBase = "o=sevenSeas";
-        boolean isSubTreeSearch = true;
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = ImmutableSettings.builder()
-                .put(buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, isSubTreeSearch))
-                .put(buildCachingSettings())
+                .put(buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, SearchScope.SUB_TREE))
                 .build();
         RealmConfig config = new RealmConfig("test-ldap-realm", settings);
 
@@ -126,15 +119,15 @@ public class LdapRealmTest extends LdapTest {
         LdapGroupToRoleMapper roleMapper = buildGroupAsRoleMapper(resourceWatcherService);
         ldapFactory = spy(ldapFactory);
         LdapRealm ldap = new LdapRealm(config, ldapFactory, roleMapper);
-        User user = ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
-        user = ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
+        ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
+        ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
 
         //verify one and only one open -> caching is working
         verify(ldapFactory, times(1)).open(anyString(), any(SecuredString.class));
 
         roleMapper.notifyRefresh();
 
-        user = ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
+        ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
 
         //we need to open again
         verify(ldapFactory, times(2)).open(anyString(), any(SecuredString.class));
@@ -143,23 +136,21 @@ public class LdapRealmTest extends LdapTest {
     @Test
     public void testAuthenticate_Noncaching(){
         String groupSearchBase = "o=sevenSeas";
-        boolean isSubTreeSearch = true;
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = ImmutableSettings.builder()
-                .put(buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, isSubTreeSearch))
-                .put(buildNonCachingSettings())
+                .put(buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, SearchScope.SUB_TREE))
+                .put(LdapRealm.CACHE_TTL, -1)
                 .build();
         RealmConfig config = new RealmConfig("test-ldap-realm", settings);
 
         LdapConnectionFactory ldapFactory = new LdapConnectionFactory(config);
         ldapFactory = spy(ldapFactory);
         LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService));
-        User user = ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
-        user = ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
+        ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
+        ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
 
         //verify two and only two binds -> caching is disabled
         verify(ldapFactory, times(2)).open(anyString(), any(SecuredString.class));
     }
-
 
 }

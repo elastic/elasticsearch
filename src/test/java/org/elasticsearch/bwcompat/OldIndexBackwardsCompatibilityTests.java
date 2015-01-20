@@ -181,7 +181,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
             .build()));
     }
 
-    void assertNewReplicasWork() {
+    void assertNewReplicasWork() throws Exception {
         final int numReplicas = randomIntBetween(2, 3);
         for (int i = 0; i < numReplicas; ++i) {
             logger.debug("Creating another node for replica " + i);
@@ -194,11 +194,15 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         ensureGreen("test");
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
             .put("number_of_replicas", numReplicas)).execute().actionGet());
-        ensureGreen(TimeValue.timeValueMinutes(1), "test"); // this can take a while when the number of replicas is high
+        // This can take a while when the number of replicas is greater than cluster.routing.allocation.node_concurrent_recoveries
+        // (which defaults to 2).  We could override that setting, but running this test on a busy box could
+        // still result in taking a long time to finish starting replicas, so instead we have an increased timeout
+        ensureGreen(TimeValue.timeValueMinutes(1), "test");
 
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
             .put("number_of_replicas", 0))
             .execute().actionGet());
+        waitNoPendingTasksOnAll(); // make sure the replicas are removed before going on
     }
     
     void assertUpgradeWorks(boolean alreadyLatest) throws Exception {

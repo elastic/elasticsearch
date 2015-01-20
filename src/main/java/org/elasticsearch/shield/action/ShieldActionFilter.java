@@ -38,8 +38,6 @@ import java.util.List;
  */
 public class ShieldActionFilter extends AbstractComponent implements ActionFilter {
 
-    public static final String CLUSTER_PERMISSION_SCROLL_CLEAR_ALL_NAME = "cluster:admin/indices/scroll/clear_all";
-
     private static final Predicate<String> READ_ACTION_MATCHER = Privilege.Index.READ.predicate();
 
     private final AuthenticationService authcService;

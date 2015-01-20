@@ -7,12 +7,11 @@ package org.elasticsearch.shield.authz;
 
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
-import org.elasticsearch.action.search.ClearScrollAction;
-import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestHelper;
+import org.elasticsearch.action.search.ClearScrollAction;
+import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.base.Predicate;
@@ -144,10 +143,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         }
 
         Set<String> indexNames = resolveIndices(user, action, request);
-        //Note: some APIs (e.g. analyze) are categorized under indices, but their indices are optional.
-        //In that case the resolved indices set is empty (for now). See https://github.com/elasticsearch/elasticsearch-shield/issues/566
-        assert !indexNames.isEmpty() || request instanceof AnalyzeRequest
-                : "no indices request other than the analyze api has optional indices thus the resolved indices must not be empty";
+        assert !indexNames.isEmpty() : "every indices request needs to have its indices set thus the resolved indices must not be empty";
 
         if (!authorizeIndices(action, indexNames, permission.indices())) {
             throw denial(user, action, request);

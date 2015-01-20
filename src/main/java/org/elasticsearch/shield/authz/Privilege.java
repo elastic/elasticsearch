@@ -216,7 +216,7 @@ public abstract class Privilege<P extends Privilege<P>> {
 
         static Cluster[] values() {
             return values;
-        };
+        }
 
         private static final LoadingCache<Name, Cluster> cache = CacheBuilder.newBuilder().build(
                 new CacheLoader<Name, Cluster>() {

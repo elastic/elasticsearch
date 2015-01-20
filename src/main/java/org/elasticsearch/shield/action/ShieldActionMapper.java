@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.shield.action;
 
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.transport.TransportRequest;
@@ -17,16 +19,28 @@ import org.elasticsearch.transport.TransportRequest;
  */
 public class ShieldActionMapper {
 
+    static final String CLUSTER_PERMISSION_SCROLL_CLEAR_ALL_NAME = "cluster:admin/indices/scroll/clear_all";
+    static final String CLUSTER_PERMISSION_ANALYZE = "cluster:admin/analyze";
+
     /**
      * Returns the shield specific action name given the incoming action name and request
      */
     public String action(String action, TransportRequest request) {
-        if (action.equals(ClearScrollAction.NAME)) {
-            assert request instanceof ClearScrollRequest;
-            boolean isClearAllScrollRequest =  ((ClearScrollRequest) request).scrollIds().contains("_all");
-            if (isClearAllScrollRequest) {
-                return ShieldActionFilter.CLUSTER_PERMISSION_SCROLL_CLEAR_ALL_NAME;
-            }
+        switch (action) {
+            case ClearScrollAction.NAME:
+                assert request instanceof ClearScrollRequest;
+                boolean isClearAllScrollRequest =  ((ClearScrollRequest) request).scrollIds().contains("_all");
+                if (isClearAllScrollRequest) {
+                    return CLUSTER_PERMISSION_SCROLL_CLEAR_ALL_NAME;
+                }
+                break;
+            case AnalyzeAction.NAME:
+                assert request instanceof AnalyzeRequest;
+                String[] indices = ((AnalyzeRequest) request).indices();
+                if (indices == null || indices.length == 0) {
+                    return CLUSTER_PERMISSION_ANALYZE;
+                }
+                break;
         }
         return action;
     }

@@ -52,14 +52,14 @@ public class KnownActionsTests extends ShieldIntegrationTest {
     @Test
     public void testAllCodeActionsAreKnown() throws Exception {
         for (String action : codeActions) {
-            assertThat("elasticsearch core action [" + action + "] is unknown to shield", knownActions, hasItem(action));
+            assertThat("classpath action [" + action + "] is unknown to shield", knownActions, hasItem(action));
         }
     }
 
     @Test
     public void testAllKnownActionsAreValid() {
         for (String knownAction : knownActions) {
-            assertThat("shield known action [" + knownAction + "] is unknown to core", codeActions, hasItems(knownAction));
+            assertThat("shield known action [" + knownAction + "] is not among the classpath actions", codeActions, hasItems(knownAction));
         }
     }
 
@@ -71,7 +71,7 @@ public class KnownActionsTests extends ShieldIntegrationTest {
         }
     }
 
-    private static ImmutableSet<String> loadKnownActions() {
+    public static ImmutableSet<String> loadKnownActions() {
         final ImmutableSet.Builder<String> knownActionsBuilder = ImmutableSet.builder();
         try (InputStream input = KnownActionsTests.class.getResourceAsStream("actions")) {
             Streams.readAllLines(input, new Callback<String>() {
@@ -86,7 +86,7 @@ public class KnownActionsTests extends ShieldIntegrationTest {
         return knownActionsBuilder.build();
     }
 
-    private static ImmutableSet<String> loadKnownHandlers() {
+    public static ImmutableSet<String> loadKnownHandlers() {
         final ImmutableSet.Builder<String> knownHandlersBuilder = ImmutableSet.builder();
         try (InputStream input = KnownActionsTests.class.getResourceAsStream("handlers")) {
             Streams.readAllLines(input, new Callback<String>() {

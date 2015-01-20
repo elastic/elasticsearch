@@ -15,6 +15,9 @@ import static org.hamcrest.CoreMatchers.is;
  * This class is used to keep track of changes that we might have to make once we upgrade versions of dependencies, especially elasticsearch core.
  * Every change is listed as a specific assert that trips with a future version of es core, with a meaningful description that explains what needs to be done.
  *
+ * For each assertion we should have one or more corresponding TODOs in the code points that require changes, and also a link to the issue that applies the
+ * required fixes upstream.
+ *
  * NOTE: changes suggested by asserts descriptions may break backwards compatibility. The same shield jar is supposed to work against multiple es core versions,
  * thus if we make a change in shield that requires e.g. es core 1.4.1 it means that the next shield release won't support es core 1.4.0 anymore.
  * In many cases we will just have to bump the version of the assert then, unless we want to break backwards compatibility, but the idea is that this class
@@ -24,9 +27,19 @@ public class VersionCompatibilityTests extends ElasticsearchTestCase {
 
     @Test
     public void testCompatibility() {
-        //see https://github.com/elasticsearch/elasticsearch/pull/8634
+        /**
+         * see https://github.com/elasticsearch/elasticsearch/pull/8634 {@link org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration}
+         */
         assertThat("Remove ClusterDiscoveryConfiguration or bump the version, fixed in es core 1.5", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
+
+        /**
+         * see https://github.com/elasticsearch/elasticsearch/pull/9134 {@link org.elasticsearch.shield.transport.support.TransportProfileUtil}
+         */
         assertThat("Remove TransportProfileUtil class or bump the version, fixed in es core 1.5", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
+
+        /**
+         * see https://github.com/elasticsearch/elasticsearch/pull/9134 {@link org.elasticsearch.shield.transport.netty.SecuredMessageChannelHandler}
+         */
         assertThat("Cleanup SecuredMessageChannelHandler class and remove needless code, fixed in es core 1.5", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
     }
 }

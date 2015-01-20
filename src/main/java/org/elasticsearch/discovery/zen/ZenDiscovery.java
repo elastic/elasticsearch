@@ -54,8 +54,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
-import org.elasticsearch.discovery.MasterService;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.discovery.zen.elect.MasterService;
 import org.elasticsearch.discovery.zen.fd.MasterFaultDetection;
 import org.elasticsearch.discovery.zen.fd.NodesFaultDetection;
 import org.elasticsearch.discovery.zen.membership.MembershipAction;
@@ -96,6 +95,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     public final static String SETTING_SEND_LEAVE_REQUEST = "discovery.zen.send_leave_request";
     public final static String SETTING_MASTER_ELECTION_FILTER_CLIENT = "discovery.zen.master_election.filter_client";
     public final static String SETTING_MASTER_ELECTION_FILTER_DATA = "discovery.zen.master_election.filter_data";
+    public static final String DISCOVERY_ZEN_MINIMUM_MASTER_NODES = "discovery.zen.minimum_master_nodes";
 
     public static final String DISCOVERY_REJOIN_ACTION_NAME = "internal:discovery/zen/rejoin";
 
@@ -202,7 +202,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         transportService.registerHandler(DISCOVERY_REJOIN_ACTION_NAME, new RejoinClusterRequestHandler());
 
-        dynamicSettings.addDynamicSetting(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, new Validator() {
+        dynamicSettings.addDynamicSetting(DISCOVERY_ZEN_MINIMUM_MASTER_NODES, new Validator() {
             @Override
             public String validate(String setting, String value) {
                 int intValue;
@@ -213,7 +213,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 }
                 int masterNodes = clusterService.state().nodes().masterNodes().size();
                 if (intValue > masterNodes) {
-                    return "cannot set " + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES + " to more than the current master nodes count [" + masterNodes + "]";
+                    return "cannot set " + DISCOVERY_ZEN_MINIMUM_MASTER_NODES + " to more than the current master nodes count [" + masterNodes + "]";
                 }
                 return null;
             }
@@ -1284,10 +1284,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            int minimumMasterNodes = settings.getAsInt(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES,
+            int minimumMasterNodes = settings.getAsInt(DISCOVERY_ZEN_MINIMUM_MASTER_NODES,
                     ZenDiscovery.this.electMaster.minimumMasterNodes());
             if (minimumMasterNodes != ZenDiscovery.this.electMaster.minimumMasterNodes()) {
-                logger.info("updating {} from [{}] to [{}]", ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES,
+                logger.info("updating {} from [{}] to [{}]", DISCOVERY_ZEN_MINIMUM_MASTER_NODES,
                         ZenDiscovery.this.electMaster.minimumMasterNodes(), minimumMasterNodes);
                 handleMinimumMasterNodesChanged(minimumMasterNodes);
             }

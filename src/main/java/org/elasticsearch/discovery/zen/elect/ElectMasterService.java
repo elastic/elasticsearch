@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.MasterService;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 
 import java.util.*;
 
@@ -36,8 +36,6 @@ import java.util.*;
  */
 public class ElectMasterService extends AbstractComponent implements MasterService {
 
-    public static final String DISCOVERY_ZEN_MINIMUM_MASTER_NODES = "discovery.zen.minimum_master_nodes";
-
     private final NodeComparator nodeComparator = new NodeComparator();
 
     private volatile int minimumMasterNodes;
@@ -45,7 +43,7 @@ public class ElectMasterService extends AbstractComponent implements MasterServi
     @Inject
     public ElectMasterService(Settings settings) {
         super(settings);
-        this.minimumMasterNodes = settings.getAsInt(DISCOVERY_ZEN_MINIMUM_MASTER_NODES, -1);
+        this.minimumMasterNodes = settings.getAsInt(ZenDiscovery.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, -1);
         logger.debug("using minimum_master_nodes [{}]", minimumMasterNodes);
     }
 

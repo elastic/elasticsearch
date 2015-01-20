@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster;
 
 import com.google.common.base.Predicate;
+
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
@@ -28,7 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -291,7 +292,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         assertNoMasterBlockOnAllNodes();
 
         logger.info("--> bringing another node up");
-        internalCluster().startNode(settingsBuilder().put(settings).put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 2).build());
+        internalCluster().startNode(settingsBuilder().put(settings).put(ZenDiscovery.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 2).build());
         clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").get();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
     }
@@ -323,7 +324,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
         // set an initial value which is at least quorum to avoid split brains during initial startup
         int initialMinMasterNodes = randomIntBetween(nodeCount / 2 + 1, nodeCount);
-        settings.put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, initialMinMasterNodes);
+        settings.put(ZenDiscovery.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, initialMinMasterNodes);
 
 
         logger.info("--> starting [{}] nodes. min_master_nodes set to [{}]", nodeCount, initialMinMasterNodes);
@@ -334,17 +335,17 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
         int updateCount = randomIntBetween(1, nodeCount);
 
-        logger.info("--> updating [{}] to [{}]", ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount);
+        logger.info("--> updating [{}] to [{}]", ZenDiscovery.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount);
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setPersistentSettings(settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount)));
+                .setPersistentSettings(settingsBuilder().put(ZenDiscovery.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount)));
 
         logger.info("--> verifying no node left and master is up");
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nodeCount)).get().isTimedOut());
 
         updateCount = nodeCount + randomIntBetween(1, 2000);
-        logger.info("--> trying to updating [{}] to [{}]", ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount);
+        logger.info("--> trying to updating [{}] to [{}]", ZenDiscovery.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount);
         assertThat(client().admin().cluster().prepareUpdateSettings()
-                        .setPersistentSettings(settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount))
+                        .setPersistentSettings(settingsBuilder().put(ZenDiscovery.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount))
                         .get().getPersistentSettings().getAsMap().keySet(),
                 empty());
 

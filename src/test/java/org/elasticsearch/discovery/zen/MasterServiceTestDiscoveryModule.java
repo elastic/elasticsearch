@@ -22,8 +22,11 @@ package org.elasticsearch.discovery.zen;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.discovery.zen.elect.MasterService;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
+
 import com.google.common.collect.Lists;
+
 import java.util.List;
 
 

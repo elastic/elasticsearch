@@ -42,7 +42,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.discovery.zen.membership.MembershipAction;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
@@ -165,7 +164,7 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
         // TODO: Rarely use default settings form some of these
         Settings settings = ImmutableSettings.builder()
                 .put(DEFAULT_SETTINGS)
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, minimumMasterNode)
+                .put(ZenDiscovery.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, minimumMasterNode)
                 .build();
 
         if (discoveryConfig == null) {
@@ -180,7 +179,7 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
         // TODO: Rarely use default settings form some of these
         Settings nodeSettings = ImmutableSettings.builder()
                 .put(DEFAULT_SETTINGS)
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, minimumMasterNode)
+                .put(ZenDiscovery.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, minimumMasterNode)
                 .build();
 
         if (discoveryConfig == null) {

@@ -121,6 +121,8 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
                         .put("index.store.type", storeType.name())
                         .put("index.number_of_replicas", 0)
                         .put("index.number_of_shards", 1)
+                        .put("index.store.throttle.type", "merge")
+                        .put("index.store.throttle.max_bytes_per_sec", "20mb")
                 )
                 .execute().actionGet();
         assertThat(client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet().isTimedOut(), equalTo(false));

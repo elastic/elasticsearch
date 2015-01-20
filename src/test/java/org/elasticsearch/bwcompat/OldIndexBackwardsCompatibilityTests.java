@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.rest.action.admin.indices.upgrade.UpgradeTest;
@@ -34,10 +35,13 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.hamcrest.Matchers;
 
+import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -46,6 +50,9 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
     // We have a 0.20.6.zip etc for this.
     
     List<String> indexes = Arrays.asList(
+        "index-0.90.0.Beta1.zip",
+        "index-0.90.0.RC1.zip",
+        "index-0.90.0.RC2.zip",
         "index-0.90.0.zip",
         "index-0.90.1.zip",
         "index-0.90.2.zip",
@@ -57,9 +64,13 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         "index-0.90.8.zip",
         "index-0.90.9.zip",
         "index-0.90.10.zip",
-        /* skipping 0.90.12...ensureGreen always times out while loading the index...*/
+        "index-0.90.11.zip",
+        "index-0.90.12.zip",
         "index-0.90.13.zip",
         "index-1.0.0.Beta1.zip",
+        "index-1.0.0.Beta2.zip",
+        "index-1.0.0.RC1.zip",
+        "index-1.0.0.RC2.zip",
         "index-1.0.0.zip",
         "index-1.0.1.zip",
         "index-1.0.2.zip",
@@ -67,17 +78,50 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         "index-1.1.0.zip",
         "index-1.1.1.zip",
         "index-1.1.2.zip",
+        "index-1.2.0.zip",
         "index-1.2.1.zip",
         "index-1.2.2.zip",
         "index-1.2.3.zip",
         "index-1.2.4.zip",
+        "index-1.3.0.zip",
         "index-1.3.1.zip",
         "index-1.3.2.zip",
         "index-1.3.3.zip",
         "index-1.3.4.zip",
+        "index-1.3.5.zip",
+        "index-1.3.6.zip",
+        "index-1.3.7.zip",
         "index-1.4.0.Beta1.zip",
-        "index-1.4.0.zip"
+        "index-1.4.0.zip",
+        "index-1.4.1.zip",
+        "index-1.4.2.zip"
     );
+    
+    public void testAllVersionsTested() throws Exception {
+        SortedSet<String> expectedVersions = new TreeSet<>();
+        for (java.lang.reflect.Field field : Version.class.getDeclaredFields()) {
+            if (Modifier.isStatic(field.getModifiers()) && field.getType() == Version.class) {
+                Version v = (Version)field.get(Version.class);
+                if (v.snapshot()) continue;
+                if (v.onOrBefore(Version.V_0_20_6)) continue;
+
+                expectedVersions.add("index-" + v.toString() + ".zip");
+            }
+        }
+        
+        for (String index : indexes) {
+            if (expectedVersions.remove(index) == false) {
+                logger.warn("Old indexes tests contain extra index: " + index);
+            }
+        }
+        if (expectedVersions.isEmpty() == false) {
+            StringBuilder msg = new StringBuilder("Old index tests are missing indexes:");
+            for (String expected : expectedVersions) {
+                msg.append("\n" + expected);
+            }
+            fail(msg.toString());
+        }
+    }
 
     public void testOldIndexes() throws Exception {
         Collections.shuffle(indexes, getRandom());
@@ -99,9 +143,12 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         unloadIndex();
     }
     
+    Version extractVersion(String index) {
+        return Version.fromString(index.substring(index.indexOf('-') + 1, index.lastIndexOf('.')));
+    }
+    
     boolean isLatestLuceneVersion(String index) {
-        String versionStr = index.substring(index.indexOf('-') + 1, index.lastIndexOf('.'));
-        Version version = Version.fromString(versionStr);
+        Version version = extractVersion(index);
         return version.luceneVersion.major == Version.CURRENT.luceneVersion.major &&
                version.luceneVersion.minor == Version.CURRENT.luceneVersion.minor;
     }
@@ -148,7 +195,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         ensureGreen("test");
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
             .put("number_of_replicas", numReplicas)).execute().actionGet());
-        ensureGreen("test"); // TODO: what is the proper way to wait for new replicas to recover?
+        ensureGreen(TimeValue.timeValueMinutes(1), "test"); // this can take a while when the number of replicas is high
 
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
             .put("number_of_replicas", 0))

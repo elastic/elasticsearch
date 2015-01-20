@@ -28,7 +28,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SimpleCollector;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XCollector;
@@ -177,11 +176,6 @@ public class AggregationPhase implements SearchPhase {
         @Override
         public void doSetNextReader(LeafReaderContext context) throws IOException {
             aggregationContext.setNextReader(context);
-        }
-
-        @Override
-        public boolean acceptsDocsOutOfOrder() {
-            return !aggregationContext.scoreDocsInOrder();
         }
 
         @Override

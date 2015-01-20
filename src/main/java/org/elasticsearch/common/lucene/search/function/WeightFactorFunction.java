@@ -65,7 +65,7 @@ public class WeightFactorFunction extends ScoreFunction {
     }
 
     @Override
-    public Explanation explainScore(int docId, float score) {
+    public Explanation explainScore(int docId, float score) throws IOException {
         Explanation functionScoreExplanation;
         Explanation functionExplanation = scoreFunction.explainScore(docId, score);
         functionScoreExplanation = new ComplexExplanation(true, functionExplanation.getValue() * (float) getWeight(), "product of:");

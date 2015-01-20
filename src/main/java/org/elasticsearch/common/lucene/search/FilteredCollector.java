@@ -77,10 +77,6 @@ public class FilteredCollector implements XCollector {
                 public void collect(int doc) throws IOException {
                     // no-op
                 }
-                @Override
-                public boolean acceptsDocsOutOfOrder() {
-                    return true;
-                }
             };
         }
 
@@ -97,12 +93,6 @@ public class FilteredCollector implements XCollector {
                 } else {
                     in.collect(doc);
                 }
-            }
-
-            @Override
-            public boolean acceptsDocsOutOfOrder() {
-                // we only support iterating in order because the iterator can only advance
-                return false;
             }
         };
     }

@@ -13,7 +13,7 @@ After how many operations to flush. Defaults to `unlimited`.
 
 `index.translog.flush_threshold_size`:: 
 
-Once the translog hits this size, a flush will happen. Defaults to `200mb`.
+Once the translog hits this size, a flush will happen. Defaults to `512mb`.
 
 `index.translog.flush_threshold_period`:: 
 

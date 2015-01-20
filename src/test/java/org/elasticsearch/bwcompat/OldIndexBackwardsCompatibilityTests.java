@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.rest.action.admin.indices.upgrade.UpgradeTest;
@@ -193,7 +194,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         ensureGreen("test");
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
             .put("number_of_replicas", numReplicas)).execute().actionGet());
-        ensureGreen("test"); // TODO: what is the proper way to wait for new replicas to recover?
+        ensureGreen(TimeValue.timeValueMinutes(1), "test"); // this can take a while when the number of replicas is high
 
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
             .put("number_of_replicas", 0))

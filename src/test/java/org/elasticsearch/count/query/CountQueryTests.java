@@ -43,7 +43,7 @@ import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
-public class SimpleQueryTests extends ElasticsearchIntegrationTest {
+public class CountQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void passQueryAsStringTest() throws Exception {

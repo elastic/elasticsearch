@@ -64,7 +64,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 
-public class SimpleQueryTests extends ElasticsearchIntegrationTest {
+public class SearchQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testOmitNormsOnAll() throws ExecutionException, InterruptedException, IOException {

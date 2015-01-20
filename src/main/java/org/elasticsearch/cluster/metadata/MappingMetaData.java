@@ -177,7 +177,7 @@ public class MappingMetaData {
 
 
         public static final Timestamp EMPTY = new Timestamp(false, null, TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT,
-                TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP);
+                TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP, null);
 
         private final boolean enabled;
 
@@ -191,7 +191,9 @@ public class MappingMetaData {
 
         private final String defaultTimestamp;
 
-        public Timestamp(boolean enabled, String path, String format, String defaultTimestamp) {
+        private final Boolean ignoreMissing;
+
+        public Timestamp(boolean enabled, String path, String format, String defaultTimestamp, Boolean ignoreMissing) {
             this.enabled = enabled;
             this.path = path;
             if (path == null) {
@@ -202,6 +204,7 @@ public class MappingMetaData {
             this.format = format;
             this.dateTimeFormatter = Joda.forPattern(format);
             this.defaultTimestamp = defaultTimestamp;
+            this.ignoreMissing = ignoreMissing;
         }
 
         public boolean enabled() {
@@ -232,6 +235,10 @@ public class MappingMetaData {
             return this.defaultTimestamp != null;
         }
 
+        public Boolean ignoreMissing() {
+            return ignoreMissing;
+        }
+
         public FormatDateTimeFormatter dateTimeFormatter() {
             return this.dateTimeFormatter;
         }
@@ -247,6 +254,7 @@ public class MappingMetaData {
             if (format != null ? !format.equals(timestamp.format) : timestamp.format != null) return false;
             if (path != null ? !path.equals(timestamp.path) : timestamp.path != null) return false;
             if (defaultTimestamp != null ? !defaultTimestamp.equals(timestamp.defaultTimestamp) : timestamp.defaultTimestamp != null) return false;
+            if (ignoreMissing != null ? !ignoreMissing.equals(timestamp.ignoreMissing) : timestamp.ignoreMissing != null) return false;
             if (!Arrays.equals(pathElements, timestamp.pathElements)) return false;
 
             return true;
@@ -260,6 +268,7 @@ public class MappingMetaData {
             result = 31 * result + (pathElements != null ? Arrays.hashCode(pathElements) : 0);
             result = 31 * result + (dateTimeFormatter != null ? dateTimeFormatter.hashCode() : 0);
             result = 31 * result + (defaultTimestamp != null ? defaultTimestamp.hashCode() : 0);
+            result = 31 * result + (ignoreMissing != null ? ignoreMissing.hashCode() : 0);
             return result;
         }
     }
@@ -278,7 +287,9 @@ public class MappingMetaData {
         this.source = docMapper.mappingSource();
         this.id = new Id(docMapper.idFieldMapper().path());
         this.routing = new Routing(docMapper.routingFieldMapper().required(), docMapper.routingFieldMapper().path());
-        this.timestamp = new Timestamp(docMapper.timestampFieldMapper().enabled(), docMapper.timestampFieldMapper().path(), docMapper.timestampFieldMapper().dateTimeFormatter().format(), docMapper.timestampFieldMapper().defaultTimestamp());
+        this.timestamp = new Timestamp(docMapper.timestampFieldMapper().enabled(), docMapper.timestampFieldMapper().path(),
+                docMapper.timestampFieldMapper().dateTimeFormatter().format(), docMapper.timestampFieldMapper().defaultTimestamp(),
+                docMapper.timestampFieldMapper().ignoreMissing());
         this.hasParentField = docMapper.parentFieldMapper().active();
     }
 
@@ -344,6 +355,7 @@ public class MappingMetaData {
             String path = null;
             String format = TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT;
             String defaultTimestamp = TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP;
+            Boolean ignoreMissing = null;
             Map<String, Object> timestampNode = (Map<String, Object>) withoutType.get("_timestamp");
             for (Map.Entry<String, Object> entry : timestampNode.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
@@ -356,9 +368,11 @@ public class MappingMetaData {
                     format = fieldNode.toString();
                 } else if (fieldName.equals("default") && fieldNode != null) {
                     defaultTimestamp = fieldNode.toString();
+                } else if (fieldName.equals("ignore_missing")) {
+                    ignoreMissing = nodeBooleanValue(fieldNode);
                 }
             }
-            this.timestamp = new Timestamp(enabled, path, format, defaultTimestamp);
+            this.timestamp = new Timestamp(enabled, path, format, defaultTimestamp, ignoreMissing);
         } else {
             this.timestamp = Timestamp.EMPTY;
         }
@@ -554,6 +568,10 @@ public class MappingMetaData {
                 out.writeBoolean(false);
             }
         }
+        // TODO Remove the test in elasticsearch 2.0.0
+        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+            out.writeOptionalBoolean(mappingMd.timestamp().ignoreMissing());
+        }
         out.writeBoolean(mappingMd.hasParentField());
     }
 
@@ -591,8 +609,19 @@ public class MappingMetaData {
         // routing
         Routing routing = new Routing(in.readBoolean(), in.readBoolean() ? in.readString() : null);
         // timestamp
-        Timestamp timestamp = new Timestamp(in.readBoolean(), in.readBoolean() ? in.readString() : null, in.readString(),
-                in.getVersion().onOrAfter(Version.V_1_4_0_Beta1) ? (in.readBoolean() ? in.readString() : null) : TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP);
+
+        boolean enabled = in.readBoolean();
+        String path = in.readOptionalString();
+        String format = in.readString();
+        String defaultTimestamp = in.getVersion().onOrAfter(Version.V_1_4_0_Beta1) ? (in.readBoolean() ? in.readString() : null) : TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP;
+        Boolean ignoreMissing = null;
+
+        // TODO Remove the test in elasticsearch 2.0.0
+        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+            ignoreMissing = in.readOptionalBoolean();
+        }
+
+        final Timestamp timestamp = new Timestamp(enabled, path, format, defaultTimestamp, ignoreMissing);
         final boolean hasParentField = in.readBoolean();
         return new MappingMetaData(type, source, id, routing, timestamp, hasParentField);
     }

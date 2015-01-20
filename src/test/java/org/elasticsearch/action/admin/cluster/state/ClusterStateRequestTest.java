@@ -28,6 +28,9 @@ import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
+/**
+ * Unit tests for the {@link ClusterStateRequest}.
+ */
 public class ClusterStateRequestTest extends ElasticsearchTestCase {
 
     @Test

@@ -6,9 +6,13 @@
 package org.elasticsearch.shield.authz;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ShieldIntegrationTest;
+import org.junit.Before;
 import org.junit.Test;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
@@ -17,6 +21,8 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.is;
 
 @ClusterScope(scope = Scope.SUITE)
 public class IndexAliasesTests extends ShieldIntegrationTest {
@@ -66,6 +72,14 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
                 "aliases_only:\n" +
                 "  indices:\n" +
                 "    'alias_*,test_*': manage_aliases\n";
+    }
+
+    @Before
+    public void createBogusIndex() {
+        if (randomBoolean()) {
+            //randomly create an index with two aliases from user admin, to make sure it doesn't affect any of the test results
+            assertAcked(client().admin().indices().prepareCreate("index1").addAlias(new Alias("alias1")).addAlias(new Alias("alias2")));
+        }
     }
 
     @Test
@@ -128,6 +142,34 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
             fail("remove alias should have failed due to missing manage_aliases privileges");
         } catch(IndexMissingException e) {
             assertThat(e.getMessage(), containsString("[_all]"));
+        }
+    }
+
+    @Test
+    public void testGetAliasesCreateOnlyPermission() {
+        //user has create permission only: allows to create indices, manage_aliases is required to retrieve aliases though
+        try {
+            client().admin().indices().prepareGetAliases("test_1").setIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only", new SecuredString("test123".toCharArray()))).get();
+            fail("get alias should have failed due to missing manage_aliases privileges");
+        } catch(AuthorizationException e) {
+            assertThat(e.getMessage(), containsString("action [indices:admin/aliases/get] is unauthorized for user [create_only]"));
+        }
+
+        try {
+            client().admin().indices().prepareGetAliases("_all").setIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only", new SecuredString("test123".toCharArray()))).get();
+            fail("get alias should have failed due to missing manage_aliases privileges");
+        } catch(IndexMissingException e) {
+            assertThat(e.getMessage(), containsString("[_all]"));
+        }
+
+        try {
+            client().admin().indices().prepareGetAliases("test_alias").setIndices("test_*").setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only", new SecuredString("test123".toCharArray()))).get();
+            fail("get alias should have failed due to missing manage_aliases privileges");
+        } catch(IndexMissingException e) {
+            assertThat(e.getMessage(), containsString("[test_*]"));
         }
     }
 
@@ -214,6 +256,53 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
             fail("remove alias should have failed due to missing manage_aliases privileges on alias_1");
         } catch(AuthorizationException e) {
             assertThat(e.getMessage(), containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test]"));
+        }
+    }
+
+    @Test
+    public void testGetAliasesCreateAndAliasesPermission() {
+        //user has create and manage_aliases permission on test_*. manage_aliases is required to retrieve aliases on both aliases and indices
+
+        assertAcked(client().admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias"))
+                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test", new SecuredString("test123".toCharArray()))));
+
+        //ok: user has manage_aliases on test_*
+        assertAliases(client().admin().indices().prepareGetAliases().setAliases("test_alias").setIndices("test_1")
+                        .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test", new SecuredString("test123".toCharArray()))),
+                "test_1", "test_alias");
+
+        //ok: user has manage_aliases on test_*, test_* gets resolved to test_1
+        assertAliases(client().admin().indices().prepareGetAliases().setAliases("test_alias").setIndices("test_*")
+                        .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test", new SecuredString("test123".toCharArray()))),
+                "test_1", "test_alias");
+
+        //ok: user has manage_aliases on test_*, empty indices gets resolved to _all indices (thus test_1)
+        assertAliases(client().admin().indices().prepareGetAliases().setAliases("test_alias")
+                        .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test", new SecuredString("test123".toCharArray()))),
+                "test_1", "test_alias");
+
+        //ok: user has manage_aliases on test_*, _all aliases gets resolved to test_alias and empty indices gets resolved to  _all indices (thus test_1)
+        assertAliases(client().admin().indices().prepareGetAliases().setAliases("_all").setIndices("test_1")
+                        .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test", new SecuredString("test123".toCharArray()))),
+                "test_1", "test_alias");
+
+        //ok: user has manage_aliases on test_*, test_* aliases gets resolved to test_alias and empty indices gets resolved to  _all indices (thus test_1)
+        assertAliases(client().admin().indices().prepareGetAliases().setAliases("test_*").setIndices("test_1")
+                        .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test", new SecuredString("test123".toCharArray()))),
+                "test_1", "test_alias");
+
+        //ok: user has manage_aliases on test_*, _all aliases gets resolved to test_alias and _all indices becomes test_1
+        assertAliases(client().admin().indices().prepareGetAliases().setAliases("_all").setIndices("_all")
+                        .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test", new SecuredString("test123".toCharArray()))),
+                "test_1", "test_alias");
+
+        try {
+            //fails: user doesn't have manage_aliases on alias_1
+            client().admin().indices().prepareGetAliases().setAliases("alias_1")
+                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test", new SecuredString("test123".toCharArray()))).get();
+            fail("get alias should have failed due to missing manage_aliases privileges on alias_1");
+        } catch(AuthorizationException e) {
+            assertThat(e.getMessage(), containsString("action [indices:admin/aliases/get] is unauthorized for user [create_test_aliases_test]"));
         }
     }
 
@@ -305,6 +394,58 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
     }
 
     @Test
+    public void testGetAliasesCreateAndAliasesPermission2() {
+        //user has create permission on test_* and manage_aliases permission on alias_*. manage_aliases is required to retrieve aliases on both aliases and indices
+        assertAcked(client().admin().indices().prepareCreate("test_1")
+                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_alias", new SecuredString("test123".toCharArray()))));
+
+        try {
+            //fails: user doesn't have manage aliases on test_1, nor test_alias
+            client().admin().indices().prepareGetAliases().setAliases("test_alias").setIndices("test_1")
+                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_alias", new SecuredString("test123".toCharArray()))).get();
+            fail("get alias should have failed due to missing manage_aliases privileges on test_alias and test_1");
+        } catch(AuthorizationException e) {
+            assertThat(e.getMessage(), containsString("action [indices:admin/aliases/get] is unauthorized for user [create_test_aliases_alias]"));
+        }
+
+        try {
+            //fails: user doesn't have manage aliases on test_*, no matching indices to replace wildcards
+            client().admin().indices().prepareGetAliases().setIndices("test_*").setAliases("test_alias")
+                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_alias", new SecuredString("test123".toCharArray()))).get();
+            fail("get alias should have failed due to missing manage_aliases privileges on test_*");
+        } catch(IndexMissingException e) {
+            assertThat(e.getMessage(), containsString("[test_*]"));
+        }
+
+        try {
+            //fails: no existing indices to replace empty indices (thus _all)
+            client().admin().indices().prepareGetAliases().setAliases("test_alias")
+                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_alias", new SecuredString("test123".toCharArray()))).get();
+            fail("get alias should have failed due to missing manage_aliases privileges on any index");
+        } catch(IndexMissingException e) {
+            assertThat(e.getMessage(), containsString("[_all]"));
+        }
+
+        try {
+            //fails: no existing aliases to replace wildcards
+            client().admin().indices().prepareGetAliases().setIndices("test_1").setAliases("test_*")
+                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_alias", new SecuredString("test123".toCharArray()))).get();
+            fail("get alias should have failed due to missing manage_aliases privileges on test_1");
+        } catch(IndexMissingException e) {
+            assertThat(e.getMessage(), containsString("[test_*]"));
+        }
+
+        try {
+            //fails: no existing aliases to replace _all
+            client().admin().indices().prepareGetAliases().setIndices("test_1").setAliases("_all")
+                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_alias", new SecuredString("test123".toCharArray()))).get();
+            fail("get alias should have failed due to missing manage_aliases privileges on test_1");
+        } catch(IndexMissingException e) {
+            assertThat(e.getMessage(), containsString("[_all]"));
+        }
+    }
+
+    @Test
     public void testCreateIndexThenAliasesCreateAndAliasesPermission3() {
         //user has create permission on test_* and manage_aliases permission on test_*,alias_*. All good.
         assertAcked(client().admin().indices().prepareCreate("test_1")
@@ -363,9 +504,79 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
         }
     }
 
+    @Test
+    public void testGetAliasesCreateAndAliasesPermission3() {
+        //user has create permission on test_* and manage_aliases permission on test_*,alias_*. All good.
+        assertAcked(client().admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias")).addAlias(new Alias("alias_1"))
+                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test_alias", new SecuredString("test123".toCharArray()))));
+
+        assertAliases(client().admin().indices().prepareGetAliases().setAliases("test_alias").setIndices("test_1")
+                        .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test_alias", new SecuredString("test123".toCharArray()))),
+                "test_1", "test_alias");
+
+        assertAliases(client().admin().indices().prepareGetAliases().setAliases("alias_1").setIndices("test_1")
+                        .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test_alias", new SecuredString("test123".toCharArray()))),
+                "test_1", "alias_1");
+
+        assertAliases(client().admin().indices().prepareGetAliases().setAliases("alias_1").setIndices("test_*")
+                        .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test_alias", new SecuredString("test123".toCharArray()))),
+                "test_1", "alias_1");
+
+        assertAliases(client().admin().indices().prepareGetAliases().setAliases("test_*").setIndices("test_1")
+                        .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test_alias", new SecuredString("test123".toCharArray()))),
+                "test_1", "test_alias");
+
+        assertAliases(client().admin().indices().prepareGetAliases().setAliases("_all").setIndices("test_1")
+                        .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test_alias", new SecuredString("test123".toCharArray()))),
+                "test_1", "alias_1", "test_alias");
+
+        assertAliases(client().admin().indices().prepareGetAliases().setAliases("_all")
+                        .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test_alias", new SecuredString("test123".toCharArray()))),
+                "test_1", "alias_1", "test_alias");
+
+        assertAliases(client().admin().indices().prepareGetAliases().setAliases("alias_*").setIndices("test_*")
+                        .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test_alias", new SecuredString("test123".toCharArray()))),
+                "test_1", "alias_1");
+    }
+
     @Test(expected = AuthorizationException.class)
     public void testCreateIndexAliasesOnlyPermission() {
         client().admin().indices().prepareCreate("test_1")
                 .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("aliases_only", new SecuredString("test123".toCharArray()))).get();
+    }
+
+    @Test
+    public void testGetAliasesAliasesOnlyPermission() {
+        //user has manage_aliases only permissions on both alias_* and test_*
+
+        //ok: manage_aliases on both test_* and alias_*
+        GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases("alias_1").addIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("aliases_only", new SecuredString("test123".toCharArray()))).get();
+        assertThat(getAliasesResponse.getAliases().isEmpty(), is(true));
+
+        try {
+            //fails: no manage_aliases privilege on non_authorized alias
+            client().admin().indices().prepareGetAliases("non_authorized").addIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("aliases_only", new SecuredString("test123".toCharArray()))).get();
+        } catch(AuthorizationException e) {
+            assertThat(e.getMessage(), containsString("action [indices:admin/aliases/get] is unauthorized for user [aliases_only]"));
+        }
+
+        try {
+            //fails: no manage_aliases privilege on non_authorized index
+            client().admin().indices().prepareGetAliases("alias_1").addIndices("non_authorized").setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("aliases_only", new SecuredString("test123".toCharArray()))).get();
+        } catch(AuthorizationException e) {
+            assertThat(e.getMessage(), containsString("action [indices:admin/aliases/get] is unauthorized for user [aliases_only]"));
+        }
+    }
+
+    private static void assertAliases(GetAliasesRequestBuilder getAliasesRequestBuilder, String index, String... aliases) {
+        GetAliasesResponse getAliasesResponse = getAliasesRequestBuilder.get();
+        assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get(index).size(), equalTo(aliases.length));
+        for (int i = 0; i < aliases.length; i++) {
+            assertThat(getAliasesResponse.getAliases().get(index).get(i).alias(), equalTo(aliases[i]));
+        }
     }
 }

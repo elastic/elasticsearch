@@ -8,11 +8,14 @@ package org.elasticsearch.shield.authz.indicesresolver;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.collect.*;
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.hppc.ObjectLookupContainer;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.Index;
@@ -68,82 +71,108 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
                 ImmutableList<String> authorizedIndices = authzService.authorizedIndicesAndAliases(user, action);
                 List<String> indices = replaceWildcardsWithAuthorizedIndices(indicesRequest.indices(), indicesRequest.indicesOptions(), metaData, authorizedIndices);
                 ((IndicesRequest.Replaceable) indicesRequest).indices(indices.toArray(new String[indices.size()]));
-                return Sets.newHashSet(indices);
+            } else {
+                assert indicesRequest instanceof IndicesAliasesRequest || !containsWildcards(indicesRequest) :
+                        "IndicesAliasesRequest is the only external request known to support wildcards that doesn't support replacing its indices";
+
+                //NOTE: shard level requests do support wildcards (as they hold the original indices options) but don't support replacing their indices.
+                //That is fine though because they never contain wildcards, as they get replaced as part of the authorization of their
+                //corresponding parent request on the coordinating node. Hence wildcards don't need to get replaced nor exploded for shard level requests.
             }
-
-            assert indicesRequest instanceof IndicesAliasesRequest || !containsWildcards(indicesRequest) :
-                    "IndicesAliasesRequest is the only external request known to support wildcards that doesn't support replacing its indices";
-
-            //NOTE: shard level requests do support wildcards (as they hold the original indices options) but don't support replacing their indices.
-            //That is fine though because they never contain wildcards, as they get replaced as part of the authorization of their
-            //corresponding parent request on the coordinating node. Hence wildcards don't need to get replaced nor exploded for shard level requests.
         }
 
         if (indicesRequest instanceof IndicesAliasesRequest) {
             //special treatment for IndicesAliasesRequest since we need to extract indices from indices() as well as aliases()
             //Also, we need to replace wildcards in both with authorized indices and/or aliases (IndicesAliasesRequest doesn't implement Replaceable)
-            IndicesAliasesRequest request = (IndicesAliasesRequest) indicesRequest;
+            return resolveIndicesAliasesRequest(user, action, (IndicesAliasesRequest) indicesRequest, metaData);
+        }
 
-            ImmutableList<String> authorizedIndices = authzService.authorizedIndicesAndAliases(user, action);
-            Set<String> finalIndices = Sets.newHashSet();
-
-            List<String> authorizedAliases = null;
-
-            for (IndicesAliasesRequest.AliasActions aliasActions : request.getAliasActions()) {
-                //replace indices with authorized ones if needed
-                if (indicesRequest.indicesOptions().expandWildcardsOpen() || indicesRequest.indicesOptions().expandWildcardsClosed()) {
-                    //Note: the indices that the alias operation maps to might end up containing aliases, since authorized indices can also be aliases.
-                    //This is fine as es core resolves them to concrete indices anyway before executing the actual operation.
-                    //Also es core already allows to specify aliases among indices, they will just be resolved (alias to alias is not supported).
-                    //e.g. index: foo* gets resolved in core to anything that matches the expression, aliases included, hence their corresponding indices.
-                    List<String> indices = replaceWildcardsWithAuthorizedIndices(aliasActions.indices(), indicesRequest.indicesOptions(), metaData, authorizedIndices);
-                    aliasActions.indices(indices.toArray(new String[indices.size()]));
-                }
-                Collections.addAll(finalIndices, aliasActions.indices());
-
-                //replace aliases with authorized ones if needed
-                if (aliasActions.actionType() == AliasAction.Type.REMOVE) {
-                    //lazily initialize a list of all the authorized aliases (filtering concrete indices out)
-                    if (authorizedAliases == null) {
-                        authorizedAliases = Lists.newArrayList();
-                        ObjectLookupContainer<String> existingAliases = metaData.aliases().keys();
-                        for (String authorizedIndex : authorizedIndices) {
-                            if (existingAliases.contains(authorizedIndex)) {
-                                authorizedAliases.add(authorizedIndex);
-                            }
-                        }
-                    }
-
-                    List<String> finalAliases = Lists.newArrayList();
-                    for (String aliasPattern : aliasActions.aliases()) {
-                        if (aliasPattern.equals(MetaData.ALL)) {
-                            finalAliases.addAll(authorizedAliases);
-                        } else if (Regex.isSimpleMatchPattern(aliasPattern)) {
-                            for (String authorizedAlias : authorizedAliases) {
-                                if (Regex.simpleMatch(aliasPattern, authorizedAlias)) {
-                                    finalAliases.add(authorizedAlias);
-                                }
-                            }
-                        } else {
-                            finalAliases.add(aliasPattern);
-                        }
-                    }
-
-                    //throw exception if the wildcards expansion to authorized aliases resulted in no indices.
-                    // This is important as we always need to replace wildcards for security reason,
-                    //to make sure that the operation is executed on the aliases that we authorized it to execute on.
-                    //If we can't replace because we got an empty set, we can only throw exception.
-                    if (finalAliases.isEmpty()) {
-                        throw new IndexMissingException(new Index(Arrays.toString(aliasActions.aliases())));
-                    }
-                    aliasActions.aliases(finalAliases.toArray(new String[finalAliases.size()]));
-                }
-                Collections.addAll(finalIndices, aliasActions.aliases());
-            }
-            return finalIndices;
+        if (indicesRequest instanceof GetAliasesRequest) {
+            //special treatment for GetAliasesRequest since we need to replace wildcards among the specified aliases.
+            //GetAliasesRequest implements IndicesRequest.Replaceable, hence its indices have already been properly replaced.
+            return resolveGetAliasesRequest(user, action, (GetAliasesRequest) indicesRequest, metaData);
         }
 
         return Sets.newHashSet(indicesRequest.indices());
+    }
+
+    private Set<String> resolveGetAliasesRequest(User user, String action, GetAliasesRequest request, MetaData metaData) {
+        ImmutableList<String> authorizedIndices = authzService.authorizedIndicesAndAliases(user, action);
+        List<String> aliases = replaceWildcardsWithAuthorizedAliases(request.aliases(), loadAuthorizedAliases(authorizedIndices, metaData));
+        request.aliases(aliases.toArray(new String[aliases.size()]));
+        Set<String> indices = Sets.newHashSet(request.indices());
+        indices.addAll(aliases);
+        return indices;
+    }
+
+    private Set<String> resolveIndicesAliasesRequest(User user, String action, IndicesAliasesRequest request, MetaData metaData) {
+        ImmutableList<String> authorizedIndices = authzService.authorizedIndicesAndAliases(user, action);
+        Set<String> finalIndices = Sets.newHashSet();
+
+        List<String> authorizedAliases = null;
+
+        for (IndicesAliasesRequest.AliasActions aliasActions : request.getAliasActions()) {
+            //replace indices with authorized ones if needed
+            if (request.indicesOptions().expandWildcardsOpen() || request.indicesOptions().expandWildcardsClosed()) {
+                //Note: the indices that the alias operation maps to might end up containing aliases, since authorized indices can also be aliases.
+                //This is fine as es core resolves them to concrete indices anyway before executing the actual operation.
+                //Also es core already allows to specify aliases among indices, they will just be resolved (alias to alias is not supported).
+                //e.g. index: foo* gets resolved in core to anything that matches the expression, aliases included, hence their corresponding indices.
+                List<String> indices = replaceWildcardsWithAuthorizedIndices(aliasActions.indices(), request.indicesOptions(), metaData, authorizedIndices);
+                aliasActions.indices(indices.toArray(new String[indices.size()]));
+            }
+            Collections.addAll(finalIndices, aliasActions.indices());
+
+            //replace aliases with authorized ones if needed
+            if (aliasActions.actionType() == AliasAction.Type.REMOVE) {
+                //lazily initialize a list of all the authorized aliases (filtering concrete indices out)
+                if (authorizedAliases == null) {
+                    authorizedAliases = loadAuthorizedAliases(authorizedIndices, metaData);
+                }
+
+                List<String> aliases = replaceWildcardsWithAuthorizedAliases(aliasActions.aliases(), authorizedAliases);
+                aliasActions.aliases(aliases.toArray(new String[aliases.size()]));
+            }
+            Collections.addAll(finalIndices, aliasActions.aliases());
+        }
+        return finalIndices;
+    }
+
+    private List<String> loadAuthorizedAliases(List<String> authorizedIndices, MetaData metaData) {
+        List<String> authorizedAliases = Lists.newArrayList();
+        ObjectLookupContainer<String> existingAliases = metaData.aliases().keys();
+        for (String authorizedIndex : authorizedIndices) {
+            if (existingAliases.contains(authorizedIndex)) {
+                authorizedAliases.add(authorizedIndex);
+            }
+        }
+        return authorizedAliases;
+    }
+
+    private List<String> replaceWildcardsWithAuthorizedAliases(String[] aliases, List<String> authorizedAliases) {
+        List<String> finalAliases = Lists.newArrayList();
+        for (String aliasPattern : aliases) {
+            if (aliasPattern.equals(MetaData.ALL)) {
+                finalAliases.addAll(authorizedAliases);
+            } else if (Regex.isSimpleMatchPattern(aliasPattern)) {
+                for (String authorizedAlias : authorizedAliases) {
+                    if (Regex.simpleMatch(aliasPattern, authorizedAlias)) {
+                        finalAliases.add(authorizedAlias);
+                    }
+                }
+            } else {
+                finalAliases.add(aliasPattern);
+            }
+        }
+
+        //throw exception if the wildcards expansion to authorized aliases resulted in no indices.
+        // This is important as we always need to replace wildcards for security reason,
+        //to make sure that the operation is executed on the aliases that we authorized it to execute on.
+        //If we can't replace because we got an empty set, we can only throw exception.
+        if (finalAliases.isEmpty()) {
+            throw new IndexMissingException(new Index(Arrays.toString(aliases)));
+        }
+        return finalAliases;
     }
 
     private boolean containsWildcards(IndicesRequest indicesRequest) {

@@ -10,6 +10,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.common.Strings;
@@ -107,8 +108,8 @@ public abstract class Privilege<P extends Privilege<P>> {
         public static final Index NONE =            new Index(Name.NONE,        Automata.makeEmpty());
         public static final Index ALL =             new Index(Name.ALL,         "indices:*");
         public static final Index MANAGE =          new Index("manage",         "indices:monitor/*", "indices:admin/*");
-        public static final Index CREATE_INDEX =    new Index("create_index",   "indices:admin/create");
-        public static final Index MANAGE_ALIASES =  new Index("manage_aliases", "indices:admin/aliases");
+        public static final Index CREATE_INDEX =    new Index("create_index",   CreateIndexAction.NAME);
+        public static final Index MANAGE_ALIASES =  new Index("manage_aliases", "indices:admin/aliases*");
         public static final Index MONITOR =         new Index("monitor",        "indices:monitor/*");
         public static final Index DATA_ACCESS =     new Index("data_access",    "indices:data/*");
         public static final Index CRUD =            new Index("crud",           "indices:data/write/*", "indices:data/read/*");

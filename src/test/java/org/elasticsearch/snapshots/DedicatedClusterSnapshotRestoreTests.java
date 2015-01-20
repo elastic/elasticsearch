@@ -51,11 +51,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.store.support.AbstractIndexStore;
+import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -66,6 +67,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -82,16 +84,29 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
     @Test
     public void restorePersistentSettingsTest() throws Exception {
-        logger.info("--> start node");
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        logger.info("--> start 2 nodes");
+        Settings nodeSettings = settingsBuilder()
+                .put("discovery.type", "zen")
+                .put("discovery.zen.ping_timeout", "200ms")
+                .put("discovery.initial_state_timeout", "500ms")
+                .build();
+        internalCluster().startNode(nodeSettings);
         Client client = client();
+        String secondNode = internalCluster().startNode(nodeSettings);
 
-        // Add dummy persistent setting
+        int random = randomIntBetween(10, 42);
+
         logger.info("--> set test persistent setting");
-        String settingValue = "test-" + randomInt();
-        client.admin().cluster().prepareUpdateSettings().setPersistentSettings(ImmutableSettings.settingsBuilder().put(ThreadPool.THREADPOOL_GROUP + "dummy.value", settingValue)).execute().actionGet();
+        client.admin().cluster().prepareUpdateSettings().setPersistentSettings(
+                ImmutableSettings.settingsBuilder()
+                        .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 2)
+                        .put(IndicesTTLService.INDICES_TTL_INTERVAL, random, TimeUnit.MINUTES))
+                .execute().actionGet();
+
         assertThat(client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).execute().actionGet().getState()
-                .getMetaData().persistentSettings().get(ThreadPool.THREADPOOL_GROUP + "dummy.value"), equalTo(settingValue));
+                .getMetaData().persistentSettings().getAsTime(IndicesTTLService.INDICES_TTL_INTERVAL, TimeValue.timeValueMinutes(1)).millis(), equalTo(TimeValue.timeValueMinutes(random).millis()));
+        assertThat(client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).execute().actionGet().getState()
+                .getMetaData().persistentSettings().getAsInt(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, -1), equalTo(2));
 
         logger.info("--> create repository");
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
@@ -105,14 +120,25 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute().actionGet().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
 
         logger.info("--> clean the test persistent setting");
-        client.admin().cluster().prepareUpdateSettings().setPersistentSettings(ImmutableSettings.settingsBuilder().put(ThreadPool.THREADPOOL_GROUP + "dummy.value", "")).execute().actionGet();
+        client.admin().cluster().prepareUpdateSettings().setPersistentSettings(
+                ImmutableSettings.settingsBuilder()
+                        .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 1)
+                        .put(IndicesTTLService.INDICES_TTL_INTERVAL, TimeValue.timeValueMinutes(1)))
+                .execute().actionGet();
         assertThat(client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).execute().actionGet().getState()
-                .getMetaData().persistentSettings().get(ThreadPool.THREADPOOL_GROUP + "dummy.value"), equalTo(""));
+                .getMetaData().persistentSettings().getAsTime(IndicesTTLService.INDICES_TTL_INTERVAL, TimeValue.timeValueMinutes(1)).millis(), equalTo(TimeValue.timeValueMinutes(1).millis()));
+
+        stopNode(secondNode);
+        assertThat(client.admin().cluster().prepareHealth().setWaitForNodes("1").get().isTimedOut(), equalTo(false));
 
         logger.info("--> restore snapshot");
         client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setRestoreGlobalState(true).setWaitForCompletion(true).execute().actionGet();
         assertThat(client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).execute().actionGet().getState()
-                .getMetaData().persistentSettings().get(ThreadPool.THREADPOOL_GROUP + "dummy.value"), equalTo(settingValue));
+                .getMetaData().persistentSettings().getAsTime(IndicesTTLService.INDICES_TTL_INTERVAL, TimeValue.timeValueMinutes(1)).millis(), equalTo(TimeValue.timeValueMinutes(random).millis()));
+
+        logger.info("--> ensure that zen discovery minimum master nodes wasn't restored");
+        assertThat(client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).execute().actionGet().getState()
+                .getMetaData().persistentSettings().getAsInt(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, -1), not(equalTo(2)));
     }
 
     @Test
@@ -120,7 +146,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         Path tempDir = newTempDirPath();
 
         logger.info("--> start node");
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        internalCluster().startNode();
         Client client = client();
         createIndex("test-idx");
         ensureYellow();
@@ -358,8 +384,8 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
     @Test
     public void restoreIndexWithMissingShards() throws Exception {
         logger.info("--> start 2 nodes");
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        internalCluster().startNode();
+        internalCluster().startNode();
         cluster().wipeIndices("_all");
 
         logger.info("--> create an index that will have some unallocated shards");
@@ -495,8 +521,8 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
     @Test
     public void restoreIndexWithShardsMissingInLocalGateway() throws Exception {
         logger.info("--> start 2 nodes");
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        internalCluster().startNode();
+        internalCluster().startNode();
         cluster().wipeIndices("_all");
 
         logger.info("--> create repository");
@@ -545,7 +571,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
             }
         }
         logger.info("--> check that at least half of the shards had some reuse: [{}]", reusedShards);
-        assertThat(reusedShards.size(), greaterThanOrEqualTo(numberOfShards/2));
+        assertThat(reusedShards.size(), greaterThanOrEqualTo(numberOfShards / 2));
     }
 
     @Test

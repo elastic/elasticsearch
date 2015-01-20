@@ -50,14 +50,6 @@ public class RareClusterStateTests extends ElasticsearchIntegrationTest {
         return 0;
     }
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("gateway.type", "local")
-                .build();
-    }
-
     @Test
     public void testUnassignedShardAndEmptyNodesInRoutingTable() throws Exception {
         createIndex("a");

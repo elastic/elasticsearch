@@ -34,11 +34,14 @@ import org.elasticsearch.cluster.metadata.RestoreMetaData.ShardRestoreStatus;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
+import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -92,16 +95,20 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
     private final MetaDataCreateIndexService createIndexService;
 
+    private final DynamicSettings dynamicSettings;
+
     private final CopyOnWriteArrayList<ActionListener<RestoreCompletionResponse>> listeners = new CopyOnWriteArrayList<>();
 
     @Inject
-    public RestoreService(Settings settings, ClusterService clusterService, RepositoriesService repositoriesService, TransportService transportService, AllocationService allocationService, MetaDataCreateIndexService createIndexService) {
+    public RestoreService(Settings settings, ClusterService clusterService, RepositoriesService repositoriesService, TransportService transportService,
+                          AllocationService allocationService, MetaDataCreateIndexService createIndexService, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
         super(settings);
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
         this.transportService = transportService;
         this.allocationService = allocationService;
         this.createIndexService = createIndexService;
+        this.dynamicSettings = dynamicSettings;
         transportService.registerHandler(UPDATE_RESTORE_ACTION_NAME, new UpdateRestoreStateRequestHandler());
         clusterService.add(this);
     }
@@ -283,7 +290,24 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                 private void restoreGlobalStateIfRequested(MetaData.Builder mdBuilder) {
                     if (request.includeGlobalState()) {
                         if (metaData.persistentSettings() != null) {
-                            mdBuilder.persistentSettings(metaData.persistentSettings());
+                            boolean changed = false;
+                            ImmutableSettings.Builder persistentSettings = ImmutableSettings.settingsBuilder().put();
+                            for (Map.Entry<String, String> entry : metaData.persistentSettings().getAsMap().entrySet()) {
+                                if (dynamicSettings.isDynamicOrLoggingSetting(entry.getKey())) {
+                                    String error = dynamicSettings.validateDynamicSetting(entry.getKey(), entry.getValue());
+                                    if (error == null) {
+                                        persistentSettings.put(entry.getKey(), entry.getValue());
+                                        changed = true;
+                                    } else {
+                                        logger.warn("ignoring persistent setting [{}], [{}]", entry.getKey(), error);
+                                    }
+                                } else {
+                                    logger.warn("ignoring persistent setting [{}], not dynamically updateable", entry.getKey());
+                                }
+                            }
+                            if (changed) {
+                                mdBuilder.persistentSettings(persistentSettings.build());
+                            }
                         }
                         if (metaData.templates() != null) {
                             // TODO: Should all existing templates be deleted first?

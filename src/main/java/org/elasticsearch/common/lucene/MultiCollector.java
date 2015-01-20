@@ -72,19 +72,6 @@ public class MultiCollector extends SimpleCollector implements XCollector {
     }
 
     @Override
-    public boolean acceptsDocsOutOfOrder() {
-        if (!leafCollector.acceptsDocsOutOfOrder()) {
-            return false;
-        }
-        for (LeafCollector leafCollector : leafCollectors) {
-            if (!leafCollector.acceptsDocsOutOfOrder()) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    @Override
     public void postCollection() throws IOException {
         if (collector instanceof XCollector) {
             ((XCollector) collector).postCollection();

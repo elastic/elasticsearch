@@ -20,12 +20,11 @@
 package org.elasticsearch.action.index;
 
 import com.google.common.base.Charsets;
-import org.elasticsearch.*;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.RoutingMissingException;
-import org.elasticsearch.action.TimestampParsingException;
-import org.elasticsearch.action.DocumentRequest;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -659,11 +658,13 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         if (timestamp == null) {
             String defaultTimestamp = TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP;
             if (mappingMd != null && mappingMd.timestamp() != null) {
+                // If we explicitly ask to reject null timestamp
+                if (mappingMd.timestamp().ignoreMissing() != null && mappingMd.timestamp().ignoreMissing() == false) {
+                    throw new TimestampParsingException("timestamp is required by mapping");
+                }
                 defaultTimestamp = mappingMd.timestamp().defaultTimestamp();
             }
-            if (!Strings.hasText(defaultTimestamp)) {
-                throw new TimestampParsingException("timestamp is required by mapping");
-            }
+
             if (defaultTimestamp.equals(TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP)) {
                 timestamp = Long.toString(System.currentTimeMillis());
             } else {

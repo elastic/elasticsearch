@@ -89,7 +89,7 @@ public final class InnerHitsContext {
             return new ParsedQuery(query, ImmutableMap.<String, Filter>of());
         }
 
-        public abstract TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext);
+        public abstract TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext) throws IOException;
 
         @Override
         public InnerHitsContext innerHits() {
@@ -110,7 +110,7 @@ public final class InnerHitsContext {
         }
 
         @Override
-        public TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext) {
+        public TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext) throws IOException {
             TopDocsCollector topDocsCollector;
             int topN = from() + size();
             if (sort() != null) {
@@ -131,12 +131,8 @@ public final class InnerHitsContext {
             }
             FixedBitSetFilter parentFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(rawParentFilter);
             Filter childFilter = context.filterCache().cache(childObjectMapper.nestedTypeFilter());
-            try {
-                Query q = new XFilteredQuery(query, new NestedChildrenFilter(parentFilter, childFilter, hitContext));
-                context.searcher().search(q, topDocsCollector);
-            } catch (IOException e) {
-                throw ExceptionsHelper.convertToElastic(e);
-            }
+            Query q = new XFilteredQuery(query, new NestedChildrenFilter(parentFilter, childFilter, hitContext));
+            context.searcher().search(q, topDocsCollector);
             return topDocsCollector.topDocs(from(), size());
         }
 
@@ -245,15 +241,11 @@ public final class InnerHitsContext {
         }
 
         @Override
-        public TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext) {
+        public TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext) throws IOException {
             TopDocsCollector topDocsCollector;
             int topN = from() + size();
             if (sort() != null) {
-                try {
-                    topDocsCollector = TopFieldCollector.create(sort(), topN, true, trackScores(), trackScores(), false);
-                } catch (IOException e) {
-                    throw ExceptionsHelper.convertToElastic(e);
-                }
+                topDocsCollector = TopFieldCollector.create(sort(), topN, true, trackScores(), trackScores(), false);
             } else {
                 topDocsCollector = TopScoreDocCollector.create(topN, false);
             }
@@ -270,14 +262,10 @@ public final class InnerHitsContext {
             String term = Uid.createUid(hitContext.hit().type(), hitContext.hit().id());
             Filter filter = new TermFilter(new Term(field, term)); // Only include docs that have the current hit as parent
             Filter typeFilter = documentMapper.typeFilter(); // Only include docs that have this inner hits type.
-            try {
-                context.searcher().search(
-                        new XFilteredQuery(query, new AndFilter(Arrays.asList(filter, typeFilter))),
-                        topDocsCollector
-                );
-            } catch (IOException e) {
-                throw ExceptionsHelper.convertToElastic(e);
-            }
+            context.searcher().search(
+                    new XFilteredQuery(query, new AndFilter(Arrays.asList(filter, typeFilter))),
+                    topDocsCollector
+            );
             return topDocsCollector.topDocs(from(), size());
         }
     }

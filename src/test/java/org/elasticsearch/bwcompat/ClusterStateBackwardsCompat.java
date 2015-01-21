@@ -38,8 +38,7 @@ public class ClusterStateBackwardsCompat extends ElasticsearchBackwardsCompatInt
         Settings settings = ImmutableSettings.settingsBuilder().put("client.transport.ignore_cluster_name", true)
                 .put("node.name", "transport_client_" + getTestName()).build();
 
-        // connect to each node with a custom TransportClient, issue a
-        // ClusterStateRequest to test serialization
+        // connect to each node with a custom TransportClient, issue a ClusterStateRequest to test serialization
         for (NodeInfo n : nodesInfo.getNodes()) {
             TransportClient tc = null;
             try {

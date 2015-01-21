@@ -78,7 +78,7 @@ public class LicensesManagerServiceTests extends AbstractLicensesServiceTests {
 
         // generate a trial license for one feature
         final LicensesClientService clientService = licensesClientService();
-        final TestTrackingClientListener clientListener = new TestTrackingClientListener(false);
+        final TestTrackingClientListener clientListener = new TestTrackingClientListener("shield", false);
         registerWithTrialLicense(clientService, clientListener, "shield", TimeValue.timeValueHours(1)).run();
 
         // generate signed licenses for multiple features

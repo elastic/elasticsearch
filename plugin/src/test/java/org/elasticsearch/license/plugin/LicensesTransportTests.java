@@ -111,7 +111,7 @@ public class LicensesTransportTests extends AbstractLicensesIntegrationTests {
 
     @Test
     public void testPutExpiredLicense() throws Exception {
-        License expiredLicense = generateSignedLicense("expiredFeature", dateMath("now-10d/d", System.currentTimeMillis()), TimeValue.timeValueMinutes(2));
+        License expiredLicense = generateSignedLicense("feature", dateMath("now-10d/d", System.currentTimeMillis()), TimeValue.timeValueMinutes(2));
         License signedLicense = generateSignedLicense("feature", TimeValue.timeValueMinutes(2));
 
         PutLicenseRequestBuilder builder = new PutLicenseRequestBuilder(client().admin().cluster());

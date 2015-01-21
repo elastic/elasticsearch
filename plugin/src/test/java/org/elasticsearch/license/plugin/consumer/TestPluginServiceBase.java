@@ -13,9 +13,13 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.LicensesClientService;
 import org.elasticsearch.license.plugin.core.LicensesService;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class TestPluginServiceBase extends AbstractLifecycleComponent<TestPluginServiceBase> implements ClusterStateListener {
@@ -28,6 +32,37 @@ public abstract class TestPluginServiceBase extends AbstractLifecycleComponent<T
     final LicensesService.TrialLicenseOptions trialLicenseOptions;
 
     final boolean eagerLicenseRegistration;
+
+    final static Collection<LicensesService.ExpirationCallback> expirationCallbacks;
+
+    static {
+        // Callback triggered every 24 hours from 30 days  to 7 days of license expiry
+        final LicensesService.ExpirationCallback.Pre LEVEL_1 = new LicensesService.ExpirationCallback.Pre(TimeValue.timeValueHours(7 * 24), TimeValue.timeValueHours(30 * 24), TimeValue.timeValueHours(24)) {
+            @Override
+            public void on(License license, LicensesService.ExpirationStatus status) {
+            }
+        };
+
+        // Callback triggered every 10 minutes from 7 days to license expiry
+        final LicensesService.ExpirationCallback.Pre LEVEL_2 = new LicensesService.ExpirationCallback.Pre(null, TimeValue.timeValueHours(7 * 24), TimeValue.timeValueMinutes(10)) {
+            @Override
+            public void on(License license, LicensesService.ExpirationStatus status) {
+            }
+        };
+
+        // Callback triggered every 10 minutes after license expiry
+        final LicensesService.ExpirationCallback.Post LEVEL_3 = new LicensesService.ExpirationCallback.Post(TimeValue.timeValueMillis(0), null, TimeValue.timeValueMinutes(10)) {
+            @Override
+            public void on(License license, LicensesService.ExpirationStatus status) {
+            }
+        };
+
+        expirationCallbacks = new ArrayList<>();
+        expirationCallbacks.add(LEVEL_1);
+        expirationCallbacks.add(LEVEL_2);
+        expirationCallbacks.add(LEVEL_3);
+    }
+
 
     public final AtomicBoolean registered = new AtomicBoolean(false);
 
@@ -68,7 +103,7 @@ public abstract class TestPluginServiceBase extends AbstractLifecycleComponent<T
             if (registered.compareAndSet(false, true)) {
                 logger.info("Registering to licensesService [lazy]");
                 licensesClientService.register(featureName(),
-                        trialLicenseOptions,
+                        trialLicenseOptions, expirationCallbacks,
                         new LicensingClientListener());
             }
         }
@@ -79,7 +114,7 @@ public abstract class TestPluginServiceBase extends AbstractLifecycleComponent<T
             if (registered.compareAndSet(false, true)) {
                 logger.info("Registering to licensesService [eager]");
                 licensesClientService.register(featureName(),
-                        trialLicenseOptions,
+                        trialLicenseOptions, expirationCallbacks,
                         new LicensingClientListener());
             }
         }
@@ -99,13 +134,18 @@ public abstract class TestPluginServiceBase extends AbstractLifecycleComponent<T
     private class LicensingClientListener implements LicensesClientService.Listener {
 
         @Override
-        public void onEnabled() {
+        public void onEnabled(License license) {
+            logger.info("TestConsumerPlugin: " + license.feature() + " enabled");
             enabled.set(true);
         }
 
         @Override
-        public void onDisabled() {
+        public void onDisabled(License license) {
+            if (license != null) {
+                logger.info("TestConsumerPlugin: " + license.feature() + " disabled");
+            }
             enabled.set(false);
         }
+
     }
 }

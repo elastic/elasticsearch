@@ -90,7 +90,7 @@ public class LicensesPluginIntegrationTests extends AbstractLicensesIntegrationT
 
         logger.info(" --> check trial license expiry notification");
         // consumer plugin should notify onDisabled on all data nodes (expired signed license)
-        assertConsumerPluginDisabledNotification(trialLicenseDurationInSeconds);
+        assertConsumerPluginDisabledNotification(trialLicenseDurationInSeconds * 2);
         assertLicenseManagerDisabledFeatureFor(getCurrentFeatureName());
     }
 

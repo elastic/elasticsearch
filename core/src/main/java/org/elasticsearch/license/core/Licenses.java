@@ -142,7 +142,7 @@ public final class Licenses {
             if (license.expiryDate() > previousLicense.expiryDate()) {
                 licenseMap.put(featureType, license);
             }
-        } else if (license.expiryDate() > System.currentTimeMillis()) {
+        } else {
             licenseMap.put(featureType, license);
         }
     }

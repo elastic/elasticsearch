@@ -152,7 +152,7 @@ public abstract class AbstractLicensesIntegrationTests extends ElasticsearchInte
     }
 
     private void assertConsumerPluginNotification(String msg, final Iterable<TestPluginServiceBase> consumerPluginServices, final boolean expectedEnabled, int timeoutInSec) throws InterruptedException {
-        assertThat(msg, awaitBusy(new Predicate<Object>() {
+        boolean success = awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object o) {
                 for (TestPluginServiceBase pluginService : consumerPluginServices) {
@@ -162,7 +162,9 @@ public abstract class AbstractLicensesIntegrationTests extends ElasticsearchInte
                 }
                 return true;
             }
-        }, timeoutInSec, TimeUnit.SECONDS), equalTo(true));
+        }, timeoutInSec + 1, TimeUnit.SECONDS);
+        logger.debug("Notification assertion complete");
+        assertThat(msg, success, equalTo(true));
 
     }
 

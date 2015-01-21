@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.authz.Permission;
 import org.elasticsearch.shield.authz.Privilege;
 import org.elasticsearch.shield.support.NoOpLogger;
@@ -48,16 +49,16 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
     private static final Pattern SKIP_LINE = Pattern.compile("(^#.*|^\\s*)");
 
     private final Path file;
-    private final Listener listener;
+    private final RefreshListener listener;
 
     private volatile ImmutableMap<String, Permission.Global.Role> permissions;
 
     @Inject
     public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService) {
-        this(settings, env, watcherService, Listener.NOOP);
+        this(settings, env, watcherService, RefreshListener.NOOP);
     }
 
-    public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, Listener listener) {
+    public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, RefreshListener listener) {
         super(settings);
         this.file = resolveFile(settings, env);
         this.listener = listener;
@@ -264,17 +265,6 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
             segments.add(builder.toString());
         }
         return segments;
-    }
-
-    static interface Listener {
-
-        static final Listener NOOP = new Listener() {
-            @Override
-            public void onRefresh() {
-            }
-        };
-
-        void onRefresh();
     }
 
     private class FileListener extends FileChangesListener {

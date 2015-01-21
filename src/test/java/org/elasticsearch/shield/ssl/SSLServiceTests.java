@@ -6,12 +6,14 @@
 package org.elasticsearch.shield.ssl;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLSessionContext;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -99,5 +101,29 @@ public class SSLServiceTests extends ElasticsearchTestCase {
                 .build());
         SSLEngine engine = sslService.createSSLEngine();
         assertThat(Arrays.asList(engine.getEnabledProtocols()), not(hasItem("SSLv3")));
+    }
+
+    @Test
+    public void testThatSSLSessionCacheHasDefaultLimits() throws Exception {
+        SSLService sslService = new SSLService(settingsBuilder()
+                .put("shield.ssl.keystore.path", testnodeStore)
+                .put("shield.ssl.keystore.password", "testnode")
+                .build());
+        SSLSessionContext context = sslService.getSslContext().getServerSessionContext();
+        assertThat(context.getSessionCacheSize(), equalTo(1000));
+        assertThat(context.getSessionTimeout(), equalTo((int) TimeValue.timeValueHours(24).seconds()));
+    }
+
+    @Test
+    public void testThatSettingSSLSessionCacheLimitsWorks() throws Exception {
+        SSLService sslService = new SSLService(settingsBuilder()
+                .put("shield.ssl.keystore.path", testnodeStore)
+                .put("shield.ssl.keystore.password", "testnode")
+                .put("shield.ssl.session.cache_size", "300")
+                .put("shield.ssl.session.cache_timeout", "600s")
+                .build());
+        SSLSessionContext context = sslService.getSslContext().getServerSessionContext();
+        assertThat(context.getSessionCacheSize(), equalTo(300));
+        assertThat(context.getSessionTimeout(), equalTo(600));
     }
 }

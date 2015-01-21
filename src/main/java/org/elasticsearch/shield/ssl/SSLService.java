@@ -8,8 +8,10 @@ package org.elasticsearch.shield.ssl;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.primitives.Ints;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.shield.ShieldSettingsException;
 
@@ -27,6 +29,7 @@ public class SSLService extends AbstractComponent {
 
     static final String[] DEFAULT_CIPHERS = new String[]{ "TLS_RSA_WITH_AES_128_CBC_SHA256", "TLS_RSA_WITH_AES_128_CBC_SHA", "TLS_DHE_RSA_WITH_AES_128_CBC_SHA", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA" };
     static final String[] DEFAULT_SUPPORTED_PROTOCOLS = new String[] {"TLSv1", "TLSv1.1", "TLSv1.2"};
+    static final TimeValue DEFAULT_SESSION_CACHE_TIMEOUT = TimeValue.timeValueHours(24);
 
     private Map<String, SSLContext> sslContexts = ConcurrentCollections.newConcurrentMap();
 
@@ -99,15 +102,17 @@ public class SSLService extends AbstractComponent {
         String key = keyStorePath + trustStorePath + sslProtocol;
         SSLContext sslContext = sslContexts.get(key);
         if (sslContext == null) {
-            logger.debug("using keyStore[{}], keyAlgorithm[{}], trustStore[{}], truststoreAlgorithm[{}], TLS protocol[{}]",
-                keyStorePath, keyStoreAlgorithm, trustStorePath, trustStoreAlgorithm, sslProtocol);
+            int sessionCacheSize = settings.getAsInt("session.cache_size", componentSettings.getAsInt("session.cache_size", 1000));
+            TimeValue sessionCacheTimeout = settings.getAsTime("session.cache_timeout", componentSettings.getAsTime("session.cache_timeout", DEFAULT_SESSION_CACHE_TIMEOUT));
+            logger.debug("using keystore[{}], key_algorithm[{}], truststore[{}], truststore_algorithm[{}], tls_protocol[{}], session_cache_size[{}], session_cache_timeout[{}]",
+                keyStorePath, keyStoreAlgorithm, trustStorePath, trustStoreAlgorithm, sslProtocol, sessionCacheSize, sessionCacheTimeout);
 
             TrustManagerFactory trustFactory = getTrustFactory(trustStorePath, trustStorePassword, trustStoreAlgorithm);
             KeyManagerFactory keyManagerFactory = createKeyManagerFactory(keyStorePath, keyStorePassword, keyStoreAlgorithm, keyPassword);
-            sslContext = createSslContext(keyManagerFactory, trustFactory, sslProtocol);
+            sslContext = createSslContext(keyManagerFactory, trustFactory, sslProtocol, sessionCacheSize, sessionCacheTimeout);
             sslContexts.put(key, sslContext);
         } else {
-            logger.trace("found keystore[{}], trustStore[{}], TLS protocol[{}] in SSL context cache, reusing", keyStorePath, trustStorePath, sslProtocol);
+            logger.trace("found keystore[{}], truststore[{}], tls_protocol[{}] in SSL context cache, reusing", keyStorePath, trustStorePath, sslProtocol);
         }
 
         return sslContext;
@@ -144,11 +149,13 @@ public class SSLService extends AbstractComponent {
         }
     }
 
-    private SSLContext createSslContext(KeyManagerFactory keyManagerFactory, TrustManagerFactory trustFactory, String sslProtocol) {
+    private SSLContext createSslContext(KeyManagerFactory keyManagerFactory, TrustManagerFactory trustFactory, String sslProtocol, int sessionCacheSize, TimeValue sessionCacheTimeout) {
         // Initialize sslContext
         try {
             SSLContext sslContext = SSLContext.getInstance(sslProtocol);
             sslContext.init(keyManagerFactory.getKeyManagers(), trustFactory.getTrustManagers(), null);
+            sslContext.getServerSessionContext().setSessionCacheSize(sessionCacheSize);
+            sslContext.getServerSessionContext().setSessionTimeout(Ints.checkedCast(sessionCacheTimeout.seconds()));
             return sslContext;
         } catch (Exception e) {
             throw new ElasticsearchSSLException("failed to initialize the SSLContext", e);

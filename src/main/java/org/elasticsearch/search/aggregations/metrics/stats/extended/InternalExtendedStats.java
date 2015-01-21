@@ -29,6 +29,8 @@ import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
 
 /**
@@ -55,6 +57,13 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
         count, sum, min, max, avg, sum_of_squares, variance, std_deviation;
 
+        private static Collection<String> names = new HashSet<>();
+        static {
+            for (Metrics metric : values()) {
+                names.add(metric.name());
+            }
+        }
+
         public static Metrics resolve(String name) {
             return Metrics.valueOf(name);
         }
@@ -73,6 +82,11 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     @Override
     public Type type() {
         return TYPE;
+    }
+
+    @Override
+    public Collection<String> valueNames() {
+        return Metrics.names;
     }
 
     @Override

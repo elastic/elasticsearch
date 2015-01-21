@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -69,6 +70,8 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
         }
 
         public abstract double value(String name);
+
+        public abstract Collection<String> valueNames();
 
         public String valueAsString(String name) {
             if (valueFormatter == null) {

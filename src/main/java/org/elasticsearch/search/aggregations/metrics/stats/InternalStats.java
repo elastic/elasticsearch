@@ -30,6 +30,8 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
 
 /**
@@ -55,6 +57,13 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     enum Metrics {
 
         count, sum, min, max, avg;
+
+        private static Collection<String> names = new HashSet<>();
+        static {
+            for (Metrics metric : values()) {
+                names.add(metric.name());
+            }
+        }
 
         public static Metrics resolve(String name) {
             return Metrics.valueOf(name);
@@ -131,6 +140,11 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     @Override
     public Type type() {
         return TYPE;
+    }
+
+    @Override
+    public Collection<String> valueNames() {
+        return Metrics.names;
     }
 
     @Override

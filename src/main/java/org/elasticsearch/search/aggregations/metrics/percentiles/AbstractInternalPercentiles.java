@@ -32,6 +32,8 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -40,6 +42,7 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
     protected double[] keys;
     protected TDigestState state;
     private boolean keyed;
+    private Collection<String> valueNames;
 
     AbstractInternalPercentiles() {} // for serialization
 
@@ -50,6 +53,18 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
         this.state = state;
         this.keyed = keyed;
         this.valueFormatter = formatter;
+    }
+
+    @Override
+    public Collection<String> valueNames() {
+        if (valueNames == null) {
+            HashSet<String> valueNames = new HashSet<>();
+            for (double key : keys) {
+                valueNames.add(String.valueOf(key));
+            }
+            this.valueNames = valueNames;
+        }
+        return valueNames;
     }
 
     @Override

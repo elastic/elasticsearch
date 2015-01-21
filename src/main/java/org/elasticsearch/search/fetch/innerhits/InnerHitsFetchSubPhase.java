@@ -24,6 +24,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -38,6 +39,7 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -79,7 +81,12 @@ public class InnerHitsFetchSubPhase implements FetchSubPhase {
         Map<String, InternalSearchHits> results = new HashMap<>();
         for (Map.Entry<String, InnerHitsContext.BaseInnerHits> entry : context.innerHits().getInnerHits().entrySet()) {
             InnerHitsContext.BaseInnerHits innerHits = entry.getValue();
-            TopDocs topDocs = innerHits.topDocs(context, hitContext);
+            TopDocs topDocs;
+            try {
+                topDocs = innerHits.topDocs(context, hitContext);
+            } catch (IOException e) {
+                throw ExceptionsHelper.convertToElastic(e);
+            }
             innerHits.queryResult().topDocs(topDocs);
             int[] docIdsToLoad = new int[topDocs.scoreDocs.length];
             for (int i = 0; i < topDocs.scoreDocs.length; i++) {

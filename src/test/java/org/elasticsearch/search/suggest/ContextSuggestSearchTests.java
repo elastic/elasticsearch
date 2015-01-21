@@ -167,8 +167,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         mapping.endObject();
         mapping.startObject(FIELD);
         mapping.field("type", "completion");
-        mapping.field("index_analyzer", "simple");
-        mapping.field("search_analyzer", "simple");
+        mapping.field("analyzer", "simple");
 
         mapping.startObject("context");
         mapping.value(ContextBuilder.location("st", 5, true).field("pin").build());
@@ -972,7 +971,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         mapping.startObject("properties");
         mapping.startObject(FIELD);
         mapping.field("type", "completion");
-        mapping.field("index_analyzer", indexAnalyzer);
+        mapping.field("analyzer", indexAnalyzer);
         mapping.field("search_analyzer", searchAnalyzer);
         mapping.field("payloads", payloads);
         mapping.field("preserve_separators", preserveSeparators);

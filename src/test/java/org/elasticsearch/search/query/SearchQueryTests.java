@@ -1665,7 +1665,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 .putArray("index.analysis.analyzer.search.filter", "lowercase", "synonym")
                 .put("index.analysis.filter.synonym.type", "synonym")
                 .putArray("index.analysis.filter.synonym.synonyms", "fast, quick"));
-        assertAcked(builder.addMapping("test", "text", "type=string,index_analyzer=index,search_analyzer=search"));
+        assertAcked(builder.addMapping("test", "text", "type=string,analyzer=index,search_analyzer=search"));
         ensureGreen();
         client().prepareIndex("test", "test", "1").setSource("text", "quick brown fox").get();
         refresh();
@@ -1696,7 +1696,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 .putArray("index.analysis.analyzer.search.filter", "lowercase", "keyword_repeat", "porterStem", "unique_stem")
                 .put("index.analysis.filter.unique_stem.type", "unique")
                 .put("index.analysis.filter.unique_stem.only_on_same_position", true));
-        assertAcked(builder.addMapping("test", "text", "type=string,index_analyzer=index,search_analyzer=search"));
+        assertAcked(builder.addMapping("test", "text", "type=string,analyzer=index,search_analyzer=search"));
         ensureGreen();
         client().prepareIndex("test", "test", "1").setSource("text", "the fox runs across the street").get();
         refresh();
@@ -1721,7 +1721,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 .putArray("index.analysis.analyzer.search.filter", "lowercase", "synonym")
                 .put("index.analysis.filter.synonym.type", "synonym")
                 .putArray("index.analysis.filter.synonym.synonyms", "fast, quick"));
-        assertAcked(builder.addMapping("test", "text", "type=string,index_analyzer=index,search_analyzer=search"));
+        assertAcked(builder.addMapping("test", "text", "type=string,analyzer=index,search_analyzer=search"));
         ensureGreen();
 
         client().prepareIndex("test", "test", "1").setSource("text", "quick brown fox").get();
@@ -2346,7 +2346,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 .put("index.analysis.tokenizer.my_ngram_tokenizer.min_gram", "1")
                 .put("index.analysis.tokenizer.my_ngram_tokenizer.max_gram", "10")
                 .putArray("index.analysis.tokenizer.my_ngram_tokenizer.token_chars", new String[0]));
-        assertAcked(builder.addMapping("test", "origin", "type=string,copy_to=meta", "meta", "type=string,index_analyzer=my_ngram_analyzer"));
+        assertAcked(builder.addMapping("test", "origin", "type=string,copy_to=meta", "meta", "type=string,analyzer=my_ngram_analyzer"));
         // we only have ngrams as the index analyzer so searches will get standard analyzer
         ensureGreen();
 

@@ -304,19 +304,14 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         this.boost = boost;
         this.fieldType = fieldType;
         this.fieldType.freeze();
-
-        // automatically set to keyword analyzer if its indexed and not analyzed
-        if (indexAnalyzer == null && !this.fieldType.tokenized() && this.fieldType.indexOptions() != IndexOptions.NONE) {
-            this.indexAnalyzer = Lucene.KEYWORD_ANALYZER;
+        
+        if (indexAnalyzer == null && this.fieldType.tokenized() == false && this.fieldType.indexOptions() != IndexOptions.NONE) {
+            this.indexAnalyzer = this.searchAnalyzer = Lucene.KEYWORD_ANALYZER;
         } else {
             this.indexAnalyzer = indexAnalyzer;
-        }
-        // automatically set to keyword analyzer if its indexed and not analyzed
-        if (searchAnalyzer == null && !this.fieldType.tokenized() && this.fieldType.indexOptions() != IndexOptions.NONE) {
-            this.searchAnalyzer = Lucene.KEYWORD_ANALYZER;
-        } else {
             this.searchAnalyzer = searchAnalyzer;
         }
+
         if (postingsFormat == null) {
             if (defaultPostingFormat() != null) {
                 postingsFormat = PostingFormats.getAsProvider(defaultPostingFormat());
@@ -623,12 +618,12 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         // null and "default"-named index analyzers both mean the default is used
         if (this.indexAnalyzer == null || "default".equals(this.indexAnalyzer.name())) {
             if (fieldMergeWith.indexAnalyzer != null && !"default".equals(fieldMergeWith.indexAnalyzer.name())) {
-                mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_analyzer");
+                mergeContext.addConflict("mapper [" + names.fullName() + "] has different analyzer");
             }
         } else if (fieldMergeWith.indexAnalyzer == null || "default".equals(fieldMergeWith.indexAnalyzer.name())) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_analyzer");
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different analyzer");
         } else if (!this.indexAnalyzer.name().equals(fieldMergeWith.indexAnalyzer.name())) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_analyzer");
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different analyzer");
         }
         
         if (!this.names().equals(fieldMergeWith.names())) {
@@ -733,34 +728,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             builder.field("index_options", indexOptionToString(fieldType.indexOptions()));
         }
 
-        if (indexAnalyzer == null && searchAnalyzer == null) {
-            if (includeDefaults) {
-                builder.field("analyzer", "default");
-            }
-        } else if (indexAnalyzer == null) {
-            // searchAnalyzer != null
-            if (includeDefaults || (!searchAnalyzer.name().startsWith("_") && !searchAnalyzer.name().equals("default"))) {
-                builder.field("search_analyzer", searchAnalyzer.name());
-            }
-        } else if (searchAnalyzer == null) {
-            // indexAnalyzer != null
-            if (includeDefaults || (!indexAnalyzer.name().startsWith("_") && !indexAnalyzer.name().equals("default"))) {
-                builder.field("index_analyzer", indexAnalyzer.name());
-            }
-        } else if (indexAnalyzer.name().equals(searchAnalyzer.name())) {
-            // indexAnalyzer == searchAnalyzer
-            if (includeDefaults || (!indexAnalyzer.name().startsWith("_") && !indexAnalyzer.name().equals("default"))) {
-                builder.field("analyzer", indexAnalyzer.name());
-            }
-        } else {
-            // both are there but different
-            if (includeDefaults || (!indexAnalyzer.name().startsWith("_") && !indexAnalyzer.name().equals("default"))) {
-                builder.field("index_analyzer", indexAnalyzer.name());
-            }
-            if (includeDefaults || (!searchAnalyzer.name().startsWith("_") && !searchAnalyzer.name().equals("default"))) {
-                builder.field("search_analyzer", searchAnalyzer.name());
-            }
-        }
+        doXContentAnalyzers(builder, includeDefaults);
 
         if (postingsFormat != null) {
             if (includeDefaults || !postingsFormat.name().equals(defaultPostingFormat())) {
@@ -801,6 +769,19 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
         if (copyTo != null) {
             copyTo.toXContent(builder, params);
+        }
+    }
+    
+    protected void doXContentAnalyzers(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        if (indexAnalyzer == null) {
+            if (includeDefaults) {
+                builder.field("analyzer", "default");
+            }
+        } else if (includeDefaults || indexAnalyzer.name().startsWith("_") == false && indexAnalyzer.name().equals("default") == false) {
+            builder.field("analyzer", indexAnalyzer.name());
+            if (searchAnalyzer.name().equals(indexAnalyzer.name()) == false) {
+                builder.field("search_analyzer", searchAnalyzer.name());
+            }
         }
     }
 

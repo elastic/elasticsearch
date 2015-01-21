@@ -106,10 +106,10 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
     public void testMergeSearchAnalyzer() throws Exception {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String mapping1 = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "string").field("search_analyzer", "whitespace").endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "string").field("analyzer", "standard").field("search_analyzer", "whitespace").endObject().endObject()
                 .endObject().endObject().string();
         String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "string").field("search_analyzer", "keyword").endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "string").field("analyzer", "standard").field("search_analyzer", "keyword").endObject().endObject()
                 .endObject().endObject().string();
 
         DocumentMapper existing = parser.parse(mapping1);
@@ -123,13 +123,13 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
-    public void testNotChangeSearchAnalyzer() throws Exception {
+    public void testChangeSearchAnalyzerToDefault() throws Exception {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String mapping1 = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "string").field("search_analyzer", "whitespace").endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "string").field("analyzer", "standard").field("search_analyzer", "whitespace").endObject().endObject()
                 .endObject().endObject().string();
         String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "string").field("postings_format", "Lucene41").endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "string").field("analyzer", "standard").field("postings_format", "Lucene41").endObject().endObject()
                 .endObject().endObject().string();
 
         DocumentMapper existing = parser.parse(mapping1);
@@ -139,7 +139,7 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapper.MergeResult mergeResult = existing.merge(changed, mergeFlags().simulate(false));
 
         assertThat(mergeResult.hasConflicts(), equalTo(false));
-        assertThat(((NamedAnalyzer) existing.mappers().name("field").mapper().searchAnalyzer()).name(), equalTo("whitespace"));
+        assertThat(((NamedAnalyzer) existing.mappers().name("field").mapper().searchAnalyzer()).name(), equalTo("standard"));
         assertThat((existing.mappers().name("field").mapper().postingsFormatProvider()).name(), equalTo("Lucene41"));
     }
 

@@ -29,6 +29,7 @@ import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -87,7 +88,6 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     public static class Fields {
         // Mapping field names
         public static final String ANALYZER = "analyzer";
-        public static final ParseField INDEX_ANALYZER = new ParseField("index_analyzer");
         public static final ParseField SEARCH_ANALYZER = new ParseField("search_analyzer");
         public static final ParseField PRESERVE_SEPARATORS = new ParseField("preserve_separators");
         public static final ParseField PRESERVE_POSITION_INCREMENTS = new ParseField("preserve_position_increments");
@@ -159,6 +159,8 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         @Override
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             CompletionFieldMapper.Builder builder = completionField(name);
+            NamedAnalyzer indexAnalyzer = null;
+            NamedAnalyzer searchAnalyzer = null;
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
@@ -166,16 +168,13 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                 if (fieldName.equals("type")) {
                     continue;
                 }
-                if (fieldName.equals("analyzer")) {
-                    NamedAnalyzer analyzer = getNamedAnalyzer(parserContext, fieldNode.toString());
-                    builder.indexAnalyzer(analyzer);
-                    builder.searchAnalyzer(analyzer);
-                    iterator.remove();
-                } else if (Fields.INDEX_ANALYZER.match(fieldName)) {
-                    builder.indexAnalyzer(getNamedAnalyzer(parserContext, fieldNode.toString()));
+                if (Fields.ANALYZER.equals(fieldName) || // index_analyzer is for backcompat, remove for v3.0
+                    fieldName.equals("index_analyzer") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                    
+                    indexAnalyzer = getNamedAnalyzer(parserContext, fieldNode.toString());
                     iterator.remove();
                 } else if (Fields.SEARCH_ANALYZER.match(fieldName)) {
-                    builder.searchAnalyzer(getNamedAnalyzer(parserContext, fieldNode.toString()));
+                    searchAnalyzer = getNamedAnalyzer(parserContext, fieldNode.toString());
                     iterator.remove();
                 } else if (fieldName.equals(Fields.PAYLOADS)) {
                     builder.payloads(Boolean.parseBoolean(fieldNode.toString()));
@@ -198,14 +197,18 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                     iterator.remove();
                 }
             }
-
-            if (builder.searchAnalyzer == null) {
-                builder.searchAnalyzer(parserContext.analysisService().analyzer("simple"));
+            
+            if (indexAnalyzer == null) {
+                if (searchAnalyzer != null) {
+                    throw new MapperParsingException("analyzer on completion field [" + name + "] must be set when search_analyzer is set");
+                }
+                indexAnalyzer = searchAnalyzer = parserContext.analysisService().analyzer("simple");
+            } else if (searchAnalyzer == null) {
+                searchAnalyzer = indexAnalyzer;
             }
-
-            if (builder.indexAnalyzer == null) {
-                builder.indexAnalyzer(parserContext.analysisService().analyzer("simple"));
-            }
+            builder.indexAnalyzer(indexAnalyzer);
+            builder.searchAnalyzer(searchAnalyzer);
+            
             // we are just using this as the default to be wrapped by the CompletionPostingsFormatProvider in the SuggesteFieldMapper ctor
             builder.postingsFormat(parserContext.postingFormatService().get("default"));
             return builder;
@@ -444,11 +447,10 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name())
                 .field(Fields.TYPE, CONTENT_TYPE);
-        if (indexAnalyzer.name().equals(searchAnalyzer.name())) {
-            builder.field(Fields.ANALYZER, indexAnalyzer.name());
-        } else {
-            builder.field(Fields.INDEX_ANALYZER.getPreferredName(), indexAnalyzer.name())
-                    .field(Fields.SEARCH_ANALYZER.getPreferredName(), searchAnalyzer.name());
+        
+        builder.field(Fields.ANALYZER, indexAnalyzer.name());
+        if (indexAnalyzer.name().equals(searchAnalyzer.name()) == false) {
+            builder.field(Fields.SEARCH_ANALYZER.getPreferredName(), searchAnalyzer.name());
         }
         builder.field(Fields.PAYLOADS, this.payloads);
         builder.field(Fields.PRESERVE_SEPARATORS.getPreferredName(), this.preserveSeparators);

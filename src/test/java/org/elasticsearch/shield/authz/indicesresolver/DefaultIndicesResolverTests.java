@@ -409,6 +409,25 @@ public class DefaultIndicesResolverTests extends ElasticsearchTestCase {
         assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("foofoobar"));
     }
 
+    @Test
+    public void testResolveAllAliasesWildcardsIndicesAliasesRequestDeleteActions() {
+        IndicesAliasesRequest request = new IndicesAliasesRequest();
+        request.addAliasAction(AliasAction.newRemoveAliasAction("*", "_all"));
+        request.addAliasAction(new IndicesAliasesRequest.AliasActions(AliasAction.Type.REMOVE, "_all", new String[]{"_all", "explicit"}));
+        Set<String> indices = defaultIndicesResolver.resolve(user, IndicesAliasesAction.NAME, request, metaData);
+        //union of all resolved indices and aliases gets returned, based on what user is authorized for
+        //note that the index side will end up containing matching aliases too, which is fine, as es core would do
+        //the same and resolve those aliases to their corresponding concrete indices (which we let core do)
+        String[] expectedIndices = new String[]{"bar", "foofoobar", "foofoo", "explicit"};
+        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasItems(expectedIndices));
+        //alias foofoobar on both sides, that's fine, es core would do the same, same as above
+        assertThat(request.getAliasActions().get(0).indices(), arrayContaining("bar", "foofoobar", "foofoo"));
+        assertThat(request.getAliasActions().get(0).aliases(), arrayContaining("foofoobar"));
+        assertThat(request.getAliasActions().get(0).indices(), arrayContaining("bar", "foofoobar", "foofoo"));
+        assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("foofoobar", "explicit"));
+    }
+
     @Test(expected = IndexMissingException.class)
     public void testResolveAliasesWildcardsIndicesAliasesRequestDeleteActionsNoAuthorizedIndices() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
@@ -546,7 +565,9 @@ public class DefaultIndicesResolverTests extends ElasticsearchTestCase {
     @Test
     public void testResolveAllAliasesGetAliasesRequest() {
         GetAliasesRequest request = new GetAliasesRequest();
-        request.aliases("_all");
+        if (randomBoolean()) {
+            request.aliases("_all");
+        }
         if (randomBoolean()) {
             request.indices("_all");
         }
@@ -558,6 +579,38 @@ public class DefaultIndicesResolverTests extends ElasticsearchTestCase {
         //_all gets replaced with all indices that user is authorized for
         assertThat(request.indices(), arrayContaining(expectedIndices));
         assertThat(request.aliases(), arrayContaining("foofoobar"));
+    }
+
+    @Test
+    public void testResolveAllAndExplicitAliasesGetAliasesRequest() {
+        GetAliasesRequest request = new GetAliasesRequest(new String[]{"_all", "explicit"});
+        if (randomBoolean()) {
+            request.indices("_all");
+        }
+        Set<String> indices = defaultIndicesResolver.resolve(user, GetAliasesAction.NAME, request, metaData);
+        //the union of all resolved indices and aliases gets returned
+        String[] expectedIndices = new String[]{"bar", "foofoobar", "foofoo", "explicit"};
+        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasItems(expectedIndices));
+        //_all gets replaced with all indices that user is authorized for
+        assertThat(request.indices(), arrayContaining("bar", "foofoobar", "foofoo"));
+        assertThat(request.aliases(), arrayContaining("foofoobar", "explicit"));
+    }
+
+    @Test
+    public void testResolveAllAndWildcardsAliasesGetAliasesRequest() {
+        GetAliasesRequest request = new GetAliasesRequest(new String[]{"_all", "foo*", "non_matching_*"});
+        if (randomBoolean()) {
+            request.indices("_all");
+        }
+        Set<String> indices = defaultIndicesResolver.resolve(user, GetAliasesAction.NAME, request, metaData);
+        //the union of all resolved indices and aliases gets returned
+        String[] expectedIndices = new String[]{"bar", "foofoobar", "foofoo"};
+        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasItems(expectedIndices));
+        //_all gets replaced with all indices that user is authorized for
+        assertThat(request.indices(), arrayContaining(expectedIndices));
+        assertThat(request.aliases(), arrayContaining("foofoobar", "foofoobar"));
     }
 
     @Test
@@ -584,6 +637,17 @@ public class DefaultIndicesResolverTests extends ElasticsearchTestCase {
         request.aliases("bar*");
         request.indices("*bar");
         defaultIndicesResolver.resolve(user, GetAliasesAction.NAME, request, metaData);
+    }
+
+    @Test(expected = IndexMissingException.class)
+    public void testResolveAliasesAllGetAliasesRequestNoAuthorizedIndices() {
+        GetAliasesRequest request = new GetAliasesRequest();
+        if (randomBoolean()) {
+            request.aliases("_all");
+        }
+        request.indices("non_existing");
+        //current user is not authorized for any index, foo* resolves to no indices, the request fails
+        defaultIndicesResolver.resolve(userNoIndices, GetAliasesAction.NAME, request, metaData);
     }
 
     //msearch is a CompositeIndicesRequest whose items (SearchRequests) implement IndicesRequest.Replaceable, wildcards will get replaced

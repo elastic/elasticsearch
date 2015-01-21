@@ -130,6 +130,7 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
                     authorizedAliases = loadAuthorizedAliases(authorizedIndices, metaData);
                 }
 
+                assert aliasActions.aliases().length > 0 : "aliases must not be empty within each single alias remove action";
                 List<String> aliases = replaceWildcardsWithAuthorizedAliases(aliasActions.aliases(), authorizedAliases);
                 aliasActions.aliases(aliases.toArray(new String[aliases.size()]));
             }
@@ -151,8 +152,16 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
 
     private List<String> replaceWildcardsWithAuthorizedAliases(String[] aliases, List<String> authorizedAliases) {
         List<String> finalAliases = Lists.newArrayList();
+
+        //IndicesAliasesRequest doesn't support empty aliases (validation fails) but GetAliasesRequest does (in which case empty means _all)
+        boolean matchAllAliases = aliases.length == 0;
+        if (matchAllAliases) {
+            finalAliases.addAll(authorizedAliases);
+        }
+
         for (String aliasPattern : aliases) {
             if (aliasPattern.equals(MetaData.ALL)) {
+                matchAllAliases = true;
                 finalAliases.addAll(authorizedAliases);
             } else if (Regex.isSimpleMatchPattern(aliasPattern)) {
                 for (String authorizedAlias : authorizedAliases) {
@@ -170,7 +179,8 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
         //to make sure that the operation is executed on the aliases that we authorized it to execute on.
         //If we can't replace because we got an empty set, we can only throw exception.
         if (finalAliases.isEmpty()) {
-            throw new IndexMissingException(new Index(Arrays.toString(aliases)));
+            Index index = matchAllAliases ? new Index(MetaData.ALL) : new Index(Arrays.toString(aliases));
+            throw new IndexMissingException(index);
         }
         return finalAliases;
     }
@@ -258,10 +268,8 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
         //If we can't replace because we got an empty set, we can only throw exception.
         //Downside of this is that a single item exception is going to make fail the composite request that holds it as a whole.
         if (resolvedIndices == null || resolvedIndices.isEmpty()) {
-            if (MetaData.isAllIndices(originalIndices)) {
-                throw new IndexMissingException(new Index(MetaData.ALL));
-            }
-            throw new IndexMissingException(new Index(Arrays.toString(originalIndices)));
+            Index index = MetaData.isAllIndices(originalIndices) ? new Index(MetaData.ALL) : new Index(Arrays.toString(originalIndices));
+            throw new IndexMissingException(index);
         }
         return resolvedIndices;
     }

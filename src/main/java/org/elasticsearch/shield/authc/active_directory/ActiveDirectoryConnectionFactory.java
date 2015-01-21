@@ -62,7 +62,7 @@ public class ActiveDirectoryConnectionFactory extends ConnectionFactory<ActiveDi
         userSearchScope = SearchScope.resolve(settings.get(AD_USER_SEARCH_SCOPE_SETTING), SearchScope.SUB_TREE);
         userSearchFilter = settings.get(AD_USER_SEARCH_FILTER_SETTING, "(&(objectClass=user)(|(sAMAccountName={0})(userPrincipalName={0}@" + domainName + ")))");
         timeout = settings.getAsTime(TIMEOUT_LDAP_SETTING, TIMEOUT_DEFAULT);
-        String[] ldapUrls = settings.getAsArray(URLS_SETTING, new String[] { "ldaps://" + domainName + ":636" });
+        String[] ldapUrls = settings.getAsArray(URLS_SETTING, new String[] { "ldap://" + domainName + ":389" });
 
         ImmutableMap.Builder<String, Serializable> builder = ImmutableMap.<String, Serializable>builder()
                 .put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory")

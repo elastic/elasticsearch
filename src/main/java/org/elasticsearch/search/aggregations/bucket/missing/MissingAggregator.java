@@ -41,7 +41,7 @@ public class MissingAggregator extends SingleBucketAggregator {
     private Bits docsWithValue;
 
     public MissingAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
-                             AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+                             AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, metaData);
         this.valuesSource = valuesSource;
     }
@@ -63,28 +63,28 @@ public class MissingAggregator extends SingleBucketAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        return new InternalMissing(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), getMetaData());
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
+        return new InternalMissing(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMissing(name, 0, buildEmptySubAggregations(), getMetaData());
+        return new InternalMissing(name, 0, buildEmptySubAggregations(), metaData());
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource, Map<String, Object>>  {
+    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource>  {
 
         public Factory(String name, ValuesSourceConfig valueSourceConfig) {
             super(name, InternalMissing.TYPE.name(), valueSourceConfig);
         }
 
         @Override
-        protected MissingAggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+        protected MissingAggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
             return new MissingAggregator(name, factories, null, aggregationContext, parent, metaData);
         }
 
         @Override
-        protected MissingAggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+        protected MissingAggregator doCreateInternal(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
             return new MissingAggregator(name, factories, valuesSource, aggregationContext, parent, metaData);
         }
     }

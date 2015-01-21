@@ -20,11 +20,17 @@ package org.elasticsearch.indices;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Maps;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -42,6 +48,7 @@ import static org.elasticsearch.index.shard.IndexShardState.*;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndicesLifecycleListenerTests extends ElasticsearchIntegrationTest {
@@ -55,10 +62,23 @@ public class IndicesLifecycleListenerTests extends ElasticsearchIntegrationTest 
         //add a listener that keeps track of the shard state changes
         internalCluster().getInstance(IndicesLifecycle.class, node1).addListener(stateChangeListenerNode1);
 
+        //create an index that should fail
+        try {
+            client().admin().indices().prepareCreate("failed").setSettings(SETTING_NUMBER_OF_SHARDS, 1, "index.fail", true).get();
+            fail("should have thrown an exception");
+        } catch (ElasticsearchException e) {
+            assertTrue(e.getMessage().contains("failing on purpose"));
+            ClusterStateResponse resp = client().admin().cluster().prepareState().get();
+            assertFalse(resp.getState().routingTable().indicesRouting().keySet().contains("failed"));
+        }
+
+
         //create an index
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(SETTING_NUMBER_OF_SHARDS, 6, SETTING_NUMBER_OF_REPLICAS, 0));
         ensureGreen();
+        assertThat(stateChangeListenerNode1.creationSettings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1), equalTo(6));
+        assertThat(stateChangeListenerNode1.creationSettings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1), equalTo(0));
 
         //new shards got started
         assertShardStatesMatch(stateChangeListenerNode1, 6, CREATED, RECOVERING, POST_RECOVERY, STARTED);
@@ -96,6 +116,9 @@ public class IndicesLifecycleListenerTests extends ElasticsearchIntegrationTest 
 
         //close the index
         assertAcked(client().admin().indices().prepareClose("test"));
+
+        assertThat(stateChangeListenerNode1.afterCloseSettings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1), equalTo(6));
+        assertThat(stateChangeListenerNode1.afterCloseSettings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1), equalTo(0));
 
         assertShardStatesMatch(stateChangeListenerNode1, 6, CLOSED);
         assertShardStatesMatch(stateChangeListenerNode2, 6, CLOSED);
@@ -135,6 +158,8 @@ public class IndicesLifecycleListenerTests extends ElasticsearchIntegrationTest 
     private static class IndexShardStateChangeListener extends IndicesLifecycle.Listener {
         //we keep track of all the states (ordered) a shard goes through
         final ConcurrentMap<ShardId, List<IndexShardState>> shardStates = Maps.newConcurrentMap();
+        Settings creationSettings = ImmutableSettings.EMPTY;
+        Settings afterCloseSettings = ImmutableSettings.EMPTY;
 
         @Override
         public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, IndexShardState newState, @Nullable String reason) {
@@ -143,6 +168,19 @@ public class IndicesLifecycleListenerTests extends ElasticsearchIntegrationTest 
             if (shardStates != null) {
                 shardStates.add(newState);
             }
+        }
+
+        @Override
+        public void beforeIndexCreated(Index index, @IndexSettings Settings indexSettings) {
+            this.creationSettings = indexSettings;
+            if (indexSettings.getAsBoolean("index.fail", false)) {
+                throw new ElasticsearchException("failing on purpose");
+            }
+        }
+
+        @Override
+        public void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, @IndexSettings Settings indexSettings) {
+            this.afterCloseSettings = indexSettings;
         }
 
         @Override

@@ -35,7 +35,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.engine.MockInternalEngineHolder;
+import org.elasticsearch.test.engine.MockInternalEngine;
 import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.elasticsearch.test.store.MockFSDirectoryService;
@@ -89,8 +89,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
 
         if (createIndexWithoutErrors) {
             Builder settings = settingsBuilder()
-                    .put("index.number_of_replicas", randomIntBetween(0, 1))
-                    .put("gateway.type", "local");
+                    .put("index.number_of_replicas", randomIntBetween(0, 1));
             logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
             client().admin().indices().prepareCreate("test")
                     .setSettings(settings)
@@ -230,10 +229,10 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
 
         Builder settings = settingsBuilder()
                 .put(indexSettings())
-                .put(MockInternalEngineHolder.READER_WRAPPER_TYPE, RandomExceptionDirectoryReaderWrapper.class.getName())
+                .put(MockInternalEngine.READER_WRAPPER_TYPE, RandomExceptionDirectoryReaderWrapper.class.getName())
                 .put(EXCEPTION_TOP_LEVEL_RATIO_KEY, topLevelRate)
                 .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)
-                .put(MockInternalEngineHolder.WRAP_READER_RATIO, 1.0d);
+                .put(MockInternalEngine.WRAP_READER_RATIO, 1.0d);
         logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
@@ -288,7 +287,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
     public static final String EXCEPTION_LOW_LEVEL_RATIO_KEY = "index.engine.exception.ratio.low";
 
 
-    public static class RandomExceptionDirectoryReaderWrapper extends MockInternalEngineHolder.DirectoryReaderWrapper {
+    public static class RandomExceptionDirectoryReaderWrapper extends MockInternalEngine.DirectoryReaderWrapper {
         private final Settings settings;
 
         static class ThrowingSubReaderWrapper extends SubReaderWrapper implements ThrowingLeafReaderWrapper.Thrower {

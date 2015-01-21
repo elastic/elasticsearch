@@ -33,7 +33,7 @@ import java.util.Map;
 public abstract class Transformer extends SingleBucketAggregator {
 
     protected Transformer(String name, AggregatorFactories factories, AggregationContext aggregationContext, Aggregator parent,
-            Map<String, Object> metaData) {
+            Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, metaData);
     }
 
@@ -49,7 +49,7 @@ public abstract class Transformer extends SingleBucketAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         return buildAggregation(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal));
     }
 

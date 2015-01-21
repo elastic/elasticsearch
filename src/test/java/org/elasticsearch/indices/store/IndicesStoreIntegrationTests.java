@@ -52,12 +52,11 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @ClusterScope(scope= Scope.TEST, numDataNodes = 0)
 public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
-    private static final Settings SETTINGS = settingsBuilder().put("gateway.type", "local").build();
 
     @Test
     public void shardsCleanup() throws Exception {
-        final String node_1 = internalCluster().startNode(SETTINGS);
-        final String node_2 = internalCluster().startNode(SETTINGS);
+        final String node_1 = internalCluster().startNode();
+        final String node_2 = internalCluster().startNode();
         logger.info("--> creating index [test] with one shard and on replica");
         assertAcked(prepareCreate("test").setSettings(
                         ImmutableSettings.builder().put(indexSettings())
@@ -71,7 +70,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(Files.exists(shardDirectory(node_2, "test", 0)), equalTo(true));
 
         logger.info("--> starting node server3");
-        String node_3 = internalCluster().startNode(SETTINGS);
+        String node_3 = internalCluster().startNode();
         logger.info("--> running cluster_health");
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth()
                 .setWaitForNodes("3")
@@ -103,7 +102,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(Files.exists(shardDirectory(node_3, "test", 0)), equalTo(true));
 
         logger.info("--> starting node node_4");
-        final String node_4 = internalCluster().startNode(SETTINGS);
+        final String node_4 = internalCluster().startNode();
 
         logger.info("--> running cluster_health");
         ensureGreen();
@@ -116,8 +115,8 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testShardActiveElseWhere() throws Exception {
-        String node_1 = internalCluster().startNode(SETTINGS);
-        String node_2 = internalCluster().startNode(SETTINGS);
+        String node_1 = internalCluster().startNode();
+        String node_2 = internalCluster().startNode();
         final String node_1_id = internalCluster().getInstance(DiscoveryService.class, node_1).localNode().getId();
         final String node_2_id = internalCluster().getInstance(DiscoveryService.class, node_2).localNode().getId();
 

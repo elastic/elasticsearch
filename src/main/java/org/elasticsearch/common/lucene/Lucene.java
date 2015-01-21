@@ -21,7 +21,6 @@ package org.elasticsearch.common.lucene;
 
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
@@ -536,11 +535,6 @@ public class Lucene {
         @Override
         public void doSetNextReader(LeafReaderContext atomicReaderContext) throws IOException {
             leafCollector = delegate.getLeafCollector(atomicReaderContext);
-        }
-
-        @Override
-        public boolean acceptsDocsOutOfOrder() {
-            return leafCollector.acceptsDocsOutOfOrder();
         }
     }
 

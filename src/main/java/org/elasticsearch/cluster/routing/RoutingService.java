@@ -89,6 +89,11 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
         clusterService.remove(this);
     }
 
+    /** make sure that a reroute will be done by the next scheduled check */
+    public void scheduleReroute() {
+        routingTableDirty = true;
+    }
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.source().equals(CLUSTER_UPDATE_TASK_SOURCE)) {
@@ -153,8 +158,12 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
 
                 @Override
                 public void onFailure(String source, Throwable t) {
-                        ClusterState state = clusterService.state();
+                    ClusterState state = clusterService.state();
+                    if (logger.isTraceEnabled()) {
                         logger.error("unexpected failure during [{}], current state:\n{}", t, source, state.prettyPrint());
+                    } else {
+                        logger.error("unexpected failure during [{}], current state version [{}]", t, source, state.version());
+                    }
                 }
             });
             routingTableDirty = false;

@@ -19,9 +19,12 @@
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
 import com.google.common.collect.UnmodifiableIterator;
+
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -49,8 +52,9 @@ public class InternalPercentileRanks extends AbstractInternalPercentiles impleme
     
     InternalPercentileRanks() {} // for serialization
 
-    public InternalPercentileRanks(String name, double[] cdfValues, TDigestState state, boolean keyed, Map<String, Object> metaData) {
-        super(name, cdfValues, state, keyed, metaData);
+    public InternalPercentileRanks(String name, double[] cdfValues, TDigestState state, boolean keyed, @Nullable ValueFormatter formatter,
+            Map<String, Object> metaData) {
+        super(name, cdfValues, state, keyed, formatter, metaData);
     }
 
     @Override
@@ -64,12 +68,17 @@ public class InternalPercentileRanks extends AbstractInternalPercentiles impleme
     }
 
     @Override
+    public String percentAsString(double value) {
+        return valueAsString(String.valueOf(value));
+    }
+
+    @Override
     public double value(double key) {
         return percent(key);
     }
 
     protected AbstractInternalPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed, Map<String, Object> metaData) {
-        return new InternalPercentileRanks(name, keys, merged, keyed, metaData);
+        return new InternalPercentileRanks(name, keys, merged, keyed, valueFormatter, metaData);
     }
 
     @Override

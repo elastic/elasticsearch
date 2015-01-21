@@ -25,14 +25,15 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
  *
  */
-public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, M extends Map<String, Object>> extends AggregatorFactory {
+public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> extends AggregatorFactory {
 
-    public static abstract class LeafOnly<VS extends ValuesSource, M extends Map<String, Object>> extends ValuesSourceAggregatorFactory<VS, M> {
+    public static abstract class LeafOnly<VS extends ValuesSource> extends ValuesSourceAggregatorFactory<VS> {
 
         protected LeafOnly(String name, String type, ValuesSourceConfig<VS> valuesSourceConfig) {
             super(name, type, valuesSourceConfig);
@@ -57,12 +58,12 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, M e
     }
 
     @Override
-    public Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData) {
+    public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
         if (config.unmapped()) {
-            return createUnmapped(context, parent, (M)metaData);
+            return createUnmapped(context, parent, metaData);
         }
         VS vs = context.valuesSource(config, parent == null ? 0 : 1 + parent.depth());
-        return create(vs, expectedBucketsCount, context, parent, (M)metaData);
+        return doCreateInternal(vs, context, parent, collectsFromSingleBucket, metaData);
     }
 
     @Override
@@ -72,9 +73,9 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, M e
         }
     }
 
-    protected abstract Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, M metaData);
+    protected abstract Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException;
 
-    protected abstract Aggregator create(VS valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, M metaData);
+    protected abstract Aggregator doCreateInternal(VS valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException;
 
     private void resolveValuesSourceConfigFromAncestors(String aggName, AggregatorFactory parent, Class<VS> requiredValuesSourceType) {
         ValuesSourceConfig config;

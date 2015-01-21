@@ -47,7 +47,31 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
     public static final String INDICES_RECOVERY_CONCURRENT_STREAMS = "indices.recovery.concurrent_streams";
     public static final String INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS = "indices.recovery.concurrent_small_file_streams";
     public static final String INDICES_RECOVERY_MAX_BYTES_PER_SEC = "indices.recovery.max_bytes_per_sec";
-    public static final String INDICES_RECOVERY_RETRY_DELAY = "indices.recovery.retry_delay";
+
+    /**
+     * how long to wait before retrying after issues cause by cluster state syncing between nodes
+     * i.e., local node is not yet known on remote node, remote shard not yet started etc.
+     */
+    public static final String INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC = "indices.recovery.retry_delay_state_sync";
+
+    /** how long to wait before retrying after network related issues */
+    public static final String INDICES_RECOVERY_RETRY_DELAY_NETWORK = "indices.recovery.retry_delay_network";
+
+    /**
+     * recoveries that don't show any activity for more then this interval will be failed.
+     * defaults to `indices.recovery.internal_action_long_timeout`
+     */
+    public static final String INDICES_RECOVERY_ACTIVITY_TIMEOUT = "indices.recovery.recovery_activity_timeout";
+
+    /** timeout value to use for requests made as part of the recovery process */
+    public static final String INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT = "indices.recovery.internal_action_timeout";
+
+    /**
+     * timeout value to use for requests made as part of the recovery process that are expected to take long time.
+     * defaults to twice `indices.recovery.internal_action_timeout`.
+     */
+    public static final String INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT = "indices.recovery.internal_action_long_timeout";
+
 
     public static final long SMALL_FILE_CUTOFF_BYTES = ByteSizeValue.parseBytesSizeValue("5mb").bytes();
 
@@ -70,17 +94,35 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
 
     private volatile ByteSizeValue maxBytesPerSec;
     private volatile SimpleRateLimiter rateLimiter;
-    private volatile TimeValue retryDelay;
+    private volatile TimeValue retryDelayStateSync;
+    private volatile TimeValue retryDelayNetwork;
+    private volatile TimeValue activityTimeout;
+    private volatile TimeValue internalActionTimeout;
+    private volatile TimeValue internalActionLongTimeout;
+
 
     @Inject
     public RecoverySettings(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
 
-        this.fileChunkSize = componentSettings.getAsBytesSize("file_chunk_size", settings.getAsBytesSize("index.shard.recovery.file_chunk_size", new ByteSizeValue(512, ByteSizeUnit.KB)));
-        this.translogOps = componentSettings.getAsInt("translog_ops", settings.getAsInt("index.shard.recovery.translog_ops", 1000));
-        this.translogSize = componentSettings.getAsBytesSize("translog_size", settings.getAsBytesSize("index.shard.recovery.translog_size", new ByteSizeValue(512, ByteSizeUnit.KB)));
-        this.compress = componentSettings.getAsBoolean("compress", true);
-        this.retryDelay = componentSettings.getAsTime("retry_delay", TimeValue.timeValueMillis(500));
+        this.fileChunkSize = settings.getAsBytesSize(INDICES_RECOVERY_FILE_CHUNK_SIZE, settings.getAsBytesSize("index.shard.recovery.file_chunk_size", new ByteSizeValue(512, ByteSizeUnit.KB)));
+        this.translogOps = settings.getAsInt(INDICES_RECOVERY_TRANSLOG_OPS, settings.getAsInt("index.shard.recovery.translog_ops", 1000));
+        this.translogSize = settings.getAsBytesSize(INDICES_RECOVERY_TRANSLOG_SIZE, settings.getAsBytesSize("index.shard.recovery.translog_size", new ByteSizeValue(512, ByteSizeUnit.KB)));
+        this.compress = settings.getAsBoolean(INDICES_RECOVERY_COMPRESS, true);
+
+        this.retryDelayStateSync = settings.getAsTime(INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC, TimeValue.timeValueMillis(500));
+        // doesn't have to be fast as nodes are reconnected every 10s by default (see InternalClusterService.ReconnectToNodes)
+        // and we want to give the master time to remove a faulty node
+        this.retryDelayNetwork = settings.getAsTime(INDICES_RECOVERY_RETRY_DELAY_NETWORK, TimeValue.timeValueSeconds(5));
+
+        this.internalActionTimeout = settings.getAsTime(INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT, TimeValue.timeValueMinutes(15));
+        this.internalActionLongTimeout = settings.getAsTime(INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT, new TimeValue(internalActionTimeout.millis() * 2));
+
+        this.activityTimeout = settings.getAsTime(INDICES_RECOVERY_ACTIVITY_TIMEOUT,
+                // default to the internalActionLongTimeout used as timeouts on RecoverySource
+                internalActionLongTimeout
+        );
+
 
         this.concurrentStreams = componentSettings.getAsInt("concurrent_streams", settings.getAsInt("index.shard.recovery.concurrent_streams", 3));
         this.concurrentStreamPool = EsExecutors.newScaling(0, concurrentStreams, 60, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory(settings, "[recovery_stream]"));
@@ -136,7 +178,26 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
         return rateLimiter;
     }
 
-    public TimeValue retryDelay() { return retryDelay; }
+    public TimeValue retryDelayNetwork() {
+        return retryDelayNetwork;
+    }
+
+    public TimeValue retryDelayStateSync() {
+        return retryDelayStateSync;
+    }
+
+    public TimeValue activityTimeout() {
+        return activityTimeout;
+    }
+
+    public TimeValue internalActionTimeout() {
+        return internalActionTimeout;
+    }
+
+    public TimeValue internalActionLongTimeout() {
+        return internalActionLongTimeout;
+    }
+
 
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
@@ -191,11 +252,21 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
                 RecoverySettings.this.concurrentSmallFileStreams = concurrentSmallFileStreams;
                 RecoverySettings.this.concurrentSmallFileStreamPool.setMaximumPoolSize(concurrentSmallFileStreams);
             }
-            final TimeValue retryDelay = settings.getAsTime(INDICES_RECOVERY_RETRY_DELAY, RecoverySettings.this.retryDelay);
-            if (retryDelay.equals(RecoverySettings.this.retryDelay) == false) {
-                logger.info("updating [] from [{}] to [{}]",INDICES_RECOVERY_RETRY_DELAY,  RecoverySettings.this.retryDelay, retryDelay);
-                RecoverySettings.this.retryDelay = retryDelay;
+
+            RecoverySettings.this.retryDelayNetwork = maybeUpdate(RecoverySettings.this.retryDelayNetwork, settings, INDICES_RECOVERY_RETRY_DELAY_NETWORK);
+            RecoverySettings.this.retryDelayStateSync = maybeUpdate(RecoverySettings.this.retryDelayStateSync, settings, INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC);
+            RecoverySettings.this.activityTimeout = maybeUpdate(RecoverySettings.this.activityTimeout, settings, INDICES_RECOVERY_ACTIVITY_TIMEOUT);
+            RecoverySettings.this.internalActionTimeout = maybeUpdate(RecoverySettings.this.internalActionTimeout, settings, INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT);
+            RecoverySettings.this.internalActionLongTimeout = maybeUpdate(RecoverySettings.this.internalActionLongTimeout, settings, INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT);
+        }
+
+        private TimeValue maybeUpdate(final TimeValue currentValue, final Settings settings, final String key) {
+            final TimeValue value = settings.getAsTime(key, currentValue);
+            if (value.equals(currentValue)) {
+                return currentValue;
             }
+            logger.info("updating [] from [{}] to [{}]", key, currentValue, value);
+            return value;
         }
     }
 }

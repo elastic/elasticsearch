@@ -20,9 +20,9 @@
 package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.Iterables;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.lucene.ReaderContextAware;
-import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
 
 import java.io.IOException;
 
@@ -50,6 +50,9 @@ public abstract class BucketCollector implements ReaderContextAware {
         }
         @Override
         public void setNextReader(LeafReaderContext reader) {
+            // no-op
+        }
+        public void preCollection() throws IOException {
             // no-op
         }
         @Override
@@ -83,9 +86,16 @@ public abstract class BucketCollector implements ReaderContextAware {
                     }
 
                     @Override
-                    public void setNextReader(LeafReaderContext reader) {
+                    public void setNextReader(LeafReaderContext reader) throws IOException {
                         for (BucketCollector collector : collectors) {
                             collector.setNextReader(reader);
+                        }
+                    }
+
+                    @Override
+                    public void preCollection() throws IOException {
+                        for (BucketCollector collector : collectors) {
+                            collector.preCollection();
                         }
                     }
 
@@ -97,7 +107,7 @@ public abstract class BucketCollector implements ReaderContextAware {
                     }
 
                     @Override
-                    public void gatherAnalysis(BucketAnalysisCollector results, long bucketOrdinal) {
+                    public void gatherAnalysis(BucketAnalysisCollector results, long bucketOrdinal) throws IOException {
                         for (BucketCollector collector : collectors) {
                             collector.gatherAnalysis(results, bucketOrdinal);
                         }
@@ -121,6 +131,11 @@ public abstract class BucketCollector implements ReaderContextAware {
     public abstract void collect(int docId, long bucketOrdinal) throws IOException;
 
     /**
+     * Pre collection callback.
+     */
+    public abstract void preCollection() throws IOException;
+
+    /**
      * Post collection callback.
      */
     public abstract void postCollection() throws IOException;
@@ -130,5 +145,5 @@ public abstract class BucketCollector implements ReaderContextAware {
      * @param analysisCollector
      * @param bucketOrdinal
      */
-    public abstract void gatherAnalysis(BucketAnalysisCollector analysisCollector, long bucketOrdinal);
+    public abstract void gatherAnalysis(BucketAnalysisCollector analysisCollector, long bucketOrdinal) throws IOException;
 }

@@ -56,7 +56,6 @@ public class HistogramAggregationSearchBenchmark {
     public static void main(String[] args) throws Exception {
         Settings settings = settingsBuilder()
                 .put("refresh_interval", "-1")
-                .put("gateway.type", "local")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();

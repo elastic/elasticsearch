@@ -16,11 +16,9 @@ The structure looks like this:
 
 [source,js]
 --------------------------------------------------
-"inner_hits" : {
-    "<query>" : {
-        "inner_hits" : {
-            <inner_hits_options>
-        }
+"<query>" : {
+    "inner_hits" : {
+        <inner_hits_options>
     }
 }
 --------------------------------------------------

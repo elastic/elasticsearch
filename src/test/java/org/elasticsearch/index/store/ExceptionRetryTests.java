@@ -56,7 +56,7 @@ public class ExceptionRetryTests extends ElasticsearchIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
-                .put(super.nodeSettings(nodeOrdinal)).put("gateway.type", "local")
+                .put(super.nodeSettings(nodeOrdinal))
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
                 .build();
     }

@@ -21,6 +21,8 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.internal.InternalEngineFactory;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 
 /**
@@ -28,9 +30,14 @@ import org.elasticsearch.index.warmer.ShardIndexWarmerService;
  */
 public class IndexShardModule extends AbstractModule {
 
-    private final ShardId shardId;
+    public static final String ENGINE_FACTORY = "index.engine.factory";
+    private static final Class<? extends EngineFactory> DEFAULT_ENGINE_FACTORY_CLASS = InternalEngineFactory.class;
 
-    public IndexShardModule(ShardId shardId) {
+    private final ShardId shardId;
+    private final Settings settings;
+
+    public IndexShardModule(ShardId shardId, Settings settings) {
+        this.settings = settings;
         this.shardId = shardId;
     }
 
@@ -38,6 +45,9 @@ public class IndexShardModule extends AbstractModule {
     protected void configure() {
         bind(ShardId.class).toInstance(shardId);
         bind(IndexShard.class).asEagerSingleton();
+        bind(EngineFactory.class).to(settings.getAsClass(ENGINE_FACTORY, DEFAULT_ENGINE_FACTORY_CLASS,
+                "org.elasticsearch.index.engine.", "EngineFactory"));
         bind(ShardIndexWarmerService.class).asEagerSingleton();
     }
+
 }

@@ -133,7 +133,8 @@ public class PercolatorService extends AbstractComponent {
         cache = new CloseableThreadLocal<MemoryIndex>() {
             @Override
             protected MemoryIndex initialValue() {
-                return new ExtendedMemoryIndex(true, maxReuseBytes);
+                // TODO: should we expose payloads as an option? should offsets be turned on always?
+                return new ExtendedMemoryIndex(true, false, maxReuseBytes);
             }
         };
         single = new SingleDocumentPercolatorIndex(cache);

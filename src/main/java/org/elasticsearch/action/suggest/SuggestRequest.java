@@ -19,9 +19,6 @@
 
 package org.elasticsearch.action.suggest;
 
-import java.io.IOException;
-import java.util.Arrays;
-
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.client.Requests;
@@ -33,6 +30,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+
+import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * A request to get suggestions for corrections of phrases. Best created with
@@ -86,7 +86,7 @@ public final class SuggestRequest extends BroadcastOperationRequest<SuggestReque
     /**
      * The Phrase to get correction suggestions for 
      */
-    BytesReference suggest() {
+    public BytesReference suggest() {
         return suggestSource;
     }
     

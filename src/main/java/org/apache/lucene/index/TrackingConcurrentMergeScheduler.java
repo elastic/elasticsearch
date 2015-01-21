@@ -46,6 +46,8 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     private final CounterMetric currentMerges = new CounterMetric();
     private final CounterMetric currentMergesNumDocs = new CounterMetric();
     private final CounterMetric currentMergesSizeInBytes = new CounterMetric();
+    private final CounterMetric totalMergeStoppedTime = new CounterMetric();
+    private final CounterMetric totalMergeThrottledTime = new CounterMetric();
 
     private final Set<OnGoingMerge> onGoingMerges = ConcurrentCollections.newConcurrentSet();
     private final Set<OnGoingMerge> readOnlyOnGoingMerges = Collections.unmodifiableSet(onGoingMerges);
@@ -83,6 +85,14 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         return currentMergesSizeInBytes.count();
     }
 
+    public long totalMergeStoppedTimeMillis() {
+        return totalMergeStoppedTime.count();
+    }
+
+    public long totalMergeThrottledTimeMillis() {
+        return totalMergeThrottledTime.count();
+    }
+
     public Set<OnGoingMerge> onGoingMerges() {
         return readOnlyOnGoingMerges;
     }
@@ -118,12 +128,23 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
             totalMergesNumDocs.inc(totalNumDocs);
             totalMergesSizeInBytes.inc(totalSizeInBytes);
             totalMerges.inc(took);
+
+            long stoppedMS = merge.rateLimiter.getTotalStoppedNS()/1000000;
+            long throttledMS = merge.rateLimiter.getTotalPausedNS()/1000000;
+
+            totalMergeStoppedTime.inc(stoppedMS);
+            totalMergeThrottledTime.inc(throttledMS);
+
             String message = String.format(Locale.ROOT,
-                                           "merge segment [%s] done: took [%s], [%,.1f MB], [%,d docs]",
+                                           "merge segment [%s] done: took [%s], [%,.1f MB], [%,d docs], [%s stopped], [%s throttled], [%,.1f MB written], [%,.1f MB/sec throttle]",
                                            merge.info == null ? "_na_" : merge.info.info.name,
                                            TimeValue.timeValueMillis(took),
                                            totalSizeInBytes/1024f/1024f,
-                                           totalNumDocs);
+                                           totalNumDocs,
+                                           TimeValue.timeValueMillis(stoppedMS),
+                                           TimeValue.timeValueMillis(throttledMS),
+                                           merge.rateLimiter.getTotalBytesWritten()/1024f/1024f,
+                                           merge.rateLimiter.getMBPerSec());
 
             if (took > 20000) { // if more than 20 seconds, DEBUG log it
                 logger.debug(message);

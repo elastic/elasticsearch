@@ -56,7 +56,7 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
         return SortField.Type.DOUBLE;
     }
 
-    protected SortedNumericDoubleValues getValues(LeafReaderContext context) {
+    protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
         return indexFieldData.load(context).getDoubleValues();
     }
 

@@ -65,7 +65,7 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
         return ImmutableSettings.builder()
                 // we really need local GW here since this also checks for corruption etc.
                 // and we need to make sure primaries are not just trashed if we don't have replicas
-                .put(super.nodeSettings(nodeOrdinal)).put("gateway.type", "local")
+                .put(super.nodeSettings(nodeOrdinal))
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName()).build();
     }
 

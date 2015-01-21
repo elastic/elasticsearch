@@ -444,7 +444,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         if (random.nextBoolean()) {
             builder.put(StoreModule.DISTIBUTOR_KEY, random.nextBoolean() ? StoreModule.LEAST_USED_DISTRIBUTOR : StoreModule.RANDOM_WEIGHT_DISTRIBUTOR);
         }
-
+        if (random.nextBoolean()) {
+            builder.put(ConcurrentMergeSchedulerProvider.AUTO_THROTTLE, false);
+        }
 
         if (random.nextBoolean()) {
             if (random.nextInt(10) == 0) { // do something crazy slow here
@@ -1881,7 +1883,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         assertTrue(Files.exists(dest));
         ImmutableSettings.Builder builder = ImmutableSettings.builder()
                 .put(settings)
-                .put("gateway.type", "local") // this is important we need to recover from gateway
                 .put("path.data", dataDir.toAbsolutePath());
 
         Path configDir = indexDir.resolve("config");

@@ -19,7 +19,6 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -72,6 +71,8 @@ public class IndicesOptions {
     /**
      * @return Whether to ignore if a wildcard expression resolves to no concrete indices.
      *         The `_all` string or empty list of indices count as wildcard expressions too.
+     *         Also when an alias points to a closed index this option decides if no concrete indices
+     *         are allowed.
      */
     public boolean allowNoIndices() {
         return (id & ALLOW_NO_INDICES) != 0;

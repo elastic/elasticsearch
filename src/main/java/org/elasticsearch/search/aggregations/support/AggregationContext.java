@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.search.Scorer;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -44,7 +46,7 @@ import java.util.List;
 /**
  *
  */
-@SuppressWarnings({"unchecked", "ForLoopReplaceableByForEach"})
+@SuppressWarnings({"unchecked"})
 public class AggregationContext implements ReaderContextAware, ScorerAware {
 
     private final SearchContext searchContext;
@@ -56,7 +58,6 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
 
     private LeafReaderContext reader;
     private Scorer scorer;
-    private boolean scoreDocsInOrder = false;
 
     public AggregationContext(SearchContext searchContext) {
         this.searchContext = searchContext;
@@ -88,7 +89,7 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         }
     }
 
-    public void setNextReader(LeafReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) throws IOException {
         this.reader = reader;
         for (ReaderContextAware aware : readerAwares) {
             aware.setNextReader(reader);
@@ -102,16 +103,8 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         }
     }
 
-    public boolean scoreDocsInOrder() {
-        return scoreDocsInOrder;
-    }
-
-    public void ensureScoreDocsInOrder() {
-        this.scoreDocsInOrder = true;
-    }
-
     /** Get a value source given its configuration and the depth of the aggregator in the aggregation tree. */
-    public <VS extends ValuesSource> VS valuesSource(ValuesSourceConfig<VS> config, int depth) {
+    public <VS extends ValuesSource> VS valuesSource(ValuesSourceConfig<VS> config, int depth) throws IOException {
         assert config.valid() : "value source config is invalid - must have either a field context or a script or marked as unmapped";
         assert !config.unmapped : "value source should not be created for unmapped fields";
 
@@ -143,7 +136,7 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         return (VS) bytesField(fieldDataSources, config);
     }
 
-    private ValuesSource.Numeric numericScript(ValuesSourceConfig<?> config) {
+    private ValuesSource.Numeric numericScript(ValuesSourceConfig<?> config) throws IOException {
         setScorerIfNeeded(config.script);
         setReaderIfNeeded(config.script);
         scorerAwares.add(config.script);
@@ -152,7 +145,7 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         return source;
     }
 
-    private ValuesSource.Numeric numericField(ObjectObjectOpenHashMap<ConfigCacheKey, ValuesSource> fieldDataSources, ValuesSourceConfig<?> config) {
+    private ValuesSource.Numeric numericField(ObjectObjectOpenHashMap<ConfigCacheKey, ValuesSource> fieldDataSources, ValuesSourceConfig<?> config) throws IOException {
         final ConfigCacheKey cacheKey = new ConfigCacheKey(config);
         ValuesSource.Numeric dataSource = (ValuesSource.Numeric) fieldDataSources.get(cacheKey);
         if (dataSource == null) {
@@ -172,7 +165,7 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         return dataSource;
     }
 
-    private ValuesSource bytesField(ObjectObjectOpenHashMap<ConfigCacheKey, ValuesSource> fieldDataSources, ValuesSourceConfig<?> config) {
+    private ValuesSource bytesField(ObjectObjectOpenHashMap<ConfigCacheKey, ValuesSource> fieldDataSources, ValuesSourceConfig<?> config) throws IOException {
         final ConfigCacheKey cacheKey = new ConfigCacheKey(config);
         ValuesSource dataSource = fieldDataSources.get(cacheKey);
         if (dataSource == null) {
@@ -202,7 +195,7 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         return dataSource;
     }
 
-    private ValuesSource.Bytes bytesScript(ValuesSourceConfig<?> config) {
+    private ValuesSource.Bytes bytesScript(ValuesSourceConfig<?> config) throws IOException {
         setScorerIfNeeded(config.script);
         setReaderIfNeeded(config.script);
         scorerAwares.add(config.script);
@@ -211,7 +204,7 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         return source;
     }
 
-    private ValuesSource.GeoPoint geoPointField(ObjectObjectOpenHashMap<ConfigCacheKey, ValuesSource> fieldDataSources, ValuesSourceConfig<?> config) {
+    private ValuesSource.GeoPoint geoPointField(ObjectObjectOpenHashMap<ConfigCacheKey, ValuesSource> fieldDataSources, ValuesSourceConfig<?> config) throws IOException {
         final ConfigCacheKey cacheKey = new ConfigCacheKey(config);
         ValuesSource.GeoPoint dataSource = (ValuesSource.GeoPoint) fieldDataSources.get(cacheKey);
         if (dataSource == null) {
@@ -224,7 +217,7 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         return dataSource;
     }
 
-    public void registerReaderContextAware(ReaderContextAware readerContextAware) {
+    public void registerReaderContextAware(ReaderContextAware readerContextAware) throws IOException {
         setReaderIfNeeded(readerContextAware);
         readerAwares.add(readerContextAware);
     }
@@ -234,7 +227,7 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         scorerAwares.add(scorerAware);
     }
 
-    private void setReaderIfNeeded(ReaderContextAware readerAware) {
+    private void setReaderIfNeeded(ReaderContextAware readerAware) throws IOException {
         if (reader != null) {
             readerAware.setNextReader(reader);
         }

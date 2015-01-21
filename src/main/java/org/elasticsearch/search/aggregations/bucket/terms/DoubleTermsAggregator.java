@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -38,9 +39,9 @@ import java.util.Map;
  */
 public class DoubleTermsAggregator extends LongTermsAggregator {
 
-    public DoubleTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format, long estimatedBucketCount,
-            Terms.Order order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError, IncludeExclude.LongFilter longFilter, Map<String, Object> metaData) {
-        super(name, factories, valuesSource, format, estimatedBucketCount, order, bucketCountThresholds, aggregationContext, parent, collectionMode, showTermDocCountError, longFilter, metaData);
+    public DoubleTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format,
+            Terms.Order order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError, IncludeExclude.LongFilter longFilter, Map<String, Object> metaData) throws IOException {
+        super(name, factories, valuesSource, format, order, bucketCountThresholds, aggregationContext, parent, collectionMode, showTermDocCountError, longFilter, metaData);
     }
 
     @Override
@@ -49,7 +50,7 @@ public class DoubleTermsAggregator extends LongTermsAggregator {
     }
 
     @Override
-    public DoubleTerms buildAggregation(long owningBucketOrdinal) {
+    public DoubleTerms buildAggregation(long owningBucketOrdinal) throws IOException {
         final LongTerms terms = (LongTerms) super.buildAggregation(owningBucketOrdinal);
         return convertToDouble(terms);
     }

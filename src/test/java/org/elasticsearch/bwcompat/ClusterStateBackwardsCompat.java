@@ -19,23 +19,15 @@
 
 package org.elasticsearch.bwcompat;
 
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import java.lang.reflect.Method;
-
-
-@ElasticsearchIntegrationTest.ClusterScope(scope= ElasticsearchIntegrationTest.Scope.SUITE,  numClientNodes = 0)
 public class ClusterStateBackwardsCompat extends ElasticsearchBackwardsCompatIntegrationTest {
 
     @Test
@@ -46,11 +38,17 @@ public class ClusterStateBackwardsCompat extends ElasticsearchBackwardsCompatInt
         Settings settings = ImmutableSettings.settingsBuilder().put("client.transport.ignore_cluster_name", true)
                 .put("node.name", "transport_client_" + getTestName()).build();
 
-        // connect to each node with a custom TransportClient, issue a ClusterStateRequest to test serialization
+        // connect to each node with a custom TransportClient, issue a
+        // ClusterStateRequest to test serialization
         for (NodeInfo n : nodesInfo.getNodes()) {
-            TransportClient tc = new TransportClient(settings).addTransportAddress(n.getNode().address());
-            ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().execute().actionGet();
-            tc.close();
+            TransportClient tc = null;
+            try {
+                tc = new TransportClient(settings).addTransportAddress(n.getNode().address());
+                tc.admin().cluster().prepareState().clear().execute().actionGet();
+            } finally {
+                if (tc != null)
+                    tc.close();
+            }
         }
     }
 }

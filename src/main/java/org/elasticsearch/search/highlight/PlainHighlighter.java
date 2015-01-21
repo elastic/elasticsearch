@@ -30,7 +30,6 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.internal.AnalyzerMapper;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -99,10 +98,7 @@ public class PlainHighlighter implements Highlighter {
         int numberOfFragments = field.fieldOptions().numberOfFragments() == 0 ? 1 : field.fieldOptions().numberOfFragments();
         ArrayList<TextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
-
-        AnalyzerMapper analyzerMapper = context.mapperService().documentMapper(hitContext.hit().type()).analyzerMapper();
-
-        Analyzer analyzer = analyzerMapper.setAnalyzer(highlighterContext);
+        Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
 
         try {
             textsToHighlight = HighlightUtils.loadFieldValues(field, mapper, context, hitContext);

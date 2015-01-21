@@ -58,8 +58,8 @@ public class DoubleIndexingDocTest extends ElasticsearchSingleNodeLuceneTestCase
                 .endObject()
                 .bytes());
 
-        writer.addDocument(doc.rootDoc(), doc.analyzer());
-        writer.addDocument(doc.rootDoc(), doc.analyzer());
+        writer.addDocument(doc.rootDoc(), mapper.indexAnalyzer());
+        writer.addDocument(doc.rootDoc(), mapper.indexAnalyzer());
 
         IndexReader reader = DirectoryReader.open(writer, true);
         IndexSearcher searcher = new IndexSearcher(reader);

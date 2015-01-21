@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -45,11 +44,28 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.common.xcontent.smile.SmileXContent;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.mapper.internal.*;
+import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.index.mapper.internal.BoostFieldMapper;
+import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.internal.IdFieldMapper;
+import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.internal.SizeFieldMapper;
+import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
+import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.script.ExecutableScript;
@@ -57,7 +73,14 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static com.google.common.collect.Lists.newArrayList;
@@ -184,7 +207,6 @@ public class DocumentMapper implements ToXContent {
             this.rootMappers.put(IndexFieldMapper.class, new IndexFieldMapper());
             this.rootMappers.put(SourceFieldMapper.class, new SourceFieldMapper(indexSettings));
             this.rootMappers.put(TypeFieldMapper.class, new TypeFieldMapper());
-            this.rootMappers.put(AnalyzerMapper.class, new AnalyzerMapper());
             this.rootMappers.put(AllFieldMapper.class, new AllFieldMapper());
             this.rootMappers.put(BoostFieldMapper.class, new BoostFieldMapper(indexSettings));
             this.rootMappers.put(TimestampFieldMapper.class, new TimestampFieldMapper(indexSettings));
@@ -408,10 +430,6 @@ public class DocumentMapper implements ToXContent {
         return rootMapper(SourceFieldMapper.class);
     }
 
-    public AnalyzerMapper analyzerMapper() {
-        return rootMapper(AnalyzerMapper.class);
-    }
-
     public AllFieldMapper allFieldMapper() {
         return rootMapper(AllFieldMapper.class);
     }
@@ -578,7 +596,7 @@ public class DocumentMapper implements ToXContent {
             }
         }
 
-        ParsedDocument doc = new ParsedDocument(context.uid(), context.version(), context.id(), context.type(), source.routing(), source.timestamp(), source.ttl(), context.docs(), context.analyzer(),
+        ParsedDocument doc = new ParsedDocument(context.uid(), context.version(), context.id(), context.type(), source.routing(), source.timestamp(), source.ttl(), context.docs(),
                 context.source(), context.mappingsModified()).parent(source.parent());
         // reset the context to free up memory
         context.reset(null, null, null, null);

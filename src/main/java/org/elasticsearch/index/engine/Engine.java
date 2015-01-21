@@ -374,7 +374,7 @@ public interface Engine extends Closeable {
         }
 
         public Analyzer analyzer() {
-            return this.doc.analyzer();
+            return docMapper.mappers().indexAnalyzer();
         }
 
         public BytesReference source() {

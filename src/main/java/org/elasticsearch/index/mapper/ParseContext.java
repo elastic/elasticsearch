@@ -355,16 +355,6 @@ public abstract class ParseContext {
         }
 
         @Override
-        public Analyzer analyzer() {
-            return in.analyzer();
-        }
-
-        @Override
-        public void analyzer(Analyzer analyzer) {
-            in.analyzer(analyzer);
-        }
-
-        @Override
         public boolean externalValueSet() {
             return in.externalValueSet();
         }
@@ -404,8 +394,6 @@ public abstract class ParseContext {
         private Document document;
 
         private List<Document> documents = Lists.newArrayList();
-
-        private Analyzer analyzer;
 
         private final String index;
 
@@ -449,7 +437,6 @@ public abstract class ParseContext {
             } else {
                 this.documents = null;
             }
-            this.analyzer = null;
             this.uid = null;
             this.version = null;
             this.id = null;
@@ -598,14 +585,6 @@ public abstract class ParseContext {
 
         public AllEntries allEntries() {
             return this.allEntries;
-        }
-
-        public Analyzer analyzer() {
-            return this.analyzer;
-        }
-
-        public void analyzer(Analyzer analyzer) {
-            this.analyzer = analyzer;
         }
 
         public float docBoost() {
@@ -788,10 +767,6 @@ public abstract class ParseContext {
     }
 
     public abstract AllEntries allEntries();
-
-    public abstract Analyzer analyzer();
-
-    public abstract void analyzer(Analyzer analyzer);
 
     /**
      * Return a new context that will have the external value set.

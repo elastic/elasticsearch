@@ -19,11 +19,15 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
+import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Before;
+import org.junit.Test;
 
 import java.util.List;
 
@@ -55,5 +59,34 @@ public class IndicesSegmentsRequestTests extends ElasticsearchSingleNodeTest {
         IndicesSegmentResponse rsp = client().admin().indices().prepareSegments("test").setVerbose(true).get();
         List<Segment> segments = rsp.getIndices().get("test").iterator().next().getShards()[0].getSegments();
         assertNotNull(segments.get(0).ramTree);
+    }
+
+    /**
+     * with the default IndicesOptions inherited from BroadcastOperationRequest this will raise an exception
+     */
+    @Test(expected=org.elasticsearch.indices.IndexClosedException.class)
+    public void testRequestOnClosedIndex() {
+        client().admin().indices().prepareClose("test").get();
+        client().admin().indices().prepareSegments("test").get();
+    }
+
+    /**
+     * setting the "ignoreUnavailable" option prevents IndexClosedException
+     */
+    public void testRequestOnClosedIndexIgnoreUnavailable() {
+        client().admin().indices().prepareClose("test").get();
+        IndicesOptions defaultOptions = new IndicesSegmentsRequest().indicesOptions();
+        IndicesOptions testOptions = IndicesOptions.fromOptions(true, true, true, false, defaultOptions);
+        IndicesSegmentResponse rsp = client().admin().indices().prepareSegments("test").setIndicesOptions(testOptions).get();
+        assertEquals(0, rsp.getIndices().size());
+    }
+
+    /**
+     * by default IndicesOptions setting IndicesSegmentsRequest should not throw exception when no index present
+     */
+    public void testAllowNoIndex() {
+        client().admin().indices().prepareDelete("test").get();
+        IndicesSegmentResponse rsp = client().admin().indices().prepareSegments().get();
+        assertEquals(0, rsp.getIndices().size());
     }
 }

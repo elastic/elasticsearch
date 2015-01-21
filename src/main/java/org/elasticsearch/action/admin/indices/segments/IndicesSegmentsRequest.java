@@ -37,7 +37,6 @@ public class IndicesSegmentsRequest extends BroadcastOperationRequest<IndicesSeg
 
     public IndicesSegmentsRequest(String... indices) {
         super(indices);
-        indicesOptions(IndicesOptions.fromOptions(false, true, true, false));
     }
 
     /**

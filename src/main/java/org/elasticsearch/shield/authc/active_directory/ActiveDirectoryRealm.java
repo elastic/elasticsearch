@@ -18,7 +18,6 @@ public class ActiveDirectoryRealm extends AbstractLdapRealm {
 
     public static final String TYPE = "active_directory";
 
-    @Inject
     public ActiveDirectoryRealm(RealmConfig config,
                                 ActiveDirectoryConnectionFactory connectionFactory,
                                 ActiveDirectoryGroupToRoleMapper roleMapper) {

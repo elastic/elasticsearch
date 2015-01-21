@@ -7,7 +7,6 @@ package org.elasticsearch.shield.authc.ldap;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.ShieldSettingsException;
@@ -40,7 +39,6 @@ public class LdapConnectionFactory extends ConnectionFactory<LdapConnection> {
     private final AbstractLdapConnection.GroupsResolver groupResolver;
     private final TimeValue timeout;
 
-    @Inject
     public LdapConnectionFactory(RealmConfig config) {
         super(LdapConnection.class, config);
         Settings settings = config.settings();

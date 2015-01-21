@@ -20,6 +20,7 @@
 
 package org.elasticsearch.percolator;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
@@ -54,9 +55,10 @@ class SingleDocumentPercolatorIndex implements PercolatorIndex {
                 continue;
             }
             try {
+                Analyzer analyzer = context.mapperService().documentMapper(parsedDocument.type()).mappers().indexAnalyzer();
                 // TODO: instead of passing null here, we can have a CTL<Map<String,TokenStream>> and pass previous,
                 // like the indexer does
-                TokenStream tokenStream = field.tokenStream(parsedDocument.analyzer(), null);
+                TokenStream tokenStream = field.tokenStream(analyzer, null);
                 if (tokenStream != null) {
                     memoryIndex.addField(field.name(), tokenStream, field.boost());
                 }

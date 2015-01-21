@@ -144,6 +144,16 @@ def generate_index(client, version):
     # backcompat test for legacy type level analyzer settings, see #8874
     mappings['analyzer_type1'] = {
       'analyzer': 'standard',
+      'properties': {
+        'string_with_index_analyzer': {
+          'type': 'string',
+          'index_analyzer': 'standard'
+        },
+        'completion_with_index_analyzer': {
+          'type': 'completion',
+          'index_analyzer': 'standard'
+        }
+      }
     }
     mappings['analyzer_type2'] = {
       'index_analyzer': 'standard',

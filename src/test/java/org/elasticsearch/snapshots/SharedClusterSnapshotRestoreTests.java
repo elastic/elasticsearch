@@ -1480,7 +1480,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         assertAcked(prepareCreate("test-idx", 2, indexSettings));
 
         int numberOfShards = getNumShards("test-idx").numPrimaries;
-        assertAcked(client().admin().indices().preparePutMapping("test-idx").setType("type1").setSource("field1", "type=string,search_analyzer=my_analyzer"));
+        assertAcked(client().admin().indices().preparePutMapping("test-idx").setType("type1").setSource("field1", "type=string,analyzer=standard,search_analyzer=my_analyzer"));
         final int numdocs = randomIntBetween(10, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {

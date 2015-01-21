@@ -182,6 +182,8 @@ public class TypeParsers {
     }
 
     public static void parseField(AbstractFieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper.TypeParser.ParserContext parserContext) {
+        NamedAnalyzer indexAnalyzer = null;
+        NamedAnalyzer searchAnalyzer = null;
         for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
             Map.Entry<String, Object> entry = iterator.next();
             final String propName = Strings.toUnderscoreCase(entry.getKey());
@@ -249,27 +251,21 @@ public class TypeParsers {
             } else if (propName.equals("index_options")) {
                 builder.indexOptions(nodeIndexOptionValue(propNode));
                 iterator.remove();
-            } else if (propName.equals("analyzer")) {
+            } else if (propName.equals("analyzer") || // for backcompat, reading old indexes, remove for v3.0
+                       propName.equals("index_analyzer") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                
                 NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
                 if (analyzer == null) {
                     throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }
-                builder.indexAnalyzer(analyzer);
-                builder.searchAnalyzer(analyzer);
-                iterator.remove();
-            } else if (propName.equals("index_analyzer")) {
-                NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
-                if (analyzer == null) {
-                    throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
-                }
-                builder.indexAnalyzer(analyzer);
+                indexAnalyzer = analyzer;
                 iterator.remove();
             } else if (propName.equals("search_analyzer")) {
                 NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
                 if (analyzer == null) {
                     throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }
-                builder.searchAnalyzer(analyzer);
+                searchAnalyzer = analyzer;
                 iterator.remove();
             } else if (propName.equals("include_in_all")) {
                 builder.includeInAll(nodeBooleanValue(propNode));
@@ -294,6 +290,16 @@ public class TypeParsers {
                 iterator.remove();
             }
         }
+
+        if (indexAnalyzer == null) {
+            if (searchAnalyzer != null) {
+                throw new MapperParsingException("analyzer on field [" + name + "] must be set when search_analyzer is set");
+            }
+        } else if (searchAnalyzer == null) {
+            searchAnalyzer = indexAnalyzer;
+        }
+        builder.indexAnalyzer(indexAnalyzer);
+        builder.searchAnalyzer(searchAnalyzer);
     }
 
     public static boolean parseMultiField(AbstractFieldMapper.Builder builder, String name, Mapper.TypeParser.ParserContext parserContext, String propName, Object propNode) {

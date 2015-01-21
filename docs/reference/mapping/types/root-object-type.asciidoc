@@ -27,16 +27,15 @@ explicitly set analyzers on their own. Here is an example:
 --------------------------------------------------
 {
     "tweet" : {
-        "index_analyzer" : "standard",
-        "search_analyzer" : "standard"
+        "analyzer" : "standard",
+        "search_analyzer" : "standard_with_synonyms"
     }
 }
 --------------------------------------------------
 
-The above simply explicitly defines both the `index_analyzer` and
-`search_analyzer` that will be used. There is also an option to use the
-`analyzer` attribute to set both the `search_analyzer` and
-`index_analyzer`.
+The above simply explicitly defines both the `analyzer` and
+`search_analyzer` that will be used. If `search_analyzer` is not specified,
+it defaults to the value of `analyzer`.
 
 [float]
 ==== dynamic_date_formats

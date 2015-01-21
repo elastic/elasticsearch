@@ -111,12 +111,12 @@ curl -s -XPUT 'http://localhost:9200/twitter/' -d '{
           "type": "string",
           "term_vector": "with_positions_offsets_payloads",
           "store" : true,
-          "index_analyzer" : "fulltext_analyzer"
+          "analyzer" : "fulltext_analyzer"
          },
          "fullname": {
           "type": "string",
           "term_vector": "with_positions_offsets_payloads",
-          "index_analyzer" : "fulltext_analyzer"
+          "analyzer" : "fulltext_analyzer"
         }
       }
     }

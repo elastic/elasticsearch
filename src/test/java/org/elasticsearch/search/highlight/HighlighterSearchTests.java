@@ -91,7 +91,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
                         .startObject("fields")
                         .startObject("autocomplete")
                         .field("type", "string")
-                        .field("index_analyzer", "autocomplete")
+                        .field("analyzer", "autocomplete")
                         .field("search_analyzer", "search_autocomplete")
                         .field("term_vector", "with_positions_offsets")
                         .endObject()
@@ -143,7 +143,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
          * query. We cut off and extract terms if there are more than 16 terms in the query
          */
         assertAcked(prepareCreate("test")
-                .addMapping("test", "body", "type=string,index_analyzer=custom_analyzer,search_analyzer=custom_analyzer,term_vector=with_positions_offsets")
+                .addMapping("test", "body", "type=string,analyzer=custom_analyzer,search_analyzer=custom_analyzer,term_vector=with_positions_offsets")
                 .setSettings(
                         settingsBuilder().put(indexSettings())
                                 .put("analysis.filter.wordDelimiter.type", "word_delimiter")
@@ -173,8 +173,8 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         assertAcked(prepareCreate("test")
                 .addMapping("test",
-                        "name", "type=string,index_analyzer=name_index_analyzer,search_analyzer=name_search_analyzer," + randomStoreField() + "term_vector=with_positions_offsets",
-                        "name2", "type=string,index_analyzer=name2_index_analyzer,search_analyzer=name_search_analyzer," + randomStoreField() + "term_vector=with_positions_offsets")
+                        "name", "type=string,analyzer=name_index_analyzer,search_analyzer=name_search_analyzer," + randomStoreField() + "term_vector=with_positions_offsets",
+                        "name2", "type=string,analyzer=name2_index_analyzer,search_analyzer=name_search_analyzer," + randomStoreField() + "term_vector=with_positions_offsets")
                 .setSettings(settingsBuilder()
                         .put(indexSettings())
                         .put("analysis.filter.my_ngram.max_gram", 20)
@@ -240,8 +240,8 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
     public void testNgramHighlighting() throws ElasticsearchException, IOException {
         assertAcked(prepareCreate("test")
                 .addMapping("test",
-                        "name", "type=string,index_analyzer=name_index_analyzer,search_analyzer=name_search_analyzer,term_vector=with_positions_offsets",
-                        "name2", "type=string,index_analyzer=name2_index_analyzer,search_analyzer=name_search_analyzer,term_vector=with_positions_offsets")
+                        "name", "type=string,analyzer=name_index_analyzer,search_analyzer=name_search_analyzer,term_vector=with_positions_offsets",
+                        "name2", "type=string,analyzer=name2_index_analyzer,search_analyzer=name_search_analyzer,term_vector=with_positions_offsets")
                 .setSettings(settingsBuilder()
                         .put(indexSettings())
                         .put("analysis.filter.my_ngram.max_gram", 20)

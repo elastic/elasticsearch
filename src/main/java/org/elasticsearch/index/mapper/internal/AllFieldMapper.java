@@ -304,36 +304,8 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
         if (includeDefaults || fieldType.omitNorms() != Defaults.FIELD_TYPE.omitNorms()) {
             builder.field("omit_norms", fieldType.omitNorms());
         }
-
-
-        if (indexAnalyzer == null && searchAnalyzer == null) {
-            if (includeDefaults) {
-                builder.field("analyzer", "default");
-            }
-        } else if (indexAnalyzer == null) {
-            // searchAnalyzer != null
-            if (includeDefaults || !searchAnalyzer.name().startsWith("_")) {
-                builder.field("search_analyzer", searchAnalyzer.name());
-            }
-        } else if (searchAnalyzer == null) {
-            // indexAnalyzer != null
-            if (includeDefaults || !indexAnalyzer.name().startsWith("_")) {
-                builder.field("index_analyzer", indexAnalyzer.name());
-            }
-        } else if (indexAnalyzer.name().equals(searchAnalyzer.name())) {
-            // indexAnalyzer == searchAnalyzer
-            if (includeDefaults || !indexAnalyzer.name().startsWith("_")) {
-                builder.field("analyzer", indexAnalyzer.name());
-            }
-        } else {
-            // both are there but different
-            if (includeDefaults || !indexAnalyzer.name().startsWith("_")) {
-                builder.field("index_analyzer", indexAnalyzer.name());
-            }
-            if (includeDefaults || !searchAnalyzer.name().startsWith("_")) {
-                builder.field("search_analyzer", searchAnalyzer.name());
-            }
-        }
+        
+        doXContentAnalyzers(builder, includeDefaults);
 
         if (similarity() != null) {
             builder.field("similarity", similarity().name());

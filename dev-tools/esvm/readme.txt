@@ -5,12 +5,12 @@ npm install esvm -g
 
 Running:
 1) cd to elasticsearch-shield/dev-tools/esvm
-2) modify the elasticsearch-license plugin directory in .esvmrc file
-3-a) For native users
-./esvm
-3-b) For openldap users
+2) run esvm
+a) For native users
+esvm
+b) For openldap users
 esvm oldap
-3-c) For active directory users
+c) For active directory users
 esvm ad
 
 Users and roles are stored in .esvm-shield-config

@@ -2,8 +2,9 @@
   "defaults": {
     "plugins": [
       "lmenezes/elasticsearch-kopf",
-      { "name": "shield", "path" : "file:../../target/releases/elasticsearch-shield-1.0.0-SNAPSHOT.zip" },
-      { "name": "license", "path" : "file:/Users/<user>/.m2/repository/org/elasticsearch/elasticsearch-license-plugin/1.0.0-beta1/elasticsearch-license-plugin-1.0.0-beta1.jar" }
+      "elasticsearch/elasticsearch-license/latest",
+      "elasticsearch/marvel/latest",
+      { "name": "shield", "path" : "file:../../target/releases/elasticsearch-shield-1.0.0-SNAPSHOT.zip" }
     ],
     "config" : {
       "cluster.name": "shield",
@@ -12,8 +13,19 @@
         "type": "zen",
         "zen.ping" : {
           "multicast.enabled": false,
-          "unicast.hosts": [ "localhost:9300", "localhost:9301" ]
+          "unicast.hosts": [ "127.0.0.1:9300", "127.0.0.1:9301" ]
         }
+      },
+      "network": {
+        "bind_host": "127.0.0.1",
+        "publish_host": "127.0.0.1"
+      },
+      "marvel.agent.exporter.es.hosts": [ "https://admin-plain:changeme@127.0.0.1:9200"],
+      "marvel.agent.exporter.es.ssl.truststore.path": "../../src/test/resources/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks",
+      "marvel.agent.exporter.es.ssl.truststore.password": "testnode",
+      "http.cors": {
+        "enabled": true,
+        "allow-origin": "/http:\/\/www.elasticsearch.(org|com)/"
       },
       "shield": {
         "enabled": true,
@@ -21,6 +33,7 @@
         "audit.enabled": true,
         "transport.ssl": true,
         "http.ssl": true,
+        "ssl.hostname_verification": true,
         "ssl.keystore": {
           "path": "../../src/test/resources/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks",
           "password": "testnode"
@@ -51,12 +64,10 @@
           "order": 1,
           "url": "ldaps://54.200.235.244:636",
           "user_dn_templates": ["uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com"],
-          "group_search.group_search_dn": "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com",
-          "group_search.subtree_search": false,
-          "unmapped_groups_as_roles": "false",
-          "files": {
-            "role_mapping": ".esvm-shield-config/role_mapping.yml"
-          }
+          "group_search.base_dn": "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com",
+          "unmapped_groups_as_roles": false,
+          "hostname_verification": false,
+          "files.role_mapping": ".esvm-shield-config/role_mapping.yml"
         }
       }
     },
@@ -68,8 +79,9 @@
           "order": 1,
           "domain_name": "ad.test.elasticsearch.com",
           "url": "ldaps://ad.test.elasticsearch.com:636",
-          "unmapped_groups_as_roles": "false",
-          "files": {"role_mapping": ".esvm-shield-config/role_mapping.yml"}
+          "unmapped_groups_as_roles": false,
+          "hostname_verification": false,
+          "files.role_mapping": ".esvm-shield-config/role_mapping.yml"
         }
       }
     }

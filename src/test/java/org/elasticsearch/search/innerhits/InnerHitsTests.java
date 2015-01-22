@@ -445,6 +445,45 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testInnerHitsOnHasParent() throws Exception {
+        assertAcked(prepareCreate("stack")
+                        .addMapping("question", "body", "type=string")
+                        .addMapping("answer", "_parent", "type=question", "body", "type=string")
+        );
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        requests.add(client().prepareIndex("stack", "question", "1").setSource("body", "I'm using HTTPS + Basic authentication to protect a resource. How can I throttle authentication attempts to protect against brute force attacks?"));
+        requests.add(client().prepareIndex("stack", "answer", "1").setParent("1").setSource("body", "install fail2ban and enable rules for apache"));
+        requests.add(client().prepareIndex("stack", "question", "2").setSource("body", "I have firewall rules set up and also denyhosts installed.\\ndo I also need to install fail2ban?"));
+        requests.add(client().prepareIndex("stack", "answer", "2").setParent("2").setSource("body", "Denyhosts protects only ssh; Fail2Ban protects all daemons."));
+        indexRandom(true, requests);
+
+        SearchResponse response = client().prepareSearch("stack")
+                .setTypes("answer")
+                .addSort("_uid", SortOrder.ASC)
+                .setQuery(
+                        boolQuery()
+                                .must(matchQuery("body", "fail2ban"))
+                                .must(hasParentQuery("question", matchAllQuery()).innerHit(new QueryInnerHitBuilder()))
+                ).get();
+        assertNoFailures(response);
+        assertHitCount(response, 2);
+
+        SearchHit searchHit = response.getHits().getAt(0);
+        assertThat(searchHit.getId(), equalTo("1"));
+        assertThat(searchHit.getType(), equalTo("answer"));
+        assertThat(searchHit.getInnerHits().get("question").getTotalHits(), equalTo(1l));
+        assertThat(searchHit.getInnerHits().get("question").getAt(0).getType(), equalTo("question"));
+        assertThat(searchHit.getInnerHits().get("question").getAt(0).id(), equalTo("1"));
+
+        searchHit = response.getHits().getAt(1);
+        assertThat(searchHit.getId(), equalTo("2"));
+        assertThat(searchHit.getType(), equalTo("answer"));
+        assertThat(searchHit.getInnerHits().get("question").getTotalHits(), equalTo(1l));
+        assertThat(searchHit.getInnerHits().get("question").getAt(0).getType(), equalTo("question"));
+        assertThat(searchHit.getInnerHits().get("question").getAt(0).id(), equalTo("2"));
+    }
+
+    @Test
     public void testParentChildMultipleLayers() throws Exception {
         assertAcked(prepareCreate("articles")
                         .addMapping("article", "title", "type=string")

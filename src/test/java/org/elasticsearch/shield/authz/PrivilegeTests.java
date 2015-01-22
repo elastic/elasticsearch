@@ -6,6 +6,9 @@
 package org.elasticsearch.shield.authz;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.shield.support.AutomatonPredicate;
 import org.elasticsearch.shield.support.Automatons;
@@ -175,5 +178,16 @@ public class PrivilegeTests extends ElasticsearchTestCase {
         assertThat(predicate.apply("indices:whatever"), is(false));
         assertThat(predicate.apply("cluster:whatever"), is(false));
         assertThat(predicate.apply("whatever"), is(false));
+    }
+
+    @Test
+    public void testSearchPrivilege() throws Exception {
+        Predicate<String> predicate = Privilege.Index.SEARCH.predicate();
+        assertThat(predicate.apply(SearchAction.NAME), is(true));
+        assertThat(predicate.apply(SearchAction.NAME + "/whatever"), is(true));
+        assertThat(predicate.apply(GetAction.NAME), is(true));
+        assertThat(predicate.apply(GetAction.NAME + "/whatever"), is(true));
+        assertThat(predicate.apply(SuggestAction.NAME), is(true));
+        assertThat(predicate.apply(SuggestAction.NAME + "/whatever"), is(true));
     }
 }

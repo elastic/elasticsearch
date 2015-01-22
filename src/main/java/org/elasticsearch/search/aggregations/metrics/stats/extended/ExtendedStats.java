@@ -41,6 +41,22 @@ public interface ExtendedStats extends Stats {
     double getStdDeviation();
 
     /**
+     * The upper or lower bounds of the stdDeviation
+     */
+    double getStdDeviationBound(Bounds bound);
+
+    /**
+     * The standard deviation of the collected values as a String.
+     */
+    String getStdDeviationAsString();
+
+    /**
+     * The upper or lower bounds of stdDev of the collected values as a String.
+     */
+    String getStdDeviationBoundAsString(Bounds bound);
+
+
+    /**
      * The sum of the squares of the collected values as a String.
      */
     String getSumOfSquaresAsString();
@@ -50,9 +66,9 @@ public interface ExtendedStats extends Stats {
      */
     String getVarianceAsString();
 
-    /**
-     * The standard deviation of the collected values as a String.
-     */
-    String getStdDeviationAsString();
+
+    public enum Bounds {
+        UPPER, LOWER
+    }
 
 }

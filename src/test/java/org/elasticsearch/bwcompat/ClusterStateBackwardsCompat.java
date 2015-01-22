@@ -23,18 +23,18 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.junit.Test;
+import static org.hamcrest.Matchers.*;
 
 public class ClusterStateBackwardsCompat extends ElasticsearchBackwardsCompatIntegrationTest {
 
     @Test
     public void testClusterState() throws Exception {
         createIndex("test");
-        client().prepareIndex("test", "type1", null);
-        ensureYellow("test");
 
         NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().execute().actionGet();
         Settings settings = ImmutableSettings.settingsBuilder().put("client.transport.ignore_cluster_name", true)
@@ -44,9 +44,11 @@ public class ClusterStateBackwardsCompat extends ElasticsearchBackwardsCompatInt
         for (NodeInfo n : nodesInfo.getNodes()) {
             try (TransportClient tc = new TransportClient(settings)) {
                 tc.addTransportAddress(n.getNode().address());
-                ClusterStateResponse response = tc.admin().cluster().prepareState().clear().execute().actionGet();
-                assertNotNull(response.getState());
+                ClusterStateResponse response = tc.admin().cluster().prepareState().execute().actionGet();
+
+                assertThat(response.getState().status(), equalTo(ClusterState.ClusterStateStatus.UNKNOWN));
                 assertNotNull(response.getClusterName());
+                assertTrue(response.getState().getMetaData().hasIndex("test"));
             }
         }
     }

@@ -5,14 +5,19 @@
  */
 package org.elasticsearch.shield.ssl;
 
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.Before;
 import org.junit.Test;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLSessionContext;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -125,5 +130,64 @@ public class SSLServiceTests extends ElasticsearchTestCase {
         SSLSessionContext context = sslService.getSslContext().getServerSessionContext();
         assertThat(context.getSessionCacheSize(), equalTo(300));
         assertThat(context.getSessionTimeout(), equalTo(600));
+    }
+
+    @Test
+    public void testThatCreateClientSSLEngineWithoutAnySettingsWorks() throws Exception {
+        SSLService sslService = new SSLService(ImmutableSettings.EMPTY);
+        SSLEngine sslEngine = sslService.createClientSSLEngine();
+        assertThat(sslEngine, notNullValue());
+    }
+
+    @Test
+    public void testThatCreateClientSSLEngineWithOnlyTruststoreWorks() throws Exception {
+        SSLService sslService = new SSLService(settingsBuilder()
+                .put("shield.ssl.truststore.path", testnodeStore)
+                .put("shield.ssl.truststore.password", "testnode")
+                .build());
+        SSLEngine sslEngine = sslService.createClientSSLEngine();
+        assertThat(sslEngine, notNullValue());
+    }
+
+    @Test
+    public void testThatCreateClientSSLEngineWithOnlyKeystoreWorks() throws Exception {
+        SSLService sslService = new SSLService(settingsBuilder()
+                .put("shield.ssl.keystore.path", testnodeStore)
+                .put("shield.ssl.keystore.password", "testnode")
+                .build());
+        SSLEngine sslEngine = sslService.createClientSSLEngine();
+        assertThat(sslEngine, notNullValue());
+    }
+
+    @Test
+    @Network
+    public void testThatClientSSLContextWithoutSettingsWorks() throws Exception {
+        SSLService sslService = new SSLService(ImmutableSettings.EMPTY);
+        SSLContext sslContext = sslService.getClientSSLContext();
+        try (CloseableHttpClient client = HttpClients.custom().setSslcontext(sslContext).build()) {
+            // Execute a GET on a site known to have a valid certificate signed by a trusted public CA
+            // This will result in a SSLHandshakeException if the SSLContext does not trust the CA, but the default
+            // truststore trusts all common public CAs so the handshake will succeed
+            client.execute(new HttpGet("https://www.elasticsearch.com/"));
+        }
+    }
+
+    @Test
+    @Network
+    public void testThatClientSSLContextWithKeystoreDoesNotTrustAllPublicCAs() throws Exception {
+        SSLService sslService = new SSLService(settingsBuilder()
+                .put("shield.ssl.keystore.path", testnodeStore)
+                .put("shield.ssl.keystore.password", "testnode")
+                .build());
+        SSLContext sslContext = sslService.getSslContext();
+        try (CloseableHttpClient client = HttpClients.custom().setSslcontext(sslContext).build()) {
+            // Execute a GET on a site known to have a valid certificate signed by a trusted public CA
+            // This will result in a SSLHandshakeException because the truststore is the testnodestore, which doesn't
+            // trust any public CAs
+            client.execute(new HttpGet("https://www.elasticsearch.com/"));
+            fail("A SSLHandshakeException should have been thrown here");
+        } catch (Exception e) {
+            assertThat(e, instanceOf(SSLHandshakeException.class));
+        }
     }
 }

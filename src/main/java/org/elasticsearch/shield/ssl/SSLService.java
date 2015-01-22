@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.ssl;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.primitives.Ints;
@@ -65,6 +64,78 @@ public class SSLService extends AbstractComponent {
         String[] ciphers = settings.getAsArray("ciphers", ciphers());
         String[] supportedProtocols = settings.getAsArray("supported_protocols", supportedProtocols());
         return createSSLEngine(getSslContext(settings), ciphers, supportedProtocols, host, port);
+    }
+
+    //TODO this needs to be removed and the logic folded into the other methods of this class or we create a ClientSSLService class
+    public SSLEngine createClientSSLEngine() {
+        return createClientSSLEngine(null, -1);
+    }
+
+    //TODO this needs to be removed and the logic folded into the other methods of this class or we create a ClientSSLService class
+    public SSLEngine createClientSSLEngine(String host, int port) {
+        SSLContext sslContext = getClientSSLContext();
+        return createSSLEngine(sslContext, ciphers(), supportedProtocols(), host, port);
+    }
+
+    //TODO remove this when createClientSSLEngine is removed. Used for tests
+    SSLContext getClientSSLContext() {
+        String keyStorePath = componentSettings.get("keystore.path", System.getProperty("javax.net.ssl.keyStore"));
+        String keyStorePassword = componentSettings.get("keystore.password", System.getProperty("javax.net.ssl.keyStorePassword"));
+        String keyStoreAlgorithm = componentSettings.get("keystore.algorithm", System.getProperty("ssl.KeyManagerFactory.algorithm", KeyManagerFactory.getDefaultAlgorithm()));
+        String keyPassword = componentSettings.get("keystore.key_password", keyStorePassword);
+
+        String trustStorePath = componentSettings.get("truststore.path", System.getProperty("javax.net.ssl.trustStore"));
+        String trustStorePassword = componentSettings.get("truststore.password", System.getProperty("javax.net.ssl.trustStorePassword"));
+        String trustStoreAlgorithm = componentSettings.get("truststore.algorithm", System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));
+
+        if (trustStorePath == null) {
+            //the keystore will also be the truststore
+            trustStorePath = keyStorePath;
+            trustStorePassword = keyStorePassword;
+        }
+
+        //protocols supported: https://docs.oracle.com/javase/7/docs/technotes/guides/security/StandardNames.html#SSLContext
+        String sslProtocol = componentSettings.get("protocol", "TLS");
+
+        // no need for a complex key, same path + protocol define about reusability of a SSLContext
+        // also no need for pwd verification. If it worked before, it will work again
+        String key = keyStorePath + trustStorePath + sslProtocol;
+        SSLContext sslContext = sslContexts.get(key);
+        if (sslContext == null) {
+            logger.debug("using keystore[{}], key_algorithm[{}], truststore[{}], truststore_algorithm[{}], tls_protocol[{}]",
+                    keyStorePath, keyStoreAlgorithm, trustStorePath, trustStoreAlgorithm, sslProtocol);
+
+            TrustManagerFactory trustFactory;
+            try {
+                trustFactory = TrustManagerFactory.getInstance(trustStoreAlgorithm);
+                if (trustStorePath != null) {
+                    trustFactory.init(readKeystore(trustStorePath, trustStorePassword));
+                } else {
+                    trustFactory.init((KeyStore) null);
+                }
+            } catch (Exception e) {
+                throw new ElasticsearchSSLException("failed to initialize a TrustManagerFactory", e);
+            }
+
+            KeyManager[] keyManagers = null;
+            if (keyStorePath != null) {
+                if (keyStorePassword == null) {
+                    throw new ShieldSettingsException("no keystore password configured");
+                }
+                keyManagers = createKeyManagerFactory(keyStorePath, keyStorePassword, keyStoreAlgorithm, keyPassword).getKeyManagers();
+            }
+
+            try {
+                sslContext = SSLContext.getInstance(sslProtocol);
+                sslContext.init(keyManagers, trustFactory.getTrustManagers(), null);
+            } catch (Exception e) {
+                throw new ElasticsearchSSLException("failed to initialize the SSLContext", e);
+            }
+            sslContexts.put(key, sslContext);
+        } else {
+            logger.trace("found keystore[{}], truststore[{}], tls_protocol[{}] in SSL context cache, reusing", keyStorePath, trustStorePath, sslProtocol);
+        }
+        return sslContext;
     }
 
     public SSLContext getSslContext() {
@@ -135,10 +206,9 @@ public class SSLService extends AbstractComponent {
     }
 
     private KeyManagerFactory createKeyManagerFactory(String keyStore, String keyStorePassword, String keyStoreAlgorithm, String keyPassword) {
-        try (FileInputStream in = new FileInputStream(keyStore)) {
+        try {
             // Load KeyStore
-            KeyStore ks = KeyStore.getInstance("jks");
-            ks.load(in, keyStorePassword.toCharArray());
+            KeyStore ks = readKeystore(keyStore, keyStorePassword);
 
             // Initialize KeyManagerFactory
             KeyManagerFactory kmf = KeyManagerFactory.getInstance(keyStoreAlgorithm);
@@ -163,17 +233,25 @@ public class SSLService extends AbstractComponent {
     }
 
     private TrustManagerFactory getTrustFactory(String trustStore, String trustStorePassword, String trustStoreAlgorithm) {
-        try (FileInputStream in = new FileInputStream(trustStore)) {
+        try {
             // Load TrustStore
-            KeyStore ks = KeyStore.getInstance("jks");
-            ks.load(in, trustStorePassword == null ? null : trustStorePassword.toCharArray());
+            KeyStore ks = readKeystore(trustStore, trustStorePassword);
 
             // Initialize a trust manager factory with the trusted store
             TrustManagerFactory trustFactory = TrustManagerFactory.getInstance(trustStoreAlgorithm);
             trustFactory.init(ks);
             return trustFactory;
         } catch (Exception e) {
-            throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
+            throw new ElasticsearchSSLException("failed to initialize a TrustManagerFactory", e);
+        }
+    }
+
+    private KeyStore readKeystore(String path, String password) throws Exception {
+        try (FileInputStream in = new FileInputStream(path)) {
+            // Load TrustStore
+            KeyStore ks = KeyStore.getInstance("jks");
+            ks.load(in, password == null ? null : password.toCharArray());
+            return ks;
         }
     }
 }

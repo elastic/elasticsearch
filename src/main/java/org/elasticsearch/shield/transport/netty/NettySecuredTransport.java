@@ -114,12 +114,12 @@ public class NettySecuredTransport extends NettyTransport {
                 SSLEngine sslEngine;
                 if (settings.getAsBoolean(HOSTNAME_VERIFICATION_SETTING, true)) {
                     InetSocketAddress inetSocketAddress = (InetSocketAddress) e.getValue();
-                    sslEngine = sslService.createSSLEngine(ImmutableSettings.EMPTY, getHostname(inetSocketAddress), inetSocketAddress.getPort());
+                    sslEngine = sslService.createClientSSLEngine(getHostname(inetSocketAddress), inetSocketAddress.getPort());
                     SSLParameters parameters = new SSLParameters();
                     parameters.setEndpointIdentificationAlgorithm("HTTPS");
                     sslEngine.setSSLParameters(parameters);
                 } else {
-                    sslEngine = sslService.createSSLEngine();
+                    sslEngine = sslService.createClientSSLEngine();
                 }
 
                 sslEngine.setUseClientMode(true);

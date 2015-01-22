@@ -48,8 +48,10 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
     private DoubleArray mins;
     private DoubleArray maxes;
     private DoubleArray sumOfSqrs;
+    private double sigma;
 
-    public ExtendedStatsAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context, Aggregator parent) {
+    public ExtendedStatsAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource,
+            AggregationContext context, Aggregator parent, double sigma) {
         super(name, estimatedBucketsCount, context, parent);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
@@ -61,6 +63,7 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
             maxes = bigArrays.newDoubleArray(initialSize, false);
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
             sumOfSqrs = bigArrays.newDoubleArray(initialSize, true);
+            this.sigma = sigma;
         }
     }
 
@@ -129,6 +132,12 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
             case sum_of_squares: return valuesSource == null ? 0 : sumOfSqrs.get(owningBucketOrd);
             case variance: return valuesSource == null ? Double.NaN : variance(owningBucketOrd);
             case std_deviation: return valuesSource == null ? Double.NaN : Math.sqrt(variance(owningBucketOrd));
+            case std_upper:
+                if (valuesSource == null) { return Double.NaN; }
+                return (sums.get(owningBucketOrd) / counts.get(owningBucketOrd)) + (Math.sqrt(variance(owningBucketOrd)) * this.sigma);
+            case std_lower:
+                if (valuesSource == null) { return Double.NaN; }
+                return (sums.get(owningBucketOrd) / counts.get(owningBucketOrd)) - (Math.sqrt(variance(owningBucketOrd)) * this.sigma);
             default:
                 throw new ElasticsearchIllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
         }
@@ -143,16 +152,16 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
-            return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d);
+            return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, 0d);
         }
         assert owningBucketOrdinal < counts.size();
-        return new InternalExtendedStats(name, counts.get(owningBucketOrdinal), sums.get(owningBucketOrdinal), mins.get(owningBucketOrdinal),
-                maxes.get(owningBucketOrdinal), sumOfSqrs.get(owningBucketOrdinal));
+        return new InternalExtendedStats(name, counts.get(owningBucketOrdinal), sums.get(owningBucketOrdinal),
+                mins.get(owningBucketOrdinal), maxes.get(owningBucketOrdinal), sumOfSqrs.get(owningBucketOrdinal), sigma);
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d);
+        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, 0d);
     }
 
     @Override
@@ -162,18 +171,23 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
 
-        public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig) {
+        private final double sigma;
+
+        public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig, double sigma) {
             super(name, InternalExtendedStats.TYPE.name(), valuesSourceConfig);
+
+            this.sigma = sigma;
         }
 
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-            return new ExtendedStatsAggregator(name, 0, null, aggregationContext, parent);
+            return new ExtendedStatsAggregator(name, 0, null, aggregationContext, parent, sigma);
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
-            return new ExtendedStatsAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent);
+        protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext,
+                Aggregator parent) {
+            return new ExtendedStatsAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent, sigma);
         }
     }
 }

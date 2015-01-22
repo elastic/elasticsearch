@@ -40,4 +40,13 @@ public interface ExtendedStats extends Stats {
      */
     double getStdDeviation();
 
+    /**
+     * The upper or lower bounds of the stdDeviation
+     */
+    double getStdDeviationBound(Bounds bound);
+
+    public enum Bounds {
+        UPPER, LOWER
+    }
+
 }

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics.stats.extended;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -50,7 +51,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     enum Metrics {
 
-        count, sum, min, max, avg, sum_of_squares, variance, std_deviation;
+        count, sum, min, max, avg, sum_of_squares, variance, std_deviation, std_upper, std_lower;
 
         public static Metrics resolve(String name) {
             return Metrics.valueOf(name);
@@ -58,12 +59,14 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     }
 
     private double sumOfSqrs;
+    private double sigma;
 
     InternalExtendedStats() {} // for serialization
 
-    public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs) {
+    public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs, double sigma) {
         super(name, count, sum, min, max);
         this.sumOfSqrs = sumOfSqrs;
+        this.sigma = sigma;
     }
 
     @Override
@@ -81,6 +84,12 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         }
         if ("std_deviation".equals(name)) {
             return getStdDeviation();
+        }
+        if ("std_upper".equals(name)) {
+            return getStdDeviationBound(Bounds.UPPER);
+        }
+        if ("std_lower".equals(name)) {
+            return getStdDeviationBound(Bounds.LOWER);
         }
         return super.value(name);
     }
@@ -100,6 +109,14 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         return Math.sqrt(getVariance());
     }
 
+    public double getStdDeviationBound(Bounds bound) {
+        if (bound.equals(Bounds.UPPER)) {
+            return getAvg() + (getStdDeviation() * sigma);
+        } else {
+            return getAvg() - (getStdDeviation() * sigma);
+        }
+    }
+
     @Override
     public InternalExtendedStats reduce(ReduceContext reduceContext) {
         double sumOfSqrs = 0;
@@ -108,18 +125,27 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
             sumOfSqrs += stats.getSumOfSquares();
         }
         final InternalStats stats = super.reduce(reduceContext);
-        return new InternalExtendedStats(name, stats.getCount(), stats.getSum(), stats.getMin(), stats.getMax(), sumOfSqrs);
+        return new InternalExtendedStats(name, stats.getCount(), stats.getSum(), stats.getMin(), stats.getMax(), sumOfSqrs, sigma);
     }
 
     @Override
     public void readOtherStatsFrom(StreamInput in) throws IOException {
         sumOfSqrs = in.readDouble();
+        if (in.getVersion().onOrAfter(Version.V_1_4_3)) {
+            sigma = in.readDouble();
+        } else {
+            sigma = 2.0;
+        }
     }
 
     @Override
     protected void writeOtherStatsTo(StreamOutput out) throws IOException {
         out.writeDouble(sumOfSqrs);
+        if (out.getVersion().onOrAfter(Version.V_1_4_3)) {
+            out.writeDouble(sigma);
+        }
     }
+
 
     static class Fields {
         public static final XContentBuilderString SUM_OF_SQRS = new XContentBuilderString("sum_of_squares");
@@ -128,6 +154,11 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         public static final XContentBuilderString VARIANCE_AS_STRING = new XContentBuilderString("variance_as_string");
         public static final XContentBuilderString STD_DEVIATION = new XContentBuilderString("std_deviation");
         public static final XContentBuilderString STD_DEVIATION_AS_STRING = new XContentBuilderString("std_deviation_as_string");
+        public static final XContentBuilderString STD_DEVIATION_BOUNDS = new XContentBuilderString("std_deviation_bounds");
+        public static final XContentBuilderString STD_DEVIATION_BOUNDS_AS_STRING = new XContentBuilderString("std_deviation_bounds_as_string");
+        public static final XContentBuilderString UPPER = new XContentBuilderString("upper");
+        public static final XContentBuilderString LOWER = new XContentBuilderString("lower");
+
     }
 
     @Override
@@ -135,12 +166,22 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         builder.field(Fields.SUM_OF_SQRS, count != 0 ? sumOfSqrs : null);
         builder.field(Fields.VARIANCE, count != 0 ? getVariance() : null);
         builder.field(Fields.STD_DEVIATION, count != 0 ? getStdDeviation() : null);
+        builder.startObject(Fields.STD_DEVIATION_BOUNDS)
+                .field(Fields.UPPER, count != 0 ? getStdDeviationBound(Bounds.UPPER) : null)
+                .field(Fields.LOWER, count != 0 ? getStdDeviationBound(Bounds.LOWER) : null)
+                .endObject();
+
         if (count != 0 && valueFormatter != null) {
             builder.field(Fields.SUM_OF_SQRS_AS_STRING, valueFormatter.format(sumOfSqrs));
             builder.field(Fields.VARIANCE_AS_STRING, valueFormatter.format(getVariance()));
             builder.field(Fields.STD_DEVIATION_AS_STRING, valueFormatter.format(getStdDeviation()));
+
+            builder.startObject(Fields.STD_DEVIATION_BOUNDS_AS_STRING)
+                    .field(Fields.UPPER, valueFormatter.format(getStdDeviationBound(Bounds.UPPER)))
+                    .field(Fields.LOWER, valueFormatter.format(getStdDeviationBound(Bounds.UPPER)))
+                    .endObject();
+
         }
         return builder;
     }
-
 }

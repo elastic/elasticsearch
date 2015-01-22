@@ -42,11 +42,12 @@ public class PermissionTests extends ElasticsearchTestCase {
         assertThat(matcher1, is(matcher2));
     }
 
+    // "baz_*foo", "/fool.*bar/"
     private void testAllowedIndicesMatcher(Predicate<String> indicesMatcher) {
-        assertThat(indicesMatcher.apply("test_123"), is(true));
-        assertThat(indicesMatcher.apply("foobar"), is(true));
-        assertThat(indicesMatcher.apply("fool"), is(true));
+        assertThat(indicesMatcher.apply("foobar"), is(false));
+        assertThat(indicesMatcher.apply("fool"), is(false));
         assertThat(indicesMatcher.apply("fool2bar"), is(true));
+        assertThat(indicesMatcher.apply("baz_foo"), is(true));
         assertThat(indicesMatcher.apply("barbapapa"), is(false));
     }
 

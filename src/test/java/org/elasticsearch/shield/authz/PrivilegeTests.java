@@ -7,6 +7,8 @@ package org.elasticsearch.shield.authz;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.get.MultiGetAction;
+import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.common.base.Predicate;
@@ -185,9 +187,23 @@ public class PrivilegeTests extends ElasticsearchTestCase {
         Predicate<String> predicate = Privilege.Index.SEARCH.predicate();
         assertThat(predicate.apply(SearchAction.NAME), is(true));
         assertThat(predicate.apply(SearchAction.NAME + "/whatever"), is(true));
-        assertThat(predicate.apply(GetAction.NAME), is(true));
-        assertThat(predicate.apply(GetAction.NAME + "/whatever"), is(true));
+        assertThat(predicate.apply(MultiSearchAction.NAME), is(true));
+        assertThat(predicate.apply(MultiSearchAction.NAME + "/whatever"), is(true));
         assertThat(predicate.apply(SuggestAction.NAME), is(true));
         assertThat(predicate.apply(SuggestAction.NAME + "/whatever"), is(true));
+
+        assertThat(predicate.apply(GetAction.NAME), is(false));
+        assertThat(predicate.apply(GetAction.NAME + "/whatever"), is(false));
+        assertThat(predicate.apply(MultiGetAction.NAME), is(false));
+        assertThat(predicate.apply(MultiGetAction.NAME + "/whatever"), is(false));
+    }
+
+    @Test
+    public void testGetPrivilege() throws Exception {
+        Predicate<String> predicate = Privilege.Index.GET.predicate();
+        assertThat(predicate.apply(GetAction.NAME), is(true));
+        assertThat(predicate.apply(GetAction.NAME + "/whatever"), is(true));
+        assertThat(predicate.apply(MultiGetAction.NAME), is(true));
+        assertThat(predicate.apply(MultiGetAction.NAME + "/whatever"), is(true));
     }
 }

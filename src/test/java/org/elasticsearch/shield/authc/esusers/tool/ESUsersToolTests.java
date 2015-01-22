@@ -11,6 +11,7 @@ import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolTestCase;
 import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -21,6 +22,9 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -203,6 +207,31 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     @Test
+    public void testUseradd_Cmd_LogsPermissionChange() throws Exception {
+        File userFile = writeFile("user1:hash1");
+        File userRolesFile = newTempFile();
+
+        assumePosixPermissionsAreSupported(userFile.toPath(), userRolesFile.toPath());
+
+        java.nio.file.Files.setPosixFilePermissions(userFile.toPath(), Sets.newHashSet(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE, PosixFilePermission.GROUP_WRITE, PosixFilePermission.OTHERS_WRITE));
+        java.nio.file.Files.setPosixFilePermissions(userRolesFile.toPath(), Sets.newHashSet(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE, PosixFilePermission.GROUP_WRITE, PosixFilePermission.OTHERS_WRITE));
+
+        Settings settings = ImmutableSettings.builder()
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", userFile)
+                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
+                .build();
+
+        CaptureOutputTerminal captureOutputTerminal = new CaptureOutputTerminal();
+        ESUsersTool.Useradd cmd = new ESUsersTool.Useradd(captureOutputTerminal, "user2", SecuredStringTests.build("changeme"));
+
+        CliTool.ExitStatus status = execute(cmd, settings);
+        assertThat(status, is(CliTool.ExitStatus.OK));
+
+        assertThat(captureOutputTerminal.getTerminalOutput(), hasItem(containsString("Please ensure correct permissions")));
+    }
+
+    @Test
     public void testUserdel_Parse() throws Exception {
         ESUsersTool tool = new ESUsersTool();
         CliTool.Command command = tool.parse("userdel", args("username"));
@@ -235,7 +264,7 @@ public class ESUsersToolTests extends CliToolTestCase {
         CliTool.ExitStatus status = execute(cmd, settings);
         assertThat(status, is(CliTool.ExitStatus.OK));
 
-        assertFileExists(userFile); 
+        assertFileExists(userFile);
         List<String> lines = Files.readLines(userFile, Charsets.UTF_8);
         assertThat(lines.size(), is(0));
 
@@ -264,7 +293,7 @@ public class ESUsersToolTests extends CliToolTestCase {
         assertThat(output, hasSize(equalTo(1)));
         assertThat(output, hasItem(startsWith("User [user2] doesn't exist")));
 
-        assertFileExists(userFile); 
+        assertFileExists(userFile);
         List<String> lines = Files.readLines(userFile, Charsets.UTF_8);
         assertThat(lines.size(), is(1));
 
@@ -291,6 +320,31 @@ public class ESUsersToolTests extends CliToolTestCase {
 
         assertThat(userFile.exists(), is(false));
         assertThat(userRolesFile.exists(), is(false));
+    }
+
+    @Test
+    public void testUserdel_Cmd_LogsPermissionChange() throws Exception {
+        File userFile = writeFile("user1:hash1");
+        File userRolesFile = newTempFile();
+
+        assumePosixPermissionsAreSupported(userFile.toPath(), userRolesFile.toPath());
+
+        java.nio.file.Files.setPosixFilePermissions(userFile.toPath(), Sets.newHashSet(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE, PosixFilePermission.GROUP_WRITE, PosixFilePermission.OTHERS_WRITE));
+        java.nio.file.Files.setPosixFilePermissions(userRolesFile.toPath(), Sets.newHashSet(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE, PosixFilePermission.GROUP_WRITE, PosixFilePermission.OTHERS_WRITE));
+
+        Settings settings = ImmutableSettings.builder()
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", userFile)
+                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
+                .build();
+
+        CaptureOutputTerminal captureOutputTerminal = new CaptureOutputTerminal();
+        ESUsersTool.Userdel cmd = new ESUsersTool.Userdel(captureOutputTerminal, "user1");
+
+        CliTool.ExitStatus status = execute(cmd, settings);
+        assertThat(status, is(CliTool.ExitStatus.OK));
+
+        assertThat(captureOutputTerminal.getTerminalOutput(), hasItem(containsString("Please ensure correct permissions")));
     }
 
     @Test
@@ -744,5 +798,12 @@ public class ESUsersToolTests extends CliToolTestCase {
 
     private void assertFileExists(File file) {
         assertThat(String.format(Locale.ROOT, "Expected file [%s] to exist", file), file.exists(), is(true));
+    }
+
+    private void assumePosixPermissionsAreSupported(Path ... paths) throws IOException {
+        for (Path path : paths) {
+            boolean supportsPosixPermissionsForUserFile = java.nio.file.Files.getFileStore(path).supportsFileAttributeView(PosixFileAttributeView.class);
+            assumeTrue("Ignoring because posix file attributes are not supported for file " + path, supportsPosixPermissionsForUserFile);
+        }
     }
 }

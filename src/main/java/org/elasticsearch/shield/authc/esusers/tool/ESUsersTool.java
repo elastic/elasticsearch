@@ -7,6 +7,7 @@ package org.elasticsearch.shield.authc.esusers.tool;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.base.Joiner;
+import org.elasticsearch.common.cli.CheckFileCommand;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
@@ -73,7 +74,7 @@ public class ESUsersTool extends CliTool {
         }
     }
 
-    static class Useradd extends CliTool.Command {
+    static class Useradd extends CheckFileCommand {
 
         private static final String NAME = "useradd";
 
@@ -137,7 +138,7 @@ public class ESUsersTool extends CliTool {
         }
 
         @Override
-        public ExitStatus execute(Settings settings, Environment env) throws Exception {
+        public ExitStatus doExecute(Settings settings, Environment env) throws Exception {
             Settings esusersSettings = Realms.internalRealmSettings(settings, ESUsersRealm.TYPE);
             verifyRoles(terminal, settings, env, roles);
             Path file = FileUserPasswdStore.resolveFile(esusersSettings, env);
@@ -158,9 +159,17 @@ public class ESUsersTool extends CliTool {
             }
             return ExitStatus.OK;
         }
+
+        @Override
+        protected Path[] pathsForPermissionsCheck(Settings settings, Environment env) {
+            Settings esusersSettings = Realms.internalRealmSettings(settings, ESUsersRealm.TYPE);
+            Path userPath = FileUserPasswdStore.resolveFile(esusersSettings, env);
+            Path userRolesPath = FileUserRolesStore.resolveFile(esusersSettings, env);
+            return new Path[] {userPath, userRolesPath};
+        }
     }
 
-    static class Userdel extends CliTool.Command {
+    static class Userdel extends CheckFileCommand {
 
         private static final String NAME = "userdel";
 
@@ -183,7 +192,19 @@ public class ESUsersTool extends CliTool {
         }
 
         @Override
-        public ExitStatus execute(Settings settings, Environment env) throws Exception {
+        protected Path[] pathsForPermissionsCheck(Settings settings, Environment env) {
+            Settings esusersSettings = Realms.internalRealmSettings(settings, ESUsersRealm.TYPE);
+            Path userPath = FileUserPasswdStore.resolveFile(esusersSettings, env);
+            Path userRolesPath = FileUserRolesStore.resolveFile(esusersSettings, env);
+
+            if (Files.exists(userRolesPath)) {
+                return new Path[] { userPath, userRolesPath };
+            }
+            return new Path[] { userPath };
+        }
+
+        @Override
+        public ExitStatus doExecute(Settings settings, Environment env) throws Exception {
             Settings esusersSettings = Realms.internalRealmSettings(settings, ESUsersRealm.TYPE);
             Path file = FileUserPasswdStore.resolveFile(esusersSettings, env);
             Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(file, null));
@@ -212,7 +233,7 @@ public class ESUsersTool extends CliTool {
         }
     }
 
-    static class Passwd extends CliTool.Command {
+    static class Passwd extends CheckFileCommand {
 
         private static final String NAME = "passwd";
 
@@ -251,8 +272,16 @@ public class ESUsersTool extends CliTool {
             Arrays.fill(passwd, (char) 0);
         }
 
+
         @Override
-        public ExitStatus execute(Settings settings, Environment env) throws Exception {
+        protected Path[] pathsForPermissionsCheck(Settings settings, Environment env) {
+            Settings esusersSettings = Realms.internalRealmSettings(settings, ESUsersRealm.TYPE);
+            Path path = FileUserPasswdStore.resolveFile(esusersSettings, env);
+            return new Path[] { path };
+        }
+
+        @Override
+        public ExitStatus doExecute(Settings settings, Environment env) throws Exception {
             Settings esusersSettings = Realms.internalRealmSettings(settings, ESUsersRealm.TYPE);
             Path file = FileUserPasswdStore.resolveFile(esusersSettings, env);
             Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(file, null));
@@ -268,7 +297,7 @@ public class ESUsersTool extends CliTool {
     }
 
 
-    static class Roles extends CliTool.Command {
+    static class Roles extends CheckFileCommand {
 
         private static final String NAME = "roles";
 
@@ -305,7 +334,14 @@ public class ESUsersTool extends CliTool {
         }
 
         @Override
-        public ExitStatus execute(Settings settings, Environment env) throws Exception {
+        protected Path[] pathsForPermissionsCheck(Settings settings, Environment env) {
+            Settings esusersSettings = Realms.internalRealmSettings(settings, ESUsersRealm.TYPE);
+            Path path = FileUserPasswdStore.resolveFile(esusersSettings, env);
+            return new Path[] { path } ;
+        }
+
+        @Override
+        public ExitStatus doExecute(Settings settings, Environment env) throws Exception {
             // check if just need to return data as no write operation happens
             // Nothing to add, just list the data for a username
             boolean readOnlyUserListing = removeRoles.length == 0 && addRoles.length == 0;

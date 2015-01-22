@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.signature.tool;
 
+import org.elasticsearch.common.cli.CheckFileCommand;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
@@ -53,7 +54,7 @@ public class SystemKeyTool extends CliTool {
         return Generate.parse(terminal, commandLine);
     }
 
-    static class Generate extends Command {
+    static class Generate extends CheckFileCommand {
 
         private static final CliToolConfig.Cmd CMD = cmd("generate", Generate.class).build();
 
@@ -74,7 +75,16 @@ public class SystemKeyTool extends CliTool {
         }
 
         @Override
-        public ExitStatus execute(Settings settings, Environment env) throws Exception {
+        protected Path[] pathsForPermissionsCheck(Settings settings, Environment env) {
+            Path path = this.path;
+            if (path == null) {
+                path = InternalSignatureService.resolveFile(settings, env);
+            }
+            return new Path[] { path };
+        }
+
+        @Override
+        public ExitStatus doExecute(Settings settings, Environment env) throws Exception {
             Path path = this.path;
             try {
                 if (path == null) {

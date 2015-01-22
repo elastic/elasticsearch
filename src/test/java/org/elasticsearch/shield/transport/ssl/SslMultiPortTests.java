@@ -23,21 +23,26 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.shield.transport.support.TransportProfileUtil.getProfilePort;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.ShieldSettingsSource.DEFAULT_USER_NAME;
+import static org.elasticsearch.test.ShieldSettingsSource.DEFAULT_PASSWORD;
 import static org.hamcrest.CoreMatchers.is;
 
 @ClusterScope(scope = Scope.SUITE)
 public class SslMultiPortTests extends ShieldIntegrationTest {
 
     private static int randomClientPort;
+    private static int randomNonSslPort;
 
     @BeforeClass
     public static void getRandomPort() {
         randomClientPort = randomIntBetween(49000, 65500); // ephemeral port
+        randomNonSslPort = randomIntBetween(49000, 65500);
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
+        String randomNonSslPortRange = randomNonSslPort + "-" + (randomNonSslPort+100);
 
         File store;
         try {
@@ -54,6 +59,9 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
                 .put("transport.profiles.client.bind_host", "localhost") // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
                 .put("transport.profiles.client.shield.truststore.path", store.getAbsolutePath()) // settings for client truststore
                 .put("transport.profiles.client.shield.truststore.password", "testnode-client-profile")
+                .put("transport.profiles.no_ssl.port", randomNonSslPortRange)
+                .put("transport.profiles.no_ssl.bind_host", "localhost")
+                .put("transport.profiles.no_ssl.shield.ssl", "false")
                 .build();
     }
 
@@ -100,6 +108,26 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
             TransportAddress transportAddress = internalCluster().getInstance(Transport.class).boundAddress().boundAddress();
             transportClient.addTransportAddress(transportAddress);
             transportClient.admin().cluster().prepareHealth().get();
+        }
+    }
+
+    @Test
+    public void testThatTransportClientCanConnectToNoSslProfile() throws Exception {
+        Settings settings = ImmutableSettings.builder()
+                .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
+                .put("cluster.name", internalCluster().getClusterName())
+                .build();
+        try (TransportClient transportClient = new TransportClient(settings, false)) {
+            transportClient.addTransportAddress(new InetSocketTransportAddress("localhost", getProfilePort("no_ssl", internalCluster())));
+            assertGreenClusterState(transportClient);
+        }
+    }
+
+    @Test(expected = NoNodeAvailableException.class)
+    public void testThatStandardTransportClientCannotConnectToNoSslProfile() throws Exception {
+        try (TransportClient transportClient = createTransportClient(ImmutableSettings.EMPTY)) {
+            transportClient.addTransportAddress(new InetSocketTransportAddress("localhost", getProfilePort("no_ssl", internalCluster())));
+            assertGreenClusterState(transportClient);
         }
     }
 }

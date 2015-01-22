@@ -66,7 +66,8 @@ public class NettySecuredTransport extends NettyTransport {
         @Override
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = super.getPipeline();
-            if (ssl) {
+            boolean profileSsl = profileSettings.getAsBoolean("shield.ssl", ssl);
+            if (profileSsl) {
                 SSLEngine serverEngine;
                 if (profileSettings.get("shield.truststore.path") != null) {
                     serverEngine = sslService.createSSLEngine(profileSettings.getByPrefix("shield."));

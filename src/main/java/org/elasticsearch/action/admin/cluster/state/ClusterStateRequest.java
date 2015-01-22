@@ -40,6 +40,7 @@ public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterS
     private boolean metaData = true;
     private boolean blocks = true;
     private String[] indices = Strings.EMPTY_ARRAY;
+    private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
     public ClusterStateRequest() {
     }
@@ -57,7 +58,7 @@ public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterS
         indices = Strings.EMPTY_ARRAY;
         return this;
     }
-    
+
     public ClusterStateRequest clear() {
         routingTable = false;
         nodes = false;
@@ -116,7 +117,12 @@ public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterS
 
     @Override
     public IndicesOptions indicesOptions() {
-        return IndicesOptions.lenientExpandOpen();
+        return this.indicesOptions;
+    }
+
+    public final ClusterStateRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
+        return this;
     }
 
     @Override
@@ -132,6 +138,9 @@ public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterS
             in.readStringArray();
         }
         readLocal(in);
+        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
+        }
     }
 
     @Override
@@ -147,5 +156,8 @@ public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterS
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }
         writeLocal(out);
+        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+            indicesOptions.writeIndicesOptions(out);
+        }
     }
 }

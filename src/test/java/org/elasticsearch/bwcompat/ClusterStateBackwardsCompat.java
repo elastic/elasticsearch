@@ -19,7 +19,7 @@
 
 package org.elasticsearch.bwcompat;
 
-
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.transport.TransportClient;
@@ -33,6 +33,8 @@ public class ClusterStateBackwardsCompat extends ElasticsearchBackwardsCompatInt
     @Test
     public void testClusterState() throws Exception {
         createIndex("test");
+        client().prepareIndex("test", "type1", null);
+        ensureYellow("test");
 
         NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().execute().actionGet();
         Settings settings = ImmutableSettings.settingsBuilder().put("client.transport.ignore_cluster_name", true)
@@ -40,13 +42,11 @@ public class ClusterStateBackwardsCompat extends ElasticsearchBackwardsCompatInt
 
         // connect to each node with a custom TransportClient, issue a ClusterStateRequest to test serialization
         for (NodeInfo n : nodesInfo.getNodes()) {
-            TransportClient tc = null;
-            try {
-                tc = new TransportClient(settings).addTransportAddress(n.getNode().address());
-                tc.admin().cluster().prepareState().clear().execute().actionGet();
-            } finally {
-                if (tc != null)
-                    tc.close();
+            try (TransportClient tc = new TransportClient(settings)) {
+                tc.addTransportAddress(n.getNode().address());
+                ClusterStateResponse response = tc.admin().cluster().prepareState().clear().execute().actionGet();
+                assertNotNull(response.getState());
+                assertNotNull(response.getClusterName());
             }
         }
     }

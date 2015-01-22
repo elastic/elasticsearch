@@ -61,14 +61,13 @@ public class ClusterStateRequestTest extends ElasticsearchTestCase {
             if (testVersion.onOrAfter(Version.V_1_5_0)) {
                 assertOptionsMatch(deserializedCSRequest.indicesOptions(), clusterStateRequest.indicesOptions());
             } else {
-                // versions before V_1_5_0 use
-                // IndicesOptions.lenientExpandOpen()
+                // versions before V_1_5_0 use IndicesOptions.lenientExpandOpen()
                 assertOptionsMatch(deserializedCSRequest.indicesOptions(), IndicesOptions.lenientExpandOpen());
             }
         }
     }
 
-    private void assertOptionsMatch(IndicesOptions in, IndicesOptions out) {
+    private static void assertOptionsMatch(IndicesOptions in, IndicesOptions out) {
         assertThat(in.ignoreUnavailable(), equalTo(out.ignoreUnavailable()));
         assertThat(in.expandWildcardsClosed(), equalTo(out.expandWildcardsClosed()));
         assertThat(in.expandWildcardsOpen(), equalTo(out.expandWildcardsOpen()));

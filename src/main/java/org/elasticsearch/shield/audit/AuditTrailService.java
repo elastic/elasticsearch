@@ -37,16 +37,16 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
     }
 
     @Override
-    public void anonymousAccess(String action, TransportMessage<?> message) {
+    public void anonymousAccessDenied(String action, TransportMessage<?> message) {
         for (AuditTrail auditTrail : auditTrails) {
-            auditTrail.anonymousAccess(action, message);
+            auditTrail.anonymousAccessDenied(action, message);
         }
     }
 
     @Override
-    public void anonymousAccess(RestRequest request) {
+    public void anonymousAccessDenied(RestRequest request) {
         for (AuditTrail auditTrail : auditTrails) {
-            auditTrail.anonymousAccess(request);
+            auditTrail.anonymousAccessDenied(request);
         }
     }
 

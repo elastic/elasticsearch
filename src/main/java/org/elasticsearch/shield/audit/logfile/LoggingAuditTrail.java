@@ -64,29 +64,29 @@ public class LoggingAuditTrail implements AuditTrail {
     }
 
     @Override
-    public void anonymousAccess(String action, TransportMessage<?> message) {
+    public void anonymousAccessDenied(String action, TransportMessage<?> message) {
         String indices = indices(message);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [anonymous_access]\t{}, action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(message), action, indices, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [anonymous_access_denied]\t{}, action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(message), action, indices, message.getClass().getSimpleName());
             } else {
-                logger.warn("{}[transport] [anonymous_access]\t{}, action=[{}], indices=[{}]", prefix, originAttributes(message), action, indices);
+                logger.warn("{}[transport] [anonymous_access_denied]\t{}, action=[{}], indices=[{}]", prefix, originAttributes(message), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [anonymous_access]\t{}, action=[{}], request=[{}]", prefix, originAttributes(message), action, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [anonymous_access_denied]\t{}, action=[{}], request=[{}]", prefix, originAttributes(message), action, message.getClass().getSimpleName());
             } else {
-                logger.warn("{}[transport] [anonymous_access]\t{}, action=[{}]", prefix, originAttributes(message), action);
+                logger.warn("{}[transport] [anonymous_access_denied]\t{}, action=[{}]", prefix, originAttributes(message), action);
             }
         }
     }
 
     @Override
-    public void anonymousAccess(RestRequest request) {
+    public void anonymousAccessDenied(RestRequest request) {
         if (logger.isDebugEnabled()) {
-            logger.debug("{}[rest] [anonymous_access]\t{}, uri=[{}], request_body=[{}]", prefix, hostAttributes(request), request.uri(), restRequestContent(request));
+            logger.debug("{}[rest] [anonymous_access_denied]\t{}, uri=[{}], request_body=[{}]", prefix, hostAttributes(request), request.uri(), restRequestContent(request));
         } else {
-            logger.warn("{}[rest] [anonymous_access]\t{}, uri=[{}]", prefix, hostAttributes(request), request.uri());
+            logger.warn("{}[rest] [anonymous_access_denied]\t{}, uri=[{}]", prefix, hostAttributes(request), request.uri());
         }
     }
 

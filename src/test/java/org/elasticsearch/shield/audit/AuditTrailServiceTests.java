@@ -82,9 +82,9 @@ public class AuditTrailServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testAnonymousAccess() throws Exception {
-        service.anonymousAccess("_action", message);
+        service.anonymousAccessDenied("_action", message);
         for (AuditTrail auditTrail : auditTrails) {
-            verify(auditTrail).anonymousAccess("_action", message);
+            verify(auditTrail).anonymousAccessDenied("_action", message);
         }
     }
 

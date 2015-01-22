@@ -48,7 +48,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     public User authenticate(RestRequest request) throws AuthenticationException {
         AuthenticationToken token = token(request);
         if (token == null) {
-            auditTrail.anonymousAccess(request);
+            auditTrail.anonymousAccessDenied(request);
             throw new AuthenticationException("missing authentication token");
         }
         User user = authenticate(request, token);
@@ -146,7 +146,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
 
         if (token == null) {
             if (fallbackUser == null) {
-                auditTrail.anonymousAccess(action, message);
+                auditTrail.anonymousAccessDenied(action, message);
                 throw new AuthenticationException("missing authentication token for request [" + action + "]");
             }
             return fallbackUser;

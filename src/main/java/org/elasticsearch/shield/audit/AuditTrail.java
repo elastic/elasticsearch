@@ -29,11 +29,11 @@ public interface AuditTrail {
         }
 
         @Override
-        public void anonymousAccess(String action, TransportMessage<?> message) {
+        public void anonymousAccessDenied(String action, TransportMessage<?> message) {
         }
 
         @Override
-        public void anonymousAccess(RestRequest request) {
+        public void anonymousAccessDenied(RestRequest request) {
         }
 
         @Override
@@ -75,9 +75,9 @@ public interface AuditTrail {
 
     String name();
 
-    void anonymousAccess(String action, TransportMessage<?> message);
+    void anonymousAccessDenied(String action, TransportMessage<?> message);
 
-    void anonymousAccess(RestRequest request);
+    void anonymousAccessDenied(RestRequest request);
 
     void authenticationFailed(AuthenticationToken token, String action, TransportMessage<?> message);
 

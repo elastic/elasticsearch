@@ -114,13 +114,13 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testAnonymousAccess_Transport() throws Exception {
+    public void testAnonymousAccessDenied_Transport() throws Exception {
         for (Level level : Level.values()) {
             CapturingLogger logger = new CapturingLogger(level);
             LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, logger);
             TransportMessage message = randomBoolean() ? new MockMessage() : new MockIndicesRequest();
             String origins = LoggingAuditTrail.originAttributes(message);
-            auditTrail.anonymousAccess("_action", message);
+            auditTrail.anonymousAccessDenied("_action", message);
             switch (level) {
                 case ERROR:
                     assertEmptyLog(logger);
@@ -128,24 +128,24 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
                 case WARN:
                 case INFO:
                     if (message instanceof IndicesRequest) {
-                        assertMsg(logger, Level.WARN, prefix + "[transport] [anonymous_access]\t" + origins + ", action=[_action], indices=[idx1,idx2]");
+                        assertMsg(logger, Level.WARN, prefix + "[transport] [anonymous_access_denied]\t" + origins + ", action=[_action], indices=[idx1,idx2]");
                     } else {
-                        assertMsg(logger, Level.WARN, prefix + "[transport] [anonymous_access]\t"  + origins + ", action=[_action]");
+                        assertMsg(logger, Level.WARN, prefix + "[transport] [anonymous_access_denied]\t"  + origins + ", action=[_action]");
                     }
                     break;
                 case DEBUG:
                 case TRACE:
                     if (message instanceof IndicesRequest) {
-                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [anonymous_access]\t"  + origins + ", action=[_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [anonymous_access_denied]\t"  + origins + ", action=[_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
                     } else {
-                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [anonymous_access]\t"  + origins + ", action=[_action], request=[MockMessage]");
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [anonymous_access_denied]\t"  + origins + ", action=[_action], request=[MockMessage]");
                     }
             }
         }
     }
 
     @Test
-    public void testAnonymousAccess_Rest() throws Exception {
+    public void testAnonymousAccessDenied_Rest() throws Exception {
         RestRequest request = mock(RestRequest.class);
         when(request.getRemoteAddress()).thenReturn(new InetSocketAddress("_hostname", 9200));
         when(request.uri()).thenReturn("_uri");
@@ -154,18 +154,18 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
         for (Level level : Level.values()) {
             CapturingLogger logger = new CapturingLogger(level);
             LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, logger);
-            auditTrail.anonymousAccess(request);
+            auditTrail.anonymousAccessDenied(request);
             switch (level) {
                 case ERROR:
                     assertEmptyLog(logger);
                     break;
                 case WARN:
                 case INFO:
-                    assertMsg(logger, Level.WARN, prefix + "[rest] [anonymous_access]\torigin_address=[_hostname:9200], uri=[_uri]");
+                    assertMsg(logger, Level.WARN, prefix + "[rest] [anonymous_access_denied]\torigin_address=[_hostname:9200], uri=[_uri]");
                     break;
                 case DEBUG:
                 case TRACE:
-                    assertMsg(logger, Level.DEBUG, prefix + "[rest] [anonymous_access]\torigin_address=[_hostname:9200], uri=[_uri], request_body=[" + expectedMessage + "]");
+                    assertMsg(logger, Level.DEBUG, prefix + "[rest] [anonymous_access_denied]\torigin_address=[_hostname:9200], uri=[_uri], request_body=[" + expectedMessage + "]");
             }
         }
     }

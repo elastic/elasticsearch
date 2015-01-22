@@ -106,9 +106,9 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
     @Before
     public void init() throws Exception {
         settings = ImmutableSettings.builder()
-                .put("shield.audit.logfile.prefix.node_host_address", randomBoolean())
-                .put("shield.audit.logfile.prefix.node_host_name", randomBoolean())
-                .put("shield.audit.logfile.prefix.node_name", randomBoolean())
+                .put("shield.audit.logfile.prefix.emit_node_host_address", randomBoolean())
+                .put("shield.audit.logfile.prefix.emit_node_host_name", randomBoolean())
+                .put("shield.audit.logfile.prefix.emit_node_name", randomBoolean())
                 .build();
         prefix = LoggingAuditTrail.resolvePrefix(settings);
     }

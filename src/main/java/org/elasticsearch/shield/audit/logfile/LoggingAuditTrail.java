@@ -268,7 +268,7 @@ public class LoggingAuditTrail implements AuditTrail {
 
     static String resolvePrefix(Settings settings) {
         StringBuilder builder = new StringBuilder();
-        if (settings.getAsBoolean("shield.audit.logfile.prefix.node_host_address", false)) {
+        if (settings.getAsBoolean("shield.audit.logfile.prefix.emit_node_host_address", false)) {
             try {
                 String address = InetAddress.getLocalHost().getHostAddress();
                 builder.append("[").append(address).append("] ");
@@ -276,7 +276,7 @@ public class LoggingAuditTrail implements AuditTrail {
                 // ignore
             }
         }
-        if (settings.getAsBoolean("shield.audit.logfile.prefix.node_host_name", false)) {
+        if (settings.getAsBoolean("shield.audit.logfile.prefix.emit_node_host_name", false)) {
             try {
                 String hostName = InetAddress.getLocalHost().getHostName();
                 builder.append("[").append(hostName).append("] ");
@@ -284,7 +284,7 @@ public class LoggingAuditTrail implements AuditTrail {
                 // ignore
             }
         }
-        if (settings.getAsBoolean("shield.audit.logfile.prefix.node_name", true)) {
+        if (settings.getAsBoolean("shield.audit.logfile.prefix.emit_node_name", true)) {
             String name = settings.get("name");
             if (name != null) {
                 builder.append("[").append(name).append("] ");

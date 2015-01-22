@@ -58,7 +58,7 @@ class SingleDocumentPercolatorIndex implements PercolatorIndex {
                 // like the indexer does
                 TokenStream tokenStream = field.tokenStream(parsedDocument.analyzer(), null);
                 if (tokenStream != null) {
-                    memoryIndex.addField(field.name(), tokenStream, field.boost());
+                    memoryIndex.addField(field.name(), tokenStream, field.boost(), parsedDocument.analyzer().getPositionIncrementGap(field.name()));
                 }
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to create token stream", e);

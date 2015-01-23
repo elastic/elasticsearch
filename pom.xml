@@ -6,7 +6,7 @@
 
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-shield</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.0</version>
 
     <scm>
         <connection>scm:git:git@github.com:elasticsearch/elasticsearch-shield.git</connection>
@@ -22,8 +22,8 @@
 
     <repositories>
         <repository>
-            <id>es-releases</id>
-            <url>http://maven.elasticsearch.org/libs-release-local</url>
+            <id>elasticsearch-releases</id>
+            <url>http://maven.elasticsearch.org/releases</url>
             <releases>
                 <enabled>true</enabled>
                 <updatePolicy>daily</updatePolicy>
@@ -33,8 +33,8 @@
             </snapshots>
         </repository>
         <repository>
-            <id>es-snapshots</id>
-            <url>http://maven.elasticsearch.org/libs-snapshot</url>
+            <id>elasticsearch-snapshots</id>
+            <url>http://maven.elasticsearch.org/snapshots</url>
             <releases>
                 <enabled>false</enabled>
             </releases>
@@ -49,7 +49,7 @@
         <lucene.version>4.10.2</lucene.version>
         <lucene.maven.version>4.10.2</lucene.maven.version>
         <elasticsearch.version>1.4.2</elasticsearch.version>
-        <license.plugin.version>1.0.0-beta1</license.plugin.version>
+        <license.plugin.version>1.0.0-beta2</license.plugin.version>
 
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
@@ -439,9 +439,10 @@
 
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
-                <version>2.3</version>
+                <version>2.5.3</version>
                 <configuration>
                     <appendAssemblyId>false</appendAssemblyId>
+                    <attach>false</attach>
                     <outputDirectory>${project.build.directory}/releases/</outputDirectory>
                     <descriptors>
                         <descriptor>${basedir}/src/main/assemblies/plugin.xml</descriptor>
@@ -481,6 +482,31 @@
 
 
     <profiles>
+        <profile>
+            <id>deploy-internal</id>
+            <distributionManagement>
+                <repository>
+                    <id>elasticsearch-internal-releases</id>
+                    <name>Elasticsearch Internal Releases</name>
+                    <url>http://maven.elasticsearch.org/artifactory/internal-releases</url>
+                </repository>
+                <snapshotRepository>
+                    <id>elasticsearch-internal-snapshots</id>
+                    <name>Elasticsearch Internal Snapshots</name>
+                    <url>http://maven.elasticsearch.org/artifactory/internal-snapshots</url>
+                </snapshotRepository>
+            </distributionManagement>
+        </profile>
+        <profile>
+            <id>deploy-public</id>
+            <distributionManagement>
+                <repository>
+                    <id>elasticsearch-public-releases</id>
+                    <name>Elasticsearch Public Releases</name>
+                    <url>http://maven.elasticsearch.org/artifactory/public-releases</url>
+                </repository>
+            </distributionManagement>
+        </profile>
         <!-- default profile, with randomization setting kicks in -->
         <profile>
             <id>default</id>
@@ -497,150 +523,150 @@
                         </configuration>
                     </plugin>
                     <plugin>
-                      <groupId>com.mycila</groupId>
-                      <artifactId>license-maven-plugin</artifactId>
-                      <version>2.5</version>
-                      <configuration>
-                        <header>dev-tools/elasticsearch_license_header.txt</header>
-                        <headerDefinitions>
-                          <headerDefinition>dev-tools/license_header_definition.xml</headerDefinition>
-                        </headerDefinitions>
-                        <includes>
-                          <include>src/main/java/org/elasticsearch/**/*.java</include>
-                          <include>src/test/java/org/elasticsearch/**/*.java</include>
-                        </includes>
-                        <excludes>
-                          <!-- BCrypt -->
-                          <exclude>src/main/java/org/elasticsearch/shield/authc/support/BCrypt.java</exclude>
-                        </excludes>
-                      </configuration>
-                      <executions>
-                        <execution>
-                          <phase>compile</phase>
-                          <goals>
-                            <goal>check</goal>
-                          </goals>
-                        </execution>
-                      </executions>
+                        <groupId>com.mycila</groupId>
+                        <artifactId>license-maven-plugin</artifactId>
+                        <version>2.5</version>
+                        <configuration>
+                            <header>dev-tools/elasticsearch_license_header.txt</header>
+                            <headerDefinitions>
+                                <headerDefinition>dev-tools/license_header_definition.xml</headerDefinition>
+                            </headerDefinitions>
+                            <includes>
+                                <include>src/main/java/org/elasticsearch/**/*.java</include>
+                                <include>src/test/java/org/elasticsearch/**/*.java</include>
+                            </includes>
+                            <excludes>
+                                <!-- BCrypt -->
+                                <exclude>src/main/java/org/elasticsearch/shield/authc/support/BCrypt.java</exclude>
+                            </excludes>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <phase>compile</phase>
+                                <goals>
+                                    <goal>check</goal>
+                                </goals>
+                            </execution>
+                        </executions>
                     </plugin>
                 </plugins>
             </build>
         </profile>
         <profile>
-          <id>coverage</id>
-          <activation>
-            <property>
-              <name>tests.coverage</name>
-              <value>true</value>
-            </property>
-          </activation>
-          <dependencies>
-            <dependency>
-              <!--  must be on the classpath  -->
-              <groupId>org.jacoco</groupId>
-              <artifactId>org.jacoco.agent</artifactId>
-              <classifier>runtime</classifier>
-              <version>0.6.4.201312101107</version>
-              <scope>test</scope>
-            </dependency>
-          </dependencies>
-          <build>
-            <plugins>
-              <plugin>
-                <groupId>org.jacoco</groupId>
-                <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.6.4.201312101107</version>
-                <executions>
-                  <execution>
-                    <id>default-prepare-agent</id>
-                    <goals>
-                      <goal>prepare-agent</goal>
-                    </goals>
-                  </execution>
-                  <execution>
-                    <id>default-report</id>
-                    <phase>prepare-package</phase>
-                    <goals>
-                      <goal>report</goal>
-                    </goals>
-                  </execution>
-                  <execution>
-                    <id>default-check</id>
-                    <goals>
-                      <goal>check</goal>
-                    </goals>
-                  </execution>
-                </executions>
-                <configuration>
-                  <excludes/>
-                </configuration>
-              </plugin>
-            </plugins>
-          </build>
+            <id>coverage</id>
+            <activation>
+                <property>
+                    <name>tests.coverage</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <!--  must be on the classpath  -->
+                    <groupId>org.jacoco</groupId>
+                    <artifactId>org.jacoco.agent</artifactId>
+                    <classifier>runtime</classifier>
+                    <version>0.6.4.201312101107</version>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <version>0.6.4.201312101107</version>
+                        <executions>
+                            <execution>
+                                <id>default-prepare-agent</id>
+                                <goals>
+                                    <goal>prepare-agent</goal>
+                                </goals>
+                            </execution>
+                            <execution>
+                                <id>default-report</id>
+                                <phase>prepare-package</phase>
+                                <goals>
+                                    <goal>report</goal>
+                                </goals>
+                            </execution>
+                            <execution>
+                                <id>default-check</id>
+                                <goals>
+                                    <goal>check</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <excludes/>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
         </profile>
         <profile>
-          <id>static</id>
-          <activation>
-            <property>
-              <name>tests.static</name>
-              <value>true</value>
-            </property>
-          </activation>
-          <build>
-            <plugins>
-              <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>findbugs-maven-plugin</artifactId>
-                <version>3.0.0</version>
-              </plugin>
-            </plugins>
-          </build>
-          <reporting>
-            <plugins>
-              <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jxr-plugin</artifactId>
-                <version>2.3</version>
-              </plugin>
-              <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-pmd-plugin</artifactId>
-                <version>3.2</version>
-                <configuration>
-                  <rulesets>
-                    <ruleset>${basedir}/dev-tools/pmd/custom.xml</ruleset>
-                  </rulesets>
-                  <targetJdk>1.7</targetJdk>
-                  <excludes/>
-                </configuration>
-              </plugin>
-              <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>findbugs-maven-plugin</artifactId>
-                <version>3.0.0</version>
-                <configuration>
-                  <xmlOutput>true</xmlOutput>
-                  <xmlOutputDirectory>target/site</xmlOutputDirectory>
-                  <fork>true</fork>
-                  <maxHeap>2048</maxHeap>
-                  <timeout>1800000</timeout>
-                  <onlyAnalyze>org.elasticsearch.-</onlyAnalyze>
-                </configuration>
-              </plugin>
-              <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-project-info-reports-plugin</artifactId>
-                <version>2.7</version>
-                <reportSets>
-                  <reportSet>
-                    <reports>
-                      <report>index</report>
-                    </reports>
-                  </reportSet>
-                </reportSets>
-              </plugin>
-            </plugins>
-          </reporting>
+            <id>static</id>
+            <activation>
+                <property>
+                    <name>tests.static</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>findbugs-maven-plugin</artifactId>
+                        <version>3.0.0</version>
+                    </plugin>
+                </plugins>
+            </build>
+            <reporting>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jxr-plugin</artifactId>
+                        <version>2.3</version>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-pmd-plugin</artifactId>
+                        <version>3.2</version>
+                        <configuration>
+                            <rulesets>
+                                <ruleset>${basedir}/dev-tools/pmd/custom.xml</ruleset>
+                            </rulesets>
+                            <targetJdk>1.7</targetJdk>
+                            <excludes/>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>findbugs-maven-plugin</artifactId>
+                        <version>3.0.0</version>
+                        <configuration>
+                            <xmlOutput>true</xmlOutput>
+                            <xmlOutputDirectory>target/site</xmlOutputDirectory>
+                            <fork>true</fork>
+                            <maxHeap>2048</maxHeap>
+                            <timeout>1800000</timeout>
+                            <onlyAnalyze>org.elasticsearch.-</onlyAnalyze>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-project-info-reports-plugin</artifactId>
+                        <version>2.7</version>
+                        <reportSets>
+                            <reportSet>
+                                <reports>
+                                    <report>index</report>
+                                </reports>
+                            </reportSet>
+                        </reportSets>
+                    </plugin>
+                </plugins>
+            </reporting>
         </profile>
     </profiles>
 

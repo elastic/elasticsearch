@@ -191,8 +191,8 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
     }
 
     private void assertSyncShardInfo(ActionWriteResponse.ShardInfo shardInfo, NumShards numShards) {
-        assertThat(shardInfo.getTotal(), equalTo(numShards.totalNumShards));
-        assertThat(shardInfo.getSuccessful(), greaterThanOrEqualTo(numShards.numPrimaries));
+        assertThat(shardInfo.getTotal(), greaterThanOrEqualTo(numShards.totalNumShards));
+        assertThat(shardInfo.getSuccessful(), greaterThanOrEqualTo(numShards.totalNumShards));
         assertThat(shardInfo.getPending(), equalTo(0));
         assertThat(shardInfo.getFailed(), equalTo(0));
         for (ActionWriteResponse.ShardInfo.Failure failure : shardInfo.getFailures()) {

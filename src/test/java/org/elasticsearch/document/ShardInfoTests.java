@@ -156,8 +156,8 @@ public class ShardInfoTests extends ElasticsearchIntegrationTest {
     }
 
     private void assertShardInfo(ActionWriteResponse response, int expectedTotal, int expectedSuccessful, int expectedPending) {
-        assertThat(response.getShardInfo().getTotal(), equalTo(expectedTotal));
-        assertThat(response.getShardInfo().getSuccessful(), equalTo(expectedSuccessful));
+        assertThat(response.getShardInfo().getTotal(), greaterThanOrEqualTo(expectedTotal));
+        assertThat(response.getShardInfo().getSuccessful(), greaterThanOrEqualTo(expectedSuccessful));
         assertThat(response.getShardInfo().getPending(), equalTo(expectedPending));
     }
 

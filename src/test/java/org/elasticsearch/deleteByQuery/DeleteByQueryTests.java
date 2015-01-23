@@ -79,6 +79,7 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
 
         client().prepareIndex("twitter", "tweet").setSource(json).setRefresh(true).execute().actionGet();
 
+        ensureGreen("twitter");
         SearchResponse search = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         assertThat(search.getHits().totalHits(), equalTo(1l));
         DeleteByQueryRequestBuilder deleteByQueryRequestBuilder = client().prepareDeleteByQuery();

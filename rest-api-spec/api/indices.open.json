@@ -31,7 +31,7 @@
         },
         "expand_wildcards": {
            "type" : "enum",
-           "options" : ["open","closed"],
+           "options" : ["open","closed","none","all"],
            "default" : "closed",
            "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
         }

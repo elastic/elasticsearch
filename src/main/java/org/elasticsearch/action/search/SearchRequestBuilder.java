@@ -1021,7 +1021,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     @Override
     protected void doExecute(ActionListener<SearchResponse> listener) {
-        if (sourceBuilder != null) {
+        if (sourceBuilder != null && request.source() == null) {
             request.source(sourceBuilder());
         }
         client.search(request, listener);

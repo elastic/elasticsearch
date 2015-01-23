@@ -674,6 +674,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         assertSecondHit(response, hasId("8"));
 
         // Now squash the second rescore window so it never gets to see a seven
+        request = client().prepareSearch().setRescoreWindow(numDocs);
         response = request.setSize(1).clearRescorers().addRescorer(eightIsGreat).addRescorer(sevenIsBetter, 1).get();
         assertFirstHit(response, hasId("8"));
         // We have no idea what the second hit will be because we didn't get a chance to look for seven
@@ -685,6 +686,8 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         QueryRescorer oneToo = RescoreBuilder.queryRescorer(
                 QueryBuilders.functionScoreQuery(QueryBuilders.queryStringQuery("*one*")).boostMode(CombineFunction.REPLACE)
                 .add(ScoreFunctionBuilders.scriptFunction("1000.0f"))).setScoreMode("total");
+        
+        request = client().prepareSearch().setRescoreWindow(numDocs);
         request.clearRescorers().addRescorer(ninetyIsGood).addRescorer(oneToo, 10);
         response = request.setSize(2).get();
         assertFirstHit(response, hasId("91"));

@@ -78,6 +78,8 @@ import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountBuilder;
 import org.elasticsearch.search.aggregations.transformer.derivative.Derivative;
 import org.elasticsearch.search.aggregations.transformer.derivative.DerivativeBuilder;
+import org.elasticsearch.search.aggregations.transformer.moving.avg.MovingAvgBuilder;
+import org.elasticsearch.search.aggregations.transformer.moving.avg.MovingAvg;
 
 /**
  * Utility class to create aggregations.
@@ -295,5 +297,12 @@ public class AggregationBuilders {
      */
     public static DerivativeBuilder derivative(String name) {
         return new DerivativeBuilder(name);
+    }
+
+    /**
+     * Create a new {@link MovingAvg} transformer with the given name.
+     */
+    public static MovingAvgBuilder movingAvg(String name) {
+        return new MovingAvgBuilder(name);
     }
 }

@@ -56,6 +56,7 @@ import org.elasticsearch.search.aggregations.metrics.sum.SumParser;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsParser;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountParser;
 import org.elasticsearch.search.aggregations.transformer.derivative.DerivativeParser;
+import org.elasticsearch.search.aggregations.transformer.moving.avg.MovingAvgParser;
 
 import java.util.List;
 
@@ -99,6 +100,7 @@ public class AggregationModule extends AbstractModule implements SpawnModules{
         parsers.add(ChildrenParser.class);
 
         parsers.add(DerivativeParser.class);
+        parsers.add(MovingAvgParser.class);
     }
 
     /**

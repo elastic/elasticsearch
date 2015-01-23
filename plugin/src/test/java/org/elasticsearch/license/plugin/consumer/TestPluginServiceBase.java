@@ -135,15 +135,11 @@ public abstract class TestPluginServiceBase extends AbstractLifecycleComponent<T
 
         @Override
         public void onEnabled(License license) {
-            logger.info("TestConsumerPlugin: " + license.feature() + " enabled");
             enabled.set(true);
         }
 
         @Override
         public void onDisabled(License license) {
-            if (license != null) {
-                logger.info("TestConsumerPlugin: " + license.feature() + " disabled");
-            }
             enabled.set(false);
         }
 

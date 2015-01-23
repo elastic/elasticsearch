@@ -26,7 +26,7 @@ public class LicensesPluginIntegrationTests extends AbstractLicensesIntegrationT
 
     private final boolean useEagerLicenseRegistrationPlugin = randomBoolean();
 
-    private final int trialLicenseDurationInSeconds = 5;
+    private final int trialLicenseDurationInSeconds = 7;
 
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder()

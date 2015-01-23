@@ -117,7 +117,7 @@ public abstract class AbstractLicensesIntegrationTests extends ElasticsearchInte
                 }
                 return true;
             }
-        }, 2, TimeUnit.SECONDS), equalTo(true));
+        }, 5, TimeUnit.SECONDS), equalTo(true));
     }
 
     protected void assertEagerConsumerPluginDisableNotification(int timeoutInSec) throws InterruptedException {

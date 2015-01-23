@@ -894,13 +894,13 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             }
         }
 
-        private Runnable triggerJob() {
+        private Runnable triggerJob(final ExpirationCallback callback) {
             return new Runnable() {
                 @Override
                 public void run() {
                     LicensesMetaData currentLicensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
                     final Map<String, License> effectiveLicenses = getEffectiveLicenses(currentLicensesMetaData);
-                    triggerEvents(effectiveLicenses.get(feature), System.currentTimeMillis());
+                    triggerEvent(effectiveLicenses.get(feature), System.currentTimeMillis(), callback);
                 }
             };
         }
@@ -935,7 +935,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                             delay = expiryDuration - expirationCallback.max().getMillis();
                             break;
                         case POST:
-                            if (expiryDuration > 0l) {
+                            if (expiryDuration >= 0l) {
                                 delay = expiryDuration + expirationCallback.min().getMillis();
                             } else {
                                 delay = (-1l * expiryDuration) - expirationCallback.min().getMillis();
@@ -943,24 +943,39 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                             break;
                     }
                     if (delay > 0l) {
-                        notificationQueue.add(threadPool.schedule(TimeValue.timeValueMillis(delay), executorName(), triggerJob()));
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("Adding first notification for: orientation: " + expirationCallback.orientation().name()
+                                    + " min: " + expirationCallback.min()
+                                    + " max: " + expirationCallback.max()
+                                    + " with delay: " + TimeValue.timeValueMillis(delay)
+                                    + " license expiry duration: " + TimeValue.timeValueMillis(expiryDuration));
+                        }
+                        notificationQueue.add(threadPool.schedule(TimeValue.timeValueMillis(delay), executorName(), triggerJob(expirationCallback)));
                     }
                 }
             }
             if (license != null) {
                 // schedule first event of callbacks that match
-                triggerEvents(license, now);
+                logger.debug("Calling TRIGGER_EVENTS with license for " + license.feature() + " expiry: " + license.expiryDate());
+                for (ExpirationCallback expirationCallback : expirationCallbacks) {
+                    triggerEvent(license, now, expirationCallback);
+                }
             }
         }
 
-        private void triggerEvents(final License license, long now) {
-            for (ExpirationCallback expirationCallback : expirationCallbacks) {
-                if (expirationCallback.matches(license.expiryDate(), now)) {
-                    long expiryDuration = license.expiryDate() - now;
-                    boolean expired = expiryDuration <= 0l;
-                    expirationCallback.on(license, new ExpirationStatus(expired, TimeValue.timeValueMillis((!expired) ? expiryDuration : (-1l * expiryDuration))));
-                    notificationQueue.add(threadPool.schedule(expirationCallback.frequency(), executorName(), triggerJob()));
+        private void triggerEvent(final License license, long now, final ExpirationCallback expirationCallback) {
+            if (expirationCallback.matches(license.expiryDate(), now)) {
+                long expiryDuration = license.expiryDate() - now;
+                boolean expired = expiryDuration <= 0l;
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Calling notification on: orientation: " + expirationCallback.orientation().name()
+                            + " min: " + expirationCallback.min()
+                            + " max: " + expirationCallback.max()
+                            + " scheduled after: " + expirationCallback.frequency().getMillis()
+                            + " next interval match: " + expirationCallback.matches(license.expiryDate(), System.currentTimeMillis() + expirationCallback.frequency().getMillis()));
                 }
+                expirationCallback.on(license, new ExpirationStatus(expired, TimeValue.timeValueMillis((!expired) ? expiryDuration : (-1l * expiryDuration))));
+                notificationQueue.add(threadPool.schedule(expirationCallback.frequency(), executorName(), triggerJob(expirationCallback)));
             }
         }
 

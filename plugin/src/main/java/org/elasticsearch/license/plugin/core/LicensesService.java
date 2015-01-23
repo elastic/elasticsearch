@@ -52,7 +52,7 @@ import static org.elasticsearch.license.core.Licenses.reduceAndMap;
  * <p/>
  * Registration Scheme:
  * <p/>
- * A consumer plugin (feature) is registered with {@link LicensesClientService#register(String, TrialLicenseOptions, java.util.Collection<org.elasticsearch.license.plugin.core.LicensesService.ExpirationCallback>, LicensesClientService.Listener)}
+ * A consumer plugin (feature) is registered with {@link LicensesClientService#register(String, TrialLicenseOptions, java.util.Collection<ExpirationCallback>, LicensesClientService.Listener)}
  * This method can be called at any time during the life-cycle of the consumer plugin.
  * If the feature can not be registered immediately, it is queued up and registered on the first clusterChanged event with
  * no {@link org.elasticsearch.gateway.GatewayService#STATE_NOT_RECOVERED_BLOCK} block
@@ -905,9 +905,14 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             };
         }
 
+        /**
+         * schedules all {@link ExpirationCallback} associated with <code>license</code>
+         * If callbacks are already scheduled clear up finished notifications from the queue
+         */
         private void scheduleNotificationIfNeeded(final License license) {
             long expiryDate = ((license != null) ? license.expiryDate() : -1l);
             if (currentExpiryDate.get() == expiryDate) {
+                clearFinishedNotifications(notificationQueue);
                 return;
             }
             currentExpiryDate.set(expiryDate);

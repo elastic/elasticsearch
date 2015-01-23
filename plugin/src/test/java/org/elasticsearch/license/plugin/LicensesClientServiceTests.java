@@ -137,7 +137,7 @@ public class LicensesClientServiceTests extends AbstractLicensesServiceTests {
         final AtomicInteger triggerCount1 = new AtomicInteger(0);
         callbacks.add(preCallbackLatch(TimeValue.timeValueMillis(500), TimeValue.timeValueSeconds(1), TimeValue.timeValueMillis(100), triggerCount1));
         final AtomicInteger triggerCount2 = new AtomicInteger(0);
-        callbacks.add(postCallbackLatch(TimeValue.timeValueMillis(0), null, TimeValue.timeValueMillis(200), triggerCount2));
+        callbacks.add(postCallbackLatch(TimeValue.timeValueMillis(10), null, TimeValue.timeValueMillis(200), triggerCount2));
         final AtomicInteger triggerCount3 = new AtomicInteger(0);
         callbacks.add(preCallbackLatch(TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(2), TimeValue.timeValueMillis(500), triggerCount3));
 

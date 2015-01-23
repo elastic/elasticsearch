@@ -1325,7 +1325,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         // Pick one node and block it
         String blockedNode = blockNodeWithIndex("test-idx");
 
-
         logger.info("--> snapshot");
         client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
 
@@ -1358,10 +1357,16 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
             }
         }
 
+        logger.info("--> checking that _current returns the currently running snapshot", blockedNode);
+        GetSnapshotsResponse getResponse = client.admin().cluster().prepareGetSnapshots("test-repo").setCurrentSnapshot().execute().actionGet();
+        assertThat(getResponse.getSnapshots().size(), equalTo(1));
+        SnapshotInfo snapshotInfo = getResponse.getSnapshots().get(0);
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.IN_PROGRESS));
+
         logger.info("--> unblocking blocked node");
         unblockNode(blockedNode);
 
-        SnapshotInfo snapshotInfo = waitForCompletion("test-repo", "test-snap", TimeValue.timeValueSeconds(600));
+        snapshotInfo = waitForCompletion("test-repo", "test-snap", TimeValue.timeValueSeconds(600));
         logger.info("Number of failed shards [{}]", snapshotInfo.shardFailures().size());
         logger.info("--> done");
 
@@ -1380,6 +1385,9 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("--> checking snapshot status after it is done with empty repository", blockedNode);
         response = client.admin().cluster().prepareSnapshotStatus().execute().actionGet();
         assertThat(response.getSnapshots().size(), equalTo(0));
+
+        logger.info("--> checking that _current no longer returns the snapshot", blockedNode);
+        assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("_current").execute().actionGet().getSnapshots().isEmpty(), equalTo(true));
 
         try {
             client.admin().cluster().prepareSnapshotStatus("test-repo").addSnapshots("test-snap-doesnt-exist").execute().actionGet();

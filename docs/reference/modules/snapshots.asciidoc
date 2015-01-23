@@ -176,6 +176,13 @@ All snapshots currently stored in the repository can be listed using the followi
 $ curl -XGET "localhost:9200/_snapshot/my_backup/_all"
 -----------------------------------
 
+coming[2.0] A currently running snapshot can be retrieved using the following command:
+
+[source,shell]
+-----------------------------------
+$ curl -XGET "localhost:9200/_snapshot/my_backup/_current"
+-----------------------------------
+
 A snapshot can be deleted from the repository using the following command:
 
 [source,shell]

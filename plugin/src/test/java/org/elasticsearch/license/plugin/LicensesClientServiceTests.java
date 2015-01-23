@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.license.plugin;
 
+import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.LicensesClientService;
@@ -147,8 +148,15 @@ public class LicensesClientServiceTests extends AbstractLicensesServiceTests {
         assertThat(triggerCount3.get(), greaterThanOrEqualTo(2));
         assertThat(triggerCount3.get(), lessThan(4));
         assertThat(triggerCount1.get(), greaterThan(4));
-        Thread.sleep(2000);
-        assertThat(triggerCount2.get(), greaterThan(8));
+        assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object o) {
+                if (triggerCount2.get() > 0) {
+                    return true;
+                }
+                return false;
+            }
+        }, 2, TimeUnit.SECONDS), equalTo(true));
         int previousTriggerCount = triggerCount2.get();
 
         // Update license

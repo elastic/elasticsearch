@@ -125,6 +125,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
     public void testOldIndexes() throws Exception {
         Collections.shuffle(indexes, getRandom());
         for (String index : indexes) {
+            logMemoryStats();
             logger.info("Testing old index " + index);
             assertOldIndexWorks(index);
         }

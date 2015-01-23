@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.deletebyquery;
 
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
@@ -90,28 +89,10 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
                 builder.startObject(Fields._INDICES);
                 for (IndexDeleteByQueryResponse indexDeleteByQueryResponse : result.getIndices().values()) {
                     builder.startObject(indexDeleteByQueryResponse.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
-
-                    builder.startObject(Fields._SHARDS);
-                    builder.field(Fields.TOTAL, indexDeleteByQueryResponse.getTotalShards());
-                    builder.field(Fields.SUCCESSFUL, indexDeleteByQueryResponse.getSuccessfulShards());
-                    builder.field(Fields.FAILED, indexDeleteByQueryResponse.getFailedShards());
-                    ShardOperationFailedException[] failures = indexDeleteByQueryResponse.getFailures();
-                    if (failures != null && failures.length > 0) {
-                        builder.startArray(Fields.FAILURES);
-                        for (ShardOperationFailedException shardFailure : failures) {
-                            builder.startObject();
-                            builder.field(Fields.INDEX, shardFailure.index());
-                            builder.field(Fields.SHARD, shardFailure.shardId());
-                            builder.field(Fields.REASON, shardFailure.reason());
-                            builder.endObject();
-                        }
-                        builder.endArray();
-                    }
+                    indexDeleteByQueryResponse.getShardInfo().toXContent(builder, request);
                     builder.endObject();
-
                     builder.endObject();
                 }
-                builder.endObject();
                 builder.endObject();
                 return new BytesRestResponse(restStatus, builder);
             }

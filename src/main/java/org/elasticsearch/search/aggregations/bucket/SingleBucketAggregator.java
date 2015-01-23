@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -30,8 +31,8 @@ import java.util.Map;
 public abstract class SingleBucketAggregator extends BucketsAggregator {
 
     protected SingleBucketAggregator(String name, AggregatorFactories factories,
-                                     AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-        super(name, BucketAggregationMode.MULTI_BUCKETS, factories, parent == null ? 1 : parent.estimatedBucketCount(), aggregationContext, parent, metaData);
+                                     AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
+        super(name, factories, aggregationContext, parent, metaData);
     }
 
     @Override

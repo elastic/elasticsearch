@@ -137,18 +137,4 @@ public class SimpleMapperTests extends ElasticsearchSingleNodeTest {
             assertThat(e.getMessage(), equalTo("failed to parse, document is empty"));
         }
     }
-
-    @Test
-    public void testTypeWrapperWithSetting() throws Exception {
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/simple/test-mapping.json");
-        Settings settings = ImmutableSettings.settingsBuilder().put("index.mapping.allow_type_wrapper", true).build();
-        DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
-
-        assertThat((String) docMapper.meta().get("param1"), equalTo("value1"));
-
-        BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1-withtype.json"));
-        Document doc = docMapper.parse(json).rootDoc();
-        assertThat(doc.get(docMapper.uidMapper().names().indexName()), equalTo(Uid.createUid("person", "1")));
-        assertThat(doc.get(docMapper.mappers().name("first").mapper().names().indexName()), equalTo("shay"));
-    }
 }

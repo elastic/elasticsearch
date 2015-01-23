@@ -240,6 +240,10 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             return (B) new Bucket(key, docCount, keyed, formatter, aggregations);
         }
 
+        public B createEmptyBucket(boolean keyed, @Nullable ValueFormatter formatter) {
+            return (B) new Bucket(keyed, formatter);
+        }
+
     }
 
     protected List<B> buckets;
@@ -458,11 +462,11 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     }
 
     protected B createBucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
-        return (B) new InternalHistogram.Bucket(key, docCount, keyed, formatter, aggregations);
+        return getFactory().createBucket(key, docCount, aggregations, keyed, formatter);
     }
 
     protected B createEmptyBucket(boolean keyed, @Nullable ValueFormatter formatter) {
-        return (B) new InternalHistogram.Bucket(keyed, formatter);
+        return getFactory().createEmptyBucket(keyed, formatter);
     }
 
     @Override

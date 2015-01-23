@@ -131,11 +131,6 @@ public class IncludeNestedDocsQuery extends Query {
         public Explanation explain(LeafReaderContext context, int doc) throws IOException {
             return null; //Query is used internally and not by users, so explain can be empty
         }
-
-        @Override
-        public boolean scoresDocsOutOfOrder() {
-            return false;
-        }
     }
 
     static class IncludeNestedDocsScorer extends Scorer {

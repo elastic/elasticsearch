@@ -1,0 +1,71 @@
+[[cat-segments]]
+== cat segments
+
+The `segments` command provides low level information about the segments
+in the shards of an index. It provides information similar to the
+link:indices-segments.html[_segments] endpoint.
+
+[source,shell]
+--------------------------------------------------
+% curl 'http://localhost:9200/_cat/segments?v'
+index shard prirep ip            segment generation docs.count [...]
+test  4     p      192.168.2.105 _0               0          1
+test1 2     p      192.168.2.105 _0               0          1
+test1 3     p      192.168.2.105 _2               2          1
+--------------------------------------------------
+
+[source,shell]
+--------------------------------------------------
+[...] docs.deleted  size size.memory committed searchable version compound
+                 0 2.9kb        7818 false     true       4.10.2  true
+                 0 2.9kb        7818 false     true       4.10.2  true
+                 0 2.9kb        7818 false     true       4.10.2  true
+--------------------------------------------------
+
+The output shows information about index names and shard numbers in the first
+two columns.
+
+If you only want to get information about segments in one particular index,
+you can add the index name in the URL, for example `/_cat/segments/test`. Also,
+several indexes can be queried like `/_cat/segments/test,test1`
+
+
+The following columns provide additional monitoring information:
+
+prirep::        Whether this segment belongs to a primary or replica shard.
+
+ip::            The ip address of the segments shard.
+
+segment::       A segment name, derived from the segment generation. The name
+                is internally used to generate the file names in the directory
+                of the shard this segment belongs to.
+
+generation::    The generation number is incremented with each segment that is written.
+                The name of the segment is derived from this generation number.
+
+docs.count::    The number of non-deleted documents that are stored in this segment.
+
+docs.deleted::  The number of deleted documents that are stored in this segment.
+                It is perfectly fine if this number is greater than 0, space is
+                going to be reclaimed when this segment gets merged.
+
+size::          The amount of disk space that this segment uses.
+
+size.memory::   Segments store some data into memory in order to be searchable efficiently.
+                This column shows the number of bytes in memory that are used.
+
+committed::     Whether the segment has been sync'ed on disk. Segments that are
+                committed would survive a hard reboot. No need to worry in case
+                of false, the data from uncommitted segments is also stored in
+                the transaction log so that Elasticsearch is able to replay
+                changes on the next start.
+
+searchable::    True if the segment is searchable. A value of false would most
+                likely mean that the segment has been written to disk but no
+                refresh occurred since then to make it searchable.
+
+version::       The version of Lucene that has been used to write this segment.
+
+compound::      Whether the segment is stored in a compound file. When true, this
+                means that Lucene merged all files from the segment in a single
+                one in order to save file descriptors.

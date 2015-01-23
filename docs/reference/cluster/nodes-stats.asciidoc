@@ -25,7 +25,7 @@ of `indices`, `os`, `process`, `jvm`, `network`, `transport`, `http`,
 [horizontal]
 `indices`:: 
 	Indices stats about size, document count, indexing and
-	deletion times, search times, field cache size , merges and flushes
+	deletion times, search times, field cache size, merges and flushes
 
 `fs`:: 
 	File system information, data path, free disk space, read/write

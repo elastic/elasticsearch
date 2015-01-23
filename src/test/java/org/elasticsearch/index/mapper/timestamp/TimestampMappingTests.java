@@ -31,16 +31,13 @@ import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -53,14 +50,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isIn;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -110,6 +100,8 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 assertThat(docMapper.timestampFieldMapper().fieldType().indexOptions(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.indexOptions()));
                 assertThat(docMapper.timestampFieldMapper().path(), equalTo(TimestampFieldMapper.Defaults.PATH));
                 assertThat(docMapper.timestampFieldMapper().dateTimeFormatter().format(), equalTo(TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT));
+                assertThat(docMapper.timestampFieldMapper().hasDocValues(), equalTo(false));
+                assertThat(docMapper.timestampFieldMapper().docValuesFormatProvider(), equalTo(null));
                 assertAcked(client().admin().indices().prepareDelete("test").execute().get());
             }
         }
@@ -122,6 +114,8 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject("_timestamp")
                 .field("enabled", "yes").field("store", "no").field("index", "no")
                 .field("path", "timestamp").field("format", "year")
+                .field("doc_values", true)
+                .field("doc_values_format", Lucene.LATEST_DOC_VALUES_FORMAT)
                 .endObject()
                 .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -130,6 +124,8 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         assertEquals(IndexOptions.NONE, docMapper.timestampFieldMapper().fieldType().indexOptions());
         assertThat(docMapper.timestampFieldMapper().path(), equalTo("timestamp"));
         assertThat(docMapper.timestampFieldMapper().dateTimeFormatter().format(), equalTo("year"));
+        assertThat(docMapper.timestampFieldMapper().hasDocValues(), equalTo(true));
+        assertThat(docMapper.timestampFieldMapper().docValuesFormatProvider().name(), equalTo(Lucene.LATEST_DOC_VALUES_FORMAT));
     }
 
     @Test
@@ -174,6 +170,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject("_timestamp")
                     .field("enabled", "yes")
                     .field("path", "timestamp")
+                    .field("ignore_missing", false)
                 .endObject()
                 .endObject().endObject();
         XContentBuilder doc = XContentFactory.jsonBuilder()
@@ -187,12 +184,11 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
 
         IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
-        request.process(metaData, mappingMetaData, true, "test");
-        assertThat(request.timestamp(), notNullValue());
-
-        // We should have less than one minute (probably some ms)
-        long delay = System.currentTimeMillis() - Long.parseLong(request.timestamp());
-        assertThat(delay, lessThanOrEqualTo(60000L));
+        try {
+            request.process(metaData, mappingMetaData, true, "test");
+        } catch (TimestampParsingException e) {
+            assertThat(e.getDetailedMessage(), containsString("timestamp is required by mapping"));
+        }
     }
 
     @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
@@ -329,8 +325,8 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(delay, lessThanOrEqualTo(60000L));
     }
 
-    @Test(expected = TimestampParsingException.class) // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
-    public void testPathMissingShouldFail() throws Exception {
+    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    public void testPathMissingWithForcedNullDefaultShouldFail() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
                     .field("enabled", "yes")
@@ -338,6 +334,23 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                     .field("default", (String) null)
                 .endObject()
                 .endObject().endObject();
+        try {
+            createIndex("test").mapperService().documentMapperParser().parse(mapping.string());
+            fail("we should reject the mapping with a TimestampParsingException: default timestamp can not be set to null");
+        } catch (TimestampParsingException e) {
+            assertThat(e.getDetailedMessage(), containsString("default timestamp can not be set to null"));
+        }
+    }
+
+    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    public void testPathMissingShouldFail() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp")
+                    .field("enabled", "yes")
+                    .field("path", "timestamp")
+                    .field("ignore_missing", false)
+                .endObject()
+                .endObject().endObject();
         XContentBuilder doc = XContentFactory.jsonBuilder()
                 .startObject()
                     .field("foo", "bar")
@@ -349,15 +362,54 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
 
         IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
-        request.process(metaData, mappingMetaData, true, "test");
+        try {
+            request.process(metaData, mappingMetaData, true, "test");
+            fail("we should reject the mapping with a TimestampParsingException: timestamp is required by mapping");
+        } catch (TimestampParsingException e) {
+            assertThat(e.getDetailedMessage(), containsString("timestamp is required by mapping"));
+        }
     }
 
-    @Test(expected = TimestampParsingException.class) // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
-    public void testTimestampMissingShouldFail() throws Exception {
+    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    public void testTimestampMissingWithForcedNullDefaultShouldFail() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
                     .field("enabled", "yes")
                     .field("default", (String) null)
+                .endObject()
+                .endObject().endObject();
+
+        try {
+            createIndex("test").mapperService().documentMapperParser().parse(mapping.string());
+            fail("we should reject the mapping with a TimestampParsingException: default timestamp can not be set to null");
+        } catch (TimestampParsingException e) {
+            assertThat(e.getDetailedMessage(), containsString("default timestamp can not be set to null"));
+        }
+    }
+
+    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    public void testTimestampDefaultAndIgnore() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp")
+                    .field("enabled", "yes")
+                    .field("default", "1971-12-26")
+                    .field("ignore_missing", false)
+                .endObject()
+                .endObject().endObject();
+
+        try {
+            createIndex("test").mapperService().documentMapperParser().parse(mapping.string());
+            fail("we should reject the mapping with a TimestampParsingException: default timestamp can not be set with ignore_missing set to false");
+        } catch (TimestampParsingException e) {
+            assertThat(e.getDetailedMessage(), containsString("default timestamp can not be set with ignore_missing set to false"));
+        }
+    }
+
+    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    public void testTimestampMissingShouldNotFail() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp")
+                    .field("enabled", "yes")
                 .endObject()
                 .endObject().endObject();
         XContentBuilder doc = XContentFactory.jsonBuilder()
@@ -372,6 +424,12 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
 
         IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
         request.process(metaData, mappingMetaData, true, "test");
+
+        assertThat(request.timestamp(), notNullValue());
+
+        // We should have less than one minute (probably some ms)
+        long delay = System.currentTimeMillis() - Long.parseLong(request.timestamp());
+        assertThat(delay, lessThanOrEqualTo(60000L));
     }
 
     @Test
@@ -379,7 +437,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         // Testing null value for default timestamp
         {
             MappingMetaData.Timestamp timestamp = new MappingMetaData.Timestamp(true, null,
-                    TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT, null);
+                    TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT, null, null);
             MappingMetaData expected = new MappingMetaData("type", new CompressedString("{}".getBytes(UTF8)),
                     new MappingMetaData.Id(null), new MappingMetaData.Routing(false, null), timestamp, false);
 
@@ -396,7 +454,24 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         // Testing "now" value for default timestamp
         {
             MappingMetaData.Timestamp timestamp = new MappingMetaData.Timestamp(true, null,
-                    TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT, "now");
+                    TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT, "now", null);
+            MappingMetaData expected = new MappingMetaData("type", new CompressedString("{}".getBytes(UTF8)),
+                    new MappingMetaData.Id(null), new MappingMetaData.Routing(false, null), timestamp, false);
+
+            BytesStreamOutput out = new BytesStreamOutput();
+            MappingMetaData.writeTo(expected, out);
+            out.close();
+            BytesReference bytes = out.bytes();
+
+            MappingMetaData metaData = MappingMetaData.readFrom(new BytesStreamInput(bytes));
+
+            assertThat(metaData, is(expected));
+        }
+
+        // Testing "ignore_missing" value for default timestamp
+        {
+            MappingMetaData.Timestamp timestamp = new MappingMetaData.Timestamp(true, null,
+                    TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT, "now", false);
             MappingMetaData expected = new MappingMetaData("type", new CompressedString("{}".getBytes(UTF8)),
                     new MappingMetaData.Id(null), new MappingMetaData.Routing(false, null), timestamp, false);
 
@@ -436,6 +511,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", true)
                 .field("index", randomBoolean() ? "no" : "analyzed") // default is "not_analyzed" which will be omitted when building the source again
+                .field("doc_values", true)
                 .field("path", "foo")
                 .field("default", "1970-01-01")
                 .startObject("fielddata").field("format", "doc_values").endObject()
@@ -539,6 +615,22 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         for (String conflict : mergeResult.conflicts()) {
             assertThat(conflict, isIn(expectedConflicts));
         }
+    }
+
+    /**
+     * Test for issue #9223
+     */
+    @Test
+    public void testInitMappers() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("_timestamp")
+                        .field("enabled", true)
+                        .field("default", (String) null)
+                    .endObject()
+                .endObject().endObject().string();
+        // This was causing a NPE
+        new MappingMetaData(new CompressedString(mapping));
     }
 
     @Test

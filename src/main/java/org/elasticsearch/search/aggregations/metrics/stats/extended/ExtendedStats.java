@@ -40,4 +40,19 @@ public interface ExtendedStats extends Stats {
      */
     double getStdDeviation();
 
+    /**
+     * The sum of the squares of the collected values as a String.
+     */
+    String getSumOfSquaresAsString();
+
+    /**
+     * The variance of the collected values as a String.
+     */
+    String getVarianceAsString();
+
+    /**
+     * The standard deviation of the collected values as a String.
+     */
+    String getStdDeviationAsString();
+
 }

@@ -16,19 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.index.engine.internal;
 
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineFactory;
 
-/**
- *
- */
-public class InternalEngineModule extends AbstractModule {
-
+public class InternalEngineFactory implements EngineFactory {
     @Override
-    protected void configure() {
-        bind(Engine.class).to(InternalEngineHolder.class).asEagerSingleton();
+    public Engine newEngine(EngineConfig config) {
+        return new InternalEngine(config);
     }
 }

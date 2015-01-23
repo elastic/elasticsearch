@@ -23,7 +23,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -104,11 +103,6 @@ public class RecordingPerReaderBucketCollector extends RecordingBucketCollector 
             }
         }
     }
-    
-    public RecordingPerReaderBucketCollector(AggregationContext context) {
-        // Call this method to achieve better compression in the recorded arrays of matches
-        context.ensureScoreDocsInOrder();        
-    }
 
     @Override
     public void setNextReader(LeafReaderContext reader) {
@@ -147,6 +141,11 @@ public class RecordingPerReaderBucketCollector extends RecordingBucketCollector 
             collection.replay(collector);
         }
         collector.postCollection();
+    }
+
+    @Override
+    public void preCollection() throws IOException {
+        // nothing to do
     }
 
     @Override

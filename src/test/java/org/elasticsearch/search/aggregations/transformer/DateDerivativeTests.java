@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.transformer;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
@@ -141,6 +142,7 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
         assertThat(docCountDeriv.value(), equalTo(1d));
     }
 
+    @AwaitsFix(bugUrl = "Fix factory selection for serialisation of Internal derivative")
     @Test
     public void singleValuedField_WithSubAggregation() throws Exception {
         SearchResponse response = client()

@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
@@ -48,7 +49,7 @@ public class GatewayIndicesWarmerTests extends ElasticsearchIntegrationTest {
     public void testStatePersistence() throws Exception {
 
         logger.info("--> starting 1 nodes");
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        internalCluster().startNode();
 
         logger.info("--> putting two templates");
         createIndex("test");
@@ -92,7 +93,7 @@ public class GatewayIndicesWarmerTests extends ElasticsearchIntegrationTest {
         internalCluster().fullRestart(new RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                return settingsBuilder().put("gateway.type", "local").build();
+                return ImmutableSettings.EMPTY;
             }
         });
 
@@ -130,7 +131,7 @@ public class GatewayIndicesWarmerTests extends ElasticsearchIntegrationTest {
         internalCluster().fullRestart(new RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                return settingsBuilder().put("gateway.type", "local").build();
+                return ImmutableSettings.EMPTY;
             }
         });
 

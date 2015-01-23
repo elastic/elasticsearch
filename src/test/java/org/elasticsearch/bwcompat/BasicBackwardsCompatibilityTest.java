@@ -498,7 +498,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         assertThat(deleteByQueryResponse.getIndices().size(), equalTo(1));
         for (IndexDeleteByQueryResponse indexDeleteByQueryResponse : deleteByQueryResponse) {
             assertThat(indexDeleteByQueryResponse.getIndex(), equalTo("test"));
-            assertThat(indexDeleteByQueryResponse.getFailures().length, equalTo(0));
+            assertThat(indexDeleteByQueryResponse.getShardInfo().getFailures().length, equalTo(0));
         }
 
         refresh();

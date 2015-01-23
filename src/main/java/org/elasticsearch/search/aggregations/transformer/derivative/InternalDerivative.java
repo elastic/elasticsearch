@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.transformer.InternalSimpleMultiValue;
 import org.elasticsearch.search.aggregations.transformer.InternalSimpleValue;
 
 import java.io.IOException;
@@ -96,7 +97,8 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
         List<InternalHistogram.Bucket> histoBuckets = histo.getBuckets();
         Long newBucketKey = null;
         Long lastValue = null;
-        Map<String, Double> lastMetricValues = null;
+        Map<String, Double> lastSingleValueMetrics = null;
+        Map<String, Map<String, Double>> lastMultiValueMetrics = null;
         List<InternalHistogram.Bucket> newBuckets = new ArrayList<>();
         double xValue = 1.0;
         for (InternalHistogram.Bucket histoBucket : histoBuckets) {
@@ -113,29 +115,49 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
                     break;
                 }
             }
-            Map<String, Double> thisBucketMetricValues = new HashMap<>();
+            Map<String, Double> thisBucketSingleValueMetrics = new HashMap<>();
+            Map<String, Map<String, Double>> thisBucketMultiValueMetrics = new HashMap<>();
             for (Aggregation aggregation : histoBucket.getAggregations()) {
                 if (aggregation instanceof InternalNumericMetricsAggregation.SingleValue) {
                     InternalNumericMetricsAggregation.SingleValue metricAgg = (InternalNumericMetricsAggregation.SingleValue) aggregation;
-                    thisBucketMetricValues.put(metricAgg.getName(), metricAgg.value());
+                    thisBucketSingleValueMetrics.put(metricAgg.getName(), metricAgg.value());
+                } else if (aggregation instanceof InternalNumericMetricsAggregation.MultiValue) {
+                    InternalNumericMetricsAggregation.MultiValue metricAgg = (InternalNumericMetricsAggregation.MultiValue) aggregation;
+                    Map<String, Double> metricValues = new HashMap<>();
+                    for (String valueName : metricAgg.valueNames()) {
+                        metricValues.put(valueName, metricAgg.value(valueName));
+                    }
+                    thisBucketMultiValueMetrics.put(metricAgg.getName(), metricValues);
                 }
-                // NOCOMMIT implement this for multi-value metrics
             }
             if (newBucketKey != null) {
                 List<InternalAggregation> metricsAggregations = new ArrayList<>();
                 double docCountDeriv = (thisbucketDocCount - lastValue) / xValue;
                 InternalSimpleValue docCountDerivAgg = new InternalSimpleValue("_doc_count", docCountDeriv, null); // NOCOMMIT change the name of this to something less confusing
                 metricsAggregations.add(docCountDerivAgg);
-                for (Entry<String, Double> entry : thisBucketMetricValues.entrySet()) {
-                    double metricDeriv = (entry.getValue() - lastMetricValues.get(entry.getKey())) / xValue;
+                for (Entry<String, Double> entry : thisBucketSingleValueMetrics.entrySet()) {
+                    double metricDeriv = (entry.getValue() - lastSingleValueMetrics.get(entry.getKey())) / xValue;
                     InternalSimpleValue metricAgg = new InternalSimpleValue(entry.getKey(), metricDeriv, null);
+                    metricsAggregations.add(metricAgg);
+                }
+                for (Entry<String, Map<String, Double>> entry : thisBucketMultiValueMetrics.entrySet()) {
+                    String aggName = entry.getKey();
+                    Map<String, Double> thisBucketMetricValues = entry.getValue();
+                    Map<String, Double> lastMetricValues = lastMultiValueMetrics.get(aggName);
+                    Map<String, Double> derivValues = new HashMap<>();
+                    for (Entry<String, Double> valueEntry : thisBucketMetricValues.entrySet()) {
+                        double metricDeriv = (valueEntry.getValue() - lastMetricValues.get(valueEntry.getKey())) / xValue;
+                        derivValues.put(valueEntry.getKey(), metricDeriv);
+                    }
+                    InternalSimpleMultiValue metricAgg = new InternalSimpleMultiValue(entry.getKey(), derivValues, null);
                     metricsAggregations.add(metricAgg);
                 }
                 InternalAggregations metricsAggs = new InternalAggregations(metricsAggregations);
                 newBuckets.add(factory.createBucket(newBucketKey, 0, metricsAggs, keyed(), formatter()));
             }
             lastValue = thisbucketDocCount;
-            lastMetricValues = thisBucketMetricValues;
+            lastSingleValueMetrics = thisBucketSingleValueMetrics;
+            lastMultiValueMetrics = thisBucketMultiValueMetrics;
             newBucketKey = histoBucket.getKeyAsNumber().longValue();
         }
         return new InternalDerivative<>(getName(), newBuckets, formatter(), keyed(), gapPolicy, metaData);

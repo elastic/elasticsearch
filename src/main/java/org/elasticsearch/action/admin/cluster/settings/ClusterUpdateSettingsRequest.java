@@ -58,11 +58,11 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         return validationException;
     }
 
-    Settings transientSettings() {
+    public Settings transientSettings() {
         return transientSettings;
     }
 
-    Settings persistentSettings() {
+    public Settings persistentSettings() {
         return persistentSettings;
     }
 

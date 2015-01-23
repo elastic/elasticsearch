@@ -57,8 +57,7 @@ final class ExternalNode implements Closeable {
     public static final Settings REQUIRED_SETTINGS = ImmutableSettings.builder()
             .put("config.ignore_system_properties", true)
             .put(DiscoveryModule.DISCOVERY_TYPE_KEY, "zen")
-            .put("node.mode", "network") // we need network mode for this
-            .put("gateway.type", "local").build(); // we require local gateway to mimic upgrades of nodes
+            .put("node.mode", "network").build(); // we need network mode for this
 
     private final Path path;
     private final Random random;
@@ -116,7 +115,6 @@ final class ExternalNode implements Closeable {
                 case "node.local":
                 case TransportModule.TRANSPORT_TYPE_KEY:
                 case DiscoveryModule.DISCOVERY_TYPE_KEY:
-                case "gateway.type":
                 case TransportModule.TRANSPORT_SERVICE_TYPE_KEY:
                 case "config.ignore_system_properties":
                     continue;

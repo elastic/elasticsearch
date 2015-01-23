@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics.stats.extended;
 
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -25,8 +26,11 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
 
 /**
@@ -53,6 +57,13 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
         count, sum, min, max, avg, sum_of_squares, variance, std_deviation;
 
+        private static Collection<String> names = new HashSet<>();
+        static {
+            for (Metrics metric : values()) {
+                names.add(metric.name());
+            }
+        }
+
         public static Metrics resolve(String name) {
             return Metrics.valueOf(name);
         }
@@ -62,14 +73,20 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     InternalExtendedStats() {} // for serialization
 
-    public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs, Map<String, Object> metaData) {
-        super(name, count, sum, min, max, metaData);
+    public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs,
+            @Nullable ValueFormatter formatter, Map<String, Object> metaData) {
+        super(name, count, sum, min, max, formatter, metaData);
         this.sumOfSqrs = sumOfSqrs;
     }
 
     @Override
     public Type type() {
         return TYPE;
+    }
+
+    @Override
+    public Collection<String> valueNames() {
+        return Metrics.names;
     }
 
     @Override
@@ -102,6 +119,21 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     }
 
     @Override
+    public String getSumOfSquaresAsString() {
+        return valueAsString(Metrics.sum_of_squares.name());
+    }
+
+    @Override
+    public String getVarianceAsString() {
+        return valueAsString(Metrics.variance.name());
+    }
+
+    @Override
+    public String getStdDeviationAsString() {
+        return valueAsString(Metrics.std_deviation.name());
+    }
+
+    @Override
     public InternalExtendedStats reduce(ReduceContext reduceContext) {
         double sumOfSqrs = 0;
         for (InternalAggregation aggregation : reduceContext.aggregations()) {
@@ -109,7 +141,8 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
             sumOfSqrs += stats.getSumOfSquares();
         }
         final InternalStats stats = super.reduce(reduceContext);
-        return new InternalExtendedStats(name, stats.getCount(), stats.getSum(), stats.getMin(), stats.getMax(), sumOfSqrs, getMetaData());
+        return new InternalExtendedStats(name, stats.getCount(), stats.getSum(), stats.getMin(), stats.getMax(), sumOfSqrs, valueFormatter,
+                getMetaData());
     }
 
     @Override

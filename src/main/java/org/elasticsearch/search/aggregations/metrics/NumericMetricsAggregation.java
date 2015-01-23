@@ -17,15 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.test.engine;
+package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.search.aggregations.Aggregation;
 
-public class MockEngineModule extends AbstractModule {
+public interface NumericMetricsAggregation extends Aggregation {
 
-    @Override
-    protected void configure() {
-        bind(Engine.class).to(MockInternalEngineHolder.class).asEagerSingleton();
+    public static interface SingleValue extends NumericMetricsAggregation {
+
+        double value();
+
+        String getValueAsString();
+
+    }
+
+    public static interface MultiValue extends NumericMetricsAggregation {
     }
 }

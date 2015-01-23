@@ -18,12 +18,14 @@
  */
 package org.elasticsearch.search.aggregations.metrics.sum;
 
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
@@ -53,9 +55,10 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
 
     InternalSum() {} // for serialization
 
-    InternalSum(String name, double sum, Map<String, Object> metaData){
+    InternalSum(String name, double sum, @Nullable ValueFormatter formatter, Map<String, Object> metaData) {
         super(name, metaData);
         this.sum = sum;
+        this.valueFormatter = formatter;
     }
 
     @Override
@@ -78,7 +81,7 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
         for (InternalAggregation aggregation : reduceContext.aggregations()) {
             sum += ((InternalSum) aggregation).sum;
         }
-        return new InternalSum(name, sum, getMetaData());
+        return new InternalSum(name, sum, valueFormatter, getMetaData());
     }
 
     @Override

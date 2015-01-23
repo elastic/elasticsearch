@@ -23,7 +23,6 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -106,6 +105,28 @@ public class StatsTests extends AbstractNumericTests {
         assertThat(stats.getMax(), equalTo(10.0));
         assertThat(stats.getSum(), equalTo((double) 1+2+3+4+5+6+7+8+9+10));
         assertThat(stats.getCount(), equalTo(10l));
+    }
+
+    public void testSingleValuedField_WithFormatter() throws Exception {
+
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(stats("stats").format("0000.0").field("value")).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Stats stats = searchResponse.getAggregations().get("stats");
+        assertThat(stats, notNullValue());
+        assertThat(stats.getName(), equalTo("stats"));
+        assertThat(stats.getAvg(), equalTo((double) (1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10) / 10));
+        assertThat(stats.getAvgAsString(), equalTo("0005.5"));
+        assertThat(stats.getMin(), equalTo(1.0));
+        assertThat(stats.getMinAsString(), equalTo("0001.0"));
+        assertThat(stats.getMax(), equalTo(10.0));
+        assertThat(stats.getMaxAsString(), equalTo("0010.0"));
+        assertThat(stats.getSum(), equalTo((double) 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10));
+        assertThat(stats.getSumAsString(), equalTo("0055.0"));
+        assertThat(stats.getCount(), equalTo(10l));
+        assertThat(stats.getCountAsString(), equalTo("0010.0"));
     }
 
     @Test

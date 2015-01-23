@@ -19,6 +19,11 @@ The result of the above index operation is:
 [source,js]
 --------------------------------------------------
 {
+    "_shards" : {
+        "total" : 10,
+        "failed" : 0,
+        "successful" : 10
+    },
     "_index" : "twitter",
     "_type" : "tweet",
     "_id" : "1",
@@ -26,6 +31,20 @@ The result of the above index operation is:
     "created" : true
 }
 --------------------------------------------------
+
+The `_shards` header provides information about the replication process of the index operation.
+* `total` - Indicates to how many shard copies (primary and replica shards) the index operation should be executed on.
+* `successful`- Indicates the number of shard copies the index operation succeeded on.
+* `pending` - Indicates how many shard copies this index operation still needs to go to at the time index operation
+ succeeded on the primary shard. This field is only returned if `async` replication is used.
+* `failures` - An array that contains replication related errors in the case an index operation failed on a replica shard.
+
+The index operation is successful in the case `successful` is at least 1.
+
+NOTE:   Replica shards may not all be started when an indexing operation successfully returns (by default, a  quorum is
+        required). In that case, `total` will be equal to the total shards based on the index replica settings and
+        `successful` will be equal to the number of shard started (primary plus replicas). As there were no failures,
+        the `failed` will be 0.
 
 [float]
 [[index-creation]]
@@ -43,30 +62,6 @@ The mapping itself is very flexible and is schema-free. New fields and
 objects will automatically be added to the mapping definition of the
 type specified. Check out the <<mapping,mapping>>
 section for more information on mapping definitions.
-
-Note that the format of the JSON document can also include the type (very handy
-when using JSON mappers) if the `index.mapping.allow_type_wrapper` setting is
-set to true, for example:
-
-[source,js]
---------------------------------------------------
-$ curl -XPOST 'http://localhost:9200/twitter' -d '{
-  "settings": {
-    "index": {
-      "mapping.allow_type_wrapper": true
-    }
-  }
-}'
-{"acknowledged":true}
-
-$ curl -XPUT 'http://localhost:9200/twitter/tweet/1' -d '{
-    "tweet" : {
-        "user" : "kimchy",
-        "post_date" : "2009-11-15T14:12:12",
-        "message" : "trying out Elasticsearch"
-    }
-}'
---------------------------------------------------
 
 Automatic index creation can be disabled by setting
 `action.auto_create_index` to `false` in the config file of all nodes.

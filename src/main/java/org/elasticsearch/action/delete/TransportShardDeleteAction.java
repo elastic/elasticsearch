@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
@@ -62,7 +63,7 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
 
     @Override
     protected ShardDeleteRequest newReplicaRequestInstance() {
-        return new ShardDeleteRequest();
+        return newRequestInstance();
     }
 
     @Override
@@ -81,7 +82,7 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
     }
 
     @Override
-    protected PrimaryResponse<ShardDeleteResponse, ShardDeleteRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
+    protected Tuple<ShardDeleteResponse, ShardDeleteRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         ShardDeleteRequest request = shardRequest.request;
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId.getIndex()).shardSafe(shardRequest.shardId.id());
         Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version(), VersionType.INTERNAL, Engine.Operation.Origin.PRIMARY);
@@ -98,8 +99,7 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
         }
 
 
-        ShardDeleteResponse response = new ShardDeleteResponse(delete.version(), delete.found());
-        return new PrimaryResponse<>(shardRequest.request, response, null);
+        return new Tuple<>(new ShardDeleteResponse(delete.version(), delete.found()), shardRequest.request);
     }
 
     @Override

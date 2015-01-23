@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics.stats;
 
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -25,9 +26,12 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
 
 /**
@@ -54,6 +58,13 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
 
         count, sum, min, max, avg;
 
+        private static Collection<String> names = new HashSet<>();
+        static {
+            for (Metrics metric : values()) {
+                names.add(metric.name());
+            }
+        }
+
         public static Metrics resolve(String name) {
             return Metrics.valueOf(name);
         }
@@ -66,12 +77,14 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
 
     protected InternalStats() {} // for serialization
 
-    public InternalStats(String name, long count, double sum, double min, double max, Map<String, Object> metaData) {
+    public InternalStats(String name, long count, double sum, double min, double max, @Nullable ValueFormatter formatter,
+            Map<String, Object> metaData) {
         super(name, metaData);
         this.count = count;
         this.sum = sum;
         this.min = min;
         this.max = max;
+        this.valueFormatter = formatter;
     }
 
     @Override
@@ -100,8 +113,38 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     }
 
     @Override
+    public String getCountAsString() {
+        return valueAsString(Metrics.count.name());
+    }
+
+    @Override
+    public String getMinAsString() {
+        return valueAsString(Metrics.min.name());
+    }
+
+    @Override
+    public String getMaxAsString() {
+        return valueAsString(Metrics.max.name());
+    }
+
+    @Override
+    public String getAvgAsString() {
+        return valueAsString(Metrics.avg.name());
+    }
+
+    @Override
+    public String getSumAsString() {
+        return valueAsString(Metrics.sum.name());
+    }
+
+    @Override
     public Type type() {
         return TYPE;
+    }
+
+    @Override
+    public Collection<String> valueNames() {
+        return Metrics.names;
     }
 
     @Override
@@ -131,7 +174,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
             max = Math.max(max, stats.getMax());
             sum += stats.getSum();
         }
-        return new InternalStats(name, count, sum, min, max, getMetaData());
+        return new InternalStats(name, count, sum, min, max, valueFormatter, getMetaData());
     }
 
     @Override

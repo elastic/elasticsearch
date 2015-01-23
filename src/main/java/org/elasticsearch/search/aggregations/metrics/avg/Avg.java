@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.search.aggregations.metrics.avg;
 
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 
 /**
  * An aggregation that computes the average of the values in the current bucket.
  */
-public interface Avg extends Aggregation {
+public interface Avg extends NumericMetricsAggregation.SingleValue {
 
     /**
      * The average value.

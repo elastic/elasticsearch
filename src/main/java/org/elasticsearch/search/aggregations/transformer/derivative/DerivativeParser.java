@@ -68,29 +68,6 @@ public class DerivativeParser implements Aggregator.Parser {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: ["
                             + currentFieldName + "].");
                 }
-                // NOCOMMIT implement order?
-                // } else if (token == XContentParser.Token.START_OBJECT) {
-                // if ("order".equals(currentFieldName)) {
-                // while ((token = parser.nextToken()) !=
-                // XContentParser.Token.END_OBJECT) {
-                // if (token == XContentParser.Token.FIELD_NAME) {
-                // currentFieldName = parser.currentName();
-                // } else if (token == XContentParser.Token.VALUE_STRING) {
-                // String dir = parser.text();
-                // boolean asc = "asc".equals(dir);
-                // if (!asc && !"desc".equals(dir)) {
-                // throw new SearchParseException(context,
-                // "Unknown order direction [" + dir + "] in aggregation [" +
-                // aggregationName + "]. Should be either [asc] or [desc]");
-                // }
-                // order = resolveOrder(currentFieldName, asc);
-                // }
-                // }
-                // } else {
-                // throw new SearchParseException(context, "Unknown key for a "
-                // + token + " in aggregation [" + aggregationName + "]: [" +
-                // currentFieldName + "].");
-                // }
             } else {
                 throw new SearchParseException(context, "Unexpected token " + token + " in aggregation [" + aggregationName + "].");
             }

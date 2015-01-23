@@ -40,6 +40,7 @@ import org.junit.Test;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -55,15 +56,11 @@ import static org.hamcrest.Matchers.*;
 @Slow
 public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
 
-    private ImmutableSettings.Builder settingsBuilder() {
-        return ImmutableSettings.settingsBuilder().put("gateway.type", "local");
-    }
-
     @Test
     @Slow
     public void testOneNodeRecoverFromGateway() throws Exception {
 
-        internalCluster().startNode(settingsBuilder().build());
+        internalCluster().startNode();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("appAccountIds").field("type", "string").endObject().endObject()
@@ -112,7 +109,7 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
     @Slow
     public void testSingleNodeNoFlush() throws Exception {
 
-        internalCluster().startNode(settingsBuilder().build());
+        internalCluster().startNode();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("field").field("type", "string").endObject().startObject("num").field("type", "integer").endObject().endObject()
@@ -200,7 +197,7 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
     @Slow
     public void testSingleNodeWithFlush() throws Exception {
 
-        internalCluster().startNode(settingsBuilder().build());
+        internalCluster().startNode();
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
         flush();
         client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).execute().actionGet();
@@ -234,8 +231,8 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
     @Slow
     public void testTwoNodeFirstNodeCleared() throws Exception {
 
-        final String firstNode = internalCluster().startNode(settingsBuilder().build());
-        internalCluster().startNode(settingsBuilder().build());
+        final String firstNode = internalCluster().startNode();
+        internalCluster().startNode();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
         flush();
@@ -354,7 +351,9 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
         // prevent any rebalance actions during the peer recovery
         // if we run into a relocation the reuse count will be 0 and this fails the test. We are testing here if
         // we reuse the files on disk after full restarts for replicas.
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put(indexSettings())));
+        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
+                .put(indexSettings())
+                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)));
         ensureGreen();
         logger.info("--> indexing docs");
         for (int i = 0; i < 1000; i++) {

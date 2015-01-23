@@ -20,12 +20,13 @@
 package org.elasticsearch.common.util;
 
 import com.google.common.base.Preconditions;
+
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.common.util.BigArrays.DOUBLE_PAGE_SIZE;
+import static org.elasticsearch.common.util.BigArrays.LONG_PAGE_SIZE;
 
 /**
  * Double array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
@@ -33,15 +34,15 @@ import static org.elasticsearch.common.util.BigArrays.DOUBLE_PAGE_SIZE;
  */
 final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
 
-    private double[][] pages;
+    private long[][] pages;
 
     /** Constructor. */
     public BigDoubleArray(long size, BigArrays bigArrays, boolean clearOnResize) {
-        super(DOUBLE_PAGE_SIZE, bigArrays, clearOnResize);
+        super(LONG_PAGE_SIZE, bigArrays, clearOnResize);
         this.size = size;
-        pages = new double[numPages(size)][];
+        pages = new long[numPages(size)][];
         for (int i = 0; i < pages.length; ++i) {
-            pages[i] = newDoublePage(i);
+            pages[i] = newLongPage(i);
         }
     }
 
@@ -49,16 +50,16 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
     public double get(long index) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        return pages[pageIndex][indexInPage];
+        return Double.longBitsToDouble(pages[pageIndex][indexInPage]);
     }
 
     @Override
     public double set(long index, double value) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        final double[] page = pages[pageIndex];
-        final double ret = page[indexInPage];
-        page[indexInPage] = value;
+        final long[] page = pages[pageIndex];
+        final double ret = Double.longBitsToDouble(page[indexInPage]);
+        page[indexInPage] = Double.doubleToRawLongBits(value);
         return ret;
     }
 
@@ -66,7 +67,8 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
     public double increment(long index, double inc) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        return pages[pageIndex][indexInPage] += inc;
+        final long[] page = pages[pageIndex];
+        return page[indexInPage] = Double.doubleToRawLongBits(Double.longBitsToDouble(page[indexInPage]) + inc);
     }
 
     @Override
@@ -81,7 +83,7 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
             pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
         }
         for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
-            pages[i] = newDoublePage(i);
+            pages[i] = newLongPage(i);
         }
         for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
             pages[i] = null;
@@ -93,16 +95,17 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
     @Override
     public void fill(long fromIndex, long toIndex, double value) {
         Preconditions.checkArgument(fromIndex <= toIndex);
+        final long longBits = Double.doubleToRawLongBits(value);
         final int fromPage = pageIndex(fromIndex);
         final int toPage = pageIndex(toIndex - 1);
         if (fromPage == toPage) {
-            Arrays.fill(pages[fromPage], indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, value);
+            Arrays.fill(pages[fromPage], indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, longBits);
         } else {
-            Arrays.fill(pages[fromPage], indexInPage(fromIndex), pages[fromPage].length, value);
+            Arrays.fill(pages[fromPage], indexInPage(fromIndex), pages[fromPage].length, longBits);
             for (int i = fromPage + 1; i < toPage; ++i) {
-                Arrays.fill(pages[i], value);
+                Arrays.fill(pages[i], longBits);
             }
-            Arrays.fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, value);
+            Arrays.fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, longBits);
         }
     }
 

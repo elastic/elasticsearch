@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
@@ -77,7 +78,12 @@ public class AggregationPhase implements SearchPhase {
             context.aggregations().aggregationContext(aggregationContext);
 
             List<Aggregator> collectors = new ArrayList<>();
-            Aggregator[] aggregators = context.aggregations().factories().createTopLevelAggregators(aggregationContext);
+            Aggregator[] aggregators;
+            try {
+                aggregators = context.aggregations().factories().createTopLevelAggregators(aggregationContext);
+            } catch (IOException e) {
+                throw new AggregationInitializationException("Could not initialize aggregators", e);
+            }
             for (int i = 0; i < aggregators.length; i++) {
                 if (!(aggregators[i] instanceof GlobalAggregator)) {
                     Aggregator aggregator = aggregators[i];
@@ -132,7 +138,11 @@ public class AggregationPhase implements SearchPhase {
 
         List<InternalAggregation> aggregations = new ArrayList<>(aggregators.length);
         for (Aggregator aggregator : context.aggregations().aggregators()) {
-            aggregations.add(aggregator.buildAggregation(0));
+            try {
+                aggregations.add(aggregator.buildAggregation(0));
+            } catch (IOException e) {
+                throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);
+            }
         }
         context.queryResult().aggregations(new InternalAggregations(aggregations));
 
@@ -166,11 +176,6 @@ public class AggregationPhase implements SearchPhase {
         @Override
         public void doSetNextReader(LeafReaderContext context) throws IOException {
             aggregationContext.setNextReader(context);
-        }
-
-        @Override
-        public boolean acceptsDocsOutOfOrder() {
-            return !aggregationContext.scoreDocsInOrder();
         }
 
         @Override

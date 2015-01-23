@@ -162,6 +162,22 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
     }
 
     /**
+     * Returns a list of currently running snapshots from repository sorted by snapshot creation date
+     *
+     * @param repositoryName repository name
+     * @return list of snapshots
+     */
+    public ImmutableList<Snapshot> currentSnapshots(String repositoryName) {
+        List<Snapshot> snapshotList = newArrayList();
+        ImmutableList<SnapshotMetaData.Entry> entries = currentSnapshots(repositoryName, null);
+        for (SnapshotMetaData.Entry entry : entries) {
+            snapshotList.add(inProgressSnapshot(entry));
+        }
+        CollectionUtil.timSort(snapshotList);
+        return ImmutableList.copyOf(snapshotList);
+    }
+
+    /**
      * Initializes the snapshotting process.
      * <p/>
      * This method is used by clients to start snapshot. It makes sure that there is no snapshots are currently running and

@@ -243,14 +243,47 @@
         </plugins>
     </build>
     <profiles>
+
+        <!--Remove this profile once the CI is configured to use the "deploy-internal" profile-->
         <profile>
-            <id>elasticsearch-private</id>
+            <id>artifactory-private</id>
             <distributionManagement>
+                <repository>
+                    <id>elasticsearch-internal-releases</id>
+                    <name>Elasticsearch Internal Releases</name>
+                    <url>http://maven.elasticsearch.org/artifactory/internal-releases</url>
+                </repository>
                 <snapshotRepository>
-                    <id>snapshots</id>
-                    <name>maven.elasticsearch.org-snapshots</name>
-                    <url>https://maven.elasticsearch.org/libs-snapshot-local</url>
+                    <id>elasticsearch-internal-snapshots</id>
+                    <name>Elasticsearch Internal Snapshots</name>
+                    <url>http://maven.elasticsearch.org/artifactory/internal-snapshots</url>
                 </snapshotRepository>
+            </distributionManagement>
+        </profile>
+
+        <profile>
+            <id>deploy-internal</id>
+            <distributionManagement>
+                <repository>
+                    <id>elasticsearch-internal-releases</id>
+                    <name>Elasticsearch Internal Releases</name>
+                    <url>http://maven.elasticsearch.org/artifactory/internal-releases</url>
+                </repository>
+                <snapshotRepository>
+                    <id>elasticsearch-internal-snapshots</id>
+                    <name>Elasticsearch Internal Snapshots</name>
+                    <url>http://maven.elasticsearch.org/artifactory/internal-snapshots</url>
+                </snapshotRepository>
+            </distributionManagement>
+        </profile>
+        <profile>
+            <id>deploy-public</id>
+            <distributionManagement>
+                <repository>
+                    <id>elasticsearch-public-releases</id>
+                    <name>Elasticsearch Public Releases</name>
+                    <url>http://maven.elasticsearch.org/artifactory/public-releases</url>
+                </repository>
             </distributionManagement>
         </profile>
         <profile>

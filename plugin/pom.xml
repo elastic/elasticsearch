@@ -96,6 +96,7 @@
                 <artifactId>maven-assembly-plugin</artifactId>
                 <version>2.4</version>
                 <configuration>
+                    <attach>false</attach>
                     <outputDirectory>${project.build.directory}/releases/</outputDirectory>
                 </configuration>
                 <executions>

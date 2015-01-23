@@ -42,6 +42,10 @@
           "type" : "list",
           "description" : "A comma-separated list of fields to return as part of a hit"
         },
+        "fielddata_fields": {
+          "type" : "list",
+          "description" : "A comma-separated list of fields to return as the field data representation of a field for each hit"
+        },
         "from": {
           "type" : "number",
           "description" : "Starting offset (default: 0)"

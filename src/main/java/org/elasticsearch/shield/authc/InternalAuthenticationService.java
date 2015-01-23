@@ -49,11 +49,11 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         AuthenticationToken token = token(request);
         if (token == null) {
             auditTrail.anonymousAccessDenied(request);
-            throw new AuthenticationException("missing authentication token");
+            throw new AuthenticationException("missing authentication token for REST request [" + request.uri() + "]");
         }
         User user = authenticate(request, token);
         if (user == null) {
-            throw new AuthenticationException("unable to authenticate user for request");
+            throw new AuthenticationException("unable to authenticate user [" + user.principal() + "] for REST request [" + request.uri() + "]");
         }
         request.putInContext(USER_KEY, user);
         return user;
@@ -147,7 +147,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         if (token == null) {
             if (fallbackUser == null) {
                 auditTrail.anonymousAccessDenied(action, message);
-                throw new AuthenticationException("missing authentication token for request [" + action + "]");
+                throw new AuthenticationException("missing authentication token for action [" + action + "]");
             }
             return fallbackUser;
         }
@@ -163,7 +163,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
                 }
             }
             auditTrail.authenticationFailed(token, action, message);
-            throw new AuthenticationException("unable to authenticate user for request [" + action + "]");
+            throw new AuthenticationException("unable to authenticate user [" + token.principal() + "] for action [" + action + "]");
         } finally {
             token.clearCredentials();
         }

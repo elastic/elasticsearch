@@ -208,15 +208,6 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         return roles.build();
     }
 
-    private AuthorizationException denial(User user, String action, TransportRequest request) {
-        auditTrail.accessDenied(user, action, request);
-        return new AuthorizationException("action [" + action + "] is unauthorized for user [" + user.principal() + "]");
-    }
-
-    private void grant(User user, String action, TransportRequest request) {
-        auditTrail.accessGranted(user, action, request);
-    }
-
     private Set<String> resolveIndices(User user, String action, TransportRequest request) {
         MetaData metaData = clusterService.state().metaData();
         for (IndicesResolver resolver : indicesResolvers) {
@@ -238,4 +229,14 @@ public class InternalAuthorizationService extends AbstractComponent implements A
                 action.equals(ClearScrollAction.NAME) ||
                 action.equals(SearchServiceTransportAction.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
     }
+
+    private AuthorizationException denial(User user, String action, TransportRequest request) {
+        auditTrail.accessDenied(user, action, request);
+        return new AuthorizationException("action [" + action + "] is unauthorized for user [" + user.principal() + "]");
+    }
+
+    private void grant(User user, String action, TransportRequest request) {
+        auditTrail.accessGranted(user, action, request);
+    }
+
 }

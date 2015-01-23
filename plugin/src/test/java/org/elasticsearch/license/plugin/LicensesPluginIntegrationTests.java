@@ -26,7 +26,7 @@ public class LicensesPluginIntegrationTests extends AbstractLicensesIntegrationT
 
     private final boolean useEagerLicenseRegistrationPlugin = randomBoolean();
 
-    private final int trialLicenseDurationInSeconds = 7;
+    private final int trialLicenseDurationInSeconds = 10;
 
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder()
@@ -56,7 +56,7 @@ public class LicensesPluginIntegrationTests extends AbstractLicensesIntegrationT
         // managerService should report feature to be enabled on all data nodes
         assertLicenseManagerEnabledFeatureFor(getCurrentFeatureName());
         // consumer plugin service should return enabled on all data nodes
-        assertConsumerPluginEnabledNotification(1);
+        assertConsumerPluginEnabledNotification(2);
 
         logger.info(" --> check trial license expiry notification");
         // consumer plugin should notify onDisabled on all data nodes (expired trial license)

@@ -139,7 +139,7 @@ public class LdapRealmTest extends LdapTest {
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = ImmutableSettings.builder()
                 .put(buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, SearchScope.SUB_TREE))
-                .put(LdapRealm.CACHE_TTL, -1)
+                .put(LdapRealm.CACHE_TTL_SETTING, -1)
                 .build();
         RealmConfig config = new RealmConfig("test-ldap-realm", settings);
 

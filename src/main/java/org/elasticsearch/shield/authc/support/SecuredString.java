@@ -77,13 +77,22 @@ public class SecuredString implements CharSequence {
 
     /**
      * Note: This is a dangerous call that exists for performance/optimization
-     * DO NOT modify the array returned by this method.  To clear the array call SecureString.clear().
+     * DO NOT modify the array returned by this method and DO NOT cache it (as it will be cleared).
+     *
+     * To clear the array call SecureString.clear().
      *
      * @return the internal characters that MUST NOT be cleared manually
      */
     public char[] internalChars() {
         throwIfCleared();
         return chars;
+    }
+
+    /**
+     * @return  A copy of the internal charachters. May be usd for caching.
+     */
+    public char[] copyChars() {
+        return Arrays.copyOf(chars, chars.length);
     }
 
     /**

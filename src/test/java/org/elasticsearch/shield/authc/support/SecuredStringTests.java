@@ -10,6 +10,8 @@ import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.Assert.*;
 
 public class SecuredStringTests {
@@ -94,5 +96,19 @@ public class SecuredStringTests {
         byte[] utf8 = securePass.utf8Bytes();
         String password2 = new String(utf8, Charsets.UTF_8);
         assertThat(password2, equalTo(password));
+    }
+
+    @Test
+    public void testCopyChars() throws Exception {
+        String password = "эластичный поиск-弾性検索";
+        SecuredString securePass = new SecuredString(password.toCharArray());
+        char[] copy = securePass.copyChars();
+        assertThat(copy, not(sameInstance(securePass.internalChars())));
+        assertThat(copy, equalTo(securePass.internalChars()));
+
+        // just a sanity check to make sure that clearing the secured string
+        // doesn't modify the returned copied chars
+        securePass.clear();
+        assertThat(new String(copy), equalTo("эластичный поиск-弾性検索"));
     }
 }

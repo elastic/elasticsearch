@@ -10,10 +10,10 @@ import org.apache.commons.codec.digest.Crypt;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.codec.digest.Md5Crypt;
 import org.apache.commons.codec.digest.Sha2Crypt;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.os.OsUtils;
 import org.elasticsearch.shield.ShieldSettingsException;
 
+import java.util.Arrays;
 import java.util.Locale;
 
 /**
@@ -65,6 +65,40 @@ public enum Hasher {
         @Override
         public char[] hash(SecuredString text) {
             String salt = org.elasticsearch.shield.authc.support.BCrypt.gensalt();
+            return BCrypt.hashpw(text, salt).toCharArray();
+        }
+
+        @Override
+        public boolean verify(SecuredString text, char[] hash) {
+            String hashStr = new String(hash);
+            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
+                return false;
+            }
+            return BCrypt.checkpw(text, hashStr);
+        }
+    },
+
+    BCRYPT5() {
+        @Override
+        public char[] hash(SecuredString text) {
+            String salt = org.elasticsearch.shield.authc.support.BCrypt.gensalt(5);
+            return BCrypt.hashpw(text, salt).toCharArray();
+        }
+
+        @Override
+        public boolean verify(SecuredString text, char[] hash) {
+            String hashStr = new String(hash);
+            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
+                return false;
+            }
+            return BCrypt.checkpw(text, hashStr);
+        }
+    },
+
+    BCRYPT7() {
+        @Override
+        public char[] hash(SecuredString text) {
+            String salt = org.elasticsearch.shield.authc.support.BCrypt.gensalt(7);
             return BCrypt.hashpw(text, salt).toCharArray();
         }
 
@@ -132,6 +166,18 @@ public enum Hasher {
             }
             return false;
         }
+    },
+
+    NOOP() {
+        @Override
+        public char[] hash(SecuredString text) {
+            return text.copyChars();
+        }
+
+        @Override
+        public boolean verify(SecuredString text, char[] hash) {
+            return Arrays.equals(text.internalChars(), hash);
+        }
     };
 
     private static final String APR1_PREFIX = "$apr1$";
@@ -147,11 +193,15 @@ public enum Hasher {
             return defaultHasher;
         }
         switch (name.toLowerCase(Locale.ROOT)) {
-            case "htpasswd" : return HTPASSWD;
-            case "bcrypt"   : return BCRYPT;
-            case "sha1"     : return SHA1;
-            case "sha2"     : return SHA2;
-            case "md5"      : return MD5;
+            case "htpasswd"     : return HTPASSWD;
+            case "bcrypt"       : return BCRYPT;
+            case "bcrypt5"      : return BCRYPT5;
+            case "bcrypt7"      : return BCRYPT7;
+            case "sha1"         : return SHA1;
+            case "sha2"         : return SHA2;
+            case "md5"          : return MD5;
+            case "noop"         :
+            case "clear_text"   :  return NOOP;
             default:
                 return defaultHasher;
         }

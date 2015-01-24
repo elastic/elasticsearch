@@ -19,22 +19,24 @@ import java.util.concurrent.TimeUnit;
 
 public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm {
 
+    public static final String CACHE_HASH_ALGO_SETTING = "cache.hash_algo";
+    public static final String CACHE_TTL_SETTING = "cache.ttl";
+    public static final String CACHE_MAX_USERS_SETTING = "cache.max_users";
+
     private static final TimeValue DEFAULT_TTL = TimeValue.timeValueMinutes(20);
     private static final int DEFAULT_MAX_USERS = 100000; //100k users
-    public static final String CACHE_TTL = "cache.ttl";
-    public static final String CACHE_MAX_USERS = "cache.max_users";
 
     private final Cache<String, UserWithHash> cache;
-    private final Hasher hasher;
+    final Hasher hasher;
 
     protected CachingUsernamePasswordRealm(String type, RealmConfig config) {
         super(type, config);
-        hasher = Hasher.resolve(config.settings().get("cache.hash_algo", null), Hasher.SHA2);
-        TimeValue ttl = config.settings().getAsTime(CACHE_TTL, DEFAULT_TTL);
+        hasher = Hasher.resolve(config.settings().get(CACHE_HASH_ALGO_SETTING, null), Hasher.BCRYPT5);
+        TimeValue ttl = config.settings().getAsTime(CACHE_TTL_SETTING, DEFAULT_TTL);
         if (ttl.millis() > 0) {
             cache = CacheBuilder.newBuilder()
                     .expireAfterWrite(ttl.getMillis(), TimeUnit.MILLISECONDS)
-                    .maximumSize(config.settings().getAsInt(CACHE_MAX_USERS, DEFAULT_MAX_USERS))
+                    .maximumSize(config.settings().getAsInt(CACHE_MAX_USERS_SETTING, DEFAULT_MAX_USERS))
                     .build();
         } else {
             cache = null;

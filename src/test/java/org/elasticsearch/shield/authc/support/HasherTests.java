@@ -5,8 +5,11 @@
  */
 package org.elasticsearch.shield.authc.support;
 
+import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
+
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  *
@@ -41,6 +44,16 @@ public class HasherTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testBcrypt5_SelfGenerated() throws Exception {
+        testHasherSelfGenerated(Hasher.BCRYPT5);
+    }
+
+    @Test
+    public void testBcrypt7_SelfGenerated() throws Exception {
+        testHasherSelfGenerated(Hasher.BCRYPT7);
+    }
+
+    @Test
     public void testMd5_SelfGenerated() throws Exception {
         testHasherSelfGenerated(Hasher.MD5);
     }
@@ -60,4 +73,29 @@ public class HasherTests extends ElasticsearchTestCase {
         assertTrue(hasher.verify(passwd, hasher.hash(passwd)));
     }
 
+    @Test
+    public void testNoop_SelfGenerated() throws Exception {
+        testHasherSelfGenerated(Hasher.NOOP);
+    }
+
+    @Test
+    public void testResolve() throws Exception {
+        assertThat(Hasher.resolve("htpasswd"), sameInstance(Hasher.HTPASSWD));
+        assertThat(Hasher.resolve("bcrypt"), sameInstance(Hasher.BCRYPT));
+        assertThat(Hasher.resolve("bcrypt5"), sameInstance(Hasher.BCRYPT5));
+        assertThat(Hasher.resolve("bcrypt7"), sameInstance(Hasher.BCRYPT7));
+        assertThat(Hasher.resolve("sha1"), sameInstance(Hasher.SHA1));
+        assertThat(Hasher.resolve("sha2"), sameInstance(Hasher.SHA2));
+        assertThat(Hasher.resolve("md5"), sameInstance(Hasher.MD5));
+        assertThat(Hasher.resolve("noop"), sameInstance(Hasher.NOOP));
+        assertThat(Hasher.resolve("clear_text"), sameInstance(Hasher.NOOP));
+        try {
+            Hasher.resolve("unknown_hasher");
+            fail("expected a shield setting error when trying to resolve an unknown hasher");
+        } catch (ShieldSettingsException sse) {
+            // expected
+        }
+        Hasher hasher = randomFrom(Hasher.values());
+        assertThat(Hasher.resolve("unknown_hasher", hasher), sameInstance(hasher));
+    }
 }

@@ -7,6 +7,7 @@ package org.elasticsearch.shield.authc.support;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.Realm;
 import org.elasticsearch.shield.authc.RealmConfig;
@@ -15,10 +16,32 @@ import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 public class CachingUsernamePasswordRealmTests extends ElasticsearchTestCase {
+
+    @Test
+    public void testSettings() throws Exception {
+
+        String hashAlgo = randomFrom("bcrypt", "bcrypt5", "bcrypt7", "sha1", "sha2", "md5", "clear_text", "noop");
+        int maxUsers = randomIntBetween(10, 100);
+        TimeValue ttl = TimeValue.timeValueMinutes(randomIntBetween(10, 20));
+        Settings settings = ImmutableSettings.builder()
+                .put(CachingUsernamePasswordRealm.CACHE_HASH_ALGO_SETTING, hashAlgo)
+                .put(CachingUsernamePasswordRealm.CACHE_MAX_USERS_SETTING, maxUsers)
+                .put(CachingUsernamePasswordRealm.CACHE_TTL_SETTING, ttl)
+                .build();
+
+        RealmConfig config = new RealmConfig("test_realm", settings);
+        CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm("test", config) {
+            @Override
+            protected User doAuthenticate(UsernamePasswordToken token) {
+                return new User.Simple("username", "r1", "r2", "r3");
+            }
+        };
+
+        assertThat(realm.hasher, sameInstance(Hasher.resolve(hashAlgo)));
+    }
 
     @Test
     public void testCache(){

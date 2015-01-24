@@ -150,7 +150,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         }
 
         //if we are creating an index we need to authorize potential aliases created at the same time
-        if (Privilege.Index.CREATE_INDEX.predicate().apply(action)) {
+        if (Privilege.Index.CREATE_INDEX_MATCHER.apply(action)) {
             assert request instanceof CreateIndexRequest;
             Set<Alias> aliases = CreateIndexRequestHelper.aliases((CreateIndexRequest) request);
             if (!aliases.isEmpty()) {

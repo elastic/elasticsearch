@@ -157,7 +157,8 @@ public abstract class Privilege<P extends Privilege<P>> {
             NONE, ALL, MANAGE, CREATE_INDEX, MANAGE_ALIASES, MONITOR, DATA_ACCESS, CRUD, READ, SEARCH, GET, SUGGEST, INDEX, DELETE, WRITE
         };
 
-        public static final Predicate<String> ACTION_MATCHER = Privilege.Index.ALL.predicate();
+        public static final Predicate<String> ACTION_MATCHER = ALL.predicate();
+        public static final Predicate<String> CREATE_INDEX_MATCHER = CREATE_INDEX.predicate();
 
         static Index[] values() {
             return values;

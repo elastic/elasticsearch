@@ -162,8 +162,9 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
         }
 
         @Override
-        protected void maybeStall(IndexWriter writer) {
+        protected boolean maybeStall(IndexWriter writer) {
             // Don't stall here, because we do our own index throttling (in InternalEngine.IndexThrottle) when merges can't keep up
+            return true;
         }
     }
 

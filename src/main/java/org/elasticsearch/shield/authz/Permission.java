@@ -40,7 +40,7 @@ public interface Permission {
 
     static class Global implements Permission {
 
-        public static Global NONE = new Global(Cluster.Core.NONE, Indices.Core.NONE);
+        public static final Global NONE = new Global(Cluster.Core.NONE, Indices.Core.NONE);
 
         private final Cluster cluster;
         private final Indices indices;

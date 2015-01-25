@@ -31,7 +31,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
 
     protected CachingUsernamePasswordRealm(String type, RealmConfig config) {
         super(type, config);
-        hasher = Hasher.resolve(config.settings().get(CACHE_HASH_ALGO_SETTING, null), Hasher.BCRYPT5);
+        hasher = Hasher.resolve(config.settings().get(CACHE_HASH_ALGO_SETTING, null), Hasher.BCRYPT4);
         TimeValue ttl = config.settings().getAsTime(CACHE_TTL_SETTING, DEFAULT_TTL);
         if (ttl.millis() > 0) {
             cache = CacheBuilder.newBuilder()

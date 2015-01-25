@@ -78,6 +78,23 @@ public enum Hasher {
         }
     },
 
+    BCRYPT4() {
+        @Override
+        public char[] hash(SecuredString text) {
+            String salt = org.elasticsearch.shield.authc.support.BCrypt.gensalt(4);
+            return BCrypt.hashpw(text, salt).toCharArray();
+        }
+
+        @Override
+        public boolean verify(SecuredString text, char[] hash) {
+            String hashStr = new String(hash);
+            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
+                return false;
+            }
+            return BCrypt.checkpw(text, hashStr);
+        }
+    },
+
     BCRYPT5() {
         @Override
         public char[] hash(SecuredString text) {
@@ -95,10 +112,61 @@ public enum Hasher {
         }
     },
 
+    BCRYPT6() {
+        @Override
+        public char[] hash(SecuredString text) {
+            String salt = org.elasticsearch.shield.authc.support.BCrypt.gensalt(6);
+            return BCrypt.hashpw(text, salt).toCharArray();
+        }
+
+        @Override
+        public boolean verify(SecuredString text, char[] hash) {
+            String hashStr = new String(hash);
+            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
+                return false;
+            }
+            return BCrypt.checkpw(text, hashStr);
+        }
+    },
+
     BCRYPT7() {
         @Override
         public char[] hash(SecuredString text) {
             String salt = org.elasticsearch.shield.authc.support.BCrypt.gensalt(7);
+            return BCrypt.hashpw(text, salt).toCharArray();
+        }
+
+        @Override
+        public boolean verify(SecuredString text, char[] hash) {
+            String hashStr = new String(hash);
+            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
+                return false;
+            }
+            return BCrypt.checkpw(text, hashStr);
+        }
+    },
+
+    BCRYPT8() {
+        @Override
+        public char[] hash(SecuredString text) {
+            String salt = org.elasticsearch.shield.authc.support.BCrypt.gensalt(8);
+            return BCrypt.hashpw(text, salt).toCharArray();
+        }
+
+        @Override
+        public boolean verify(SecuredString text, char[] hash) {
+            String hashStr = new String(hash);
+            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
+                return false;
+            }
+            return BCrypt.checkpw(text, hashStr);
+        }
+    },
+
+    BCRYPT9() {
+        @Override
+        public char[] hash(SecuredString text) {
+            String salt = org.elasticsearch.shield.authc.support.BCrypt.gensalt(9);
             return BCrypt.hashpw(text, salt).toCharArray();
         }
 
@@ -195,8 +263,12 @@ public enum Hasher {
         switch (name.toLowerCase(Locale.ROOT)) {
             case "htpasswd"     : return HTPASSWD;
             case "bcrypt"       : return BCRYPT;
+            case "bcrypt4"      : return BCRYPT4;
             case "bcrypt5"      : return BCRYPT5;
+            case "bcrypt6"      : return BCRYPT6;
             case "bcrypt7"      : return BCRYPT7;
+            case "bcrypt8"      : return BCRYPT8;
+            case "bcrypt9"      : return BCRYPT9;
             case "sha1"         : return SHA1;
             case "sha2"         : return SHA2;
             case "md5"          : return MD5;

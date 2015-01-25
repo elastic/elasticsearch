@@ -23,7 +23,7 @@ public class CachingUsernamePasswordRealmTests extends ElasticsearchTestCase {
     @Test
     public void testSettings() throws Exception {
 
-        String hashAlgo = randomFrom("bcrypt", "bcrypt5", "bcrypt7", "sha1", "sha2", "md5", "clear_text", "noop");
+        String hashAlgo = randomFrom("bcrypt", "bcrypt4", "bcrypt5", "bcrypt6", "bcrypt7", "bcrypt8", "bcrypt9", "sha1", "sha2", "md5", "clear_text", "noop");
         int maxUsers = randomIntBetween(10, 100);
         TimeValue ttl = TimeValue.timeValueMinutes(randomIntBetween(10, 20));
         Settings settings = ImmutableSettings.builder()

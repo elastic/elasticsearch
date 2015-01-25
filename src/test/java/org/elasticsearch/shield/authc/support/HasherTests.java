@@ -39,18 +39,14 @@ public class HasherTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testBcrypt_SelfGenerated() throws Exception {
+    public void testBcryptFamily_SelfGenerated() throws Exception {
         testHasherSelfGenerated(Hasher.BCRYPT);
-    }
-
-    @Test
-    public void testBcrypt5_SelfGenerated() throws Exception {
+        testHasherSelfGenerated(Hasher.BCRYPT4);
         testHasherSelfGenerated(Hasher.BCRYPT5);
-    }
-
-    @Test
-    public void testBcrypt7_SelfGenerated() throws Exception {
+        testHasherSelfGenerated(Hasher.BCRYPT6);
         testHasherSelfGenerated(Hasher.BCRYPT7);
+        testHasherSelfGenerated(Hasher.BCRYPT8);
+        testHasherSelfGenerated(Hasher.BCRYPT9);
     }
 
     @Test
@@ -68,11 +64,6 @@ public class HasherTests extends ElasticsearchTestCase {
         testHasherSelfGenerated(Hasher.SHA2);
     }
 
-    public void testHasherSelfGenerated(Hasher hasher) throws Exception {
-        SecuredString passwd = SecuredStringTests.build("test123");
-        assertTrue(hasher.verify(passwd, hasher.hash(passwd)));
-    }
-
     @Test
     public void testNoop_SelfGenerated() throws Exception {
         testHasherSelfGenerated(Hasher.NOOP);
@@ -82,8 +73,12 @@ public class HasherTests extends ElasticsearchTestCase {
     public void testResolve() throws Exception {
         assertThat(Hasher.resolve("htpasswd"), sameInstance(Hasher.HTPASSWD));
         assertThat(Hasher.resolve("bcrypt"), sameInstance(Hasher.BCRYPT));
+        assertThat(Hasher.resolve("bcrypt4"), sameInstance(Hasher.BCRYPT4));
         assertThat(Hasher.resolve("bcrypt5"), sameInstance(Hasher.BCRYPT5));
+        assertThat(Hasher.resolve("bcrypt6"), sameInstance(Hasher.BCRYPT6));
         assertThat(Hasher.resolve("bcrypt7"), sameInstance(Hasher.BCRYPT7));
+        assertThat(Hasher.resolve("bcrypt8"), sameInstance(Hasher.BCRYPT8));
+        assertThat(Hasher.resolve("bcrypt9"), sameInstance(Hasher.BCRYPT9));
         assertThat(Hasher.resolve("sha1"), sameInstance(Hasher.SHA1));
         assertThat(Hasher.resolve("sha2"), sameInstance(Hasher.SHA2));
         assertThat(Hasher.resolve("md5"), sameInstance(Hasher.MD5));
@@ -97,5 +92,10 @@ public class HasherTests extends ElasticsearchTestCase {
         }
         Hasher hasher = randomFrom(Hasher.values());
         assertThat(Hasher.resolve("unknown_hasher", hasher), sameInstance(hasher));
+    }
+
+    private static void testHasherSelfGenerated(Hasher hasher) throws Exception {
+        SecuredString passwd = SecuredStringTests.build("test123");
+        assertTrue(hasher.verify(passwd, hasher.hash(passwd)));
     }
 }

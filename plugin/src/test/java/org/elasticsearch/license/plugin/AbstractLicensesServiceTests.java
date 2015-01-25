@@ -179,12 +179,13 @@ public abstract class AbstractLicensesServiceTests extends AbstractLicensesInteg
     }
 
     protected LicensesClientService licensesClientService() {
-        return internalCluster().getInstance(LicensesClientService.class, node);
+        final InternalTestCluster clients = internalCluster();
+        return internalCluster().getInstance(LicensesClientService.class, clients.getMasterName());
     }
 
-    protected LicensesService randomLicensesService() {
-        String randomNode = randomFrom(nodes);
-        return internalCluster().getInstance(LicensesService.class, randomNode);
+    protected LicensesService licensesService() {
+        final InternalTestCluster clients = internalCluster();
+        return internalCluster().getInstance(LicensesService.class, clients.getMasterName());
     }
 
     protected static ClusterService masterClusterService() {

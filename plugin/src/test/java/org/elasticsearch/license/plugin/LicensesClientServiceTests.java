@@ -12,7 +12,6 @@ import org.elasticsearch.license.plugin.core.LicensesClientService;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.*;
@@ -232,7 +231,7 @@ public class LicensesClientServiceTests extends AbstractLicensesServiceTests {
         // multiple client registration with null trial license and then different expiry signed license
 
         final LicensesManagerService masterLicensesManagerService = masterLicensesManagerService();
-        final LicensesService licensesService = randomLicensesService();
+        final LicensesService licensesService = licensesService();
         String feature1 = "feature1";
         String feature2 = "feature2";
         final TestTrackingClientListener clientListener1 = new TestTrackingClientListener(feature1);
@@ -264,7 +263,7 @@ public class LicensesClientServiceTests extends AbstractLicensesServiceTests {
         // multiple client registration: one with trial license and another with signed license (different expiry duration)
 
         final LicensesManagerService masterLicensesManagerService = masterLicensesManagerService();
-        final LicensesService licensesService = randomLicensesService();
+        final LicensesService licensesService = licensesService();
         String feature1 = "feature1";
         String feature2 = "feature2";
         final TestTrackingClientListener clientListener1 = new TestTrackingClientListener(feature1);
@@ -294,7 +293,7 @@ public class LicensesClientServiceTests extends AbstractLicensesServiceTests {
     public void testMultipleClientTrialLicenseRegistration() throws Exception {
         // multiple client registration: both with trail license of different expiryDuration
 
-        final LicensesService licensesService = randomLicensesService();
+        final LicensesService licensesService = licensesService();
         String feature1 = "feature1";
         String feature2 = "feature2";
         final TestTrackingClientListener clientListener1 = new TestTrackingClientListener(feature1);
@@ -347,7 +346,7 @@ public class LicensesClientServiceTests extends AbstractLicensesServiceTests {
 
     @Test
     public void testRandomActionSequenceMultipleFeature() throws Exception {
-        LicensesService licensesService = randomLicensesService();
+        LicensesService licensesService = licensesService();
         LicensesManagerService masterLicensesManagerService = masterLicensesManagerService();
         Map<TestTrackingClientListener, List<Action>> clientListenersWithActions = new HashMap<>();
 

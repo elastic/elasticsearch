@@ -6,6 +6,8 @@
 package org.elasticsearch.alerts.transport.actions.stats;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.alerts.AlertsBuild;
+import org.elasticsearch.alerts.AlertsVersion;
 import org.elasticsearch.alerts.State;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,12 +19,12 @@ import java.io.IOException;
  */
 public class AlertsStatsResponse extends ActionResponse {
 
+    private AlertsVersion version;
+    private AlertsBuild build;
     private long numberOfRegisteredAlerts;
     private State alertManagerState;
     private boolean alertActionManagerStarted;
     private long alertActionManagerQueueSize;
-
-
     private long alertActionManagerLargestQueueSize;
 
     public AlertsStatsResponse() {
@@ -36,11 +38,7 @@ public class AlertsStatsResponse extends ActionResponse {
         return alertActionManagerQueueSize;
     }
 
-    /**
-     * Sets the current size of the alert action queue
-     * @param alertActionManagerQueueSize
-     */
-    public void setAlertActionManagerQueueSize(long alertActionManagerQueueSize) {
+    void setAlertActionManagerQueueSize(long alertActionManagerQueueSize) {
         this.alertActionManagerQueueSize = alertActionManagerQueueSize;
     }
 
@@ -52,11 +50,7 @@ public class AlertsStatsResponse extends ActionResponse {
         return numberOfRegisteredAlerts;
     }
 
-    /**
-     * Set the number of alerts currently registered in the system
-     * @param numberOfRegisteredAlerts
-     */
-    public void setNumberOfRegisteredAlerts(long numberOfRegisteredAlerts) {
+    void setNumberOfRegisteredAlerts(long numberOfRegisteredAlerts) {
         this.numberOfRegisteredAlerts = numberOfRegisteredAlerts;
     }
 
@@ -79,11 +73,7 @@ public class AlertsStatsResponse extends ActionResponse {
         return alertActionManagerStarted;
     }
 
-    /**
-     * Sets if the alert action manager is started
-     * @param alertActionManagerStarted
-     */
-    public void setAlertActionManagerStarted(boolean alertActionManagerStarted) {
+    void setAlertActionManagerStarted(boolean alertActionManagerStarted) {
         this.alertActionManagerStarted = alertActionManagerStarted;
     }
 
@@ -95,14 +85,31 @@ public class AlertsStatsResponse extends ActionResponse {
         return alertActionManagerLargestQueueSize;
     }
 
-    /**
-     * Sets the largest alert action manager queue size
-     * @param alertActionManagerLargestQueueSize
-     */
-    public void setAlertActionManagerLargestQueueSize(long alertActionManagerLargestQueueSize) {
+    void setAlertActionManagerLargestQueueSize(long alertActionManagerLargestQueueSize) {
         this.alertActionManagerLargestQueueSize = alertActionManagerLargestQueueSize;
     }
 
+    /**
+     * @return The alerts plugin version.
+     */
+    public AlertsVersion getVersion() {
+        return version;
+    }
+
+    void setVersion(AlertsVersion version) {
+        this.version = version;
+    }
+
+    /**
+     * @return The alerts plugin build information.
+     */
+    public AlertsBuild getBuild() {
+        return build;
+    }
+
+    void setBuild(AlertsBuild build) {
+        this.build = build;
+    }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
@@ -112,6 +119,8 @@ public class AlertsStatsResponse extends ActionResponse {
         alertActionManagerLargestQueueSize = in.readLong();
         alertManagerState = State.fromId(in.readByte());
         alertActionManagerStarted = in.readBoolean();
+        version = AlertsVersion.readVersion(in);
+        build = AlertsBuild.readBuild(in);
     }
 
     @Override
@@ -122,5 +131,7 @@ public class AlertsStatsResponse extends ActionResponse {
         out.writeLong(alertActionManagerLargestQueueSize);
         out.writeByte(alertManagerState.getId());
         out.writeBoolean(alertActionManagerStarted);
+        AlertsVersion.writeVersion(version, out);
+        AlertsBuild.writeBuild(build, out);
     }
 }

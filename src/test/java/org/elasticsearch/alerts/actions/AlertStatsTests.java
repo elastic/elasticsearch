@@ -7,6 +7,8 @@ package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.alerts.AbstractAlertingTests;
+import org.elasticsearch.alerts.AlertsBuild;
+import org.elasticsearch.alerts.AlertsVersion;
 import org.elasticsearch.alerts.State;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsRequest;
@@ -38,6 +40,8 @@ public class AlertStatsTests extends AbstractAlertingTests {
         assertThat(response.getAlertActionManagerQueueSize(), equalTo(0L));
         assertThat(response.getNumberOfRegisteredAlerts(), equalTo(0L));
         assertThat(response.getAlertActionManagerLargestQueueSize(), equalTo(0L));
+        assertThat(response.getVersion(), equalTo(AlertsVersion.CURRENT));
+        assertThat(response.getBuild(), equalTo(AlertsBuild.CURRENT));
     }
 
     @Test

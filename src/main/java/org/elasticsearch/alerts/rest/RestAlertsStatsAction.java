@@ -47,6 +47,14 @@ public class RestAlertsStatsAction extends BaseRestHandler {
                         .field("alert_action_queue_size", alertsStatsResponse.getAlertActionManagerQueueSize())
                         .field("number_of_alerts", alertsStatsResponse.getNumberOfRegisteredAlerts())
                         .field("alert_action_queue_max_size", alertsStatsResponse.getAlertActionManagerLargestQueueSize());
+
+                builder.startObject("version")
+                        .field("number", alertsStatsResponse.getVersion().number())
+                        .field("build_hash", alertsStatsResponse.getBuild().hash())
+                        .field("build_timestamp", alertsStatsResponse.getBuild().timestamp())
+                        .field("build_snapshot", alertsStatsResponse.getVersion().snapshot)
+                        .endObject();
+
                 return new BytesRestResponse(OK, builder);
 
             }

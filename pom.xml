@@ -7,7 +7,7 @@
 
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-alerts</artifactId>
-    <version>1.0.0-beta2i</version>
+    <version>1.0.0-beta2-SNAPSHOT</version>
 
     <parent>
         <groupId>org.sonatype.oss</groupId>
@@ -154,6 +154,12 @@
         </repository>
     </repositories>
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -389,6 +395,25 @@
                     <skipTests>true</skipTests>
                 </configuration>
             </plugin>
+
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>buildnumber-maven-plugin</artifactId>
+                <version>1.3</version>
+                <executions>
+                    <execution>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>create</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <doCheck>false</doCheck>
+                    <doUpdate>false</doUpdate>
+                </configuration>
+            </plugin>
+
         </plugins>
     </build>
     <profiles>

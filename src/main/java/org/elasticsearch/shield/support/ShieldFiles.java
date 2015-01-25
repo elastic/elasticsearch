@@ -10,6 +10,9 @@ import org.elasticsearch.common.base.Charsets;
 import java.io.IOException;
 import java.io.Writer;
 import java.nio.file.*;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.Set;
 
 public class ShieldFiles {
 
@@ -44,10 +47,23 @@ public class ShieldFiles {
             @Override
             public void close() throws IOException {
                 writer.close();
+                // get original permissions
+                boolean supportsPosixPermissions = false;
+                Set<PosixFilePermission> posixFilePermissions = null;
+                if (Files.exists(path)) {
+                    supportsPosixPermissions = Files.getFileStore(path).supportsFileAttributeView(PosixFileAttributeView.class);
+                    if (supportsPosixPermissions) {
+                        posixFilePermissions = Files.getPosixFilePermissions(path);
+                    }
+                }
                 try {
                     Files.move(tempFile, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
                 } catch (AtomicMoveNotSupportedException e) {
                     Files.move(tempFile, path, StandardCopyOption.REPLACE_EXISTING);
+                }
+                // restore original permissions
+                if (supportsPosixPermissions && posixFilePermissions != null) {
+                    Files.setPosixFilePermissions(path, posixFilePermissions);
                 }
             }
         };

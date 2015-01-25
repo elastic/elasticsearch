@@ -207,31 +207,6 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     @Test
-    public void testUseradd_Cmd_LogsPermissionChange() throws Exception {
-        File userFile = writeFile("user1:hash1");
-        File userRolesFile = newTempFile();
-
-        assumePosixPermissionsAreSupported(userFile.toPath(), userRolesFile.toPath());
-
-        java.nio.file.Files.setPosixFilePermissions(userFile.toPath(), Sets.newHashSet(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE, PosixFilePermission.GROUP_WRITE, PosixFilePermission.OTHERS_WRITE));
-        java.nio.file.Files.setPosixFilePermissions(userRolesFile.toPath(), Sets.newHashSet(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE, PosixFilePermission.GROUP_WRITE, PosixFilePermission.OTHERS_WRITE));
-
-        Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", userFile)
-                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
-                .build();
-
-        CaptureOutputTerminal captureOutputTerminal = new CaptureOutputTerminal();
-        ESUsersTool.Useradd cmd = new ESUsersTool.Useradd(captureOutputTerminal, "user2", SecuredStringTests.build("changeme"));
-
-        CliTool.ExitStatus status = execute(cmd, settings);
-        assertThat(status, is(CliTool.ExitStatus.OK));
-
-        assertThat(captureOutputTerminal.getTerminalOutput(), hasItem(containsString("Please ensure correct permissions")));
-    }
-
-    @Test
     public void testUserdel_Parse() throws Exception {
         ESUsersTool tool = new ESUsersTool();
         CliTool.Command command = tool.parse("userdel", args("username"));
@@ -320,31 +295,6 @@ public class ESUsersToolTests extends CliToolTestCase {
 
         assertThat(userFile.exists(), is(false));
         assertThat(userRolesFile.exists(), is(false));
-    }
-
-    @Test
-    public void testUserdel_Cmd_LogsPermissionChange() throws Exception {
-        File userFile = writeFile("user1:hash1");
-        File userRolesFile = newTempFile();
-
-        assumePosixPermissionsAreSupported(userFile.toPath(), userRolesFile.toPath());
-
-        java.nio.file.Files.setPosixFilePermissions(userFile.toPath(), Sets.newHashSet(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE, PosixFilePermission.GROUP_WRITE, PosixFilePermission.OTHERS_WRITE));
-        java.nio.file.Files.setPosixFilePermissions(userRolesFile.toPath(), Sets.newHashSet(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE, PosixFilePermission.GROUP_WRITE, PosixFilePermission.OTHERS_WRITE));
-
-        Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", userFile)
-                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
-                .build();
-
-        CaptureOutputTerminal captureOutputTerminal = new CaptureOutputTerminal();
-        ESUsersTool.Userdel cmd = new ESUsersTool.Userdel(captureOutputTerminal, "user1");
-
-        CliTool.ExitStatus status = execute(cmd, settings);
-        assertThat(status, is(CliTool.ExitStatus.OK));
-
-        assertThat(captureOutputTerminal.getTerminalOutput(), hasItem(containsString("Please ensure correct permissions")));
     }
 
     @Test

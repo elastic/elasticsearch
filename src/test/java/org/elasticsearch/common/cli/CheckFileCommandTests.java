@@ -19,10 +19,8 @@ import java.io.IOException;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.GroupPrincipal;
-import java.nio.file.attribute.PosixFileAttributeView;
-import java.nio.file.attribute.PosixFilePermission;
-import java.nio.file.attribute.UserPrincipal;
+import java.nio.file.attribute.*;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.*;
 
@@ -36,57 +34,79 @@ public class CheckFileCommandTests extends ElasticsearchTestCase {
     private Configuration jimFsConfiguration = Configuration.unix().toBuilder().setAttributeViews("basic", "owner", "posix", "unix").build();
     private Configuration jimFsConfigurationWithoutPermissions = randomBoolean() ? Configuration.unix().toBuilder().setAttributeViews("basic").build() : Configuration.windows();
 
-    @Test
-    public void testThatCommandLogsErrorMessageOnFail() throws Exception {
-        executeCommand(jimFsConfiguration, new PermissionCheckFileCommand(captureOutputTerminal, true));
-        assertThat(captureOutputTerminal.getTerminalOutput(), hasItem(containsString("Please ensure correct permissions")));
+    private enum Mode {
+        CHANGE, KEEP, DISABLED
     }
 
     @Test
-    public void testThatCommandLogsNothingOnSuccess() throws Exception {
-        executeCommand(jimFsConfiguration, new PermissionCheckFileCommand(captureOutputTerminal, false));
+    public void testThatCommandLogsErrorMessageOnFail() throws Exception {
+        executeCommand(jimFsConfiguration, new PermissionCheckFileCommand(captureOutputTerminal, Mode.CHANGE));
+        assertThat(captureOutputTerminal.getTerminalOutput(), hasItem(containsString("Please ensure that the user account running Elasticsearch has read access to this file")));
+    }
+
+    @Test
+    public void testThatCommandLogsNothingWhenPermissionRemains() throws Exception {
+        executeCommand(jimFsConfiguration, new PermissionCheckFileCommand(captureOutputTerminal, Mode.KEEP));
+        assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
+    }
+
+    @Test
+    public void testThatCommandLogsNothingWhenDisabled() throws Exception {
+        executeCommand(jimFsConfiguration, new PermissionCheckFileCommand(captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
     @Test
     public void testThatCommandLogsNothingIfFilesystemDoesNotSupportPermissions() throws Exception {
-        executeCommand(jimFsConfigurationWithoutPermissions, new PermissionCheckFileCommand(captureOutputTerminal, false));
+        executeCommand(jimFsConfigurationWithoutPermissions, new PermissionCheckFileCommand(captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
     @Test
     public void testThatCommandLogsOwnerChange() throws Exception {
-        executeCommand(jimFsConfiguration, new OwnerCheckFileCommand(captureOutputTerminal, true));
+        executeCommand(jimFsConfiguration, new OwnerCheckFileCommand(captureOutputTerminal, Mode.CHANGE));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasItem(allOf(containsString("Owner of file ["), containsString("] used to be ["), containsString("], but now is ["))));
     }
 
     @Test
-    public void testThatCommandLogsNothingIfOwnerIsNotChanged() throws Exception {
-        executeCommand(jimFsConfiguration, new OwnerCheckFileCommand(captureOutputTerminal, false));
+    public void testThatCommandLogsNothingIfOwnerRemainsSame() throws Exception {
+        executeCommand(jimFsConfiguration, new OwnerCheckFileCommand(captureOutputTerminal, Mode.KEEP));
+        assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
+    }
+
+    @Test
+    public void testThatCommandLogsNothingIfOwnerIsDisabled() throws Exception {
+        executeCommand(jimFsConfiguration, new OwnerCheckFileCommand(captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
     @Test
     public void testThatCommandLogsNothingIfFileSystemDoesNotSupportOwners() throws Exception {
-        executeCommand(jimFsConfigurationWithoutPermissions, new OwnerCheckFileCommand(captureOutputTerminal, false));
+        executeCommand(jimFsConfigurationWithoutPermissions, new OwnerCheckFileCommand(captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
     @Test
     public void testThatCommandLogsIfGroupChanges() throws Exception {
-        executeCommand(jimFsConfiguration, new GroupCheckFileCommand(captureOutputTerminal, true));
+        executeCommand(jimFsConfiguration, new GroupCheckFileCommand(captureOutputTerminal, Mode.CHANGE));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasItem(allOf(containsString("Group of file ["), containsString("] used to be ["), containsString("], but now is ["))));
     }
 
     @Test
-    public void testThatCommandLogsNothingIfGroupIsNotChanged() throws Exception {
-        executeCommand(jimFsConfiguration, new GroupCheckFileCommand(captureOutputTerminal, false));
+    public void testThatCommandLogsNothingIfGroupRemainsSame() throws Exception {
+        executeCommand(jimFsConfiguration, new GroupCheckFileCommand(captureOutputTerminal, Mode.KEEP));
+        assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
+    }
+
+    @Test
+    public void testThatCommandLogsNothingIfGroupIsDisabled() throws Exception {
+        executeCommand(jimFsConfiguration, new GroupCheckFileCommand(captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
     @Test
     public void testThatCommandLogsNothingIfFileSystemDoesNotSupportGroups() throws Exception {
-        executeCommand(jimFsConfigurationWithoutPermissions, new GroupCheckFileCommand(captureOutputTerminal, false));
+        executeCommand(jimFsConfigurationWithoutPermissions, new GroupCheckFileCommand(captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
@@ -98,13 +118,13 @@ public class CheckFileCommandTests extends ElasticsearchTestCase {
 
     abstract class AbstractTestCheckFileCommand extends CheckFileCommand {
 
-        protected final boolean enabled;
+        protected final Mode mode;
         protected FileSystem fs;
         protected Path[] paths;
 
-        public AbstractTestCheckFileCommand(Terminal terminal, boolean enabled) throws IOException {
+        public AbstractTestCheckFileCommand(Terminal terminal, Mode mode) throws IOException {
             super(terminal);
-            this.enabled = enabled;
+            this.mode = mode;
         }
 
         public CliTool.ExitStatus execute(FileSystem fs) throws Exception {
@@ -130,15 +150,24 @@ public class CheckFileCommandTests extends ElasticsearchTestCase {
      */
     class PermissionCheckFileCommand extends AbstractTestCheckFileCommand {
 
-        public PermissionCheckFileCommand(Terminal terminal, boolean enabled) throws IOException {
-            super(terminal, enabled);
+        public PermissionCheckFileCommand(Terminal terminal, Mode mode) throws IOException {
+            super(terminal, mode);
         }
 
         @Override
         public CliTool.ExitStatus doExecute(Settings settings, Environment env) throws Exception {
-            if (enabled) {
-                int randomInt = randomInt(paths.length - 1);
-                Files.setPosixFilePermissions(paths[randomInt], Sets.newHashSet(PosixFilePermission.OWNER_EXECUTE, PosixFilePermission.OTHERS_EXECUTE, PosixFilePermission.GROUP_EXECUTE));
+            int randomInt = randomInt(paths.length - 1);
+            Path randomPath = paths[randomInt];
+            switch (mode) {
+                case CHANGE:
+                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(Charsets.UTF_8));
+                    Files.setPosixFilePermissions(randomPath, Sets.newHashSet(PosixFilePermission.OWNER_EXECUTE, PosixFilePermission.OTHERS_EXECUTE, PosixFilePermission.GROUP_EXECUTE));
+                    break;
+                case KEEP:
+                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(Charsets.UTF_8));
+                    Set<PosixFilePermission> posixFilePermissions = Files.getPosixFilePermissions(randomPath);
+                    Files.setPosixFilePermissions(randomPath, posixFilePermissions);
+                    break;
             }
             return CliTool.ExitStatus.OK;
         }
@@ -150,17 +179,27 @@ public class CheckFileCommandTests extends ElasticsearchTestCase {
      */
     class OwnerCheckFileCommand extends AbstractTestCheckFileCommand {
 
-        public OwnerCheckFileCommand(Terminal terminal, boolean enabled) throws IOException {
-            super(terminal, enabled);
+        public OwnerCheckFileCommand(Terminal terminal, Mode mode) throws IOException {
+            super(terminal, mode);
         }
 
         @Override
         public CliTool.ExitStatus doExecute(Settings settings, Environment env) throws Exception {
-            if (enabled) {
-                int randomInt = randomInt(paths.length - 1);
-                UserPrincipal owner = fs.getUserPrincipalLookupService().lookupPrincipalByName(randomAsciiOfLength(10));
-                Files.setOwner(paths[randomInt], owner);
+            int randomInt = randomInt(paths.length - 1);
+            Path randomPath = paths[randomInt];
+            switch (mode) {
+                case CHANGE:
+                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(Charsets.UTF_8));
+                    UserPrincipal randomOwner = fs.getUserPrincipalLookupService().lookupPrincipalByName(randomAsciiOfLength(10));
+                    Files.setOwner(randomPath, randomOwner);
+                    break;
+                case KEEP:
+                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(Charsets.UTF_8));
+                    UserPrincipal originalOwner = Files.getOwner(randomPath);
+                    Files.setOwner(randomPath, originalOwner);
+                    break;
             }
+
             return CliTool.ExitStatus.OK;
         }
     }
@@ -170,17 +209,27 @@ public class CheckFileCommandTests extends ElasticsearchTestCase {
      */
     class GroupCheckFileCommand extends AbstractTestCheckFileCommand {
 
-        public GroupCheckFileCommand(Terminal terminal, boolean enabled) throws IOException {
-            super(terminal, enabled);
+        public GroupCheckFileCommand(Terminal terminal, Mode mode) throws IOException {
+            super(terminal, mode);
         }
 
         @Override
         public CliTool.ExitStatus doExecute(Settings settings, Environment env) throws Exception {
-            if (enabled) {
-                int randomInt = randomInt(paths.length - 1);
-                GroupPrincipal groupPrincipal = fs.getUserPrincipalLookupService().lookupPrincipalByGroupName(randomAsciiOfLength(10));
-                Files.getFileAttributeView(paths[randomInt], PosixFileAttributeView.class).setGroup(groupPrincipal);
+            int randomInt = randomInt(paths.length - 1);
+            Path randomPath = paths[randomInt];
+            switch (mode) {
+                case CHANGE:
+                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(Charsets.UTF_8));
+                    GroupPrincipal randomPrincipal = fs.getUserPrincipalLookupService().lookupPrincipalByGroupName(randomAsciiOfLength(10));
+                    Files.getFileAttributeView(randomPath, PosixFileAttributeView.class).setGroup(randomPrincipal);
+                    break;
+                case KEEP:
+                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(Charsets.UTF_8));
+                    GroupPrincipal groupPrincipal = Files.readAttributes(randomPath, PosixFileAttributes.class).group();
+                    Files.getFileAttributeView(randomPath, PosixFileAttributeView.class).setGroup(groupPrincipal);
+                    break;
             }
+
             return CliTool.ExitStatus.OK;
         }
     }

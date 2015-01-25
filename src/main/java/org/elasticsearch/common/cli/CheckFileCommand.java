@@ -15,8 +15,11 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.common.cli.Terminal.Verbosity.SILENT;
 
 /**
  * helper command to check if file permissions or owner got changed by the command being executed
@@ -69,7 +72,9 @@ public abstract class CheckFileCommand extends CliTool.Command {
             Set<PosixFilePermission> permissionsBeforeWrite = entry.getValue();
             Set<PosixFilePermission> permissionsAfterWrite = Files.getPosixFilePermissions(entry.getKey());
             if (!permissionsBeforeWrite.equals(permissionsAfterWrite)) {
-                terminal.printError("Permissions of [%s] differ after write. Please ensure correct permissions before going on!", entry.getKey());
+                terminal.println(SILENT, "WARN: The file permissions of [%s] have changed from [%s] to [%s]",
+                        entry.getKey(), PosixFilePermissions.toString(permissionsBeforeWrite), PosixFilePermissions.toString(permissionsAfterWrite));
+                terminal.println(SILENT, "Please ensure that the user account running Elasticsearch has read access to this file!");
             }
         }
 
@@ -78,7 +83,7 @@ public abstract class CheckFileCommand extends CliTool.Command {
             String ownerBeforeWrite = entry.getValue();
             String ownerAfterWrite = Files.getOwner(entry.getKey()).getName();
             if (!ownerAfterWrite.equals(ownerBeforeWrite)) {
-                terminal.printError("Owner of file [%s] used to be [%s], but now is [%s]", entry.getKey(), ownerBeforeWrite, ownerAfterWrite);
+                terminal.println(SILENT, "WARN: Owner of file [%s] used to be [%s], but now is [%s]", entry.getKey(), ownerBeforeWrite, ownerAfterWrite);
             }
         }
 
@@ -87,7 +92,7 @@ public abstract class CheckFileCommand extends CliTool.Command {
             String groupBeforeWrite = entry.getValue();
             String groupAfterWrite = Files.readAttributes(entry.getKey(), PosixFileAttributes.class).group().getName();
             if (!groupAfterWrite.equals(groupBeforeWrite)) {
-                terminal.printError("Group of file [%s] used to be [%s], but now is [%s]", entry.getKey(), groupBeforeWrite, groupAfterWrite);
+                terminal.println(SILENT, "WARN: Group of file [%s] used to be [%s], but now is [%s]", entry.getKey(), groupBeforeWrite, groupAfterWrite);
             }
         }
 

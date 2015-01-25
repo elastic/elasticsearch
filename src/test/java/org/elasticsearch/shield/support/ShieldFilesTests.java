@@ -13,6 +13,7 @@ import org.junit.Test;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Locale;
 import java.util.Set;
@@ -26,6 +27,11 @@ public class ShieldFilesTests extends ElasticsearchTestCase {
     @Test
     public void testThatOriginalPermissionsAreKept() throws Exception {
         Path path = newTempFile().toPath();
+
+        // no posix file permissions, nothing to test, done here
+        boolean supportsPosixPermissions = Files.getFileStore(path).supportsFileAttributeView(PosixFileAttributeView.class);
+        assumeTrue("Ignoring because posix file attributes are not supported", supportsPosixPermissions);
+
         Files.write(path, "foo".getBytes(Charsets.UTF_8));
 
         Set<PosixFilePermission> perms = Sets.newHashSet(OWNER_READ, OWNER_WRITE);

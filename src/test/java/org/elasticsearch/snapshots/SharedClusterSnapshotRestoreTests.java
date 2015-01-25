@@ -1555,6 +1555,59 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
     }
 
+    @Test
+    public void deleteIndexDuringSnapshotTest() throws Exception {
+        Client client = client();
+
+        boolean allowPartial = randomBoolean();
+
+        logger.info("-->  creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(ImmutableSettings.settingsBuilder()
+                        .put("location", newTempDir())
+                        .put("compress", randomBoolean())
+                        .put("chunk_size", randomIntBetween(100, 1000))
+                        .put("block_on_init", true)
+                ));
+
+        createIndex("test-idx-1", "test-idx-2", "test-idx-3");
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index("test-idx-1", "doc", Integer.toString(i), "foo", "bar" + i);
+            index("test-idx-2", "doc", Integer.toString(i), "foo", "baz" + i);
+            index("test-idx-3", "doc", Integer.toString(i), "foo", "baz" + i);
+        }
+        refresh();
+        assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(100L));
+        assertThat(client.prepareCount("test-idx-2").get().getCount(), equalTo(100L));
+        assertThat(client.prepareCount("test-idx-3").get().getCount(), equalTo(100L));
+
+        logger.info("--> snapshot allow partial {}", allowPartial);
+        ListenableActionFuture<CreateSnapshotResponse> future = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+                .setIndices("test-idx-*").setWaitForCompletion(true).setPartial(allowPartial).execute();
+        logger.info("--> wait for block to kick in");
+        waitForBlock(internalCluster().getMasterName(), "test-repo", TimeValue.timeValueMinutes(1));
+        logger.info("--> delete some indices while snapshot is running");
+        client.admin().indices().prepareDelete("test-idx-1", "test-idx-2").get();
+        logger.info("--> unblock running master node");
+        unblockNode(internalCluster().getMasterName());
+        logger.info("--> waiting for snapshot to finish");
+        CreateSnapshotResponse createSnapshotResponse = future.get();
+
+        if (allowPartial) {
+            logger.info("Deleted index during snapshot, but allow partial");
+            assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo((SnapshotState.PARTIAL)));
+            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+            assertThat(createSnapshotResponse.getSnapshotInfo().failedShards(), greaterThan(0));
+            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), lessThan(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        } else {
+            logger.info("Deleted index during snapshot and doesn't allow partial");
+            assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo((SnapshotState.FAILED)));
+        }
+    }
+
     private boolean waitForIndex(final String index, TimeValue timeout) throws InterruptedException {
         return awaitBusy(new Predicate<Object>() {
             @Override

@@ -19,9 +19,12 @@
 
 package org.elasticsearch.snapshots.mockstore;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -40,6 +43,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
 /**
@@ -62,6 +66,8 @@ public class MockRepository extends FsRepository {
 
     private final String randomPrefix;
 
+    private volatile boolean blockOnInitialization;
+
     private volatile boolean blockOnControlFiles;
 
     private volatile boolean blockOnDataFiles;
@@ -75,10 +81,19 @@ public class MockRepository extends FsRepository {
         randomDataFileIOExceptionRate = repositorySettings.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
         blockOnControlFiles = repositorySettings.settings().getAsBoolean("block_on_control", false);
         blockOnDataFiles = repositorySettings.settings().getAsBoolean("block_on_data", false);
-        randomPrefix = repositorySettings.settings().get("random");
+        blockOnInitialization = repositorySettings.settings().getAsBoolean("block_on_init", false);
+        randomPrefix = repositorySettings.settings().get("random", "default");
         waitAfterUnblock = repositorySettings.settings().getAsLong("wait_after_unblock", 0L);
         logger.info("starting mock repository with random prefix " + randomPrefix);
         mockBlobStore = new MockBlobStore(super.blobStore());
+    }
+
+    @Override
+    public void initializeSnapshot(SnapshotId snapshotId, ImmutableList<String> indices, MetaData metaData) {
+        if (blockOnInitialization ) {
+            blockExecution();
+        }
+        super.initializeSnapshot(snapshotId, indices, metaData);
     }
 
     private static RepositorySettings overrideSettings(RepositorySettings repositorySettings, ClusterService clusterService) {
@@ -112,12 +127,8 @@ public class MockRepository extends FsRepository {
         return mockBlobStore;
     }
 
-    public boolean blocked() {
-        return mockBlobStore.blocked();
-    }
-
     public void unblock() {
-        mockBlobStore.unblockExecution();
+        unblockExecution();
     }
 
     public void blockOnDataFiles(boolean blocked) {
@@ -126,6 +137,37 @@ public class MockRepository extends FsRepository {
 
     public void blockOnControlFiles(boolean blocked) {
         blockOnControlFiles = blocked;
+    }
+
+    public synchronized void unblockExecution() {
+        if (blocked) {
+            blocked = false;
+            // Clean blocking flags, so we wouldn't try to block again
+            blockOnDataFiles = false;
+            blockOnControlFiles = false;
+            blockOnInitialization = false;
+            this.notifyAll();
+        }
+    }
+
+    public boolean blocked() {
+        return blocked;
+    }
+
+    private synchronized boolean blockExecution() {
+        logger.debug("Blocking execution");
+        boolean wasBlocked = false;
+        try {
+            while (blockOnDataFiles || blockOnControlFiles || blockOnInitialization) {
+                blocked = true;
+                this.wait();
+                wasBlocked = true;
+            }
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        }
+        logger.debug("Unblocking execution");
+        return wasBlocked;
     }
 
     public class MockBlobStore extends BlobStoreWrapper {
@@ -149,34 +191,6 @@ public class MockRepository extends FsRepository {
         @Override
         public BlobContainer blobContainer(BlobPath path) {
             return new MockBlobContainer(super.blobContainer(path));
-        }
-
-        public synchronized void unblockExecution() {
-            if (blocked) {
-                blocked = false;
-                // Clean blocking flags, so we wouldn't try to block again
-                blockOnDataFiles = false;
-                blockOnControlFiles = false;
-                this.notifyAll();
-            }
-        }
-
-        public boolean blocked() {
-            return blocked;
-        }
-
-        private synchronized boolean blockExecution() {
-            boolean wasBlocked = false;
-            try {
-                while (blockOnDataFiles || blockOnControlFiles) {
-                    blocked = true;
-                    this.wait();
-                    wasBlocked = true;
-                }
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
-            }
-            return wasBlocked;
         }
 
         private class MockBlobContainer extends BlobContainerWrapper {

@@ -306,7 +306,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                     for (SnapshotMetaData.Entry entry : snapshots.entries()) {
                         if (entry.snapshotId().equals(snapshot.snapshotId())) {
                             // Replace the snapshot that was just created
-                            ImmutableMap<ShardId, SnapshotMetaData.ShardSnapshotStatus> shards = shards(entry.snapshotId(), currentState, entry.indices());
+                            ImmutableMap<ShardId, SnapshotMetaData.ShardSnapshotStatus> shards = shards(currentState, entry.indices());
                             if (!partial) {
                                 Set<String> indicesWithMissingShards = indicesWithMissingShards(shards);
                                 if (indicesWithMissingShards != null) {
@@ -1196,33 +1196,37 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
     /**
      * Calculates the list of shards that should be included into the current snapshot
      *
-     * @param snapshotId   snapshot id
      * @param clusterState cluster state
      * @param indices      list of indices to be snapshotted
      * @return list of shard to be included into current snapshot
      */
-    private ImmutableMap<ShardId, SnapshotMetaData.ShardSnapshotStatus> shards(SnapshotId snapshotId, ClusterState clusterState, ImmutableList<String> indices) {
+    private ImmutableMap<ShardId, SnapshotMetaData.ShardSnapshotStatus> shards(ClusterState clusterState, ImmutableList<String> indices) {
         ImmutableMap.Builder<ShardId, SnapshotMetaData.ShardSnapshotStatus> builder = ImmutableMap.builder();
         MetaData metaData = clusterState.metaData();
         for (String index : indices) {
             IndexMetaData indexMetaData = metaData.index(index);
-            IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().index(index);
-            for (int i = 0; i < indexMetaData.numberOfShards(); i++) {
-                ShardId shardId = new ShardId(index, i);
-                if (indexRoutingTable != null) {
-                    ShardRouting primary = indexRoutingTable.shard(i).primaryShard();
-                    if (primary == null || !primary.assignedToNode()) {
-                        builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(null, State.MISSING, "primary shard is not allocated"));
-                    } else if (primary.relocating() || primary.initializing()) {
-                        // The WAITING state was introduced in V1.2.0 - don't use it if there are nodes with older version in the cluster
-                        builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(primary.currentNodeId(), State.WAITING));
-                    } else if (!primary.started()) {
-                        builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(primary.currentNodeId(), State.MISSING, "primary shard hasn't been started yet"));
+            if (indexMetaData == null) {
+                // The index was deleted before we managed to start the snapshot - mark it as missing.
+                builder.put(new ShardId(index, 0), new SnapshotMetaData.ShardSnapshotStatus(null, State.MISSING, "missing index"));
+            } else {
+                IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().index(index);
+                for (int i = 0; i < indexMetaData.numberOfShards(); i++) {
+                    ShardId shardId = new ShardId(index, i);
+                    if (indexRoutingTable != null) {
+                        ShardRouting primary = indexRoutingTable.shard(i).primaryShard();
+                        if (primary == null || !primary.assignedToNode()) {
+                            builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(null, State.MISSING, "primary shard is not allocated"));
+                        } else if (primary.relocating() || primary.initializing()) {
+                            // The WAITING state was introduced in V1.2.0 - don't use it if there are nodes with older version in the cluster
+                            builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(primary.currentNodeId(), State.WAITING));
+                        } else if (!primary.started()) {
+                            builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(primary.currentNodeId(), State.MISSING, "primary shard hasn't been started yet"));
+                        } else {
+                            builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(primary.currentNodeId()));
+                        }
                     } else {
-                        builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(primary.currentNodeId()));
+                        builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(null, State.MISSING, "missing routing table"));
                     }
-                } else {
-                    builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(null, State.MISSING, "missing routing table"));
                 }
             }
         }

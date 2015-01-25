@@ -8,10 +8,7 @@ package org.elasticsearch.license.plugin;
 import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.plugin.core.LicensesClientService;
-import org.elasticsearch.license.plugin.core.LicensesManagerService;
-import org.elasticsearch.license.plugin.core.LicensesService;
-import org.elasticsearch.license.plugin.core.LicensesStatus;
+import org.elasticsearch.license.plugin.core.*;
 import org.junit.Test;
 
 import java.util.*;
@@ -25,7 +22,7 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope = TEST, numDataNodes = 10)
+@ClusterScope(scope = TEST, numDataNodes = 1)
 public class LicensesClientServiceTests extends AbstractLicensesServiceTests {
 
     @Test
@@ -239,12 +236,12 @@ public class LicensesClientServiceTests extends AbstractLicensesServiceTests {
         List<Action> firstClientActions = new ArrayList<>();
         List<Action> secondClientActions = new ArrayList<>();
 
-        final TimeValue firstExpiryDuration = TimeValue.timeValueSeconds(2);
+        final TimeValue firstExpiryDuration = TimeValue.timeValueSeconds(5);
         firstClientActions.add(registerWithoutTrialLicense(licensesService, clientListener1, feature1));
         firstClientActions.add(generateAndPutSignedLicenseAction(masterLicensesManagerService, feature1, firstExpiryDuration));
         firstClientActions.add(assertExpiryAction(feature1, "signed", firstExpiryDuration));
 
-        final TimeValue secondExpiryDuration = TimeValue.timeValueSeconds(1);
+        final TimeValue secondExpiryDuration = TimeValue.timeValueSeconds(4);
         secondClientActions.add(registerWithoutTrialLicense(licensesService, clientListener2, feature2));
         secondClientActions.add(generateAndPutSignedLicenseAction(masterLicensesManagerService, feature2, secondExpiryDuration));
         secondClientActions.add(assertExpiryAction(feature2, "signed", secondExpiryDuration));
@@ -271,12 +268,12 @@ public class LicensesClientServiceTests extends AbstractLicensesServiceTests {
         List<Action> firstClientActions = new ArrayList<>();
         List<Action> secondClientActions = new ArrayList<>();
 
-        final TimeValue firstExpiryDuration = TimeValue.timeValueSeconds(2);
+        final TimeValue firstExpiryDuration = TimeValue.timeValueSeconds(5);
         firstClientActions.add(registerWithoutTrialLicense(licensesService, clientListener1, feature1));
         firstClientActions.add(generateAndPutSignedLicenseAction(masterLicensesManagerService, feature1, firstExpiryDuration));
         firstClientActions.add(assertExpiryAction(feature1, "signed", firstExpiryDuration));
 
-        final TimeValue secondExpiryDuration = TimeValue.timeValueSeconds(1);
+        final TimeValue secondExpiryDuration = TimeValue.timeValueSeconds(4);
         secondClientActions.add(registerWithTrialLicense(licensesService, clientListener2, feature2, secondExpiryDuration));
         secondClientActions.add(assertExpiryAction(feature2, "trial", secondExpiryDuration));
 
@@ -301,11 +298,11 @@ public class LicensesClientServiceTests extends AbstractLicensesServiceTests {
         List<Action> firstClientActions = new ArrayList<>();
         List<Action> secondClientActions = new ArrayList<>();
 
-        TimeValue firstExpiryDuration = TimeValue.timeValueSeconds(1);
+        TimeValue firstExpiryDuration = TimeValue.timeValueSeconds(5);
         firstClientActions.add(registerWithTrialLicense(licensesService, clientListener1, feature1, firstExpiryDuration));
         firstClientActions.add(assertExpiryAction(feature1, "trial", firstExpiryDuration));
 
-        TimeValue secondExpiryDuration = TimeValue.timeValueSeconds(2);
+        TimeValue secondExpiryDuration = TimeValue.timeValueSeconds(4);
         secondClientActions.add(registerWithTrialLicense(licensesService, clientListener2, feature2, secondExpiryDuration));
         secondClientActions.add(assertExpiryAction(feature2, "trial", secondExpiryDuration));
 
@@ -438,11 +435,30 @@ public class LicensesClientServiceTests extends AbstractLicensesServiceTests {
     }
 
     private static String getActionMsg(final boolean enabledCount, final long latchCount, final List<Action> actions) {
+        LicensesMetaData licensesMetaData = masterClusterService().state().metaData().custom(LicensesMetaData.TYPE);
+        Set<String> featureLicenses = new HashSet<>();
+        if (licensesMetaData != null) {
+            for (License license : licensesMetaData.getSignedLicenses()) {
+                featureLicenses.add(license.feature());
+            }
+            for (License license : licensesMetaData.getTrialLicenses()) {
+                featureLicenses.add(license.feature());
+            }
+        }
+
+        StringBuilder featureLicensesString = new StringBuilder();
+        for (String featureLicense : featureLicenses) {
+            if (featureLicensesString.length() != 0) {
+                featureLicensesString.append(", ");
+            }
+            featureLicensesString.append(featureLicense);
+        }
+
         AtomicLong cumulativeCount = new AtomicLong(0);
         for (Action action : actions) {
             cumulativeCount.addAndGet((enabledCount) ? action.expectedEnabledCount : action.expectedDisabledCount);
             if (latchCount <= cumulativeCount.get()) {
-                return action.msg;
+                return action.msg + "\n Current licenses in cluster state: [" + featureLicensesString.toString() +  "]";
             }
         }
         return "there should be no errors";

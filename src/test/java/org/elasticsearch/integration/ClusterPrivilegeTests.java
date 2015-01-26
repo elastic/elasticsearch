@@ -13,6 +13,7 @@ import org.junit.Test;
 
 import java.io.File;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
 
@@ -109,7 +110,7 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTests {
     @Test
     public void testThatSnapshotAndRestore() throws Exception {
         File repositoryLocation = newTempDir();
-        String repoJson = "{ \"type\" : \"fs\", \"settings\" : { \"location\" : \"" + repositoryLocation.getAbsolutePath() + "\" } }";
+        String repoJson = jsonBuilder().startObject().field("type", "fs").startObject("settings").field("location", repositoryLocation.getAbsolutePath()).endObject().endObject().string();
         assertAccessIsDenied("user_b", "PUT", "/_snapshot/my-repo", repoJson);
         assertAccessIsDenied("user_c", "PUT", "/_snapshot/my-repo", repoJson);
         assertAccessIsAllowed("user_a", "PUT", "/_snapshot/my-repo", repoJson);

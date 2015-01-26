@@ -79,7 +79,6 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
 
         client().prepareIndex("twitter", "tweet").setSource(json).setRefresh(true).execute().actionGet();
 
-        ensureGreen("twitter");
         SearchResponse search = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         assertThat(search.getHits().totalHits(), equalTo(1l));
         DeleteByQueryRequestBuilder deleteByQueryRequestBuilder = client().prepareDeleteByQuery();
@@ -193,7 +192,8 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
 
     private void assertSyncShardInfo(ActionWriteResponse.ShardInfo shardInfo, NumShards numShards) {
         assertThat(shardInfo.getTotal(), greaterThanOrEqualTo(numShards.totalNumShards));
-        assertThat(shardInfo.getSuccessful(), greaterThanOrEqualTo(numShards.totalNumShards));
+        // we do not ensure green so just make sure request succeeded at least on all primaries
+        assertThat(shardInfo.getSuccessful(), greaterThanOrEqualTo(numShards.numPrimaries));
         assertThat(shardInfo.getPending(), equalTo(0));
         assertThat(shardInfo.getFailed(), equalTo(0));
         for (ActionWriteResponse.ShardInfo.Failure failure : shardInfo.getFailures()) {

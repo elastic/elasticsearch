@@ -11,7 +11,6 @@ import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.netty.channel.*;
 import org.elasticsearch.common.netty.handler.ssl.SslHandler;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.shield.ssl.SSLService;

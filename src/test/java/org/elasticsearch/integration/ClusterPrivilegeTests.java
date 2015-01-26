@@ -5,10 +5,13 @@
  */
 package org.elasticsearch.integration;
 
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.internal.InternalNode;
 import org.junit.Test;
+
+import java.io.File;
 
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
@@ -101,5 +104,48 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTests {
         assertAccessIsDenied("user_c", "POST", "/_cluster/reroute");
         assertAccessIsDenied("user_c", "PUT", "/_cluster/settings", "{ \"transient\" : { \"indices.ttl.interval\": \"1m\" } }");
         assertAccessIsDenied("user_c", "POST", "/_cluster/nodes/_all/_shutdown");
+    }
+
+    @Test
+    public void testThatSnapshotAndRestore() throws Exception {
+        File repositoryLocation = newTempDir();
+        String repoJson = "{ \"type\" : \"fs\", \"settings\" : { \"location\" : \"" + repositoryLocation.getAbsolutePath() + "\" } }";
+        assertAccessIsDenied("user_b", "PUT", "/_snapshot/my-repo", repoJson);
+        assertAccessIsDenied("user_c", "PUT", "/_snapshot/my-repo", repoJson);
+        assertAccessIsAllowed("user_a", "PUT", "/_snapshot/my-repo", repoJson);
+
+        ImmutableMap params = ImmutableMap.of("refresh", "true");
+        assertAccessIsDenied("user_a", "PUT", "/someindex/bar/1", "{ \"name\" : \"elasticsearch\" }", params);
+        assertAccessIsDenied("user_b", "PUT", "/someindex/bar/1", "{ \"name\" : \"elasticsearch\" }", params);
+        assertAccessIsAllowed("user_c", "PUT", "/someindex/bar/1", "{ \"name\" : \"elasticsearch\" }", params);
+
+        assertAccessIsAllowed("user_a", "PUT", "/_snapshot/my-repo/my-snapshot");
+        assertAccessIsDenied("user_b", "PUT", "/_snapshot/my-repo/my-snapshot");
+        assertAccessIsDenied("user_c", "PUT", "/_snapshot/my-repo/my-snapshot");
+
+        assertAccessIsDenied("user_b", "GET", "/_snapshot/my-repo/my-snapshot/_status");
+        assertAccessIsDenied("user_c", "GET", "/_snapshot/my-repo/my-snapshot/_status");
+        assertAccessIsAllowed("user_a", "GET", "/_snapshot/my-repo/my-snapshot/_status");
+
+        assertAccessIsDenied("user_a", "DELETE", "/someindex");
+        assertAccessIsDenied("user_b", "DELETE", "/someindex");
+        assertAccessIsAllowed("user_c", "DELETE", "/someindex");
+
+        ImmutableMap restoreParams = ImmutableMap.of("wait_for_completion", "true");
+        assertAccessIsDenied("user_b", "POST", "/_snapshot/my-repo/my-snapshot/_restore", null, restoreParams);
+        assertAccessIsDenied("user_c", "POST", "/_snapshot/my-repo/my-snapshot/_restore", null, restoreParams);
+        assertAccessIsAllowed("user_a", "POST", "/_snapshot/my-repo/my-snapshot/_restore", null, restoreParams);
+
+        assertAccessIsDenied("user_a", "GET", "/someindex/bar/1");
+        assertAccessIsDenied("user_b", "GET", "/someindex/bar/1");
+        assertAccessIsAllowed("user_c", "GET", "/someindex/bar/1");
+
+        assertAccessIsDenied("user_b", "DELETE", "/_snapshot/my-repo/my-snapshot");
+        assertAccessIsDenied("user_c", "DELETE", "/_snapshot/my-repo/my-snapshot");
+        assertAccessIsAllowed("user_a", "DELETE", "/_snapshot/my-repo/my-snapshot");
+
+        assertAccessIsDenied("user_b", "DELETE", "/_snapshot/my-repo");
+        assertAccessIsDenied("user_c", "DELETE", "/_snapshot/my-repo");
+        assertAccessIsAllowed("user_a", "DELETE", "/_snapshot/my-repo");
     }
 }

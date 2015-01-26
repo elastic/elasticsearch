@@ -85,7 +85,9 @@ public abstract class Privilege<P extends Privilege<P>> {
         protected static final Predicate<String> PREDICATE = new AutomatonPredicate(patterns(
                 "internal:*",
                 "indices:monitor/*",  // added for marvel
-                "cluster:monitor/*"   // added for marvel
+                "cluster:monitor/*",  // added for marvel
+                // TODO: remove again after 1.4.3
+                "cluster:admin/snapshot/status[nodes]"
         ));
 
         private System() {

@@ -53,5 +53,13 @@ public class VersionCompatibilityTests extends ElasticsearchTestCase {
          *
          */
         assertThat("Remove workaround in LicenseService class when es core supports merging cluster level custom metadata", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
+
+        /**
+         * see https://github.com/elasticsearch/elasticsearch/pull/9409/
+         * This should be fixed in es 1.4.3 and up, thus can be removed
+         * You can also remove the SnapshotTests class then, as this functionality is also covered in the ClusterPrivilegeTests
+         * And remove the code in Privilege.System
+         */
+        assertThat("Remove workaround to allow TransportNodesSnapshotsStatus be executed by the system user", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
     }
 }

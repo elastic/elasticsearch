@@ -53,7 +53,7 @@ public class DerivativeBuilder extends ValuesSourceAggregationBuilder<Derivative
     @Override
     protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
         if (gapPolicy != null) {
-            builder.field(DerivativeParser.GAP_POLICY.getPreferredName(), gapPolicy.name());
+            builder.field(DerivativeParser.GAP_POLICY.getPreferredName(), gapPolicy.getName());
         }
         if (format != null) {
             builder.field(DerivativeParser.FORMAT.getPreferredName(), format);

@@ -54,7 +54,7 @@ public class DerivativeParser implements Aggregator.Parser {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 if (GAP_POLICY.match(currentFieldName)) {
-                    gapPolicy = GapPolicy.valueOf(parser.text());
+                    gapPolicy = GapPolicy.parse(context, parser.text());
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: ["
                             + currentFieldName + "].");

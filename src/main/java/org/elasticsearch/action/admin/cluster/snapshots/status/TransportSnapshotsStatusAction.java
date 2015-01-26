@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -112,22 +113,22 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
             TransportNodesSnapshotsStatus.Request nodesRequest = new TransportNodesSnapshotsStatus.Request(request, nodesIds.toArray(new String[nodesIds.size()]))
                     .snapshotIds(snapshotIds).timeout(request.masterNodeTimeout());
             transportNodesSnapshotsStatus.execute(nodesRequest, new ActionListener<TransportNodesSnapshotsStatus.NodesSnapshotStatus>() {
-                        @Override
-                        public void onResponse(TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) {
-                            try {
-                                ImmutableList<SnapshotMetaData.Entry> currentSnapshots =
-                                        snapshotsService.currentSnapshots(request.repository(), request.snapshots());
-                                listener.onResponse(buildResponse(request, currentSnapshots, nodeSnapshotStatuses));
-                            } catch (Throwable e) {
-                                listener.onFailure(e);
-                            }
-                        }
+                @Override
+                public void onResponse(TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) {
+                    try {
+                        ImmutableList<SnapshotMetaData.Entry> currentSnapshots =
+                                snapshotsService.currentSnapshots(request.repository(), request.snapshots());
+                        listener.onResponse(buildResponse(request, currentSnapshots, nodeSnapshotStatuses));
+                    } catch (Throwable e) {
+                        listener.onFailure(e);
+                    }
+                }
 
-                        @Override
-                        public void onFailure(Throwable e) {
-                            listener.onFailure(e);
-                        }
-                    });
+                @Override
+                public void onFailure(Throwable e) {
+                    listener.onFailure(e);
+                }
+            });
         } else {
             // We don't have any in-progress shards, just return current stats
             listener.onResponse(buildResponse(request, currentSnapshots, null));

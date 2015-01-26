@@ -45,7 +45,7 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
     private final AuditTrail auditTrail;
     private final ShieldActionMapper actionMapper;
 
-    private volatile boolean licenseEnabled;
+    private volatile boolean licenseEnabled = true;
 
     @Inject
     public ShieldActionFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService, SignatureService signatureService,

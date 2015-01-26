@@ -171,7 +171,7 @@ public final class XMoreLikeThis {
      * @see #getMinTermFreq
      * @see #setMinTermFreq
      */
-    public static final int DEFAULT_MIN_TERM_FREQ = 2;
+    public static final int DEFAULT_MIN_TERM_FREQ = 1;
 
     /**
      * Ignore words which do not occur in at least this many docs.
@@ -179,7 +179,7 @@ public final class XMoreLikeThis {
      * @see #getMinDocFreq
      * @see #setMinDocFreq
      */
-    public static final int DEFAULT_MIN_DOC_FREQ = 5;
+    public static final int DEFAULT_MIN_DOC_FREQ = 1;
 
     /**
      * Ignore words which occur in more than this many docs.

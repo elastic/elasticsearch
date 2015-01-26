@@ -6,9 +6,9 @@ your application to Elasticsearch 2.0.
 
 === Indices API
 
-The <<alias-retrieving, get alias api>> will, by default produce an error response 
-if a requested index does not exist. This change brings the defaults for this API in 
-line with the other Indices APIs. The <<multi-index>> options can be used on a request 
+The <<alias-retrieving, get alias api>> will, by default produce an error response
+if a requested index does not exist. This change brings the defaults for this API in
+line with the other Indices APIs. The <<multi-index>> options can be used on a request
 to change this behavior
 
 `GetIndexRequest.features()` now returns an array of Feature Enums instrad of an array of String values.
@@ -22,10 +22,14 @@ The following deprecated methods have been removed:
 
 Partial fields were deprecated since 1.0.0beta1 in favor of <<search-request-source-filtering,source filtering>>.
 
-=== More Like This Field
+=== More Like This
 
-The More Like This Field query has been removed in favor of the <<query-dsl-mlt-query, More Like This Query>>
+* The More Like This Field query has been removed in favor of the <<query-dsl-mlt-query, More Like This Query>>
 restrained set to a specific `field`.
+
+* The default parameters of the MLT Query have been changed to be as lenient
+  as possible, to ensure results are always returned. This change affects the
+  defaults for `min_term_freq`, `min_doc_freq` and `minimum_should_match`.
 
 === Routing
 

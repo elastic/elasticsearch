@@ -188,11 +188,11 @@ gives greater accuracy at the expense of query execution speed. Defaults to
 
 `min_term_freq`::
 The minimum term frequency below which the terms will be ignored from the
-input document. Defaults to `2`.
+input document. Defaults to `1`.
 
 `min_doc_freq`::
 The minimum document frequency below which the terms will be ignored from the
-input document. Defaults to `5`.
+input document. Defaults to `1`.
 
 `max_doc_freq`::
 The maximum document frequency above which the terms will be ignored from the
@@ -225,7 +225,7 @@ analyzer associated with the first field in `fields`.
 After the disjunctive query has been formed, this parameter controls the
 number of terms that must match.
 The syntax is the same as the <<query-dsl-minimum-should-match,minimum should match>>.
-(Defaults to `"30%"`).
+(Defaults to `"0%"`).
 
 `boost_terms`::
 Each term in the formed query could be further boosted by their tf-idf score.

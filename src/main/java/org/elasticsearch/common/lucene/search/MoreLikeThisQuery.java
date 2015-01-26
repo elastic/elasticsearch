@@ -45,7 +45,7 @@ import java.util.Set;
  */
 public class MoreLikeThisQuery extends Query {
 
-    public static final String DEFAULT_MINIMUM_SHOULD_MATCH = "30%";
+    public static final String DEFAULT_MINIMUM_SHOULD_MATCH = "0%";
 
     private TFIDFSimilarity similarity;
 

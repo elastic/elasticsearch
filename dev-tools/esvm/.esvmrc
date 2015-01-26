@@ -2,7 +2,7 @@
   "defaults": {
     "plugins": [
       "lmenezes/elasticsearch-kopf",
-      "elasticsearch/elasticsearch-license/latest",
+      "elasticsearch/license/latest",
       "elasticsearch/marvel/latest",
       { "name": "shield", "path" : "file:../../target/releases/elasticsearch-shield-1.0.0-SNAPSHOT.zip" }
     ],

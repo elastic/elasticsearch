@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.*;
@@ -30,12 +30,10 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -59,10 +57,6 @@ public class TransportNodesSnapshotsStatus extends TransportNodesOperationAction
     public TransportNodesSnapshotsStatus(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, SnapshotsService snapshotsService, ActionFilters actionFilters) {
         super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
         this.snapshotsService = snapshotsService;
-    }
-
-    public void status(String[] nodesIds, SnapshotId[] snapshotIds, @Nullable TimeValue timeout, ActionListener<NodesSnapshotStatus> listener) {
-        execute(new Request(nodesIds).snapshotIds(snapshotIds).timeout(timeout), listener);
     }
 
     @Override
@@ -155,8 +149,8 @@ public class TransportNodesSnapshotsStatus extends TransportNodesOperationAction
         public Request() {
         }
 
-        public Request(String[] nodesIds) {
-            super(nodesIds);
+        public Request(ActionRequest request, String[] nodesIds) {
+            super(request, nodesIds);
         }
 
         public Request snapshotIds(SnapshotId[] snapshotIds) {

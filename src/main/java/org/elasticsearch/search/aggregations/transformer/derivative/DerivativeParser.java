@@ -45,7 +45,7 @@ public class DerivativeParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        GapPolicy gapPolicy = GapPolicy.ignore;
+        GapPolicy gapPolicy = GapPolicy.IGNORE;
 
         XContentParser.Token token;
         String currentFieldName = null;

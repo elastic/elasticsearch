@@ -30,7 +30,7 @@ import java.util.List;
 public interface Derivative extends MultiBucketsAggregation {
 
     public static enum GapPolicy {
-        insert_zeros((byte) 0), interpolate((byte) 1), ignore((byte) 2);
+        INSERT_ZEROS((byte) 0), INTERPOLATE((byte) 1), IGNORE((byte) 2);
 
         private byte id;
 

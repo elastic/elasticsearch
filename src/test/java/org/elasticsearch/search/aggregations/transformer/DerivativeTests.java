@@ -357,7 +357,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
                 .prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        derivative("deriv").gapPolicy(GapPolicy.insert_zeros).subAggregation(
+                        derivative("deriv").gapPolicy(GapPolicy.INSERT_ZEROS).subAggregation(
                                 histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1l).minDocCount(0)))
                 .execute().actionGet();
 
@@ -464,7 +464,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
                 .prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        derivative("deriv").gapPolicy(GapPolicy.interpolate).subAggregation(
+                        derivative("deriv").gapPolicy(GapPolicy.INTERPOLATE).subAggregation(
                                 histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1l).minDocCount(0))).execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(14l));

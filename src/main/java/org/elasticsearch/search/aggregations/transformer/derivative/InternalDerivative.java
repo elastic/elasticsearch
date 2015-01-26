@@ -66,7 +66,7 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
 
     public InternalDerivative(String name, GapPolicy gapPolicy,
             InternalAggregations subAggregations, Map<String, Object> metaData) {
-        super(name, Collections.EMPTY_LIST, null, 1, null, null, false, metaData);
+        super(name, Collections.<B>emptyList(), null, 1, null, null, false, metaData);
         this.gapPolicy = gapPolicy;
         this.aggregations = subAggregations;
     }
@@ -92,9 +92,9 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
             subAggregationsList.add(((InternalDerivative<B>) aggregation).aggregations);
         }
         final InternalAggregations aggs = InternalAggregations.reduce(subAggregationsList, reduceContext);
-        InternalHistogram histo = (InternalHistogram) aggs.iterator().next();
-        InternalHistogram.Factory factory = histo.getFactory();
-        List<InternalHistogram.Bucket> histoBuckets = histo.getBuckets();
+        InternalHistogram<B> histo = (InternalHistogram<B>) aggs.iterator().next();
+        InternalHistogram.Factory<B> factory = histo.getFactory();
+        List<B> histoBuckets = histo.getBuckets();
         Long newBucketKey = null;
         Long lastValue = null;
         Map<String, Double> lastSingleValueMetrics = null;
@@ -105,10 +105,10 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
             long thisbucketDocCount = histoBucket.getDocCount();
             if (thisbucketDocCount == 0) {
                 switch (gapPolicy) {
-                case ignore:
+                case IGNORE:
                     newBucketKey = null;
                     continue;
-                case interpolate:
+                case INTERPOLATE:
                     xValue++;
                     continue;
                 default:

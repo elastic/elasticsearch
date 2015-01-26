@@ -44,7 +44,7 @@ public abstract class Transformer extends SingleBucketAggregator {
     }
 
     @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
+    public final void collect(int doc, long owningBucketOrdinal) throws IOException {
         collectBucket(doc, owningBucketOrdinal);
     }
 

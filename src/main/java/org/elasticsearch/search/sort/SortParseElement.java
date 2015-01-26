@@ -248,7 +248,7 @@ public class SortParseElement implements SearchParseElement {
             }
             final Nested nested;
             if (objectMapper != null && objectMapper.nested().isNested()) {
-                context.setRequireDocsCollectedInOrder(true);
+                context.setRequireDocsCollectedInOrder();
                 FixedBitSetFilter rootDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(NonNestedDocsFilter.INSTANCE);
                 Filter innerDocumentsFilter;
                 if (nestedFilter != null) {

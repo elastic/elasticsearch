@@ -441,7 +441,7 @@ public enum MultiValueMode {
      *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      */
-    public NumericDocValues select(final SortedNumericDocValues values, final long missingValue, final FixedBitSet rootDocs, DocIdSet innerDocSet, int maxDoc) throws IOException {
+    public NumericDocValues select(final SortedNumericDocValues values, final long missingValue, final FixedBitSet rootDocs, final DocIdSet innerDocSet, int maxDoc) throws IOException {
         if (rootDocs == null || innerDocSet == null) {
             return select(DocValues.emptySortedNumeric(maxDoc), missingValue);
         }
@@ -458,6 +458,7 @@ public enum MultiValueMode {
             @Override
             public long get(int rootDoc) {
                 assert rootDocs.get(rootDoc) : "can only sort root documents";
+                assert rootDoc >= lastSeenRootDoc : "can only evaluate current and upcoming root docs";
                 if (rootDoc == 0) {
                     return missingValue;
                 }
@@ -470,12 +471,17 @@ public enum MultiValueMode {
                 }
                 try {
                     final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
-                    final int firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
+                    final int firstNestedDoc;
+                    if (innerDocs.docID() > prevRootDoc) {
+                        firstNestedDoc = innerDocs.docID();
+                    } else {
+                        firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
+                    }
 
                     long accumulated = startLong();
                     int numValues = 0;
 
-                    for (int doc = firstNestedDoc; doc > prevRootDoc && doc < rootDoc; doc = innerDocs.advance(doc + 1)) {
+                    for (int doc = firstNestedDoc; doc < rootDoc; doc = innerDocs.nextDoc()) {
                         values.setDocument(doc);
                         final int count = values.count();
                         for (int i = 0; i < count; ++i) {
@@ -485,7 +491,12 @@ public enum MultiValueMode {
                         numValues += count;
                     }
                     lastSeenRootDoc = rootDoc;
-                    return lastEmittedValue = numValues == 0 ? missingValue : reduce(accumulated, numValues);
+                    if (numValues == 0) {
+                        lastEmittedValue = missingValue;
+                    } else {
+                        lastEmittedValue = reduce(accumulated, numValues);
+                    }
+                    return lastEmittedValue;
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
@@ -567,6 +578,7 @@ public enum MultiValueMode {
             @Override
             public double get(int rootDoc) {
                 assert rootDocs.get(rootDoc) : "can only sort root documents";
+                assert rootDoc >= lastSeenRootDoc : "can only evaluate current and upcoming root docs";
                 if (rootDoc == 0) {
                     return missingValue;
                 }
@@ -576,12 +588,17 @@ public enum MultiValueMode {
                 }
                 try {
                     final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
-                    final int firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
+                    final int firstNestedDoc;
+                    if (innerDocs.docID() > prevRootDoc) {
+                        firstNestedDoc = innerDocs.docID();
+                    } else {
+                        firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
+                    }
 
                     double accumulated = startDouble();
                     int numValues = 0;
 
-                    for (int doc = firstNestedDoc; doc > prevRootDoc && doc < rootDoc; doc = innerDocs.advance(doc + 1)) {
+                    for (int doc = firstNestedDoc; doc > prevRootDoc && doc < rootDoc; doc = innerDocs.nextDoc()) {
                         values.setDocument(doc);
                         final int count = values.count();
                         for (int i = 0; i < count; ++i) {
@@ -592,7 +609,12 @@ public enum MultiValueMode {
                     }
 
                     lastSeenRootDoc = rootDoc;
-                    return lastEmittedValue = numValues == 0 ? missingValue : reduce(accumulated, numValues);
+                    if (numValues == 0) {
+                        lastEmittedValue = missingValue;
+                    } else {
+                        lastEmittedValue = reduce(accumulated, numValues);
+                    }
+                    return lastEmittedValue;
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
@@ -674,6 +696,7 @@ public enum MultiValueMode {
             @Override
             public BytesRef get(int rootDoc) {
                 assert rootDocs.get(rootDoc) : "can only sort root documents";
+                assert rootDoc >= lastSeenRootDoc : "can only evaluate current and upcoming root docs";
                 if (rootDoc == 0) {
                     return missingValue;
                 }
@@ -684,11 +707,16 @@ public enum MultiValueMode {
 
                 try {
                     final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
-                    final int firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
+                    final int firstNestedDoc;
+                    if (innerDocs.docID() > prevRootDoc) {
+                        firstNestedDoc = innerDocs.docID();
+                    } else {
+                        firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
+                    }
 
                     BytesRefBuilder accumulated = null;
 
-                    for (int doc = firstNestedDoc; doc > prevRootDoc && doc < rootDoc; doc = innerDocs.advance(doc + 1)) {
+                    for (int doc = firstNestedDoc; doc > prevRootDoc && doc < rootDoc; doc = innerDocs.nextDoc()) {
                         values.setDocument(doc);
                         final BytesRef innerValue = selectedValues.get(doc);
                         if (innerValue.length > 0 || docsWithValue == null || docsWithValue.get(doc)) {
@@ -705,7 +733,12 @@ public enum MultiValueMode {
                     }
 
                     lastSeenRootDoc = rootDoc;
-                    return lastEmittedValue = accumulated == null ? missingValue : accumulated.get();
+                    if (accumulated == null) {
+                        lastEmittedValue = missingValue;
+                    } else {
+                        lastEmittedValue = accumulated.get();
+                    }
+                    return lastEmittedValue;
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
@@ -787,6 +820,7 @@ public enum MultiValueMode {
             @Override
             public int getOrd(int rootDoc) {
                 assert rootDocs.get(rootDoc) : "can only sort root documents";
+                assert rootDoc >= lastSeenRootDoc : "can only evaluate current and upcoming root docs";
                 if (rootDoc == 0) {
                     return -1;
                 }
@@ -797,10 +831,15 @@ public enum MultiValueMode {
 
                 try {
                     final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
-                    final int firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
+                    final int firstNestedDoc;
+                    if (innerDocs.docID() > prevRootDoc) {
+                        firstNestedDoc = innerDocs.docID();
+                    } else {
+                        firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
+                    }
                     int ord = -1;
 
-                    for (int doc = firstNestedDoc; doc > prevRootDoc && doc < rootDoc; doc = innerDocs.advance(doc + 1)) {
+                    for (int doc = firstNestedDoc; doc > prevRootDoc && doc < rootDoc; doc = innerDocs.nextDoc()) {
                         final int innerOrd = selectedValues.getOrd(doc);
                         if (innerOrd != -1) {
                             if (ord == -1) {

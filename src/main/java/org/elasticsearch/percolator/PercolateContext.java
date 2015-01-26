@@ -728,7 +728,7 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public void setRequireDocsCollectedInOrder(boolean docsInOrder) {
-        this.executeDocsInOrder = docsInOrder;
+    public void setRequireDocsCollectedInOrder() {
+        this.executeDocsInOrder = true;
     }
 }

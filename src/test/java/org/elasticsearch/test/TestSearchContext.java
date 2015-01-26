@@ -636,7 +636,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void setRequireDocsCollectedInOrder(boolean docsInOrder) {
+    public void setRequireDocsCollectedInOrder() {
         throw new UnsupportedOperationException();
     }
 }

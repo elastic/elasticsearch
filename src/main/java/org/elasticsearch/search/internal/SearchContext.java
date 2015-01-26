@@ -370,7 +370,7 @@ public abstract class SearchContext implements Releasable {
 
     public abstract boolean requireDocsCollectedInOrder();
 
-    public abstract void setRequireDocsCollectedInOrder(boolean docsInOrder);
+    public abstract void setRequireDocsCollectedInOrder();
 
     /**
      * The life time of an object that is used during search execution.

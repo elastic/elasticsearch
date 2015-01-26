@@ -645,7 +645,7 @@ public class TopHitsContext extends SearchContext {
     }
 
     @Override
-    public void setRequireDocsCollectedInOrder(boolean docsInOrder) {
+    public void setRequireDocsCollectedInOrder() {
         throw new UnsupportedOperationException("Not supported");
     }
 }

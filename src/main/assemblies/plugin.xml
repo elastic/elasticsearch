@@ -14,18 +14,5 @@
                 <exclude>org.elasticsearch:elasticsearch</exclude>
             </excludes>
         </dependencySet>
-        <dependencySet>
-            <outputDirectory>/</outputDirectory>
-            <useProjectArtifact>true</useProjectArtifact>
-            <useTransitiveFiltering>true</useTransitiveFiltering>
-            <includes>
-                <include>org.quartz-scheduler:quartz</include>
-                <include>org.quartz-scheduler:quartz-jobs</include>
-                <include>org.slf4j:slf4j-api</include>
-                <include>org.slf4j:slf4j-log4j12</include>
-                <include>javax.mail:mail</include>
-                <include>javax.activation:activation</include>
-            </includes>
-        </dependencySet>
     </dependencySets>
 </assembly>

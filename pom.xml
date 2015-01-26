@@ -128,7 +128,7 @@
 
         <dependency>
             <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-log4j12</artifactId>
+            <artifactId>slf4j-nop</artifactId>
             <version>1.7.7</version>
         </dependency>
 
@@ -174,6 +174,57 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>2.3</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <shadeTestJar>false</shadeTestJar>
+                    <!--
+                        We can't minimize jars, because quartz creates jobs from classpath url loading
+                        and this results in class not found errors at runtime.
+                     -->
+                    <minimizeJar>false</minimizeJar>
+                    <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
+                    <artifactSet>
+                        <includes>
+                            <include>org.quartz-scheduler:quartz</include>
+                            <include>org.slf4j:slf4j-api</include>
+                            <include>org.slf4j:slf4j-nop</include>
+                            <include>javax.mail:mail</include>
+                            <include>javax.activation:activation</include>
+                        </includes>
+                    </artifactSet>
+                    <relocations>
+                        <relocation>
+                            <pattern>org.quartz</pattern>
+                            <shadedPattern>org.elasticsearch.cronrunner</shadedPattern>
+                        </relocation>
+                    </relocations>
+                    <filters>
+                        <filter>
+                            <artifact>*:*</artifact>
+                            <excludes>
+                                <exclude>META-INF/license/**</exclude>
+                                <exclude>META-INF/*</exclude>
+                                <exclude>META-INF/maven/**</exclude>
+                                <exclude>LICENSE</exclude>
+                                <exclude>NOTICE</exclude>
+                                <exclude>/*.txt</exclude>
+                                <exclude>build.properties</exclude>
+                            </excludes>
+                        </filter>
+                    </filters>
+                </configuration>
             </plugin>
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>

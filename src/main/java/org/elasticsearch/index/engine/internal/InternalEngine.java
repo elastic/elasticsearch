@@ -36,7 +36,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -69,6 +68,7 @@ import org.elasticsearch.index.search.nested.IncludeNestedDocsQuery;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
@@ -282,7 +282,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                         indexWriter = null;
                         pending.rollback();
                     } catch (IOException e1) {
-                       e.addSuppressed(e1);
+                        e.addSuppressed(e1);
                     }
                 }
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -1019,7 +1019,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
         lastDeleteVersionPruneTimeMSec = timeMSec;
     }
-    
+
     @Override
     public void maybeMerge() throws EngineException {
         if (!possibleMergeNeeded()) {
@@ -1033,7 +1033,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             throw new OptimizeFailedEngineException(shardId, t);
         }
     }
-    
+
     private void waitForMerges(boolean flushAfter, boolean upgrade) {
         try {
             currentIndexWriter().waitForMerges();
@@ -1065,9 +1065,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 assert mp instanceof ElasticsearchMergePolicy : "MergePolicy is " + mp.getClass().getName();
                 if (optimize.upgrade()) {
                     logger.info("Starting upgrade of " + shardId);
-                    ((ElasticsearchMergePolicy)mp).setUpgradeInProgress(true);
+                    ((ElasticsearchMergePolicy) mp).setUpgradeInProgress(true);
                 }
-                
+
                 if (optimize.onlyExpungeDeletes()) {
                     writer.forceMergeDeletes(false);
                 } else if (optimize.maxNumSegments() <= 0) {
@@ -1083,7 +1083,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 optimizeMutex.set(false);
             }
         }
-        
+
         // wait for the merges outside of the read lock
         if (optimize.waitForMerge()) {
             waitForMerges(optimize.flush(), optimize.upgrade());
@@ -1186,7 +1186,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             } else {
                 logger.warn("corrupt file detected source: [{}] but [{}] is set to [{}]", t, source, INDEX_FAIL_ON_CORRUPTION, this.failEngineOnCorruption);
             }
-        }else if (ExceptionsHelper.isOOM(t)) {
+        } else if (ExceptionsHelper.isOOM(t)) {
             failEngine("out of memory", t);
             return true;
         }
@@ -1217,7 +1217,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             }
             stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
             stats.addIndexWriterMemoryInBytes(indexWriter.ramBytesUsed());
-            stats.addIndexWriterMaxMemoryInBytes((long) (indexWriter.getConfig().getRAMBufferSizeMB()*1024*1024));
+            stats.addIndexWriterMaxMemoryInBytes((long) (indexWriter.getConfig().getRAMBufferSizeMB() * 1024 * 1024));
             return stats;
         }
     }
@@ -1500,7 +1500,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 InternalEngine.this.compoundOnFlush = compoundOnFlush;
                 indexWriter.getConfig().setUseCompoundFile(compoundOnFlush);
             }
-            
+
             final boolean checksumOnMerge = settings.getAsBoolean(INDEX_CHECKSUM_ON_MERGE, InternalEngine.this.checksumOnMerge);
             if (checksumOnMerge != InternalEngine.this.checksumOnMerge) {
                 logger.info("updating {} from [{}] to [{}]", InternalEngine.INDEX_CHECKSUM_ON_MERGE, InternalEngine.this.checksumOnMerge, checksumOnMerge);
@@ -1681,8 +1681,19 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
         public void endRecovery() throws ElasticsearchException {
             store.decRef();
-            onGoingRecoveries.decrementAndGet();
+            int left = onGoingRecoveries.decrementAndGet();
             assert onGoingRecoveries.get() >= 0 : "ongoingRecoveries must be >= 0 but was: " + onGoingRecoveries.get();
+            if (left == 0) {
+                try {
+                    flush(new Engine.Flush().type(Flush.Type.COMMIT_TRANSLOG));
+                } catch (IllegalIndexShardStateException e) {
+                    // we are being closed, or in created state, ignore
+                } catch (FlushNotAllowedEngineException e) {
+                    // ignore this exception, we are not allowed to perform flush
+                } catch (Throwable e) {
+                    logger.warn("failed to flush shard post recovery", e);
+                }
+            }
         }
 
         @Override
@@ -1738,7 +1749,6 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             return count != null && count.get() > 0;
         }
     }
-
 
 
     static final class IndexThrottle implements MergeSchedulerProvider.Listener {

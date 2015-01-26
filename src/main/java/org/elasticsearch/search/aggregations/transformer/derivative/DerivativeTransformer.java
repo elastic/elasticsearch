@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.transformer.derivative;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -30,7 +29,6 @@ import org.elasticsearch.search.aggregations.NumericMetricsAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.transformer.Transformer;
 import org.elasticsearch.search.aggregations.transformer.derivative.Derivative.GapPolicy;
 
@@ -39,47 +37,39 @@ import java.util.Map;
 
 public class DerivativeTransformer extends Transformer {
 
-    private boolean keyed;
-    private @Nullable ValueFormatter formatter;
     private GapPolicy gapPolicy;
 
-    protected DerivativeTransformer(String name, boolean keyed, @Nullable ValueFormatter formatter, GapPolicy gapPolicy,
+    protected DerivativeTransformer(String name, GapPolicy gapPolicy,
             AggregatorFactories factories, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData)
             throws IOException {
         super(name, factories, aggregationContext, parent, metaData);
-        this.keyed = keyed;
-        this.formatter = formatter;
         this.gapPolicy = gapPolicy;
     }
 
     @Override
     protected InternalAggregation buildAggregation(String name, int bucketDocCount, InternalAggregations bucketAggregations) {
-        return new InternalDerivative<InternalHistogram.Bucket>(name, keyed, formatter, gapPolicy, bucketAggregations, metaData());
+        return new InternalDerivative<InternalHistogram.Bucket>(name, gapPolicy, bucketAggregations, metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalDerivative<InternalHistogram.Bucket>(name, keyed, formatter, gapPolicy, InternalAggregations.EMPTY,
+        return new InternalDerivative<InternalHistogram.Bucket>(name, gapPolicy, InternalAggregations.EMPTY,
  metaData());
     }
 
     public static class Factory extends AggregatorFactory {
 
-        private boolean keyed;
-        private ValueFormatter formatter;
         private GapPolicy gapPolicy;
 
-        public Factory(String name, boolean keyed, @Nullable ValueFormatter formatter, GapPolicy gapPolicy) {
+        public Factory(String name, GapPolicy gapPolicy) {
             super(name, InternalDerivative.TYPE.name());
-            this.keyed = keyed;
-            this.formatter = formatter;
             this.gapPolicy = gapPolicy;
         }
 
         @Override
         protected Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
                 Map<String, Object> metaData) throws IOException {
-            return new DerivativeTransformer(name, keyed, formatter, gapPolicy, factories, context, parent, metaData);
+            return new DerivativeTransformer(name, gapPolicy, factories, context, parent, metaData);
         }
 
         @Override

@@ -64,9 +64,9 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
         super();
     }
 
-    public InternalDerivative(String name, boolean keyed, @Nullable ValueFormatter formatter, GapPolicy gapPolicy,
+    public InternalDerivative(String name, GapPolicy gapPolicy,
             InternalAggregations subAggregations, Map<String, Object> metaData) {
-        super(name, Collections.EMPTY_LIST, null, 1, null, formatter, keyed, metaData);
+        super(name, Collections.EMPTY_LIST, null, 1, null, null, false, metaData);
         this.gapPolicy = gapPolicy;
         this.aggregations = subAggregations;
     }
@@ -153,7 +153,7 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
                     metricsAggregations.add(metricAgg);
                 }
                 InternalAggregations metricsAggs = new InternalAggregations(metricsAggregations);
-                newBuckets.add(factory.createBucket(newBucketKey, 0, metricsAggs, keyed(), formatter()));
+                newBuckets.add(factory.createBucket(newBucketKey, 0, metricsAggs, histo.keyed(), histo.formatter()));
                 xValue = 1.0;
             }
             lastValue = thisbucketDocCount;
@@ -161,7 +161,7 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
             lastMultiValueMetrics = thisBucketMultiValueMetrics;
             newBucketKey = histoBucket.getKeyAsNumber().longValue();
         }
-        return new InternalDerivative<>(getName(), newBuckets, formatter(), keyed(), gapPolicy, metaData);
+        return new InternalDerivative<>(getName(), newBuckets, histo.formatter(), histo.keyed(), gapPolicy, metaData);
     }
 
     @Override

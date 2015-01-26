@@ -624,7 +624,9 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                     .endObject()
                 .endObject().endObject().string();
         // This was causing a NPE
-        new MappingMetaData(new CompressedString(mapping));
+        MappingMetaData mappingMetaData = new MappingMetaData(new CompressedString(mapping));
+        String defaultTimestamp = mappingMetaData.timestamp().defaultTimestamp();
+        assertThat(defaultTimestamp, is(nullValue()));
     }
 
     @Test

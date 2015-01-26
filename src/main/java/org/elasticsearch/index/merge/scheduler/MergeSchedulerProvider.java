@@ -38,7 +38,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  *
  */
-public abstract class MergeSchedulerProvider extends AbstractIndexShardComponent implements IndexShardComponent, Closeable {
+public abstract class MergeSchedulerProvider extends AbstractIndexShardComponent implements Closeable {
 
     public static final String FORCE_ASYNC_MERGE = "index.merge.force_async_merge";
 

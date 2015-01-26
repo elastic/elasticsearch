@@ -108,6 +108,9 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     private Store store;
     private Store storeReplica;
 
+    protected Translog translog;
+    protected Translog replicaTranslog;
+
     protected Engine engine;
     protected Engine replicaEngine;
 
@@ -132,12 +135,14 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         storeReplica = createStore();
         storeReplica.deleteContent();
         engineSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
-        engine = createEngine(engineSettingsService, store, createTranslog());
+        translog = createTranslog();
+        engine = createEngine(engineSettingsService, store, translog);
         if (randomBoolean()) {
             ((InternalEngine)engine).config().setEnableGcDeletes(false);
         }
         replicaSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
-        replicaEngine = createEngine(replicaSettingsService, storeReplica, createTranslogReplica());
+        replicaTranslog = createTranslogReplica();
+        replicaEngine = createEngine(replicaSettingsService, storeReplica, replicaTranslog);
         if (randomBoolean()) {
             ((InternalEngine)engine).config().setEnableGcDeletes(false);
 
@@ -709,7 +714,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testSimpleRecover() throws Exception {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
+        final ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(null, newUid("1"), doc));
         engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
 
@@ -718,7 +723,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             public void phase1(SnapshotIndexCommit snapshot) throws EngineException {
                 try {
                     engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
-                    assertThat("flush is not allowed in phase 3", false, equalTo(true));
+                    assertThat("flush is not allowed in phase 1", false, equalTo(true));
                 } catch (FlushNotAllowedEngineException e) {
                     // all is well
                 }
@@ -729,15 +734,18 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                 MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
                 try {
                     engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
-                    assertThat("flush is not allowed in phase 3", false, equalTo(true));
+                    assertThat("flush is not allowed in phase 2", false, equalTo(true));
                 } catch (FlushNotAllowedEngineException e) {
                     // all is well
                 }
+
+                // but we can index
+                engine.index(new Engine.Index(null, newUid("1"), doc));
             }
 
             @Override
             public void phase3(Translog.Snapshot snapshot) throws EngineException {
-                MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
+                MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
                 try {
                     // we can do this here since we are on the same thread
                     engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
@@ -747,6 +755,8 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                 }
             }
         });
+        // post recovery should flush the translog
+        MatcherAssert.assertThat(translog.snapshot(), TranslogSizeMatcher.translogSize(0));
 
         engine.flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
         engine.close();

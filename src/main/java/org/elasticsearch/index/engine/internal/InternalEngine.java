@@ -58,6 +58,7 @@ import org.elasticsearch.index.merge.policy.ElasticsearchMergePolicy;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.search.nested.IncludeNestedDocsQuery;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -941,7 +942,7 @@ public class InternalEngine implements Engine {
 
         lastDeleteVersionPruneTimeMSec = timeMSec;
     }
-    
+
     @Override
     public void maybeMerge() throws EngineException {
         if (!possibleMergeNeeded()) {
@@ -955,7 +956,7 @@ public class InternalEngine implements Engine {
             throw new OptimizeFailedEngineException(shardId, t);
         }
     }
-    
+
     private void waitForMerges(boolean flushAfter, boolean upgrade) {
         try {
             currentIndexWriter().waitForMerges();
@@ -1537,8 +1538,19 @@ public class InternalEngine implements Engine {
 
         public void endRecovery() throws ElasticsearchException {
             store.decRef();
-            onGoingRecoveries.decrementAndGet();
+            int left = onGoingRecoveries.decrementAndGet();
             assert onGoingRecoveries.get() >= 0 : "ongoingRecoveries must be >= 0 but was: " + onGoingRecoveries.get();
+            if (left == 0) {
+                try {
+                    flush(FlushType.COMMIT_TRANSLOG, false, false);
+                } catch (IllegalIndexShardStateException e) {
+                    // we are being closed, or in created state, ignore
+                } catch (FlushNotAllowedEngineException e) {
+                    // ignore this exception, we are not allowed to perform flush
+                } catch (Throwable e) {
+                    logger.warn("failed to flush shard post recovery", e);
+                }
+            }
         }
 
         @Override

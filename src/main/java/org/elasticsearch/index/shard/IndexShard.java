@@ -117,7 +117,7 @@ import static org.elasticsearch.index.mapper.SourceToParse.source;
 /**
  *
  */
-public class IndexShard extends AbstractIndexShardComponent implements IndexShardComponent {
+public class IndexShard extends AbstractIndexShardComponent {
 
     private final ThreadPool threadPool;
     private final IndexSettingsService indexSettingsService;

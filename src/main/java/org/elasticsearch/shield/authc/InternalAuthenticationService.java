@@ -53,7 +53,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         }
         User user = authenticate(request, token);
         if (user == null) {
-            throw new AuthenticationException("unable to authenticate user [" + user.principal() + "] for REST request [" + request.uri() + "]");
+            throw new AuthenticationException("unable to authenticate user [" + token.principal() + "] for REST request [" + request.uri() + "]");
         }
         request.putInContext(USER_KEY, user);
         return user;

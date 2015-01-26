@@ -22,8 +22,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.*;
 
 /**
  * a helper class that contains a couple of HTTP helper methods
@@ -46,8 +45,8 @@ public abstract class AbstractPrivilegeTests extends ShieldIntegrationTest {
 
     protected void assertAccessIsAllowed(String user, String method, String uri, String body, Map<String, String> params) throws IOException {
         HttpResponse response = executeRequest(user, method, uri, body, params);
-        String message = String.format(Locale.ROOT, "%s %s: Expected no 403 got %s %s with body %s", method, uri, response.getStatusCode(), response.getReasonPhrase(), response.getBody());
-        assertThat(message, response.getStatusCode(), is(not(403)));
+        String message = String.format(Locale.ROOT, "%s %s: Expected no error got %s %s with body %s", method, uri, response.getStatusCode(), response.getReasonPhrase(), response.getBody());
+        assertThat(message, response.getStatusCode(), is(not(greaterThanOrEqualTo(400))));
     }
 
     protected void assertAccessIsAllowed(String user, String method, String uri, String body) throws IOException {

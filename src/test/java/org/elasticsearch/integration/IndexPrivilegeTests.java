@@ -5,17 +5,21 @@
  */
 package org.elasticsearch.integration;
 
+import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Maps;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
+import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = SUITE)
 public class IndexPrivilegeTests extends AbstractPrivilegeTests {
@@ -23,6 +27,8 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTests {
     private String jsonDoc = "{ \"name\" : \"elasticsearch\"}";
 
     public static final String ROLES =
+                    "all_cluster_role:\n" +
+                    "  cluster: all\n" +
                     "all_indices_role:\n" +
                     "  indices:\n" +
                     "    '*': all\n" +
@@ -94,6 +100,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTests {
 
     public static final String USERS_ROLES =
             "all_indices_role:admin,u8\n" +
+            "all_cluster_role:admin\n" +
             "all_a_role:u1,u2,u6\n" +
             "read_a_role:u1,u5,u14\n" +
             "write_a_role:u9\n" +
@@ -136,10 +143,11 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTests {
     @Before
     public void insertBaseDocumentsAsAdmin() throws Exception {
         // indices: a,b,c,abc
-        assertAccessIsAllowed("admin", "PUT", "/a/foo/1?refresh", jsonDoc);
-        assertAccessIsAllowed("admin", "PUT", "/b/foo/1?refresh", jsonDoc);
-        assertAccessIsAllowed("admin", "PUT", "/c/foo/1?refresh", jsonDoc);
-        assertAccessIsAllowed("admin", "PUT", "/abc/foo/1?refresh", jsonDoc);
+        ImmutableMap<String, String> params = ImmutableMap.of("refresh", "true");
+        assertAccessIsAllowed("admin", "PUT", "/a/foo/1", jsonDoc, params);
+        assertAccessIsAllowed("admin", "PUT", "/b/foo/1", jsonDoc, params);
+        assertAccessIsAllowed("admin", "PUT", "/c/foo/1", jsonDoc, params);
+        assertAccessIsAllowed("admin", "PUT", "/abc/foo/1", jsonDoc, params);
     }
 
     @Test
@@ -182,6 +190,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTests {
 
         assertUserIsDenied("u4", "all", "c");
 
+        assertUserIsAllowed("u4", "create_index", "an_index");
         assertUserIsAllowed("u4", "manage", "an_index");
     }
 
@@ -314,7 +323,15 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTests {
         assertUserIsDenied("u15", "all", "c");
     }
 
+    @Test
+    public void testThatUnknownUserIsRejectedProperly() throws Exception {
+        HttpResponse response = executeRequest("idonotexist", "GET", "/", null, Maps.newHashMap());
+        assertThat(response.getStatusCode(), is(401));
+    }
+
     private void assertUserExecutes(String user, String action, String index, boolean userIsAllowed) throws Exception {
+        ImmutableMap<String, String> refreshParams = ImmutableMap.of("refresh", "true");
+
         switch (action) {
             case "all" :
                 if (userIsAllowed) {
@@ -338,6 +355,8 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTests {
                 if (userIsAllowed) {
                     assertAccessIsAllowed(user, "DELETE", "/" + index);
                     assertUserIsAllowed(user, "create_index", index);
+                    // wait until index ready, but as admin
+                    client().admin().cluster().prepareHealth(index).setWaitForGreenStatus().get();
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_refresh");
                     ImmutableMap<String, String> analyzeParams = ImmutableMap.of("text", "test");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_analyze", null, analyzeParams);
@@ -348,6 +367,9 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTests {
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_close");
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_open");
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_cache/clear");
+                    // indexing a document to have the mapping available, and wait for green state to make sure index is created
+                    assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/1", jsonDoc, refreshParams);
+                    client().admin().cluster().prepareHealth(index).setWaitForGreenStatus().get();
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_mapping/foo/field/name");
                     // putting warmers only works if the user is allowed to search as well, as the query gets validated, added an own test for this
                     assertAccessIsAllowed("admin", "PUT", "/" + index + "/_warmer/w1", "{ \"query\" : { \"match_all\" : {} } }");
@@ -409,8 +431,12 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTests {
 
             case "read" :
                 if (userIsAllowed) {
+                    // admin refresh before executing
+                    assertAccessIsAllowed("admin", "GET", "/" + index + "/_refresh");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_count");
-                    assertAccessIsAllowed(user, "GET", "/" + index + "/_search/exists");
+                    assertAccessIsAllowed(user, "GET", "/" + index + "/_search/exists", "{ \"query\" : { \"match_all\" : {} } }");
+                    assertAccessIsAllowed("admin", "GET", "/" + index + "/_search");
+                    assertAccessIsAllowed("admin", "GET", "/" + index + "/foo/1");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/foo/1/_explain", "{ \"query\" : { \"match_all\" : {} } }");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/foo/1/_termvector");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/foo/_percolate", "{ \"doc\" : { \"foo\" : \"bar\" } }");
@@ -479,8 +505,8 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTests {
 
             case "delete" :
                 String jsonDoc = "{ \"name\" : \"docToDelete\"}";
-                assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/docToDelete?refresh", jsonDoc);
-                assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/docToDelete2?refresh", jsonDoc);
+                assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/docToDelete", jsonDoc, refreshParams);
+                assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/docToDelete2", jsonDoc, refreshParams);
                 if (userIsAllowed) {
                     assertAccessIsAllowed(user, "DELETE", "/" + index + "/foo/docToDelete");
                     assertAccessIsAllowed(user, "DELETE", "/" + index + "/foo/_query", "{ \"query\" : { \"term\" : { \"name\" : \"docToDelete\" } } }");

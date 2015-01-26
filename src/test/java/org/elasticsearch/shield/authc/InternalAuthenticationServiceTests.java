@@ -16,6 +16,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
+import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.signature.SignatureService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.transport.TransportMessage;
@@ -161,6 +163,17 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         verifyZeroInteractions(signatureService);
         assertThat(message.getContext().get(InternalAuthenticationService.USER_KEY), notNullValue());
         assertThat(message.getContext().get(InternalAuthenticationService.USER_KEY), is((Object) user));
+    }
+
+    @Test
+    public void testAuthenticate_nonExistentRestRequestUserThrowsAuthenticationException() throws Exception {
+        when(firstRealm.token(restRequest)).thenReturn(new UsernamePasswordToken("idonotexist", new SecuredString("passwd".toCharArray())));
+        try {
+            service.authenticate(restRequest);
+            fail("Authentication was successful but should not");
+        } catch (AuthenticationException e) {
+            assertThat(e.getMessage(), containsString("unable to authenticate user [idonotexist] for REST request [_uri]"));
+        }
     }
 
     @Test

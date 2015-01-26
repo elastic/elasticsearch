@@ -5,29 +5,16 @@
  */
 package org.elasticsearch.integration;
 
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.test.ShieldIntegrationTest;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Test;
-
-import java.io.IOException;
-import java.util.Locale;
 
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 
 @ClusterScope(scope = TEST)
-public class ClusterPrivilegeTests extends ShieldIntegrationTest {
+public class ClusterPrivilegeTests extends AbstractPrivilegeTests {
 
     public static final String ROLES =
                     "role_a:\n" +
@@ -114,38 +101,5 @@ public class ClusterPrivilegeTests extends ShieldIntegrationTest {
         assertAccessIsDenied("user_c", "POST", "/_cluster/reroute");
         assertAccessIsDenied("user_c", "PUT", "/_cluster/settings", "{ \"transient\" : { \"indices.ttl.interval\": \"1m\" } }");
         assertAccessIsDenied("user_c", "POST", "/_cluster/nodes/_all/_shutdown");
-    }
-
-    private void assertAccessIsAllowed(String user, String method, String uri, String body) throws IOException {
-        HttpResponse response = executeRequest(user, method, uri, body);
-        String message = String.format(Locale.ROOT, "%s %s: Expected no 403 got %s %s with body %s", method, uri, response.getStatusCode(), response.getReasonPhrase(), response.getBody());
-        assertThat(message, response.getStatusCode(), is(not(403)));
-    }
-
-    private void assertAccessIsAllowed(String user, String method, String uri) throws IOException {
-        assertAccessIsAllowed(user, method, uri, null);
-    }
-
-    private void assertAccessIsDenied(String user, String method, String uri) throws IOException {
-        assertAccessIsDenied(user, method, uri, null);
-    }
-
-    private void assertAccessIsDenied(String user, String method, String uri, String body) throws IOException {
-        HttpResponse response = executeRequest(user, method, uri, body);
-        String message = String.format(Locale.ROOT, "%s %s: Expected 403, got %s %s with body %s", method, uri, response.getStatusCode(), response.getReasonPhrase(), response.getBody());
-        assertThat(message, response.getStatusCode(), is(403));
-    }
-
-    private HttpResponse executeRequest(String user, String method, String uri, String body) throws IOException {
-        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            HttpRequestBuilder requestBuilder = new HttpRequestBuilder(httpClient).httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class));
-            requestBuilder.path(uri);
-            requestBuilder.method(method);
-            if (body != null) {
-                requestBuilder.body(body);
-            }
-            requestBuilder.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(user, new SecuredString("passwd".toCharArray())));
-            return requestBuilder.execute();
-        }
     }
 }

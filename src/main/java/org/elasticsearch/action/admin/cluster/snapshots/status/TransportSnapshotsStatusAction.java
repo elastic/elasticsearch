@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -110,8 +109,9 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
                 snapshotIds[i] = currentSnapshots.get(i).snapshotId();
             }
 
-            transportNodesSnapshotsStatus.status(nodesIds.toArray(new String[nodesIds.size()]),
-                    snapshotIds, request.masterNodeTimeout(), new ActionListener<TransportNodesSnapshotsStatus.NodesSnapshotStatus>() {
+            TransportNodesSnapshotsStatus.Request nodesRequest = new TransportNodesSnapshotsStatus.Request(request, nodesIds.toArray(new String[nodesIds.size()]))
+                    .snapshotIds(snapshotIds).timeout(request.masterNodeTimeout());
+            transportNodesSnapshotsStatus.execute(nodesRequest, new ActionListener<TransportNodesSnapshotsStatus.NodesSnapshotStatus>() {
                         @Override
                         public void onResponse(TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) {
                             try {

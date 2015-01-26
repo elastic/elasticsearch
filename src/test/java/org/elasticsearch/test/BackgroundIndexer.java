@@ -18,6 +18,8 @@ package org.elasticsearch.test;/*
  */
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.generators.RandomInts;
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -25,8 +27,12 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.junit.Assert;
 
+import java.io.IOException;
+import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
@@ -50,6 +56,9 @@ public class BackgroundIndexer implements AutoCloseable {
     final CountDownLatch startLatch = new CountDownLatch(1);
     final AtomicBoolean hasBudget = new AtomicBoolean(false); // when set to true, writers will acquire writes from a semaphore
     final Semaphore availableBudget = new Semaphore(0);
+
+    volatile int minFieldSize = 10;
+    volatile int maxFieldSize = 140;
 
     /**
      * Start indexing in the background using a random number of threads.
@@ -86,7 +95,7 @@ public class BackgroundIndexer implements AutoCloseable {
      * @param writerCount number of indexing threads to use
      */
     public BackgroundIndexer(String index, String type, Client client, int numOfDocs, final int writerCount) {
-        this(index, type, client, numOfDocs, writerCount, true);
+        this(index, type, client, numOfDocs, writerCount, true, null);
     }
 
     /**
@@ -99,16 +108,22 @@ public class BackgroundIndexer implements AutoCloseable {
      * @param numOfDocs   number of document to index before pausing. Set to -1 to have no limit.
      * @param writerCount number of indexing threads to use
      * @param autoStart   set to true to start indexing as soon as all threads have been created.
+     * @param random      random instance to use
      */
-    public BackgroundIndexer(final String index, final String type, final Client client, final int numOfDocs, final int writerCount, boolean autoStart) {
+    public BackgroundIndexer(final String index, final String type, final Client client, final int numOfDocs, final int writerCount,
+                             boolean autoStart, Random random) {
 
+        if (random == null) {
+            random = RandomizedTest.getRandom();
+        }
         failures = new CopyOnWriteArrayList<>();
         writers = new Thread[writerCount];
         stopLatch = new CountDownLatch(writers.length);
         logger.info("--> creating {} indexing threads (auto start: [{}], numOfDocs: [{}])", writerCount, autoStart, numOfDocs);
         for (int i = 0; i < writers.length; i++) {
             final int indexerId = i;
-            final boolean batch = RandomizedTest.getRandom().nextBoolean();
+            final boolean batch = random.nextBoolean();
+            final Random threadRandom = new Random(random.nextLong());
             writers[i] = new Thread() {
                 @Override
                 public void run() {
@@ -118,7 +133,7 @@ public class BackgroundIndexer implements AutoCloseable {
                         logger.info("**** starting indexing thread {}", indexerId);
                         while (!stop.get()) {
                             if (batch) {
-                                int batchSize = RandomizedTest.getRandom().nextInt(20) + 1;
+                                int batchSize = threadRandom.nextInt(20) + 1;
                                 if (hasBudget.get()) {
                                     batchSize = Math.max(Math.min(batchSize, availableBudget.availablePermits()), 1);// always try to get at least one
                                     if (!availableBudget.tryAcquire(batchSize, 250, TimeUnit.MILLISECONDS)) {
@@ -130,7 +145,7 @@ public class BackgroundIndexer implements AutoCloseable {
                                 BulkRequestBuilder bulkRequest = client.prepareBulk();
                                 for (int i = 0; i < batchSize; i++) {
                                     id = idGenerator.incrementAndGet();
-                                    bulkRequest.add(client.prepareIndex(index, type, Long.toString(id)).setSource("test", "value" + id));
+                                    bulkRequest.add(client.prepareIndex(index, type, Long.toString(id)).setSource(generateSource(id, threadRandom)));
                                 }
                                 BulkResponse bulkResponse = bulkRequest.get();
                                 for (BulkItemResponse bulkItemResponse : bulkResponse) {
@@ -149,7 +164,7 @@ public class BackgroundIndexer implements AutoCloseable {
                                     continue;
                                 }
                                 id = idGenerator.incrementAndGet();
-                                client.prepareIndex(index, type, Long.toString(id) + "-" + indexerId).setSource("test", "value" + id).get();
+                                client.prepareIndex(index, type, Long.toString(id) + "-" + indexerId).setSource(generateSource(id, threadRandom)).get();
                                 indexCounter.incrementAndGet();
                             }
                         }
@@ -168,6 +183,21 @@ public class BackgroundIndexer implements AutoCloseable {
         if (autoStart) {
             start(numOfDocs);
         }
+    }
+
+    private XContentBuilder generateSource(long id, Random random) throws IOException {
+        int contentLength = RandomInts.randomIntBetween(random, minFieldSize, maxFieldSize);
+        StringBuilder text = new StringBuilder(contentLength);
+        while (text.length() < contentLength) {
+            int tokenLength = RandomInts.randomIntBetween(random, 1, Math.min(contentLength - text.length(), 10));
+            text.append(" ").append(RandomStrings.randomRealisticUnicodeOfCodepointLength(random, tokenLength));
+        }
+        XContentBuilder builder = XContentFactory.smileBuilder();
+        builder.startObject().field("test", "value" + id)
+                .field("text", text.toString())
+                .endObject();
+        return builder;
+
     }
 
     private void setBudget(int numOfDocs) {
@@ -237,6 +267,16 @@ public class BackgroundIndexer implements AutoCloseable {
 
     public void assertNoFailures() {
         Assert.assertThat(failures, emptyIterable());
+    }
+
+    /** the minimum size in code points of a payload field in the indexed documents */
+    public void setMinFieldSize(int fieldSize) {
+        minFieldSize = fieldSize;
+    }
+
+    /** the minimum size in code points of a payload field in the indexed documents */
+    public void setMaxFieldSize(int fieldSize) {
+        maxFieldSize = fieldSize;
     }
 
     @Override

@@ -217,7 +217,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     public Set<String> enabledFeatures() {
         Set<String> enabledFeatures = Sets.newHashSet();
         for (ListenerHolder holder : registeredListeners) {
-            if (holder.enabled.get()) {
+            if (holder.enabled) {
                 enabledFeatures.add(holder.feature);
             }
         }
@@ -868,7 +868,8 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         final AtomicLong currentExpiryDate = new AtomicLong(-1l);
         final Queue<ScheduledFuture> notificationQueue;
 
-        volatile AtomicBoolean enabled = new AtomicBoolean(false); // by default, a consumer plugin should be disabled
+        volatile boolean initialized = false;
+        volatile boolean enabled = false; // by default, a consumer plugin should be disabled
 
         private ListenerHolder(String feature, TrialLicenseOptions trialLicenseOptions, Collection<ExpirationCallback> expirationCallbacks, Listener listener, Queue<ScheduledFuture> notificationQueue) {
             this.feature = feature;
@@ -878,16 +879,20 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             this.notificationQueue = notificationQueue;
         }
 
-        private void enableFeatureIfNeeded(License license) {
-            if (enabled.compareAndSet(false, true)) {
+        private synchronized void enableFeatureIfNeeded(License license) {
+            if (!initialized || !enabled) {
                 listener.onEnabled(license);
+                initialized = true;
+                enabled = true;
                 logger.info("license for [" + feature + "] - valid");
             }
         }
 
-        private void disableFeatureIfNeeded(License license, boolean log) {
-            if (enabled.compareAndSet(true, false)) {
+        private synchronized void disableFeatureIfNeeded(License license, boolean log) {
+            if (!initialized || enabled) {
                 listener.onDisabled(license);
+                initialized = true;
+                enabled = false;
                 if (log) {
                     logger.info("license for [" + feature + "] - expired");
                 }
@@ -985,7 +990,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         }
 
         public String toString() {
-            return "(feature: " + feature + ", enabled: " + enabled.get() + ")";
+            return "(feature: " + feature + ", enabled: " + enabled + ")";
         }
     }
 

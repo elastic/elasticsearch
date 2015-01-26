@@ -46,8 +46,8 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
 
     private final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
-        public InternalDerivative readResult(StreamInput in) throws IOException {
-            InternalDerivative histogram = new InternalDerivative();
+        public InternalDerivative<?> readResult(StreamInput in) throws IOException {
+            InternalDerivative<?> histogram = new InternalDerivative<InternalHistogram.Bucket>();
             histogram.readFrom(in);
             return histogram;
         }

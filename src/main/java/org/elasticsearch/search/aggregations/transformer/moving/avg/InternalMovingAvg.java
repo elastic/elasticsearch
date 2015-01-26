@@ -23,10 +23,7 @@ import com.google.common.collect.EvictingQueue;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.AggregationStreams;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
@@ -73,9 +70,11 @@ public class InternalMovingAvg<B extends InternalHistogram.Bucket> extends Inter
     }
 
     public InternalMovingAvg(String name, List<B> buckets, @Nullable ValueFormatter formatter, boolean keyed, GapPolicy gapPolicy,
-                            Map<String, Object> metaData) {
+                             int windowSize, MovingAvg.Weighting weight, Map<String, Object> metaData) {
         super(name, buckets, null, 1, null, formatter, keyed, metaData);
         this.gapPolicy = gapPolicy;
+        this.windowSize = windowSize;
+        this.weight = weight;
     }
 
     @Override
@@ -114,7 +113,7 @@ public class InternalMovingAvg<B extends InternalHistogram.Bucket> extends Inter
                 } else if (gapPolicy.equals(GapPolicy.interpolate)) {
 
                     Gap gap = findGap(iter, histoBuckets);
-                    newBuckets.addAll(interpolateBuckets(gap, histoBucket, histoBuckets, docCountWindow, bucketWindows, factory));
+                    newBuckets.addAll(interpolateBuckets(gap, histoBuckets, docCountWindow, bucketWindows, factory));
                     continue;
                 }
 
@@ -124,7 +123,7 @@ public class InternalMovingAvg<B extends InternalHistogram.Bucket> extends Inter
             newBuckets.add(processNonInterpolatedBucket(histoBucket, docCountWindow, bucketWindows, factory));
 
         }
-        return new InternalMovingAvg<>(getName(), newBuckets, formatter(), keyed(), gapPolicy, metaData);
+        return new InternalMovingAvg<>(getName(), newBuckets, formatter(), keyed(), gapPolicy, windowSize, weight, metaData);
     }
 
     /**
@@ -174,12 +173,14 @@ public class InternalMovingAvg<B extends InternalHistogram.Bucket> extends Inter
     }
 
     /**
+     * Process a histogram bucket that does not need to be interpolated.  Will load doc count and metrics,
+     * offer to the appropriate ring buffers, then return a newly created moving_avg bucket
      *
-     * @param histoBucket
-     * @param docCountWindow
-     * @param bucketWindows
-     * @param factory
-     * @return
+     * @param histoBucket       histogram bucket to calc moving avg for
+     * @param docCountWindow    ringbuffer for doc counts
+     * @param bucketWindows     ringbuffer for doc metrics
+     * @param factory           factory for new histogram buckets
+     * @return                  newly created moving avg bucket
      */
     private InternalHistogram.Bucket processNonInterpolatedBucket(InternalHistogram.Bucket histoBucket,
                                                                   EvictingQueue<Long> docCountWindow,
@@ -208,15 +209,11 @@ public class InternalMovingAvg<B extends InternalHistogram.Bucket> extends Inter
     }
 
     /**
-     * Interpolates gaps in the buckets.  Will iterate forward until the end of the gap is found, determine the
-     * start/end metric values and derive a deltaPerBucket.  This will then be used to back-fill values for the gap.
-     * After the backfill is complete, the moving average can be computed.
+     * Finds the end of a gap in a series of buckets, calculates the start/end metrics and returns them
+     * as a Gap object.
      *
-     * Rather ugly code and not efficient at all, since it duplicates a lot of work repeatedly.  Needs tuning!  And
-     * probably broken into smaller methods, this is too large
-     *
-     * @param iter
-     * @param histoBuckets
+     * @param iter         iterator over the histogram buckets
+     * @param histoBuckets histogram buckets
      */
     private Gap findGap(ListIterator<InternalHistogram.Bucket> iter, List<InternalHistogram.Bucket> histoBuckets) {
 
@@ -256,13 +253,26 @@ public class InternalMovingAvg<B extends InternalHistogram.Bucket> extends Inter
 
     }
 
-    private List<InternalHistogram.Bucket> interpolateBuckets(Gap gap, InternalHistogram.Bucket histoBucket, List<InternalHistogram.Bucket> histoBuckets,
+    /**
+     * Interpolates gaps in a series of buckets.  Method is given a list of buckets and a Gap to interpolate, then iterates
+     * across the gap and fills in the interpolated value based on the start/end metrics of the gap.
+     *
+     * @param gap               Gap that we are filling
+     * @param histoBuckets      list of histogram buckets
+     * @param docCountWindow    ringbuffer for doc counts
+     * @param bucketWindows     ringbuffer for doc metrics
+     * @param factory           factory for new histogram buckets
+     * @return                  List of interpolated buckets
+     */
+    private List<InternalHistogram.Bucket> interpolateBuckets(Gap gap, List<InternalHistogram.Bucket> histoBuckets,
                                     EvictingQueue<Long> docCountWindow,
                                     Map<String, EvictingQueue<Double>> bucketWindows,
                                     Factory factory) {
 
         List<InternalHistogram.Bucket> newBuckets = new ArrayList<>(gap.gapSize);
-        long newBucketKey = histoBucket.getKeyAsNumber().longValue();
+        InternalHistogram.Bucket histoBucket;
+
+        long newBucketKey = histoBuckets.get(gap.startPosition).getKeyAsNumber().longValue();
 
         // Now that we have the start/end metrics around the gap, we can backfill data
         // TODO maybe loop per-metric instead of per-bucket, to prevent loading/unloading the ringbuffer repeatedly?
@@ -338,6 +348,8 @@ public class InternalMovingAvg<B extends InternalHistogram.Bucket> extends Inter
             aggregations.writeTo(out);
         }
         gapPolicy.writeTo(out);
+        weight.writeTo(out);
+        out.writeVInt(windowSize);
     }
 
     @Override
@@ -349,6 +361,8 @@ public class InternalMovingAvg<B extends InternalHistogram.Bucket> extends Inter
             aggregations = null;
         }
         gapPolicy = GapPolicy.readFrom(in);
+        weight = Weighting.readFrom(in);
+        windowSize = in.readVInt();
     }
 
     private class Gap {

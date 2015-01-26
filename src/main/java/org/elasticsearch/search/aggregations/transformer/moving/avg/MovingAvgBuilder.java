@@ -30,6 +30,8 @@ public class MovingAvgBuilder extends ValuesSourceAggregationBuilder<MovingAvgBu
     private GapPolicy gapPolicy;
     private String format;
     private Boolean keyed;
+    private MovingAvg.Weighting weight;
+    private Integer windowSize;
 
     public MovingAvgBuilder(String name) {
         super(name, InternalMovingAvg.TYPE.name());
@@ -47,6 +49,14 @@ public class MovingAvgBuilder extends ValuesSourceAggregationBuilder<MovingAvgBu
         this.keyed = keyed;
     }
 
+    public void weight(MovingAvg.Weighting weight) {
+        this.weight = weight;
+    }
+
+    public void windowSize(int windowSize) {
+        this.windowSize = windowSize;
+    }
+
     @Override
     protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
         if (gapPolicy != null) {
@@ -57,6 +67,12 @@ public class MovingAvgBuilder extends ValuesSourceAggregationBuilder<MovingAvgBu
         }
         if (keyed != null) {
             builder.field(MovingAvgParser.KEYED.getPreferredName(), keyed);
+        }
+        if (weight != null) {
+            builder.field(MovingAvgParser.WEIGHTING.getPreferredName(), weight.name());
+        }
+        if (windowSize != null) {
+            builder.field(MovingAvgParser.WINDOW.getPreferredName(), windowSize);
         }
         return builder;
     }

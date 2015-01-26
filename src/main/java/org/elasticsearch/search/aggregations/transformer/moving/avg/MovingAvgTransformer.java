@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.transformer.Transformer;
 
+import java.io.IOException;
 import java.util.Map;
 
 public class MovingAvgTransformer extends Transformer {
@@ -41,7 +42,7 @@ public class MovingAvgTransformer extends Transformer {
                                    MovingAvg.Weighting weight,
                                    AggregatorFactories factories,
                                    AggregationContext aggregationContext, Aggregator parent,
-                                   Map<String, Object> metaData) {
+                                   Map<String, Object> metaData)  throws IOException {
         super(name, factories, aggregationContext, parent, metaData);
         this.keyed = keyed;
         this.formatter = formatter;
@@ -52,12 +53,12 @@ public class MovingAvgTransformer extends Transformer {
 
     @Override
     protected InternalAggregation buildAggregation(String name, int bucketDocCount, InternalAggregations bucketAggregations) {
-        return new InternalMovingAvg<>(name, keyed, formatter, gapPolicy, window, weight, bucketAggregations, getMetaData());
+        return new InternalMovingAvg<>(name, keyed, formatter, gapPolicy, window, weight, bucketAggregations, metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMovingAvg<>(name, keyed, formatter, gapPolicy, window, weight, InternalAggregations.EMPTY, getMetaData());
+        return new InternalMovingAvg<>(name, keyed, formatter, gapPolicy, window, weight, InternalAggregations.EMPTY, metaData());
     }
 
     public static class Factory extends AggregatorFactory {
@@ -78,8 +79,8 @@ public class MovingAvgTransformer extends Transformer {
         }
 
         @Override
-        protected Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount,
-                Map<String, Object> metaData) {
+        protected Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
+                                            Map<String, Object> metaData) throws IOException {
             return new MovingAvgTransformer(name, keyed, formatter, gapPolicy, window, weight, factories, context, parent, metaData);
         }
 

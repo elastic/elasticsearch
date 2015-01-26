@@ -4,7 +4,6 @@ package org.elasticsearch.search.aggregations.transformer;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.transformer.derivative.Derivative;
 import org.elasticsearch.search.aggregations.transformer.moving.avg.MovingAvg;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -39,7 +38,7 @@ public class MovingAvgTests extends ElasticsearchIntegrationTest {
         createIndex("idx");
         createIndex("idx_unmapped");
 
-        numDocs = randomIntBetween(6, 20);
+        numDocs = randomIntBetween(100, 200);
         interval = randomIntBetween(2, 5);
 
         numValueBuckets = numDocs / interval + 1;

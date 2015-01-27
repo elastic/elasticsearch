@@ -66,6 +66,7 @@ public class NestedTests extends ElasticsearchIntegrationTest {
 
         assertAcked(prepareCreate("idx")
                 .addMapping("type", "nested", "type=nested", "incorrect", "type=object"));
+        ensureGreen("idx");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
 
@@ -98,6 +99,7 @@ public class NestedTests extends ElasticsearchIntegrationTest {
         }
 
         prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer", "nested", "type=nested").execute().actionGet();
+        ensureGreen("empty_bucket_idx");
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
                     .startObject()
@@ -123,6 +125,7 @@ public class NestedTests extends ElasticsearchIntegrationTest {
                             .endObject()
                         .endObject()
                         .endObject().endObject().endObject()));
+        ensureGreen("idx_nested_nested_aggs");
 
         builders.add(
                 client().prepareIndex("idx_nested_nested_aggs", "type", "1")
@@ -390,6 +393,7 @@ public class NestedTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("idx2")
                 .setSettings(ImmutableSettings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
                 .addMapping("provider", mapping));
+        ensureGreen("idx2");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>(2);
         indexRequests.add(client().prepareIndex("idx2", "provider", "1").setSource("{\"dates\": {\"month\": {\"label\": \"2014-11\", \"end\": \"2014-11-30\", \"start\": \"2014-11-01\"}, \"day\": \"2014-11-30\"}, \"comments\": [{\"cid\": 3,\"identifier\": \"29111\"}, {\"cid\": 4,\"tags\": [{\"tid\" :44,\"name\": \"Roles\"}], \"identifier\": \"29101\"}]}"));
@@ -459,6 +463,7 @@ public class NestedTests extends ElasticsearchIntegrationTest {
                         .setSettings(ImmutableSettings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
                         .addMapping("product", "categories", "type=string", "name", "type=string", "property", "type=nested")
         );
+        ensureGreen("idx4");
 
         client().prepareIndex("idx4", "product", "1").setSource(jsonBuilder().startObject()
                     .field("name", "product1")

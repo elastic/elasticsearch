@@ -259,6 +259,16 @@
             </distributionManagement>
         </profile>
         <profile>
+            <id>deploy-public</id>
+            <distributionManagement>
+                <repository>
+                    <id>elasticsearch-public-releases</id>
+                    <name>Elasticsearch Public Releases</name>
+                    <url>http://maven.elasticsearch.org/artifactory/public-releases</url>
+                </repository>
+            </distributionManagement>
+        </profile>
+        <profile>
             <id>default</id>
             <activation>
                 <activeByDefault>true</activeByDefault>

@@ -52,7 +52,6 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl="https://github.com/elasticsearch/elasticsearch/issues/9421")
     public void testDeleteAllOneIndex() {
         String json = "{" + "\"user\":\"kimchy\"," + "\"postDate\":\"2013-01-30\"," + "\"message\":\"trying out Elastic Search\"" + "}";
         final long iters = randomIntBetween(1, 50);

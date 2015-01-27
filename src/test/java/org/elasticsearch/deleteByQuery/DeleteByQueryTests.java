@@ -19,6 +19,7 @@
 
 package org.elasticsearch.deleteByQuery;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequestBuilder;
@@ -35,9 +36,7 @@ import org.junit.Test;
 
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
@@ -53,6 +52,7 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl="https://github.com/elasticsearch/elasticsearch/issues/9421")
     public void testDeleteAllOneIndex() {
         String json = "{" + "\"user\":\"kimchy\"," + "\"postDate\":\"2013-01-30\"," + "\"message\":\"trying out Elastic Search\"" + "}";
         final long iters = randomIntBetween(1, 50);

@@ -151,7 +151,12 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         }
     }
 
+
     // called from tests as well
+
+    /**
+     * will collect a fresh {@link ClusterInfo} from the nodes, without scheduling a future collection
+     */
     void updateOnce() {
         threadPool.executor(executorName()).execute(new ClusterInfoUpdateJob(false));
     }

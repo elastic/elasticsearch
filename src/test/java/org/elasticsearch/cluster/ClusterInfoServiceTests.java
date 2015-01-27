@@ -200,10 +200,12 @@ public class ClusterInfoServiceTests extends ElasticsearchIntegrationTest {
 
         final AtomicBoolean timeout = new AtomicBoolean(false);
         final Set<String> blockedActions = ImmutableSet.of(NodesStatsAction.NAME, NodesStatsAction.NAME + "[n]", IndicesStatsAction.NAME, IndicesStatsAction.NAME + "[s]");
+        // drop all outgoing stats requests to force a timeout.
         for (DiscoveryNode node : internalTestCluster.clusterService().state().getNodes()) {
             mockTransportService.addDelegate(node, new MockTransportService.DelegateTransport(mockTransportService.original()) {
                 @Override
-                public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+                public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
+                                        TransportRequestOptions options) throws IOException, TransportException {
                     if (blockedActions.contains(action)) {
                         if (timeout.get()) {
                             logger.info("dropping [{}] to [{}]", action, node);
@@ -247,5 +249,15 @@ public class ClusterInfoServiceTests extends ElasticsearchIntegrationTest {
         assertNotNull("info should not be null", info);
         assertThat(info.getNodeDiskUsages().size(), equalTo(0));
         assertThat(info.getShardSizes().size(), equalTo(0));
+
+        // check we recover
+        blockingActionFilter.blockActions();
+        listener.reset();
+        infoService.updateOnce();
+        info = listener.get();
+        assertNotNull("info should not be null", info);
+        assertThat(info.getNodeDiskUsages().size(), equalTo(2));
+        assertThat(info.getShardSizes().size(), greaterThan(0));
+
     }
 }

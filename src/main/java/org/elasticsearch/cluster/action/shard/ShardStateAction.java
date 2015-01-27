@@ -52,8 +52,8 @@ import static org.elasticsearch.cluster.routing.ImmutableShardRouting.readShardR
  */
 public class ShardStateAction extends AbstractComponent {
 
-    public static final String SHARD_STARTED_ACTION_NAME = "internal:cluster/shard/failure";
-    public static final String SHARD_FAILED_ACTION_NAME = "internal:cluster/shard/started";
+    public static final String SHARD_STARTED_ACTION_NAME = "internal:cluster/shard/started";
+    public static final String SHARD_FAILED_ACTION_NAME = "internal:cluster/shard/failure";
 
     private final TransportService transportService;
     private final ClusterService clusterService;

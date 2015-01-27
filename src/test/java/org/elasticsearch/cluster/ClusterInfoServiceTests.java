@@ -112,30 +112,26 @@ public class ClusterInfoServiceTests extends ElasticsearchIntegrationTest {
 
     static class InfoListener implements ClusterInfoService.Listener {
         final AtomicReference<CountDownLatch> collected = new AtomicReference<>(new CountDownLatch(1));
-        final AtomicReference<ClusterInfo> refInfo = new AtomicReference<>();
+        volatile ClusterInfo lastInfo = null;
 
         @Override
         public void onNewInfo(ClusterInfo info) {
-            refInfo.set(info);
+            lastInfo = info;
             CountDownLatch latch = collected.get();
-            if (latch != null) {
-                latch.countDown();
-            }
+            latch.countDown();
         }
 
         public void reset() {
-            refInfo.set(null);
+            lastInfo = null;
             collected.set(new CountDownLatch(1));
         }
 
         public ClusterInfo get() throws InterruptedException {
             CountDownLatch latch = collected.get();
-            if (latch != null) {
-                if (!latch.await(10, TimeUnit.SECONDS)) {
-                    fail("failed to get a new cluster info");
-                }
+            if (!latch.await(10, TimeUnit.SECONDS)) {
+                fail("failed to get a new cluster info");
             }
-            return refInfo.get();
+            return lastInfo;
         }
     }
 

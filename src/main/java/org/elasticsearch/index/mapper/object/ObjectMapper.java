@@ -541,6 +541,10 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 }
             }
             mapper.parse(context);
+        } else {
+            if (dynamic == Dynamic.STRICT) {
+                throw new StrictDynamicMappingException(fullPath, lastFieldName);
+            }
         }
     }
 

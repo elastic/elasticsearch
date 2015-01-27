@@ -96,6 +96,17 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
         } catch (StrictDynamicMappingException e) {
             // all is well
         }
+
+        try {
+            defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("field1", "value1")
+                    .field("field2", (String) null)
+                    .bytes());
+            fail();
+        } catch (StrictDynamicMappingException e) {
+            // all is well
+        }
     }
 
     @Test

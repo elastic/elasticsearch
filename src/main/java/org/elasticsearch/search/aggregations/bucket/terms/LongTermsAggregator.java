@@ -25,7 +25,9 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude.LongFilter;
@@ -48,7 +50,6 @@ public class LongTermsAggregator extends TermsAggregator {
     protected final @Nullable ValueFormatter formatter;
     protected final LongHash bucketOrds;
     private boolean showTermDocCountError;
-    private SortedNumericDocValues values;
     private LongFilter longFilter;
 
     public LongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format,
@@ -60,46 +61,46 @@ public class LongTermsAggregator extends TermsAggregator {
         this.longFilter = longFilter;
         bucketOrds = new LongHash(1, aggregationContext.bigArrays());
     }
-    
-    
 
     @Override
-    public boolean shouldCollect() {
-        return true;
+    public boolean needsScores() {
+        return (valuesSource != null && valuesSource.needsScores()) || super.needsScores();
     }
 
-    protected SortedNumericDocValues getValues(ValuesSource.Numeric valuesSource) {
-        return valuesSource.longValues();
-    }
-
-    @Override
-    public void setNextReader(LeafReaderContext reader) {
-        values = getValues(valuesSource);
+    protected SortedNumericDocValues getValues(ValuesSource.Numeric valuesSource, LeafReaderContext ctx) throws IOException {
+        return valuesSource.longValues(ctx);
     }
 
     @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
-        values.setDocument(doc);
-        final int valuesCount = values.count();
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+        final SortedNumericDocValues values = getValues(valuesSource, ctx);
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long owningBucketOrdinal) throws IOException {
+                assert owningBucketOrdinal == 0;
+                values.setDocument(doc);
+                final int valuesCount = values.count();
 
-        long previous = Long.MAX_VALUE;
-        for (int i = 0; i < valuesCount; ++i) {
-            final long val = values.valueAt(i);
-            if (previous != val || i == 0) {
-                if ((longFilter == null) || (longFilter.accept(val))) {
-                    long bucketOrdinal = bucketOrds.add(val);
-                    if (bucketOrdinal < 0) { // already seen
-                        bucketOrdinal = - 1 - bucketOrdinal;
-                        collectExistingBucket(doc, bucketOrdinal);
-                    } else {
-                        collectBucket(doc, bucketOrdinal);
-                    }                       
+                long previous = Long.MAX_VALUE;
+                for (int i = 0; i < valuesCount; ++i) {
+                    final long val = values.valueAt(i);
+                    if (previous != val || i == 0) {
+                        if ((longFilter == null) || (longFilter.accept(val))) {
+                            long bucketOrdinal = bucketOrds.add(val);
+                            if (bucketOrdinal < 0) { // already seen
+                                bucketOrdinal = - 1 - bucketOrdinal;
+                                collectExistingBucket(sub, doc, bucketOrdinal);
+                            } else {
+                                collectBucket(sub, doc, bucketOrdinal);
+                            }
+                        }
+
+                        previous = val;
+                    }
                 }
-                
-                previous = val;
             }
-        }
+        };
     }
 
     @Override
@@ -109,8 +110,7 @@ public class LongTermsAggregator extends TermsAggregator {
         if (bucketCountThresholds.getMinDocCount() == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
             // we need to fill-in the blanks
             for (LeafReaderContext ctx : context.searchContext().searcher().getTopReaderContext().leaves()) {
-                context.setNextReader(ctx);
-                final SortedNumericDocValues values = getValues(valuesSource);
+                final SortedNumericDocValues values = getValues(valuesSource, ctx);
                 for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
                     values.setDocument(docId);
                     final int valueCount = values.count();
@@ -148,7 +148,7 @@ public class LongTermsAggregator extends TermsAggregator {
             list[i] = bucket;
             otherDocCount -= bucket.docCount;
         }
-      
+
         runDeferredCollections(survivingBucketOrds);
 
         //Now build the aggs
@@ -156,11 +156,11 @@ public class LongTermsAggregator extends TermsAggregator {
           list[i].aggregations = bucketAggregations(list[i].bucketOrd);
           list[i].docCountError = 0;
         }
-        
+
         return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError, 0, otherDocCount, metaData());
     }
-    
-    
+
+
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList(), showTermDocCountError, 0, 0, metaData());

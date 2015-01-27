@@ -21,10 +21,13 @@ package org.elasticsearch.search.aggregations.metrics.sum;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -40,11 +43,10 @@ import java.util.Map;
  */
 public class SumAggregator extends NumericMetricsAggregator.SingleValue {
 
-    private final ValuesSource.Numeric valuesSource;
-    private SortedNumericDoubleValues values;
+    final ValuesSource.Numeric valuesSource;
+    final ValueFormatter formatter;
 
-    private DoubleArray sums;
-    private ValueFormatter formatter;
+    DoubleArray sums;
 
     public SumAggregator(String name, ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
             AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
@@ -52,30 +54,36 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
         this.valuesSource = valuesSource;
         this.formatter = formatter;
         if (valuesSource != null) {
-            sums = bigArrays.newDoubleArray(1, true);
+            sums = context.bigArrays().newDoubleArray(1, true);
         }
     }
 
     @Override
-    public boolean shouldCollect() {
-        return valuesSource != null;
+    public boolean needsScores() {
+        return valuesSource != null && valuesSource.needsScores();
     }
 
     @Override
-    public void setNextReader(LeafReaderContext reader) {
-        values = valuesSource.doubleValues();
-    }
-
-    @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        sums = bigArrays.grow(sums, owningBucketOrdinal + 1);
-        values.setDocument(doc);
-        final int valuesCount = values.count();
-        double sum = 0;
-        for (int i = 0; i < valuesCount; i++) {
-            sum += values.valueAt(i);
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+        if (valuesSource == null) {
+            return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        sums.increment(owningBucketOrdinal, sum);
+        final BigArrays bigArrays = context.bigArrays();
+        final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                sums = bigArrays.grow(sums, bucket + 1);
+                values.setDocument(doc);
+                final int valuesCount = values.count();
+                double sum = 0;
+                for (int i = 0; i < valuesCount; i++) {
+                    sum += values.valueAt(i);
+                }
+                sums.increment(bucket, sum);
+            }
+        };
     }
 
     @Override
@@ -84,11 +92,11 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        if (valuesSource == null) {
-            return new InternalSum(name, 0, formatter, metaData());
+    public InternalAggregation buildAggregation(long bucket) {
+        if (valuesSource == null || bucket >= sums.size()) {
+            return buildEmptyAggregation();
         }
-        return new InternalSum(name, sums.get(owningBucketOrdinal), formatter, metaData());
+        return new InternalSum(name, sums.get(bucket), formatter, metaData());
     }
 
     @Override

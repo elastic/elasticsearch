@@ -19,11 +19,14 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -44,19 +47,26 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
     protected final SignificantTermsAggregatorFactory termsAggFactory;
 
     public GlobalOrdinalsSignificantTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource,
-                                                    long maxOrd, BucketCountThresholds bucketCountThresholds,
+                                                    BucketCountThresholds bucketCountThresholds,
                                                     IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent,
                                                     SignificantTermsAggregatorFactory termsAggFactory, Map<String, Object> metaData) throws IOException {
 
-        super(name, factories, valuesSource, maxOrd, null, bucketCountThresholds, includeExclude, aggregationContext, parent, SubAggCollectionMode.DEPTH_FIRST, false, metaData);
+        super(name, factories, valuesSource, null, bucketCountThresholds, includeExclude, aggregationContext, parent, SubAggCollectionMode.DEPTH_FIRST, false, metaData);
         this.termsAggFactory = termsAggFactory;
     }
 
     @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        super.collect(doc, owningBucketOrdinal);
-        numCollectedDocs++;
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+        return new LeafBucketCollectorBase(super.getLeafCollector(ctx, sub), null) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                super.collect(doc, bucket);
+                numCollectedDocs++;
+            }
+        };
     }
+
 
     @Override
     public SignificantStringTerms buildAggregation(long owningBucketOrdinal) throws IOException {
@@ -136,25 +146,32 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
         private final LongHash bucketOrds;
 
         public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory, Map<String, Object> metaData) throws IOException {
-            super(name, factories, valuesSource, 1, bucketCountThresholds, includeExclude, aggregationContext, parent, termsAggFactory, metaData);
+            super(name, factories, valuesSource, bucketCountThresholds, includeExclude, aggregationContext, parent, termsAggFactory, metaData);
             bucketOrds = new LongHash(1, aggregationContext.bigArrays());
         }
 
         @Override
-        public void collect(int doc, long owningBucketOrdinal) throws IOException {
-            numCollectedDocs++;
-            globalOrds.setDocument(doc);
-            final int numOrds = globalOrds.cardinality();
-            for (int i = 0; i < numOrds; i++) {
-                final long globalOrd = globalOrds.ordAt(i);
-                long bucketOrd = bucketOrds.add(globalOrd);
-                if (bucketOrd < 0) {
-                    bucketOrd = -1 - bucketOrd;
-                    collectExistingBucket(doc, bucketOrd);
-                } else {
-                    collectBucket(doc, bucketOrd);
+        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+                final LeafBucketCollector sub) throws IOException {
+            return new LeafBucketCollectorBase(super.getLeafCollector(ctx, sub), null) {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    assert bucket == 0;
+                    numCollectedDocs++;
+                    globalOrds.setDocument(doc);
+                    final int numOrds = globalOrds.cardinality();
+                    for (int i = 0; i < numOrds; i++) {
+                        final long globalOrd = globalOrds.ordAt(i);
+                        long bucketOrd = bucketOrds.add(globalOrd);
+                        if (bucketOrd < 0) {
+                            bucketOrd = -1 - bucketOrd;
+                            collectExistingBucket(sub, doc, bucketOrd);
+                        } else {
+                            collectBucket(sub, doc, bucketOrd);
+                        }
+                    }
                 }
-            }
+            };
         }
 
         @Override

@@ -30,7 +30,6 @@ import java.util.Map;
 
 abstract class AbstractStringTermsAggregator extends TermsAggregator {
 
-
     protected final boolean showTermDocCountError;
 
     public AbstractStringTermsAggregator(String name, AggregatorFactories factories,
@@ -39,11 +38,6 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator {
             SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError, Map<String, Object> metaData) throws IOException {
         super(name, factories, context, parent, bucketCountThresholds, order, subAggCollectMode, metaData);
         this.showTermDocCountError = showTermDocCountError;
-    }
-
-    @Override
-    public boolean shouldCollect() {
-        return true;
     }
 
     @Override

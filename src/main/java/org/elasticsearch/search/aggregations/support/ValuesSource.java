@@ -18,367 +18,169 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.ReaderContextAware;
-import org.elasticsearch.common.lucene.TopReaderContextAware;
-import org.elasticsearch.index.fielddata.*;
-import org.elasticsearch.index.fielddata.plain.ParentChildAtomicFieldData;
+import org.elasticsearch.common.lucene.ScorerAware;
+import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortingNumericDocValues;
+import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric.WithScript.DoubleValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource.WithScript.BytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptLongValues;
-import org.elasticsearch.search.internal.SearchContext;
+
+import java.io.IOException;
 
 public abstract class ValuesSource {
-
-    public static class MetaData {
-
-        public static final MetaData UNKNOWN = new MetaData();
-
-        public enum Uniqueness {
-            UNIQUE,
-            NOT_UNIQUE,
-            UNKNOWN;
-
-            public boolean unique() {
-                return this == UNIQUE;
-            }
-        }
-
-        private long maxAtomicUniqueValuesCount = -1;
-        private boolean multiValued = true;
-        private Uniqueness uniqueness = Uniqueness.UNKNOWN;
-
-        private MetaData() {}
-
-        private MetaData(MetaData other) {
-            this.maxAtomicUniqueValuesCount = other.maxAtomicUniqueValuesCount;
-            this.multiValued = other.multiValued;
-            this.uniqueness = other.uniqueness;
-        }
-
-        private MetaData(long maxAtomicUniqueValuesCount, boolean multiValued, Uniqueness uniqueness) {
-            this.maxAtomicUniqueValuesCount = maxAtomicUniqueValuesCount;
-            this.multiValued = multiValued;
-            this.uniqueness = uniqueness;
-        }
-
-        public long maxAtomicUniqueValuesCount() {
-            return maxAtomicUniqueValuesCount;
-        }
-
-        public boolean multiValued() {
-            return multiValued;
-        }
-
-        public Uniqueness uniqueness() {
-            return uniqueness;
-        }
-
-        public static MetaData load(IndexFieldData<?> indexFieldData, SearchContext context) {
-            MetaData metaData = new MetaData();
-            metaData.uniqueness = Uniqueness.UNIQUE;
-            for (LeafReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
-                AtomicFieldData fieldData = indexFieldData.load(readerContext);
-                if (fieldData instanceof AtomicOrdinalsFieldData) {
-                    AtomicOrdinalsFieldData fd = (AtomicOrdinalsFieldData) fieldData;
-                    RandomAccessOrds values = fd.getOrdinalsValues();
-                    metaData.multiValued |= FieldData.isMultiValued(values);
-                    metaData.maxAtomicUniqueValuesCount = Math.max(metaData.maxAtomicUniqueValuesCount, values.getValueCount());
-                } else if (fieldData instanceof AtomicNumericFieldData) {
-                    AtomicNumericFieldData fd = (AtomicNumericFieldData) fieldData;
-                    SortedNumericDoubleValues values = fd.getDoubleValues();
-                    metaData.multiValued |= FieldData.isMultiValued(values);
-                    metaData.maxAtomicUniqueValuesCount = Long.MAX_VALUE;
-                } else if (fieldData instanceof AtomicGeoPointFieldData) {
-                    AtomicGeoPointFieldData fd = (AtomicGeoPointFieldData) fieldData;
-                    MultiGeoPointValues values = fd.getGeoPointValues();
-                    metaData.multiValued |= FieldData.isMultiValued(values);
-                    metaData.maxAtomicUniqueValuesCount = Long.MAX_VALUE;
-                } else {
-                    metaData.multiValued = true;
-                    metaData.maxAtomicUniqueValuesCount = Long.MAX_VALUE;
-                }
-            }
-            return metaData;
-        }
-
-        public static Builder builder() {
-            return new Builder();
-        }
-
-        public static Builder builder(MetaData other) {
-            return new Builder(other);
-        }
-
-        public static class Builder {
-
-            private final MetaData metaData;
-
-            private Builder() {
-                metaData = new MetaData();
-            }
-
-            private Builder(MetaData metaData) {
-                this.metaData = new MetaData(metaData);
-            }
-
-            public Builder maxAtomicUniqueValuesCount(long maxAtomicUniqueValuesCount) {
-                metaData.maxAtomicUniqueValuesCount = maxAtomicUniqueValuesCount;
-                return this;
-            }
-
-            public Builder multiValued(boolean multiValued) {
-                metaData.multiValued = multiValued;
-                return this;
-            }
-
-            public Builder uniqueness(Uniqueness uniqueness) {
-                metaData.uniqueness = uniqueness;
-                return this;
-            }
-
-            public MetaData build() {
-                return metaData;
-            }
-        }
-
-    }
 
     /**
      * Get the current {@link BytesValues}.
      */
-    public abstract SortedBinaryDocValues bytesValues();
+    public abstract SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException;
 
-    public abstract Bits docsWithValue(int maxDoc);
+    public abstract Bits docsWithValue(LeafReaderContext context) throws IOException;
 
-    public void setNeedsGlobalOrdinals(boolean needsGlobalOrdinals) {}
-
-    public abstract MetaData metaData();
+    /** Whether this values source needs scores. */
+    public boolean needsScores() {
+        return false;
+    }
 
     public static abstract class Bytes extends ValuesSource {
 
-        public Bits docsWithValue(int maxDoc) {
-            final SortedBinaryDocValues bytes = bytesValues();
+        public Bits docsWithValue(LeafReaderContext context) throws IOException {
+            final SortedBinaryDocValues bytes = bytesValues(context);
             if (org.elasticsearch.index.fielddata.FieldData.unwrapSingleton(bytes) != null) {
                 return org.elasticsearch.index.fielddata.FieldData.unwrapSingletonBits(bytes);
             } else {
-                return org.elasticsearch.index.fielddata.FieldData.docsWithValue(bytes, maxDoc);
+                return org.elasticsearch.index.fielddata.FieldData.docsWithValue(bytes, context.reader().maxDoc());
             }
         }
 
-        public static abstract class WithOrdinals extends Bytes implements TopReaderContextAware {
+        public static abstract class WithOrdinals extends Bytes {
 
-            public Bits docsWithValue(int maxDoc) {
-                final RandomAccessOrds ordinals = ordinalsValues();
+            public Bits docsWithValue(LeafReaderContext context) {
+                final RandomAccessOrds ordinals = ordinalsValues(context);
                 if (DocValues.unwrapSingleton(ordinals) != null) {
-                    return DocValues.docsWithValue(DocValues.unwrapSingleton(ordinals), maxDoc);
+                    return DocValues.docsWithValue(DocValues.unwrapSingleton(ordinals), context.reader().maxDoc());
                 } else {
-                    return DocValues.docsWithValue(ordinals, maxDoc);
+                    return DocValues.docsWithValue(ordinals, context.reader().maxDoc());
                 }
             }
 
-            public abstract RandomAccessOrds ordinalsValues();
+            public abstract RandomAccessOrds ordinalsValues(LeafReaderContext context);
 
-            public abstract void setNextReader(IndexReaderContext reader);
-
-            public abstract RandomAccessOrds globalOrdinalsValues();
+            public abstract RandomAccessOrds globalOrdinalsValues(LeafReaderContext context);
 
             public abstract long globalMaxOrd(IndexSearcher indexSearcher);
 
-            public static class FieldData extends WithOrdinals implements ReaderContextAware {
+            public static class FieldData extends WithOrdinals {
 
                 protected final IndexOrdinalsFieldData indexFieldData;
-                protected final MetaData metaData;
-                private boolean needsGlobalOrdinals;
 
-                protected AtomicOrdinalsFieldData atomicFieldData;
-                private SortedBinaryDocValues bytesValues;
-                private RandomAccessOrds ordinalsValues;
-
-                protected IndexOrdinalsFieldData globalFieldData;
-                protected AtomicOrdinalsFieldData globalAtomicFieldData;
-                private RandomAccessOrds globalBytesValues;
-
-                private long maxOrd = -1;
-
-                public FieldData(IndexOrdinalsFieldData indexFieldData, MetaData metaData) {
+                public FieldData(IndexOrdinalsFieldData indexFieldData) {
                     this.indexFieldData = indexFieldData;
-                    this.metaData = metaData;
                 }
 
                 @Override
-                public MetaData metaData() {
-                    return metaData;
+                public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
+                    final AtomicOrdinalsFieldData atomicFieldData = indexFieldData.load(context);
+                    return atomicFieldData.getBytesValues();
                 }
 
                 @Override
-                public void setNeedsGlobalOrdinals(boolean needsGlobalOrdinals) {
-                    this.needsGlobalOrdinals = needsGlobalOrdinals;
+                public RandomAccessOrds ordinalsValues(LeafReaderContext context) {
+                    final AtomicOrdinalsFieldData atomicFieldData = indexFieldData.load(context);
+                    return atomicFieldData.getOrdinalsValues();
                 }
 
                 @Override
-                public void setNextReader(LeafReaderContext reader) {
-                    atomicFieldData = indexFieldData.load(reader);
-                    if (bytesValues != null) {
-                        bytesValues = atomicFieldData.getBytesValues();
-                    }
-                    if (ordinalsValues != null) {
-                        ordinalsValues = atomicFieldData.getOrdinalsValues();
-                    }
-                    if (globalFieldData != null) {
-                        globalAtomicFieldData = globalFieldData.load(reader);
-                        if (globalBytesValues != null) {
-                            globalBytesValues = globalAtomicFieldData.getOrdinalsValues();
-                        }
-                    }
-                }
-
-                @Override
-                public SortedBinaryDocValues bytesValues() {
-                    if (bytesValues == null) {
-                        bytesValues = atomicFieldData.getBytesValues();
-                    }
-                    return bytesValues;
-                }
-
-                @Override
-                public RandomAccessOrds ordinalsValues() {
-                    if (ordinalsValues == null) {
-                        ordinalsValues = atomicFieldData.getOrdinalsValues();
-                    }
-                    return ordinalsValues;
-                }
-
-                @Override
-                public void setNextReader(IndexReaderContext reader) {
-                    if (needsGlobalOrdinals) {
-                        globalFieldData = indexFieldData.loadGlobal(reader.reader());
-                    }
-                }
-
-                @Override
-                public RandomAccessOrds globalOrdinalsValues() {
-                    if (globalBytesValues == null) {
-                        globalBytesValues = globalAtomicFieldData.getOrdinalsValues();
-                    }
-                    return globalBytesValues;
+                public RandomAccessOrds globalOrdinalsValues(LeafReaderContext context) {
+                    final IndexOrdinalsFieldData global = indexFieldData.loadGlobal(context.parent.reader());
+                    final AtomicOrdinalsFieldData atomicFieldData = global.load(context);
+                    return atomicFieldData.getOrdinalsValues();
                 }
 
                 @Override
                 public long globalMaxOrd(IndexSearcher indexSearcher) {
-                    if (maxOrd != -1) {
-                        return maxOrd;
-                    }
-
                     IndexReader indexReader = indexSearcher.getIndexReader();
                     if (indexReader.leaves().isEmpty()) {
-                        return maxOrd = 0;
+                        return 0;
                     } else {
                         LeafReaderContext atomicReaderContext = indexReader.leaves().get(0);
                         IndexOrdinalsFieldData globalFieldData = indexFieldData.loadGlobal(indexReader);
                         AtomicOrdinalsFieldData afd = globalFieldData.load(atomicReaderContext);
                         RandomAccessOrds values = afd.getOrdinalsValues();
-                        return maxOrd = values.getValueCount();
+                        return values.getValueCount();
                     }
                 }
             }
         }
 
-        public static class ParentChild extends Bytes implements ReaderContextAware, TopReaderContextAware {
+        public static class ParentChild extends Bytes {
 
             protected final ParentChildIndexFieldData indexFieldData;
-            protected final MetaData metaData;
 
-            protected AtomicParentChildFieldData atomicFieldData;
-            protected IndexParentChildFieldData globalFieldData;
-
-            private long maxOrd = -1;
-
-            public ParentChild(ParentChildIndexFieldData indexFieldData, MetaData metaData) {
+            public ParentChild(ParentChildIndexFieldData indexFieldData) {
                 this.indexFieldData = indexFieldData;
-                this.metaData = metaData;
-            }
-
-            @Override
-            public void setNextReader(LeafReaderContext reader) {
-                atomicFieldData = globalFieldData.load(reader);
-            }
-
-            @Override
-            public void setNextReader(IndexReaderContext reader) {
-                globalFieldData = indexFieldData.loadGlobal(reader.reader());
-            }
-
-            public SortedDocValues globalOrdinalsValues(String type) {
-                return atomicFieldData.getOrdinalsValues(type);
             }
 
             public long globalMaxOrd(IndexSearcher indexSearcher, String type) {
-                if (maxOrd != -1) {
-                    return maxOrd;
-                }
-
                 IndexReader indexReader = indexSearcher.getIndexReader();
                 if (indexReader.leaves().isEmpty()) {
-                    return maxOrd = 0;
+                    return 0;
                 } else {
                     LeafReaderContext atomicReaderContext = indexReader.leaves().get(0);
                     IndexParentChildFieldData globalFieldData = indexFieldData.loadGlobal(indexReader);
                     AtomicParentChildFieldData afd = globalFieldData.load(atomicReaderContext);
                     SortedDocValues values = afd.getOrdinalsValues(type);
-                    return maxOrd = values.getValueCount();
+                    return values.getValueCount();
                 }
             }
 
-            @Override
-            public SortedBinaryDocValues bytesValues() {
-                return atomicFieldData.getBytesValues();
+            public SortedDocValues globalOrdinalsValues(String type, LeafReaderContext context) {
+                final IndexParentChildFieldData global = indexFieldData.loadGlobal(context.parent.reader());
+                final AtomicParentChildFieldData atomicFieldData = global.load(context);
+                return atomicFieldData.getOrdinalsValues(type);
             }
 
             @Override
-            public MetaData metaData() {
-                return metaData;
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
+                final AtomicParentChildFieldData atomicFieldData = indexFieldData.load(context);
+                return atomicFieldData.getBytesValues();
             }
         }
 
-        public static class FieldData extends Bytes implements ReaderContextAware {
+        public static class FieldData extends Bytes {
 
             protected final IndexFieldData<?> indexFieldData;
-            protected final MetaData metaData;
-            protected AtomicFieldData atomicFieldData;
-            private SortedBinaryDocValues bytesValues;
 
-            public FieldData(IndexFieldData<?> indexFieldData, MetaData metaData) {
+            public FieldData(IndexFieldData<?> indexFieldData) {
                 this.indexFieldData = indexFieldData;
-                this.metaData = metaData;
             }
 
             @Override
-            public MetaData metaData() {
-                return metaData;
-            }
-
-            @Override
-            public void setNextReader(LeafReaderContext reader) {
-                atomicFieldData = indexFieldData.load(reader);
-                if (bytesValues != null) {
-                    bytesValues = atomicFieldData.getBytesValues();
-                }
-            }
-
-            @Override
-            public SortedBinaryDocValues bytesValues() {
-                if (bytesValues == null) {
-                    bytesValues = atomicFieldData.getBytesValues();
-                }
-                return bytesValues;
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
+                return indexFieldData.load(context).getBytesValues();
             }
         }
 
@@ -391,13 +193,15 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public MetaData metaData() {
-                return MetaData.UNKNOWN;
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                values.script().setNextReader(context);
+                return values;
             }
 
             @Override
-            public SortedBinaryDocValues bytesValues() {
-                return values;
+            public boolean needsScores() {
+                // TODO: add a way to know whether scripts are using scores
+                return true;
             }
         }
 
@@ -409,40 +213,39 @@ public abstract class ValuesSource {
         /** Whether the underlying data is floating-point or not. */
         public abstract boolean isFloatingPoint();
 
-        /** Get the current {@link LongValues}. */
-        public abstract SortedNumericDocValues longValues();
+        /** Get the current {@link SortedNumericDocValues}. */
+        public abstract SortedNumericDocValues longValues(LeafReaderContext context) throws IOException;
 
-        /** Get the current {@link DoubleValues}. */
-        public abstract SortedNumericDoubleValues doubleValues();
+        /** Get the current {@link SortedNumericDoubleValues}. */
+        public abstract SortedNumericDoubleValues doubleValues(LeafReaderContext context) throws IOException;
 
-        public Bits docsWithValue(int maxDoc) {
+        @Override
+        public Bits docsWithValue(LeafReaderContext context) throws IOException {
             if (isFloatingPoint()) {
-                final SortedNumericDoubleValues values = doubleValues();
+                final SortedNumericDoubleValues values = doubleValues(context);
                 if (org.elasticsearch.index.fielddata.FieldData.unwrapSingleton(values) != null) {
                     return org.elasticsearch.index.fielddata.FieldData.unwrapSingletonBits(values);
                 } else {
-                    return org.elasticsearch.index.fielddata.FieldData.docsWithValue(values, maxDoc);
+                    return org.elasticsearch.index.fielddata.FieldData.docsWithValue(values, context.reader().maxDoc());
                 }
             } else {
-                final SortedNumericDocValues values = longValues();
+                final SortedNumericDocValues values = longValues(context);
                 if (DocValues.unwrapSingleton(values) != null) {
                     return DocValues.unwrapSingletonBits(values);
                 } else {
-                    return DocValues.docsWithValue(values, maxDoc);
+                    return DocValues.docsWithValue(values, context.reader().maxDoc());
                 }
             }
         }
 
         public static class WithScript extends Numeric {
 
-            private final SortedNumericDocValues longValues;
-            private final SortedNumericDoubleValues doubleValues;
-            private final SortedBinaryDocValues bytesValues;
+            private final Numeric delegate;
+            private final SearchScript script;
 
             public WithScript(Numeric delegate, SearchScript script) {
-                this.longValues = new LongValues(delegate, script);
-                this.doubleValues = new DoubleValues(delegate, script);
-                this.bytesValues = new ValuesSource.WithScript.BytesValues(delegate, script);
+                this.delegate = delegate;
+                this.script = script;
             }
 
             @Override
@@ -451,92 +254,92 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public SortedBinaryDocValues bytesValues() {
-                return bytesValues;
+            public boolean needsScores() {
+                // TODO: add a way to know whether scripts are using scores
+                return true;
             }
 
             @Override
-            public SortedNumericDocValues longValues() {
-                return longValues;
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                script.setNextReader(context);
+                return new ValuesSource.WithScript.BytesValues(delegate.bytesValues(context), script);
             }
 
             @Override
-            public SortedNumericDoubleValues doubleValues() {
-                return doubleValues;
+            public SortedNumericDocValues longValues(LeafReaderContext context) throws IOException {
+                script.setNextReader(context);
+                return new LongValues(delegate.longValues(context), script);
             }
 
             @Override
-            public MetaData metaData() {
-                return MetaData.UNKNOWN;
+            public SortedNumericDoubleValues doubleValues(LeafReaderContext context) throws IOException {
+                script.setNextReader(context);
+                return new DoubleValues(delegate.doubleValues(context), script);
             }
 
-            static class LongValues extends SortingNumericDocValues {
+            static class LongValues extends SortingNumericDocValues implements ScorerAware {
 
-                private final Numeric source;
+                private final SortedNumericDocValues longValues;
                 private final SearchScript script;
 
-                public LongValues(Numeric source, SearchScript script) {
-                    this.source = source;
+                public LongValues(SortedNumericDocValues values, SearchScript script) {
+                    this.longValues = values;
                     this.script = script;
                 }
 
                 @Override
-                public void setDocument(int docId) {
-                    script.setNextDocId(docId);
-                    source.longValues().setDocument(docId);
-                    resize(source.longValues().count());
+                public void setDocument(int doc) {
+                    longValues.setDocument(doc);
+                    resize(longValues.count());
+                    script.setNextDocId(doc);
                     for (int i = 0; i < count(); ++i) {
-                        script.setNextVar("_value", source.longValues().valueAt(i));
+                        script.setNextVar("_value", longValues.valueAt(i));
                         values[i] = script.runAsLong();
                     }
                     sort();
                 }
+
+                @Override
+                public void setScorer(Scorer scorer) {
+                    script.setScorer(scorer);
+                }
             }
 
-            static class DoubleValues extends SortingNumericDoubleValues {
+            static class DoubleValues extends SortingNumericDoubleValues implements ScorerAware {
 
-                private final Numeric source;
+                private final SortedNumericDoubleValues doubleValues;
                 private final SearchScript script;
 
-                public DoubleValues(Numeric source, SearchScript script) {
-                    this.source = source;
+                public DoubleValues(SortedNumericDoubleValues values, SearchScript script) {
+                    this.doubleValues = values;
                     this.script = script;
                 }
 
                 @Override
-                public void setDocument(int docId) {
-                    script.setNextDocId(docId);
-                    source.doubleValues().setDocument(docId);
-                    count = source.doubleValues().count();
-                    grow();
-                    for (int i = 0; i < count; ++i) {
-                        script.setNextVar("_value", source.doubleValues().valueAt(i));
+                public void setDocument(int doc) {
+                    doubleValues.setDocument(doc);
+                    resize(doubleValues.count());
+                    script.setNextDocId(doc);
+                    for (int i = 0; i < count(); ++i) {
+                        script.setNextVar("_value", doubleValues.valueAt(i));
                         values[i] = script.runAsDouble();
                     }
                     sort();
                 }
+
+                @Override
+                public void setScorer(Scorer scorer) {
+                    script.setScorer(scorer);
+                }
             }
         }
 
-        public static class FieldData extends Numeric implements ReaderContextAware {
+        public static class FieldData extends Numeric {
 
-            protected boolean needsHashes;
             protected final IndexNumericFieldData indexFieldData;
-            protected final MetaData metaData;
-            protected AtomicNumericFieldData atomicFieldData;
-            private SortedBinaryDocValues bytesValues;
-            private SortedNumericDocValues longValues;
-            private SortedNumericDoubleValues doubleValues;
 
-            public FieldData(IndexNumericFieldData indexFieldData, MetaData metaData) {
+            public FieldData(IndexNumericFieldData indexFieldData) {
                 this.indexFieldData = indexFieldData;
-                this.metaData = metaData;
-                needsHashes = false;
-            }
-
-            @Override
-            public MetaData metaData() {
-                return metaData;
             }
 
             @Override
@@ -545,61 +348,28 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public void setNextReader(LeafReaderContext reader) {
-                atomicFieldData = indexFieldData.load(reader);
-                if (bytesValues != null) {
-                    bytesValues = atomicFieldData.getBytesValues();
-                }
-                if (longValues != null) {
-                    longValues = atomicFieldData.getLongValues();
-                }
-                if (doubleValues != null) {
-                    doubleValues = atomicFieldData.getDoubleValues();
-                }
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
+                return indexFieldData.load(context).getBytesValues();
             }
 
             @Override
-            public SortedBinaryDocValues bytesValues() {
-                if (bytesValues == null) {
-                    bytesValues = atomicFieldData.getBytesValues();
-                }
-                return bytesValues;
+            public SortedNumericDocValues longValues(LeafReaderContext context) {
+                return indexFieldData.load(context).getLongValues();
             }
 
             @Override
-            public SortedNumericDocValues longValues() {
-                if (longValues == null) {
-                    longValues = atomicFieldData.getLongValues();
-                }
-                return longValues;
-            }
-
-            @Override
-            public SortedNumericDoubleValues doubleValues() {
-                if (doubleValues == null) {
-                    doubleValues = atomicFieldData.getDoubleValues();
-                }
-                return doubleValues;
+            public SortedNumericDoubleValues doubleValues(LeafReaderContext context) {
+                return indexFieldData.load(context).getDoubleValues();
             }
         }
 
         public static class Script extends Numeric {
+            private final SearchScript script;
             private final ValueType scriptValueType;
 
-            private final ScriptDoubleValues doubleValues;
-            private final ScriptLongValues longValues;
-            private final ScriptBytesValues bytesValues;
-
             public Script(SearchScript script, ValueType scriptValueType) {
+                this.script = script;
                 this.scriptValueType = scriptValueType;
-                longValues = new ScriptLongValues(script);
-                doubleValues = new ScriptDoubleValues(script);
-                bytesValues = new ScriptBytesValues(script);
-            }
-
-            @Override
-            public MetaData metaData() {
-                return MetaData.UNKNOWN;
             }
 
             @Override
@@ -608,20 +378,28 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public SortedNumericDocValues longValues() {
-                return longValues;
+            public SortedNumericDocValues longValues(LeafReaderContext context) throws IOException {
+                script.setNextReader(context);
+                return new ScriptLongValues(script);
             }
 
             @Override
-            public SortedNumericDoubleValues doubleValues() {
-                return doubleValues;
+            public SortedNumericDoubleValues doubleValues(LeafReaderContext context) throws IOException {
+                script.setNextReader(context);
+                return new ScriptDoubleValues(script);
             }
 
             @Override
-            public SortedBinaryDocValues bytesValues() {
-                return bytesValues;
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                script.setNextReader(context);
+                return new ScriptBytesValues(script);
             }
 
+            @Override
+            public boolean needsScores() {
+                // TODO: add a way to know whether scripts are using scores
+                return true;
+            }
         }
 
     }
@@ -629,98 +407,81 @@ public abstract class ValuesSource {
     // No need to implement ReaderContextAware here, the delegate already takes care of updating data structures
     public static class WithScript extends Bytes {
 
-        private final SortedBinaryDocValues bytesValues;
+        private final ValuesSource delegate;
+        private final SearchScript script;
 
         public WithScript(ValuesSource delegate, SearchScript script) {
-            this.bytesValues = new BytesValues(delegate, script);
+            this.delegate = delegate;
+            this.script = script;
         }
 
         @Override
-        public MetaData metaData() {
-            return MetaData.UNKNOWN;
+        public boolean needsScores() {
+            // TODO: add a way to know whether scripts are using scores
+            return true;
         }
 
         @Override
-        public SortedBinaryDocValues bytesValues() {
-            return bytesValues;
+        public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+            script.setNextReader(context);
+            return new BytesValues(delegate.bytesValues(context), script);
         }
 
-        static class BytesValues extends SortingBinaryDocValues {
+        static class BytesValues extends SortingBinaryDocValues implements ScorerAware {
 
-            private final ValuesSource source;
+            private final SortedBinaryDocValues bytesValues;
             private final SearchScript script;
 
-            public BytesValues(ValuesSource source, SearchScript script) {
-                this.source = source;
+            public BytesValues(SortedBinaryDocValues bytesValues, SearchScript script) {
+                this.bytesValues = bytesValues;
                 this.script = script;
             }
 
             @Override
             public void setDocument(int docId) {
-                source.bytesValues().setDocument(docId);
-                count = source.bytesValues().count();
+                bytesValues.setDocument(docId);
+                count = bytesValues.count();
                 grow();
                 for (int i = 0; i < count; ++i) {
-                    final BytesRef value = source.bytesValues().valueAt(i);
+                    final BytesRef value = bytesValues.valueAt(i);
                     script.setNextVar("_value", value.utf8ToString());
                     values[i].copyChars(script.run().toString());
                 }
                 sort();
             }
+
+            @Override
+            public void setScorer(Scorer scorer) {
+                script.setScorer(scorer);
+            }
         }
     }
 
-    public static class GeoPoint extends ValuesSource implements ReaderContextAware {
+    public static class GeoPoint extends ValuesSource {
 
         protected final IndexGeoPointFieldData indexFieldData;
-        private final MetaData metaData;
-        protected AtomicGeoPointFieldData atomicFieldData;
-        private SortedBinaryDocValues bytesValues;
-        private MultiGeoPointValues geoPointValues;
 
-        public GeoPoint(IndexGeoPointFieldData indexFieldData, MetaData metaData) {
+        public GeoPoint(IndexGeoPointFieldData indexFieldData) {
             this.indexFieldData = indexFieldData;
-            this.metaData = metaData;
         }
 
-        public Bits docsWithValue(int maxDoc) {
-            final MultiGeoPointValues geoPoints = geoPointValues();
+        @Override
+        public Bits docsWithValue(LeafReaderContext context) {
+            final MultiGeoPointValues geoPoints = geoPointValues(context);
             if (org.elasticsearch.index.fielddata.FieldData.unwrapSingleton(geoPoints) != null) {
                 return org.elasticsearch.index.fielddata.FieldData.unwrapSingletonBits(geoPoints);
             } else {
-                return org.elasticsearch.index.fielddata.FieldData.docsWithValue(geoPoints, maxDoc);
+                return org.elasticsearch.index.fielddata.FieldData.docsWithValue(geoPoints, context.reader().maxDoc());
             }
         }
 
         @Override
-        public MetaData metaData() {
-            return metaData;
+        public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
+            return indexFieldData.load(context).getBytesValues();
         }
 
-        @Override
-        public void setNextReader(LeafReaderContext reader) {
-            atomicFieldData = indexFieldData.load(reader);
-            if (bytesValues != null) {
-                bytesValues = atomicFieldData.getBytesValues();
-            }
-            if (geoPointValues != null) {
-                geoPointValues = atomicFieldData.getGeoPointValues();
-            }
-        }
-
-        @Override
-        public SortedBinaryDocValues bytesValues() {
-            if (bytesValues == null) {
-                bytesValues = atomicFieldData.getBytesValues();
-            }
-            return bytesValues;
-        }
-
-        public org.elasticsearch.index.fielddata.MultiGeoPointValues geoPointValues() {
-            if (geoPointValues == null) {
-                geoPointValues = atomicFieldData.getGeoPointValues();
-            }
-            return geoPointValues;
+        public org.elasticsearch.index.fielddata.MultiGeoPointValues geoPointValues(LeafReaderContext context) {
+            return indexFieldData.load(context).getGeoPointValues();
         }
     }
 

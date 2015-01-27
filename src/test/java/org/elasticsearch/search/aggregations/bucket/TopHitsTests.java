@@ -115,6 +115,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                     .endObject()
                 .endObject()
                 .endObject().endObject().endObject()));
+        ensureGreen("idx", "empty", "articles");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 50; i++) {

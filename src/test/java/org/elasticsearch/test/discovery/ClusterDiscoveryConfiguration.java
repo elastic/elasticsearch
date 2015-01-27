@@ -19,12 +19,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+//TODO Remove this class once we move to es core 1.5.0
 public class ClusterDiscoveryConfiguration extends SettingsSource {
-
-    static {
-        //see https://github.com/elasticsearch/elasticsearch/pull/8634
-        assert Version.CURRENT.onOrBefore(Version.V_1_4_2) : "Remove this class or bump the version, the required fixes will come with es core 1.5";
-    }
 
     static Settings DEFAULT_NODE_SETTINGS = ImmutableSettings.settingsBuilder()
             .put("gateway.type", "local")

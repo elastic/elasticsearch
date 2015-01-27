@@ -26,8 +26,10 @@ public class ShieldVersion implements Serializable {
 
     public static final int V_1_0_0_ID = /*00*/1000099;
     public static final ShieldVersion V_1_0_0 = new ShieldVersion(V_1_0_0_ID, false, Version.V_1_4_2, LicenseVersion.V_1_0_0);
+    public static final int V_2_0_0_ID = /*00*/2000099;
+    public static final ShieldVersion V_2_0_0 = new ShieldVersion(V_2_0_0_ID, true, Version.V_1_4_2, LicenseVersion.V_1_0_0);
 
-    public static final ShieldVersion CURRENT = V_1_0_0;
+    public static final ShieldVersion CURRENT = V_2_0_0;
 
     public static ShieldVersion readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
@@ -35,8 +37,8 @@ public class ShieldVersion implements Serializable {
 
     public static ShieldVersion fromId(int id) {
         switch (id) {
-            case V_1_0_0_ID:
-                return V_1_0_0;
+            case V_1_0_0_ID:    return V_1_0_0;
+            case V_2_0_0_ID:    return V_2_0_0;
 
             default:
                 return new ShieldVersion(id, null, Version.CURRENT, LicenseVersion.CURRENT);

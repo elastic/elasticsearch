@@ -205,7 +205,7 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
 
         try {
             //fails: user doesn't have manage_aliases on alias_1
-            client().admin().indices().prepareAliases().addAlias("test_1", "alias_1", "test_alias")
+            client().admin().indices().prepareAliases().addAlias("test_1", "alias_1").addAlias("test_1", "test_alias")
                     .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test", new SecuredString("test123".toCharArray()))).get();
             fail("add alias should have failed due to missing manage_aliases privileges on alias_1");
         } catch(AuthorizationException e) {

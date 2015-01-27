@@ -51,6 +51,7 @@ public class LicensesClientServiceTests extends AbstractLicensesServiceTests {
 
         actions.add(registerWithoutTrialLicense(clientService, clientListener, feature));
         actions.add(generateAndPutSignedLicenseAction(masterLicensesManagerService(), feature, issueDate, TimeValue.timeValueHours(24 * 20)));
+        actions.add(assertExpiryAction(feature, "signed", TimeValue.timeValueSeconds(4)));
         assertClientListenerNotificationCount(clientListener, actions);
         assertThat(clientListener.enabled.get(), equalTo(false));
     }

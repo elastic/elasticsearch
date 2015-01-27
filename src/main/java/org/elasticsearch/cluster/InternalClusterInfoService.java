@@ -42,6 +42,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
@@ -61,6 +62,7 @@ import java.util.concurrent.TimeUnit;
 public class InternalClusterInfoService extends AbstractComponent implements ClusterInfoService, LocalNodeMasterListener, ClusterStateListener {
 
     public static final String INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL = "cluster.info.update.interval";
+    public static final String INTERNAL_CLUSTER_INFO_TIMEOUT = "cluster.info.update.timeout";
 
     private volatile TimeValue updateFrequency;
 
@@ -68,6 +70,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
     private volatile ImmutableMap<String, Long> shardSizes;
     private volatile boolean isMaster = false;
     private volatile boolean enabled;
+    private volatile TimeValue fetchTimeout;
     private final TransportNodesStatsAction transportNodesStatsAction;
     private final TransportIndicesStatsAction transportIndicesStatsAction;
     private final ClusterService clusterService;
@@ -87,6 +90,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.updateFrequency = settings.getAsTime(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, TimeValue.timeValueSeconds(30));
+        this.fetchTimeout = settings.getAsTime(INTERNAL_CLUSTER_INFO_TIMEOUT, TimeValue.timeValueSeconds(15));
         this.enabled = settings.getAsBoolean(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true);
         nodeSettingsService.addListener(new ApplySettings());
 
@@ -113,6 +117,13 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                 }
             }
 
+            TimeValue newFetchTimeout = settings.getAsTime(INTERNAL_CLUSTER_INFO_TIMEOUT, null);
+            if (newFetchTimeout != null) {
+                logger.info("updating fetch timeout [{}] from [{}] to [{}]", INTERNAL_CLUSTER_INFO_TIMEOUT, fetchTimeout, newFetchTimeout);
+                InternalClusterInfoService.this.fetchTimeout = newFetchTimeout;
+            }
+
+
             // We don't log about enabling it here, because the DiskThresholdDecider will already be logging about enable/disable
             if (newEnabled != null) {
                 InternalClusterInfoService.this.enabled = newEnabled;
@@ -131,13 +142,18 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             threadPool.schedule(updateFrequency, executorName(), new SubmitReschedulingClusterInfoUpdatedJob());
             if (clusterService.state().getNodes().getDataNodes().size() > 1) {
                 // Submit an info update job to be run immediately
-                threadPool.executor(executorName()).execute(new ClusterInfoUpdateJob(false));
+                updateOnce();
             }
         } catch (EsRejectedExecutionException ex) {
             if (logger.isDebugEnabled()) {
                 logger.debug("Couldn't schedule cluster info update task - node might be shutting down", ex);
             }
         }
+    }
+
+    // called from tests as well
+    void updateOnce() {
+        threadPool.executor(executorName()).execute(new ClusterInfoUpdateJob(false));
     }
 
     @Override
@@ -169,7 +185,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             if (logger.isDebugEnabled()) {
                 logger.debug("data node was added, retrieving new cluster info");
             }
-            threadPool.executor(executorName()).execute(new ClusterInfoUpdateJob(false));
+            updateOnce();
         }
 
         if (this.isMaster && event.nodesRemoved()) {
@@ -227,7 +243,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
         nodesStatsRequest.clear();
         nodesStatsRequest.fs(true);
-        nodesStatsRequest.timeout(TimeValue.timeValueSeconds(15));
+        nodesStatsRequest.timeout(fetchTimeout);
 
         transportNodesStatsAction.execute(nodesStatsRequest, new LatchedActionListener<>(listener, latch));
         return latch;
@@ -316,12 +332,18 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
 
                 @Override
                 public void onFailure(Throwable e) {
-                    if (e instanceof ClusterBlockException) {
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
-                        }
+                    if (e instanceof ReceiveTimeoutTransportException) {
+                        logger.error("NodeStatsAction timed out for ClusterInfoUpdateJob (reason [{}])", e.getMessage());
                     } else {
-                        logger.warn("Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
+                        if (e instanceof ClusterBlockException) {
+                            if (logger.isTraceEnabled()) {
+                                logger.trace("Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
+                            }
+                        } else {
+                            logger.warn("Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
+                        }
+                        // we empty the usages list, to be safe - we don't know what's going on.
+                        usages = ImmutableMap.of();
                     }
                 }
             });
@@ -344,24 +366,30 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
 
                 @Override
                 public void onFailure(Throwable e) {
-                    if (e instanceof ClusterBlockException) {
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob", e);
-                        }
+                    if (e instanceof ReceiveTimeoutTransportException) {
+                        logger.error("IndicesStatsAction timed out for ClusterInfoUpdateJob (reason [{}])", e.getMessage());
                     } else {
-                        logger.warn("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob", e);
+                        if (e instanceof ClusterBlockException) {
+                            if (logger.isTraceEnabled()) {
+                                logger.trace("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob", e);
+                            }
+                        } else {
+                            logger.warn("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob", e);
+                        }
+                        // we empty the usages list, to be safe - we don't know what's going on.
+                        shardSizes = ImmutableMap.of();
                     }
                 }
             });
 
             try {
-                nodeLatch.await(15, TimeUnit.SECONDS);
+                nodeLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
                 logger.warn("Failed to update node information for ClusterInfoUpdateJob within 15s timeout");
             }
 
             try {
-                indicesLatch.await(15, TimeUnit.SECONDS);
+                indicesLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
                 logger.warn("Failed to update shard information for ClusterInfoUpdateJob within 15s timeout");
             }

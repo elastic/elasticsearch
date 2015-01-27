@@ -35,9 +35,4 @@ public abstract class SingleBucketAggregator extends BucketsAggregator {
         super(name, factories, aggregationContext, parent, metaData);
     }
 
-    @Override
-    public boolean shouldCollect() {
-        return true;
-    }
-
 }

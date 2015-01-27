@@ -28,6 +28,8 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -76,38 +78,43 @@ public class HistogramAggregator extends BucketsAggregator {
     }
 
     @Override
-    public boolean shouldCollect() {
-        return valuesSource != null;
+    public boolean needsScores() {
+        return (valuesSource != null && valuesSource.needsScores()) || super.needsScores();
     }
 
     @Override
-    public void setNextReader(LeafReaderContext reader) {
-        values = valuesSource.longValues();
-    }
-
-    @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
-        values.setDocument(doc);
-        final int valuesCount = values.count();
-
-        long previousKey = Long.MIN_VALUE;
-        for (int i = 0; i < valuesCount; ++i) {
-            long value = values.valueAt(i);
-            long key = rounding.roundKey(value);
-            assert key >= previousKey;
-            if (key == previousKey) {
-                continue;
-            }
-            long bucketOrd = bucketOrds.add(key);
-            if (bucketOrd < 0) { // already seen
-                bucketOrd = -1 - bucketOrd;
-                collectExistingBucket(doc, bucketOrd);
-            } else {
-                collectBucket(doc, bucketOrd);
-            }
-            previousKey = key;
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+        if (valuesSource == null) {
+            return LeafBucketCollector.NO_OP_COLLECTOR;
         }
+        final SortedNumericDocValues values = valuesSource.longValues(ctx);
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                assert bucket == 0;
+                values.setDocument(doc);
+                final int valuesCount = values.count();
+
+                long previousKey = Long.MIN_VALUE;
+                for (int i = 0; i < valuesCount; ++i) {
+                    long value = values.valueAt(i);
+                    long key = rounding.roundKey(value);
+                    assert key >= previousKey;
+                    if (key == previousKey) {
+                        continue;
+                    }
+                    long bucketOrd = bucketOrds.add(key);
+                    if (bucketOrd < 0) { // already seen
+                        bucketOrd = -1 - bucketOrd;
+                        collectExistingBucket(sub, doc, bucketOrd);
+                    } else {
+                        collectBucket(sub, doc, bucketOrd);
+                    }
+                    previousKey = key;
+                }
+            }
+        };
     }
 
     @Override

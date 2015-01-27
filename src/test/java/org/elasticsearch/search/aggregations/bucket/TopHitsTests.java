@@ -558,7 +558,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
             // under an aggregation with collect_mode set to breadth_first as this would
             // require the buffering of scores alongside each document ID and that is a
             // a RAM cost we are not willing to pay 
-            assertThat(e.getMessage(), containsString("ElasticsearchParseException"));
+            assertThat(e.getMessage(), containsString("ElasticsearchIllegalStateException"));
         }
     }
 

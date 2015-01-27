@@ -269,7 +269,7 @@ public class LongTermsTests extends AbstractTermsTests {
             assertThat(bucket.getDocCount(), equalTo(1l));
         }
     }
-    
+
     @Test
     public void singleValueFieldWithFiltering() throws Exception {
         long includes[] = { 1, 2, 3, 98 };
@@ -300,7 +300,7 @@ public class LongTermsTests extends AbstractTermsTests {
             assertThat(bucket.getDocCount(), equalTo(1l));
         }
     }
-    
+
     @Test
     public void singleValueField_WithMaxSize() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("high_card_type")
@@ -699,7 +699,7 @@ public class LongTermsTests extends AbstractTermsTests {
 
         try {
 
-            SearchResponse response = client().prepareSearch("idx").setTypes("type")
+            client().prepareSearch("idx").setTypes("type")
                     .addAggregation(terms("terms")
                             .collectMode(randomFrom(SubAggCollectionMode.values()))
                             .script("doc['" + MULTI_VALUED_FIELD_NAME + "']")

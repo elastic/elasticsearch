@@ -22,6 +22,8 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 
 import java.io.IOException;
@@ -57,8 +59,12 @@ public class AggregationCollectorTests extends ElasticsearchSingleNodeTest {
         AggregatorParsers parser = getInstanceFromNode(AggregatorParsers.class);
         XContentParser aggParser = JsonXContent.jsonXContent.createParser(agg);
         aggParser.nextToken();
-        final AggregatorFactories factories = parser.parseAggregators(aggParser, createSearchContext(index));
-        return factories.needsScores();
+        SearchContext searchContext = createSearchContext(index);
+        final AggregatorFactories factories = parser.parseAggregators(aggParser, searchContext);
+        AggregationContext aggregationContext = new AggregationContext(searchContext);
+        final Aggregator[] aggregators = factories.createTopLevelAggregators(aggregationContext);
+        assertEquals(1, aggregators.length);
+        return aggregators[0].needsScores();
     }
 
 }

@@ -46,11 +46,8 @@ public class AggregatorFactories {
 
     private static Aggregator createAndRegisterContextAware(AggregationContext context, AggregatorFactory factory, Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
         final Aggregator aggregator = factory.create(context, parent, collectsFromSingleBucket);
-        if (aggregator.shouldCollect()) {
-            context.registerReaderContextAware(aggregator);
-        }
         // Once the aggregator is fully constructed perform any initialisation -
-        // can't do everything in constructors if Aggregator base class needs 
+        // can't do everything in constructors if Aggregator base class needs
         // to delegate to subclasses as part of construction.
         aggregator.preCollection();
         return aggregator;
@@ -97,15 +94,6 @@ public class AggregatorFactories {
         for (AggregatorFactory factory : factories) {
             factory.validate();
         }
-    }
-
-    public boolean needsScores() {
-        for (AggregatorFactory factory : factories) {
-            if (factory.needsScores()) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private final static class Empty extends AggregatorFactories {

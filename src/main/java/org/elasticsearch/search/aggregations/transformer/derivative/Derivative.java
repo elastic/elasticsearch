@@ -93,13 +93,4 @@ public interface Derivative extends MultiBucketsAggregation {
      * @return The buckets of this aggregation.
      */
     List<? extends Histogram.Bucket> getBuckets();
-
-    /**
-     * The bucket that is associated with the given key.
-     * 
-     * @param key
-     *            The key of the requested bucket.
-     * @return The bucket
-     */
-    Histogram.Bucket getBucketByKey(String key);
 }

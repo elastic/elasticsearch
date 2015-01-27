@@ -73,7 +73,7 @@ public class StoredNumericValuesTest extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .bytes());
 
-        writer.addDocument(doc.rootDoc(), doc.analyzer());
+        writer.addDocument(doc.rootDoc(), mapper.indexAnalyzer());
 
         // Indexing a doc in the old way
         FieldType fieldType = new FieldType();

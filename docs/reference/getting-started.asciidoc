@@ -18,7 +18,7 @@ For the rest of this tutorial, I will guide you through the process of getting E
 
 == Basic Concepts
 
-There are few concepts that are core to Elasticsearch. Understanding these concepts from the outset will tremendously help ease the learning process.
+There are a few concepts that are core to Elasticsearch. Understanding these concepts from the outset will tremendously help ease the learning process.
 
 [float]
 === Near Realtime (NRT)

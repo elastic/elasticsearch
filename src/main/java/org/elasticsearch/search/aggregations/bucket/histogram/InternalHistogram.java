@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -112,17 +113,12 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         }
 
         @Override
-        public String getKey() {
+        public String getKeyAsString() {
             return formatter != null ? formatter.format(key) : ValueFormatter.RAW.format(key);
         }
 
         @Override
-        public Text getKeyAsText() {
-            return new StringText(getKey());
-        }
-
-        @Override
-        public Number getKeyAsNumber() {
+        public Object getKey() {
             return key;
         }
 
@@ -159,7 +155,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                 builder.field(CommonFields.KEY_AS_STRING, keyTxt);
             } else {
                 if (keyed) {
-                    builder.startObject(String.valueOf(getKeyAsNumber()));
+                    builder.startObject(String.valueOf(getKey()));
                 } else {
                     builder.startObject();
                 }
@@ -236,8 +232,13 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             return new InternalHistogram<>(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, metaData);
         }
 
-        public B createBucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
-            return (B) new Bucket(key, docCount, keyed, formatter, aggregations);
+        public B createBucket(Object key, long docCount, InternalAggregations aggregations, boolean keyed,
+                @Nullable ValueFormatter formatter) {
+            if (key instanceof Number) {
+                return (B) new Bucket(((Number) key).longValue(), docCount, keyed, formatter, aggregations);
+            } else {
+                throw new ElasticsearchIllegalArgumentException("Bucket key is not a Number [" + key.toString() + "]");
+            }
         }
 
         public B createEmptyBucket(boolean keyed, @Nullable ValueFormatter formatter) {
@@ -291,22 +292,6 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         return buckets;
     }
 
-    @Override
-    public B getBucketByKey(String key) {
-        return getBucketByKey(Long.valueOf(key));
-    }
-
-    @Override
-    public B getBucketByKey(Number key) {
-        if (bucketsMap == null) {
-            bucketsMap = new LongObjectOpenHashMap<>(buckets.size());
-            for (B bucket : buckets) {
-                bucketsMap.put(bucket.key, bucket);
-            }
-        }
-        return bucketsMap.get(key.longValue());
-    }
-
     public Factory<B> getFactory() {
         return FACTORY;
     }
@@ -336,8 +321,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             InternalHistogram<B> histogram = (InternalHistogram) aggregation;
             if (histogram.buckets.isEmpty() == false) {
                 pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
-                }
             }
+        }
 
         List<B> reducedBuckets = new ArrayList<>();
         if (pq.size() > 0) {
@@ -356,7 +341,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                     }
                     currentBuckets.clear();
                     key = top.current.key;
-        }
+                }
 
                 currentBuckets.add(top.current);
 
@@ -374,67 +359,67 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                 final B reduced = currentBuckets.get(0).reduce(currentBuckets, reduceContext);
                 if (reduced.getDocCount() >= minDocCount) {
                     reducedBuckets.add(reduced);
+                }
             }
-        }
         }
 
         return reducedBuckets;
     }
 
     private void addEmptyBuckets(List<B> list) {
-            B lastBucket = null;
-            ExtendedBounds bounds = emptyBucketInfo.bounds;
-            ListIterator<B> iter = list.listIterator();
+        B lastBucket = null;
+        ExtendedBounds bounds = emptyBucketInfo.bounds;
+        ListIterator<B> iter = list.listIterator();
 
-            // first adding all the empty buckets *before* the actual data (based on th extended_bounds.min the user requested)
-            if (bounds != null) {
-                B firstBucket = iter.hasNext() ? list.get(iter.nextIndex()) : null;
-                if (firstBucket == null) {
-                    if (bounds.min != null && bounds.max != null) {
-                        long key = bounds.min;
-                        long max = bounds.max;
-                        while (key <= max) {
+        // first adding all the empty buckets *before* the actual data (based on th extended_bounds.min the user requested)
+        if (bounds != null) {
+            B firstBucket = iter.hasNext() ? list.get(iter.nextIndex()) : null;
+            if (firstBucket == null) {
+                if (bounds.min != null && bounds.max != null) {
+                    long key = bounds.min;
+                    long max = bounds.max;
+                    while (key <= max) {
+                        iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, keyed, formatter));
+                        key = emptyBucketInfo.rounding.nextRoundingValue(key);
+                    }
+                }
+            } else {
+                if (bounds.min != null) {
+                    long key = bounds.min;
+                    if (key < firstBucket.key) {
+                        while (key < firstBucket.key) {
                             iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, keyed, formatter));
                             key = emptyBucketInfo.rounding.nextRoundingValue(key);
                         }
                     }
-                } else {
-                    if (bounds.min != null) {
-                        long key = bounds.min;
-                        if (key < firstBucket.key) {
-                            while (key < firstBucket.key) {
-                                iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, keyed, formatter));
-                                key = emptyBucketInfo.rounding.nextRoundingValue(key);
-                            }
-                        }
-                    }
                 }
             }
+        }
 
-            // now adding the empty buckets within the actual data,
-            // e.g. if the data series is [1,2,3,7] there're 3 empty buckets that will be created for 4,5,6
-            while (iter.hasNext()) {
-                B nextBucket = list.get(iter.nextIndex());
-                if (lastBucket != null) {
-                    long key = emptyBucketInfo.rounding.nextRoundingValue(lastBucket.key);
-                    while (key < nextBucket.key) {
-                        iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, keyed, formatter));
-                        key = emptyBucketInfo.rounding.nextRoundingValue(key);
-                    }
-                    assert key == nextBucket.key;
-                }
-                lastBucket = iter.next();
-            }
-
-            // finally, adding the empty buckets *after* the actual data (based on the extended_bounds.max requested by the user)
-            if (bounds != null && lastBucket != null && bounds.max != null && bounds.max > lastBucket.key) {
+        // now adding the empty buckets within the actual data,
+        // e.g. if the data series is [1,2,3,7] there're 3 empty buckets that will be created for 4,5,6
+        while (iter.hasNext()) {
+            B nextBucket = list.get(iter.nextIndex());
+            if (lastBucket != null) {
                 long key = emptyBucketInfo.rounding.nextRoundingValue(lastBucket.key);
-                long max = bounds.max;
-                while (key <= max) {
+                while (key < nextBucket.key) {
                     iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, keyed, formatter));
                     key = emptyBucketInfo.rounding.nextRoundingValue(key);
                 }
+                assert key == nextBucket.key;
             }
+            lastBucket = iter.next();
+        }
+
+        // finally, adding the empty buckets *after* the actual data (based on the extended_bounds.max requested by the user)
+        if (bounds != null && lastBucket != null && bounds.max != null && bounds.max > lastBucket.key) {
+            long key = emptyBucketInfo.rounding.nextRoundingValue(lastBucket.key);
+            long max = bounds.max;
+            while (key <= max) {
+                iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, keyed, formatter));
+                key = emptyBucketInfo.rounding.nextRoundingValue(key);
+            }
+        }
     }
 
     @Override
@@ -444,7 +429,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         // adding empty buckets if needed
         if (minDocCount == 0) {
             addEmptyBuckets(reducedBuckets);
-            }
+        }
 
         if (order == InternalOrder.KEY_ASC) {
             // nothing to do, data are already sorted since shards return

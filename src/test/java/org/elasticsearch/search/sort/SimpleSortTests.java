@@ -47,6 +47,7 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -68,6 +69,8 @@ import static org.hamcrest.Matchers.*;
  */
 public class SimpleSortTests extends ElasticsearchIntegrationTest {
 
+    @TestLogging("action.search.type:TRACE")
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9421")
     public void testIssue8226() {
         int numIndices = between(5, 10);
         final boolean useMapping = randomBoolean();
@@ -87,6 +90,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         SearchResponse searchResponse = client().prepareSearch()
                 .addSort(new FieldSortBuilder("entry").order(SortOrder.DESC).unmappedType(useMapping ? null : "long"))
                 .setSize(10).get();
+        logClusterState();
         assertSearchResponse(searchResponse);
 
         for (int j = 1; j < searchResponse.getHits().hits().length; j++) {
@@ -99,6 +103,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         searchResponse = client().prepareSearch()
                 .addSort(new FieldSortBuilder("entry").order(SortOrder.ASC).unmappedType(useMapping ? null : "long"))
                 .setSize(10).get();
+        logClusterState();
         assertSearchResponse(searchResponse);
 
         for (int j = 1; j < searchResponse.getHits().hits().length; j++) {

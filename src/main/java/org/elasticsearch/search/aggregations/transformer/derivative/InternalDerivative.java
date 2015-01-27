@@ -95,7 +95,7 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
         InternalHistogram<B> histo = (InternalHistogram<B>) aggs.iterator().next();
         InternalHistogram.Factory<B> factory = histo.getFactory();
         List<B> histoBuckets = histo.getBuckets();
-        Long newBucketKey = null;
+        Object newBucketKey = null;
         Long lastValue = null;
         Map<String, Double> lastSingleValueMetrics = null;
         Map<String, Map<String, Double>> lastMultiValueMetrics = null;
@@ -160,7 +160,7 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
             lastValue = thisbucketDocCount;
             lastSingleValueMetrics = thisBucketSingleValueMetrics;
             lastMultiValueMetrics = thisBucketMultiValueMetrics;
-            newBucketKey = histoBucket.getKeyAsNumber().longValue();
+            newBucketKey = histoBucket.getKey();
         }
         return new InternalDerivative<>(getName(), newBuckets, histo.formatter(), histo.keyed(), gapPolicy, metaData);
     }

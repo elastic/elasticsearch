@@ -167,12 +167,14 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         Derivative deriv = response.getAggregations().get("deriv");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("deriv"));
-        assertThat(deriv.getBuckets().size(), equalTo(numFirstDerivValueBuckets));
+        List<? extends Bucket> buckets = deriv.getBuckets();
+        assertThat(buckets.size(), equalTo(numFirstDerivValueBuckets));
 
         for (int i = 0; i < numFirstDerivValueBuckets; ++i) {
-            Histogram.Bucket bucket = deriv.getBucketByKey(String.valueOf(i * interval));
+            Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
+            assertThat(bucket.getKeyAsString(), equalTo(String.valueOf(i * interval)));
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
             assertThat(bucket.getDocCount(), equalTo(0l));
             SimpleValue docCountDeriv = bucket.getAggregations().get("_doc_count");
             assertThat(docCountDeriv, notNullValue());
@@ -204,7 +206,8 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numFirstDerivValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
+            assertThat(bucket.getKeyAsString(), equalTo(String.valueOf(i * interval)));
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
             assertThat(bucket.getDocCount(), equalTo(0l));
             assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
             SimpleValue docCountDeriv = bucket.getAggregations().get("_doc_count");
@@ -224,7 +227,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
             }
             long s = s2 - s1;
             assertThat(sum.value(), equalTo((double) s));
-            assertThat((String) propertiesKeys[i], equalTo(String.valueOf((long) i * interval)));
+            assertThat((long) propertiesKeys[i], equalTo((long) i * interval));
             assertThat((long) propertiesDocCounts[i], equalTo(0l));
             assertThat((double) propertiesDocCountDerivs[i], equalTo((double) firstDerivValueCounts[i]));
             assertThat((double) propertiesCounts[i], equalTo((double) s));
@@ -242,12 +245,14 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         Derivative deriv = response.getAggregations().get("deriv");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("deriv"));
+        List<? extends Bucket> buckets = deriv.getBuckets();
         assertThat(deriv.getBuckets().size(), equalTo(numFirstDerivValuesBuckets));
 
         for (int i = 0; i < numFirstDerivValuesBuckets; ++i) {
-            Histogram.Bucket bucket = deriv.getBucketByKey(String.valueOf(i * interval));
+            Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
+            assertThat(bucket.getKeyAsString(), equalTo(String.valueOf(i * interval)));
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
             assertThat(bucket.getDocCount(), equalTo(0l));
             SimpleValue docCountDeriv = bucket.getAggregations().get("_doc_count");
             assertThat(docCountDeriv, notNullValue());
@@ -280,12 +285,14 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         Derivative deriv = response.getAggregations().get("deriv");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("deriv"));
+        List<? extends Bucket> buckets = deriv.getBuckets();
         assertThat(deriv.getBuckets().size(), equalTo(numFirstDerivValueBuckets));
 
         for (int i = 0; i < numFirstDerivValueBuckets; ++i) {
-            Histogram.Bucket bucket = deriv.getBucketByKey(String.valueOf(i * interval));
+            Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
+            assertThat(bucket.getKeyAsString(), equalTo(String.valueOf(i * interval)));
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
             assertThat(bucket.getDocCount(), equalTo(0l));
             SimpleValue docCountDeriv = bucket.getAggregations().get("_doc_count");
             assertThat(docCountDeriv, notNullValue());
@@ -312,7 +319,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         Histogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(0l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(0l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         SimpleValue docCountDeriv = bucket.getAggregations().get("_doc_count");
         assertThat(docCountDeriv, notNullValue());
@@ -320,7 +327,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(1l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(1l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("_doc_count");
         assertThat(docCountDeriv, notNullValue());
@@ -328,7 +335,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(4l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(4l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("_doc_count");
         assertThat(docCountDeriv, notNullValue());
@@ -336,7 +343,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         bucket = buckets.get(3);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(9l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(9l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("_doc_count");
         assertThat(docCountDeriv, notNullValue());
@@ -344,7 +351,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         bucket = buckets.get(4);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(10l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(10l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("_doc_count");
         assertThat(docCountDeriv, notNullValue());
@@ -371,7 +378,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         Histogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(0l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(0l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         SimpleValue docCountDeriv = bucket.getAggregations().get("_doc_count");
         assertThat(docCountDeriv, notNullValue());
@@ -379,7 +386,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(1l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(1l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("_doc_count");
         assertThat(docCountDeriv, notNullValue());
@@ -387,7 +394,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(2l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(2l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("_doc_count");
         assertThat(docCountDeriv, notNullValue());
@@ -395,7 +402,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         bucket = buckets.get(3);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(3l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(3l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("_doc_count");
         assertThat(docCountDeriv, notNullValue());
@@ -403,7 +410,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         bucket = buckets.get(4);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(4l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(4l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("_doc_count");
         assertThat(docCountDeriv, notNullValue());
@@ -411,7 +418,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         bucket = buckets.get(5);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(5l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(5l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("_doc_count");
         assertThat(docCountDeriv, notNullValue());
@@ -419,7 +426,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         bucket = buckets.get(6);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(6l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(6l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("_doc_count");
         assertThat(docCountDeriv, notNullValue());
@@ -427,7 +434,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         bucket = buckets.get(7);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(7l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(7l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("_doc_count");
         assertThat(docCountDeriv, notNullValue());
@@ -435,7 +442,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         bucket = buckets.get(8);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(8l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(8l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("_doc_count");
         assertThat(docCountDeriv, notNullValue());
@@ -443,7 +450,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         bucket = buckets.get(9);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(9l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(9l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("_doc_count");
         assertThat(docCountDeriv, notNullValue());
@@ -451,7 +458,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         bucket = buckets.get(10);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(10l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(10l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("_doc_count");
         assertThat(docCountDeriv, notNullValue());
@@ -477,7 +484,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         Histogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(0l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(0l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         SimpleValue docCountDeriv = bucket.getAggregations().get("_doc_count");
         assertThat(docCountDeriv, notNullValue());
@@ -485,7 +492,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(1l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(1l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("_doc_count");
         assertThat(docCountDeriv, notNullValue());
@@ -493,7 +500,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(2l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(2l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("_doc_count");
         assertThat(docCountDeriv, notNullValue());
@@ -501,7 +508,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         bucket = buckets.get(3);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(4l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(4l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("_doc_count");
         assertThat(docCountDeriv, notNullValue());
@@ -509,7 +516,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         bucket = buckets.get(4);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(5l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(5l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("_doc_count");
         assertThat(docCountDeriv, notNullValue());
@@ -517,7 +524,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         bucket = buckets.get(5);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(9l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(9l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("_doc_count");
         assertThat(docCountDeriv, notNullValue());
@@ -525,7 +532,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         bucket = buckets.get(6);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(10l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(10l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("_doc_count");
         assertThat(docCountDeriv, notNullValue());

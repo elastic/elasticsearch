@@ -43,6 +43,11 @@ public abstract class NodesOperationRequest<T extends NodesOperationRequest> ext
 
     }
 
+    protected NodesOperationRequest(ActionRequest request, String... nodesIds) {
+        super(request);
+        this.nodesIds = nodesIds;
+    }
+
     protected NodesOperationRequest(String... nodesIds) {
         this.nodesIds = nodesIds;
     }

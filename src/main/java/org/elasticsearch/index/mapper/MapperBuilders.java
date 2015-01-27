@@ -97,10 +97,6 @@ public final class MapperBuilders {
         return new AllFieldMapper.Builder();
     }
 
-    public static AnalyzerMapper.Builder analyzer() {
-        return new AnalyzerMapper.Builder();
-    }
-
     public static RootObjectMapper.Builder rootObject(String name) {
         return new RootObjectMapper.Builder(name);
     }

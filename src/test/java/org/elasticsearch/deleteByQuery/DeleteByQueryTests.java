@@ -19,6 +19,7 @@
 
 package org.elasticsearch.deleteByQuery;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequestBuilder;
@@ -51,6 +52,7 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl="https://github.com/elasticsearch/elasticsearch/issues/9421")
     public void testDeleteAllOneIndex() {
         String json = "{" + "\"user\":\"kimchy\"," + "\"postDate\":\"2013-01-30\"," + "\"message\":\"trying out Elastic Search\"" + "}";
         final long iters = randomIntBetween(1, 50);
@@ -191,7 +193,8 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
     }
 
     private void assertSyncShardInfo(ActionWriteResponse.ShardInfo shardInfo, NumShards numShards) {
-        assertThat(shardInfo.getTotal(), equalTo(numShards.totalNumShards));
+        assertThat(shardInfo.getTotal(), greaterThanOrEqualTo(numShards.totalNumShards));
+        // we do not ensure green so just make sure request succeeded at least on all primaries
         assertThat(shardInfo.getSuccessful(), greaterThanOrEqualTo(numShards.numPrimaries));
         assertThat(shardInfo.getPending(), equalTo(0));
         assertThat(shardInfo.getFailed(), equalTo(0));

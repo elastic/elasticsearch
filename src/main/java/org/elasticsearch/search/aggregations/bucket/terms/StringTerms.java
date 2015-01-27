@@ -19,12 +19,8 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.text.BytesText;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -92,13 +88,8 @@ public class StringTerms extends InternalTerms {
         }
 
         @Override
-        public String getKey() {
-            return termBytes.utf8ToString();
-        }
-
-        @Override
-        public Text getKeyAsText() {
-            return new BytesText(new BytesArray(termBytes));
+        public Object getKey() {
+            return getKeyAsString();
         }
 
         @Override
@@ -108,13 +99,13 @@ public class StringTerms extends InternalTerms {
         }
 
         @Override
-        int compareTerm(Terms.Bucket other) {
-            return BytesRef.getUTF8SortedAsUnicodeComparator().compare(termBytes, ((Bucket) other).termBytes);
+        public String getKeyAsString() {
+            return termBytes.utf8ToString();
         }
 
         @Override
-        Object getKeyAsObject() {
-            return getKeyAsText();
+        int compareTerm(Terms.Bucket other) {
+            return BytesRef.getUTF8SortedAsUnicodeComparator().compare(termBytes, ((Bucket) other).termBytes);
         }
 
         @Override

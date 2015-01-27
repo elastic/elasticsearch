@@ -136,6 +136,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
             .put(InternalNode.HTTP_ENABLED, true) // for _upgrade
             .build();
         loadIndex(index, settings);
+        logMemoryStats();
         assertBasicSearchWorks();
         assertRealtimeGetWorks();
         assertNewReplicasWork();
@@ -192,7 +193,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
                 .put(InternalNode.HTTP_ENABLED, true) // for _upgrade
                 .build());
         }
-        ensureGreen("test");
+        client().admin().cluster().prepareHealth("test").setWaitForNodes("" + (numReplicas + 1));
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
             .put("number_of_replicas", numReplicas)).execute().actionGet());
         // This can take a while when the number of replicas is greater than cluster.routing.allocation.node_concurrent_recoveries

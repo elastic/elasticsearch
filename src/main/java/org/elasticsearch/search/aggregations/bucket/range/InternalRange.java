@@ -23,8 +23,6 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.text.StringText;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -38,7 +36,6 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormatterStream
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -86,8 +83,8 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalMulti
 
         protected transient final boolean keyed;
         protected transient final ValueFormatter formatter;
-        private double from;
-        private double to;
+        protected double from;
+        protected double to;
         private long docCount;
         InternalAggregations aggregations;
         private String key;
@@ -107,21 +104,20 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalMulti
         }
 
         public String getKey() {
+            return getKeyAsString();
+        }
+
+        public String getKeyAsString() {
             return key;
         }
 
         @Override
-        public Text getKeyAsText() {
-            return new StringText(getKey());
-        }
-
-        @Override
-        public Number getFrom() {
+        public Object getFrom() {
             return from;
         }
 
         @Override
-        public Number getTo() {
+        public Object getTo() {
             return to;
         }
 
@@ -255,17 +251,6 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalMulti
     @Override
     public List<B> getBuckets() {
         return ranges;
-    }
-
-    @Override
-    public B getBucketByKey(String key) {
-        if (rangeMap == null) {
-            rangeMap = new HashMap<>(ranges.size());
-            for (Range.Bucket bucket : ranges) {
-                rangeMap.put(bucket.getKey(), (B) bucket);
-            }
-        }
-        return rangeMap.get(key);
     }
 
     protected Factory<B, ?> getFactory() {

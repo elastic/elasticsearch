@@ -85,6 +85,9 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
                 childDocs = childDocIdSet.iterator();
             }
             rootDocs = context.searchContext().fixedBitSetFilterCache().getFixedBitSetFilter(NonNestedDocsFilter.INSTANCE).getDocIdSet(reader, null);
+            // We need to reset the current root doc, otherwise we may emit incorrect child docs if the next segment happen to start with the same root doc id value
+            currentRootDoc = -1;
+            childDocIdBuffers.clear();
         } catch (IOException ioe) {
             throw new AggregationExecutionException("Failed to aggregate [" + name + "]", ioe);
         }

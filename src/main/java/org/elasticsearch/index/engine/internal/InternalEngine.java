@@ -1685,7 +1685,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             assert onGoingRecoveries.get() >= 0 : "ongoingRecoveries must be >= 0 but was: " + onGoingRecoveries.get();
             if (left == 0) {
                 try {
-                    logger.info("flushing post replication");
+                    logger.info("flushing post recovery");
                     flush(new Engine.Flush());
                 } catch (IllegalIndexShardStateException e) {
                     // we are being closed, or in created state, ignore

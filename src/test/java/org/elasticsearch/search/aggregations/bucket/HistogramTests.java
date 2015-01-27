@@ -585,11 +585,12 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         List<? extends Bucket> buckets = histo.getBuckets();
         assertThat(buckets.size(), equalTo(numBuckets));
 
-        for (int i = 2 / interval; i <= (numDocs + 1) / interval; ++i) {
+        for (int i = 0; i < numBuckets; i++) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
-            assertThat(bucket.getDocCount(), equalTo(counts[i]));
+            int key = ((2 / interval) + i) * interval;
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) key));
+            assertThat(bucket.getDocCount(), equalTo(counts[key / interval]));
         }
     }
 
@@ -665,11 +666,12 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         List<? extends Bucket> buckets = histo.getBuckets();
         assertThat(buckets.size(), equalTo(numBuckets));
 
-        for (int i = 2 / interval; i <= (numDocs + 2) / interval; ++i) {
+        for (int i = 0; i < numBuckets; i++) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
-            assertThat(bucket.getDocCount(), equalTo(counts[i]));
+            int key = ((2 / interval) + i) * interval;
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) key));
+            assertThat(bucket.getDocCount(), equalTo(counts[key / interval]));
         }
     }
 
@@ -701,16 +703,17 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         List<? extends Bucket> buckets = histo.getBuckets();
         assertThat(buckets.size(), equalTo(numBuckets));
 
-        for (int i = 2 / interval; i < (numDocs + 2) / interval; ++i) {
+        for (int i = 0; i < numBuckets; i++) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
-            assertThat(bucket.getDocCount(), equalTo(counts[i]));
+            int key = ((2 / interval) + i) * interval;
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) key));
+            assertThat(bucket.getDocCount(), equalTo(counts[key / interval]));
             Terms terms = bucket.getAggregations().get(MULTI_VALUED_FIELD_NAME);
             assertThat(terms, notNullValue());
             assertThat(terms.getName(), equalTo(MULTI_VALUED_FIELD_NAME));
-            int minTerm = Math.max(2, i * interval - 1);
-            int maxTerm = Math.min(numDocs + 2, (i + 1) * interval);
+            int minTerm = Math.max(2, key - 1);
+            int maxTerm = Math.min(numDocs + 2, (key / interval + 1) * interval);
             assertThat(terms.getBuckets().size(), equalTo(maxTerm - minTerm + 1));
             Iterator<Terms.Bucket> iter = terms.getBuckets().iterator();
             for (int j = minTerm; j <= maxTerm; ++j) {

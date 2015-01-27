@@ -27,13 +27,18 @@ import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 
 public class ScriptedMetricAggregator extends MetricsAggregator {
@@ -47,8 +52,8 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
     private final Map<String, Object> params;
     // initial parameters for {reduce}
     private final Map<String, Object> reduceParams;
-    private ScriptService scriptService;
-    private ScriptType reduceScriptType;
+    private final ScriptService scriptService;
+    private final ScriptType reduceScriptType;
 
     protected ScriptedMetricAggregator(String name, String scriptLang, ScriptType initScriptType, String initScript,
             ScriptType mapScriptType, String mapScript, ScriptType combineScriptType, String combineScript, ScriptType reduceScriptType,
@@ -81,20 +86,17 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
     }
 
     @Override
-    public boolean shouldCollect() {
-        return true;
-    }
-
-    @Override
-    public void setNextReader(LeafReaderContext reader) throws IOException {
-        mapScript.setNextReader(reader);
-    }
-
-    @Override
-    public void collect(int docId, long bucketOrdinal) throws IOException {
-        assert bucketOrdinal == 0 : bucketOrdinal;
-        mapScript.setNextDocId(docId);
-        mapScript.run();
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+        mapScript.setNextReader(ctx);
+        return new LeafBucketCollectorBase(sub, mapScript) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                assert bucket == 0 : bucket;
+                mapScript.setNextDocId(doc);
+                mapScript.run();
+            }
+        };
     }
 
     @Override

@@ -20,13 +20,25 @@
 package org.elasticsearch.search.aggregations.metrics.tophits;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.*;
-import org.elasticsearch.ExceptionsHelper;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopDocsCollector;
+import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopScoreDocCollector;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.AggregationInitializationException;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -40,7 +52,7 @@ import java.util.Map;
 
 /**
  */
-public class TopHitsAggregator extends MetricsAggregator implements ScorerAware {
+public class TopHitsAggregator extends MetricsAggregator {
 
     /** Simple wrapper around a top-level collector and the current leaf collector. */
     private static class TopDocsAndLeafCollector {
@@ -52,24 +64,53 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
         }
     }
 
-    private final FetchPhase fetchPhase;
-    private final SubSearchContext subSearchContext;
-    private final LongObjectPagedHashMap<TopDocsAndLeafCollector> topDocsCollectors;
-
-    private Scorer currentScorer;
-    private LeafReaderContext currentContext;
+    final FetchPhase fetchPhase;
+    final SubSearchContext subSearchContext;
+    final LongObjectPagedHashMap<TopDocsAndLeafCollector> topDocsCollectors;
 
     public TopHitsAggregator(FetchPhase fetchPhase, SubSearchContext subSearchContext, String name, AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, metaData);
         this.fetchPhase = fetchPhase;
         topDocsCollectors = new LongObjectPagedHashMap<>(1, context.bigArrays());
         this.subSearchContext = subSearchContext;
-        context.registerScorerAware(this);
     }
 
     @Override
-    public boolean shouldCollect() {
-        return true;
+    public LeafBucketCollector getLeafCollector(final LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+
+        for (LongObjectPagedHashMap.Cursor<TopDocsAndLeafCollector> cursor : topDocsCollectors) {
+            cursor.value.leafCollector = cursor.value.topLevelCollector.getLeafCollector(ctx);
+        }
+
+        return new LeafBucketCollectorBase(sub, null) {
+
+            Scorer scorer;
+
+            @Override
+            public void setScorer(Scorer scorer) throws IOException {
+                this.scorer = scorer;
+                for (LongObjectPagedHashMap.Cursor<TopDocsAndLeafCollector> cursor : topDocsCollectors) {
+                    cursor.value.leafCollector.setScorer(scorer);
+                }
+                super.setScorer(scorer);
+            }
+
+            @Override
+            public void collect(int docId, long bucket) throws IOException {
+                TopDocsAndLeafCollector collectors = topDocsCollectors.get(bucket);
+                if (collectors == null) {
+                    Sort sort = subSearchContext.sort();
+                    int topN = subSearchContext.from() + subSearchContext.size();
+                    TopDocsCollector<?> topLevelCollector = sort != null ? TopFieldCollector.create(sort, topN, true, subSearchContext.trackScores(), subSearchContext.trackScores()) : TopScoreDocCollector.create(topN);
+                    collectors = new TopDocsAndLeafCollector(topLevelCollector);
+                    collectors.leafCollector = collectors.topLevelCollector.getLeafCollector(ctx);
+                    collectors.leafCollector.setScorer(scorer);
+                    topDocsCollectors.put(bucket, collectors);
+                }
+                collectors.leafCollector.collect(docId);
+            }
+        };
     }
 
     @Override
@@ -109,45 +150,6 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), Lucene.EMPTY_TOP_DOCS, InternalSearchHits.empty());
-    }
-
-    @Override
-    public void collect(int docId, long bucketOrdinal) throws IOException {
-        TopDocsAndLeafCollector collectors = topDocsCollectors.get(bucketOrdinal);
-        if (collectors == null) {
-            Sort sort = subSearchContext.sort();
-            int topN = subSearchContext.from() + subSearchContext.size();
-            TopDocsCollector<?> topLevelCollector = sort != null ? TopFieldCollector.create(sort, topN, true, subSearchContext.trackScores(), subSearchContext.trackScores()) : TopScoreDocCollector.create(topN);
-            collectors = new TopDocsAndLeafCollector(topLevelCollector);
-            collectors.leafCollector = collectors.topLevelCollector.getLeafCollector(currentContext);
-            collectors.leafCollector.setScorer(currentScorer);
-            topDocsCollectors.put(bucketOrdinal, collectors);
-        }
-        collectors.leafCollector.collect(docId);
-    }
-
-    @Override
-    public void setNextReader(LeafReaderContext context) {
-        this.currentContext = context;
-        for (LongObjectPagedHashMap.Cursor<TopDocsAndLeafCollector> cursor : topDocsCollectors) {
-            try {
-                cursor.value.leafCollector = cursor.value.topLevelCollector.getLeafCollector(currentContext);
-            } catch (IOException e) {
-                throw ExceptionsHelper.convertToElastic(e);
-            }
-        }
-    }
-
-    @Override
-    public void setScorer(Scorer scorer) {
-        this.currentScorer = scorer;
-        for (LongObjectPagedHashMap.Cursor<TopDocsAndLeafCollector> cursor : topDocsCollectors) {
-            try {
-                cursor.value.leafCollector.setScorer(scorer);
-            } catch (IOException e) {
-                throw ExceptionsHelper.convertToElastic(e);
-            }
-        }
     }
 
     @Override

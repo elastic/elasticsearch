@@ -19,17 +19,20 @@
 
 package org.elasticsearch.search.aggregations;
 
+
 import com.google.common.collect.Iterables;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.lucene.ReaderContextAware;
+import org.elasticsearch.common.lucene.search.XCollector;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A Collector that can collect data in separate buckets.
  */
-public abstract class BucketCollector implements ReaderContextAware {
+public abstract class BucketCollector implements XCollector {
     
     /**
      * Used to gather a summary from a bucket
@@ -45,22 +48,14 @@ public abstract class BucketCollector implements ReaderContextAware {
     public final static BucketCollector NO_OP_COLLECTOR = new BucketCollector() {
 
         @Override
-        public void collect(int docId, long bucketOrdinal) throws IOException {
-            // no-op
-        }
-        @Override
-        public void setNextReader(LeafReaderContext reader) {
-            // no-op
+        public LeafBucketCollector getLeafCollector(LeafReaderContext reader) {
+            return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         public void preCollection() throws IOException {
             // no-op
         }
         @Override
         public void postCollection() throws IOException {
-            // no-op
-        }
-        @Override
-        public void gatherAnalysis(BucketAnalysisCollector analysisCollector, long bucketOrdinal) {
             // no-op
         }
     };
@@ -79,17 +74,12 @@ public abstract class BucketCollector implements ReaderContextAware {
                 return new BucketCollector() {
 
                     @Override
-                    public void collect(int docId, long bucketOrdinal) throws IOException {
-                        for (BucketCollector collector : collectors) {
-                            collector.collect(docId, bucketOrdinal);
+                    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+                        List<LeafBucketCollector> leafCollectors = new ArrayList<>();
+                        for (BucketCollector c : collectors) {
+                            leafCollectors.add(c.getLeafCollector(ctx));
                         }
-                    }
-
-                    @Override
-                    public void setNextReader(LeafReaderContext reader) throws IOException {
-                        for (BucketCollector collector : collectors) {
-                            collector.setNextReader(reader);
-                        }
+                        return LeafBucketCollector.wrap(leafCollectors);
                     }
 
                     @Override
@@ -106,44 +96,19 @@ public abstract class BucketCollector implements ReaderContextAware {
                         }
                     }
 
-                    @Override
-                    public void gatherAnalysis(BucketAnalysisCollector results, long bucketOrdinal) throws IOException {
-                        for (BucketCollector collector : collectors) {
-                            collector.gatherAnalysis(results, bucketOrdinal);
-                        }
-                    }
-
                 };
         }
     }
 
-    /**
-     * Called during the query phase, to collect & aggregate the given document.
-     *
-     * @param doc                   The document to be collected/aggregated
-     * @param bucketOrdinal         The ordinal of the bucket this aggregator belongs to, assuming this aggregator is not a top level aggregator.
-     *                              Typically, aggregators with {@code #bucketAggregationMode} set to {@link BucketAggregationMode#MULTI_BUCKETS}
-     *                              will heavily depend on this ordinal. Other aggregators may or may not use it and can see this ordinal as just
-     *                              an extra information for the aggregation context. For top level aggregators, the ordinal will always be
-     *                              equal to 0.
-     * @throws IOException
-     */
-    public abstract void collect(int docId, long bucketOrdinal) throws IOException;
+    @Override
+    public abstract LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException;
 
     /**
      * Pre collection callback.
      */
     public abstract void preCollection() throws IOException;
 
-    /**
-     * Post collection callback.
-     */
+    @Override
     public abstract void postCollection() throws IOException;
 
-    /**
-     * Called post-collection to gather the results from surviving buckets.
-     * @param analysisCollector
-     * @param bucketOrdinal
-     */
-    public abstract void gatherAnalysis(BucketAnalysisCollector analysisCollector, long bucketOrdinal) throws IOException;
 }

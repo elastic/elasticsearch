@@ -24,8 +24,31 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.index.*;
-import org.apache.lucene.search.*;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.ComplexExplanation;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SimpleCollector;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TimeLimitingCollector;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -34,6 +57,7 @@ import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -573,5 +597,38 @@ public class Lucene {
             }
             return defaultValue;
         }
+    }
+
+    /**
+     * Return a Scorer that throws an ElasticsearchIllegalStateException
+     * on all operations with the given message.
+     */
+    public static Scorer illegalScorer(final String message) {
+        return new Scorer(null) {
+            @Override
+            public float score() throws IOException {
+                throw new ElasticsearchIllegalStateException(message);
+            }
+            @Override
+            public int freq() throws IOException {
+                throw new ElasticsearchIllegalStateException(message);
+            }
+            @Override
+            public int advance(int arg0) throws IOException {
+                throw new ElasticsearchIllegalStateException(message);
+            }
+            @Override
+            public long cost() {
+                throw new ElasticsearchIllegalStateException(message);
+            }
+            @Override
+            public int docID() {
+                throw new ElasticsearchIllegalStateException(message);
+            }
+            @Override
+            public int nextDoc() throws IOException {
+                throw new ElasticsearchIllegalStateException(message);
+            }
+        };
     }
 }

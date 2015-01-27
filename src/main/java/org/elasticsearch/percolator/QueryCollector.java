@@ -19,20 +19,27 @@
 package org.elasticsearch.percolator;
 
 import com.carrotsearch.hppc.FloatArrayList;
-import com.google.common.collect.ImmutableList;
+
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SimpleCollector;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.XCollector;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
-import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.highlight.HighlightField;
@@ -59,9 +66,8 @@ abstract class QueryCollector extends SimpleCollector {
 
     SortedBinaryDocValues values;
 
-    final List<Collector> aggregatorCollector;
-
-    List<LeafCollector> aggregatorLeafCollectors;
+    final XCollector aggregatorCollector;
+    LeafCollector aggregatorLeafCollector;
 
     QueryCollector(ESLogger logger, PercolateContext context, boolean isNestedDoc) throws IOException {
         this.logger = logger;
@@ -71,53 +77,38 @@ abstract class QueryCollector extends SimpleCollector {
         this.idFieldData = context.fieldData().getForField(idMapper);
         this.isNestedDoc = isNestedDoc;
 
-        ImmutableList.Builder<Collector> aggCollectorBuilder = ImmutableList.builder();
+        List<Aggregator> aggregatorCollectors = new ArrayList<>();
 
         if (context.aggregations() != null) {
             AggregationContext aggregationContext = new AggregationContext(context);
             context.aggregations().aggregationContext(aggregationContext);
 
-            List<Aggregator> aggregatorCollectors = new ArrayList<>();
             Aggregator[] aggregators = context.aggregations().factories().createTopLevelAggregators(aggregationContext);
             for (int i = 0; i < aggregators.length; i++) {
                 if (!(aggregators[i] instanceof GlobalAggregator)) {
                     Aggregator aggregator = aggregators[i];
-                    if (aggregator.shouldCollect()) {
-                        aggregatorCollectors.add(aggregator);
-                    }
+                    aggregatorCollectors.add(aggregator);
                 }
             }
             context.aggregations().aggregators(aggregators);
-            if (!aggregatorCollectors.isEmpty()) {
-                aggCollectorBuilder.add(new AggregationPhase.AggregationsCollector(aggregatorCollectors, aggregationContext));
-            }
-            aggregationContext.setNextReader(context.searcher().getIndexReader().getContext());
         }
-        aggregatorCollector = aggCollectorBuilder.build();
-        aggregatorLeafCollectors = new ArrayList<>(aggregatorCollector.size());
+        aggregatorCollector = BucketCollector.wrap(aggregatorCollectors);
     }
 
     public void postMatch(int doc) throws IOException {
-        for (LeafCollector collector : aggregatorLeafCollectors) {
-            collector.collect(doc);
-        }
+        aggregatorLeafCollector.collect(doc);
     }
 
     @Override
     public void setScorer(Scorer scorer) throws IOException {
-        for (LeafCollector collector : aggregatorLeafCollectors) {
-            collector.setScorer(scorer);
-        }
+        aggregatorLeafCollector.setScorer(scorer);
     }
 
     @Override
     public void doSetNextReader(LeafReaderContext context) throws IOException {
         // we use the UID because id might not be indexed
         values = idFieldData.load(context).getBytesValues();
-        aggregatorLeafCollectors.clear();
-        for (Collector collector : aggregatorCollector) {
-            aggregatorLeafCollectors.add(collector.getLeafCollector(context));
-        }
+        aggregatorLeafCollector = aggregatorCollector.getLeafCollector(context);
     }
 
     static Match match(ESLogger logger, PercolateContext context, HighlightPhase highlightPhase, boolean isNestedDoc) throws IOException {

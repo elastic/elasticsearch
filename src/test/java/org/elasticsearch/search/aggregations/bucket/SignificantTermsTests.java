@@ -38,6 +38,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
@@ -193,13 +194,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         for (Bucket topTerm : topTerms) {
             terms.add(topTerm.getKeyAsString());
         }
-        assertThat(terms, hasSize(6));
-        assertThat(terms.contains("jam"), is(true));
-        assertThat(terms.contains("council"), is(true));
-        assertThat(terms.contains("style"), is(true));
-        assertThat(terms.contains("paul"), is(true));
-        assertThat(terms.contains("of"), is(true));
-        assertThat(terms.contains("the"), is(true));
+        assertEquals(new HashSet<String>(Arrays.asList("jam", "council", "style", "paul", "of", "the")), terms);
 
         response = client().prepareSearch("test")
                 .setQuery(new TermQueryBuilder("_all", "weller"))

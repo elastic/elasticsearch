@@ -772,11 +772,7 @@ public class PercolatorService extends AbstractComponent {
         percolatorTypeFilter = context.indexService().cache().filter().cache(percolatorTypeFilter, null, context.indexService().queryParserService().autoFilterCachePolicy());
         FilteredQuery query = new FilteredQuery(context.percolateQuery(), percolatorTypeFilter);
         percolatorSearcher.searcher().search(query, percolateCollector);
-        for (Collector queryCollector : percolateCollector.aggregatorCollector) {
-            if (queryCollector instanceof XCollector) {
-                ((XCollector) queryCollector).postCollection();
-            }
-        }
+        percolateCollector.aggregatorCollector.postCollection();
         if (context.aggregations() != null) {
             aggregationPhase.execute(context);
         }

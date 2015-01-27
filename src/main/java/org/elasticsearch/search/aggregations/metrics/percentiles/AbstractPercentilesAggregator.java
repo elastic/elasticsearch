@@ -23,9 +23,12 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -43,11 +46,10 @@ public abstract class AbstractPercentilesAggregator extends NumericMetricsAggreg
 
     protected final double[] keys;
     protected final ValuesSource.Numeric valuesSource;
-    private SortedNumericDoubleValues values;
+    protected final ValueFormatter formatter;
     protected ObjectArray<TDigestState> states;
     protected final double compression;
     protected final boolean keyed;
-    protected ValueFormatter formatter;
 
     public AbstractPercentilesAggregator(String name, ValuesSource.Numeric valuesSource, AggregationContext context,
                                  Aggregator parent, double[] keys, double compression, boolean keyed,
@@ -56,36 +58,37 @@ public abstract class AbstractPercentilesAggregator extends NumericMetricsAggreg
         this.valuesSource = valuesSource;
         this.keyed = keyed;
         this.formatter = formatter;
-        this.states = bigArrays.newObjectArray(1);
+        this.states = context.bigArrays().newObjectArray(1);
         this.keys = keys;
         this.compression = compression;
     }
 
     @Override
-    public boolean shouldCollect() {
-        return valuesSource != null;
-    }
-
-    @Override
-    public void setNextReader(LeafReaderContext reader) {
-        values = valuesSource.doubleValues();
-    }
-
-    @Override
-    public void collect(int doc, long bucketOrd) throws IOException {
-        states = bigArrays.grow(states, bucketOrd + 1);
-    
-        TDigestState state = states.get(bucketOrd);
-        if (state == null) {
-            state = new TDigestState(compression);
-            states.set(bucketOrd, state);
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+        if (valuesSource == null) {
+            return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-    
-        values.setDocument(doc);
-        final int valueCount = values.count();
-        for (int i = 0; i < valueCount; i++) {
-            state.add(values.valueAt(i));
-        }
+        final BigArrays bigArrays = context.bigArrays();
+        final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                states = bigArrays.grow(states, bucket + 1);
+
+                TDigestState state = states.get(bucket);
+                if (state == null) {
+                    state = new TDigestState(compression);
+                    states.set(bucket, state);
+                }
+
+                values.setDocument(doc);
+                final int valueCount = values.count();
+                for (int i = 0; i < valueCount; i++) {
+                    state.add(values.valueAt(i));
+                }
+            }
+        };
     }
 
     @Override

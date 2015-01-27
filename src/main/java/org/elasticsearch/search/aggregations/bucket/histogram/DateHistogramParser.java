@@ -19,9 +19,9 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.rounding.TimeZoneRounding;
@@ -199,7 +199,8 @@ public class DateHistogramParser implements Aggregator.Parser {
                 .preOffset(preOffset).postOffset(postOffset)
                 .build();
 
-        return new HistogramAggregator.Factory(aggregationName, vsParser.config(), rounding, order, keyed, minDocCount, extendedBounds, InternalDateHistogram.FACTORY);
+        return new HistogramAggregator.Factory(aggregationName, vsParser.config(), rounding, order, keyed, minDocCount, extendedBounds,
+                new InternalDateHistogram.Factory());
 
     }
 

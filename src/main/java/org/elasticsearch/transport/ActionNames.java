@@ -158,6 +158,17 @@ final class ActionNames {
                 return post_1_4_action;
             }
         }
+        if (version.onOrAfter(Version.V_1_4_0_Beta1) && version.before(Version.V_1_5_0)) {
+            //when we renamed the transport actions in #7105, shard started and failed were flipped around
+            //this didn't cause any actual problem as it was done in a backwards compatible manner.
+            //That said the action names were wrong and we have to fix it still maintaining backwards compatibility
+            if (action.equals(ShardStateAction.SHARD_FAILED_ACTION_NAME)) {
+                return ShardStateAction.SHARD_STARTED_ACTION_NAME;
+            }
+            if (action.equals(ShardStateAction.SHARD_STARTED_ACTION_NAME)) {
+                return ShardStateAction.SHARD_FAILED_ACTION_NAME;
+            }
+        }
         return action;
     }
 
@@ -171,6 +182,17 @@ final class ActionNames {
             //custom actions e.g. registered through plugins are not mapped, fallback to the original one
             if (pre_1_4_Action != null) {
                 return pre_1_4_Action;
+            }
+        }
+        if (version.onOrAfter(Version.V_1_4_0_Beta1) && version.before(Version.V_1_5_0)) {
+            //when we renamed the transport actions in #7105, shard started and failed were flipped around
+            //this didn't cause any actual problem as it was done in a backwards compatible manner.
+            //That said the action names were wrong and we have to fix it still maintaining backwards compatibility
+            if (action.equals(ShardStateAction.SHARD_FAILED_ACTION_NAME)) {
+                return ShardStateAction.SHARD_STARTED_ACTION_NAME;
+            }
+            if (action.equals(ShardStateAction.SHARD_STARTED_ACTION_NAME)) {
+                return ShardStateAction.SHARD_FAILED_ACTION_NAME;
             }
         }
         return action;

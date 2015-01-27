@@ -136,7 +136,9 @@ allocated.
 
 When executing a search, or doing a get, the node receiving the request
 will prefer to execute the request on shards that exists on nodes that
-have the same attribute values as the executing node.
+have the same attribute values as the executing node. This only happens
+when the `cluster.routing.allocation.awareness.attributes` setting has
+been set to a value.
 
 [float]
 ==== Realtime Settings Update

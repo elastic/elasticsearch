@@ -43,8 +43,6 @@ import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -108,9 +106,7 @@ public class ClusterInfoServiceTests extends ElasticsearchIntegrationTest {
         }
 
         public void blockActions(String... actions) {
-            HashSet<String> newSet = new HashSet<>(blockedActions);
-            newSet.addAll(Arrays.asList(actions));
-            blockedActions = ImmutableSet.copyOf(newSet);
+            blockedActions = ImmutableSet.copyOf(actions);
         }
     }
 

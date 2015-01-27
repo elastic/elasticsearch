@@ -608,7 +608,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public MapperService.SmartNameObjectMapper smartNameObjectMapper(String name) {
-        return null;
+        return mapperService().smartNameObjectMapper(name, types);
     }
 
     @Override

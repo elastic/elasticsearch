@@ -18,14 +18,11 @@
  */
 package org.elasticsearch.watcher;
 
-import com.google.common.collect.Iterators;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -38,6 +35,7 @@ import java.util.Arrays;
 public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
 
     private FileObserver rootFileObserver;
+    private Path file;
 
     private static final ESLogger logger = Loggers.getLogger(FileWatcher.class);
 
@@ -45,7 +43,20 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
      * Creates new file watcher on the given directory
      */
     public FileWatcher(Path file) {
+        this.file = file;
         rootFileObserver = new FileObserver(file);
+    }
+
+    /**
+     * Clears any state with the FileWatcher, making all files show up as new
+     */
+    public void clearState() {
+        rootFileObserver = new FileObserver(file);
+        try {
+            rootFileObserver.init(false);
+        } catch (IOException e) {
+            // ignore IOException
+        }
     }
 
     @Override

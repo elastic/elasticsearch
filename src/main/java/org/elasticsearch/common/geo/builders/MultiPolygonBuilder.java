@@ -24,10 +24,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.spatial4j.core.shape.ShapeCollection;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import com.spatial4j.core.shape.Shape;
+import com.vividsolutions.jts.geom.Coordinate;
 
 public class MultiPolygonBuilder extends ShapeBuilder {
 
@@ -84,7 +84,7 @@ public class MultiPolygonBuilder extends ShapeBuilder {
         
         if(wrapdateline) {
             for (BasePolygonBuilder<?> polygon : this.polygons) {
-                for(GeoPoint[][] part : polygon.coordinates()) {
+                for(Coordinate[][] part : polygon.coordinates()) {
                     shapes.add(jtsGeometry(PolygonBuilder.polygon(FACTORY, part)));
                 }
             }

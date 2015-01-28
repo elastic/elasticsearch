@@ -23,11 +23,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeoUtils;
+import com.spatial4j.core.shape.ShapeCollection;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import com.spatial4j.core.shape.Shape;
+import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.LineString;
@@ -35,10 +35,10 @@ import com.vividsolutions.jts.geom.LineString;
 public abstract class BaseLineStringBuilder<E extends BaseLineStringBuilder<E>> extends PointCollection<E> {
 
     protected BaseLineStringBuilder() {
-        this(new ArrayList<GeoPoint>());
+        this(new ArrayList<Coordinate>());
     }
 
-    protected BaseLineStringBuilder(ArrayList<GeoPoint> points) {
+    protected BaseLineStringBuilder(ArrayList<Coordinate> points) {
         super(points);
     }
 
@@ -49,7 +49,7 @@ public abstract class BaseLineStringBuilder<E extends BaseLineStringBuilder<E>> 
 
     @Override
     public Shape build() {
-        GeoPoint[] coordinates = points.toArray(new GeoPoint[points.size()]);
+        Coordinate[] coordinates = points.toArray(new Coordinate[points.size()]);
         Geometry geometry;
         if(wrapdateline) {
             ArrayList<LineString> strings = decompose(FACTORY, coordinates, new ArrayList<LineString>());
@@ -67,9 +67,9 @@ public abstract class BaseLineStringBuilder<E extends BaseLineStringBuilder<E>> 
         return jtsGeometry(geometry);
     }
 
-    protected static ArrayList<LineString> decompose(GeometryFactory factory, GeoPoint[] coordinates, ArrayList<LineString> strings) {
-        for(GeoPoint[] part : decompose(+DATELINE, coordinates)) {
-            for(GeoPoint[] line : decompose(-DATELINE, part)) {
+    protected static ArrayList<LineString> decompose(GeometryFactory factory, Coordinate[] coordinates, ArrayList<LineString> strings) {
+        for(Coordinate[] part : decompose(+DATELINE, coordinates)) {
+            for(Coordinate[] line : decompose(-DATELINE, part)) {
                 strings.add(factory.createLineString(line));
             }
         }
@@ -83,16 +83,16 @@ public abstract class BaseLineStringBuilder<E extends BaseLineStringBuilder<E>> 
      * @param coordinates coordinates forming the linestring
      * @return array of linestrings given as coordinate arrays 
      */
-    protected static GeoPoint[][] decompose(double dateline, GeoPoint[] coordinates) {
+    protected static Coordinate[][] decompose(double dateline, Coordinate[] coordinates) {
         int offset = 0;
-        ArrayList<GeoPoint[]> parts = new ArrayList<>();
+        ArrayList<Coordinate[]> parts = new ArrayList<>();
         
         double shift = coordinates[0].x > DATELINE ? DATELINE : (coordinates[0].x < -DATELINE ? -DATELINE : 0);
 
         for (int i = 1; i < coordinates.length; i++) {
             double t = intersection(coordinates[i-1], coordinates[i], dateline);
             if(!Double.isNaN(t)) {
-                GeoPoint[] part;
+                Coordinate[] part;
                 if(t<1) {
                     part = Arrays.copyOfRange(coordinates, offset, i+1);
                     part[part.length-1] = Edge.position(coordinates[i-1], coordinates[i], t);
@@ -111,16 +111,16 @@ public abstract class BaseLineStringBuilder<E extends BaseLineStringBuilder<E>> 
         if(offset == 0) {
             parts.add(shift(shift, coordinates));
         } else if(offset < coordinates.length-1) {
-            GeoPoint[] part = Arrays.copyOfRange(coordinates, offset, coordinates.length);
+            Coordinate[] part = Arrays.copyOfRange(coordinates, offset, coordinates.length);
             parts.add(shift(shift, part));
         }
-        return parts.toArray(new GeoPoint[parts.size()][]);
+        return parts.toArray(new Coordinate[parts.size()][]);
     }
 
-    private static GeoPoint[] shift(double shift, GeoPoint...coordinates) {
+    private static Coordinate[] shift(double shift, Coordinate...coordinates) {
         if(shift != 0) {
             for (int j = 0; j < coordinates.length; j++) {
-                coordinates[j] = new GeoPoint(coordinates[j].y, coordinates[j].x - 2 * shift);
+                coordinates[j] = new Coordinate(coordinates[j].x - 2 * shift, coordinates[j].y);
             }
         }
         return coordinates;

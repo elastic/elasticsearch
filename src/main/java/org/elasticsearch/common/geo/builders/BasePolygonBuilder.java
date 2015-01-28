@@ -20,14 +20,8 @@
 package org.elasticsearch.common.geo.builders;
 
 import com.spatial4j.core.shape.Shape;
-import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.geom.GeometryFactory;
-import com.vividsolutions.jts.geom.LinearRing;
-import com.vividsolutions.jts.geom.MultiPolygon;
-import com.vividsolutions.jts.geom.Polygon;
+import com.vividsolutions.jts.geom.*;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -73,7 +67,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
      * @param coordinate coordinate of the new point
      * @return this
      */
-    public E point(GeoPoint coordinate) {
+    public E point(Coordinate coordinate) {
         shell.point(coordinate);
         return thisRef();
     }
@@ -83,7 +77,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
      * @param coordinates coordinates of the new points to add
      * @return this
      */
-    public E points(GeoPoint...coordinates) {
+    public E points(Coordinate...coordinates) {
         shell.points(coordinates);
         return thisRef();
     }
@@ -127,7 +121,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
      * 
      * @return coordinates of the polygon
      */
-    public GeoPoint[][][] coordinates() {
+    public Coordinate[][][] coordinates() {
         int numEdges = shell.points.size()-1; // Last point is repeated 
         for (int i = 0; i < holes.size(); i++) {
             numEdges += holes.get(i).points.size()-1;
@@ -176,7 +170,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
     
     public Geometry buildGeometry(GeometryFactory factory, boolean fixDateline) {
         if(fixDateline) {
-            GeoPoint[][][] polygons = coordinates();
+            Coordinate[][][] polygons = coordinates();
             return polygons.length == 1
                     ? polygon(factory, polygons[0])
                     : multipolygon(factory, polygons);
@@ -199,8 +193,8 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         return factory.createPolygon(shell, holes);
     }
 
-    protected static LinearRing linearRing(GeometryFactory factory, ArrayList<GeoPoint> coordinates) {
-        return factory.createLinearRing(coordinates.toArray(new GeoPoint[coordinates.size()]));
+    protected static LinearRing linearRing(GeometryFactory factory, ArrayList<Coordinate> coordinates) {
+        return factory.createLinearRing(coordinates.toArray(new Coordinate[coordinates.size()]));
     }
 
     @Override
@@ -208,7 +202,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         return TYPE;
     }
 
-    protected static Polygon polygon(GeometryFactory factory, GeoPoint[][] polygon) {
+    protected static Polygon polygon(GeometryFactory factory, Coordinate[][] polygon) {
         LinearRing shell = factory.createLinearRing(polygon[0]);
         LinearRing[] holes;
         
@@ -233,7 +227,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
      * @param polygons definition of polygons
      * @return a new Multipolygon
      */
-    protected static MultiPolygon multipolygon(GeometryFactory factory, GeoPoint[][][] polygons) {
+    protected static MultiPolygon multipolygon(GeometryFactory factory, Coordinate[][][] polygons) {
         Polygon[] polygonSet = new Polygon[polygons.length];
         for (int i = 0; i < polygonSet.length; i++) {
             polygonSet[i] = polygon(factory, polygons[i]);
@@ -289,18 +283,18 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
      * @param coordinates Array of coordinates to write the result to
      * @return the coordinates parameter
      */
-    private static GeoPoint[] coordinates(Edge component, GeoPoint[] coordinates) {
+    private static Coordinate[] coordinates(Edge component, Coordinate[] coordinates) {
         for (int i = 0; i < coordinates.length; i++) {
             coordinates[i] = (component = component.next).coordinate;
         }
         return coordinates;
     }
 
-    private static GeoPoint[][][] buildCoordinates(ArrayList<ArrayList<GeoPoint[]>> components) {
-        GeoPoint[][][] result = new GeoPoint[components.size()][][];
+    private static Coordinate[][][] buildCoordinates(ArrayList<ArrayList<Coordinate[]>> components) {
+        Coordinate[][][] result = new Coordinate[components.size()][][];
         for (int i = 0; i < result.length; i++) {
-            ArrayList<GeoPoint[]> component = components.get(i);
-            result[i] = component.toArray(new GeoPoint[component.size()][]);
+            ArrayList<Coordinate[]> component = components.get(i);
+            result[i] = component.toArray(new Coordinate[component.size()][]);
         }
 
         if(debugEnabled()) {
@@ -315,30 +309,30 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         return result;
     } 
 
-    private static final GeoPoint[][] EMPTY = new GeoPoint[0][];
+    private static final Coordinate[][] EMPTY = new Coordinate[0][];
 
-    private static GeoPoint[][] holes(Edge[] holes, int numHoles) {
+    private static Coordinate[][] holes(Edge[] holes, int numHoles) {
         if (numHoles == 0) {
             return EMPTY;
         }
-        final GeoPoint[][] points = new GeoPoint[numHoles][];
+        final Coordinate[][] points = new Coordinate[numHoles][];
 
         for (int i = 0; i < numHoles; i++) {
             int length = component(holes[i], -(i+1), null); // mark as visited by inverting the sign
-            points[i] = coordinates(holes[i], new GeoPoint[length+1]);
+            points[i] = coordinates(holes[i], new Coordinate[length+1]);
         }
 
         return points;
     } 
 
-    private static Edge[] edges(Edge[] edges, int numHoles, ArrayList<ArrayList<GeoPoint[]>> components) {
+    private static Edge[] edges(Edge[] edges, int numHoles, ArrayList<ArrayList<Coordinate[]>> components) {
         ArrayList<Edge> mainEdges = new ArrayList<>(edges.length);
 
         for (int i = 0; i < edges.length; i++) {
             if (edges[i].component >= 0) {
                 int length = component(edges[i], -(components.size()+numHoles+1), mainEdges);
-                ArrayList<GeoPoint[]> component = new ArrayList<>();
-                component.add(coordinates(edges[i], new GeoPoint[length+1]));
+                ArrayList<Coordinate[]> component = new ArrayList<>();
+                component.add(coordinates(edges[i], new Coordinate[length+1]));
                 components.add(component);
             }
         }
@@ -346,14 +340,13 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         return mainEdges.toArray(new Edge[mainEdges.size()]);
     }
 
-    private static GeoPoint[][][] compose(Edge[] edges, Edge[] holes, int numHoles) {
-        final ArrayList<ArrayList<GeoPoint[]>> components = new ArrayList<>();
+    private static Coordinate[][][] compose(Edge[] edges, Edge[] holes, int numHoles) {
+        final ArrayList<ArrayList<Coordinate[]>> components = new ArrayList<>();
         assign(holes, holes(holes, numHoles), numHoles, edges(edges, numHoles, components), components);
         return buildCoordinates(components);
     }
 
-    private static void assign(Edge[] holes, GeoPoint[][] points, int numHoles, Edge[] edges, ArrayList<ArrayList<GeoPoint[]>>
-            components) {
+    private static void assign(Edge[] holes, Coordinate[][] points, int numHoles, Edge[] edges, ArrayList<ArrayList<Coordinate[]>> components) {
         // Assign Hole to related components
         // To find the new component the hole belongs to all intersections of the
         // polygon edges with a vertical line are calculated. This vertical line
@@ -468,13 +461,14 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
     }
 
     private static int createEdges(int component, Orientation orientation, BaseLineStringBuilder<?> shell,
-                                   BaseLineStringBuilder<?> hole, Edge[] edges, int edgeOffset) {
+                                   BaseLineStringBuilder<?> hole,
+                                   Edge[] edges, int offset) {
         // inner rings (holes) have an opposite direction than the outer rings
         // XOR will invert the orientation for outer ring cases (Truth Table:, T/T = F, T/F = T, F/T = T, F/F = F)
         boolean direction = (component != 0 ^ orientation == Orientation.RIGHT);
         // set the points array accordingly (shell or hole)
-        GeoPoint[] points = (hole != null) ? hole.coordinates(false) : shell.coordinates(false);
-        Edge.ring(component, direction, orientation == Orientation.LEFT, shell, points, edges, edgeOffset, points.length-1);
+        Coordinate[] points = (hole != null) ? hole.coordinates(false) : shell.coordinates(false);
+        Edge.ring(component, direction, orientation == Orientation.LEFT, shell, points, 0, edges, offset, points.length-1);
         return points.length-1;
     }
 
@@ -483,17 +477,17 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         private final P parent;
 
         protected Ring(P parent) {
-            this(parent, new ArrayList<GeoPoint>());
+            this(parent, new ArrayList<Coordinate>());
         }
 
-        protected Ring(P parent, ArrayList<GeoPoint> points) {
+        protected Ring(P parent, ArrayList<Coordinate> points) {
             super(points);
             this.parent = parent;
         }
 
         public P close() {
-            GeoPoint start = points.get(0);
-            GeoPoint end = points.get(points.size()-1);
+            Coordinate start = points.get(0);
+            Coordinate end = points.get(points.size()-1);
             if(start.x != end.x || start.y != end.y) {
                 points.add(start);
             }

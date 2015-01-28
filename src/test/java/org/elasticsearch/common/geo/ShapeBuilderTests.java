@@ -24,6 +24,7 @@ import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
 import com.spatial4j.core.shape.impl.PointImpl;
+import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.LineString;
 import com.vividsolutions.jts.geom.Polygon;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
@@ -63,39 +64,38 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
                 .point(-45, 30).toPolygon();
 
         LineString exterior = polygon.getExteriorRing();
-        assertEquals(exterior.getCoordinateN(0), new GeoPoint(30, -45));
-        assertEquals(exterior.getCoordinateN(1), new GeoPoint(30, 45));
-        assertEquals(exterior.getCoordinateN(2), new GeoPoint(-30, 45));
-        assertEquals(exterior.getCoordinateN(3), new GeoPoint(-30, -45));
+        assertEquals(exterior.getCoordinateN(0), new Coordinate(-45, 30));
+        assertEquals(exterior.getCoordinateN(1), new Coordinate(45, 30));
+        assertEquals(exterior.getCoordinateN(2), new Coordinate(45, -30));
+        assertEquals(exterior.getCoordinateN(3), new Coordinate(-45, -30));
     }
 
     @Test
     public void testNewPolygon_coordinate() {
         Polygon polygon = ShapeBuilder.newPolygon()
-                .point(new GeoPoint(30, -45))
-                .point(new GeoPoint(30, 45))
-                .point(new GeoPoint(-30, 45))
-                .point(new GeoPoint(-30, -45))
-                .point(new GeoPoint(30, -45)).toPolygon();
+                .point(new Coordinate(-45, 30))
+                .point(new Coordinate(45, 30))
+                .point(new Coordinate(45, -30))
+                .point(new Coordinate(-45, -30))
+                .point(new Coordinate(-45, 30)).toPolygon();
 
         LineString exterior = polygon.getExteriorRing();
-        assertEquals(exterior.getCoordinateN(0), new GeoPoint(30, -45));
-        assertEquals(exterior.getCoordinateN(1), new GeoPoint(30, 45));
-        assertEquals(exterior.getCoordinateN(2), new GeoPoint(-30, 45));
-        assertEquals(exterior.getCoordinateN(3), new GeoPoint(-30, -45));
+        assertEquals(exterior.getCoordinateN(0), new Coordinate(-45, 30));
+        assertEquals(exterior.getCoordinateN(1), new Coordinate(45, 30));
+        assertEquals(exterior.getCoordinateN(2), new Coordinate(45, -30));
+        assertEquals(exterior.getCoordinateN(3), new Coordinate(-45, -30));
     }
 
     @Test
     public void testNewPolygon_coordinates() {
         Polygon polygon = ShapeBuilder.newPolygon()
-                .points(new GeoPoint(30, -45), new GeoPoint(30, 45), new GeoPoint(-30, 45), new GeoPoint(-30, -45),
-                        new GeoPoint(30, -45)).toPolygon();
+                .points(new Coordinate(-45, 30), new Coordinate(45, 30), new Coordinate(45, -30), new Coordinate(-45, -30), new Coordinate(-45, 30)).toPolygon();
 
         LineString exterior = polygon.getExteriorRing();
-        assertEquals(exterior.getCoordinateN(0), new GeoPoint(30, -45));
-        assertEquals(exterior.getCoordinateN(1), new GeoPoint(30, 45));
-        assertEquals(exterior.getCoordinateN(2), new GeoPoint(-30, 45));
-        assertEquals(exterior.getCoordinateN(3), new GeoPoint(-30, -45));
+        assertEquals(exterior.getCoordinateN(0), new Coordinate(-45, 30));
+        assertEquals(exterior.getCoordinateN(1), new Coordinate(45, 30));
+        assertEquals(exterior.getCoordinateN(2), new Coordinate(45, -30));
+        assertEquals(exterior.getCoordinateN(3), new Coordinate(-45, -30));
     }
     
     @Test

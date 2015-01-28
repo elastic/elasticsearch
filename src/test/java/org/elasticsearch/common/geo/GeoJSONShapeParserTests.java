@@ -26,13 +26,7 @@ import com.spatial4j.core.shape.Shape;
 import com.spatial4j.core.shape.ShapeCollection;
 import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.spatial4j.core.shape.jts.JtsPoint;
-import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.geom.GeometryFactory;
-import com.vividsolutions.jts.geom.LineString;
-import com.vividsolutions.jts.geom.LinearRing;
-import com.vividsolutions.jts.geom.MultiLineString;
-import com.vividsolutions.jts.geom.Point;
-import com.vividsolutions.jts.geom.Polygon;
+import com.vividsolutions.jts.geom.*;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -63,7 +57,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                 .startArray("coordinates").value(100.0).value(0.0).endArray()
                 .endObject().string();
 
-        Point expected = GEOMETRY_FACTORY.createPoint(new GeoPoint(0.0, 100.0));
+        Point expected = GEOMETRY_FACTORY.createPoint(new Coordinate(100.0, 0.0));
         assertGeometryEquals(new JtsPoint(expected, SPATIAL_CONTEXT), pointGeoJson);
     }
 
@@ -75,12 +69,12 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                 .endArray()
                 .endObject().string();
 
-        List<GeoPoint> lineCoordinates = new ArrayList<>();
-        lineCoordinates.add(new GeoPoint(0, 100));
-        lineCoordinates.add(new GeoPoint(1, 101));
+        List<Coordinate> lineCoordinates = new ArrayList<>();
+        lineCoordinates.add(new Coordinate(100, 0));
+        lineCoordinates.add(new Coordinate(101, 1));
 
         LineString expected = GEOMETRY_FACTORY.createLineString(
-                lineCoordinates.toArray(new GeoPoint[lineCoordinates.size()]));
+                lineCoordinates.toArray(new Coordinate[lineCoordinates.size()]));
         assertGeometryEquals(jtsGeom(expected), lineGeoJson);
     }
 
@@ -99,13 +93,13 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                 .endObject().string();
 
         MultiLineString expected = GEOMETRY_FACTORY.createMultiLineString(new LineString[]{
-                GEOMETRY_FACTORY.createLineString(new GeoPoint[]{
-                        new GeoPoint(0, 100),
-                        new GeoPoint(1, 101),
+                GEOMETRY_FACTORY.createLineString(new Coordinate[]{
+                        new Coordinate(100, 0),
+                        new Coordinate(101, 1),
                 }),
-                GEOMETRY_FACTORY.createLineString(new GeoPoint[]{
-                        new GeoPoint(2, 102),
-                        new GeoPoint(3, 103),
+                GEOMETRY_FACTORY.createLineString(new Coordinate[]{
+                        new Coordinate(102, 2),
+                        new Coordinate(103, 3),
                 }),
         });
         assertGeometryEquals(jtsGeom(expected), multilinesGeoJson);
@@ -179,14 +173,14 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                 .endArray()
                 .endObject().string();
 
-        List<GeoPoint> shellCoordinates = new ArrayList<>();
-        shellCoordinates.add(new GeoPoint(0, 100));
-        shellCoordinates.add(new GeoPoint(0, 101));
-        shellCoordinates.add(new GeoPoint(1, 101));
-        shellCoordinates.add(new GeoPoint(1, 100));
-        shellCoordinates.add(new GeoPoint(0, 100));
+        List<Coordinate> shellCoordinates = new ArrayList<>();
+        shellCoordinates.add(new Coordinate(100, 0));
+        shellCoordinates.add(new Coordinate(101, 0));
+        shellCoordinates.add(new Coordinate(101, 1));
+        shellCoordinates.add(new Coordinate(100, 1));
+        shellCoordinates.add(new Coordinate(100, 0));
 
-        LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new GeoPoint[shellCoordinates.size()]));
+        LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
         assertGeometryEquals(jtsGeom(expected), polygonGeoJson);
     }
@@ -573,25 +567,25 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                 .endArray()
                 .endObject().string();
 
-        List<GeoPoint> shellCoordinates = new ArrayList<>();
-        shellCoordinates.add(new GeoPoint(0, 100));
-        shellCoordinates.add(new GeoPoint(0, 101));
-        shellCoordinates.add(new GeoPoint(1, 101));
-        shellCoordinates.add(new GeoPoint(1, 100));
-        shellCoordinates.add(new GeoPoint(0, 100));
+        List<Coordinate> shellCoordinates = new ArrayList<>();
+        shellCoordinates.add(new Coordinate(100, 0));
+        shellCoordinates.add(new Coordinate(101, 0));
+        shellCoordinates.add(new Coordinate(101, 1));
+        shellCoordinates.add(new Coordinate(100, 1));
+        shellCoordinates.add(new Coordinate(100, 0));
 
-        List<GeoPoint> holeCoordinates = new ArrayList<>();
-        holeCoordinates.add(new GeoPoint(0.2, 100.2));
-        holeCoordinates.add(new GeoPoint(0.2, 100.8));
-        holeCoordinates.add(new GeoPoint(0.8, 100.8));
-        holeCoordinates.add(new GeoPoint(0.8, 100.2));
-        holeCoordinates.add(new GeoPoint(0.2, 100.2));
+        List<Coordinate> holeCoordinates = new ArrayList<>();
+        holeCoordinates.add(new Coordinate(100.2, 0.2));
+        holeCoordinates.add(new Coordinate(100.8, 0.2));
+        holeCoordinates.add(new Coordinate(100.8, 0.8));
+        holeCoordinates.add(new Coordinate(100.2, 0.8));
+        holeCoordinates.add(new Coordinate(100.2, 0.2));
 
         LinearRing shell = GEOMETRY_FACTORY.createLinearRing(
-                shellCoordinates.toArray(new GeoPoint[shellCoordinates.size()]));
+                shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
         LinearRing[] holes = new LinearRing[1];
         holes[0] = GEOMETRY_FACTORY.createLinearRing(
-                holeCoordinates.toArray(new GeoPoint[holeCoordinates.size()]));
+                holeCoordinates.toArray(new Coordinate[holeCoordinates.size()]));
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, holes);
         assertGeometryEquals(jtsGeom(expected), polygonGeoJson);
     }
@@ -663,34 +657,34 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                 .endArray()
                 .endObject().string();
 
-        List<GeoPoint> shellCoordinates = new ArrayList<>();
-        shellCoordinates.add(new GeoPoint(0, 100));
-        shellCoordinates.add(new GeoPoint(0, 101));
-        shellCoordinates.add(new GeoPoint(1, 101));
-        shellCoordinates.add(new GeoPoint(1, 100));
-        shellCoordinates.add(new GeoPoint(0, 100));
+        List<Coordinate> shellCoordinates = new ArrayList<>();
+        shellCoordinates.add(new Coordinate(100, 0));
+        shellCoordinates.add(new Coordinate(101, 0));
+        shellCoordinates.add(new Coordinate(101, 1));
+        shellCoordinates.add(new Coordinate(100, 1));
+        shellCoordinates.add(new Coordinate(100, 0));
 
-        List<GeoPoint> holeCoordinates = new ArrayList<>();
-        holeCoordinates.add(new GeoPoint(0.2, 100.2));
-        holeCoordinates.add(new GeoPoint(0.2, 100.8));
-        holeCoordinates.add(new GeoPoint(0.8, 100.8));
-        holeCoordinates.add(new GeoPoint(0.8, 100.2));
-        holeCoordinates.add(new GeoPoint(0.2, 100.2));
+        List<Coordinate> holeCoordinates = new ArrayList<>();
+        holeCoordinates.add(new Coordinate(100.2, 0.2));
+        holeCoordinates.add(new Coordinate(100.8, 0.2));
+        holeCoordinates.add(new Coordinate(100.8, 0.8));
+        holeCoordinates.add(new Coordinate(100.2, 0.8));
+        holeCoordinates.add(new Coordinate(100.2, 0.2));
 
-        LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new GeoPoint[shellCoordinates.size()]));
+        LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
         LinearRing[] holes = new LinearRing[1];
-        holes[0] = GEOMETRY_FACTORY.createLinearRing(holeCoordinates.toArray(new GeoPoint[holeCoordinates.size()]));
+        holes[0] = GEOMETRY_FACTORY.createLinearRing(holeCoordinates.toArray(new Coordinate[holeCoordinates.size()]));
         Polygon withHoles = GEOMETRY_FACTORY.createPolygon(shell, holes);
 
         shellCoordinates = new ArrayList<>();
-        shellCoordinates.add(new GeoPoint(3, 102));
-        shellCoordinates.add(new GeoPoint(3, 103));
-        shellCoordinates.add(new GeoPoint(2, 103));
-        shellCoordinates.add(new GeoPoint(2, 102));
-        shellCoordinates.add(new GeoPoint(3, 102));
+        shellCoordinates.add(new Coordinate(102, 3));
+        shellCoordinates.add(new Coordinate(103, 3));
+        shellCoordinates.add(new Coordinate(103, 2));
+        shellCoordinates.add(new Coordinate(102, 2));
+        shellCoordinates.add(new Coordinate(102, 3));
 
 
-        shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new GeoPoint[shellCoordinates.size()]));
+        shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
         Polygon withoutHoles = GEOMETRY_FACTORY.createPolygon(shell, null);
 
         Shape expected = shapeCollection(withoutHoles, withHoles);
@@ -722,22 +716,22 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                 .endObject().string();
 
         shellCoordinates = new ArrayList<>();
-        shellCoordinates.add(new GeoPoint(1, 100));
-        shellCoordinates.add(new GeoPoint(1, 101));
-        shellCoordinates.add(new GeoPoint(0, 101));
-        shellCoordinates.add(new GeoPoint(0, 100));
-        shellCoordinates.add(new GeoPoint(1, 100));
+        shellCoordinates.add(new Coordinate(100, 1));
+        shellCoordinates.add(new Coordinate(101, 1));
+        shellCoordinates.add(new Coordinate(101, 0));
+        shellCoordinates.add(new Coordinate(100, 0));
+        shellCoordinates.add(new Coordinate(100, 1));
 
         holeCoordinates = new ArrayList<>();
-        holeCoordinates.add(new GeoPoint(0.8, 100.2));
-        holeCoordinates.add(new GeoPoint(0.2, 100.2));
-        holeCoordinates.add(new GeoPoint(0.2, 100.8));
-        holeCoordinates.add(new GeoPoint(0.8, 100.8));
-        holeCoordinates.add(new GeoPoint(0.8, 100.2));
+        holeCoordinates.add(new Coordinate(100.2, 0.8));
+        holeCoordinates.add(new Coordinate(100.2, 0.2));
+        holeCoordinates.add(new Coordinate(100.8, 0.2));
+        holeCoordinates.add(new Coordinate(100.8, 0.8));
+        holeCoordinates.add(new Coordinate(100.2, 0.8));
 
-        shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new GeoPoint[shellCoordinates.size()]));
+        shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
         holes = new LinearRing[1];
-        holes[0] = GEOMETRY_FACTORY.createLinearRing(holeCoordinates.toArray(new GeoPoint[holeCoordinates.size()]));
+        holes[0] = GEOMETRY_FACTORY.createLinearRing(holeCoordinates.toArray(new Coordinate[holeCoordinates.size()]));
         withHoles = GEOMETRY_FACTORY.createPolygon(shell, holes);
 
         assertGeometryEquals(jtsGeom(withHoles), multiPolygonGeoJson);
@@ -763,12 +757,12 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                 .string();
 
         Shape[] expected = new Shape[2];
-        LineString expectedLineString = GEOMETRY_FACTORY.createLineString(new GeoPoint[]{
-                new GeoPoint(0, 100),
-                new GeoPoint(1, 101),
+        LineString expectedLineString = GEOMETRY_FACTORY.createLineString(new Coordinate[]{
+                new Coordinate(100, 0),
+                new Coordinate(101, 1),
         });
         expected[0] = jtsGeom(expectedLineString);
-        Point expectedPoint = GEOMETRY_FACTORY.createPoint(new GeoPoint(2.0, 102.0));
+        Point expectedPoint = GEOMETRY_FACTORY.createPoint(new Coordinate(102.0, 2.0));
         expected[1] = new JtsPoint(expectedPoint, SPATIAL_CONTEXT);
 
         //equals returns true only if geometries are in the same order
@@ -791,7 +785,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                 .startObject("lala").field("type", "NotAPoint").endObject()
                 .endObject().string();
 
-        Point expected = GEOMETRY_FACTORY.createPoint(new GeoPoint(0.0, 100.0));
+        Point expected = GEOMETRY_FACTORY.createPoint(new Coordinate(100.0, 0.0));
         assertGeometryEquals(new JtsPoint(expected, SPATIAL_CONTEXT), pointGeoJson);
     }
 

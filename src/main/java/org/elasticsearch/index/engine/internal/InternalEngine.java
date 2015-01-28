@@ -207,7 +207,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         for (int i = 0; i < dirtyLocks.length; i++) {
             dirtyLocks[i] = new Object();
         }
-        this.optimizeAutoGenerateId = indexSettings.getAsBoolean("index.optimize_auto_generated_id", true);
+        this.optimizeAutoGenerateId = indexSettings.getAsBoolean("index.optimize_auto_generated_id", false);
 
         this.indexSettingsService.addListener(applySettings);
         this.failEngineOnCorruption = indexSettings.getAsBoolean(INDEX_FAIL_ON_CORRUPTION, true);

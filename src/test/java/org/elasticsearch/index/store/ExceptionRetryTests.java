@@ -67,7 +67,6 @@ public class ExceptionRetryTests extends ElasticsearchIntegrationTest {
      * see https://github.com/elasticsearch/elasticsearch/issues/8788
      */
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/8788")
     public void testRetryDueToExceptionOnNetworkLayer() throws ExecutionException, InterruptedException, IOException {
         final AtomicBoolean exceptionThrown = new AtomicBoolean(false);
         int numDocs = scaledRandomIntBetween(100, 1000);

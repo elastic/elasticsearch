@@ -43,6 +43,15 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
         randomNoClientAuthPort = randomIntBetween(49000, 65500);
     }
 
+    /**
+     * On each node sets up the following profiles:
+     * <ul>
+     *     <li>default: testnode keystore. Requires client auth</li>
+     *     <li>client: testnode-client-profile keystore that only trusts the testclient cert. Requires client auth</li>
+     *     <li>no_client_auth: testnode keystore. Does not require client auth</li>
+     *     <li>no_ssl: plaintext transport profile</li>
+     * </ul>
+     */
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
@@ -87,11 +96,22 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
         return new TransportClient(settings, false);
     }
 
+    /**
+     * Uses the internal cluster's transport client to test connection to the default profile. The internal transport
+     * client uses the same SSL settings as the default profile so a connection should always succeed
+     */
     @Test
     public void testThatStandardTransportClientCanConnectToDefaultProfile() throws Exception {
         assertGreenClusterState(internalCluster().transportClient());
     }
 
+    /**
+     * Uses a transport client with the same settings as the internal cluster transport client to test connection to the
+     * no_client_auth profile. The internal transport client is not used here since we are connecting to a different
+     * profile. Since the no_client_auth profile does not require client authentication, the standard transport client
+     * connection should always succeed as the settings are the same as the default profile except for the port and
+     * disabling the client auth requirement
+     */
     @Test
     public void testThatStandardTransportClientCanConnectToNoClientAuthProfile() throws Exception {
         try(TransportClient transportClient = createTransportClient(ImmutableSettings.EMPTY)) {
@@ -100,6 +120,13 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
         }
     }
 
+    /**
+     * Uses a transport client with the same settings as the internal cluster transport client to test connection to the
+     * client profile. The internal transport client is not used here since we are connecting to a different
+     * profile. The client profile requires client auth and only trusts the certificate in the testclient-client-profile
+     * keystore so this connection will fail as the certificate presented by the standard transport client is not trusted
+     * by this profile
+     */
     @Test(expected = NoNodeAvailableException.class)
     public void testThatStandardTransportClientCannotConnectToClientProfile() throws Exception {
         try(TransportClient transportClient = createTransportClient(ImmutableSettings.EMPTY)) {
@@ -108,6 +135,11 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
         }
     }
 
+    /**
+     * Uses a transport client with the same settings as the internal cluster transport client to test connection to the
+     * no_ssl profile. The internal transport client is not used here since we are connecting to a different
+     * profile. The no_ssl profile is plain text and the standard transport client uses SSL, so a connection will never work
+     */
     @Test(expected = NoNodeAvailableException.class)
     public void testThatStandardTransportClientCannotConnectToNoSslProfile() throws Exception {
         try (TransportClient transportClient = createTransportClient(ImmutableSettings.EMPTY)) {
@@ -116,6 +148,11 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
         }
     }
 
+    /**
+     * Uses a transport client with a custom keystore; this keystore testclient-client-profile.jks trusts the testnode
+     * certificate and had its own self signed certificate. This test connects to the client profile, which is only
+     * set to trust the testclient-client-profile certificate so the connection should always succeed
+     */
     @Test
     public void testThatProfileTransportClientCanConnectToClientProfile() throws Exception {
         Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile");
@@ -125,6 +162,12 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
         }
     }
 
+    /**
+     * Uses a transport client with a custom keystore; this keystore testclient-client-profile.jks trusts the testnode
+     * certificate and had its own self signed certificate. This test connects to the no_client_auth profile, which
+     * uses a truststore that does not trust the testclient-client-profile certificate but does not require client
+     * authentication
+     */
     @Test
     public void testThatProfileTransportClientCanConnectToNoClientAuthProfile() throws Exception {
         Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile");
@@ -134,6 +177,12 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
         }
     }
 
+    /**
+     * Uses a transport client with a custom keystore; this keystore testclient-client-profile.jks trusts the testnode
+     * certificate and had its own self signed certificate. This test connects to the default profile, which
+     * uses a truststore that does not trust the testclient-client-profile certificate and requires client authentication
+     * so the connection should always fail
+     */
     @Test(expected = NoNodeAvailableException.class)
     public void testThatProfileTransportClientCannotConnectToDefaultProfile() throws Exception {
         Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile");
@@ -144,6 +193,11 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
         }
     }
 
+    /**
+     * Uses a transport client with a custom keystore; this keystore testclient-client-profile.jks trusts the testnode
+     * certificate and had its own self signed certificate. This test connects to the no_ssl profile, which does not
+     * use SSL so the connection will never work
+     */
     @Test(expected = NoNodeAvailableException.class)
     public void testThatProfileTransportClientCannotConnectToNoSslProfile() throws Exception {
         Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile");
@@ -153,6 +207,9 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
         }
     }
 
+    /**
+     * Uses a transport client with SSL disabled. This test connects to the no_ssl profile, which should always succeed
+     */
     @Test
     public void testThatTransportClientCanConnectToNoSslProfile() throws Exception {
         Settings settings = ImmutableSettings.builder()
@@ -165,6 +222,10 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
         }
     }
 
+    /**
+     * Uses a transport client with SSL disabled. This test connects to the default profile, which should always fail
+     * as a non-ssl transport client cannot connect to a ssl profile
+     */
     @Test(expected = NoNodeAvailableException.class)
     public void testThatTransportClientCannotConnectToDefaultProfile() throws Exception {
         Settings settings = ImmutableSettings.builder()
@@ -177,6 +238,10 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
         }
     }
 
+    /**
+     * Uses a transport client with SSL disabled. This test connects to the client profile, which should always fail
+     * as a non-ssl transport client cannot connect to a ssl profile
+     */
     @Test(expected = NoNodeAvailableException.class)
     public void testThatTransportClientCannotConnectToClientProfile() throws Exception {
         Settings settings = ImmutableSettings.builder()
@@ -189,6 +254,10 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
         }
     }
 
+    /**
+     * Uses a transport client with SSL disabled. This test connects to the no_client_auth profile, which should always fail
+     * as a non-ssl transport client cannot connect to a ssl profile
+     */
     @Test(expected = NoNodeAvailableException.class)
     public void testThatTransportClientCannotConnectToNoClientAuthProfile() throws Exception {
         Settings settings = ImmutableSettings.builder()
@@ -201,6 +270,11 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
         }
     }
 
+    /**
+     * Uses a transport client with a custom truststore; this truststore truststore-testnode-only only trusts the testnode
+     * certificate and contains no other certification. This test connects to the no_client_auth profile, which uses
+     * the testnode certificate and does not require to present a certificate, so this connection should always succeed
+     */
     @Test
     public void testThatTransportClientWithOnlyTruststoreCanConnectToNoClientAuthProfile() throws Exception {
         Settings settings = ImmutableSettings.builder()
@@ -216,6 +290,12 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
         }
     }
 
+    /**
+     * Uses a transport client with a custom truststore; this truststore truststore-testnode-only only trusts the testnode
+     * certificate and contains no other certification. This test connects to the client profile, which uses
+     * the testnode certificate and requires the client to present a certificate, so this connection will never work as
+     * the client has no certificate to present
+     */
     @Test(expected = NoNodeAvailableException.class)
     public void testThatTransportClientWithOnlyTruststoreCannotConnectToClientProfile() throws Exception {
         Settings settings = ImmutableSettings.builder()
@@ -231,6 +311,12 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
         }
     }
 
+    /**
+     * Uses a transport client with a custom truststore; this truststore truststore-testnode-only only trusts the testnode
+     * certificate and contains no other certification. This test connects to the default profile, which uses
+     * the testnode certificate and requires the client to present a certificate, so this connection will never work as
+     * the client has no certificate to present
+     */
     @Test(expected = NoNodeAvailableException.class)
     public void testThatTransportClientWithOnlyTruststoreCannotConnectToDefaultProfile() throws Exception {
         Settings settings = ImmutableSettings.builder()
@@ -246,6 +332,11 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
         }
     }
 
+    /**
+     * Uses a transport client with a custom truststore; this truststore truststore-testnode-only only trusts the testnode
+     * certificate and contains no other certification. This test connects to the no_ssl profile, which does not use
+     * SSL so the connection should never succeed
+     */
     @Test(expected = NoNodeAvailableException.class)
     public void testThatTransportClientWithOnlyTruststoreCannotConnectToNoSslProfile() throws Exception {
         Settings settings = ImmutableSettings.builder()
@@ -254,6 +345,78 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
                 .put("shield.transport.ssl", true)
                 .put("shield.ssl.truststore.path", Paths.get(getClass().getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks").toURI()))
                 .put("shield.ssl.truststore.password", "truststore-testnode-only")
+                .build();
+        try (TransportClient transportClient = new TransportClient(settings, false)) {
+            transportClient.addTransportAddress(new InetSocketTransportAddress("localhost", getProfilePort("no_ssl", internalCluster())));
+            assertGreenClusterState(transportClient);
+        }
+    }
+
+    /**
+     * Uses a transport client with the default JDK truststore; this truststore only trusts the known good public
+     * certificate authorities. This test connects to the default profile, which uses a self-signed certificate that
+     * will never be trusted by the default truststore so the connection should always fail
+     */
+    @Test(expected = NoNodeAvailableException.class)
+    public void testThatSSLTransportClientWithNoTruststoreCannotConnectToDefaultProfile() throws Exception {
+        Settings settings = ImmutableSettings.builder()
+                .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
+                .put("cluster.name", internalCluster().getClusterName())
+                .put("shield.transport.ssl", true)
+                .build();
+        try (TransportClient transportClient = new TransportClient(settings, false)) {
+            transportClient.addTransportAddress(new InetSocketTransportAddress("localhost", getProfilePort("default", internalCluster())));
+            assertGreenClusterState(transportClient);
+        }
+    }
+
+    /**
+     * Uses a transport client with the default JDK truststore; this truststore only trusts the known good public
+     * certificate authorities. This test connects to the client profile, which uses a self-signed certificate that
+     * will never be trusted by the default truststore so the connection should always fail
+     */
+    @Test(expected = NoNodeAvailableException.class)
+    public void testThatSSLTransportClientWithNoTruststoreCannotConnectToClientProfile() throws Exception {
+        Settings settings = ImmutableSettings.builder()
+                .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
+                .put("cluster.name", internalCluster().getClusterName())
+                .put("shield.transport.ssl", true)
+                .build();
+        try (TransportClient transportClient = new TransportClient(settings, false)) {
+            transportClient.addTransportAddress(new InetSocketTransportAddress("localhost", getProfilePort("client", internalCluster())));
+            assertGreenClusterState(transportClient);
+        }
+    }
+
+    /**
+     * Uses a transport client with the default JDK truststore; this truststore only trusts the known good public
+     * certificate authorities. This test connects to the no_client_auth profile, which uses a self-signed certificate that
+     * will never be trusted by the default truststore so the connection should always fail
+     */
+    @Test(expected = NoNodeAvailableException.class)
+    public void testThatSSLTransportClientWithNoTruststoreCannotConnectToNoClientAuthProfile() throws Exception {
+        Settings settings = ImmutableSettings.builder()
+                .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
+                .put("cluster.name", internalCluster().getClusterName())
+                .put("shield.transport.ssl", true)
+                .build();
+        try (TransportClient transportClient = new TransportClient(settings, false)) {
+            transportClient.addTransportAddress(new InetSocketTransportAddress("localhost", getProfilePort("no_client_auth", internalCluster())));
+            assertGreenClusterState(transportClient);
+        }
+    }
+
+    /**
+     * Uses a transport client with the default JDK truststore; this truststore only trusts the known good public
+     * certificate authorities. This test connects to the no_ssl profile, which does not use SSL so the connection
+     * will not work
+     */
+    @Test(expected = NoNodeAvailableException.class)
+    public void testThatSSLTransportClientWithNoTruststoreCannotConnectToNoSslProfile() throws Exception {
+        Settings settings = ImmutableSettings.builder()
+                .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
+                .put("cluster.name", internalCluster().getClusterName())
+                .put("shield.transport.ssl", true)
                 .build();
         try (TransportClient transportClient = new TransportClient(settings, false)) {
             transportClient.addTransportAddress(new InetSocketTransportAddress("localhost", getProfilePort("no_ssl", internalCluster())));

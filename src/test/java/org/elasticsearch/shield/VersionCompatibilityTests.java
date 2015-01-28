@@ -61,5 +61,13 @@ public class VersionCompatibilityTests extends ElasticsearchTestCase {
          * And remove the code in Privilege.System
          */
         assertThat("Remove workaround to allow TransportNodesSnapshotsStatus be executed by the system user", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
+
+        /**
+         * see https://github.com/elasticsearch/elasticsearch-shield/pull/669
+         * {@link org.elasticsearch.shield.authz.indicesresolver.DefaultIndicesResolver#resolveIndices(User, String, org.elasticsearch.action.IndicesRequest, org.elasticsearch.cluster.metadata.MetaData)}
+         * The special treatment for IndicesAliasesRequest and GetAliasesRequest can become one single case, and simplified,
+         * since es core 1.5.0 introduced the AliasesRequest interface.
+         */
+        assertThat("Remove special treatment for IndicesAliasesRequest and GetAliasesRequest", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
     }
 }

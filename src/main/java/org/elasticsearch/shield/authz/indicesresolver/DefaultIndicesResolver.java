@@ -81,6 +81,10 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
             }
         }
 
+        /*
+         * TODO remove special treatment for IndicesAliasesRequest and GetAliasesRequest once we upgrade to 1.5.0
+         * get https://github.com/elasticsearch/elasticsearch-shield/pull/669 in
+         */
         if (indicesRequest instanceof IndicesAliasesRequest) {
             //special treatment for IndicesAliasesRequest since we need to extract indices from indices() as well as aliases()
             //Also, we need to replace wildcards in both with authorized indices and/or aliases (IndicesAliasesRequest doesn't implement Replaceable)

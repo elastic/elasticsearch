@@ -63,7 +63,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
     public void testMappingMetaDataParsed() throws Exception {
 
         logger.info("--> starting 1 nodes");
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        internalCluster().startNode();
 
         logger.info("--> creating test index, with meta routing");
         client().admin().indices().prepareCreate("test")
@@ -92,7 +92,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
     public void testSimpleOpenClose() throws Exception {
 
         logger.info("--> starting 2 nodes");
-        internalCluster().startNodesAsync(2, settingsBuilder().put("gateway.type", "local").build()).get();
+        internalCluster().startNodesAsync(2).get();
 
         logger.info("--> creating test index");
         createIndex("test");
@@ -195,7 +195,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         logger.info("--> cleaning nodes");
 
         logger.info("--> starting 1 master node non data");
-        internalCluster().startNode(settingsBuilder().put("node.data", false).put("gateway.type", "local").build());
+        internalCluster().startNode(settingsBuilder().put("node.data", false).build());
 
         logger.info("--> create an index");
         client().admin().indices().prepareCreate("test").execute().actionGet();
@@ -204,7 +204,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         internalCluster().closeNonSharedNodes(false);
 
         logger.info("--> starting 1 master node non data again");
-        internalCluster().startNode(settingsBuilder().put("node.data", false).put("gateway.type", "local").build());
+        internalCluster().startNode(settingsBuilder().put("node.data", false).build());
 
         logger.info("--> waiting for test index to be created");
         ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setIndices("test").execute().actionGet();
@@ -220,8 +220,8 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         logger.info("--> cleaning nodes");
 
         logger.info("--> starting 1 master node non data");
-        internalCluster().startNode(settingsBuilder().put("node.data", false).put("gateway.type", "local").build());
-        internalCluster().startNode(settingsBuilder().put("node.master", false).put("gateway.type", "local").build());
+        internalCluster().startNode(settingsBuilder().put("node.data", false).build());
+        internalCluster().startNode(settingsBuilder().put("node.master", false).build());
 
         logger.info("--> create an index");
         client().admin().indices().prepareCreate("test").execute().actionGet();
@@ -237,8 +237,8 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         logger.info("--> cleaning nodes");
 
         logger.info("--> starting 2 nodes");
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local").build());
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local").build());
+        internalCluster().startNode();
+        internalCluster().startNode();
 
         logger.info("--> indexing a simple document");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
@@ -276,7 +276,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
     @Test
     public void testDanglingIndicesAutoImportYes() throws Exception {
         Settings settings = settingsBuilder()
-                .put("gateway.type", "local").put("gateway.local.auto_import_dangled", "yes")
+                .put("gateway.local.auto_import_dangled", "yes")
                 .put("gateway.local.dangling_timeout", randomIntBetween(0, 120))
                 .build();
         logger.info("--> starting two nodes");
@@ -331,7 +331,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
     @Test
     public void testDanglingIndicesAutoImportClose() throws Exception {
         Settings settings = settingsBuilder()
-                .put("gateway.type", "local").put("gateway.local.auto_import_dangled", "closed")
+                .put("gateway.local.auto_import_dangled", "closed")
                 .build();
 
 
@@ -394,7 +394,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
     @Test
     public void testDanglingIndicesNoAutoImport() throws Exception {
         Settings settings = settingsBuilder()
-                .put("gateway.type", "local").put("gateway.local.auto_import_dangled", "no")
+                .put("gateway.local.auto_import_dangled", "no")
                 .build();
         logger.info("--> starting two nodes");
         final String node_1 = internalCluster().startNodesAsync(2, settings).get().get(0);
@@ -456,7 +456,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
     @Test
     public void testDanglingIndicesNoAutoImportStillDanglingAndCreatingSameIndex() throws Exception {
         Settings settings = settingsBuilder()
-                .put("gateway.type", "local").put("gateway.local.auto_import_dangled", "no")
+                .put("gateway.local.auto_import_dangled", "no")
                 .build();
 
         logger.info("--> starting two nodes");

@@ -23,17 +23,14 @@ import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -48,7 +45,7 @@ public class LocalGatewayIndicesWarmerTests extends ElasticsearchIntegrationTest
     public void testStatePersistence() throws Exception {
 
         logger.info("--> starting 1 nodes");
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        internalCluster().startNode();
 
         logger.info("--> putting two templates");
         createIndex("test");
@@ -89,12 +86,7 @@ public class LocalGatewayIndicesWarmerTests extends ElasticsearchIntegrationTest
         assertThat(templateWarmers.entries().size(), equalTo(1));
 
         logger.info("--> restarting the node");
-        internalCluster().fullRestart(new RestartCallback() {
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                return settingsBuilder().put("gateway.type", "local").build();
-            }
-        });
+        internalCluster().fullRestart();
 
         ensureYellow();
 
@@ -127,12 +119,7 @@ public class LocalGatewayIndicesWarmerTests extends ElasticsearchIntegrationTest
         assertThat(warmersMetaData.entries().size(), equalTo(1));
 
         logger.info("--> restarting the node");
-        internalCluster().fullRestart(new RestartCallback() {
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                return settingsBuilder().put("gateway.type", "local").build();
-            }
-        });
+        internalCluster().fullRestart();
 
         ensureYellow();
 

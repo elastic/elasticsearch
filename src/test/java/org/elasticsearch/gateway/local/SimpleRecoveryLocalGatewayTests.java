@@ -57,15 +57,11 @@ import static org.hamcrest.Matchers.*;
 @TestLogging("index.shard.service:TRACE,index.gateway.local:TRACE")
 public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTest {
 
-    private ImmutableSettings.Builder settingsBuilder() {
-        return ImmutableSettings.settingsBuilder().put("gateway.type", "local");
-    }
-
     @Test
     @Slow
     public void testOneNodeRecoverFromGateway() throws Exception {
 
-        internalCluster().startNode(settingsBuilder().build());
+        internalCluster().startNode();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("appAccountIds").field("type", "string").endObject().endObject()
@@ -114,7 +110,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
     @Slow
     public void testSingleNodeNoFlush() throws Exception {
 
-        internalCluster().startNode(settingsBuilder().build());
+        internalCluster().startNode();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("field").field("type", "string").endObject().startObject("num").field("type", "integer").endObject().endObject()
@@ -202,7 +198,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
     @Slow
     public void testSingleNodeWithFlush() throws Exception {
 
-        internalCluster().startNode(settingsBuilder().build());
+        internalCluster().startNode();
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
         flush();
         client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).execute().actionGet();
@@ -236,8 +232,8 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
     @Slow
     public void testTwoNodeFirstNodeCleared() throws Exception {
 
-        final String firstNode = internalCluster().startNode(settingsBuilder().build());
-        internalCluster().startNode(settingsBuilder().build());
+        final String firstNode = internalCluster().startNode();
+        internalCluster().startNode();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
         flush();
@@ -254,7 +250,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
         internalCluster().fullRestart(new RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                return settingsBuilder().put("gateway.recover_after_nodes", 2).build();
+                return ImmutableSettings.settingsBuilder().put("gateway.recover_after_nodes", 2).build();
             }
 
             @Override
@@ -276,7 +272,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
     @Slow
     public void testLatestVersionLoaded() throws Exception {
         // clean two nodes
-        internalCluster().startNodesAsync(2, settingsBuilder().put("gateway.recover_after_nodes", 2).build()).get();
+        internalCluster().startNodesAsync(2, ImmutableSettings.settingsBuilder().put("gateway.recover_after_nodes", 2).build()).get();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
         client().admin().indices().prepareFlush().execute().actionGet();
@@ -346,7 +342,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
     @Test
     @Slow
     public void testReusePeerRecovery() throws Exception {
-        ImmutableSettings.Builder settings = settingsBuilder()
+        ImmutableSettings.Builder settings = ImmutableSettings.settingsBuilder()
                 .put("action.admin.cluster.node.shutdown.delay", "10ms")
                 .put("gateway.recover_after_nodes", 4)
                 .put(MockDirectoryHelper.CRASH_INDEX, false);
@@ -373,10 +369,10 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
         // if we run into a relocation the reuse count will be 0 and this fails the test. We are testing here if
         // we reuse the files on disk after full restarts for replicas.
         client().admin().cluster().prepareUpdateSettings()
-                .setPersistentSettings(settingsBuilder().put(BalancedShardsAllocator.SETTING_THRESHOLD, 100.0f)).get();
+                .setPersistentSettings(ImmutableSettings.settingsBuilder().put(BalancedShardsAllocator.SETTING_THRESHOLD, 100.0f)).get();
         // Disable allocations while we are closing nodes
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(settingsBuilder()
+                .setTransientSettings(ImmutableSettings.settingsBuilder()
                         .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE))
                 .get();
         internalCluster().fullRestart();
@@ -387,7 +383,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
         logger.info("--> shutting down the nodes");
         // Disable allocations while we are closing nodes
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(settingsBuilder()
+                .setTransientSettings(ImmutableSettings.settingsBuilder()
                         .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE))
                 .get();
         internalCluster().fullRestart();
@@ -421,11 +417,11 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
     public void testRecoveryDifferentNodeOrderStartup() throws Exception {
         // we need different data paths so we make sure we start the second node fresh
 
-        final String node_1 = internalCluster().startNode(settingsBuilder().put("path.data", "data/data1").build());
+        final String node_1 = internalCluster().startNode(ImmutableSettings.settingsBuilder().put("path.data", "data/data1").build());
 
         client().prepareIndex("test", "type1", "1").setSource("field", "value").execute().actionGet();
 
-        internalCluster().startNode(settingsBuilder().put("path.data", "data/data2").build());
+        internalCluster().startNode(ImmutableSettings.settingsBuilder().put("path.data", "data/data2").build());
 
         ensureGreen();
 

@@ -93,8 +93,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
         if (createIndexWithoutErrors) {
             Builder settings = settingsBuilder()
                     .put("index.number_of_replicas", randomIntBetween(0, 1))
-                    .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, true)
-                    .put("gateway.type", "local");
+                    .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, true);
             logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
             client().admin().indices().prepareCreate("test")
                     .setSettings(settings)

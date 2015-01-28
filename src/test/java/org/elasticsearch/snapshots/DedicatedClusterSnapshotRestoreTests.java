@@ -121,7 +121,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         File tempDir = newTempDir();
 
         logger.info("--> start node");
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        internalCluster().startNode();
         Client client = client();
         createIndex("test-idx");
         ensureYellow();
@@ -356,8 +356,8 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
     @TestLogging("snapshots:TRACE")
     public void restoreIndexWithMissingShards() throws Exception {
         logger.info("--> start 2 nodes");
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        internalCluster().startNode();
+        internalCluster().startNode();
         cluster().wipeIndices("_all");
 
         logger.info("--> create an index that will have some unallocated shards");
@@ -494,8 +494,8 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
     @TestLogging("indices.recovery:TRACE,index.gateway:TRACE,gateway:TRACE")
     public void restoreIndexWithShardsMissingInLocalGateway() throws Exception {
         logger.info("--> start 2 nodes");
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        internalCluster().startNode();
+        internalCluster().startNode();
         cluster().wipeIndices("_all");
 
         logger.info("--> create repository");

@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
@@ -42,7 +41,6 @@ import org.junit.Test;
 import java.io.File;
 import java.util.Arrays;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -52,13 +50,12 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @ClusterScope(scope= Scope.TEST, numDataNodes = 0)
 public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
-    private static final Settings SETTINGS = settingsBuilder().put("gateway.type", "local").build();
 
     @Test
     @TestLogging("indices.store:TRACE,discovery.zen:TRACE,action:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE")
     public void shardsCleanup() throws Exception {
-        final String node_1 = internalCluster().startNode(SETTINGS);
-        final String node_2 = internalCluster().startNode(SETTINGS);
+        final String node_1 = internalCluster().startNode();
+        final String node_2 = internalCluster().startNode();
         logger.info("--> creating index [test] with one shard and on replica");
         assertAcked(prepareCreate("test").setSettings(
                         ImmutableSettings.builder().put(indexSettings())
@@ -72,7 +69,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(shardDirectory(node_2, "test", 0).exists(), equalTo(true));
 
         logger.info("--> starting node server3");
-        String node_3 = internalCluster().startNode(SETTINGS);
+        String node_3 = internalCluster().startNode();
         logger.info("--> running cluster_health");
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth()
                 .setWaitForNodes("3")
@@ -104,7 +101,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(shardDirectory(node_3, "test", 0).exists(), equalTo(true));
 
         logger.info("--> starting node node_4");
-        final String node_4 = internalCluster().startNode(SETTINGS);
+        final String node_4 = internalCluster().startNode();
 
         logger.info("--> running cluster_health");
         ensureGreen();
@@ -118,8 +115,8 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
     @Test
     @TestLogging("indices.store:TRACE")
     public void testShardActiveElseWhere() throws Exception {
-        String node_1 = internalCluster().startNode(SETTINGS);
-        String node_2 = internalCluster().startNode(SETTINGS);
+        String node_1 = internalCluster().startNode();
+        String node_2 = internalCluster().startNode();
         final String node_1_id = internalCluster().getInstance(DiscoveryService.class, node_1).localNode().getId();
         final String node_2_id = internalCluster().getInstance(DiscoveryService.class, node_2).localNode().getId();
 

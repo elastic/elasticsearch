@@ -36,6 +36,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecyclerModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
@@ -345,8 +346,6 @@ public final class InternalTestCluster extends TestCluster {
                 //.put("index.store.type", random.nextInt(10) == 0 ? MockRamIndexStoreModule.class.getName() : MockFSIndexStoreModule.class.getName())
                 // decrease the routing schedule so new nodes will be added quickly - some random value between 30 and 80 ms
                 .put("cluster.routing.schedule", (30 + random.nextInt(50)) + "ms")
-                        // default to non gateway
-                .put("gateway.type", "none")
                 .put(SETTING_CLUSTER_NODE_SEED, seed);
         if (ENABLE_MOCK_MODULES && usually(random)) {
             builder.put("index.store.type", MockFSIndexStoreModule.class.getName()); // no RAM dir for now!

@@ -34,7 +34,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ClusterDiscoveryConfiguration extends SettingsSource {
 
     public static Settings DEFAULT_SETTINGS = ImmutableSettings.settingsBuilder()
-            .put("gateway.type", "local")
             .put("discovery.type", "zen")
             .build();
 

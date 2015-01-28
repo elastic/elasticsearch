@@ -53,7 +53,7 @@ public class GroovySandboxExpressionChecker implements SecureASTCustomizer.Expre
     private final Set<String> packageWhitelist;
     private final Set<String> classWhitelist;
 
-    public GroovySandboxExpressionChecker(Settings settings, String[] blacklistAdditions) {
+    public GroovySandboxExpressionChecker(Settings settings, Set<String> blacklistAdditions) {
         this.methodBlacklist = ImmutableSet.copyOf(settings.getAsArray(GROOVY_SANDBOX_METHOD_BLACKLIST, defaultMethodBlacklist, true));
         this.additionalMethodBlacklist = ImmutableSet.copyOf(blacklistAdditions);
         this.packageWhitelist = ImmutableSet.copyOf(settings.getAsArray(GROOVY_SANDBOX_PACKAGE_WHITELIST, defaultPackageWhitelist, true));
@@ -148,7 +148,7 @@ public class GroovySandboxExpressionChecker implements SecureASTCustomizer.Expre
      * Returns a customized ASTCustomizer that includes the whitelists and
      * expression checker.
      */
-    public static SecureASTCustomizer getSecureASTCustomizer(Settings settings, String[] blacklistAdditions) {
+    public static SecureASTCustomizer getSecureASTCustomizer(Settings settings, Set<String> blacklistAdditions) {
         SecureASTCustomizer scz = new SecureASTCustomizer();
         // Closures are allowed
         scz.setClosuresAllowed(true);

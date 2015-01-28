@@ -20,12 +20,13 @@
 package org.elasticsearch.common.geo;
 
 
-import com.vividsolutions.jts.geom.Coordinate;
-
 /**
  *
  */
-public final class GeoPoint extends Coordinate {
+public final class GeoPoint {
+
+    private double lat;
+    private double lon;
 
     public GeoPoint() {
     }
@@ -40,36 +41,32 @@ public final class GeoPoint extends Coordinate {
         this.resetFromString(value);
     }
 
-    public GeoPoint(GeoPoint other) {
-        super(other);
-    }
-
     public GeoPoint(double lat, double lon) {
-        this.y = lat;
-        this.x = lon;
+        this.lat = lat;
+        this.lon = lon;
     }
 
     public GeoPoint reset(double lat, double lon) {
-        this.y = lat;
-        this.x = lon;
+        this.lat = lat;
+        this.lon = lon;
         return this;
     }
 
     public GeoPoint resetLat(double lat) {
-        this.y = lat;
+        this.lat = lat;
         return this;
     }
 
     public GeoPoint resetLon(double lon) {
-        this.x = lon;
+        this.lon = lon;
         return this;
     }
 
     public GeoPoint resetFromString(String value) {
         int comma = value.indexOf(',');
         if (comma != -1) {
-            this.y = Double.parseDouble(value.substring(0, comma).trim());
-            this.x = Double.parseDouble(value.substring(comma + 1).trim());
+            lat = Double.parseDouble(value.substring(0, comma).trim());
+            lon = Double.parseDouble(value.substring(comma + 1).trim());
         } else {
             resetFromGeoHash(value);
         }
@@ -82,40 +79,38 @@ public final class GeoPoint extends Coordinate {
     }
 
     public final double lat() {
-        return this.y;
+        return this.lat;
     }
 
     public final double getLat() {
-        return this.y;
+        return this.lat;
     }
 
     public final double lon() {
-        return this.x;
+        return this.lon;
     }
 
     public final double getLon() {
-        return this.x;
+        return this.lon;
     }
 
     public final String geohash() {
-        return GeoHashUtils.encode(y, x);
+        return GeoHashUtils.encode(lat, lon);
     }
 
     public final String getGeohash() {
-        return GeoHashUtils.encode(y, x);
+        return GeoHashUtils.encode(lat, lon);
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null) return false;
-        if (o instanceof Coordinate) {
-            Coordinate c = (Coordinate)o;
-            return Double.compare(c.x, this.x) == 0
-                    && Double.compare(c.y, this.y) == 0
-                    && Double.compare(c.z, this.z) == 0;
-        }
-        if (getClass() != o.getClass()) return false;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        GeoPoint geoPoint = (GeoPoint) o;
+
+        if (Double.compare(geoPoint.lat, lat) != 0) return false;
+        if (Double.compare(geoPoint.lon, lon) != 0) return false;
 
         return true;
     }
@@ -124,15 +119,15 @@ public final class GeoPoint extends Coordinate {
     public int hashCode() {
         int result;
         long temp;
-        temp = y != +0.0d ? Double.doubleToLongBits(y) : 0L;
+        temp = lat != +0.0d ? Double.doubleToLongBits(lat) : 0L;
         result = (int) (temp ^ (temp >>> 32));
-        temp = x != +0.0d ? Double.doubleToLongBits(x) : 0L;
+        temp = lon != +0.0d ? Double.doubleToLongBits(lon) : 0L;
         result = 31 * result + (int) (temp ^ (temp >>> 32));
         return result;
     }
 
     public String toString() {
-        return "[" + y + ", " + x + "]";
+        return "[" + lat + ", " + lon + "]";
     }
 
     public static GeoPoint parseFromLatLon(String latLon) {

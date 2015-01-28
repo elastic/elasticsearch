@@ -19,6 +19,7 @@
 
 package org.elasticsearch.script.groovy;
 
+import com.google.common.collect.ImmutableSet;
 import groovy.lang.Binding;
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.Script;
@@ -52,7 +53,9 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -66,21 +69,32 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     private final AtomicLong counter = new AtomicLong();
     private final boolean sandboxed;
     private volatile GroovyClassLoader loader;
-    private volatile String[] blacklistAdditions = Strings.EMPTY_ARRAY;
+    private volatile Set<String> blacklistAdditions;
 
     @Inject
     public GroovyScriptEngineService(Settings settings) {
         super(settings);
         this.sandboxed = settings.getAsBoolean(GROOVY_SCRIPT_SANDBOX_ENABLED, true);
+        this.blacklistAdditions = ImmutableSet.copyOf(settings.getAsArray(GROOVY_SCRIPT_BLACKLIST_PATCH, Strings.EMPTY_ARRAY));
         reloadConfig();
     }
 
-    public String[] blacklistAdditions() {
+    public Set<String> blacklistAdditions() {
         return this.blacklistAdditions;
     }
 
-    public void blacklistAdditions(String[] additions) {
-        this.blacklistAdditions = additions;
+    /**
+     * Appends the additional blacklisted methods to the current blacklist,
+     * returns true if the black list has changed
+     */
+    public boolean addToBlacklist(String... additions) {
+        Set<String> newBlackList = new HashSet<>(blacklistAdditions);
+        for (String addition : additions) {
+            newBlackList.add(addition);
+        }
+        boolean changed = this.blacklistAdditions.equals(newBlackList) == false;
+        this.blacklistAdditions = ImmutableSet.copyOf(newBlackList);
+        return changed;
     }
 
     public void reloadConfig() {

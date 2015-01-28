@@ -110,17 +110,6 @@ public class GroovySandboxScriptTests extends ElasticsearchIntegrationTest {
                 "Expression [MethodCallExpression] is not allowed: [doc[foo].value, 3, 4].isEmpty()");
         testFailure("[doc['foo'].value, 3, 4].size()",
                 "Expression [MethodCallExpression] is not allowed: [doc[foo].value, 3, 4].size()");
-
-        // Undo the blacklist addition and make sure the scripts still work
-        Settings emptyBlacklistSettings = ImmutableSettings.builder()
-                .put(GroovyScriptEngineService.GROOVY_SCRIPT_BLACKLIST_PATCH, "")
-                .build();
-
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(emptyBlacklistSettings).get();
-
-        testSuccess("[doc['foo'].value, 3, 4].isEmpty()");
-        testSuccess("[doc['foo'].value, 3, 4].size()");
-
     }
 
     public void testSuccess(String script) {

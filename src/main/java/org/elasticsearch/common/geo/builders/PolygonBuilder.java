@@ -21,19 +21,19 @@ package org.elasticsearch.common.geo.builders;
 
 import java.util.ArrayList;
 
-import org.elasticsearch.common.geo.GeoPoint;
+import com.vividsolutions.jts.geom.Coordinate;
 
 public class PolygonBuilder extends BasePolygonBuilder<PolygonBuilder> {
 
     public PolygonBuilder() {
-        this(new ArrayList<GeoPoint>(), Orientation.RIGHT);
+        this(new ArrayList<Coordinate>(), Orientation.RIGHT);
     }
 
     public PolygonBuilder(Orientation orientation) {
-        this(new ArrayList<GeoPoint>(), orientation);
+        this(new ArrayList<Coordinate>(), orientation);
     }
 
-    protected PolygonBuilder(ArrayList<GeoPoint> points, Orientation orientation) {
+    protected PolygonBuilder(ArrayList<Coordinate> points, Orientation orientation) {
         super(orientation);
         this.shell = new Ring<>(this, points);
     }

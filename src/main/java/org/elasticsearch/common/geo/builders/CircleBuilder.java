@@ -20,7 +20,7 @@
 package org.elasticsearch.common.geo.builders;
 
 import com.spatial4j.core.shape.Circle;
-import org.elasticsearch.common.geo.GeoPoint;
+import com.vividsolutions.jts.geom.Coordinate;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.DistanceUnit.Distance;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,7 +34,7 @@ public class CircleBuilder extends ShapeBuilder {
 
     private DistanceUnit unit;
     private double radius;
-    private GeoPoint center;
+    private Coordinate center;
     
     /**
      * Set the center of the circle
@@ -42,7 +42,7 @@ public class CircleBuilder extends ShapeBuilder {
      * @param center coordinate of the circles center
      * @return this
      */
-    public CircleBuilder center(GeoPoint center) {
+    public CircleBuilder center(Coordinate center) {
         this.center = center;
         return this;
     }
@@ -54,7 +54,7 @@ public class CircleBuilder extends ShapeBuilder {
      * @return this
      */
     public CircleBuilder center(double lon, double lat) {
-        return center(new GeoPoint(lat, lon));
+        return center(new Coordinate(lon, lat));
     }
 
     /**

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.transformer;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
@@ -49,7 +48,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @ElasticsearchIntegrationTest.SuiteScopeTest
-@AwaitsFix(bugUrl = "Fix factory selection for serialisation of Internal derivative")
+//@AwaitsFix(bugUrl = "Fix factory selection for serialisation of Internal derivative")
 public class DateDerivativeTests extends ElasticsearchIntegrationTest {
 
     private DateTime date(int month, int day) {
@@ -187,7 +186,7 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.value(), equalTo(10.0));
-        assertThat((String) propertiesKeys[1], equalTo("2012-02-01T00:00:00.000Z"));
+        assertThat((DateTime) propertiesKeys[1], equalTo(key));
         assertThat((long) propertiesDocCounts[1], equalTo(0l));
         assertThat((double) propertiesDocCountDerivs[1], equalTo(1.0));
         assertThat((double) propertiesCounts[1], equalTo(10.0));

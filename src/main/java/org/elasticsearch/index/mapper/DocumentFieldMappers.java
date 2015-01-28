@@ -24,6 +24,7 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.ForwardingSet;
 import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
+import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 
 import java.util.Collection;
@@ -42,8 +43,10 @@ public final class DocumentFieldMappers extends ForwardingSet<FieldMapper<?>> {
     private final FieldNameAnalyzer searchAnalyzer;
     private final FieldNameAnalyzer searchQuoteAnalyzer;
 
-    public DocumentFieldMappers(DocumentMapper docMapper) {
-        this(new FieldMappersLookup(), new FieldNameAnalyzer(docMapper.indexAnalyzer()), new FieldNameAnalyzer(docMapper.searchAnalyzer()), new FieldNameAnalyzer(docMapper.searchQuotedAnalyzer()));
+    public DocumentFieldMappers(AnalysisService analysisService) {
+        this(new FieldMappersLookup(), new FieldNameAnalyzer(analysisService.defaultIndexAnalyzer()),
+                                       new FieldNameAnalyzer(analysisService.defaultSearchAnalyzer()),
+                                       new FieldNameAnalyzer(analysisService.defaultSearchQuoteAnalyzer()));
     }
 
     private DocumentFieldMappers(FieldMappersLookup fieldMappers, FieldNameAnalyzer indexAnalyzer, FieldNameAnalyzer searchAnalyzer, FieldNameAnalyzer searchQuoteAnalyzer) {

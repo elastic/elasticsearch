@@ -132,7 +132,8 @@ public class HistogramParser implements Aggregator.Parser {
             extendedBounds.processAndValidate(aggregationName, context, ValueParser.RAW);
         }
 
-        return new HistogramAggregator.Factory(aggregationName, vsParser.config(), rounding, order, keyed, minDocCount, extendedBounds, InternalHistogram.FACTORY);
+        return new HistogramAggregator.Factory(aggregationName, vsParser.config(), rounding, order, keyed, minDocCount, extendedBounds,
+                new InternalHistogram.Factory());
 
     }
 

@@ -1040,9 +1040,6 @@ public class MapperService extends AbstractIndexComponent  {
                     return analyzer;
                 }
             }
-            if (docMapper != null && docMapper.searchAnalyzer() != null) {
-                return docMapper.searchAnalyzer();
-            }
             return mapperService.searchAnalyzer();
         }
 
@@ -1052,9 +1049,6 @@ public class MapperService extends AbstractIndexComponent  {
                 if (analyzer != null) {
                     return analyzer;
                 }
-            }
-            if (docMapper != null && docMapper.searchQuotedAnalyzer() != null) {
-                return docMapper.searchQuotedAnalyzer();
             }
             return mapperService.searchQuoteAnalyzer();
         }

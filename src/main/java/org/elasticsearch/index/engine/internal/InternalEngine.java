@@ -20,13 +20,15 @@
 package org.elasticsearch.index.engine.internal;
 
 import com.google.common.collect.Lists;
-
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
-import org.apache.lucene.util.*;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
@@ -55,6 +57,7 @@ import org.elasticsearch.index.merge.policy.ElasticsearchMergePolicy;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.search.nested.IncludeNestedDocsQuery;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -1524,8 +1527,19 @@ public class InternalEngine implements Engine {
 
         void endRecovery() throws ElasticsearchException {
             store.decRef();
-            onGoingRecoveries.decrementAndGet();
+            int left = onGoingRecoveries.decrementAndGet();
             assert onGoingRecoveries.get() >= 0 : "ongoingRecoveries must be >= 0 but was: " + onGoingRecoveries.get();
+            if (left == 0) {
+                try {
+                    flush(FlushType.COMMIT_TRANSLOG, false, false);
+                } catch (IllegalIndexShardStateException e) {
+                    // we are being closed, or in created state, ignore
+                } catch (FlushNotAllowedEngineException e) {
+                    // ignore this exception, we are not allowed to perform flush
+                } catch (Throwable e) {
+                    logger.warn("failed to flush shard post recovery", e);
+                }
+            }
         }
 
         @Override

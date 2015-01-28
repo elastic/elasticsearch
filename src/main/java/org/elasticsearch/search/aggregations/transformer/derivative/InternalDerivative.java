@@ -66,14 +66,14 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
 
     public InternalDerivative(String name, GapPolicy gapPolicy,
             InternalAggregations subAggregations, Map<String, Object> metaData) {
-        super(name, Collections.<B>emptyList(), null, 1, null, null, false, metaData);
+        super(name, Collections.<B> emptyList(), null, 1, null, null, false, new InternalHistogram.Factory(), metaData);
         this.gapPolicy = gapPolicy;
         this.aggregations = subAggregations;
     }
 
-    public InternalDerivative(String name, List<B> buckets, @Nullable ValueFormatter formatter, boolean keyed, GapPolicy gapPolicy,
-            Map<String, Object> metaData) {
-        super(name, buckets, null, 1, null, formatter, keyed, metaData);
+    public InternalDerivative(String name, List<B> buckets, @Nullable ValueFormatter formatter, boolean keyed, Factory<B> factory,
+            GapPolicy gapPolicy, Map<String, Object> metaData) {
+        super(name, buckets, null, 1, null, formatter, keyed, factory, metaData);
         this.gapPolicy = gapPolicy;
     }
 
@@ -99,7 +99,7 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
         Long lastValue = null;
         Map<String, Double> lastSingleValueMetrics = null;
         Map<String, Map<String, Double>> lastMultiValueMetrics = null;
-        List<InternalHistogram.Bucket> newBuckets = new ArrayList<>();
+        List<B> newBuckets = new ArrayList<>();
         double xValue = 1.0;
         for (InternalHistogram.Bucket histoBucket : histoBuckets) {
             long thisbucketDocCount = histoBucket.getDocCount();
@@ -162,7 +162,7 @@ public class InternalDerivative<B extends InternalHistogram.Bucket> extends Inte
             lastMultiValueMetrics = thisBucketMultiValueMetrics;
             newBucketKey = histoBucket.getKey();
         }
-        return new InternalDerivative<>(getName(), newBuckets, histo.formatter(), histo.keyed(), gapPolicy, metaData);
+        return new InternalDerivative<>(getName(), newBuckets, histo.formatter(), histo.keyed(), factory, gapPolicy, metaData);
     }
 
     @Override

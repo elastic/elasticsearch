@@ -21,7 +21,11 @@ package org.elasticsearch.search.aggregations.bucket.nested;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FilterCachingPolicy;
@@ -116,7 +120,9 @@ public class NestedAggregatorTest extends ElasticsearchSingleNodeLuceneTestCase 
         AggregationContext context = new AggregationContext(createSearchContext(indexService));
 
         AggregatorFactories.Builder builder = AggregatorFactories.builder();
-        builder.add(new NestedAggregator.Factory("test", "nested_field", FilterCachingPolicy.ALWAYS_CACHE));
+        NestedAggregator.Factory factory = new NestedAggregator.Factory("test", "nested_field", FilterCachingPolicy.ALWAYS_CACHE);
+        factory.subFactories(AggregatorFactories.EMPTY);
+        builder.add(factory);
         AggregatorFactories factories = builder.build();
         Aggregator[] aggs = factories.createTopLevelAggregators(context);
         AggregationPhase.AggregationsCollector collector = new AggregationPhase.AggregationsCollector(Arrays.asList(aggs), context);

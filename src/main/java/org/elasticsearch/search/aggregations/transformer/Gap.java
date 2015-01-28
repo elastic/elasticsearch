@@ -34,12 +34,12 @@ public class Gap {
      * @param start         iterator over the histogram buckets
      * @param histoBuckets histogram buckets
      */
-    public static Gap findGap(int start, List<InternalHistogram.Bucket> histoBuckets) {
+    public static <B extends InternalHistogram.Bucket> Gap findGap(int start, List<B> histoBuckets) {
 
         int gapSize = 0;
         start -= 1;
         InternalHistogram.Bucket histoBucket;
-        ListIterator<InternalHistogram.Bucket> iter = histoBuckets.listIterator(start + 1); // we want to start at the first empty, not the actual start
+        ListIterator<B> iter = histoBuckets.listIterator(start + 1); // we want to start at the first empty, not the actual start
 
         // Iterate until we find the end of the gap
         do {

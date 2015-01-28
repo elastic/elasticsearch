@@ -111,17 +111,17 @@ public class MovingAvgTests extends ElasticsearchIntegrationTest {
 
         MovingAvg movAvg = response.getAggregations().get("movavg");
         assertThat(movAvg, notNullValue());
-        assertThat(movAvg.getName(), equalTo("deriv"));
-        assertThat(movAvg.getBuckets().size(), equalTo(numFirstDerivValueBuckets));
+        assertThat(movAvg.getName(), equalTo("movavg"));
+        List<? extends Histogram.Bucket> buckets = movAvg.getBuckets();
+        assertThat(buckets.size(), equalTo(numFirstDerivValueBuckets));
 
         for (int i = 0; i < numFirstDerivValueBuckets; ++i) {
-            Histogram.Bucket bucket = movAvg.getBucketByKey(String.valueOf(i * interval));
+            Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
-            assertThat(bucket.getDocCount(), equalTo(0l));
-            //SimpleValue docCountDeriv = bucket.getAggregations().get("_doc_count");
-            //assertThat(docCountDeriv, notNullValue());
-            //assertThat(docCountDeriv.value(), equalTo((double) firstDerivValueCounts[i]));
+            assertThat(bucket.getKeyAsString(), equalTo(String.valueOf(i * interval)));
+            //assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
+            //assertThat(bucket.getDocCount(), equalTo(0l));
+
         }
     }
 }

@@ -19,12 +19,9 @@
 
 package org.elasticsearch.search.aggregations.transformer.moving.avg;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 
-import java.io.IOException;
 import java.util.List;
 
 public interface MovingAvg extends MultiBucketsAggregation {
@@ -34,12 +31,4 @@ public interface MovingAvg extends MultiBucketsAggregation {
      */
     List<? extends Histogram.Bucket> getBuckets();
 
-    /**
-     * The bucket that is associated with the given key.
-     * 
-     * @param key
-     *            The key of the requested bucket.
-     * @return The bucket
-     */
-    Histogram.Bucket getBucketByKey(String key);
 }

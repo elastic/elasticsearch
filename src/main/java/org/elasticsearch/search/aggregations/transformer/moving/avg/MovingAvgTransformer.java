@@ -54,12 +54,12 @@ public class MovingAvgTransformer extends Transformer {
 
     @Override
     protected InternalAggregation buildAggregation(String name, int bucketDocCount, InternalAggregations bucketAggregations) {
-        return new InternalMovingAvg<>(name, keyed, formatter, gapPolicy, window, weight, bucketAggregations, metaData());
+        return new InternalMovingAvg<>(name, gapPolicy, window, weight, bucketAggregations, metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMovingAvg<>(name, keyed, formatter, gapPolicy, window, weight, InternalAggregations.EMPTY, metaData());
+        return new InternalMovingAvg<>(name, gapPolicy, window, weight, InternalAggregations.EMPTY, metaData());
     }
 
     public static class Factory extends AggregatorFactory {

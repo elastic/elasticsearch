@@ -43,7 +43,7 @@ public class InternalMovingAvg<B extends InternalHistogram.Bucket> extends Inter
     private final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalMovingAvg readResult(StreamInput in) throws IOException {
-            InternalMovingAvg histogram = new InternalMovingAvg();
+            InternalMovingAvg<?> histogram = new InternalMovingAvg<>();
             histogram.readFrom(in);
             return histogram;
         }
@@ -63,18 +63,18 @@ public class InternalMovingAvg<B extends InternalHistogram.Bucket> extends Inter
         super();
     }
 
-    public InternalMovingAvg(String name, boolean keyed, @Nullable ValueFormatter formatter, GapPolicy gapPolicy,
-                             int windowSize, Weighting weight, InternalAggregations subAggregations, Map<String, Object> metaData) {
-        super(name, Collections.EMPTY_LIST, null, 1, null, formatter, keyed, metaData);
+    public InternalMovingAvg(String name, GapPolicy gapPolicy, int windowSize, Weighting weight,
+                             InternalAggregations subAggregations, Map<String, Object> metaData) {
+        super(name, Collections.<B> emptyList(), null, 1, null, null, false, new InternalHistogram.Factory(), metaData);
         this.gapPolicy = gapPolicy;
         this.aggregations = subAggregations;
         this.windowSize = windowSize;
         this.weight = weight;
     }
 
-    public InternalMovingAvg(String name, List<B> buckets, @Nullable ValueFormatter formatter, boolean keyed, GapPolicy gapPolicy,
-                             int windowSize, Weighting weight, Map<String, Object> metaData) {
-        super(name, buckets, null, 1, null, formatter, keyed, metaData);
+    public InternalMovingAvg(String name, List<B> buckets, @Nullable ValueFormatter formatter, boolean keyed, Factory<B> factory,
+                             GapPolicy gapPolicy, int windowSize, Weighting weight, Map<String, Object> metaData) {
+        super(name, buckets, null, 1, null, formatter, keyed, factory, metaData);
         this.gapPolicy = gapPolicy;
         this.windowSize = windowSize;
         this.weight = weight;
@@ -95,17 +95,19 @@ public class InternalMovingAvg<B extends InternalHistogram.Bucket> extends Inter
             subAggregationsList.add(((InternalMovingAvg<B>) aggregation).aggregations);
         }
         final InternalAggregations aggs = InternalAggregations.reduce(subAggregationsList, reduceContext);
-        InternalHistogram histo = (InternalHistogram) aggs.iterator().next();
-        Factory factory = histo.getFactory();
-        DiscontinuousHistogram histoBuckets = new DiscontinuousHistogram(histo.getBuckets(), gapPolicy);
-        List<InternalHistogram.Bucket> newBuckets = new ArrayList<>();
+        InternalHistogram<B> histo = (InternalHistogram<B>) aggs.iterator().next();
+        InternalHistogram.Factory<B> factory = histo.getFactory();
+
+        DiscontinuousHistogram<B> histoBuckets = new DiscontinuousHistogram(histo.getBuckets(), gapPolicy);
+        List<B> newBuckets = new ArrayList<>();
 
 
         Map<String, EvictingQueue<Double>> bucketWindows = new HashMap<>();
         EvictingQueue<Long> docCountWindow = EvictingQueue.create(this.windowSize);
 
-        for (DiscontinuousHistogram.BucketMetrics metrics : histoBuckets) {
+        for (DiscontinuousHistogram<B>.BucketMetrics<B> metrics : histoBuckets) {
             docCountWindow.offer(metrics.owningBucket.getDocCount());
+
 
             for (Map.Entry<String, Double> entry : metrics.singleValues.entrySet()) {
                 EvictingQueue<Double> v = bucketWindows.get(entry.getKey());
@@ -118,15 +120,15 @@ public class InternalMovingAvg<B extends InternalHistogram.Bucket> extends Inter
 
             // NOCOMMIT TODO multi-metrics here
 
-            long newBucketKey = metrics.owningBucket.getKeyAsNumber().longValue();
-            InternalHistogram.Bucket newBucket = generateBucket(newBucketKey, docCountWindow, bucketWindows, factory);
+            Object newBucketKey = metrics.owningBucket.getKey();
+            B newBucket = generateBucket(newBucketKey, histo, docCountWindow, bucketWindows, factory);
             newBuckets.add(newBucket);
         }
 
-        return new InternalMovingAvg<>(getName(), newBuckets, formatter(), keyed(), gapPolicy, windowSize, weight, metaData);
+        return new InternalMovingAvg<>(getName(), newBuckets, histo.formatter(), histo.keyed(), factory, gapPolicy, windowSize, weight, metaData);
     }
 
-    private InternalHistogram.Bucket generateBucket(long newBucketKey, EvictingQueue<Long> docCountWindow,
+    private B generateBucket(Object newBucketKey, InternalHistogram<B> histo, EvictingQueue<Long> docCountWindow,
                                                     Map<String, EvictingQueue<Double>> bucketWindows,
                                                     Factory factory) {
 
@@ -142,7 +144,9 @@ public class InternalMovingAvg<B extends InternalHistogram.Bucket> extends Inter
             metricsAggregations.add(metricAgg);
         }
         InternalAggregations metricsAggs = new InternalAggregations(metricsAggregations);
-        return factory.createBucket(newBucketKey, 0, metricsAggs, keyed(), formatter());
+
+        // NOCOMMIT cast here necessary???
+        return (B) factory.createBucket(newBucketKey, 0, metricsAggs, histo.keyed(), histo.formatter());
     }
 
     @Override

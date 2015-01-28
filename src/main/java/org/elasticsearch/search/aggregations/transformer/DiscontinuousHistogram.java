@@ -16,8 +16,8 @@ import java.util.*;
  * (and back-filled, where appropriate) view of the bucket metrics.  This makes it more convenient to work with
  * inside the transformer
  */
-public class DiscontinuousHistogram implements Iterable<DiscontinuousHistogram.BucketMetrics> {
-    private List<InternalHistogram.Bucket> buckets;
+public class DiscontinuousHistogram<B extends InternalHistogram.Bucket> implements Iterable<DiscontinuousHistogram.BucketMetrics> {
+    private List<B> buckets;
     private GapPolicy gapPolicy;
 
     public static enum GapPolicy {
@@ -44,11 +44,11 @@ public class DiscontinuousHistogram implements Iterable<DiscontinuousHistogram.B
         }
     }
     
-    public DiscontinuousHistogram(List<InternalHistogram.Bucket> list) {
+    public DiscontinuousHistogram(List<B> list) {
         this(list, GapPolicy.ignore);
     }
     
-    public DiscontinuousHistogram(List<InternalHistogram.Bucket> list, GapPolicy gapPolicy) {
+    public DiscontinuousHistogram(List<B> list, GapPolicy gapPolicy) {
         this.buckets = list;
         this.gapPolicy = gapPolicy;
     }
@@ -58,13 +58,13 @@ public class DiscontinuousHistogram implements Iterable<DiscontinuousHistogram.B
     public Iterator<BucketMetrics> iterator() {
         switch (gapPolicy) {
             case ignore:
-                return new IgnoreIterator(buckets.listIterator());
+                return new IgnoreIterator<>(buckets.listIterator());
             case insert_zeros:
-                return new InsertZeroIterator(buckets.listIterator());
+                return new InsertZeroIterator<>(buckets.listIterator());
             case interpolate:
-                return new InterpolateIterator(buckets.listIterator());
+                return new InterpolateIterator<>(buckets.listIterator());
             default:
-                return new IgnoreIterator(buckets.listIterator());
+                return new IgnoreIterator<>(buckets.listIterator());
         }
     }
 
@@ -73,13 +73,13 @@ public class DiscontinuousHistogram implements Iterable<DiscontinuousHistogram.B
      * Base abstract class for the discontinuous iterators.  Provides the majority of the functionality, so that
      * the specific gap-policy iterators can just implement onSingleValue() and onMultiValue()
      */
-    public abstract class BucketMetricsIterator implements Iterator<BucketMetrics> {
+    public abstract class BucketMetricsIterator<B extends InternalHistogram.Bucket> implements Iterator<BucketMetrics> {
 
-        protected ListIterator<InternalHistogram.Bucket> iterator;
+        protected ListIterator<B> iterator;
         Map<String, Double> singleValues = new HashMap<>();
         Map<String, Map<String, Double>> multiValues = new HashMap<>();
 
-        public BucketMetricsIterator(ListIterator<InternalHistogram.Bucket> iterator) {
+        public BucketMetricsIterator(ListIterator<B> iterator) {
             this.iterator = iterator;
         }
 
@@ -107,7 +107,7 @@ public class DiscontinuousHistogram implements Iterable<DiscontinuousHistogram.B
                 }
             }
 
-            return new BucketMetrics(bucket, singleValues, multiValues);
+            return new BucketMetrics<>(bucket, singleValues, multiValues);
         }
 
         @Override
@@ -138,9 +138,9 @@ public class DiscontinuousHistogram implements Iterable<DiscontinuousHistogram.B
     /**
      * A simple iterator that simply ignores gaps
      */
-    public class IgnoreIterator extends BucketMetricsIterator {
+    public class IgnoreIterator<B extends InternalHistogram.Bucket> extends BucketMetricsIterator<B> {
 
-        public IgnoreIterator(ListIterator<InternalHistogram.Bucket> iterator) {
+        public IgnoreIterator(ListIterator<B> iterator) {
             super(iterator);
         }
 
@@ -160,9 +160,9 @@ public class DiscontinuousHistogram implements Iterable<DiscontinuousHistogram.B
      * This iterator fills gaps with zeros.  This is different from simply skipping the buckets entirely, since the zeros
      * will still be used for the transformer calculations
      */
-    public class InsertZeroIterator extends BucketMetricsIterator {
+    public class InsertZeroIterator<B extends InternalHistogram.Bucket> extends BucketMetricsIterator<B> {
 
-        public InsertZeroIterator(ListIterator<InternalHistogram.Bucket> iterator) {
+        public InsertZeroIterator(ListIterator<B> iterator) {
             super(iterator);
         }
 
@@ -187,13 +187,13 @@ public class DiscontinuousHistogram implements Iterable<DiscontinuousHistogram.B
      * and then interpolates across the gap with that delta.  This iterator will necessarily be slower, since it needs to "scan ahead"
      * when gaps are encountered so that it can determine the per-bucket delta, then backtrack to fill in the values.
      */
-    public class InterpolateIterator extends BucketMetricsIterator {
+    public class InterpolateIterator<B extends InternalHistogram.Bucket> extends BucketMetricsIterator<B> {
 
         private int gapCounter = -1;
         private int iteratorPosition = -1;
         private Gap gap;
 
-        public InterpolateIterator(ListIterator<InternalHistogram.Bucket> iterator) {
+        public InterpolateIterator(ListIterator<B> iterator) {
             super(iterator);
         }
 
@@ -241,12 +241,12 @@ public class DiscontinuousHistogram implements Iterable<DiscontinuousHistogram.B
     /**
      * A simple container class which holds details about the start/end of a gap
      */
-    public class BucketMetrics {
+    public class BucketMetrics<B extends InternalHistogram.Bucket> {
         public Map<String, Double> singleValues;
         public Map<String, Map<String, Double>> multiValues;
-        public InternalHistogram.Bucket owningBucket;
+        public B owningBucket;
 
-        public BucketMetrics(InternalHistogram.Bucket owningBucket, Map<String, Double> singleValues, Map<String, Map<String, Double>> multiValues) {
+        public BucketMetrics(B owningBucket, Map<String, Double> singleValues, Map<String, Map<String, Double>> multiValues) {
             this.singleValues = singleValues;
             this.multiValues = multiValues;
             this.owningBucket = owningBucket;

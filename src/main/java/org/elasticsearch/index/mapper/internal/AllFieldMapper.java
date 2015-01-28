@@ -236,13 +236,10 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
     private Analyzer findAnalyzer(ParseContext context) {
         Analyzer analyzer = indexAnalyzer;
         if (analyzer == null) {
-            analyzer = context.analyzer();
+            analyzer = context.docMapper().mappers().indexAnalyzer();
             if (analyzer == null) {
-                analyzer = context.docMapper().indexAnalyzer();
-                if (analyzer == null) {
-                    // This should not happen, should we log warn it?
-                    analyzer = Lucene.STANDARD_ANALYZER;
-                }
+                // This should not happen, should we log warn it?
+                analyzer = Lucene.STANDARD_ANALYZER;
             }
         }
         return analyzer;

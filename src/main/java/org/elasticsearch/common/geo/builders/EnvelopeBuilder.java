@@ -20,7 +20,7 @@
 package org.elasticsearch.common.geo.builders;
 
 import com.spatial4j.core.shape.Rectangle;
-import com.vividsolutions.jts.geom.Coordinate;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -29,8 +29,8 @@ public class EnvelopeBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.ENVELOPE; 
 
-    protected Coordinate topLeft;
-    protected Coordinate bottomRight;
+    protected GeoPoint topLeft;
+    protected GeoPoint bottomRight;
 
     public EnvelopeBuilder() {
         this(Orientation.RIGHT);
@@ -40,7 +40,7 @@ public class EnvelopeBuilder extends ShapeBuilder {
         super(orientation);
     }
 
-    public EnvelopeBuilder topLeft(Coordinate topLeft) {
+    public EnvelopeBuilder topLeft(GeoPoint topLeft) {
         this.topLeft = topLeft;
         return this;
     }
@@ -49,7 +49,7 @@ public class EnvelopeBuilder extends ShapeBuilder {
         return topLeft(coordinate(longitude, latitude));
     }
 
-    public EnvelopeBuilder bottomRight(Coordinate bottomRight) {
+    public EnvelopeBuilder bottomRight(GeoPoint bottomRight) {
         this.bottomRight = bottomRight;
         return this;
     }

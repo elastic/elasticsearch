@@ -26,22 +26,19 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.rest.action.admin.indices.upgrade.UpgradeTest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.hamcrest.Matchers;
 
 import java.lang.reflect.Modifier;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -134,8 +131,10 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
     void assertOldIndexWorks(String index) throws Exception {
         Settings settings = ImmutableSettings.builder()
             .put(InternalNode.HTTP_ENABLED, true) // for _upgrade
-            .build();
+                .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class) // disable merging so no segments will be upgraded
+                .build();
         loadIndex(index, settings);
+        logMemoryStats();
         assertBasicSearchWorks();
         assertRealtimeGetWorks();
         assertNewReplicasWork();
@@ -192,7 +191,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
                 .put(InternalNode.HTTP_ENABLED, true) // for _upgrade
                 .build());
         }
-        ensureGreen("test");
+        client().admin().cluster().prepareHealth("test").setWaitForNodes("" + (numReplicas + 1));
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
             .put("number_of_replicas", numReplicas)).execute().actionGet());
         // This can take a while when the number of replicas is greater than cluster.routing.allocation.node_concurrent_recoveries

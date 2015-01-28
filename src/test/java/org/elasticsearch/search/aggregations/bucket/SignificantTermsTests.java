@@ -46,7 +46,9 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
@@ -120,7 +122,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                 .actionGet();
         assertSearchResponse(response);
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
-        Number topCategory = topTerms.getBuckets().iterator().next().getKeyAsNumber();
+        Number topCategory = (Number) topTerms.getBuckets().iterator().next().getKey();
         assertTrue(topCategory.equals(new Long(SNOWBOARDING_CATEGORY)));
     }
     
@@ -137,7 +139,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                 .actionGet();
         assertSearchResponse(response);
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
-        Number topCategory = topTerms.getBuckets().iterator().next().getKeyAsNumber();
+        Number topCategory = (Number) topTerms.getBuckets().iterator().next().getKey();
         assertTrue(topCategory.equals(new Long(OTHER_CATEGORY)));
     }
 
@@ -152,7 +154,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
         Set<String> terms  = new HashSet<>();
         for (Bucket topTerm : topTerms) {
-            terms.add(topTerm.getKey());
+            terms.add(topTerm.getKeyAsString());
         }
         assertThat(terms, hasSize(6));
         assertThat(terms.contains("jam"), is(true));
@@ -171,7 +173,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         topTerms = response.getAggregations().get("mySignificantTerms");
         terms  = new HashSet<>();
         for (Bucket topTerm : topTerms) {
-            terms.add(topTerm.getKey());
+            terms.add(topTerm.getKeyAsString());
         }
         assertThat(terms, hasSize(1));
         assertThat(terms.contains("weller"), is(true));
@@ -189,7 +191,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
         Set<String> terms  = new HashSet<>();
         for (Bucket topTerm : topTerms) {
-            terms.add(topTerm.getKey());
+            terms.add(topTerm.getKeyAsString());
         }
         assertThat(terms, hasSize(6));
         assertThat(terms.contains("jam"), is(true));
@@ -208,7 +210,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         topTerms = response.getAggregations().get("mySignificantTerms");
         terms  = new HashSet<>();
         for (Bucket topTerm : topTerms) {
-            terms.add(topTerm.getKey());
+            terms.add(topTerm.getKeyAsString());
         }
         assertThat(terms, hasSize(1));
         assertThat(terms.contains("weller"), is(true));
@@ -318,7 +320,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
         HashSet<String> topWords = new HashSet<String>();
         for (Bucket topTerm : topTerms) {
-            topWords.add(topTerm.getKey());
+            topWords.add(topTerm.getKeyAsString());
         }
         //The word "paul" should be a constant of all docs in the background set and therefore not seen as significant 
         assertFalse(topWords.contains("paul"));
@@ -347,9 +349,9 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
             SignificantTerms topTerms = topCategory.getAggregations().get("mySignificantTerms");
             HashSet<String> foundTopWords = new HashSet<String>();
             for (Bucket topTerm : topTerms) {
-                foundTopWords.add(topTerm.getKey());
+                foundTopWords.add(topTerm.getKeyAsString());
             }
-            String[] expectedKeywords = expectedKeywordsByCategory[Integer.parseInt(topCategory.getKey()) - 1];
+            String[] expectedKeywords = expectedKeywordsByCategory[Integer.parseInt(topCategory.getKeyAsString()) - 1];
             for (String expectedKeyword : expectedKeywords) {
                 assertTrue(expectedKeyword + " missing from category keywords", foundTopWords.contains(expectedKeyword));
             }
@@ -377,7 +379,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
     private void checkExpectedStringTermsFound(SignificantTerms topTerms) {
         HashMap<String,Bucket>topWords=new HashMap<>();
         for (Bucket topTerm : topTerms ){
-            topWords.put(topTerm.getKey(),topTerm);
+            topWords.put(topTerm.getKeyAsString(), topTerm);
         }
         assertTrue( topWords.containsKey("haakonsen"));
         assertTrue( topWords.containsKey("craig"));

@@ -56,7 +56,6 @@ import org.elasticsearch.index.mapper.core.TypeParsers;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
-import org.elasticsearch.index.mapper.internal.AnalyzerMapper;
 import org.elasticsearch.index.mapper.internal.BoostFieldMapper;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
@@ -80,6 +79,8 @@ import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -147,7 +148,6 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 .put(SourceFieldMapper.NAME, new SourceFieldMapper.TypeParser())
                 .put(TypeFieldMapper.NAME, new TypeFieldMapper.TypeParser())
                 .put(AllFieldMapper.NAME, new AllFieldMapper.TypeParser())
-                .put(AnalyzerMapper.NAME, new AnalyzerMapper.TypeParser())
                 .put(BoostFieldMapper.NAME, new BoostFieldMapper.TypeParser())
                 .put(ParentFieldMapper.NAME, new ParentFieldMapper.TypeParser())
                 .put(RoutingFieldMapper.NAME, new RoutingFieldMapper.TypeParser())
@@ -246,36 +246,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
             String fieldName = Strings.toUnderscoreCase(entry.getKey());
             Object fieldNode = entry.getValue();
 
-            if ("index_analyzer".equals(fieldName)) {
-                iterator.remove();
-                NamedAnalyzer analyzer = analysisService.analyzer(fieldNode.toString());
-                if (analyzer == null) {
-                    throw new MapperParsingException("Analyzer [" + fieldNode.toString() + "] not found for index_analyzer setting on root type [" + type + "]");
-                }
-                docBuilder.indexAnalyzer(analyzer);
-            } else if ("search_analyzer".equals(fieldName)) {
-                iterator.remove();
-                NamedAnalyzer analyzer = analysisService.analyzer(fieldNode.toString());
-                if (analyzer == null) {
-                    throw new MapperParsingException("Analyzer [" + fieldNode.toString() + "] not found for search_analyzer setting on root type [" + type + "]");
-                }
-                docBuilder.searchAnalyzer(analyzer);
-            } else if ("search_quote_analyzer".equals(fieldName)) {
-                iterator.remove();
-                NamedAnalyzer analyzer = analysisService.analyzer(fieldNode.toString());
-                if (analyzer == null) {
-                    throw new MapperParsingException("Analyzer [" + fieldNode.toString() + "] not found for search_analyzer setting on root type [" + type + "]");
-                }
-                docBuilder.searchQuoteAnalyzer(analyzer);
-            } else if ("analyzer".equals(fieldName)) {
-                iterator.remove();
-                NamedAnalyzer analyzer = analysisService.analyzer(fieldNode.toString());
-                if (analyzer == null) {
-                    throw new MapperParsingException("Analyzer [" + fieldNode.toString() + "] not found for analyzer setting on root type [" + type + "]");
-                }
-                docBuilder.indexAnalyzer(analyzer);
-                docBuilder.searchAnalyzer(analyzer);
-            } else if ("transform".equals(fieldName)) {
+            if ("transform".equals(fieldName)) {
                 iterator.remove();
                 if (fieldNode instanceof Map) {
                     parseTransform(docBuilder, (Map<String, Object>) fieldNode, parserContext.indexVersionCreated());
@@ -308,16 +279,6 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         docBuilder.meta(attributes);
 
         checkNoRemainingFields(mapping, parserContext.indexVersionCreated(), "Root mapping definition has unsupported parameters: ");
-
-        if (!docBuilder.hasIndexAnalyzer()) {
-            docBuilder.indexAnalyzer(analysisService.defaultIndexAnalyzer());
-        }
-        if (!docBuilder.hasSearchAnalyzer()) {
-            docBuilder.searchAnalyzer(analysisService.defaultSearchAnalyzer());
-        }
-        if (!docBuilder.hasSearchQuoteAnalyzer()) {
-            docBuilder.searchAnalyzer(analysisService.defaultSearchQuoteAnalyzer());
-        }
 
         DocumentMapper documentMapper = docBuilder.build(this);
         // update the source with the generated one

@@ -191,7 +191,8 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
     }
 
     private void assertSyncShardInfo(ActionWriteResponse.ShardInfo shardInfo, NumShards numShards) {
-        assertThat(shardInfo.getTotal(), equalTo(numShards.totalNumShards));
+        assertThat(shardInfo.getTotal(), greaterThanOrEqualTo(numShards.totalNumShards));
+        // we do not ensure green so just make sure request succeeded at least on all primaries
         assertThat(shardInfo.getSuccessful(), greaterThanOrEqualTo(numShards.numPrimaries));
         assertThat(shardInfo.getPending(), equalTo(0));
         assertThat(shardInfo.getFailed(), equalTo(0));

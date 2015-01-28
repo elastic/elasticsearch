@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.geo;
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.util.SloppyMath;
@@ -37,7 +38,9 @@ public class GeoUtils {
     public static final String LATITUDE = GeoPointFieldMapper.Names.LAT;
     public static final String LONGITUDE = GeoPointFieldMapper.Names.LON;
     public static final String GEOHASH = GeoPointFieldMapper.Names.GEOHASH;
-    
+
+    public static final double DATELINE = 180.0D;
+
     /** Earth ellipsoid major axis defined by WGS 84 in meters */
     public static final double EARTH_SEMI_MAJOR_AXIS = 6378137.0;      // meters (WGS 84)
 
@@ -420,6 +423,113 @@ public class GeoUtils {
         } else {
             throw new ElasticsearchParseException("geo_point expected");
         }
+    }
+
+    public static boolean correctPolyAmbiguity(GeoPoint[] points, boolean handedness) {
+        return correctPolyAmbiguity(points, handedness, computePolyOrientation(points), 0, points.length, false);
+    }
+
+    public static boolean correctPolyAmbiguity(GeoPoint[] points, boolean handedness, boolean orientation, int component, int length,
+                                               boolean shellCorrected) {
+        // OGC requires shell as ccw (Right-Handedness) and holes as cw (Left-Handedness)
+        // since GeoJSON doesn't specify (and doesn't need to) GEO core will assume OGC standards
+        // thus if orientation is computed as cw, the logic will translate points across dateline
+        // and convert to a right handed system
+
+        // compute the bounding box and calculate range
+        Pair<Pair, Pair> range = GeoUtils.computeBBox(points, length);
+        final double rng = (Double)range.getLeft().getRight() - (Double)range.getLeft().getLeft();
+        // translate the points if the following is true
+        //   1.  shell orientation is cw and range is greater than a hemisphere (180 degrees) but not spanning 2 hemispheres
+        //       (translation would result in a collapsed poly)
+        //   2.  the shell of the candidate hole has been translated (to preserve the coordinate system)
+        boolean incorrectOrientation = component == 0 && handedness != orientation;
+        boolean translated = ((incorrectOrientation && (rng > DATELINE && rng != 360.0)) || (shellCorrected && component != 0));
+        if (translated) {
+            for (GeoPoint c : points) {
+                if (c.x < 0.0) {
+                    c.x += 360.0;
+                }
+            }
+        }
+        return translated;
+    }
+
+    public static boolean computePolyOrientation(GeoPoint[] points) {
+        return computePolyOrientation(points, points.length);
+    }
+
+    public static boolean computePolyOrientation(GeoPoint[] points, int length) {
+        // calculate the direction of the points:
+        // find the point at the top of the set and check its
+        // neighbors orientation. So direction is equivalent
+        // to clockwise/counterclockwise
+        final int top = computePolyOrigin(points, length);
+        final int prev = ((top + length - 1) % length);
+        final int next = ((top + 1) % length);
+        return (points[prev].x > points[next].x);
+    }
+
+    private static final int computePolyOrigin(GeoPoint[] points, int length) {
+        int top = 0;
+        // we start at 1 here since top points to 0
+        for (int i = 1; i < length; i++) {
+            if (points[i].y < points[top].y) {
+                top = i;
+            } else if (points[i].y == points[top].y) {
+                if (points[i].x < points[top].x) {
+                    top = i;
+                }
+            }
+        }
+        return top;
+    }
+
+    public static final Pair computeBBox(GeoPoint[] points) {
+        return computeBBox(points, 0);
+    }
+
+    public static final Pair computeBBox(GeoPoint[] points, int length) {
+        double minX = points[0].x;
+        double maxX = points[0].x;
+        double minY = points[0].y;
+        double maxY = points[0].y;
+        // compute the bounding coordinates (@todo: cleanup brute force)
+        for (int i = 1; i < length; ++i) {
+            if (points[i].x < minX) {
+                minX = points[i].x;
+            }
+            if (points[i].x > maxX) {
+                maxX = points[i].x;
+            }
+            if (points[i].y < minY) {
+                minY = points[i].y;
+            }
+            if (points[i].y > maxY) {
+                maxY = points[i].y;
+            }
+        }
+        // return a pair of ranges on the X and Y axis, respectively
+        return Pair.of(Pair.of(minX, maxX), Pair.of(minY, maxY));
+    }
+
+    public static GeoPoint convertToGreatCircle(GeoPoint point) {
+        return convertToGreatCircle(point.y, point.x);
+    }
+
+    public static GeoPoint convertToGreatCircle(double lat, double lon) {
+        GeoPoint p = new GeoPoint(lat, lon);
+        // convert the point to standard lat/lon bounds
+        normalizePoint(p);
+
+        if (p.x < 0.0D) {
+            p.x += 360.0D;
+        }
+
+        if (p.y < 0.0D) {
+            p.y +=180.0D;
+        }
+        return p;
     }
 
     private GeoUtils() {

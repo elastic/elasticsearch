@@ -18,12 +18,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.text.StringText;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -100,23 +97,23 @@ public class SignificantLongTerms extends InternalSignificantTerms {
         }
 
         @Override
-        public Text getKeyAsText() {
-            return new StringText(String.valueOf(term));
-        }
-
-        @Override
-        public Number getKeyAsNumber() {
+        public Object getKey() {
             return term;
         }
 
         @Override
         int compareTerm(SignificantTerms.Bucket other) {
-            return Long.compare(term, other.getKeyAsNumber().longValue());
+            return Long.compare(term, ((Number) other.getKey()).longValue());
         }
 
         @Override
-        public String getKey() {
+        public String getKeyAsString() {
             return Long.toString(term);
+        }
+
+        @Override
+        public Number getKeyAsNumber() {
+            return term;
         }
 
         @Override

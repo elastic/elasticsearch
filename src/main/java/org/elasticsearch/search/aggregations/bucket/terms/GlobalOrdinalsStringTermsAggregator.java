@@ -31,7 +31,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -221,17 +220,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        public String getKey() {
+        public String getKeyAsString() {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public Text getKeyAsText() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        Object getKeyAsObject() {
+        public Object getKey() {
             throw new UnsupportedOperationException();
         }
 

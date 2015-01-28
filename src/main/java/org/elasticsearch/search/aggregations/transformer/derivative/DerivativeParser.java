@@ -23,9 +23,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.format.ValueFormat;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.transformer.derivative.Derivative.GapPolicy;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -48,9 +45,7 @@ public class DerivativeParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        boolean keyed = false;
-        String format = null;
-        GapPolicy gapPolicy = GapPolicy.ignore;
+        GapPolicy gapPolicy = GapPolicy.IGNORE;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -58,12 +53,8 @@ public class DerivativeParser implements Aggregator.Parser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (KEYED.match(currentFieldName)) {
-                    keyed = parser.booleanValue();
-                } else if (FORMAT.match(currentFieldName)) {
-                    format = parser.text();
-                } else if (GAP_POLICY.match(currentFieldName)) {
-                    gapPolicy = GapPolicy.valueOf(parser.text());
+                if (GAP_POLICY.match(currentFieldName)) {
+                    gapPolicy = GapPolicy.parse(context, parser.text());
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: ["
                             + currentFieldName + "].");
@@ -73,18 +64,7 @@ public class DerivativeParser implements Aggregator.Parser {
             }
         }
 
-        ValueFormatter formatter = null;
-        if (format != null) {
-            ValueType valueType = ValueType.LONG; // NOCOMMIT need to detect this somehow
-            ValueFormat valueFormat = valueType.defaultFormat();
-            if (valueFormat != null && valueFormat instanceof ValueFormat.Patternable && format != null) {
-                formatter = ((ValueFormat.Patternable) valueFormat).create(format).formatter();
-            } else {
-                throw new SearchParseException(context, "Cannot resolve format [" + format + "] in aggregation [" + aggregationName + "].");
-            }
-        }
-
-        return new DerivativeTransformer.Factory(aggregationName, keyed, formatter, gapPolicy);
+        return new DerivativeTransformer.Factory(aggregationName, gapPolicy);
 
     }
 }

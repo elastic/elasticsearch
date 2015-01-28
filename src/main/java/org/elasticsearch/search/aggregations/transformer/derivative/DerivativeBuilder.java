@@ -35,22 +35,25 @@ public class DerivativeBuilder extends ValuesSourceAggregationBuilder<Derivative
         super(name, InternalDerivative.TYPE.name());
     }
 
-    public void gapPolicy(GapPolicy gapPolicy) {
+    public DerivativeBuilder gapPolicy(GapPolicy gapPolicy) {
         this.gapPolicy = gapPolicy;
+        return this;
     }
 
-    public void format(String format) {
+    public DerivativeBuilder format(String format) {
         this.format = format;
+        return this;
     }
 
-    public void keyed(boolean keyed) {
+    public DerivativeBuilder keyed(boolean keyed) {
         this.keyed = keyed;
+        return this;
     }
 
     @Override
     protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
         if (gapPolicy != null) {
-            builder.field(DerivativeParser.GAP_POLICY.getPreferredName(), gapPolicy.name());
+            builder.field(DerivativeParser.GAP_POLICY.getPreferredName(), gapPolicy.getName());
         }
         if (format != null) {
             builder.field(DerivativeParser.FORMAT.getPreferredName(), format);

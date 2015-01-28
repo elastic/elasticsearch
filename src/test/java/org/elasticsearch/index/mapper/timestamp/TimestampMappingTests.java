@@ -85,7 +85,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
 
         assertThat(doc.rootDoc().getField("_timestamp").fieldType().stored(), equalTo(true));
         assertNotSame(IndexOptions.NONE, doc.rootDoc().getField("_timestamp").fieldType().indexOptions());
-        assertThat(doc.rootDoc().getField("_timestamp").tokenStream(docMapper.indexAnalyzer(), null), notNullValue());
+        assertThat(doc.rootDoc().getField("_timestamp").tokenStream(docMapper.mappers().indexAnalyzer(), null), notNullValue());
     }
 
     @Test

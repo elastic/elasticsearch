@@ -34,12 +34,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.engine.MockInternalEngine;
 import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.elasticsearch.test.store.MockFSDirectoryService;
-import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -52,6 +54,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTest {
 
     @Test
+    @TestLogging("action.search.type:TRACE,index.shard:TRACE")
     public void testRandomDirectoryIOExceptions() throws IOException, InterruptedException, ExecutionException {
         String mapping = XContentFactory.jsonBuilder().
                 startObject().
@@ -85,7 +88,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
             exceptionOnOpenRate = 0d;
         }
         final boolean createIndexWithoutErrors = randomBoolean();
-        long numInitialDocs = 0;
+        int numInitialDocs = 0;
 
         if (createIndexWithoutErrors) {
             Builder settings = settingsBuilder()
@@ -133,7 +136,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
             numDocs = between(10, 100);
             expectAllShardsFailed = false;
         }
-        long numCreated = 0;
+        int numCreated = 0;
         boolean[] added = new boolean[numDocs];
         for (int i = 0; i < numDocs; i++) {
             added[i] = false;
@@ -157,18 +160,20 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
         for (int i = 0; i < numSearches; i++) {
             try {
                 int docToQuery = between(0, numDocs - 1);
-                long expectedResults = added[docToQuery] ? 1 : 0;
+                int expectedResults = added[docToQuery] ? 1 : 0;
                 logger.info("Searching for [test:{}]", English.intToEnglish(docToQuery));
-                SearchResponse searchResponse = client().prepareSearch().setTypes("type").setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery))).get();
+                SearchResponse searchResponse = client().prepareSearch().setTypes("type").setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery)))
+                        .setSize(expectedResults).get();
                 logger.info("Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), numShards.numPrimaries);
                 if (searchResponse.getSuccessfulShards() == numShards.numPrimaries && !refreshFailed) {
-                    assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(expectedResults));
+                    assertResultsAndLogOnFailure(expectedResults, searchResponse);
                 }
                 // check match all
-                searchResponse = client().prepareSearch().setTypes("type").setQuery(QueryBuilders.matchAllQuery()).get();
+                searchResponse = client().prepareSearch().setTypes("type").setQuery(QueryBuilders.matchAllQuery())
+                        .setSize(numCreated + numInitialDocs).addSort("_uid", SortOrder.ASC).get();
                 logger.info("Match all Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), numShards.numPrimaries);
                 if (searchResponse.getSuccessfulShards() == numShards.numPrimaries && !refreshFailed) {
-                    assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(numCreated + numInitialDocs));
+                    assertResultsAndLogOnFailure(numCreated + numInitialDocs, searchResponse);
                 }
             } catch (SearchPhaseExecutionException ex) {
                 logger.info("SearchPhaseException: [{}]", ex.getMessage());
@@ -190,6 +195,20 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
             SearchResponse searchResponse = client().prepareSearch().setTypes("type").setQuery(QueryBuilders.matchQuery("test", "init")).get();
             assertNoFailures(searchResponse);
             assertHitCount(searchResponse, numInitialDocs);
+        }
+    }
+
+    private void assertResultsAndLogOnFailure(long expectedResults, SearchResponse searchResponse) {
+        if (searchResponse.getHits().getTotalHits() != expectedResults) {
+            StringBuilder sb = new StringBuilder("search result contains [");
+            sb.append(searchResponse.getHits().getTotalHits()).append("] results. expected [").append(expectedResults).append("]");
+            String failMsg = sb.toString();
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                sb.append("\n-> _index: [").append(hit.getIndex()).append("] type [").append(hit.getType())
+                        .append("] id [").append(hit.id()).append("]");
+            }
+            logger.warn(sb.toString());
+            fail(failMsg);
         }
     }
 
@@ -239,7 +258,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
                 .addMapping("type", mapping));
         ensureSearchable();
         final int numDocs = between(10, 100);
-        long numCreated = 0;
+        int numCreated = 0;
         boolean[] added = new boolean[numDocs];
         for (int i = 0; i < numDocs; i++) {
             try {
@@ -262,18 +281,19 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
         for (int i = 0; i < numSearches; i++) {
             try {
                 int docToQuery = between(0, numDocs - 1);
-                long expectedResults = added[docToQuery] ? 1 : 0;
+                int expectedResults = added[docToQuery] ? 1 : 0;
                 logger.info("Searching for [test:{}]", English.intToEnglish(docToQuery));
-                SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery))).get();
+                SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery)))
+                        .setSize(expectedResults).get();
                 logger.info("Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), test.numPrimaries);
                 if (searchResponse.getSuccessfulShards() == test.numPrimaries && !refreshFailed) {
-                    assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(expectedResults));
+                    assertResultsAndLogOnFailure(expectedResults, searchResponse);
                 }
                 // check match all
-                searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).get();
+                searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).setSize(numCreated).addSort("_id", SortOrder.ASC).get();
                 logger.info("Match all Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), test.numPrimaries);
                 if (searchResponse.getSuccessfulShards() == test.numPrimaries && !refreshFailed) {
-                    assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(numCreated));
+                    assertResultsAndLogOnFailure(numCreated, searchResponse);
                 }
 
             } catch (SearchPhaseExecutionException ex) {

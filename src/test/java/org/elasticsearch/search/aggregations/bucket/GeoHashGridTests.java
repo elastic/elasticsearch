@@ -25,6 +25,7 @@ import com.carrotsearch.hppc.cursors.ObjectIntCursor;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoHashUtils;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.GeoBoundingBoxFilterBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -148,14 +149,15 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
             Object[] propertiesDocCounts = (Object[]) geoGrid.getProperty("_count");
             for (int i = 0; i < buckets.size(); i++) {
                 GeoHashGrid.Bucket cell = buckets.get(i);
-                String geohash = cell.getKey();
+                String geohash = cell.getKeyAsString();
 
                 long bucketCount = cell.getDocCount();
                 int expectedBucketCount = expectedDocCountsForGeoHash.get(geohash);
                 assertNotSame(bucketCount, 0);
                 assertEquals("Geohash " + geohash + " has wrong doc count ",
                         expectedBucketCount, bucketCount);
-                assertThat((String) propertiesKeys[i], equalTo(geohash));
+                GeoPoint geoPoint = (GeoPoint) propertiesKeys[i];
+                assertThat(GeoHashUtils.encode(geoPoint.lat(), geoPoint.lon(), precision), equalTo(geohash));
                 assertThat((long) propertiesDocCounts[i], equalTo(bucketCount));
             }
         }
@@ -175,7 +177,7 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
 
             GeoHashGrid geoGrid = response.getAggregations().get("geohashgrid");
             for (GeoHashGrid.Bucket cell : geoGrid.getBuckets()) {
-                String geohash = cell.getKey();
+                String geohash = cell.getKeyAsString();
 
                 long bucketCount = cell.getDocCount();
                 int expectedBucketCount = multiValuedExpectedDocCountsForGeoHash.get(geohash);
@@ -208,7 +210,7 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
 
             GeoHashGrid geoGrid = filter.getAggregations().get("geohashgrid");
             for (GeoHashGrid.Bucket cell : geoGrid.getBuckets()) {
-                String geohash = cell.getKey();
+                String geohash = cell.getKeyAsString();
                 long bucketCount = cell.getDocCount();
                 int expectedBucketCount = expectedDocCountsForGeoHash.get(geohash);
                 assertNotSame(bucketCount, 0);
@@ -252,7 +254,7 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
 
             GeoHashGrid geoGrid = response.getAggregations().get("geohashgrid");
             for (GeoHashGrid.Bucket cell : geoGrid.getBuckets()) {
-                String geohash = cell.getKey();
+                String geohash = cell.getKeyAsString();
 
                 long bucketCount = cell.getDocCount();
                 int expectedBucketCount = expectedDocCountsForGeoHash.get(geohash);
@@ -281,7 +283,7 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
             //Check we only have one bucket with the best match for that resolution
             assertThat(geoGrid.getBuckets().size(), equalTo(1));
             for (GeoHashGrid.Bucket cell : geoGrid.getBuckets()) {
-                String geohash = cell.getKey();
+                String geohash = cell.getKeyAsString();
                 long bucketCount = cell.getDocCount();
                 int expectedBucketCount = 0;
                 for (ObjectIntCursor<String> cursor : expectedDocCountsForGeoHash) {

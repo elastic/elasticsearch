@@ -30,7 +30,9 @@
           "description":"Ignore if a wildcard expression resolves to no concrete indices (default: false)"
         },
         "expand_wildcards":{
-          "type":"list",
+          "type" : "enum",
+          "options" : ["open","closed","none","all"],
+          "default" : "open",
           "description":"Whether wildcard expressions should get expanded to open or closed indices (default: open)"
         }
       }

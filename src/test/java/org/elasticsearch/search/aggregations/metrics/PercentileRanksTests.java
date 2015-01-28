@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
@@ -111,7 +112,7 @@ public class PercentileRanksTests extends AbstractNumericTests {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
-        Histogram.Bucket bucket = histo.getBucketByKey(1l);
+        Histogram.Bucket bucket = histo.getBuckets().get(1);
         assertThat(bucket, notNullValue());
 
         PercentileRanks reversePercentiles = bucket.getAggregations().get("percentile_ranks");

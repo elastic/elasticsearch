@@ -70,12 +70,12 @@ public class IndicesCustomDataPathTests extends ElasticsearchIntegrationTest {
                 .put(IndexMetaData.SETTING_DATA_PATH, startDir.toAbsolutePath().toString())
                         // Don't allow a RAM store or a "none" gateway
                 .put("index.store.type", "default")
-                .put("gateway.type", "local");
+                .put("index.gateway.type", "local");
         ImmutableSettings.Builder sb2 = ImmutableSettings.builder()
                 .put(IndexMetaData.SETTING_DATA_PATH, endDir.toAbsolutePath().toString())
                         // Don't allow a RAM store or a "none" gateway
                 .put("index.store.type", "default")
-                .put("gateway.type", "local");
+                .put("index.gateway.type", "local");
 
         logger.info("--> creating an index with data_path [{}]", startDir.toAbsolutePath().toString());
         client().admin().indices().prepareCreate(INDEX).setSettings(sb).get();

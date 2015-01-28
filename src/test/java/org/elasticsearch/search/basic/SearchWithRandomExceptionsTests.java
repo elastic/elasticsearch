@@ -91,9 +91,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
         int numInitialDocs = 0;
 
         if (createIndexWithoutErrors) {
-            Builder settings = settingsBuilder()
-                    .put("index.number_of_replicas", randomIntBetween(0, 1))
-                    .put("gateway.type", "local");
+            Builder settings = settingsBuilder().put("index.number_of_replicas", randomIntBetween(0, 1));
             logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
             client().admin().indices().prepareCreate("test")
                     .setSettings(settings)

@@ -217,15 +217,17 @@ public class ScriptService extends AbstractComponent {
         @Override
         public void onRefreshSettings(Settings settings) {
             GroovyScriptEngineService engine = (GroovyScriptEngineService) ScriptService.this.scriptEngines.get("groovy");
-            String[] patches = settings.getAsArray(GroovyScriptEngineService.GROOVY_SCRIPT_BLACKLIST_PATCH, Strings.EMPTY_ARRAY);
-            if (Arrays.equals(patches, engine.blacklistAdditions()) == false) {
-                logger.info("updating [{}] from {} to {}", GroovyScriptEngineService.GROOVY_SCRIPT_BLACKLIST_PATCH,
-                        engine.blacklistAdditions(), patches);
-                engine.blacklistAdditions(patches);
-                engine.reloadConfig();
-                // Because the GroovyScriptEngineService knows nothing about the
-                // cache, we need to clear it here if the setting changes
-                ScriptService.this.clearCache();
+            if (engine != null) {
+                String[] patches = settings.getAsArray(GroovyScriptEngineService.GROOVY_SCRIPT_BLACKLIST_PATCH, Strings.EMPTY_ARRAY);
+                if (Arrays.equals(patches, engine.blacklistAdditions()) == false) {
+                    logger.info("updating [{}] from {} to {}", GroovyScriptEngineService.GROOVY_SCRIPT_BLACKLIST_PATCH,
+                            engine.blacklistAdditions(), patches);
+                    engine.blacklistAdditions(patches);
+                    engine.reloadConfig();
+                    // Because the GroovyScriptEngineService knows nothing about the
+                    // cache, we need to clear it here if the setting changes
+                    ScriptService.this.clearCache();
+                }
             }
         }
     }

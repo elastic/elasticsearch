@@ -22,6 +22,9 @@ package org.elasticsearch.script;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -31,6 +34,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 /**
  * Tests for the Groovy scripting sandbox
  */
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
 public class GroovySandboxScriptTests extends ElasticsearchIntegrationTest {
 
     @Test
@@ -62,7 +66,7 @@ public class GroovySandboxScriptTests extends ElasticsearchIntegrationTest {
                 "Expression [MethodCallExpression] is not allowed: d.$(get + Class)().$(getDeclared + Method)(now).$(set + Accessible)(false)");
 
         testFailure("Class.forName(\\\"DateTime\\\").getDeclaredMethod(\\\"plus\\\").setAccessible(true)",
-                "Method calls not allowed on [java.lang.Class]");
+                "Expression [MethodCallExpression] is not allowed: java.lang.Class.forName(DateTime)");
 
         testFailure("Eval.me('2 + 2')", "Method calls not allowed on [groovy.util.Eval]");
 
@@ -88,6 +92,37 @@ public class GroovySandboxScriptTests extends ElasticsearchIntegrationTest {
 
         testFailure("def methodName = 'ex'; Runtime.\\\"${'get' + 'Runtime'}\\\"().\\\"${methodName}ec\\\"(\\\"touch /tmp/gotcha2\\\")",
                 "Expression [MethodCallExpression] is not allowed: java.lang.Runtime.$(get + Runtime)().$methodNameec(touch /tmp/gotcha2)");
+    }
+
+    @Test
+    public void testDynamicBlacklist() throws Exception {
+        client().prepareIndex("test", "doc", "1").setSource("foo", 5).setRefresh(true).get();
+
+        testSuccess("[doc['foo'].value, 3, 4].isEmpty()");
+        testSuccess("[doc['foo'].value, 3, 4].size()");
+
+        // Now we blacklist two methods, .isEmpty() and .size()
+        Settings blacklistSettings = ImmutableSettings.builder()
+                .put(GroovyScriptEngineService.GROOVY_SCRIPT_BLACKLIST_PATCH, "isEmpty,size")
+                .build();
+
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(blacklistSettings).get();
+
+        testFailure("[doc['foo'].value, 3, 4].isEmpty()",
+                "Expression [MethodCallExpression] is not allowed: [doc[foo].value, 3, 4].isEmpty()");
+        testFailure("[doc['foo'].value, 3, 4].size()",
+                "Expression [MethodCallExpression] is not allowed: [doc[foo].value, 3, 4].size()");
+
+        // Undo the blacklist addition and make sure the scripts still work
+        Settings emptyBlacklistSettings = ImmutableSettings.builder()
+                .put(GroovyScriptEngineService.GROOVY_SCRIPT_BLACKLIST_PATCH, "")
+                .build();
+
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(emptyBlacklistSettings).get();
+
+        testSuccess("[doc['foo'].value, 3, 4].isEmpty()");
+        testSuccess("[doc['foo'].value, 3, 4].size()");
+
     }
 
     public void testSuccess(String script) {

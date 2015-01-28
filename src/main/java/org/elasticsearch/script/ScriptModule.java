@@ -63,7 +63,7 @@ public class ScriptModule extends AbstractModule {
         MapBinder<String, NativeScriptFactory> scriptsBinder
                 = MapBinder.newMapBinder(binder(), String.class, NativeScriptFactory.class);
         for (Map.Entry<String, Class<? extends NativeScriptFactory>> entry : scripts.entrySet()) {
-            scriptsBinder.addBinding(entry.getKey()).to(entry.getValue());
+            scriptsBinder.addBinding(entry.getKey()).to(entry.getValue()).asEagerSingleton();
         }
 
         // now, check for config based ones
@@ -74,7 +74,7 @@ public class ScriptModule extends AbstractModule {
             if (type == NativeScriptFactory.class) {
                 throw new ElasticsearchIllegalArgumentException("type is missing for native script [" + name + "]");
             }
-            scriptsBinder.addBinding(name).to(type);
+            scriptsBinder.addBinding(name).to(type).asEagerSingleton();
         }
 
         Multibinder<ScriptEngineService> multibinder = Multibinder.newSetBinder(binder(), ScriptEngineService.class);
@@ -82,27 +82,27 @@ public class ScriptModule extends AbstractModule {
 
         try {
             settings.getClassLoader().loadClass("groovy.lang.GroovyClassLoader");
-            multibinder.addBinding().to(GroovyScriptEngineService.class);
+            multibinder.addBinding().to(GroovyScriptEngineService.class).asEagerSingleton();
         } catch (Throwable t) {
             Loggers.getLogger(ScriptService.class, settings).debug("failed to load groovy", t);
         }
         
         try {
             settings.getClassLoader().loadClass("com.github.mustachejava.Mustache");
-            multibinder.addBinding().to(MustacheScriptEngineService.class);
+            multibinder.addBinding().to(MustacheScriptEngineService.class).asEagerSingleton();
         } catch (Throwable t) {
             Loggers.getLogger(ScriptService.class, settings).debug("failed to load mustache", t);
         }
 
         try {
             settings.getClassLoader().loadClass("org.apache.lucene.expressions.Expression");
-            multibinder.addBinding().to(ExpressionScriptEngineService.class);
+            multibinder.addBinding().to(ExpressionScriptEngineService.class).asEagerSingleton();
         } catch (Throwable t) {
             Loggers.getLogger(ScriptService.class, settings).debug("failed to load lucene expressions", t);
         }
 
         for (Class<? extends ScriptEngineService> scriptEngine : scriptEngines) {
-            multibinder.addBinding().to(scriptEngine);
+            multibinder.addBinding().to(scriptEngine).asEagerSingleton();
         }
 
         bind(ScriptService.class).asEagerSingleton();

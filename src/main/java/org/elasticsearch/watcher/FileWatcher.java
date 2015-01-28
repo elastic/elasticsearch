@@ -32,6 +32,7 @@ import java.util.Arrays;
 public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
 
     private FileObserver rootFileObserver;
+    private File file;
 
     private static final ESLogger logger = Loggers.getLogger(FileWatcher.class);
 
@@ -39,7 +40,16 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
      * Creates new file watcher on the given directory
      */
     public FileWatcher(File file) {
+        this.file = file;
         rootFileObserver = new FileObserver(file);
+    }
+
+    /**
+     * Clears any state with the FileWatcher, making all files show up as new
+     */
+    public void clearState() {
+        rootFileObserver = new FileObserver(file);
+        rootFileObserver.init(false);
     }
 
     @Override

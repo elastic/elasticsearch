@@ -37,7 +37,7 @@ import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
@@ -57,7 +57,7 @@ public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
     @Slow
     public void testChangeInitialShardsRecovery() throws Exception {
         logger.info("--> starting 3 nodes");
-        final String[] nodes = internalCluster().startNodesAsync(3, settingsBuilder().put("gateway.type", "local").build()).get().toArray(new String[0]);
+        final String[] nodes = internalCluster().startNodesAsync(3).get().toArray(new String[0]);
 
         createIndex("test");
         ensureGreen();
@@ -78,11 +78,6 @@ public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
         final String nodeToRemove = nodes[between(0,2)];
         logger.info("--> restarting 1 nodes -- kill 2");
         internalCluster().fullRestart(new RestartCallback() {
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                return settingsBuilder().put("gateway.type", "local").build();
-            }
-            
             @Override
             public boolean doRestart(String nodeName) {
                 return nodeToRemove.equals(nodeName);
@@ -123,7 +118,7 @@ public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
     public void testQuorumRecovery() throws Exception {
 
         logger.info("--> starting 3 nodes");
-        internalCluster().startNodesAsync(3, settingsBuilder().put("gateway.type", "local").build()).get();
+        internalCluster().startNodesAsync(3).get();
         // we are shutting down nodes - make sure we don't have 2 clusters if we test network
         setMinimumMasterNodes(2);
 

@@ -43,7 +43,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-import static junit.framework.Assert.assertFalse;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
 /**
@@ -55,7 +54,7 @@ final class ExternalNode implements Closeable {
             .put("config.ignore_system_properties", true)
             .put(DiscoveryModule.DISCOVERY_TYPE_KEY, "zen")
             .put("node.mode", "network") // we need network mode for this
-            .put("gateway.type", "local").build(); // we require local gateway to mimic upgrades of nodes
+            .build();
 
     private final File path;
     private final Random random;

@@ -335,7 +335,7 @@ PATH                :=  <AGG_NAME>[<AGG_SEPARATOR><AGG_NAME>]*[<METRIC_SEPARATOR
             },
             "aggs" : {
                 "females" : {
-                    "filter" : { "term" : { "gender" : { "female" }}},
+                    "filter" : { "term" : { "gender" :  "female" }},
                     "aggs" : {
                         "height_stats" : { "stats" : { "field" : "height" }}
                     }

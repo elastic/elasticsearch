@@ -21,7 +21,7 @@ package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.ThrowableObjectOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -91,7 +91,7 @@ public class NettyTransportChannel implements TransportChannel {
             response.writeTo(stream);
             stream.close();
 
-            ReleasableBytesReference bytes = bStream.bytes();
+            ReleasablePagedBytesReference bytes = bStream.bytes();
             ChannelBuffer buffer = bytes.toChannelBuffer();
             NettyHeader.writeHeader(buffer, requestId, status, version);
             ChannelFuture future = channel.write(buffer);

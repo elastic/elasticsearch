@@ -20,6 +20,7 @@
 package org.elasticsearch.common.bytes;
 
 import com.google.common.base.Charsets;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.Channels;
@@ -32,6 +33,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.channels.GatheringByteChannel;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 
 public class BytesArray implements BytesReference {
 
@@ -174,5 +177,15 @@ public class BytesArray implements BytesReference {
     @Override
     public boolean equals(Object obj) {
         return Helper.bytesEqual(this, (BytesReference) obj);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return bytes.length;
+    }
+
+    @Override
+    public Collection<Accountable> getChildResources() {
+        return Collections.emptyList();
     }
 }

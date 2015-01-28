@@ -20,6 +20,7 @@
 package org.elasticsearch.common.bytes;
 
 import com.google.common.base.Charsets;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
@@ -36,6 +37,8 @@ import java.nio.channels.GatheringByteChannel;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CoderResult;
+import java.util.Collection;
+import java.util.Collections;
 
 /**
  * Note: this is only used by one lone test method.
@@ -177,5 +180,15 @@ public class ByteBufferBytesReference implements BytesReference {
     @Override
     public BytesRef copyBytesRef() {
         return new BytesRef(toBytes());
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return buffer.capacity();
+    }
+
+    @Override
+    public Collection<Accountable> getChildResources() {
+        return Collections.emptyList();
     }
 }

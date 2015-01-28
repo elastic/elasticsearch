@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.bytes;
 
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -35,6 +36,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.channels.GatheringByteChannel;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 
 /**
  * A page based bytes reference, internally holding the bytes in a paged
@@ -344,6 +347,16 @@ public class PagedBytesReference implements BytesReference {
         // a remainder that is not a multiple of pagesize also needs an extra buffer
         numBuffers += (pages > 0 && numBytes % PAGE_SIZE > 0) ? 1 : 0;
         return numBuffers;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return bytearray.ramBytesUsed();
+    }
+
+    @Override
+    public Collection<Accountable> getChildResources() {
+        return Collections.emptyList();
     }
 
     private static class PagedBytesReferenceStreamInput extends StreamInput {

@@ -150,8 +150,7 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
 
         @Override
         public int weigh(Key key, BytesReference value) {
-            // TODO add sizeInBytes to BytesReference, since it might be paged.... (Accountable)
-            return (int) (key.ramBytesUsed() + value.length());
+            return (int) (key.ramBytesUsed() + value.ramBytesUsed());
         }
     }
 

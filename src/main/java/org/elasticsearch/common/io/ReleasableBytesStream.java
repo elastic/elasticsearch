@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.io;
 
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 
 /**
  * A bytes stream that requires its bytes to be released once no longer used.
  */
 public interface ReleasableBytesStream extends BytesStream {
 
-    ReleasableBytesReference bytes();
+    ReleasablePagedBytesReference bytes();
 }

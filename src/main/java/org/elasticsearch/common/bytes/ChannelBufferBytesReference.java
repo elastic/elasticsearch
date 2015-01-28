@@ -19,6 +19,7 @@
 package org.elasticsearch.common.bytes;
 
 import com.google.common.base.Charsets;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,6 +29,8 @@ import org.jboss.netty.buffer.ChannelBuffer;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.channels.GatheringByteChannel;
+import java.util.Collection;
+import java.util.Collections;
 
 /**
  */
@@ -139,5 +142,15 @@ public class ChannelBufferBytesReference implements BytesReference {
     @Override
     public boolean equals(Object obj) {
         return Helper.bytesEqual(this, (BytesReference) obj);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return buffer.capacity();
+    }
+
+    @Override
+    public Collection<Accountable> getChildResources() {
+        return Collections.emptyList();
     }
 }

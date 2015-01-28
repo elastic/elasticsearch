@@ -344,7 +344,7 @@ detailed insight into the current state of the recovery process by using <<indic
 [float]
 === Stopping currently running snapshot and restore operations
 
-The snapshot and restore framework allows running only one snapshot or one restore operation at time. If currently
+The snapshot and restore framework allows running only one snapshot or one restore operation at a time. If currently
 running snapshot was executed by mistake or takes unusually long, it can be terminated using snapshot delete operation.
 The snapshot delete operation checks if deleted snapshot is currently running and if it does, the delete operation stops
 such snapshot before deleting the snapshot data from the repository.

@@ -24,6 +24,19 @@ GET /_search
 
 The above request is translated into:
 
+[source,js]
+------------------------------------------
+GET /_search
+{
+    "query": {
+        "match": {
+            "text": "all about search"
+        }
+    }
+}
+
+------------------------------------------
+
 Alternatively passing the template as an escaped string works as well:
 
 [source,js]
@@ -94,75 +107,6 @@ GET /_search
 }
 ------------------------------------------
 <1> Name of the the query template in `config/scripts/`, i.e., `storedTemplate.mustache`.
-
-
-Templating is based on Mustache. For simple token substitution all you provide
-is a query containing some variable that you want to substitute and the actual
-values:
-
-
-[source,js]
-------------------------------------------
-GET /_search
-{
-    "query": {
-        "template": {
-            "query": {"match_{{template}}": {}},
-            "params" : {
-                "template" : "all"
-            }
-        }
-    }
-}
-------------------------------------------
-
-which is then turned into:
-
-[source,js]
-------------------------------------------
-{
-    "query": {
-        "match_all": {}
-    }
-}
-------------------------------------------
-
-You can register a template by storing it in the elasticsearch index `.scripts` or by using the REST API. (See <<search-template>> for more details)
-In order to execute the stored template, reference it by name in the `query`
-parameter:
-
-
-[source,js]
-------------------------------------------
-GET /_search
-{
-    "query": {
-        "template": {
-            "query": "templateName", <1>
-            "params" : {
-                "template" : "all"
-            }
-        }
-    }
-}
-------------------------------------------
-<1> Name of the the query template stored in the index.
-
-[source,js]
-------------------------------------------
-GET /_search
-{
-    "query": {
-        "template": {
-            "query": "storedTemplate", <1>
-            "params" : {
-                "template" : "all"
-            }
-        }
-    }
-}
-
-------------------------------------------
 
 
 There is also a dedicated `template` endpoint, allows you to template an entire search request.

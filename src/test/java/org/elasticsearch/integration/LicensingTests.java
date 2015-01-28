@@ -6,6 +6,7 @@
 package org.elasticsearch.integration;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsIndices;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -154,6 +155,14 @@ public class LicensingTests extends ShieldIntegrationTest {
             assertThat(lee.feature(), equalTo(LicenseService.FEATURE_NAME));
         }
 
+        try {
+            client.admin().cluster().prepareNodesStats().get();
+            fail("expected an license expired exception when executing cluster health action");
+        } catch (LicenseExpiredException lee) {
+            // expected
+            assertThat(lee.feature(), equalTo(LicenseService.FEATURE_NAME));
+        }
+
         enableLicensing();
 
         IndicesStatsResponse indicesStatsResponse = client.admin().indices().prepareStats().get();
@@ -167,6 +176,9 @@ public class LicensingTests extends ShieldIntegrationTest {
 
         ClusterHealthResponse clusterIndexHealth = client.admin().cluster().prepareHealth().get();
         assertThat(clusterIndexHealth, notNullValue());
+
+        NodesStatsResponse nodeStats = client.admin().cluster().prepareNodesStats().get();
+        assertThat(nodeStats, notNullValue());
     }
 
     public static void disableLicensing() {

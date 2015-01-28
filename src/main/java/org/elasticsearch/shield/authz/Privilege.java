@@ -40,7 +40,11 @@ public abstract class Privilege<P extends Privilege<P>> {
     static final String SUB_ACTION_SUFFIX_PATTERN = "*";
 
     public static final System SYSTEM = new System();
-    public static final General HEALTH_AND_STATS = new General("health_and_stats", "cluster:monitor/health*", "cluster:monitor/stats*", "indices:monitor/stats*");
+    public static final General HEALTH_AND_STATS = new General("health_and_stats",
+            "cluster:monitor/health*",
+            "cluster:monitor/stats*",
+            "indices:monitor/stats*",
+            "cluster:monitor/nodes/stats*");
 
     protected final Name name;
 

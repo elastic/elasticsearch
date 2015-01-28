@@ -24,6 +24,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -57,7 +58,8 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, null);
 
         logger.info("--> setup script service");
-        ScriptService scriptService = new ScriptService(settings, environment, ImmutableSet.of(new TestEngineService()), resourceWatcherService);
+        ScriptService scriptService = new ScriptService(settings, environment,
+                ImmutableSet.of(new TestEngineService()), resourceWatcherService, new NodeSettingsService(settings));
         Path scriptsFile = genericConfigFolder.resolve("scripts");
         Files.createDirectories(scriptsFile);
         resourceWatcherService.notifyNow();

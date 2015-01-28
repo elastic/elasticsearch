@@ -26,6 +26,8 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.transformer.DiscontinuousHistogram;
+import org.elasticsearch.search.aggregations.transformer.models.MovingAvgModel;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -51,9 +53,9 @@ public class MovingAvgParser implements Aggregator.Parser {
 
         boolean keyed = false;
         String format = null;
-        MovingAvg.GapPolicy gapPolicy = MovingAvg.GapPolicy.ignore;
+        DiscontinuousHistogram.GapPolicy gapPolicy = DiscontinuousHistogram.GapPolicy.ignore;
         int window = 10;
-        MovingAvg.Weighting weight = MovingAvg.Weighting.simple;
+        MovingAvgModel.Weighting weight = MovingAvgModel.Weighting.simple;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -66,11 +68,11 @@ public class MovingAvgParser implements Aggregator.Parser {
                 } else if (FORMAT.match(currentFieldName)) {
                     format = parser.text();
                 } else if (GAP_POLICY.match(currentFieldName)) {
-                    gapPolicy = MovingAvg.GapPolicy.valueOf(parser.text());
+                    gapPolicy = DiscontinuousHistogram.GapPolicy.valueOf(parser.text());
                 } else if (WINDOW.match(currentFieldName)) {
                     window = parser.intValue();
                 } else if (WEIGHTING.match(currentFieldName)) {
-                    weight = MovingAvg.Weighting.valueOf(parser.text());
+                    weight = MovingAvgModel.Weighting.valueOf(parser.text());
                 }else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: ["
                             + currentFieldName + "].");

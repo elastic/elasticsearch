@@ -29,54 +29,6 @@ import java.util.List;
 
 public interface MovingAvg extends MultiBucketsAggregation {
 
-    public static enum GapPolicy {
-        insert_zeros((byte) 0), interpolate((byte) 1), ignore((byte) 2);
-
-        private byte id;
-
-        private GapPolicy(byte id) {
-            this.id = id;
-        }
-
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeByte(id);
-        }
-
-        public static GapPolicy readFrom(StreamInput in) throws IOException {
-            byte id = in.readByte();
-            for (GapPolicy gapPolicy : values()) {
-                if (id == gapPolicy.id) {
-                    return gapPolicy;
-                }
-            }
-            throw new IllegalStateException("Unknown GapPolicy with id [" + id + "]");
-        }
-    }
-
-    public static enum Weighting {
-        simple((byte) 0), linear((byte) 1), ewma((byte) 2);
-
-        private byte id;
-
-        private Weighting(byte id) {
-            this.id = id;
-        }
-
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeByte(id);
-        }
-
-        public static Weighting readFrom(StreamInput in) throws IOException {
-            byte id = in.readByte();
-            for (Weighting weight : values()) {
-                if (id == weight.id) {
-                    return weight;
-                }
-            }
-            throw new IllegalStateException("Unknown Weighting with id [" + id + "]");
-        }
-    }
-
     /**
      * @return The buckets of this aggregation.
      */

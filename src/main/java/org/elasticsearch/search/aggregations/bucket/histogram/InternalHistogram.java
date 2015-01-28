@@ -30,22 +30,15 @@ import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregationStreams;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Map;
+import java.util.*;
 
 /**
  * TODO should be renamed to InternalNumericHistogram (see comment on {@link Histogram})?
@@ -468,6 +461,9 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     protected B createEmptyBucket(boolean keyed, @Nullable ValueFormatter formatter) {
         return getFactory().createEmptyBucket(keyed, formatter);
     }
+
+
+
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {

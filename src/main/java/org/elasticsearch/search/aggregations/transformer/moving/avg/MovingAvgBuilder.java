@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.transformer.moving.avg;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.transformer.derivative.Derivative.GapPolicy;
+import org.elasticsearch.search.aggregations.transformer.models.MovingAvgModel;
 
 import java.io.IOException;
 
@@ -30,7 +31,7 @@ public class MovingAvgBuilder extends ValuesSourceAggregationBuilder<MovingAvgBu
     private GapPolicy gapPolicy;
     private String format;
     private Boolean keyed;
-    private MovingAvg.Weighting weight;
+    private MovingAvgModel.Weighting weight;
     private Integer windowSize;
 
     public MovingAvgBuilder(String name) {
@@ -49,7 +50,7 @@ public class MovingAvgBuilder extends ValuesSourceAggregationBuilder<MovingAvgBu
         this.keyed = keyed;
     }
 
-    public void weight(MovingAvg.Weighting weight) {
+    public void weight(MovingAvgModel.Weighting weight) {
         this.weight = weight;
     }
 

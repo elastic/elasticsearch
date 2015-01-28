@@ -22,10 +22,11 @@ package org.elasticsearch.search.aggregations.transformer.moving.avg;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.transformer.DiscontinuousHistogram;
 import org.elasticsearch.search.aggregations.transformer.Transformer;
+import org.elasticsearch.search.aggregations.transformer.models.MovingAvgModel;
 
 import java.io.IOException;
 import java.util.Map;
@@ -34,12 +35,12 @@ public class MovingAvgTransformer extends Transformer {
 
     private boolean keyed;
     private @Nullable ValueFormatter formatter;
-    private MovingAvg.GapPolicy gapPolicy;
+    private DiscontinuousHistogram.GapPolicy gapPolicy;
     private int window;
-    private MovingAvg.Weighting weight;
+    private MovingAvgModel.Weighting weight;
 
-    protected MovingAvgTransformer(String name, boolean keyed, @Nullable ValueFormatter formatter, MovingAvg.GapPolicy gapPolicy, int window,
-                                   MovingAvg.Weighting weight,
+    protected MovingAvgTransformer(String name, boolean keyed, @Nullable ValueFormatter formatter, DiscontinuousHistogram.GapPolicy gapPolicy, int window,
+                                   MovingAvgModel.Weighting weight,
                                    AggregatorFactories factories,
                                    AggregationContext aggregationContext, Aggregator parent,
                                    Map<String, Object> metaData)  throws IOException {
@@ -65,11 +66,11 @@ public class MovingAvgTransformer extends Transformer {
 
         private boolean keyed;
         private ValueFormatter formatter;
-        private MovingAvg.GapPolicy gapPolicy;
+        private DiscontinuousHistogram.GapPolicy gapPolicy;
         private int window;
-        private MovingAvg.Weighting weight;
+        private MovingAvgModel.Weighting weight;
 
-        public Factory(String name, boolean keyed, @Nullable ValueFormatter formatter, MovingAvg.GapPolicy gapPolicy, int window, MovingAvg.Weighting weight) {
+        public Factory(String name, boolean keyed, @Nullable ValueFormatter formatter, DiscontinuousHistogram.GapPolicy gapPolicy, int window, MovingAvgModel.Weighting weight) {
             super(name, InternalMovingAvg.TYPE.name());
             this.keyed = keyed;
             this.formatter = formatter;

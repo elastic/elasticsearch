@@ -37,6 +37,7 @@ import org.codehaus.groovy.control.customizers.CompilationCustomizer;
 import org.codehaus.groovy.control.customizers.ImportCustomizer;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
@@ -60,22 +61,36 @@ import java.util.concurrent.atomic.AtomicLong;
 public class GroovyScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
     public static String GROOVY_SCRIPT_SANDBOX_ENABLED = "script.groovy.sandbox.enabled";
+    public static String GROOVY_SCRIPT_BLACKLIST_PATCH = "script.groovy.sandbox.method_blacklist_patch";
 
     private final AtomicLong counter = new AtomicLong();
-    private final GroovyClassLoader loader;
     private final boolean sandboxed;
+    private volatile GroovyClassLoader loader;
+    private volatile String[] blacklistAdditions = Strings.EMPTY_ARRAY;
 
     @Inject
     public GroovyScriptEngineService(Settings settings) {
         super(settings);
+        this.sandboxed = settings.getAsBoolean(GROOVY_SCRIPT_SANDBOX_ENABLED, true);
+        reloadConfig();
+    }
+
+    public String[] blacklistAdditions() {
+        return this.blacklistAdditions;
+    }
+
+    public void blacklistAdditions(String[] additions) {
+        this.blacklistAdditions = additions;
+    }
+
+    public void reloadConfig() {
         ImportCustomizer imports = new ImportCustomizer();
         imports.addStarImports("org.joda.time");
         imports.addStaticStars("java.lang.Math");
         CompilerConfiguration config = new CompilerConfiguration();
         config.addCompilationCustomizers(imports);
-        this.sandboxed = settings.getAsBoolean(GROOVY_SCRIPT_SANDBOX_ENABLED, true);
         if (this.sandboxed) {
-            config.addCompilationCustomizers(GroovySandboxExpressionChecker.getSecureASTCustomizer(settings));
+            config.addCompilationCustomizers(GroovySandboxExpressionChecker.getSecureASTCustomizer(settings, this.blacklistAdditions));
         }
         // Add BigDecimal -> Double transformer
         config.addCompilationCustomizers(new GroovyBigDecimalTransformer(CompilePhase.CONVERSION));

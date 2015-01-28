@@ -21,15 +21,15 @@ import javax.net.ssl.SSLEngine;
 /**
  *
  */
-public class NettySecuredHttpServerTransport extends NettyHttpServerTransport {
+public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
 
     private final IPFilter ipFilter;
     private final SSLService sslService;
     private final boolean ssl;
 
     @Inject
-    public NettySecuredHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
-                                           IPFilter ipFilter, SSLService sslService) {
+    public ShieldNettyHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
+                                          IPFilter ipFilter, SSLService sslService) {
         super(settings, networkService, bigArrays);
         this.ipFilter = ipFilter;
         this.ssl = settings.getAsBoolean("shield.http.ssl", false);
@@ -57,7 +57,7 @@ public class NettySecuredHttpServerTransport extends NettyHttpServerTransport {
 
                 pipeline.addFirst("ssl", new SslHandler(engine));
             }
-            pipeline.addFirst("ipfilter", new NettyIPFilterUpstreamHandler(ipFilter, IPFilter.HTTP_PROFILE_NAME));
+            pipeline.addFirst("ipfilter", new IPFilterNettyUpstreamHandler(ipFilter, IPFilter.HTTP_PROFILE_NAME));
             return pipeline;
         }
     }

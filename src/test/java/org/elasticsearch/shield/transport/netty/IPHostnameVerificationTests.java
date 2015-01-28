@@ -21,7 +21,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.hamcrest.CoreMatchers.is;
 
 @ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
-public class IPHostnameVerificationIntegrationTests extends ShieldIntegrationTest {
+public class IPHostnameVerificationTests extends ShieldIntegrationTest {
 
     static Path keystore;
 
@@ -59,16 +59,16 @@ public class IPHostnameVerificationIntegrationTests extends ShieldIntegrationTes
                 .put("transport.host", "127.0.0.1")
                 .put("network.host", "127.0.0.1")
                 .put("shield.ssl.client.auth", "false")
-                .put(NettySecuredTransport.HOSTNAME_VERIFICATION_SETTING, true)
-                .put(NettySecuredTransport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING, false)
+                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING, true)
+                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING, false)
                 .build();
     }
 
     @Override
     protected Settings transportClientSettings() {
         return ImmutableSettings.builder().put(super.transportClientSettings())
-                .put(NettySecuredTransport.HOSTNAME_VERIFICATION_SETTING, true)
-                .put(NettySecuredTransport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING, false)
+                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING, true)
+                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING, false)
                 .put("shield.ssl.keystore.path", keystore.toAbsolutePath())
                 .put("shield.ssl.keystore.password", "testnode-ip-only")
                 .put("shield.ssl.truststore.path", keystore.toAbsolutePath())

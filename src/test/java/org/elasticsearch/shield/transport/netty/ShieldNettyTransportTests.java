@@ -28,7 +28,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.mockito.Mockito.mock;
 import static org.hamcrest.Matchers.*;
 
-public class NettySecuredTransportTests extends ElasticsearchTestCase {
+public class ShieldNettyTransportTests extends ElasticsearchTestCase {
 
     private SSLService sslService;
 
@@ -44,7 +44,7 @@ public class NettySecuredTransportTests extends ElasticsearchTestCase {
     @Test
     public void testThatSSLCanBeDisabledByProfile() throws Exception {
         Settings settings = ImmutableSettings.builder().put("shield.transport.ssl", true).build();
-        NettySecuredTransport transport = new NettySecuredTransport(settings, mock(ThreadPool.class), mock(NetworkService.class), mock(BigArrays.class), Version.CURRENT, null, sslService);
+        ShieldNettyTransport transport = new ShieldNettyTransport(settings, mock(ThreadPool.class), mock(NetworkService.class), mock(BigArrays.class), Version.CURRENT, null, sslService);
         setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory("client", ImmutableSettings.builder().put("shield.ssl", false).build());
         assertThat(factory.getPipeline().get(SslHandler.class), nullValue());
@@ -53,7 +53,7 @@ public class NettySecuredTransportTests extends ElasticsearchTestCase {
     @Test
     public void testThatSSLCanBeEnabledByProfile() throws Exception {
         Settings settings = ImmutableSettings.builder().put("shield.transport.ssl", false).build();
-        NettySecuredTransport transport = new NettySecuredTransport(settings, mock(ThreadPool.class), mock(NetworkService.class), mock(BigArrays.class), Version.CURRENT, null, sslService);
+        ShieldNettyTransport transport = new ShieldNettyTransport(settings, mock(ThreadPool.class), mock(NetworkService.class), mock(BigArrays.class), Version.CURRENT, null, sslService);
         setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory("client", ImmutableSettings.builder().put("shield.ssl", true).build());
         assertThat(factory.getPipeline().get(SslHandler.class), notNullValue());
@@ -62,7 +62,7 @@ public class NettySecuredTransportTests extends ElasticsearchTestCase {
     @Test
     public void testThatProfileTakesDefaultSSLSetting() throws Exception {
         Settings settings = ImmutableSettings.builder().put("shield.transport.ssl", true).build();
-        NettySecuredTransport transport = new NettySecuredTransport(settings, mock(ThreadPool.class), mock(NetworkService.class), mock(BigArrays.class), Version.CURRENT, null, sslService);
+        ShieldNettyTransport transport = new ShieldNettyTransport(settings, mock(ThreadPool.class), mock(NetworkService.class), mock(BigArrays.class), Version.CURRENT, null, sslService);
         setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory("client", ImmutableSettings.EMPTY);
         assertThat(factory.getPipeline().get(SslHandler.class), notNullValue());

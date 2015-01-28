@@ -11,12 +11,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
-public class SecuredClientTransportService extends TransportService {
+public class ShieldClientTransportService extends TransportService {
 
     private final ClientTransportFilter clientFilter;
 
     @Inject
-    public SecuredClientTransportService(Settings settings, Transport transport, ThreadPool threadPool, ClientTransportFilter clientFilter) {
+    public ShieldClientTransportService(Settings settings, Transport transport, ThreadPool threadPool, ClientTransportFilter clientFilter) {
         super(settings, transport, threadPool);
         this.clientFilter = clientFilter;
     }

@@ -13,16 +13,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.support.AbstractShieldModule;
 import org.elasticsearch.shield.transport.filter.IPFilter;
-import org.elasticsearch.shield.transport.netty.NettySecuredHttpServerTransportModule;
-import org.elasticsearch.shield.transport.netty.NettySecuredTransportModule;
+import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransportModule;
+import org.elasticsearch.shield.transport.netty.ShieldNettyTransportModule;
 import org.elasticsearch.transport.TransportModule;
 
 /**
  *
  */
-public class SecuredTransportModule extends AbstractShieldModule.Spawn implements PreProcessModule {
+public class ShieldTransportModule extends AbstractShieldModule.Spawn implements PreProcessModule {
 
-    public SecuredTransportModule(Settings settings) {
+    public ShieldTransportModule(Settings settings) {
         super(settings);
     }
 
@@ -30,21 +30,21 @@ public class SecuredTransportModule extends AbstractShieldModule.Spawn implement
     public Iterable<? extends Module> spawnModules(boolean clientMode) {
 
         if (clientMode) {
-            return ImmutableList.of(new NettySecuredTransportModule(settings));
+            return ImmutableList.of(new ShieldNettyTransportModule(settings));
         }
 
         return ImmutableList.of(
-                new NettySecuredHttpServerTransportModule(settings),
-                new NettySecuredTransportModule(settings));
+                new ShieldNettyHttpServerTransportModule(settings),
+                new ShieldNettyTransportModule(settings));
     }
 
     @Override
     public void processModule(Module module) {
         if (module instanceof TransportModule) {
             if (clientMode) {
-                ((TransportModule) module).setTransportService(SecuredClientTransportService.class, ShieldPlugin.NAME);
+                ((TransportModule) module).setTransportService(ShieldClientTransportService.class, ShieldPlugin.NAME);
             } else {
-                ((TransportModule) module).setTransportService(SecuredServerTransportService.class, ShieldPlugin.NAME);
+                ((TransportModule) module).setTransportService(ShieldServerTransportService.class, ShieldPlugin.NAME);
             }
         }
     }

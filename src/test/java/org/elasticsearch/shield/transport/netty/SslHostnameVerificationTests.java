@@ -28,7 +28,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 
 @ClusterScope(scope = Scope.SUITE)
-public class SslHostnameVerificationIntegrationTests extends ShieldIntegrationTest {
+public class SslHostnameVerificationTests extends ShieldIntegrationTest {
 
     static Path keystore;
 
@@ -56,14 +56,14 @@ public class SslHostnameVerificationIntegrationTests extends ShieldIntegrationTe
                 .put("shield.ssl.keystore.password", "testnode-no-subjaltname")
                 .put("shield.ssl.truststore.path", keystore.toAbsolutePath()) // settings for client truststore
                 .put("shield.ssl.truststore.password", "testnode-no-subjaltname")
-                .put(NettySecuredTransport.HOSTNAME_VERIFICATION_SETTING, false) // disable hostname verification as this test uses non-localhost addresses
+                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING, false) // disable hostname verification as this test uses non-localhost addresses
                 .build();
     }
 
     @Override
     protected Settings transportClientSettings() {
         return ImmutableSettings.builder().put(super.transportClientSettings())
-                .put(NettySecuredTransport.HOSTNAME_VERIFICATION_SETTING, false)
+                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING, false)
                 .put("shield.ssl.truststore.path", keystore.toAbsolutePath()) // settings for client truststore
                 .put("shield.ssl.truststore.password", "testnode-no-subjaltname")
                 .build();
@@ -77,7 +77,7 @@ public class SslHostnameVerificationIntegrationTests extends ShieldIntegrationTe
         InetSocketAddress inetSocketAddress = ((InetSocketTransportAddress) transportAddress).address();
 
         Settings settings = ImmutableSettings.builder().put(transportClientSettings())
-                .put(NettySecuredTransport.HOSTNAME_VERIFICATION_SETTING, true)
+                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING, true)
                 .build();
 
         try (TransportClient client = new TransportClient(settings, false)) {

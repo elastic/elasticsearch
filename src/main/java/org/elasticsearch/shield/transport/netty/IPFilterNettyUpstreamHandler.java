@@ -17,12 +17,12 @@ import java.net.InetSocketAddress;
  *
  */
 @ChannelHandler.Sharable
-public class NettyIPFilterUpstreamHandler extends IpFilteringHandlerImpl {
+public class IPFilterNettyUpstreamHandler extends IpFilteringHandlerImpl {
 
     private final IPFilter filter;
     private final String profile;
 
-    public NettyIPFilterUpstreamHandler(IPFilter filter, String profile) {
+    public IPFilterNettyUpstreamHandler(IPFilter filter, String profile) {
         this.filter = filter;
         this.profile = profile;
     }

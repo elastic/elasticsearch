@@ -25,7 +25,7 @@ import java.net.InetSocketAddress;
 /**
  *
  */
-public class NettySecuredTransport extends NettyTransport {
+public class ShieldNettyTransport extends NettyTransport {
 
     public static final String HOSTNAME_VERIFICATION_SETTING = "shield.ssl.hostname_verification";
     public static final String HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING = "shield.ssl.hostname_verification.resolve_name";
@@ -35,8 +35,8 @@ public class NettySecuredTransport extends NettyTransport {
     private final boolean ssl;
 
     @Inject
-    public NettySecuredTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version,
-                                 @Nullable IPFilter authenticator, SSLService sslService) {
+    public ShieldNettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version,
+                                @Nullable IPFilter authenticator, SSLService sslService) {
         super(settings, threadPool, networkService, bigArrays, version);
         this.authenticator = authenticator;
         this.ssl = settings.getAsBoolean("shield.transport.ssl", false);
@@ -78,9 +78,9 @@ public class NettySecuredTransport extends NettyTransport {
 
                 pipeline.addFirst("ssl", new SslHandler(serverEngine));
             }
-            pipeline.replace("dispatcher", "dispatcher", new SecuredMessageChannelHandler(nettyTransport, name, logger));
+            pipeline.replace("dispatcher", "dispatcher", new ShieldMessageChannelHandler(nettyTransport, name, logger));
             if (authenticator != null) {
-                pipeline.addFirst("ipfilter", new NettyIPFilterUpstreamHandler(authenticator, name));
+                pipeline.addFirst("ipfilter", new IPFilterNettyUpstreamHandler(authenticator, name));
             }
             return pipeline;
         }
@@ -98,7 +98,7 @@ public class NettySecuredTransport extends NettyTransport {
             if (ssl) {
                 pipeline.addFirst("sslInitializer", new ClientSslHandlerInitializer());
             }
-            pipeline.replace("dispatcher", "dispatcher", new SecuredMessageChannelHandler(nettyTransport, "default", logger));
+            pipeline.replace("dispatcher", "dispatcher", new ShieldMessageChannelHandler(nettyTransport, "default", logger));
             return pipeline;
         }
 

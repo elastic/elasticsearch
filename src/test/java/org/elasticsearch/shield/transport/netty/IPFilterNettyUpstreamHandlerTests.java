@@ -23,9 +23,9 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-public class NettyIPFilterUpstreamHandlerTests extends ElasticsearchTestCase {
+public class IPFilterNettyUpstreamHandlerTests extends ElasticsearchTestCase {
 
-    private NettyIPFilterUpstreamHandler nettyUpstreamHandler;
+    private IPFilterNettyUpstreamHandler nettyUpstreamHandler;
 
     @Before
     public void init() throws Exception {
@@ -36,7 +36,7 @@ public class NettyIPFilterUpstreamHandlerTests extends ElasticsearchTestCase {
 
         IPFilter ipFilter = new IPFilter(settings, AuditTrail.NOOP);
 
-        nettyUpstreamHandler = new NettyIPFilterUpstreamHandler(ipFilter, IPFilter.HTTP_PROFILE_NAME);
+        nettyUpstreamHandler = new IPFilterNettyUpstreamHandler(ipFilter, IPFilter.HTTP_PROFILE_NAME);
     }
 
     @Test

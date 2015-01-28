@@ -23,11 +23,11 @@ import org.elasticsearch.transport.netty.NettyTransportChannel;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 
-public class SecuredMessageChannelHandler extends MessageChannelHandler {
+public class ShieldMessageChannelHandler extends MessageChannelHandler {
 
     private final String profileName;
 
-    public SecuredMessageChannelHandler(NettyTransport nettyTransport, String profileName, ESLogger logger) {
+    public ShieldMessageChannelHandler(NettyTransport nettyTransport, String profileName, ESLogger logger) {
         super(nettyTransport, logger);
         this.profileName = profileName;
     }

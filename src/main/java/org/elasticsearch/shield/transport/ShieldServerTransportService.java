@@ -9,8 +9,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.transport.netty.NettySecuredTransport;
-import org.elasticsearch.shield.transport.netty.SecuredMessageChannelHandler;
+import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
+import org.elasticsearch.shield.transport.netty.ShieldMessageChannelHandler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -19,7 +19,7 @@ import java.util.Map;
 /**
  *
  */
-public class SecuredServerTransportService extends TransportService {
+public class ShieldServerTransportService extends TransportService {
 
     public static final String SETTING_NAME = "shield.type";
 
@@ -29,10 +29,10 @@ public class SecuredServerTransportService extends TransportService {
     private final Map<String, ServerTransportFilter> profileFilters;
 
     @Inject
-    public SecuredServerTransportService(Settings settings, Transport transport, ThreadPool threadPool,
-                                         ServerTransportFilter.ClientProfile clientProfileFilter,
-                                         ServerTransportFilter.NodeProfile nodeProfileFilter,
-                                         ClientTransportFilter clientTransportFilter) {
+    public ShieldServerTransportService(Settings settings, Transport transport, ThreadPool threadPool,
+                                        ServerTransportFilter.ClientProfile clientProfileFilter,
+                                        ServerTransportFilter.NodeProfile nodeProfileFilter,
+                                        ClientTransportFilter clientTransportFilter) {
         super(settings, transport, threadPool);
         this.clientProfileFilter = clientProfileFilter;
         this.nodeProfileFilter = nodeProfileFilter;
@@ -62,7 +62,7 @@ public class SecuredServerTransportService extends TransportService {
     }
 
     private Map<String, ServerTransportFilter> initializeProfileFilters() {
-        if (!(transport instanceof NettySecuredTransport)) {
+        if (!(transport instanceof ShieldNettyTransport)) {
             return null;
         }
 
@@ -150,7 +150,7 @@ public class SecuredServerTransportService extends TransportService {
         @SuppressWarnings("unchecked")
         public void messageReceived(TransportRequest request, TransportChannel channel) throws Exception {
             try {
-                SecuredMessageChannelHandler.VisibleNettyTransportChannel nettyTransportChannel = (SecuredMessageChannelHandler.VisibleNettyTransportChannel) channel;
+                ShieldMessageChannelHandler.VisibleNettyTransportChannel nettyTransportChannel = (ShieldMessageChannelHandler.VisibleNettyTransportChannel) channel;
                 String profile = nettyTransportChannel.getProfile();
                 ServerTransportFilter filter = profileFilters.get(profile);
                 if (filter == null) {

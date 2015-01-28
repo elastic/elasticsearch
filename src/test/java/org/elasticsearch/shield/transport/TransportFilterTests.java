@@ -43,7 +43,7 @@ public class TransportFilterTests extends ElasticsearchIntegrationTest {
         return ImmutableSettings.settingsBuilder()
                 .put("plugins.load_classpath_plugins", false)
                 .put("plugin.types", InternalPlugin.class.getName())
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, SecuredServerTransportService.class.getName())
+                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, ShieldServerTransportService.class.getName())
                 .build();
     }
 

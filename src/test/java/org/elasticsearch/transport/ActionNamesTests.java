@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryAction;
 import org.elasticsearch.action.exists.ExistsAction;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.repositories.VerifyNodeRepositoryAction;
@@ -106,7 +107,7 @@ public class ActionNamesTests extends ElasticsearchIntegrationTest {
             Version version = randomVersion();
             String outgoingAction = ActionNames.outgoingAction(action, version);
             if (version.onOrAfter(Version.V_1_4_0_Beta1) || customAction || post_1_4_actions.contains(action)) {
-                assertThat(outgoingAction, equalTo(action));
+                assertPost14Action(action, version, outgoingAction);
             } else {
                 assertThat(outgoingAction, not(equalTo(action)));
                 assertThat(outgoingAction, equalTo(ActionNames.pre_1_4_Action(action)));
@@ -140,11 +141,25 @@ public class ActionNamesTests extends ElasticsearchIntegrationTest {
 
             String incomingAction = ActionNames.incomingAction(action, version);
             if (version.onOrAfter(Version.V_1_4_0_Beta1) || customAction) {
-                assertThat(incomingAction, equalTo(action));
+                assertPost14Action(action, version, incomingAction);
             } else {
                 assertThat(incomingAction, not(equalTo(action)));
                 assertThat(incomingAction, equalTo(ActionNames.post_1_4_action(action)));
             }
         }
+    }
+
+    private static void assertPost14Action(String originalAction, Version version, String convertedAction) {
+        if (version.before(Version.V_1_5_0)) {
+            if (originalAction.equals(ShardStateAction.SHARD_STARTED_ACTION_NAME)) {
+                assertThat(convertedAction, equalTo(ShardStateAction.SHARD_FAILED_ACTION_NAME));
+                return;
+            }
+            if (originalAction.equals(ShardStateAction.SHARD_FAILED_ACTION_NAME)) {
+                assertThat(convertedAction, equalTo(ShardStateAction.SHARD_STARTED_ACTION_NAME));
+                return;
+            }
+        }
+        assertThat(convertedAction, equalTo(originalAction));
     }
 }

@@ -35,6 +35,8 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
 }'
 --------------------------------------------------
 
+== Append existing array
+
 We can also add a tag to the list of tags (note, if the tag exists, it
 will still add it, since its a list):
 
@@ -48,6 +50,8 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
 }'
 --------------------------------------------------
 
+== Add new field
+
 We can also add a new field to the document:
 
 [source,js]
@@ -57,6 +61,8 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
 }'
 --------------------------------------------------
 
+== Remove existing field
+
 We can also remove a field from the document:
 
 [source,js]
@@ -65,6 +71,8 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
     "script" : "ctx._source.remove(\"name_of_field\")"
 }'
 --------------------------------------------------
+
+== Delete doc based on condition
 
 And, we can delete the doc if the tags contain blue, or ignore (noop):
 

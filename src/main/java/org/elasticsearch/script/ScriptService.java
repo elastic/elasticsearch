@@ -68,7 +68,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -213,10 +212,10 @@ public class ScriptService extends AbstractComponent {
             GroovyScriptEngineService engine = (GroovyScriptEngineService) ScriptService.this.scriptEngines.get("groovy");
             if (engine != null) {
                 String[] patches = settings.getAsArray(GroovyScriptEngineService.GROOVY_SCRIPT_BLACKLIST_PATCH, Strings.EMPTY_ARRAY);
-                if (Arrays.equals(patches, engine.blacklistAdditions()) == false) {
-                    logger.info("updating [{}] from {} to {}", GroovyScriptEngineService.GROOVY_SCRIPT_BLACKLIST_PATCH,
-                            engine.blacklistAdditions(), patches);
-                    engine.blacklistAdditions(patches);
+                boolean blacklistChanged = engine.addToBlacklist(patches);
+                if (blacklistChanged) {
+                    logger.info("adding {} to [{}], new blacklisted methods: {}", patches,
+                            GroovyScriptEngineService.GROOVY_SCRIPT_BLACKLIST_PATCH, engine.blacklistAdditions());
                     engine.reloadConfig();
                     // Because the GroovyScriptEngineService knows nothing about the
                     // cache, we need to clear it here if the setting changes

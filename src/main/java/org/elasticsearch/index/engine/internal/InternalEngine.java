@@ -414,8 +414,8 @@ public class InternalEngine implements Engine {
                  * To avoid this we have to make sure that the index request is treated as an update and set updatedVersion to 1.
                  * See also discussion on https://github.com/elasticsearch/elasticsearch/pull/9125
                  */
-                doUpdate = true;
-                updatedVersion = 1;
+                create.updateVersion(1);
+                return;
             } else {
                 // On primary, we throw DAEE if the _uid is already in the index with an older version:
                 assert create.origin() == Operation.Origin.PRIMARY;

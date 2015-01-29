@@ -67,26 +67,26 @@ public class AlertActionsTest extends AbstractAlertingTests {
 
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.field(AlertActionManager.ALERT_NAME_FIELD, "testName");
-        builder.field(AlertActionManager.TRIGGERED_FIELD, true);
-        builder.field(AlertActionManager.FIRE_TIME_FIELD, AlertUtils.dateTimeFormatter.printer().print(fireTime));
-        builder.field(AlertActionManager.SCHEDULED_FIRE_TIME_FIELD, AlertUtils.dateTimeFormatter.printer().print(scheduledFireTime));
-        builder.field(AlertActionManager.TRIGGER_FIELD, triggerMap);
+        builder.field(AlertActionService.ALERT_NAME_FIELD, "testName");
+        builder.field(AlertActionService.TRIGGERED_FIELD, true);
+        builder.field(AlertActionService.FIRE_TIME_FIELD, AlertUtils.dateTimeFormatter.printer().print(fireTime));
+        builder.field(AlertActionService.SCHEDULED_FIRE_TIME_FIELD, AlertUtils.dateTimeFormatter.printer().print(scheduledFireTime));
+        builder.field(AlertActionService.TRIGGER_FIELD, triggerMap);
         SearchRequest searchRequest = new SearchRequest("test123");
-        builder.field(AlertActionManager.TRIGGER_REQUEST);
+        builder.field(AlertActionService.TRIGGER_REQUEST);
         AlertUtils.writeSearchRequest(searchRequest, builder, ToXContent.EMPTY_PARAMS);
         SearchResponse searchResponse = new SearchResponse(
                 new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[0], 10, 0), null, null, null, false, false),
                 null, 1, 1, 0, new ShardSearchFailure[0]
         );
-        builder.startObject(AlertActionManager.TRIGGER_RESPONSE);
+        builder.startObject(AlertActionService.TRIGGER_RESPONSE);
         builder.value(searchResponse);
         builder.endObject();
-        builder.field(AlertActionManager.ACTIONS_FIELD, actionMap);
-        builder.field(AlertActionManager.STATE, AlertActionState.SEARCH_NEEDED.toString());
+        builder.field(AlertActionService.ACTIONS_FIELD, actionMap);
+        builder.field(AlertActionService.STATE, AlertActionState.SEARCH_NEEDED.toString());
         builder.endObject();
         final AlertActionRegistry alertActionRegistry = internalTestCluster().getInstance(AlertActionRegistry.class, internalTestCluster().getMasterName());
-        final AlertActionManager alertManager = internalTestCluster().getInstance(AlertActionManager.class, internalTestCluster().getMasterName());
+        final AlertActionService alertManager = internalTestCluster().getInstance(AlertActionService.class, internalTestCluster().getMasterName());
 
         AlertActionEntry actionEntry = alertManager.parseHistory("foobar", builder.bytes(), 0, alertActionRegistry);
         assertEquals(actionEntry.getVersion(), 0);
@@ -110,11 +110,11 @@ public class AlertActionsTest extends AbstractAlertingTests {
                 .setSource(jsonBuilder().startObject().startObject("template").startObject("match_all").endObject().endObject().endObject())
                 .get();
 
-        final AlertManager alertManager = internalTestCluster().getInstance(AlertManager.class, internalTestCluster().getMasterName());
+        final AlertService alertService = internalTestCluster().getInstance(AlertService.class, internalTestCluster().getMasterName());
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                assertThat(alertManager.getState(), is(State.STARTED));
+                assertThat(alertService.getState(), is(State.STARTED));
             }
         });
         final AtomicBoolean alertActionInvoked = new AtomicBoolean(false);

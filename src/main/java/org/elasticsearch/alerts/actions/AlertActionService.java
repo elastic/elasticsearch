@@ -17,7 +17,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.alerts.*;
 import org.elasticsearch.alerts.plugin.AlertsPlugin;
-import org.elasticsearch.alerts.triggers.TriggerManager;
+import org.elasticsearch.alerts.triggers.TriggerService;
 import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -46,7 +46,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  */
-public class AlertActionManager extends AbstractComponent {
+public class AlertActionService extends AbstractComponent {
 
     public static final String ALERT_NAME_FIELD = "alert_name";
     public static final String TRIGGERED_FIELD = "triggered";
@@ -67,10 +67,10 @@ public class AlertActionManager extends AbstractComponent {
     public static final String ALERT_HISTORY_TYPE = "alerthistory";
 
     private final Client client;
-    private AlertManager alertManager;
+    private AlertService alertService;
     private final ThreadPool threadPool;
     private final AlertsStore alertsStore;
-    private final TriggerManager triggerManager;
+    private final TriggerService triggerService;
     private final TemplateHelper templateHelper;
     private final AlertActionRegistry actionRegistry;
 
@@ -83,15 +83,15 @@ public class AlertActionManager extends AbstractComponent {
     private volatile Thread queueReaderThread;
 
     @Inject
-    public AlertActionManager(Settings settings, Client client, AlertActionRegistry actionRegistry,
-                              ThreadPool threadPool, AlertsStore alertsStore, TriggerManager triggerManager,
+    public AlertActionService(Settings settings, Client client, AlertActionRegistry actionRegistry,
+                              ThreadPool threadPool, AlertsStore alertsStore, TriggerService triggerService,
                               TemplateHelper templateHelper) {
         super(settings);
         this.client = client;
         this.actionRegistry = actionRegistry;
         this.threadPool = threadPool;
         this.alertsStore = alertsStore;
-        this.triggerManager = triggerManager;
+        this.triggerService = triggerService;
         this.templateHelper = templateHelper;
         // Not using component settings, to let AlertsStore and AlertActionManager share the same settings
         this.scrollTimeout = settings.getAsTime("alerts.scroll.timeout", TimeValue.timeValueSeconds(30));
@@ -99,8 +99,8 @@ public class AlertActionManager extends AbstractComponent {
 
     }
 
-    public void setAlertManager(AlertManager alertManager){
-        this.alertManager = alertManager;
+    public void setAlertService(AlertService alertService){
+        this.alertService = alertService;
     }
 
     public boolean start(ClusterState state) {
@@ -228,7 +228,7 @@ public class AlertActionManager extends AbstractComponent {
                             entry.setActions(actionRegistry.instantiateAlertActions(parser));
                             break;
                         case TRIGGER_FIELD:
-                            entry.setTrigger(triggerManager.instantiateAlertTrigger(parser));
+                            entry.setTrigger(triggerService.instantiateAlertTrigger(parser));
                             break;
                         case TRIGGER_REQUEST:
                             entry.setTriggerRequest(AlertUtils.readSearchRequest(parser));
@@ -368,7 +368,7 @@ public class AlertActionManager extends AbstractComponent {
                 }
                 updateHistoryEntry(entry, AlertActionState.SEARCH_UNDERWAY);
                 logger.debug("Running an alert action entry for [{}]", entry.getAlertName());
-                TriggerResult result = alertManager.executeAlert(entry);
+                TriggerResult result = alertService.executeAlert(entry);
                 entry.setTriggerResponse(result.getTriggerResponse());
                 if (result.isTriggered()) {
                     entry.setTriggered(true);

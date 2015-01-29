@@ -24,7 +24,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *
  * The service requires on the fact that the alert service has been started.
  */
-public class ConfigurationManager extends AbstractComponent {
+public class ConfigurationService extends AbstractComponent {
 
     public static final String CONFIG_TYPE = "config";
     public static final String GLOBAL_CONFIG_NAME = "global";
@@ -33,7 +33,7 @@ public class ConfigurationManager extends AbstractComponent {
     private final CopyOnWriteArrayList<ConfigurableComponentListener> registeredComponents;
 
     @Inject
-    public ConfigurationManager(Settings settings, Client client) {
+    public ConfigurationService(Settings settings, Client client) {
         super(settings);
         this.client = client;
         registeredComponents = new CopyOnWriteArrayList<>();
@@ -65,7 +65,7 @@ public class ConfigurationManager extends AbstractComponent {
      */
     public IndexResponse updateConfig(BytesReference settingsSource) throws IOException {
 
-        IndexResponse indexResponse = client.prepareIndex(AlertsStore.ALERT_INDEX, ConfigurationManager.CONFIG_TYPE, ConfigurationManager.GLOBAL_CONFIG_NAME)
+        IndexResponse indexResponse = client.prepareIndex(AlertsStore.ALERT_INDEX, ConfigurationService.CONFIG_TYPE, ConfigurationService.GLOBAL_CONFIG_NAME)
                 .setSource(settingsSource).get();
 
         Settings settings = ImmutableSettings.settingsBuilder().loadFromSource(settingsSource.toUtf8()).build();

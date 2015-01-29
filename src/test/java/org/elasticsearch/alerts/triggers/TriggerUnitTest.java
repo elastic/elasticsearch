@@ -60,12 +60,12 @@ public class TriggerUnitTest extends ElasticsearchTestCase {
         engineServiceSet.add(groovyScriptEngineService);
 
         ScriptService scriptService = new ScriptService(settings, new Environment(), engineServiceSet, new ResourceWatcherService(settings, tp));
-        TriggerManager triggerManager = new TriggerManager(settings, null, scriptService);
+        TriggerService triggerService = new TriggerService(settings, null, scriptService);
 
         try {
             XContentBuilder builder = createTriggerContent("hits.total > 1", null, null);
             XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
-            AlertTrigger trigger = triggerManager.instantiateAlertTrigger(parser);
+            AlertTrigger trigger = triggerService.instantiateAlertTrigger(parser);
 
             SearchRequest request = new SearchRequest();
             request.indices("my-index");
@@ -75,14 +75,14 @@ public class TriggerUnitTest extends ElasticsearchTestCase {
             SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
             XContentBuilder responseBuilder = jsonBuilder().startObject().value(response).endObject();
             Map<String, Object> responseMap = XContentHelper.convertToMap(responseBuilder.bytes(), false).v2();
-            assertFalse(triggerManager.isTriggered(trigger, request, responseMap).isTriggered());
+            assertFalse(triggerService.isTriggered(trigger, request, responseMap).isTriggered());
 
 
             builder = createTriggerContent("return true", null, null);
             parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
-            trigger = triggerManager.instantiateAlertTrigger(parser);
+            trigger = triggerService.instantiateAlertTrigger(parser);
 
-            assertTrue(triggerManager.isTriggered(trigger, request, responseMap).isTriggered());
+            assertTrue(triggerService.isTriggered(trigger, request, responseMap).isTriggered());
 
 
             tp.shutdownNow();

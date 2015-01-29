@@ -9,8 +9,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
-import org.elasticsearch.alerts.AlertManager;
-import org.elasticsearch.alerts.actions.AlertActionManager;
+import org.elasticsearch.alerts.AlertService;
+import org.elasticsearch.alerts.actions.AlertActionService;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -25,16 +25,16 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportAlertStatsAction extends TransportMasterNodeOperationAction<AlertsStatsRequest, AlertsStatsResponse> {
 
-    private final AlertManager alertManager;
-    private final AlertActionManager alertActionManager;
+    private final AlertService alertService;
+    private final AlertActionService alertActionService;
 
     @Inject
     public TransportAlertStatsAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                     ThreadPool threadPool, ActionFilters actionFilters, AlertManager alertManager,
-                                     AlertActionManager alertActionManager) {
+                                     ThreadPool threadPool, ActionFilters actionFilters, AlertService alertService,
+                                     AlertActionService alertActionService) {
         super(settings, AlertsStatsAction.NAME, transportService, clusterService, threadPool, actionFilters);
-        this.alertManager = alertManager;
-        this.alertActionManager = alertActionManager;
+        this.alertService = alertService;
+        this.alertActionService = alertActionService;
     }
 
     @Override
@@ -55,11 +55,11 @@ public class TransportAlertStatsAction extends TransportMasterNodeOperationActio
     @Override
     protected void masterOperation(AlertsStatsRequest request, ClusterState state, ActionListener<AlertsStatsResponse> listener) throws ElasticsearchException {
         AlertsStatsResponse statsResponse = new AlertsStatsResponse();
-        statsResponse.setAlertManagerState(alertManager.getState());
-        statsResponse.setAlertActionManagerStarted(alertActionManager.started());
-        statsResponse.setAlertActionManagerQueueSize(alertActionManager.getQueueSize());
-        statsResponse.setNumberOfRegisteredAlerts(alertManager.getNumberOfAlerts());
-        statsResponse.setAlertActionManagerLargestQueueSize(alertActionManager.getLargestQueueSize());
+        statsResponse.setAlertManagerState(alertService.getState());
+        statsResponse.setAlertActionManagerStarted(alertActionService.started());
+        statsResponse.setAlertActionManagerQueueSize(alertActionService.getQueueSize());
+        statsResponse.setNumberOfRegisteredAlerts(alertService.getNumberOfAlerts());
+        statsResponse.setAlertActionManagerLargestQueueSize(alertActionService.getLargestQueueSize());
         listener.onResponse(statsResponse);
     }
 

@@ -7,7 +7,7 @@ package org.elasticsearch.alerts.rest;
 
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.alerts.AlertsStore;
-import org.elasticsearch.alerts.ConfigurationManager;
+import org.elasticsearch.alerts.ConfigurationService;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.transport.actions.config.ConfigAlertRequest;
 import org.elasticsearch.alerts.transport.actions.config.ConfigAlertResponse;
@@ -30,7 +30,7 @@ public class RestConfigAlertAction extends BaseRestHandler {
     protected RestConfigAlertAction(Settings settings, RestController controller, Client client, AlertsClient alertsClient) {
         super(settings, controller, client);
         this.alertsClient = alertsClient;
-        String path = AlertsStore.ALERT_INDEX + "/" + ConfigurationManager.CONFIG_TYPE + "/" + ConfigurationManager.GLOBAL_CONFIG_NAME;
+        String path = AlertsStore.ALERT_INDEX + "/" + ConfigurationService.CONFIG_TYPE + "/" + ConfigurationService.GLOBAL_CONFIG_NAME;
         controller.registerHandler(RestRequest.Method.PUT, path, this);
         controller.registerHandler(RestRequest.Method.POST, path, this);
     }

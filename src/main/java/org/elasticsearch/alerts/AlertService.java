@@ -13,10 +13,10 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.alerts.actions.AlertActionEntry;
-import org.elasticsearch.alerts.actions.AlertActionManager;
+import org.elasticsearch.alerts.actions.AlertActionService;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
 import org.elasticsearch.alerts.scheduler.AlertScheduler;
-import org.elasticsearch.alerts.triggers.TriggerManager;
+import org.elasticsearch.alerts.triggers.TriggerService;
 import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -45,12 +45,12 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public class AlertManager extends AbstractComponent {
+public class AlertService extends AbstractComponent {
 
     private final AlertScheduler scheduler;
     private final AlertsStore alertsStore;
-    private final TriggerManager triggerManager;
-    private final AlertActionManager actionManager;
+    private final TriggerService triggerService;
+    private final AlertActionService actionManager;
     private final AlertActionRegistry actionRegistry;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -62,17 +62,17 @@ public class AlertManager extends AbstractComponent {
     private volatile boolean manuallyStopped;
 
     @Inject
-    public AlertManager(Settings settings, ClusterService clusterService, AlertScheduler scheduler, AlertsStore alertsStore,
-                        IndicesService indicesService, TriggerManager triggerManager, AlertActionManager actionManager,
+    public AlertService(Settings settings, ClusterService clusterService, AlertScheduler scheduler, AlertsStore alertsStore,
+                        IndicesService indicesService, TriggerService triggerService, AlertActionService actionManager,
                         AlertActionRegistry actionRegistry, ThreadPool threadPool, ScriptService scriptService, Client client) {
         super(settings);
         this.scheduler = scheduler;
         this.threadPool = threadPool;
-        this.scheduler.setAlertManager(this);
+        this.scheduler.setAlertService(this);
         this.alertsStore = alertsStore;
-        this.triggerManager = triggerManager;
+        this.triggerService = triggerService;
         this.actionManager = actionManager;
-        this.actionManager.setAlertManager(this);
+        this.actionManager.setAlertService(this);
         this.actionRegistry = actionRegistry;
         this.clusterService = clusterService;
 
@@ -189,7 +189,7 @@ public class AlertManager extends AbstractComponent {
             if (alert == null) {
                 throw new ElasticsearchException("Alert is not available");
             }
-            TriggerResult triggerResult = triggerManager.isTriggered(alert, entry.getScheduledTime(), entry.getFireTime());
+            TriggerResult triggerResult = triggerService.isTriggered(alert, entry.getScheduledTime(), entry.getFireTime());
 
             if (triggerResult.isTriggered()) {
                 triggerResult.setThrottled(isActionThrottled(alert));

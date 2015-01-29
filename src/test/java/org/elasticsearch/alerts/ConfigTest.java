@@ -36,10 +36,10 @@ public class ConfigTest extends ElasticsearchIntegrationTest {
                 .put("bar", 1)
                 .put("baz", true)
                 .build();
-        ConfigurationManager configurationManager = new ConfigurationManager(oldSettings, client());
+        ConfigurationService configurationService = new ConfigurationService(oldSettings, client());
 
         SettingsListener settingsListener = new SettingsListener();
-        configurationManager.registerListener(settingsListener);
+        configurationService.registerListener(settingsListener);
         TimeValue tv2 = TimeValue.timeValueMillis(10);
         XContentBuilder jsonSettings = XContentFactory.jsonBuilder();
         jsonSettings.startObject();
@@ -47,7 +47,7 @@ public class ConfigTest extends ElasticsearchIntegrationTest {
                 .field("bar", 100)
                 .field("baz", false);
         jsonSettings.endObject();
-        configurationManager.updateConfig(jsonSettings.bytes());
+        configurationService.updateConfig(jsonSettings.bytes());
 
         assertThat(settingsListener.settings.getAsTime("foo", new TimeValue(0)).getMillis(), equalTo(tv2.getMillis()));
         assertThat(settingsListener.settings.getAsInt("bar", 0), equalTo(100));
@@ -74,13 +74,13 @@ public class ConfigTest extends ElasticsearchIntegrationTest {
         newSettings.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
         jsonBuilder.endObject();
         IndexResponse indexResponse = client()
-                .prepareIndex(AlertsStore.ALERT_INDEX, ConfigurationManager.CONFIG_TYPE, "global")
+                .prepareIndex(AlertsStore.ALERT_INDEX, ConfigurationService.CONFIG_TYPE, "global")
                 .setSource(jsonBuilder)
                 .get();
         assertTrue(indexResponse.isCreated());
 
-        ConfigurationManager configurationManager = new ConfigurationManager(oldSettings, client());
-        Settings loadedSettings = configurationManager.getConfig();
+        ConfigurationService configurationService = new ConfigurationService(oldSettings, client());
+        Settings loadedSettings = configurationService.getConfig();
         assertThat(loadedSettings.get("foo"), equalTo(newSettings.get("foo")));
         assertThat(loadedSettings.get("bar"), equalTo(newSettings.get("bar")));
         assertThat(loadedSettings.get("baz"), equalTo(newSettings.get("baz")));

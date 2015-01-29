@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.alerts.AlertsStore;
-import org.elasticsearch.alerts.ConfigurationManager;
+import org.elasticsearch.alerts.ConfigurationService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -103,6 +103,6 @@ public class ConfigAlertRequest extends MasterNodeOperationRequest<ConfigAlertRe
 
     @Override
     public String toString() {
-        return "config {[" + AlertsStore.ALERT_INDEX + "][" + ConfigurationManager.CONFIG_TYPE + "]}";
+        return "config {[" + AlertsStore.ALERT_INDEX + "][" + ConfigurationService.CONFIG_TYPE + "]}";
     }
 }

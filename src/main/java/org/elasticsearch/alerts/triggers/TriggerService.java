@@ -27,14 +27,14 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public class TriggerManager extends AbstractComponent {
+public class TriggerService extends AbstractComponent {
 
     private final Client client;
     private final ScriptService scriptService;
     private volatile ImmutableOpenMap<String, TriggerFactory> triggersImplemented;
 
     @Inject
-    public TriggerManager(Settings settings, Client client, ScriptService scriptService) {
+    public TriggerService(Settings settings, Client client, ScriptService scriptService) {
         super(settings);
         this.client = client;
         this.scriptService = scriptService;

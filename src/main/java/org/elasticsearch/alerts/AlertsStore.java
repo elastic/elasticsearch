@@ -18,7 +18,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.alerts.actions.AlertAction;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
-import org.elasticsearch.alerts.triggers.TriggerManager;
+import org.elasticsearch.alerts.triggers.TriggerService;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -60,7 +60,7 @@ public class AlertsStore extends AbstractComponent {
     public static final ParseField META_FIELD = new ParseField("meta");
 
     private final Client client;
-    private final TriggerManager triggerManager;
+    private final TriggerService triggerService;
     private final TemplateHelper templateHelper;
     private final ConcurrentMap<String, Alert> alertMap;
     private final AlertActionRegistry alertActionRegistry;
@@ -71,13 +71,13 @@ public class AlertsStore extends AbstractComponent {
 
     @Inject
     public AlertsStore(Settings settings, Client client, AlertActionRegistry alertActionRegistry,
-                       TriggerManager triggerManager, TemplateHelper templateHelper) {
+                       TriggerService triggerService, TemplateHelper templateHelper) {
         super(settings);
         this.client = client;
         this.alertActionRegistry = alertActionRegistry;
         this.templateHelper = templateHelper;
         this.alertMap = ConcurrentCollections.newConcurrentMap();
-        this.triggerManager = triggerManager;
+        this.triggerService = triggerService;
         // Not using component settings, to let AlertsStore and AlertActionManager share the same settings
         this.scrollTimeout = settings.getAsTime("alerts.scroll.timeout", TimeValue.timeValueSeconds(30));
         this.scrollSize = settings.getAsInt("alerts.scroll.size", 100);
@@ -252,7 +252,7 @@ public class AlertsStore extends AbstractComponent {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (TRIGGER_FIELD.match(currentFieldName)) {
-                        alert.setTrigger(triggerManager.instantiateAlertTrigger(parser));
+                        alert.setTrigger(triggerService.instantiateAlertTrigger(parser));
                     } else if (ACTION_FIELD.match(currentFieldName)) {
                         List<AlertAction> actions = alertActionRegistry.instantiateAlertActions(parser);
                         alert.setActions(actions);

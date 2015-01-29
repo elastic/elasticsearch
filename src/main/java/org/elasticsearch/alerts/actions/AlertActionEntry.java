@@ -242,7 +242,7 @@ public class AlertActionEntry implements ToXContent {
         historyEntry.field("alert_name", alertName);
         historyEntry.field("triggered", triggered);
         historyEntry.field("fire_time", fireTime.toDateTimeISO());
-        historyEntry.field(AlertActionManager.SCHEDULED_FIRE_TIME_FIELD, scheduledTime.toDateTimeISO());
+        historyEntry.field(AlertActionService.SCHEDULED_FIRE_TIME_FIELD, scheduledTime.toDateTimeISO());
         historyEntry.field("trigger");
         historyEntry.startObject();
         historyEntry.field(trigger.getTriggerName(), trigger, params);
@@ -267,7 +267,7 @@ public class AlertActionEntry implements ToXContent {
             action.toXContent(historyEntry, params);
         }
         historyEntry.endObject();
-        historyEntry.field(AlertActionManager.STATE, state.toString());
+        historyEntry.field(AlertActionService.STATE, state.toString());
 
         if (errorMsg != null) {
             historyEntry.field("error_msg", errorMsg);

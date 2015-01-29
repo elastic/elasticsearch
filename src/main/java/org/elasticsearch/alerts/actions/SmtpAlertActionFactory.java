@@ -10,7 +10,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.ConfigurableComponentListener;
-import org.elasticsearch.alerts.ConfigurationManager;
+import org.elasticsearch.alerts.ConfigurationService;
 import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -37,21 +37,21 @@ public class SmtpAlertActionFactory implements AlertActionFactory, ConfigurableC
     private static final String DEFAULT_SUBJECT = "Elasticsearch Alert {{alert_name}} triggered";
     private static final String DEFAULT_MESSAGE = "{{alert_name}} triggered with {{response.hits.total}} results";
 
-    private final ConfigurationManager configurationManager;
+    private final ConfigurationService configurationService;
     private final ScriptService scriptService;
 
     private volatile Settings settings;
 
-    public SmtpAlertActionFactory(ConfigurationManager configurationManager, ScriptService scriptService) {
-        this.configurationManager = configurationManager;
+    public SmtpAlertActionFactory(ConfigurationService configurationService, ScriptService scriptService) {
+        this.configurationService = configurationService;
         this.scriptService = scriptService;
     }
 
     @Override
     public AlertAction createAction(XContentParser parser) throws IOException {
         if (settings == null) {
-            settings = configurationManager.getConfig();
-            configurationManager.registerListener(this);
+            settings = configurationService.getConfig();
+            configurationService.registerListener(this);
         }
 
         String messageTemplate = DEFAULT_MESSAGE;

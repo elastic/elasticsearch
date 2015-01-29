@@ -146,12 +146,22 @@ public class DiscontinuousHistogram<B extends InternalHistogram.Bucket> implemen
 
         @Override
         protected void onSingleValueMetric(InternalNumericMetricsAggregation.SingleValue sv, Map<String, Double> singleValueMap, InternalHistogram.Bucket bucket) {
-            return;
+            if ( bucket.getDocCount() == 0) {
+                return;
+            }
+            singleValueMap.put(sv.getName(), sv.value());
         }
 
         @Override
         protected void onMultiValueMetric(InternalNumericMetricsAggregation.MultiValue mv, Map<String, Map<String, Double>> multiValueMap, InternalHistogram.Bucket bucket) {
-            return;
+            if ( bucket.getDocCount() == 0) {
+                return;
+            }
+            Map<String, Double> metricValues = new HashMap<>();
+            for (String valueName : mv.valueNames()) {
+                metricValues.put(valueName, mv.value(valueName));
+            }
+            multiValueMap.put(mv.getName(), metricValues);
         }
     }
 

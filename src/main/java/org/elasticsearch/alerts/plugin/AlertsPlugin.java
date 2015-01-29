@@ -18,7 +18,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 public class AlertsPlugin extends AbstractPlugin {
 
     public static final String ALERT_THREAD_POOL_NAME = "alerts";
-    public static final String SCHEDULER_THREAD_POOL_NAME = "alerts";
+    public static final String SCHEDULER_THREAD_POOL_NAME = "alerts_scheduler";
 
     @Override public String name() {
         return ALERT_THREAD_POOL_NAME;

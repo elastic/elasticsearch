@@ -711,18 +711,27 @@ public class DefaultSearchContext extends SearchContext {
         return scanContext;
     }
 
+    @Override
     public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {
         return mapperService().smartName(name, request.types());
     }
 
+    @Override
     public FieldMappers smartNameFieldMappers(String name) {
         return mapperService().smartNameFieldMappers(name, request.types());
     }
 
+    @Override
     public FieldMapper smartNameFieldMapper(String name) {
         return mapperService().smartNameFieldMapper(name, request.types());
     }
 
+    @Override
+    public FieldMapper smartNameFieldMapperFromAnyType(String name) {
+        return mapperService().smartNameFieldMapper(name);
+    }
+
+    @Override
     public MapperService.SmartNameObjectMapper smartNameObjectMapper(String name) {
         return mapperService().smartNameObjectMapper(name, request.types());
     }

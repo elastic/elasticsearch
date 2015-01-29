@@ -365,6 +365,11 @@ public abstract class SearchContext implements Releasable {
 
     public abstract FieldMapper smartNameFieldMapper(String name);
 
+    /**
+     * Looks up the given field, but does not restrict to fields in the types set on this context.
+     */
+    public abstract FieldMapper smartNameFieldMapperFromAnyType(String name);
+
     public abstract MapperService.SmartNameObjectMapper smartNameObjectMapper(String name);
 
     public abstract boolean useSlowScroll();

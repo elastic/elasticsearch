@@ -608,8 +608,19 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
+    public FieldMapper<?> smartNameFieldMapperFromAnyType(String name) {
+        if (mapperService() != null) {
+            return mapperService().smartNameFieldMapper(name);
+        }
+        return null;
+    }
+
+    @Override
     public MapperService.SmartNameObjectMapper smartNameObjectMapper(String name) {
-        return mapperService().smartNameObjectMapper(name, types);
+        if (mapperService() != null) {
+            return mapperService().smartNameObjectMapper(name, types);
+        }
+        return null;
     }
 
     @Override

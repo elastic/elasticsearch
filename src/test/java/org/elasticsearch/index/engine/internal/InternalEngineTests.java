@@ -265,7 +265,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
         ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, false);
         engine.create(new Engine.Create(null, analyzer, newUid("2"), doc2));
-        engine.refresh("test", false);
+        engine.refresh("test");
 
         segments = engine.segments(false);
         assertThat(segments.size(), equalTo(1));
@@ -298,7 +298,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
         ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, false);
         engine.create(new Engine.Create(null, analyzer, newUid("3"), doc3));
-        engine.refresh("test", false);
+        engine.refresh("test");
 
         segments = engine.segments(false);
         assertThat(segments.size(), equalTo(2));
@@ -324,7 +324,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
 
         engine.delete(new Engine.Delete("test", "1", newUid("1")));
-        engine.refresh("test", false);
+        engine.refresh("test");
 
         segments = engine.segments(false);
         assertThat(segments.size(), equalTo(2));
@@ -345,7 +345,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         engineSettingsService.refreshSettings(ImmutableSettings.builder().put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, true).build());
         ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), B_3, false);
         engine.create(new Engine.Create(null, analyzer, newUid("4"), doc4));
-        engine.refresh("test", false);
+        engine.refresh("test");
 
         segments = engine.segments(false);
         assertThat(segments.size(), equalTo(3));
@@ -376,7 +376,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
         engine.create(new Engine.Create(null, analyzer, newUid("1"), doc));
-        engine.refresh("test", false);
+        engine.refresh("test");
 
         segments = engine.segments(true);
         assertThat(segments.size(), equalTo(1));
@@ -384,10 +384,10 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         
         ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, false);
         engine.create(new Engine.Create(null, analyzer, newUid("2"), doc2));
-        engine.refresh("test", false);
+        engine.refresh("test");
         ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, false);
         engine.create(new Engine.Create(null, analyzer, newUid("3"), doc3));
-        engine.refresh("test", false);
+        engine.refresh("test");
 
         segments = engine.segments(true);
         assertThat(segments.size(), equalTo(3));
@@ -528,7 +528,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         assertThat(getResult.exists(), equalTo(false));
         getResult.release();
         // refresh and it should be there
-        engine.refresh("test", false);
+        engine.refresh("test");
 
         // now its there...
         searchResult = engine.acquireSearcher("test");
@@ -564,7 +564,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         getResult.release();
 
         // refresh and it should be updated
-        engine.refresh("test", false);
+        engine.refresh("test");
 
         searchResult = engine.acquireSearcher("test");
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
@@ -588,7 +588,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         getResult.release();
 
         // refresh and it should be deleted
-        engine.refresh("test", false);
+        engine.refresh("test");
 
         searchResult = engine.acquireSearcher("test");
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
@@ -610,7 +610,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         searchResult.close();
 
         // refresh and it should be there
-        engine.refresh("test", false);
+        engine.refresh("test");
 
         // now its there...
         searchResult = engine.acquireSearcher("test");
@@ -644,7 +644,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         searchResult.close();
 
         // refresh and it should be updated
-        engine.refresh("test", false);
+        engine.refresh("test");
 
         searchResult = engine.acquireSearcher("test");
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
@@ -672,7 +672,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         searchResult.close();
 
         // refresh and it should be there
-        engine.refresh("test", false);
+        engine.refresh("test");
 
         // now its there...
         searchResult = engine.acquireSearcher("test");
@@ -682,7 +682,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
         // delete, refresh and do a new search, it should not be there
         engine.delete(new Engine.Delete("test", "1", newUid("1")));
-        engine.refresh("test", false);
+        engine.refresh("test");
         Engine.Searcher updateSearchResult = engine.acquireSearcher("test");
         MatcherAssert.assertThat(updateSearchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         updateSearchResult.close();
@@ -735,7 +735,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
             ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, false);
             engine.create(new Engine.Create(null, analyzer, newUid("2"), doc2));
-            engine.refresh("foo", false);
+            engine.refresh("foo");
 
             searchResult = engine.acquireSearcher("test");
             MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 2));
@@ -1407,7 +1407,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         Thread.sleep(1000);
 
         if (randomBoolean()) {
-            engine.refresh("test", false);
+            engine.refresh("test");
         }
 
         // Delete non-existent document

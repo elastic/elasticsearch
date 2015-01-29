@@ -88,10 +88,9 @@ public interface Engine extends Closeable {
 
     /**
      * Refreshes the engine for new search operations to reflect the latest
-     * changes. Pass <tt>true</tt> if the refresh operation should include
-     * all the operations performed up to this call.
+     * changes.
      */
-    void refresh(String source, boolean force) throws EngineException;
+    void refresh(String source) throws EngineException;
 
     /**
      * Flushes the state of the engine, clearing memory.

@@ -1874,6 +1874,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         assertTrue(dest.exists());
         ImmutableSettings.Builder builder = ImmutableSettings.builder()
                 .put(settings)
+                .put("gateway.type", "local") // this is important we need to recover from gateway
                 .put("path.data", dataDir.getPath());
 
         File configDir = new File(indexDir, "config");

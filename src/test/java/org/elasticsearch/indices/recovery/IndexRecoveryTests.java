@@ -140,7 +140,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
     @Test
     public void gatewayRecoveryTest() throws Exception {
         logger.info("--> start nodes");
-        String node = internalCluster().startNode();
+        String node = internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
 
         createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT);
 
@@ -167,7 +167,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
     @Test
     public void gatewayRecoveryTestActiveOnly() throws Exception {
         logger.info("--> start nodes");
-        internalCluster().startNode();
+        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
 
         createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT);
 
@@ -185,13 +185,13 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
     @Test
     public void replicaRecoveryTest() throws Exception {
         logger.info("--> start node A");
-        String nodeA = internalCluster().startNode();
+        String nodeA = internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
 
         logger.info("--> create index on node: {}", nodeA);
         createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT);
 
         logger.info("--> start node B");
-        String nodeB = internalCluster().startNode();
+        String nodeB = internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
         ensureGreen();
 
         // force a shard recovery from nodeA to nodeB
@@ -227,13 +227,13 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
     @TestLogging("indices.recovery:TRACE")
     public void rerouteRecoveryTest() throws Exception {
         logger.info("--> start node A");
-        String nodeA = internalCluster().startNode();
+        String nodeA = internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
 
         logger.info("--> create index on node: {}", nodeA);
         ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT).getShards()[0].getStats().getStore().size();
 
         logger.info("--> start node B");
-        String nodeB = internalCluster().startNode();
+        String nodeB = internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
 
         ensureGreen();
 
@@ -281,7 +281,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
         ensureGreen();
 
         logger.info("--> start node C");
-        String nodeC = internalCluster().startNode();
+        String nodeC = internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("3").get().isTimedOut());
 
         logger.info("--> slowing down recoveries");
@@ -337,7 +337,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
     @Test
     public void snapshotRecoveryTest() throws Exception {
         logger.info("--> start node A");
-        String nodeA = internalCluster().startNode();
+        String nodeA = internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
 
         logger.info("--> create repository");
         assertAcked(client().admin().cluster().preparePutRepository(REPO_NAME)

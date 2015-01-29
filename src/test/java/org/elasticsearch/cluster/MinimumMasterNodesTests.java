@@ -32,6 +32,7 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -42,6 +43,7 @@ import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -55,6 +57,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .put("discovery.zen.ping_timeout", "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
+                .put("gateway.type", "local")
                 .build();
 
         logger.info("--> start first node");
@@ -172,6 +175,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
                 .put("discovery.zen.minimum_master_nodes", 3)
                 .put("discovery.zen.ping_timeout", "1s")
                 .put("discovery.initial_state_timeout", "500ms")
+                .put("gateway.type", "local")
                 .build();
 
         logger.info("--> start first 2 nodes");
@@ -261,6 +265,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
                 .put("discovery.type", "zen")
                 .put("discovery.zen.ping_timeout", "400ms")
                 .put("discovery.initial_state_timeout", "500ms")
+                .put("gateway.type", "local")
                 .build();
 
         logger.info("--> start 2 nodes");
@@ -313,7 +318,8 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         ImmutableSettings.Builder settings = settingsBuilder()
                 .put("discovery.type", "zen")
                 .put("discovery.zen.ping_timeout", "200ms")
-                .put("discovery.initial_state_timeout", "500ms");
+                .put("discovery.initial_state_timeout", "500ms")
+                .put("gateway.type", "local");
 
         // set an initial value which is at least quorum to avoid split brains during initial startup
         int initialMinMasterNodes = randomIntBetween(nodeCount / 2 + 1, nodeCount);

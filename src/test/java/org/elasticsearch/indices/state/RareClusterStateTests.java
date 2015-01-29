@@ -54,6 +54,7 @@ public class RareClusterStateTests extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
+                .put("gateway.type", "local")
                 .build();
     }
 

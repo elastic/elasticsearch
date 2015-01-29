@@ -45,6 +45,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
+import static org.elasticsearch.common.settings.ImmutableSettings.builder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -60,6 +61,11 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
     @Override
     protected int numberOfShards() {
         return 1;
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return builder().put(super.nodeSettings(nodeOrdinal)).put("gateway.type", "local").build();
     }
 
     @Test

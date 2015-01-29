@@ -310,8 +310,8 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
                 .setQuery(hasChildQuery(childType, termQuery("color", "orange")))
                 .addAggregation(children("my-refinements")
                                 .childType(childType)
-                                .subAggregation(terms("my-colors").field(childType + ".color"))
-                                .subAggregation(terms("my-sizes").field(childType + ".size"))
+                                .subAggregation(terms("my-colors").field("color"))
+                                .subAggregation(terms("my-sizes").field("size"))
                 ).get();
         assertNoFailures(response);
         assertHitCount(response, 1);

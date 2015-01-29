@@ -43,7 +43,6 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Injectors;
 import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.io.CachedStreams;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -395,7 +394,6 @@ public final class InternalNode implements Node {
 
         injector.getInstance(NodeEnvironment.class).close();
         injector.getInstance(PageCacheRecycler.class).close();
-        CachedStreams.clear();
 
         logger.info("closed");
     }

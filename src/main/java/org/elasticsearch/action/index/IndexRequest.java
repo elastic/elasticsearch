@@ -676,7 +676,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        type = in.readSharedString();
+        type = in.readString();
         id = in.readOptionalString();
         routing = in.readOptionalString();
         parent = in.readOptionalString();
@@ -695,7 +695,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeSharedString(type);
+        out.writeString(type);
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(parent);

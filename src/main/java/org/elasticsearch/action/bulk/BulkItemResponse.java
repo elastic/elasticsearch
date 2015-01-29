@@ -247,7 +247,7 @@ public class BulkItemResponse implements Streamable {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         id = in.readVInt();
-        opType = in.readSharedString();
+        opType = in.readString();
 
         byte type = in.readByte();
         if (type == 0) {
@@ -262,8 +262,8 @@ public class BulkItemResponse implements Streamable {
         }
 
         if (in.readBoolean()) {
-            String fIndex = in.readSharedString();
-            String fType = in.readSharedString();
+            String fIndex = in.readString();
+            String fType = in.readString();
             String fId = in.readOptionalString();
             String fMessage = in.readString();
             RestStatus status = RestStatus.readFrom(in);
@@ -274,7 +274,7 @@ public class BulkItemResponse implements Streamable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
-        out.writeSharedString(opType);
+        out.writeString(opType);
 
         if (response == null) {
             out.writeByte((byte) 2);
@@ -292,8 +292,8 @@ public class BulkItemResponse implements Streamable {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeSharedString(failure.getIndex());
-            out.writeSharedString(failure.getType());
+            out.writeString(failure.getIndex());
+            out.writeString(failure.getType());
             out.writeOptionalString(failure.getId());
             out.writeString(failure.getMessage());
             RestStatus.writeTo(out, failure.getStatus());

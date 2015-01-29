@@ -175,15 +175,15 @@ public abstract class TimeZoneRounding extends Rounding {
             unit = DateTimeUnit.resolve(in.readByte());
             field = unit.field();
             durationField = field.getDurationField();
-            preTz = DateTimeZone.forID(in.readSharedString());
-            postTz = DateTimeZone.forID(in.readSharedString());
+            preTz = DateTimeZone.forID(in.readString());
+            postTz = DateTimeZone.forID(in.readString());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeByte(unit.id());
-            out.writeSharedString(preTz.getID());
-            out.writeSharedString(postTz.getID());
+            out.writeString(preTz.getID());
+            out.writeString(postTz.getID());
         }
     }
 
@@ -287,15 +287,15 @@ public abstract class TimeZoneRounding extends Rounding {
             unit = DateTimeUnit.resolve(in.readByte());
             field = unit.field();
             durationField = field.getDurationField();
-            preTz = DateTimeZone.forID(in.readSharedString());
-            postTz = DateTimeZone.forID(in.readSharedString());
+            preTz = DateTimeZone.forID(in.readString());
+            postTz = DateTimeZone.forID(in.readString());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeByte(unit.id());
-            out.writeSharedString(preTz.getID());
-            out.writeSharedString(postTz.getID());
+            out.writeString(preTz.getID());
+            out.writeString(postTz.getID());
         }
     }
 
@@ -390,15 +390,15 @@ public abstract class TimeZoneRounding extends Rounding {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             interval = in.readVLong();
-            preTz = DateTimeZone.forID(in.readSharedString());
-            postTz = DateTimeZone.forID(in.readSharedString());
+            preTz = DateTimeZone.forID(in.readString());
+            postTz = DateTimeZone.forID(in.readString());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(interval);
-            out.writeSharedString(preTz.getID());
-            out.writeSharedString(postTz.getID());
+            out.writeString(preTz.getID());
+            out.writeString(postTz.getID());
         }
     }
 
@@ -447,15 +447,15 @@ public abstract class TimeZoneRounding extends Rounding {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             interval = in.readVLong();
-            preTz = DateTimeZone.forID(in.readSharedString());
-            postTz = DateTimeZone.forID(in.readSharedString());
+            preTz = DateTimeZone.forID(in.readString());
+            postTz = DateTimeZone.forID(in.readString());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(interval);
-            out.writeSharedString(preTz.getID());
-            out.writeSharedString(postTz.getID());
+            out.writeString(preTz.getID());
+            out.writeString(postTz.getID());
         }
     }
 }

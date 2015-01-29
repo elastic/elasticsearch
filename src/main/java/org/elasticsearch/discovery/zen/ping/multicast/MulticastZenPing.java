@@ -249,8 +249,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
     private void sendPingRequest(int id) {
         try {
-            BytesStreamOutput bStream = new BytesStreamOutput();
-            StreamOutput out = new HandlesStreamOutput(bStream);
+            BytesStreamOutput out = new BytesStreamOutput();
             out.writeBytes(INTERNAL_HEADER);
             // TODO: change to min_required version!
             Version.writeVersion(version, out);
@@ -258,7 +257,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             clusterName.writeTo(out);
             contextProvider.nodes().localNode().writeTo(out);
             out.close();
-            multicastChannel.send(bStream.bytes());
+            multicastChannel.send(out.bytes());
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}] sending ping request", id);
             }
@@ -404,7 +403,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                     }
                 }
                 if (internal) {
-                    StreamInput input = CachedStreamInput.cachedHandles(new BytesStreamInput(new BytesArray(data.toBytes(), INTERNAL_HEADER.length, data.length() - INTERNAL_HEADER.length)));
+                    StreamInput input = new BytesStreamInput(new BytesArray(data.toBytes(), INTERNAL_HEADER.length, data.length() - INTERNAL_HEADER.length));
                     Version version = Version.readVersion(input);
                     input.setVersion(version);
                     id = input.readInt();

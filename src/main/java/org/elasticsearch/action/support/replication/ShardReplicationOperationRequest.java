@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -200,7 +199,7 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
         replicationType = ReplicationType.fromId(in.readByte());
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
-        index = in.readSharedString();
+        index = in.readString();
         canHaveDuplicates = in.readBoolean();
         // no need to serialize threaded* parameters, since they only matter locally
     }
@@ -211,7 +210,7 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
         out.writeByte(replicationType.id());
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
-        out.writeSharedString(index);
+        out.writeString(index);
         out.writeBoolean(canHaveDuplicates);
     }
 

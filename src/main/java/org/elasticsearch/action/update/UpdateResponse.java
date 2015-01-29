@@ -104,8 +104,8 @@ public class UpdateResponse extends ActionWriteResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readSharedString();
-        type = in.readSharedString();
+        index = in.readString();
+        type = in.readString();
         id = in.readString();
         version = in.readLong();
         created = in.readBoolean();
@@ -117,8 +117,8 @@ public class UpdateResponse extends ActionWriteResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeSharedString(index);
-        out.writeSharedString(type);
+        out.writeString(index);
+        out.writeString(type);
         out.writeString(id);
         out.writeLong(version);
         out.writeBoolean(created);

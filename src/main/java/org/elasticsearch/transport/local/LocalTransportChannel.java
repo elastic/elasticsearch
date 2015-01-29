@@ -22,7 +22,6 @@ package org.elasticsearch.transport.local;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.ThrowableObjectOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.HandlesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.support.TransportStatus;
@@ -62,22 +61,21 @@ public class LocalTransportChannel implements TransportChannel {
 
     @Override
     public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
-        BytesStreamOutput bStream = new BytesStreamOutput();
-        StreamOutput stream = new HandlesStreamOutput(bStream);
-        stream.setVersion(version);
-        stream.writeLong(requestId);
-        byte status = 0;
-        status = TransportStatus.setResponse(status);
-        stream.writeByte(status); // 0 for request, 1 for response.
-        response.writeTo(stream);
-        stream.close();
-        final byte[] data = bStream.bytes().toBytes();
-        targetTransport.workers().execute(new Runnable() {
-            @Override
-            public void run() {
-                targetTransport.messageReceived(data, action, sourceTransport, version, null);
-            }
-        });
+        try (BytesStreamOutput stream = new BytesStreamOutput()) {
+            stream.setVersion(version);
+            stream.writeLong(requestId);
+            byte status = 0;
+            status = TransportStatus.setResponse(status);
+            stream.writeByte(status); // 0 for request, 1 for response.
+            response.writeTo(stream);
+            final byte[] data = stream.bytes().toBytes();
+            targetTransport.workers().execute(new Runnable() {
+                @Override
+                public void run() {
+                    targetTransport.messageReceived(data, action, sourceTransport, version, null);
+                }
+            });
+        }
     }
 
     @Override

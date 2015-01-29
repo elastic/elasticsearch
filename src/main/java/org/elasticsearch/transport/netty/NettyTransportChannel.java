@@ -25,7 +25,6 @@ import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.ThrowableObjectOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.HandlesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
@@ -86,7 +85,6 @@ public class NettyTransportChannel implements TransportChannel {
                 status = TransportStatus.setCompress(status);
                 stream = CompressorFactory.defaultCompressor().streamOutput(stream);
             }
-            stream = new HandlesStreamOutput(stream);
             stream.setVersion(version);
             response.writeTo(stream);
             stream.close();

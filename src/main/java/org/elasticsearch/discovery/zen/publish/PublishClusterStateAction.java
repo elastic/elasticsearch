@@ -105,7 +105,7 @@ public class PublishClusterStateAction extends AbstractComponent {
             if (bytes == null) {
                 try {
                     BytesStreamOutput bStream = new BytesStreamOutput();
-                    StreamOutput stream = new HandlesStreamOutput(CompressorFactory.defaultCompressor().streamOutput(bStream));
+                    StreamOutput stream = CompressorFactory.defaultCompressor().streamOutput(bStream);
                     stream.setVersion(node.version());
                     ClusterState.Builder.writeTo(clusterState, stream);
                     stream.close();
@@ -173,9 +173,9 @@ public class PublishClusterStateAction extends AbstractComponent {
             Compressor compressor = CompressorFactory.compressor(request.bytes());
             StreamInput in;
             if (compressor != null) {
-                in = CachedStreamInput.cachedHandlesCompressed(compressor, request.bytes().streamInput());
+                in = compressor.streamInput(request.bytes().streamInput());
             } else {
-                in = CachedStreamInput.cachedHandles(request.bytes().streamInput());
+                in = request.bytes().streamInput();
             }
             in.setVersion(request.version());
             ClusterState clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode(), clusterName);

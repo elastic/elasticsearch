@@ -66,7 +66,6 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.io.CachedStreams;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -286,8 +285,6 @@ public class TransportClient extends AbstractClient {
         }
 
         injector.getInstance(PageCacheRecycler.class).close();
-
-        CachedStreams.clear();
     }
 
     @Override

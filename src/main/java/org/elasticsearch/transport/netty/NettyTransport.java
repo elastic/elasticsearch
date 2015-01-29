@@ -31,7 +31,6 @@ import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.HandlesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
@@ -665,7 +664,6 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 status = TransportStatus.setCompress(status);
                 stream = CompressorFactory.defaultCompressor().streamOutput(stream);
             }
-            stream = new HandlesStreamOutput(stream);
 
             // we pick the smallest of the 2, to support both backward and forward compatibility
             // note, this is the only place we need to do this, since from here on, we use the serialized version

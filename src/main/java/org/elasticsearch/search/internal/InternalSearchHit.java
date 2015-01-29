@@ -555,7 +555,7 @@ public class InternalSearchHit implements SearchHit {
     public void readFrom(StreamInput in, InternalSearchHits.StreamContext context) throws IOException {
         score = in.readFloat();
         id = in.readText();
-        type = in.readSharedText();
+        type = in.readText();
         nestedIdentity = in.readOptionalStreamable(new InternalNestedIdentity());
         version = in.readLong();
         source = in.readBytesReference();
@@ -701,7 +701,7 @@ public class InternalSearchHit implements SearchHit {
     public void writeTo(StreamOutput out, InternalSearchHits.StreamContext context) throws IOException {
         out.writeFloat(score);
         out.writeText(id);
-        out.writeSharedText(type);
+        out.writeText(type);
         out.writeOptionalStreamable(nestedIdentity);
         out.writeLong(version);
         out.writeBytesReference(source);

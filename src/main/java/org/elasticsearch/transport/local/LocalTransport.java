@@ -29,10 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.ThrowableObjectInputStream;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.CachedStreamInput;
-import org.elasticsearch.common.io.stream.HandlesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
@@ -197,35 +194,35 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
         final Version version = Version.smallest(node.version(), this.version);
 
-        BytesStreamOutput bStream = new BytesStreamOutput();
-        StreamOutput stream = new HandlesStreamOutput(bStream);
-        stream.setVersion(version);
+        try (BytesStreamOutput stream = new BytesStreamOutput()) {
+            stream.setVersion(version);
 
-        stream.writeLong(requestId);
-        byte status = 0;
-        status = TransportStatus.setRequest(status);
-        stream.writeByte(status); // 0 for request, 1 for response.
+            stream.writeLong(requestId);
+            byte status = 0;
+            status = TransportStatus.setRequest(status);
+            stream.writeByte(status); // 0 for request, 1 for response.
 
-        stream.writeString(action);
-        request.writeTo(stream);
+            stream.writeString(action);
+            request.writeTo(stream);
 
-        stream.close();
+            stream.close();
 
-        final LocalTransport targetTransport = connectedNodes.get(node);
-        if (targetTransport == null) {
-            throw new NodeNotConnectedException(node, "Node not connected");
-        }
-
-        final byte[] data = bStream.bytes().toBytes();
-
-        transportServiceAdapter.sent(data.length);
-
-        targetTransport.workers().execute(new Runnable() {
-            @Override
-            public void run() {
-                targetTransport.messageReceived(data, action, LocalTransport.this, version, requestId);
+            final LocalTransport targetTransport = connectedNodes.get(node);
+            if (targetTransport == null) {
+                throw new NodeNotConnectedException(node, "Node not connected");
             }
-        });
+
+            final byte[] data = stream.bytes().toBytes();
+
+            transportServiceAdapter.sent(data.length);
+
+            targetTransport.workers().execute(new Runnable() {
+                @Override
+                public void run() {
+                    targetTransport.messageReceived(data, action, LocalTransport.this, version, requestId);
+                }
+            });
+        }
     }
 
     ThreadPoolExecutor workers() {
@@ -237,7 +234,6 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         try {
             transportServiceAdapter.received(data.length);
             StreamInput stream = new BytesStreamInput(data, false);
-            stream = CachedStreamInput.cachedHandles(stream);
             stream.setVersion(version);
 
             long requestId = stream.readLong();

@@ -223,7 +223,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        type = in.readSharedString();
+        type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
         refresh = in.readBoolean();
@@ -234,7 +234,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeSharedString(type);
+        out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing());
         out.writeBoolean(refresh);

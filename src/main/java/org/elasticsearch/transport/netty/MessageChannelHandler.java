@@ -25,7 +25,6 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.ThrowableObjectInputStream;
-import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -102,9 +101,9 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 sb.append("]");
                 throw new ElasticsearchIllegalStateException(sb.toString());
             }
-            wrappedStream = CachedStreamInput.cachedHandlesCompressed(compressor, streamIn);
+            wrappedStream = compressor.streamInput(streamIn);
         } else {
-            wrappedStream = CachedStreamInput.cachedHandles(streamIn);
+            wrappedStream = streamIn;
         }
         wrappedStream.setVersion(version);
 

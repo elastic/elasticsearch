@@ -94,7 +94,7 @@ public class InternalSearchHitField implements SearchHitField {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readSharedString();
+        name = in.readString();
         int size = in.readVInt();
         values = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -104,7 +104,7 @@ public class InternalSearchHitField implements SearchHitField {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeSharedString(name);
+        out.writeString(name);
         out.writeVInt(values.size());
         for (Object value : values) {
             out.writeGenericValue(value);

@@ -23,7 +23,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
@@ -352,7 +352,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         try {
             out = new ReleasableBytesStreamOutput(bigArrays);
             TranslogStreams.writeTranslogOperation(out, operation);
-            ReleasableBytesReference bytes = out.bytes();
+            ReleasablePagedBytesReference bytes = out.bytes();
             Location location = current.add(bytes);
             if (syncOnEachOperation) {
                 current.sync();

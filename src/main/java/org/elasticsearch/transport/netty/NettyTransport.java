@@ -27,7 +27,7 @@ import org.elasticsearch.*;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
@@ -675,7 +675,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             stream.setVersion(version);
             stream.writeString(action);
 
-            ReleasableBytesReference bytes;
+            ReleasablePagedBytesReference bytes;
             ChannelBuffer buffer;
             // it might be nice to somehow generalize this optimization, maybe a smart "paged" bytes output
             // that create paged channel buffers, but its tricky to know when to do it (where this option is

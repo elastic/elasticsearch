@@ -23,6 +23,8 @@ import com.google.common.base.Predicate;
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
+import org.apache.log4j.LogManager;
+
 import org.apache.log4j.spi.LoggingEvent;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
@@ -1307,7 +1309,13 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     public void testIndexWriterIFDInfoStream() {
         MockAppender mockAppender = new MockAppender();
 
-        Logger iwIFDLogger = Logger.getLogger("lucene.iw.ifd");
+        // Works when running this test inside Intellij:
+        Logger iwIFDLogger = LogManager.exists("org.elasticsearch.lucene.iw.ifd");
+        if (iwIFDLogger == null) {
+            // Works when running this test from command line:
+            iwIFDLogger = LogManager.exists("lucene.iw.ifd");
+            assertNotNull(iwIFDLogger);
+        }
         Level savedLevel = iwIFDLogger.getLevel();
         iwIFDLogger.addAppender(mockAppender);
         iwIFDLogger.setLevel(Level.DEBUG);

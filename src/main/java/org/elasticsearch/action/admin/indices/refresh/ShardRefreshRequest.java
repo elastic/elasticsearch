@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,6 +42,7 @@ class ShardRefreshRequest extends BroadcastShardOperationRequest {
         force = request.force();
     }
 
+    @Deprecated
     public boolean force() {
         return force;
     }
@@ -48,12 +50,16 @@ class ShardRefreshRequest extends BroadcastShardOperationRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        force = in.readBoolean();
+        if (in.getVersion().before(Version.V_1_5_0)) {
+            force = in.readBoolean();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(force);
+        if (out.getVersion().before(Version.V_1_5_0)) {
+            out.writeBoolean(force);
+        }
     }
 }

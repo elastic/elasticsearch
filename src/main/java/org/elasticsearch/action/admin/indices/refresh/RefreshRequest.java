@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -54,6 +55,7 @@ public class RefreshRequest extends BroadcastOperationRequest<RefreshRequest> {
         super(indices);
     }
 
+    @Deprecated
     public boolean force() {
         return force;
     }
@@ -61,7 +63,9 @@ public class RefreshRequest extends BroadcastOperationRequest<RefreshRequest> {
     /**
      * Forces calling refresh, overriding the check that dirty operations even happened. Defaults
      * to true (note, still lightweight if no refresh is needed).
+     * @deprecated unnecessary flag since 1.5.0
      */
+    @Deprecated
     public RefreshRequest force(boolean force) {
         this.force = force;
         return this;
@@ -69,11 +73,15 @@ public class RefreshRequest extends BroadcastOperationRequest<RefreshRequest> {
 
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        force = in.readBoolean();
+        if (in.getVersion().before(Version.V_1_5_0)) {
+            force = in.readBoolean();
+        }
     }
 
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(force);
+        if (out.getVersion().before(Version.V_1_5_0)) {
+            out.writeBoolean(force);
+        }
     }
 }

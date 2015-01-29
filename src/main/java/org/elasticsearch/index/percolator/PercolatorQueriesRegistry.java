@@ -275,7 +275,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
         }
 
         private int loadQueries(IndexShard shard) {
-            shard.refresh("percolator_load_queries", true);
+            shard.refresh("percolator_load_queries");
             // Maybe add a mode load? This isn't really a write. We need write b/c state=post_recovery
             try (Engine.Searcher searcher = shard.acquireSearcher("percolator_load_queries", true)) {
                 Query query = new XConstantScoreQuery(

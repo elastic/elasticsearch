@@ -230,10 +230,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         return this.store;
     }
 
-    public Engine engine() {
-        return engineSafe();
-    }
-
     public Translog translog() {
         return translog;
     }
@@ -319,7 +315,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (newRouting.state() == ShardRoutingState.STARTED || newRouting.state() == ShardRoutingState.RELOCATING) {
                 // we want to refresh *before* we move to internal STARTED state
                 try {
-                    engineSafe().refresh("cluster_state_started", true);
+                    engine().refresh("cluster_state_started");
                 } catch (Throwable t) {
                     logger.debug("failed to refresh due to move to cluster wide started", t);
                 }
@@ -413,7 +409,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (logger.isTraceEnabled()) {
             logger.trace("index [{}][{}]{}", create.type(), create.id(), create.docs());
         }
-        engineSafe().create(create);
+        engine().create(create);
         create.endTime(System.nanoTime());
         indexingService.postCreate(create);
         return create.parsedDoc();
@@ -433,7 +429,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (logger.isTraceEnabled()) {
                 logger.trace("index [{}][{}]{}", index.type(), index.id(), index.docs());
             }
-            engineSafe().index(index);
+            engine().index(index);
             index.endTime(System.nanoTime());
         } catch (RuntimeException ex) {
             indexingService.failedIndex(index);
@@ -456,7 +452,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (logger.isTraceEnabled()) {
                 logger.trace("delete [{}]", delete.uid().text());
             }
-            engineSafe().delete(delete);
+            engine().delete(delete);
             delete.endTime(System.nanoTime());
         } catch (RuntimeException ex) {
             indexingService.failedDelete(delete);
@@ -484,23 +480,23 @@ public class IndexShard extends AbstractIndexShardComponent {
             logger.trace("delete_by_query [{}]", deleteByQuery.query());
         }
         deleteByQuery = indexingService.preDeleteByQuery(deleteByQuery);
-        engineSafe().delete(deleteByQuery);
+        engine().delete(deleteByQuery);
         deleteByQuery.endTime(System.nanoTime());
         indexingService.postDeleteByQuery(deleteByQuery);
     }
 
     public Engine.GetResult get(Engine.Get get) throws ElasticsearchException {
         readAllowed();
-        return engineSafe().get(get);
+        return engine().get(get);
     }
 
-    public void refresh(String source, boolean force) throws ElasticsearchException {
+    public void refresh(String source) throws ElasticsearchException {
         verifyNotClosed();
         if (logger.isTraceEnabled()) {
-            logger.trace("refresh with soruce: {} force: {}", source, force);
+            logger.trace("refresh with soruce: {}", source);
         }
         long time = System.nanoTime();
-        engineSafe().refresh(source, force);
+        engine().refresh(source);
         refreshMetric.inc(System.nanoTime() - time);
     }
 
@@ -548,7 +544,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public SegmentsStats segmentStats() {
-        SegmentsStats segmentsStats = engineSafe().segmentsStats();
+        SegmentsStats segmentsStats = engine().segmentsStats();
         segmentsStats.addFixedBitSetMemoryInBytes(shardFixedBitSetFilterCache.getMemorySizeInBytes());
         return segmentsStats;
     }
@@ -610,7 +606,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             logger.trace("flush with {}", request);
         }
         long time = System.nanoTime();
-        engineSafe().flush(request.force(), request.waitIfOngoing());
+        engine().flush(request.force(), request.waitIfOngoing());
         flushMetric.inc(System.nanoTime() - time);
     }
 
@@ -619,7 +615,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (logger.isTraceEnabled()) {
             logger.trace("optimize with {}", optimize);
         }
-        engineSafe().forceMerge(optimize.flush(), optimize.waitForMerge(), optimize
+        engine().forceMerge(optimize.flush(), optimize.waitForMerge(), optimize
                 .maxNumSegments(), optimize.onlyExpungeDeletes(), optimize.upgrade());
     }
 
@@ -627,7 +623,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         IndexShardState state = this.state; // one time volatile read
         // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
         if (state == IndexShardState.STARTED || state == IndexShardState.RELOCATED || state == IndexShardState.CLOSED) {
-            return engineSafe().snapshotIndex();
+            return engine().snapshotIndex();
         } else {
             throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
         }
@@ -635,12 +631,12 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public void recover(Engine.RecoveryHandler recoveryHandler) throws EngineException {
         verifyStarted();
-        engineSafe().recover(recoveryHandler);
+        engine().recover(recoveryHandler);
     }
 
     public void failShard(String reason, Throwable e) {
         // fail the engine. This will cause this shard to also be removed from the node's index service.
-        engineSafe().failEngine(reason, e);
+        engine().failEngine(reason, e);
     }
 
     public Engine.Searcher acquireSearcher(String source) {
@@ -649,7 +645,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public Engine.Searcher acquireSearcher(String source, boolean searcherForWriteOperation) {
         readAllowed(searcherForWriteOperation);
-        return engineSafe().acquireSearcher(source);
+        return engine().acquireSearcher(source);
     }
 
     public void close(String reason) throws IOException {
@@ -739,11 +735,11 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public void performRecoveryFinalization(boolean withFlush) throws ElasticsearchException {
         if (withFlush) {
-            engineSafe().flush();
+            engine().flush();
         }
         // clear unreferenced files
         translog.clearUnreferenced();
-        engineSafe().refresh("recovery_finalization", true);
+        engine().refresh("recovery_finalization");
         synchronized (mutex) {
             changeState(IndexShardState.POST_RECOVERY, "post recovery");
         }
@@ -769,7 +765,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                             source(create.source()).type(create.type()).id(create.id())
                                     .routing(create.routing()).parent(create.parent()).timestamp(create.timestamp()).ttl(create.ttl()),
                             create.version(), create.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, true, false);
-                    engineSafe().create(engineCreate);
+                    engine().create(engineCreate);
                     indexOperation = engineCreate;
                     break;
                 case SAVE:
@@ -777,18 +773,18 @@ public class IndexShard extends AbstractIndexShardComponent {
                     Engine.Index engineIndex = prepareIndex(source(index.source()).type(index.type()).id(index.id())
                                     .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl()),
                             index.version(), index.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, true);
-                    engineSafe().index(engineIndex);
+                    engine().index(engineIndex);
                     indexOperation = engineIndex;
                     break;
                 case DELETE:
                     Translog.Delete delete = (Translog.Delete) operation;
                     Uid uid = Uid.createUid(delete.uid().text());
-                    engineSafe().delete(new Engine.Delete(uid.type(), uid.id(), delete.uid(), delete.version(),
+                    engine().delete(new Engine.Delete(uid.type(), uid.id(), delete.uid(), delete.version(),
                             delete.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, System.nanoTime(), false));
                     break;
                 case DELETE_BY_QUERY:
                     Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) operation;
-                    engineSafe().delete(prepareDeleteByQuery(deleteByQuery.source(), deleteByQuery.filteringAliases(), Engine.Operation.Origin.RECOVERY, deleteByQuery.types()));
+                    engine().delete(prepareDeleteByQuery(deleteByQuery.source(), deleteByQuery.filteringAliases(), Engine.Operation.Origin.RECOVERY, deleteByQuery.types()));
                     break;
                 default:
                     throw new ElasticsearchIllegalStateException("No operation defined for [" + operation + "]");
@@ -913,13 +909,13 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public void updateBufferSize(ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
-        Engine engine = engineSafe();
+        Engine engine = engine();
         engine.updateIndexingBufferSize(shardIndexingBufferSize);
         translog().updateBuffer(shardTranslogBufferSize);
     }
 
     public void markAsInactive() {
-        Engine engine = engineSafe();
+        Engine engine = engine();
         engine.updateIndexingBufferSize(EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER);
         translog().updateBuffer(Translog.INACTIVE_SHARD_TRANSLOG_BUFFER);
     }
@@ -962,8 +958,8 @@ public class IndexShard extends AbstractIndexShardComponent {
                 @Override
                 public void run() {
                     try {
-                        if (engineSafe().refreshNeeded()) {
-                            refresh("schedule", false);
+                        if (engine().refreshNeeded()) {
+                            refresh("schedule");
                         }
                     } catch (EngineClosedException e) {
                         // we are being closed, ignore
@@ -1015,7 +1011,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                 @Override
                 public void run() {
                     try {
-                        engineSafe().maybeMerge();
+                        engine().maybeMerge();
                     } catch (EngineClosedException e) {
                         // we are being closed, ignore
                     } catch (OptimizeFailedEngineException e) {
@@ -1091,7 +1087,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    private Engine engineSafe() {
+    public Engine engine() {
         Engine engine = this.currentEngineReference.get();
         if (engine == null) {
             throw new EngineClosedException(shardId);
@@ -1114,7 +1110,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                     }
                 }
             } finally {
-                // close the engine all bets are off... don't use engineSafe() here it can throw an exception
+                // close the engine all bets are off... don't use engine() here it can throw an exception
                 IOUtils.closeWhileHandlingException(currentEngineReference.get());
             }
         }

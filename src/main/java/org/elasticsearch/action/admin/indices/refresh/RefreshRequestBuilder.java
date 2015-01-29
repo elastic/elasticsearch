@@ -37,7 +37,9 @@ public class RefreshRequestBuilder extends BroadcastOperationRequestBuilder<Refr
     /**
      * Forces calling refresh, overriding the check that dirty operations even happened. Defaults
      * to true (note, still lightweight if no refresh is needed).
+     * @deprecated unnecessary flag since 1.5.0
      */
+    @Deprecated
     public RefreshRequestBuilder setForce(boolean force) {
         request.force(force);
         return this;

@@ -111,9 +111,6 @@ public class InternalEngine implements Engine {
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private volatile boolean closedOrFailed = false;
-    // flag indicating if a dirty operation has occurred since the last refresh
-    private volatile boolean dirty = false;
-
     private final AtomicBoolean optimizeMutex = new AtomicBoolean();
     // we use flushNeeded here, since if there are no changes, then the commit won't write
     // will not really happen, and then the commitUserData and the new translog will not be reflected
@@ -127,9 +124,6 @@ public class InternalEngine implements Engine {
     private final LiveVersionMap versionMap;
 
     private final Object[] dirtyLocks;
-
-    private final Object refreshMutex = new Object();
-
     private volatile Throwable failedEngine = null;
     private final Lock failEngineLock = new ReentrantLock();
     private final FailedEngineListener failedEngineListener;
@@ -215,7 +209,7 @@ public class InternalEngine implements Engine {
             if (indexingBufferSize == EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER && preValue != EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER) {
                 logger.debug("updating index_buffer_size from [{}] to (inactive) [{}]", preValue, indexingBufferSize);
                 try {
-                    refresh("update index buffer", false);
+                    refresh("update index buffer");
                 } catch (Throwable e) {
                     logger.warn("failed to refresh after setting shard to inactive", e);
                 }
@@ -348,7 +342,6 @@ public class InternalEngine implements Engine {
                     innerCreate(create);
                 }
             }
-            dirty = true;
             flushNeeded = true;
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine(t, "create");
@@ -455,7 +448,6 @@ public class InternalEngine implements Engine {
                     innerIndex(index);
                 }
             }
-            dirty = true;
             flushNeeded = true;
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine(t, "index");
@@ -479,7 +471,7 @@ public class InternalEngine implements Engine {
                 engineConfig.getThreadPool().executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
                     public void run() {
                         try {
-                            refresh("version_table_full", false);
+                            refresh("version_table_full");
                         } catch (EngineClosedException ex) {
                             // ignore
                         }
@@ -548,7 +540,6 @@ public class InternalEngine implements Engine {
         try (InternalLock _ = readLock.acquire()) {
             ensureOpen();
             innerDelete(delete);
-            dirty = true;
             flushNeeded = true;
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine(t, "delete");
@@ -628,7 +619,6 @@ public class InternalEngine implements Engine {
 
             indexWriter.deleteDocuments(query);
             translog.add(new Translog.DeleteByQuery(delete));
-            dirty = true;
             flushNeeded = true;
         } catch (Throwable t) {
             maybeFailEngine(t, "delete_by_query");
@@ -637,7 +627,7 @@ public class InternalEngine implements Engine {
 
         // TODO: This is heavy, since we refresh, but we must do this because we don't know which documents were in fact deleted (i.e., our
         // versionMap isn't updated), so we must force a cutover to a new reader to "see" the deletions:
-        refresh("delete_by_query", true);
+        refresh("delete_by_query");
     }
 
     @Override
@@ -689,9 +679,7 @@ public class InternalEngine implements Engine {
               the store is closed so we need to make sure we increment it here
              */
             try {
-                // we are either dirty due to a document added or due to a
-                // finished merge - either way we should refresh
-                return dirty || !searcherManager.isSearcherCurrent();
+                return !searcherManager.isSearcherCurrent();
             } catch (IOException e) {
                 logger.error("failed to access searcher manager", e);
                 failEngine("failed to access searcher manager", e);
@@ -715,23 +703,12 @@ public class InternalEngine implements Engine {
     }
 
     @Override
-    public void refresh(String source, boolean force) throws EngineException {
+    public void refresh(String source) throws EngineException {
         // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
         try (InternalLock _ = readLock.acquire()) {
             ensureOpen();
-            // maybeRefresh will only allow one refresh to execute, and the rest will "pass through",
-            // but, we want to make sure not to loose ant refresh calls, if one is taking time
-            synchronized (refreshMutex) {
-                if (refreshNeeded() || force) {
-                    // we set dirty to false, even though the refresh hasn't happened yet
-                    // as the refresh only holds for data indexed before it. Any data indexed during
-                    // the refresh will not be part of it and will set the dirty flag back to true
-                    dirty = false;
-                    boolean refreshed = searcherManager.maybeRefresh();
-                    assert refreshed : "failed to refresh even though refreshMutex was acquired";
-                }
-            }
+            searcherManager.maybeRefreshBlocking();
         } catch (AlreadyClosedException e) {
             ensureOpen();
         } catch (EngineClosedException e) {
@@ -789,7 +766,7 @@ public class InternalEngine implements Engine {
                             indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
                             indexWriter.commit();
                             // we need to refresh in order to clear older version values
-                            refresh("version_table_flush", true);
+                            refresh("version_table_flush");
                             // we need to move transient to current only after we refresh
                             // so items added to current will still be around for realtime get
                             // when tans overrides it

@@ -101,8 +101,7 @@ Other repository backends are available in these official plugins:
 * https://github.com/elasticsearch/elasticsearch-cloud-azure#azure-repository[Azure Cloud Plugin] for Azure storage repositories
 
 [float]
-===== Repository Verification
-When repository is registered, it's immediately verified on all master and data nodes to make sure that it's functional
+When a repository is registered, it's immediately verified on all master and data nodes to make sure that it is functional
 on all nodes currently present in the cluster. The verification process can also be executed manually by running the
 following command:
 

@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.transformer.DiscontinuousHistogram;
 import org.elasticsearch.search.aggregations.transformer.DiscontinuousHistogram.GapPolicy;
+import org.elasticsearch.search.aggregations.transformer.InternalSimpleMultiValue;
 import org.elasticsearch.search.aggregations.transformer.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.transformer.models.MovingAvgModel;
 import org.elasticsearch.search.aggregations.transformer.models.MovingAvgModel.Weighting;
@@ -118,7 +119,18 @@ public class InternalMovingAvg<B extends InternalHistogram.Bucket> extends Inter
                 bucketWindows.put(entry.getKey(), v);
             }
 
-            // NOCOMMIT TODO multi-metrics here
+            for (Entry<String, Map<String, Double>> entry : metrics.multiValues.entrySet()) {
+
+                for (Entry<String, Double> valueEntry : entry.getValue().entrySet()) {
+                    String key = entry.getKey() + "." + valueEntry.getKey();
+                    EvictingQueue<Double> v = bucketWindows.get(key);
+                    if (v == null) {
+                        v = EvictingQueue.create(this.windowSize);
+                    }
+                    v.offer(valueEntry.getValue());
+                    bucketWindows.put(key, v);
+                }
+            }
 
             Object newBucketKey = metrics.owningBucket.getKey();
             B newBucket = generateBucket(newBucketKey, histo, docCountWindow, bucketWindows, factory);
@@ -138,6 +150,7 @@ public class InternalMovingAvg<B extends InternalHistogram.Bucket> extends Inter
         InternalSimpleValue docCountMovAvgAgg = new InternalSimpleValue("_doc_count", docCountMovAvg, null); // NOCOMMIT change the name of this to something less confusing
         metricsAggregations.add(docCountMovAvgAgg);
 
+        // NOCOMMIT currently multi-values are added as flat objects ("the_stats.avg") rather than an object ("the_stats: {avg}")
         for (Entry<String, EvictingQueue<Double>> entry : bucketWindows.entrySet()) {
             double movAvg = MovingAvgModel.next(entry.getValue(), weight);
             InternalSimpleValue metricAgg = new InternalSimpleValue(entry.getKey(), movAvg, null);

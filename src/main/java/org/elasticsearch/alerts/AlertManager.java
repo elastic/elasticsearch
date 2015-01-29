@@ -133,6 +133,27 @@ public class AlertManager extends AbstractComponent {
         return state.get();
     }
 
+
+    /*
+       The execution of an alert is split into operations, a schedule part which just makes sure that store the fact an alert
+       has fired and an execute part which actually executed the alert.
+
+       The reason this is split into two operations is that we don't want to lose the fact an alert has fired. If we
+       would not split the execution of an alert and many alerts fire in a small window of time then it can happen that
+       thread pool that receives fired jobs from the quartz scheduler is going to reject jobs and then we would never
+       know about jobs that have fired. By splitting the execution of fired jobs into two operations we lower the chance
+       we lose fired jobs signficantly.
+     */
+
+    /**
+     * This does the necessary actions, so we don't lose the fact that an alert got execute from the {@link AlertScheduler}
+     * It writes the an entry in the alert history index with the proper status for this alert.
+     *
+     * The rest of the actions happen in {@link #executeAlert(org.elasticsearch.alerts.actions.AlertActionEntry)}.
+     *
+     * The reason the executing of the alert is split into two, is that we don't want to lose the fact that an alert has
+     * fired. If we were
+     */
     public void scheduleAlert(String alertName, DateTime scheduledFireTime, DateTime fireTime){
         ensureStarted();
         alertLock.acquire(alertName);
@@ -153,6 +174,13 @@ public class AlertManager extends AbstractComponent {
         }
     }
 
+    /**
+     * This actually runs the alert:
+     * 1) Runs the configured search request
+     * 2) Checks if the search request triggered (matches with the defined conditions)
+     * 3) If the alert has been triggered, checks if the alert should be throttled
+     * 4) If the alert hasn't been throttled runs the configured actions
+     */
     public TriggerResult executeAlert(AlertActionEntry entry) throws IOException {
         ensureStarted();
         alertLock.acquire(entry.getAlertName());

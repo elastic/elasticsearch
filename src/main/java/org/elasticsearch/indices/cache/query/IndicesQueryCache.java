@@ -264,7 +264,16 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
         @Override
         public Value call() throws Exception {
             queryPhase.execute(context);
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
+
+            /* BytesStreamOutput allows to pass the expected size but by default uses
+             * BigArrays.PAGE_SIZE_IN_BYTES which is 16k. A common cached result ie.
+             * a date histogram with 3 buckets is ~100byte so 16k might be very wasteful
+             * since we don't shrink to the actual size once we are done serializing.
+             * By passing 512 as the expected size we will resize the byte array in the stream
+             * slowly until we hit the page size and don't waste too much memory for small query
+             * results.*/
+            final int expectedSizeInBytes = 512;
+            try (BytesStreamOutput out = new BytesStreamOutput(expectedSizeInBytes)) {
                 context.queryResult().writeToNoId(out);
                 // for now, keep the paged data structure, which might have unused bytes to fill a page, but better to keep
                 // the memory properly paged instead of having varied sized bytes

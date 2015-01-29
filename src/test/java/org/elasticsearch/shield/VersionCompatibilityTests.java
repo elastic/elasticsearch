@@ -40,7 +40,7 @@ public class VersionCompatibilityTests extends ElasticsearchTestCase {
         /**
          * see https://github.com/elasticsearch/elasticsearch/pull/9134 {@link org.elasticsearch.shield.transport.netty.ShieldMessageChannelHandler}
          */
-        assertThat("Cleanup SecuredMessageChannelHandler class and remove needless code, fixed in es core 1.5", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
+        assertThat("Cleanup ShieldMessageChannelHandler class and remove needless code, fixed in es core 1.5", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
 
         /**
          * see https://github.com/elasticsearch/elasticsearch/pull/9273 {@link org.elasticsearch.action.admin.indices.create.CreateIndexRequestHelper}

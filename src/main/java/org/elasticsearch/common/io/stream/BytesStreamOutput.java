@@ -150,6 +150,14 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
         return new PagedBytesReference(bigarrays, bytes, count);
     }
 
+    /**
+     * Returns the number of bytes used by the underlying {@link org.elasticsearch.common.util.ByteArray}
+     * @see org.elasticsearch.common.util.ByteArray#ramBytesUsed()
+     */
+    public long ramBytesUsed() {
+        return bytes.ramBytesUsed();
+    }
+
     private void ensureCapacity(int offset) {
         bytes = bigarrays.grow(bytes, offset);
     }

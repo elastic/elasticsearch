@@ -33,14 +33,18 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.PagedBytesReference;
+import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -75,7 +79,7 @@ import static org.elasticsearch.common.Strings.hasLength;
  * There are still several TODOs left in this class, some easily addressable, some more complex, but the support
  * is functional.
  */
-public class IndicesQueryCache extends AbstractComponent implements RemovalListener<IndicesQueryCache.Key, BytesReference> {
+public class IndicesQueryCache extends AbstractComponent implements RemovalListener<IndicesQueryCache.Key, IndicesQueryCache.Value> {
 
     /**
      * A setting to enable or disable query caching on an index level. Its dynamic by default
@@ -103,7 +107,7 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
     private final TimeValue expire;
     private final int concurrencyLevel;
 
-    private volatile Cache<Key, BytesReference> cache;
+    private volatile Cache<Key, Value> cache;
 
     @Inject
     public IndicesQueryCache(Settings settings, ClusterService clusterService, ThreadPool threadPool) {
@@ -128,7 +132,7 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
     private void buildCache() {
         long sizeInBytes = MemorySizeValue.parseBytesSizeValueOrHeapRatio(size).bytes();
 
-        CacheBuilder<Key, BytesReference> cacheBuilder = CacheBuilder.newBuilder()
+        CacheBuilder<Key, Value> cacheBuilder = CacheBuilder.newBuilder()
                 .maximumWeight(sizeInBytes).weigher(new QueryCacheWeigher()).removalListener(this);
         cacheBuilder.concurrencyLevel(concurrencyLevel);
 
@@ -139,12 +143,11 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
         cache = cacheBuilder.build();
     }
 
-    private static class QueryCacheWeigher implements Weigher<Key, BytesReference> {
+    private static class QueryCacheWeigher implements Weigher<Key, Value> {
 
         @Override
-        public int weigh(Key key, BytesReference value) {
-            // TODO add sizeInBytes to BytesReference, since it might be paged.... (Accountable)
-            return (int) (key.ramBytesUsed() + value.length());
+        public int weigh(Key key, Value value) {
+            return (int) (key.ramBytesUsed() + value.ramBytesUsed());
         }
     }
 
@@ -163,7 +166,7 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
     }
 
     @Override
-    public void onRemoval(RemovalNotification<Key, BytesReference> notification) {
+    public void onRemoval(RemovalNotification<Key, Value> notification) {
         if (notification.getKey() == null) {
             return;
         }
@@ -215,7 +218,7 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
         assert canCache(request, context);
         Key key = buildKey(request, context);
         Loader loader = new Loader(queryPhase, context, key);
-        BytesReference value = cache.get(key, loader);
+        Value value = cache.get(key, loader);
         if (loader.isLoaded()) {
             key.shard.queryCache().onMiss();
             // see if its the first time we see this reader, and make sure to register a cleanup key
@@ -231,10 +234,10 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
         }
 
         // try and be smart, and reuse an already loaded and constructed QueryResult of in VM execution
-        return new BytesQuerySearchResult(context.id(), context.shardTarget(), value, loader.isLoaded() ? context.queryResult() : null);
+        return new BytesQuerySearchResult(context.id(), context.shardTarget(), value.reference, loader.isLoaded() ? context.queryResult() : null);
     }
 
-    private static class Loader implements Callable<BytesReference> {
+    private static class Loader implements Callable<Value> {
 
         private final QueryPhase queryPhase;
         private final SearchContext context;
@@ -252,17 +255,34 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
         }
 
         @Override
-        public BytesReference call() throws Exception {
+        public Value call() throws Exception {
             queryPhase.execute(context);
-            BytesStreamOutput out = new BytesStreamOutput();
-            context.queryResult().writeToNoId(out);
-            // for now, keep the paged data structure, which might have unused bytes to fill a page, but better to keep
-            // the memory properly paged instead of having varied sized bytes
-            BytesReference value = out.bytes();
-            assert verifyCacheSerializationSameAsQueryResult(value, context, context.queryResult());
-            loaded = true;
-            key.shard.queryCache().onCached(key, value);
-            return value;
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                context.queryResult().writeToNoId(out);
+                // for now, keep the paged data structure, which might have unused bytes to fill a page, but better to keep
+                // the memory properly paged instead of having varied sized bytes
+                final BytesReference reference = out.bytes();
+                assert verifyCacheSerializationSameAsQueryResult(reference, context, context.queryResult());
+                loaded = true;
+                Value value = new Value(reference, out.ramBytesUsed());
+                key.shard.queryCache().onCached(key, value);
+                return value;
+            }
+        }
+    }
+
+    public static class Value implements Accountable {
+        final BytesReference reference;
+        final long ramBytesUsed;
+
+        public Value(BytesReference reference, long ramBytesUsed) {
+            this.reference = reference;
+            this.ramBytesUsed = ramBytesUsed;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return ramBytesUsed;
         }
     }
 

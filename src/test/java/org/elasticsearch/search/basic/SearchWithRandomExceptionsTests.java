@@ -29,6 +29,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -52,8 +53,15 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
 public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTest {
-    
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal))
+                .put("gateway.type", "local").build();
+    }
+
     @Test
     public void testRandomDirectoryIOExceptions() throws IOException, InterruptedException, ExecutionException {
         String mapping = XContentFactory.jsonBuilder().
@@ -93,8 +101,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
         if (createIndexWithoutErrors) {
             Builder settings = settingsBuilder()
                     .put("index.number_of_replicas", randomIntBetween(0, 1))
-                    .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, true)
-                    .put("gateway.type", "local");
+                    .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, true);
             logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
             client().admin().indices().prepareCreate("test")
                     .setSettings(settings)

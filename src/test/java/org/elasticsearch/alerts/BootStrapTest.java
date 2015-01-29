@@ -9,7 +9,7 @@ import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.alerts.actions.AlertAction;
-import org.elasticsearch.alerts.actions.AlertActionEntry;
+import org.elasticsearch.alerts.actions.AlertHistory;
 import org.elasticsearch.alerts.actions.AlertActionService;
 import org.elasticsearch.alerts.actions.AlertActionState;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
@@ -76,7 +76,7 @@ public class BootStrapTest extends AbstractAlertingTests {
                 AlertAckState.NOT_ACKABLE);
 
         DateTime scheduledFireTime = new DateTime();
-        AlertActionEntry entry = new AlertActionEntry(alert, scheduledFireTime, scheduledFireTime, AlertActionState.SEARCH_NEEDED);
+        AlertHistory entry = new AlertHistory(alert, scheduledFireTime, scheduledFireTime, AlertActionState.SEARCH_NEEDED);
         String actionHistoryIndex = AlertActionService.getAlertHistoryIndexNameForTime(scheduledFireTime);
 
         createIndex(actionHistoryIndex);
@@ -125,7 +125,7 @@ public class BootStrapTest extends AbstractAlertingTests {
                         new TimeValue(0),
                         AlertAckState.NOT_ACKABLE);
 
-                AlertActionEntry entry = new AlertActionEntry(alert, historyIndexDate, historyIndexDate, AlertActionState.SEARCH_NEEDED);
+                AlertHistory entry = new AlertHistory(alert, historyIndexDate, historyIndexDate, AlertActionState.SEARCH_NEEDED);
                 IndexResponse indexResponse = client().prepareIndex(actionHistoryIndex, AlertActionService.ALERT_HISTORY_TYPE, entry.getId())
                         .setConsistencyLevel(WriteConsistencyLevel.ALL)
                         .setSource(XContentFactory.jsonBuilder().value(entry))

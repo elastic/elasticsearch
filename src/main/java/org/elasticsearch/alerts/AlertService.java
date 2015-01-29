@@ -12,7 +12,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.alerts.actions.AlertActionEntry;
+import org.elasticsearch.alerts.actions.AlertHistory;
 import org.elasticsearch.alerts.actions.AlertActionService;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
 import org.elasticsearch.alerts.scheduler.AlertScheduler;
@@ -149,7 +149,7 @@ public class AlertService extends AbstractComponent {
      * This does the necessary actions, so we don't lose the fact that an alert got execute from the {@link AlertScheduler}
      * It writes the an entry in the alert history index with the proper status for this alert.
      *
-     * The rest of the actions happen in {@link #executeAlert(org.elasticsearch.alerts.actions.AlertActionEntry)}.
+     * The rest of the actions happen in {@link #executeAlert(org.elasticsearch.alerts.actions.AlertHistory)}.
      *
      * The reason the executing of the alert is split into two, is that we don't want to lose the fact that an alert has
      * fired. If we were
@@ -181,7 +181,7 @@ public class AlertService extends AbstractComponent {
      * 3) If the alert has been triggered, checks if the alert should be throttled
      * 4) If the alert hasn't been throttled runs the configured actions
      */
-    public TriggerResult executeAlert(AlertActionEntry entry) throws IOException {
+    public TriggerResult executeAlert(AlertHistory entry) throws IOException {
         ensureStarted();
         alertLock.acquire(entry.getAlertName());
         try {

@@ -79,7 +79,7 @@ public class AlertActionService extends AbstractComponent {
 
     private final AtomicLong largestQueueSize = new AtomicLong(0);
     private final AtomicBoolean started = new AtomicBoolean(false);
-    private final BlockingQueue<AlertActionEntry> actionsToBeProcessed = new LinkedBlockingQueue<>();
+    private final BlockingQueue<AlertHistory> actionsToBeProcessed = new LinkedBlockingQueue<>();
     private volatile Thread queueReaderThread;
 
     @Inject
@@ -193,7 +193,7 @@ public class AlertActionService extends AbstractComponent {
                 while (response.getHits().hits().length != 0) {
                     for (SearchHit sh : response.getHits()) {
                         String historyId = sh.getId();
-                        AlertActionEntry historyEntry = parseHistory(historyId, sh.getSourceRef(), sh.version(), actionRegistry);
+                        AlertHistory historyEntry = parseHistory(historyId, sh.getSourceRef(), sh.version(), actionRegistry);
                         assert historyEntry.getState() == AlertActionState.SEARCH_NEEDED;
                         logger.debug("Adding entry: [{}/{}/{}]", sh.index(), sh.type(), sh.id());
                         actionsToBeProcessed.add(historyEntry);
@@ -208,8 +208,8 @@ public class AlertActionService extends AbstractComponent {
         largestQueueSize.set(actionsToBeProcessed.size());
     }
 
-    AlertActionEntry parseHistory(String historyId, BytesReference source, long version, AlertActionRegistry actionRegistry) {
-        AlertActionEntry entry = new AlertActionEntry();
+    AlertHistory parseHistory(String historyId, BytesReference source, long version, AlertActionRegistry actionRegistry) {
+        AlertHistory entry = new AlertHistory();
         entry.setId(historyId);
         entry.setVersion(version);
 
@@ -284,7 +284,7 @@ public class AlertActionService extends AbstractComponent {
         ensureStarted();
         logger.debug("Adding alert action for alert [{}]", alert.getAlertName());
         String alertHistoryIndex = getAlertHistoryIndexNameForTime(scheduledFireTime);
-        AlertActionEntry entry = new AlertActionEntry(alert, scheduledFireTime, fireTime, AlertActionState.SEARCH_NEEDED);
+        AlertHistory entry = new AlertHistory(alert, scheduledFireTime, fireTime, AlertActionState.SEARCH_NEEDED);
         IndexResponse response = client.prepareIndex(alertHistoryIndex, ALERT_HISTORY_TYPE, entry.getId())
                 .setSource(XContentFactory.contentBuilder(alert.getContentType()).value(entry))
                 .setOpType(IndexRequest.OpType.CREATE)
@@ -307,7 +307,7 @@ public class AlertActionService extends AbstractComponent {
     }
 
 
-    private void updateHistoryEntry(AlertActionEntry entry) throws IOException {
+    private void updateHistoryEntry(AlertHistory entry) throws IOException {
         ensureStarted();
         logger.debug("Updating alert action [{}]", entry.getId());
         IndexResponse response = client.prepareIndex(getAlertHistoryIndexNameForTime(entry.getScheduledTime()), ALERT_HISTORY_TYPE, entry.getId())
@@ -318,7 +318,7 @@ public class AlertActionService extends AbstractComponent {
     }
 
 
-    private void updateHistoryEntry(AlertActionEntry entry, AlertActionState actionPerformed) throws IOException {
+    private void updateHistoryEntry(AlertHistory entry, AlertActionState actionPerformed) throws IOException {
         entry.setState(actionPerformed);
         updateHistoryEntry(entry);
     }
@@ -351,9 +351,9 @@ public class AlertActionService extends AbstractComponent {
 
     private class AlertHistoryRunnable implements Runnable {
 
-        private final AlertActionEntry entry;
+        private final AlertHistory entry;
 
-        private AlertHistoryRunnable(AlertActionEntry entry) {
+        private AlertHistoryRunnable(AlertHistory entry) {
             this.entry = entry;
         }
 
@@ -408,7 +408,7 @@ public class AlertActionService extends AbstractComponent {
             try {
                 logger.debug("Starting thread to read from the job queue");
                 while (started()) {
-                    AlertActionEntry entry = actionsToBeProcessed.take();
+                    AlertHistory entry = actionsToBeProcessed.take();
                     if (entry != null) {
                         threadPool.executor(AlertsPlugin.ALERT_THREAD_POOL_NAME).execute(new AlertHistoryRunnable(entry));
                     }

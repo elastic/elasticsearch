@@ -88,7 +88,7 @@ public class AlertActionsTest extends AbstractAlertingTests {
         final AlertActionRegistry alertActionRegistry = internalTestCluster().getInstance(AlertActionRegistry.class, internalTestCluster().getMasterName());
         final AlertActionService alertManager = internalTestCluster().getInstance(AlertActionService.class, internalTestCluster().getMasterName());
 
-        AlertActionEntry actionEntry = alertManager.parseHistory("foobar", builder.bytes(), 0, alertActionRegistry);
+        AlertHistory actionEntry = alertManager.parseHistory("foobar", builder.bytes(), 0, alertActionRegistry);
         assertEquals(actionEntry.getVersion(), 0);
         assertEquals(actionEntry.getAlertName(), "testName");
         assertEquals(actionEntry.isTriggered(), true);

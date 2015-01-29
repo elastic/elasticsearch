@@ -29,6 +29,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -51,7 +52,14 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
 public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTest {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal))
+                .put("gateway.type", "local").build();
+    }
 
     @Test
     @TestLogging("action.search.type:TRACE,index.shard:TRACE")
@@ -92,8 +100,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
 
         if (createIndexWithoutErrors) {
             Builder settings = settingsBuilder()
-                    .put("index.number_of_replicas", randomIntBetween(0, 1))
-                    .put("gateway.type", "local");
+                    .put("index.number_of_replicas", randomIntBetween(0, 1));
             logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
             client().admin().indices().prepareCreate("test")
                     .setSettings(settings)

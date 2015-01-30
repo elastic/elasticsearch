@@ -85,28 +85,28 @@ public class LogDocMergePolicyProvider extends AbstractMergePolicyProvider<LogDo
         @Override
         public void onRefreshSettings(Settings settings) {
             int oldMinMergeDocs = mergePolicy.getMinMergeDocs();
-            int minMergeDocs = settings.getAsInt(INDEX_MERGE_POLICY_MIN_MERGE_DOCS, LogDocMergePolicy.DEFAULT_MIN_MERGE_DOCS);
+            int minMergeDocs = settings.getAsInt(INDEX_MERGE_POLICY_MIN_MERGE_DOCS, oldMinMergeDocs);
             if (minMergeDocs != oldMinMergeDocs) {
                 logger.info("updating min_merge_docs from [{}] to [{}]", oldMinMergeDocs, minMergeDocs);
                 mergePolicy.setMinMergeDocs(minMergeDocs);
             }
 
             int oldMaxMergeDocs = mergePolicy.getMaxMergeDocs();
-            int maxMergeDocs = settings.getAsInt(INDEX_MERGE_POLICY_MAX_MERGE_DOCS, LogDocMergePolicy.DEFAULT_MAX_MERGE_DOCS);
+            int maxMergeDocs = settings.getAsInt(INDEX_MERGE_POLICY_MAX_MERGE_DOCS, oldMaxMergeDocs);
             if (maxMergeDocs != oldMaxMergeDocs) {
                 logger.info("updating max_merge_docs from [{}] to [{}]", oldMaxMergeDocs, maxMergeDocs);
                 mergePolicy.setMaxMergeDocs(maxMergeDocs);
             }
 
             int oldMergeFactor = mergePolicy.getMergeFactor();
-            int mergeFactor = settings.getAsInt(INDEX_MERGE_POLICY_MERGE_FACTOR, LogDocMergePolicy.DEFAULT_MERGE_FACTOR);
+            int mergeFactor = settings.getAsInt(INDEX_MERGE_POLICY_MERGE_FACTOR, oldMergeFactor);
             if (mergeFactor != oldMergeFactor) {
                 logger.info("updating merge_factor from [{}] to [{}]", oldMergeFactor, mergeFactor);
                 mergePolicy.setMergeFactor(mergeFactor);
             }
 
             boolean oldCalibrateSizeByDeletes = mergePolicy.getCalibrateSizeByDeletes();
-            boolean calibrateSizeByDeletes = settings.getAsBoolean(INDEX_MERGE_POLICY_CALIBRATE_SIZE_BY_DELETES, true);
+            boolean calibrateSizeByDeletes = settings.getAsBoolean(INDEX_MERGE_POLICY_CALIBRATE_SIZE_BY_DELETES, oldCalibrateSizeByDeletes);
             if (calibrateSizeByDeletes != oldCalibrateSizeByDeletes) {
                 logger.info("updating calibrate_size_by_deletes from [{}] to [{}]", oldCalibrateSizeByDeletes, calibrateSizeByDeletes);
                 mergePolicy.setCalibrateSizeByDeletes(calibrateSizeByDeletes);

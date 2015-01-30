@@ -43,6 +43,7 @@ public class IndicesQueryCacheTests extends ElasticsearchIntegrationTest {
         indexRandom(true,
                 client().prepareIndex("index", "type").setSource("f", "2014-03-10T00:00:00.000Z"),
                 client().prepareIndex("index", "type").setSource("f", "2014-05-13T00:00:00.000Z"));
+        ensureSearchable("index");
 
         // This is not a random example: serialization with time zones writes shared strings
         // which used to not work well with the query cache because of the handles stream output

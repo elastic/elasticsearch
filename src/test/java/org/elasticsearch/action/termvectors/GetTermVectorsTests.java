@@ -1225,4 +1225,133 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getVersion(), equalTo(2l));
     }
+
+    @Test
+    public void testFilterLength() throws ExecutionException, InterruptedException, IOException {
+        logger.info("Setting up the index ...");
+        ImmutableSettings.Builder settings = settingsBuilder()
+                .put(indexSettings())
+                .put("index.analysis.analyzer", "keyword");
+        assertAcked(prepareCreate("test")
+                .setSettings(settings)
+                .addMapping("type1", "tags", "type=string"));
+        ensureYellow();
+
+        int numTerms = scaledRandomIntBetween(10, 50);
+        logger.info("Indexing one document with tags of increasing length ...");
+        List<String> tags = new ArrayList<>();
+        for (int i = 0; i < numTerms; i++) {
+            String tag = "a";
+            for (int j = 0; j < i; j++) {
+                tag += "a";
+            }
+            tags.add(tag);
+        }
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("tags", tags));
+
+        logger.info("Checking best tags by longest to shortest size ...");
+        TermVectorsRequest.FilterSettings filterSettings = new TermVectorsRequest.FilterSettings();
+        filterSettings.maxNumTerms = numTerms;
+        TermVectorsResponse response;
+        for (int i = 0; i < numTerms; i++) {
+            filterSettings.minWordLength = numTerms - i;
+            response = client().prepareTermVectors("test", "type1", "1")
+                    .setSelectedFields("tags")
+                    .setFieldStatistics(true)
+                    .setTermStatistics(true)
+                    .setFilterSettings(filterSettings)
+                    .get();
+            checkBestTerms(response.getFields().terms("tags"), tags.subList((numTerms - i - 1), numTerms));
+        }
+    }
+
+    @Test
+    public void testFilterTermFreq() throws ExecutionException, InterruptedException, IOException {
+        logger.info("Setting up the index ...");
+        ImmutableSettings.Builder settings = settingsBuilder()
+                .put(indexSettings())
+                .put("index.analysis.analyzer", "keyword");
+        assertAcked(prepareCreate("test")
+                .setSettings(settings)
+                .addMapping("type1", "tags", "type=string"));
+        ensureYellow();
+
+        logger.info("Indexing one document with tags of increasing frequencies ...");
+        int numTerms = scaledRandomIntBetween(10, 50);
+        List<String> tags = new ArrayList<>();
+        List<String> uniqueTags = new ArrayList<>();
+        String tag;
+        for (int i = 0; i < numTerms; i++) {
+            tag = "tag_" + i;
+            tags.add(tag);
+            for (int j = 0; j < i; j++) {
+                tags.add(tag);
+            }
+            uniqueTags.add(tag);
+        }
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("tags", tags));
+
+        logger.info("Checking best tags by highest to lowest term freq ...");
+        TermVectorsRequest.FilterSettings filterSettings = new TermVectorsRequest.FilterSettings();
+        TermVectorsResponse response;
+        for (int i = 0; i < numTerms; i++) {
+            filterSettings.maxNumTerms = i + 1;
+            response = client().prepareTermVectors("test", "type1", "1")
+                    .setSelectedFields("tags")
+                    .setFieldStatistics(true)
+                    .setTermStatistics(true)
+                    .setFilterSettings(filterSettings)
+                    .get();
+            checkBestTerms(response.getFields().terms("tags"), uniqueTags.subList((numTerms - i - 1), numTerms));
+        }
+    }
+
+    @Test
+    public void testFilterDocFreq() throws ExecutionException, InterruptedException, IOException {
+        logger.info("Setting up the index ...");
+        ImmutableSettings.Builder settings = settingsBuilder()
+                .put(indexSettings())
+                .put("index.analysis.analyzer", "keyword")
+                .put("index.number_of_shards", 1); // no dfs
+        assertAcked(prepareCreate("test")
+                .setSettings(settings)
+                .addMapping("type1", "tags", "type=string"));
+        ensureYellow();
+
+        int numDocs = scaledRandomIntBetween(10, 50); // as many terms as there are docs
+        logger.info("Indexing {} documents with tags of increasing dfs ...", numDocs);
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        List<String> tags = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            tags.add("tag_" + i);
+            builders.add(client().prepareIndex("test", "type1", i + "").setSource("tags", tags));
+        }
+        indexRandom(true, builders);
+
+        logger.info("Checking best terms by highest to lowest idf ...");
+        TermVectorsRequest.FilterSettings filterSettings = new TermVectorsRequest.FilterSettings();
+        TermVectorsResponse response;
+        for (int i = 0; i < numDocs; i++) {
+            filterSettings.maxNumTerms = i + 1;
+            response = client().prepareTermVectors("test", "type1", (numDocs - 1) + "")
+                    .setSelectedFields("tags")
+                    .setFieldStatistics(true)
+                    .setTermStatistics(true)
+                    .setFilterSettings(filterSettings)
+                    .get();
+            checkBestTerms(response.getFields().terms("tags"), tags.subList((numDocs - i - 1), numDocs));
+        }
+    }
+
+    private void checkBestTerms(Terms terms, List<String> expectedTerms) throws IOException {
+        final TermsEnum termsEnum = terms.iterator();
+        List<String> bestTerms = new ArrayList<>();
+        BytesRef text;
+        while((text = termsEnum.next()) != null) {
+            bestTerms.add(text.utf8ToString());
+        }
+        Collections.sort(expectedTerms);
+        Collections.sort(bestTerms);
+        assertArrayEquals(expectedTerms.toArray(), bestTerms.toArray());
+    }
 }

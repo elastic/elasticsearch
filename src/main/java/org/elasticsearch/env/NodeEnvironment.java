@@ -461,7 +461,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
         return shardLocations;
     }
 
-    public Set<String> findAllIndices() throws Exception {
+    public Set<String> findAllIndices() throws IOException {
         if (nodePaths == null || locks == null) {
             throw new ElasticsearchIllegalStateException("node is not configured to store local location");
         }

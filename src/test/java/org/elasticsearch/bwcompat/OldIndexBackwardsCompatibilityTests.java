@@ -93,7 +93,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         "index-1.4.1.zip",
         "index-1.4.2.zip"
     );
-    
+
     public void testAllVersionsTested() throws Exception {
         SortedSet<String> expectedVersions = new TreeSet<>();
         for (java.lang.reflect.Field field : Version.class.getDeclaredFields()) {
@@ -213,5 +213,15 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         }
         UpgradeTest.runUpgrade(httpClient, "test", "wait_for_completion", "true");
         UpgradeTest.assertUpgraded(httpClient, "test");
+    }
+
+    public void testUnsupportedVersionDoesNotStart() throws Exception {
+        String unsupportedIndex = "index-0.20.6.zip";
+        try {
+            loadIndex(unsupportedIndex, ImmutableSettings.EMPTY);
+            fail();
+        } catch (Exception ex) {
+            logger.info("Failed = all is well", ex);
+        }
     }
 }

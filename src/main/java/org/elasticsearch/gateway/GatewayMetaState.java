@@ -21,6 +21,10 @@ package org.elasticsearch.gateway;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -28,6 +32,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -39,6 +44,7 @@ import org.elasticsearch.cluster.routing.SimpleHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -52,10 +58,13 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DistributorDirectory;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.*;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -173,13 +182,12 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                 GATEWAY_DANGLING_TIMEOUT, this.danglingTimeout);
         if (DiscoveryNode.masterNode(settings) || DiscoveryNode.dataNode(settings)) {
             nodeEnv.ensureAtomicMoveSupported();
-        }
-        if (DiscoveryNode.masterNode(settings)) {
             try {
                 ensureNoPre019State();
                 pre20Upgrade();
                 long start = System.currentTimeMillis();
-                loadState();
+                MetaData metaData = loadState();
+                ensureAllIndicesAreSupported(metaData);
                 logger.debug("took {} to load state", TimeValue.timeValueMillis(System.currentTimeMillis() - start));
             } catch (Exception e) {
                 logger.error("failed to read local state, exiting...", e);
@@ -194,18 +202,20 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().blocks().disableStatePersistence()) {
+        ClusterState state = event.state();
+        if (state.blocks().disableStatePersistence()) {
             // reset the current metadata, we need to start fresh...
             this.currentMetaData = null;
             return;
         }
 
-        MetaData newMetaData = event.state().metaData();
+        MetaData newMetaData = state.metaData();
         // we don't check if metaData changed, since we might be called several times and we need to check dangling...
 
         boolean success = true;
-        // only applied to master node, writing the global and index level states
-        if (event.state().nodes().localNode().masterNode()) {
+        final DiscoveryNode localNode = state.nodes().localNode();
+        // only applied to master and data nodes, writing the global and index level states
+        if (localNode.masterNode() || localNode.dataNode()) {
             // check if the global state changed?
             if (currentMetaData == null || !MetaData.isGlobalStateEquals(currentMetaData, newMetaData)) {
                 try {
@@ -275,7 +285,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                         }
                     }
                     try {
-                        nodeIndexDeletedAction.nodeIndexStoreDeleted(event.state(), current.index(), event.state().nodes().localNodeId());
+                        nodeIndexDeletedAction.nodeIndexStoreDeleted(state, current.index(), state.nodes().localNodeId());
                     } catch (Throwable e) {
                         logger.debug("[{}] failed to notify master on local index store deletion", e, current.index());
                     }
@@ -481,6 +491,55 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         }
         return metaDataBuilder.build();
     }
+
+    /**
+     * This method tries to open all of the nodes shards and read it's segment info to ensure the lucene version
+     * of this node can read the shard before we even start it up. If the index format is too new / too old this method
+     * fails and fails the node startup.
+     */
+    private void ensureAllIndicesAreSupported(MetaData state) throws IOException {
+        if (state.indices().isEmpty()) {
+            /**
+             * This is a fallback for nodes that used to be non-master nodes. Previously
+             * nodes didn't write the index / global state. In that case we fall back to
+             * walking the data directories to find the index shards and check them.
+             */
+            final Settings settings = ImmutableSettings.builder().build(); // empty on purpose but bypassing the assertion
+            for (String index : nodeEnv.findAllIndices()) {
+                Set<ShardId> allShardIds = nodeEnv.findAllShardIds(new Index(index));
+                openShards(settings, allShardIds);
+            }
+        } else {
+            for (IndexMetaData indexMetaData : state) {
+                Set<ShardId> allShardIds = nodeEnv.findAllShardIds(new Index(indexMetaData.index()));
+                openShards(indexMetaData.getSettings(), allShardIds);
+            }
+        }
+    }
+
+    private void openShards(Settings settings, Set<ShardId> allShardIds) throws IOException {
+        for (ShardId shard : allShardIds) {
+            Path[] paths = nodeEnv.shardDataPaths(shard, settings);
+            List<Directory> dirs = new ArrayList<>();
+            try {
+                for (Path path : paths) {
+                    dirs.add(FSDirectory.open(path.resolve("index")));
+                }
+                try (DistributorDirectory dir = new DistributorDirectory(dirs.toArray(new Directory[0]))) {
+                    Lucene.readSegmentInfos(dir); // reading the seg info is enough to throw the relevant exceptions
+                } catch (IndexFormatTooOldException ex) {
+                    logger.error("Failed to open index [{}] the lucene version is too old and is not supported anymore please upgrade the index first", ex, shard.index());
+                    throw ex;
+                } catch (IndexFormatTooNewException ex) {
+                    logger.error("Failed to open index [{}] the lucene version is too new downgrading is not supported", ex, shard.index());
+                    throw ex;
+                }
+            } finally {
+                IOUtils.close(dirs);
+            }
+        }
+    }
+
 
     @Nullable
     private IndexMetaData loadIndexState(String index) throws IOException {

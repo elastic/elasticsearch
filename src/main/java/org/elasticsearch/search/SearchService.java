@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.ObjectSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -271,6 +272,19 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
+    /**
+     * Try to load the query results from the cache or execute the query phase directly if the cache cannot be used.
+     */
+    private void loadOrExecuteQueryPhase(final ShardSearchRequest request, final SearchContext context,
+            final QueryPhase queryPhase) throws Exception {
+        final boolean canCache = indicesQueryCache.canCache(request, context);
+        if (canCache) {
+            indicesQueryCache.loadIntoContext(request, context, queryPhase);
+        } else {
+            queryPhase.execute(context);
+        }
+    }
+
     public QuerySearchResultProvider executeQueryPhase(ShardSearchRequest request) throws ElasticsearchException {
         final SearchContext context = createAndPutContext(request);
         try {
@@ -278,14 +292,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             long time = System.nanoTime();
             contextProcessing(context);
 
-            QuerySearchResultProvider result;
-            boolean canCache = indicesQueryCache.canCache(request, context);
-            if (canCache) {
-                result = indicesQueryCache.load(request, context, queryPhase);
-            } else {
-                queryPhase.execute(context);
-                result = context.queryResult();
-            }
+            loadOrExecuteQueryPhase(request, context, queryPhase);
 
             if (context.searchType() == SearchType.COUNT) {
                 freeContext(context.id());
@@ -294,7 +301,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             }
             context.indexShard().searchService().onQueryPhase(context, System.nanoTime() - time);
 
-            return result;
+            return context.queryResult();
         } catch (Throwable e) {
             // execution exception can happen while loading the cache, strip it
             if (e instanceof ExecutionException) {
@@ -989,11 +996,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                             if (canCache != top) {
                                 return;
                             }
-                            if (canCache) {
-                                indicesQueryCache.load(request, context, queryPhase);
-                            } else {
-                                queryPhase.execute(context);
-                            }
+                            loadOrExecuteQueryPhase(request, context, queryPhase);
                             long took = System.nanoTime() - now;
                             if (indexShard.warmerService().logger().isTraceEnabled()) {
                                 indexShard.warmerService().logger().trace("warmed [{}], took [{}]", entry.name(), TimeValue.timeValueNanos(took));

@@ -30,6 +30,7 @@ public class SmtpAlertActionFactory implements AlertActionFactory, ConfigurableC
     private static final String SERVER_SETTING = "alerts.action.email.server.name";
     private static final String FROM_SETTING = "alerts.action.email.from.address";
     private static final String PASSWD_SETTING = "alerts.action.email.from.passwd";
+    private static final String USERNAME_SETTING = "alerts.action.email.from.username";
 
     private static final String ALERT_NAME_VARIABLE_NAME = "alert_name";
     private static final String RESPONSE_VARIABLE_NAME = "response";
@@ -109,12 +110,15 @@ public class SmtpAlertActionFactory implements AlertActionFactory, ConfigurableC
         props.put("mail.smtp.starttls.enable", "true");
         props.put("mail.smtp.host", settings.get(SERVER_SETTING, "smtp.gmail.com"));
         props.put("mail.smtp.port", settings.getAsInt(PORT_SETTING, 587));
+
         final Session session;
         if (settings.get(PASSWD_SETTING) != null) {
             session = Session.getInstance(props,
                     new javax.mail.Authenticator() {
                         protected PasswordAuthentication getPasswordAuthentication() {
-                            return new PasswordAuthentication(settings.get(FROM_SETTING), settings.get(PASSWD_SETTING));
+                            return new PasswordAuthentication(
+                                    settings.get(USERNAME_SETTING) == null ? settings.get(FROM_SETTING) : settings.get(USERNAME_SETTING),
+                                    settings.get(PASSWD_SETTING));
                         }
                     });
         } else {

@@ -134,7 +134,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     private final SearcherFactory searcherFactory = new SearchFactory();
     private volatile SearcherManager searcherManager;
 
-    private volatile boolean closed = false;
+    // a boolean indicating whether the engine is usable, i.e. was started but didn't fail or closed
+    private volatile boolean closedOrFailed = true;
+
+    // this is a marker to prevent double closing
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
     // flag indicating if a dirty operation has occurred since the last refresh
     private volatile boolean dirty = false;
@@ -162,7 +166,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     private final ApplySettings applySettings = new ApplySettings();
 
     private volatile boolean failOnMergeFailure;
-    private Throwable failedEngine = null;
+    private volatile Throwable failedEngine = null;
     private final Lock failEngineLock = new ReentrantLock();
     private final CopyOnWriteArrayList<FailedEngineListener> failedEngineListeners = new CopyOnWriteArrayList<>();
 
@@ -263,7 +267,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             if (indexWriter != null) {
                 throw new EngineAlreadyStartedException(shardId);
             }
-            if (closed) {
+            if (isClosed.get()) {
                 throw new EngineClosedException(shardId);
             }
             if (logger.isDebugEnabled()) {
@@ -309,6 +313,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 this.searcherManager = buildSearchManager(indexWriter);
                 versionMap.setManager(searcherManager);
                 readLastCommittedSegmentsInfo();
+                closedOrFailed = false;
             } catch (IOException e) {
                 maybeFailEngine(e, "start");
                 try {
@@ -534,7 +539,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         // TODO: we force refresh when versionMap is using > 25% of IW's RAM buffer; should we make this separately configurable?
         if (versionMap.ramBytesUsedForRefresh() > 0.25 * indexingBufferSize.bytes() && versionMapRefreshPending.getAndSet(true) == false) {
             try {
-                if (closed) {
+                if (closedOrFailed) {
                     // no point...
                     return;
                 }
@@ -962,7 +967,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 ensureOpen();
                 readLastCommittedSegmentsInfo();
             } catch (Throwable e) {
-                if (!closed) {
+                if (closedOrFailed == false) {
                     logger.warn("failed to read latest segment infos on flush", e);
                     if (Lucene.isCorruptionException(e)) {
                         throw new FlushFailedEngineException(shardId, e);
@@ -979,7 +984,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     }
 
     private void ensureOpen() {
-        if (indexWriter == null) {
+        if (closedOrFailed) {
             throw new EngineClosedException(shardId, failedEngine);
         }
     }
@@ -990,8 +995,10 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
      * @throws EngineClosedException if the engine is already closed
      */
     private IndexWriter currentIndexWriter() {
+        ensureOpen();
         final IndexWriter writer = indexWriter;
         if (writer == null) {
+            assert closedOrFailed : "Engine is not closed but writer is null";
             throw new EngineClosedException(shardId, failedEngine);
         }
         return writer;
@@ -1123,9 +1130,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         // take a write lock here so it won't happen while a flush is in progress
         // this means that next commits will not be allowed once the lock is released
         try (InternalLock _ = writeLock.acquire()) {
-            if (closed) {
-                throw new EngineClosedException(shardId);
-            }
+            ensureOpen();
             onGoingRecoveries.startRecovery();
         }
 
@@ -1194,7 +1199,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     }
 
     private Throwable wrapIfClosed(Throwable t) {
-        if (closed) {
+        if (closedOrFailed) {
             return new EngineClosedException(shardId, t);
         }
         return t;
@@ -1306,9 +1311,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     @Override
     public void close() throws ElasticsearchException {
         try (InternalLock _ = writeLock.acquire()) {
-            if (!closed) {
+            if (isClosed.compareAndSet(false, true)) {
                 try {
-                    closed = true;
+                    closedOrFailed = true;
                     indexSettingsService.removeListener(applySettings);
                     this.versionMap.clear();
                     this.failedEngineListeners.clear();
@@ -1360,32 +1365,43 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         assert failure != null;
         if (failEngineLock.tryLock()) {
             try {
-                // we first mark the store as corrupted before we notify any listeners
-                // this must happen first otherwise we might try to reallocate so quickly
-                // on the same node that we don't see the corrupted marker file when
-                // the shard is initializing
-                if (Lucene.isCorruptionException(failure)) {
-                    try {
-                        store.markStoreCorrupted(ExceptionsHelper.unwrap(failure, CorruptIndexException.class));
-                    } catch (IOException e) {
-                        logger.warn("Couldn't marks store corrupted", e);
-                    }
-                }
-            } finally {
-                assert !readLock.assertLockIsHeld() : "readLock is held by a thread that tries to fail the engine";
-                if (failedEngine != null) {
-                    logger.debug("tried to fail engine but engine is already failed. ignoring. [{}]", reason, failure);
-                    return;
-                }
                 try {
+                    // we first mark the store as corrupted before we notify any listeners
+                    // this must happen first otherwise we might try to reallocate so quickly
+                    // on the same node that we don't see the corrupted marker file when
+                    // the shard is initializing
+                    if (Lucene.isCorruptionException(failure)) {
+                        try {
+                            store.markStoreCorrupted(ExceptionsHelper.unwrap(failure, CorruptIndexException.class));
+                        } catch (IOException e) {
+                            logger.warn("Couldn't marks store corrupted", e);
+                        }
+                    }
+                } finally {
+                    if (failedEngine != null) {
+                        logger.debug("tried to fail engine but engine is already failed. ignoring. [{}]", reason, failure);
+                        return;
+                    }
                     logger.warn("failed engine [{}]", failure, reason);
                     // we must set a failure exception, generate one if not supplied
                     failedEngine = failure;
                     for (FailedEngineListener listener : failedEngineListeners) {
                         listener.onFailedEngine(shardId, reason, failure);
                     }
-                } finally {
-                    close();
+                }
+            } catch (Throwable t) {
+                // don't bubble up these exceptions up
+                logger.warn("failEngine threw exception", t);
+            } finally {
+                closedOrFailed = true;
+                try (InternalLock _ = readLock.acquire()) {
+                    // we take the readlock here to ensure nobody replaces this IW concurrently.
+                    if (indexWriter != null) {
+                        indexWriter.rollback();
+                    }
+                } catch (Throwable t) {
+                    logger.warn("Rolling back indexwriter on engine failure failed", t);
+                    // to be on the safe side we just rollback the IW
                 }
             }
         } else {
@@ -1458,7 +1474,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                         }
                     } catch (Throwable t) {
                         // Don't fail a merge if the warm-up failed
-                        if (!closed) {
+                        if (!closedOrFailed) {
                             logger.warn("Warm-up failed", t);
                         }
                         if (t instanceof Error) {
@@ -1653,7 +1669,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     }
                     warmer.warmTopReader(new IndicesWarmer.WarmerContext(shardId, new SimpleSearcher("warmer", searcher)));
                 } catch (Throwable e) {
-                    if (!closed) {
+                    if (!closedOrFailed) {
                         logger.warn("failed to prepare/warm", e);
                     }
                 } finally {

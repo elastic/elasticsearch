@@ -12,7 +12,7 @@ import org.elasticsearch.shield.authc.active_directory.ActiveDirectoryFactoryTes
 import org.elasticsearch.shield.authc.support.ldap.AbstractLdapSslSocketFactory;
 import org.elasticsearch.shield.authc.support.ldap.ConnectionFactory;
 import org.elasticsearch.shield.authc.support.ldap.LdapSslSocketFactory;
-import org.elasticsearch.shield.ssl.SSLService;
+import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.shield.support.NoOpLogger;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
@@ -31,21 +31,21 @@ import java.util.List;
 import static org.hamcrest.Matchers.*;
 
 @Network
-public class UserAttributeGroupsResolverTest extends ElasticsearchTestCase {
+public class UserAttributeGroupsResolverTests extends ElasticsearchTestCase {
     public static final String BRUCE_BANNER_DN = "cn=Bruce Banner,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
     private InitialDirContext ldapContext;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        Path keystore = Paths.get(UserAttributeGroupsResolverTest.class.getResource("../support/ldap/ldaptrust.jks").toURI()).toAbsolutePath();
+        Path keystore = Paths.get(UserAttributeGroupsResolverTests.class.getResource("../support/ldap/ldaptrust.jks").toURI()).toAbsolutePath();
 
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
          * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
-        AbstractLdapSslSocketFactory.init(new SSLService(ImmutableSettings.builder()
+        AbstractLdapSslSocketFactory.init(new ClientSSLService(ImmutableSettings.builder()
                 .put("shield.ssl.keystore.path", keystore)
                 .put("shield.ssl.keystore.password", "changeit")
                 .build()));

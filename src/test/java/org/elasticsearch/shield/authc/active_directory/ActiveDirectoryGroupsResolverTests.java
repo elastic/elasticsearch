@@ -12,7 +12,7 @@ import org.elasticsearch.shield.authc.support.ldap.AbstractLdapSslSocketFactory;
 import org.elasticsearch.shield.authc.support.ldap.ConnectionFactory;
 import org.elasticsearch.shield.authc.support.ldap.LdapSslSocketFactory;
 import org.elasticsearch.shield.authc.support.ldap.SearchScope;
-import org.elasticsearch.shield.ssl.SSLService;
+import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.shield.support.NoOpLogger;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
@@ -47,7 +47,7 @@ public class ActiveDirectoryGroupsResolverTests extends ElasticsearchTestCase {
          * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
-        AbstractLdapSslSocketFactory.init(new SSLService(ImmutableSettings.builder()
+        AbstractLdapSslSocketFactory.init(new ClientSSLService(ImmutableSettings.builder()
                 .put("shield.ssl.keystore.path", keystore)
                 .put("shield.ssl.keystore.password", "changeit")
                 .build()));

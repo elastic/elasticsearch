@@ -11,9 +11,11 @@ import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.netty.channel.*;
 import org.elasticsearch.common.netty.handler.ssl.SslHandler;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.shield.ssl.SSLService;
+import org.elasticsearch.shield.ssl.ClientSSLService;
+import org.elasticsearch.shield.ssl.ServerSSLService;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty.NettyTransport;
@@ -30,17 +32,19 @@ public class ShieldNettyTransport extends NettyTransport {
     public static final String HOSTNAME_VERIFICATION_SETTING = "shield.ssl.hostname_verification";
     public static final String HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING = "shield.ssl.hostname_verification.resolve_name";
 
-    private final SSLService sslService;
+    private final ServerSSLService serverSslService;
+    private final ClientSSLService clientSSLService;
     private final @Nullable IPFilter authenticator;
     private final boolean ssl;
 
     @Inject
     public ShieldNettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version,
-                                @Nullable IPFilter authenticator, SSLService sslService) {
+                                @Nullable IPFilter authenticator, @Nullable ServerSSLService serverSSLService, ClientSSLService clientSSLService) {
         super(settings, threadPool, networkService, bigArrays, version);
         this.authenticator = authenticator;
         this.ssl = settings.getAsBoolean("shield.transport.ssl", false);
-        this.sslService = sslService;
+        this.serverSslService = serverSSLService;
+        this.clientSSLService = clientSSLService;
     }
 
     @Override
@@ -69,9 +73,9 @@ public class ShieldNettyTransport extends NettyTransport {
             if (profileSsl) {
                 SSLEngine serverEngine;
                 if (profileSettings.get("shield.truststore.path") != null) {
-                    serverEngine = sslService.createSSLEngine(profileSettings.getByPrefix("shield."));
+                    serverEngine = serverSslService.createSSLEngine(profileSettings.getByPrefix("shield."));
                 } else {
-                    serverEngine = sslService.createSSLEngine();
+                    serverEngine = serverSslService.createSSLEngine();
                 }
                 serverEngine.setUseClientMode(false);
                 serverEngine.setNeedClientAuth(profileSettings.getAsBoolean("shield.ssl.client.auth", settings.getAsBoolean("shield.transport.ssl.client.auth", true)));
@@ -113,12 +117,16 @@ public class ShieldNettyTransport extends NettyTransport {
                 SSLEngine sslEngine;
                 if (settings.getAsBoolean(HOSTNAME_VERIFICATION_SETTING, true)) {
                     InetSocketAddress inetSocketAddress = (InetSocketAddress) e.getValue();
-                    sslEngine = sslService.createClientSSLEngine(getHostname(inetSocketAddress), inetSocketAddress.getPort());
+                    sslEngine = clientSSLService.createSSLEngine(ImmutableSettings.EMPTY, getHostname(inetSocketAddress), inetSocketAddress.getPort());
+
+                    // By default, a SSLEngine will not perform hostname verification. In order to perform hostname verification
+                    // we need to specify a EndpointIdentificationAlgorithm. We use the HTTPS algorithm to prevent against
+                    // man in the middle attacks for transport connections
                     SSLParameters parameters = new SSLParameters();
                     parameters.setEndpointIdentificationAlgorithm("HTTPS");
                     sslEngine.setSSLParameters(parameters);
                 } else {
-                    sslEngine = sslService.createClientSSLEngine();
+                    sslEngine = clientSSLService.createSSLEngine();
                 }
 
                 sslEngine.setUseClientMode(true);

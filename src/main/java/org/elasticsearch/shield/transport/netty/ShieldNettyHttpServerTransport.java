@@ -13,7 +13,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
-import org.elasticsearch.shield.ssl.SSLService;
+import org.elasticsearch.shield.ssl.ServerSSLService;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 
 import javax.net.ssl.SSLEngine;
@@ -24,12 +24,12 @@ import javax.net.ssl.SSLEngine;
 public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
 
     private final IPFilter ipFilter;
-    private final SSLService sslService;
+    private final ServerSSLService sslService;
     private final boolean ssl;
 
     @Inject
     public ShieldNettyHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
-                                          IPFilter ipFilter, SSLService sslService) {
+                                          IPFilter ipFilter, ServerSSLService sslService) {
         super(settings, networkService, bigArrays);
         this.ipFilter = ipFilter;
         this.ssl = settings.getAsBoolean("shield.http.ssl", false);

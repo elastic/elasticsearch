@@ -12,8 +12,6 @@ import javax.net.SocketFactory;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
-import java.io.IOException;
-import java.net.InetAddress;
 
 /**
  * This factory is needed for JNDI configuration for LDAP connections with hostname verification. Each SSLSocket must
@@ -39,7 +37,7 @@ public class HostnameVerifyingLdapSslSocketFactory extends AbstractLdapSslSocket
      */
     public static synchronized SocketFactory getDefault() {
         if (instance == null) {
-            instance = new HostnameVerifyingLdapSslSocketFactory(sslService.getSSLSocketFactory());
+            instance = new HostnameVerifyingLdapSslSocketFactory(clientSSLService.getSSLSocketFactory());
         }
         return instance;
     }

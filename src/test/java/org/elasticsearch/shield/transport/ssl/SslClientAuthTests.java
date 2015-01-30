@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.shield.ssl.SSLService;
+import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.test.ShieldIntegrationTest;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
@@ -73,10 +73,10 @@ public class SslClientAuthTests extends ShieldIntegrationTest {
     @Test
     public void testThatHttpWorksWithSslClientAuth() throws IOException {
         Settings settings = settingsBuilder().put(ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient")).build();
-        SSLService sslService = new SSLService(settings);
+        ClientSSLService sslService = new ClientSSLService(settings);
 
         SSLConnectionSocketFactory socketFactory = new SSLConnectionSocketFactory(
-                sslService.getSslContext(),
+                sslService.sslContext(),
                 SSLConnectionSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
 
         CloseableHttpClient client = HttpClients.custom().setSSLSocketFactory(socketFactory).build();

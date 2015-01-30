@@ -15,7 +15,7 @@ import org.elasticsearch.common.netty.channel.*;
 import org.elasticsearch.common.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.elasticsearch.common.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import org.elasticsearch.common.netty.handler.ssl.SslHandler;
-import org.elasticsearch.shield.ssl.SSLService;
+import org.elasticsearch.shield.ssl.ServerSSLService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -64,12 +64,12 @@ public class HandshakeWaitingHandlerTests extends ElasticsearchTestCase {
 
     @Before
     public void setup() throws Exception {
-        SSLService sslService = new SSLService(settingsBuilder()
+        ServerSSLService sslService = new ServerSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", Paths.get(HandshakeWaitingHandlerTests.class.getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks").toURI()))
                 .put("shield.ssl.keystore.password", "testnode")
                 .build());
 
-        sslContext = sslService.getSslContext();
+        sslContext = sslService.sslContext();
 
         serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory());
         serverBootstrap.setPipelineFactory(getServerFactory());
@@ -231,8 +231,10 @@ public class HandshakeWaitingHandlerTests extends ElasticsearchTestCase {
             // in the test
             ChannelFuture handshakeFuture = null;
             for (int i = 0; i < 100; i++) {
+                if (handshakeFuture == null) {
+                    handshakeFuture = channel.getPipeline().get(SslHandler.class).handshake();
+                }
                 channel.write(buffer);
-                handshakeFuture = channel.getPipeline().get(SslHandler.class).handshake();
             }
 
             return handshakeFuture;

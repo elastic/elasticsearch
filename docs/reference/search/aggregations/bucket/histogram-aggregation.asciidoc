@@ -329,10 +329,10 @@ Here is an example of what the response could look like:
 ==== Offset
 
 By default the bucket keys start with 0 and then continue in even spaced steps of `interval`, e.g. if the interval is 10 the first buckets
-(assuming there is data inside them) will be [0 - 9), [10-19), [20-29). The bucket boundaries can be shifted by using the `offset` option.
+(assuming there is data inside them) will be [0 - 9], [10-19], [20-29]. The bucket boundaries can be shifted by using the `offset` option.
 
 This can be best illustrated with an example. If there are 10 documents with values ranging from 5 to 14, using interval `10` will result in
-two buckets with 5 documents each. If an additional offset `5` is used, there will be only one single bucket [5-14) containing all the 10
+two buckets with 5 documents each. If an additional offset `5` is used, there will be only one single bucket [5-14] containing all the 10
 documents.
 
 ==== Response Format

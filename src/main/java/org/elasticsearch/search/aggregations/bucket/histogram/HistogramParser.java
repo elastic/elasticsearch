@@ -72,7 +72,7 @@ public class HistogramParser implements Aggregator.Parser {
                     minDocCount = parser.longValue();
                 } else if ("keyed".equals(currentFieldName)) {
                     keyed = parser.booleanValue();
-                } else if ("offset".equals(currentFieldName) || "offset".equals(currentFieldName)) {
+                } else if ("offset".equals(currentFieldName)) {
                     offset = parser.longValue();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");

@@ -62,7 +62,15 @@ public interface IndicesLifecycle {
         }
 
         /**
-         * Called before the index gets created.
+         * Called on the Master node only before the index is created
+         */
+        public void beforeIndexAddedToCluster(Index index, @IndexSettings Settings indexSettings) {
+
+        }
+
+        /**
+         * Called before the index gets created. Note that this is also called
+         * when the index is created on data nodes
          */
         public void beforeIndexCreated(Index index, @IndexSettings Settings indexSettings) {
 

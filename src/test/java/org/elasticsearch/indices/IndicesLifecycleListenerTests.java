@@ -22,6 +22,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -39,6 +40,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -49,9 +51,54 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndicesLifecycleListenerTests extends ElasticsearchIntegrationTest {
+
+    @Test
+    public void testBeforeIndexAddedToCluster() throws Exception {
+        String node1 = internalCluster().startNode();
+        String node2 = internalCluster().startNode();
+        String node3 = internalCluster().startNode();
+
+        final AtomicInteger beforeAddedCount = new AtomicInteger(0);
+        final AtomicInteger allCreatedCount = new AtomicInteger(0);
+
+        IndicesLifecycle.Listener listener = new IndicesLifecycle.Listener() {
+            @Override
+            public void beforeIndexAddedToCluster(Index index, @IndexSettings Settings indexSettings) {
+                beforeAddedCount.incrementAndGet();
+                if (indexSettings.getAsBoolean("index.fail", false)) {
+                    throw new ElasticsearchException("failing on purpose");
+                }
+            }
+
+            @Override
+            public void beforeIndexCreated(Index index, @IndexSettings Settings indexSettings) {
+                allCreatedCount.incrementAndGet();
+            }
+        };
+
+        internalCluster().getInstance(IndicesLifecycle.class, node1).addListener(listener);
+        internalCluster().getInstance(IndicesLifecycle.class, node2).addListener(listener);
+        internalCluster().getInstance(IndicesLifecycle.class, node3).addListener(listener);
+
+        client().admin().indices().prepareCreate("test")
+                .setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).get();
+        ensureGreen("test");
+        assertThat("beforeIndexAddedToCluster called only once", beforeAddedCount.get(), equalTo(1));
+        assertThat("beforeIndexCreated called on each data node", allCreatedCount.get(), greaterThanOrEqualTo(3));
+
+        try {
+            client().admin().indices().prepareCreate("failed").setSettings("index.fail", true).get();
+            fail("should have thrown an exception during creation");
+        } catch (Exception e) {
+            assertTrue(e.getMessage().contains("failing on purpose"));
+            ClusterStateResponse resp = client().admin().cluster().prepareState().get();
+            assertFalse(resp.getState().routingTable().indicesRouting().keySet().contains("failed"));
+        }
+    }
 
     @Test
     public void testIndexStateShardChanged() throws Throwable {

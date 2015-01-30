@@ -65,6 +65,17 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
         }
     }
 
+    public void beforeIndexAddedToCluster(Index index, @IndexSettings Settings indexSettings) {
+        for (Listener listener : listeners) {
+            try {
+                listener.beforeIndexAddedToCluster(index, indexSettings);
+            } catch (Throwable t) {
+                logger.warn("[{}] failed to invoke before index added to cluster callback", t, index.name());
+                throw t;
+            }
+        }
+    }
+
     public void beforeIndexCreated(Index index, @IndexSettings Settings indexSettings) {
         for (Listener listener : listeners) {
             try {

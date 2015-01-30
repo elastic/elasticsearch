@@ -162,6 +162,10 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         return shards.size();
     }
 
+    public InternalIndicesLifecycle indicesLifecycle() {
+        return this.indicesLifecycle;
+    }
+
     @Override
     public Iterator<IndexShard> iterator() {
         return Iterators.transform(shards.values().iterator(), new Function<Tuple<IndexShard, Injector>, IndexShard>() {

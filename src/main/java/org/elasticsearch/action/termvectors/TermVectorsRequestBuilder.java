@@ -200,6 +200,14 @@ public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsR
         return this;
     }
 
+    /**
+     * Sets the settings for filtering out terms.
+     */
+    public TermVectorsRequestBuilder setFilterSettings(TermVectorsRequest.FilterSettings filterSettings) {
+        request.filterSettings(filterSettings);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<TermVectorsResponse> listener) {
         client.termVectors(request, listener);

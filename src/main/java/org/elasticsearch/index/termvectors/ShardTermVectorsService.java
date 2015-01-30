@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.termvectors.TermVectorsFilter;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.termvectors.dfs.DfsOnlyRequest;
@@ -82,8 +83,10 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
 
         Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), uidTerm).version(request.version()).versionType(request.versionType()));
 
+        Fields termVectorsByField = null;
         boolean docFromTranslog = get.source() != null;
         AggregatedDfs dfs = null;
+        TermVectorsFilter termVectorsFilter = null;
 
         /* fetched from translog is treated as an artificial document */
         if (docFromTranslog) {
@@ -102,22 +105,17 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
             Versions.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
             /* from an artificial document */
             if (request.doc() != null) {
-                Fields termVectorsByField = generateTermVectorsFromDoc(request, !docFromTranslog);
+                termVectorsByField = generateTermVectorsFromDoc(request, !docFromTranslog);
                 // if no document indexed in shard, take the queried document itself for stats
                 if (topLevelFields == null) {
                     topLevelFields = termVectorsByField;
                 }
-                if (termVectorsByField != null && useDfs(request)) {
-                    dfs = getAggregatedDfs(termVectorsByField, request);
-                }
-                termVectorsResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields, dfs);
-                termVectorsResponse.setExists(true);
                 termVectorsResponse.setArtificial(!docFromTranslog);
             }
             /* or from an existing document */
             else if (docIdAndVersion != null) {
                 // fields with stored term vectors
-                Fields termVectorsByField = docIdAndVersion.context.reader().getTermVectors(docIdAndVersion.docId);
+                termVectorsByField = docIdAndVersion.context.reader().getTermVectors(docIdAndVersion.docId);
                 Set<String> selectedFields = request.selectedFields();
                 // generate tvs for fields where analyzer is overridden
                 if (selectedFields == null && request.perFieldAnalyzer() != null) {
@@ -127,14 +125,31 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
                 if (selectedFields != null) {
                     termVectorsByField = addGeneratedTermVectors(get, termVectorsByField, request, selectedFields);
                 }
-                if (termVectorsByField != null && useDfs(request)) {
+                termVectorsResponse.setDocVersion(docIdAndVersion.version);
+            }
+            /* no term vectors generated or found */
+            else {
+                termVectorsResponse.setExists(false);
+            }
+            /* if there are term vectors, optional compute dfs and/or terms filtering */
+            if (termVectorsByField != null) {
+                if (useDfs(request)) {
                     dfs = getAggregatedDfs(termVectorsByField, request);
                 }
-                termVectorsResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields, dfs);
-                termVectorsResponse.setDocVersion(docIdAndVersion.version);
+
+                if (useTermVectorsFilter(request)) {
+                    termVectorsFilter = new TermVectorsFilter(termVectorsByField, topLevelFields, request.selectedFields(), dfs);
+                    termVectorsFilter.setSettings(request.filterSettings());
+                    try {
+                        termVectorsFilter.selectBestTerms();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                // write term vectors
+                termVectorsResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields, dfs, termVectorsFilter);
                 termVectorsResponse.setExists(true);
-            } else {
-                termVectorsResponse.setExists(false);
             }
         } catch (Throwable ex) {
             throw new ElasticsearchException("failed to execute term vector request", ex);
@@ -330,6 +345,10 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
 
     private boolean useDfs(TermVectorsRequest request) {
         return request.dfs() && (request.fieldStatistics() || request.termStatistics());
+    }
+
+    private boolean useTermVectorsFilter(TermVectorsRequest request) {
+        return request.filterSettings() != null && request.fieldStatistics() && request.termStatistics();
     }
 
     private AggregatedDfs getAggregatedDfs(Fields termVectorsFields, TermVectorsRequest request) throws IOException {

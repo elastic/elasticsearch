@@ -254,6 +254,14 @@ public abstract class StreamInput extends InputStream {
         return null;
     }
 
+    @Nullable
+    public Integer readOptionalVInt() throws IOException {
+        if (readBoolean()) {
+            return readVInt();
+        }
+        return null;
+    }
+
     private final CharsRefBuilder spare = new CharsRefBuilder();
 
     public String readString() throws IOException {

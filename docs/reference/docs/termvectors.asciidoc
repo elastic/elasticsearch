@@ -86,6 +86,40 @@ or the field statistics of the entire index, and not just at the shard. Use it
 with caution as distributed frequencies can have a serious performance impact.
 
 [float]
+==== Terms Filtering coming[2.0]
+
+With the parameter `filter`, the terms returned could also be filtered based
+on their tf-idf scores. This could be useful in order find out a good
+characteristic vector of a document. This feature works in a similar manner to
+the <<mlt-query-term-selection,second phase>> of the
+<<query-dsl-mlt-query,More Like This Query>>. See <<docs-termvectors-terms-filtering,example 5>>
+for usage.
+
+[NOTE]
+====
+In order to compute the score of each term `term_statistics` and
+`field_statistics` must be set to `true`.
+====
+
+The following sub-parameters are supported:
+
+[horizontal]
+`max_num_terms`::
+  Maximum number of terms that must be returned per field. Defaults to `25`.
+`min_term_freq`::
+  Ignore words with less than this frequency in the source doc. Defaults to `1`.
+`max_term_freq`::
+  Ignore words with more than this frequency in the source doc. Defaults to unbounded.
+`min_doc_freq`::
+  Ignore terms which do not occur in at least this many docs. Defaults to `1`.
+`max_doc_freq`::
+  Ignore words which occur in more than this many docs. Defaults to unbounded.
+`min_word_length`::
+  The minimum word length below which words will be ignored. Defaults to `0`.
+`max_word_length`::
+  The maximum word length above which words will be ignored. Defaults to unbounded (`0`).
+
+[float]
 === Behaviour
 
 The term and field statistics are not accurate. Deleted documents
@@ -335,5 +369,77 @@ Response:
        }
     }
   }
+}
+--------------------------------------------------
+
+[float]
+[[docs-termvectors-terms-filtering]]
+=== Example 5
+
+Finally, the terms returned could be filtered based on their tf-idf scores. In
+the example below we obtain the three most "interesting" keywords from the
+artificial document having the given "plot" field value. Additionally, we are
+asking for distributed frequencies to obtain more accurate results. Notice
+that the keyword "Tony" or any stop words are not part of the response, as
+their tf-idf must be too low.
+
+[source,js]
+--------------------------------------------------
+GET /imdb/movies/_termvectors
+{
+    "doc": {
+      "plot": "When wealthy industrialist Tony Stark is forced to build an armored suit after a life-threatening incident, he ultimately decides to use its technology to fight against evil."
+    },
+    "term_statistics" : true,
+    "field_statistics" : true,
+    "dfs": true,
+    "positions": false,
+    "offsets": false,
+    "filter" : {
+      "max_num_terms" : 3,
+      "min_term_freq" : 1,
+      "min_doc_freq" : 1
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+   "_index": "imdb",
+   "_type": "movies",
+   "_version": 0,
+   "found": true,
+   "term_vectors": {
+      "plot": {
+         "field_statistics": {
+            "sum_doc_freq": 3384269,
+            "doc_count": 176214,
+            "sum_ttf": 3753460
+         },
+         "terms": {
+            "armored": {
+               "doc_freq": 27,
+               "ttf": 27,
+               "term_freq": 1,
+               "score": 9.74725
+            },
+            "industrialist": {
+               "doc_freq": 88,
+               "ttf": 88,
+               "term_freq": 1,
+               "score": 8.590818
+            },
+            "stark": {
+               "doc_freq": 44,
+               "ttf": 47,
+               "term_freq": 1,
+               "score": 9.272792
+            }
+         }
+      }
+   }
 }
 --------------------------------------------------

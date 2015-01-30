@@ -22,6 +22,7 @@ package org.elasticsearch.action.termvectors;
 import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.apache.lucene.index.*;
+import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.util.*;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
@@ -40,7 +41,7 @@ import static org.apache.lucene.util.ArrayUtil.grow;
  * <tt>-1,</tt>, if no positions were returned by the {@link TermVectorsRequest}.
  * <p/>
  * The data is stored in two byte arrays ({@code headerRef} and
- * {@code termVectors}, both {@link ByteRef}) that have the following format:
+ * {@code termVectors}, both {@link BytesRef}) that have the following format:
  * <p/>
  * {@code headerRef}: Stores offsets per field in the {@code termVectors} array
  * and some header information as {@link BytesRef}. Format is
@@ -113,6 +114,7 @@ public final class TermVectorsFields extends Fields {
     private final BytesReference termVectors;
     final boolean hasTermStatistic;
     final boolean hasFieldStatistic;
+    public final boolean hasScores;
 
     /**
      * @param headerRef   Stores offsets per field in the {@code termVectors} and some
@@ -130,6 +132,7 @@ public final class TermVectorsFields extends Fields {
         assert version == -1;
         hasTermStatistic = header.readBoolean();
         hasFieldStatistic = header.readBoolean();
+        hasScores = header.readBoolean();
         final int numFields = header.readVInt();
         for (int i = 0; i < numFields; i++) {
             fieldMap.put((header.readString()), header.readVLong());
@@ -226,6 +229,7 @@ public final class TermVectorsFields extends Fields {
                 int[] endOffsets = new int[1];
                 BytesRefBuilder[] payloads = new BytesRefBuilder[1];
                 final BytesRefBuilder spare = new BytesRefBuilder();
+                BoostAttribute boostAtt = this.attributes().addAttribute(BoostAttribute.class);
 
                 @Override
                 public BytesRef next() throws IOException {
@@ -250,6 +254,11 @@ public final class TermVectorsFields extends Fields {
                         // currentPosition etc. so that we can just iterate
                         // later
                         writeInfos(perFieldTermVectorInput);
+
+                        // read the score if available
+                        if (hasScores) {
+                            boostAtt.setBoost(perFieldTermVectorInput.readFloat());
+                        }
                         return spare.get();
 
                     } else {
@@ -487,5 +496,4 @@ public final class TermVectorsFields extends Fields {
     long readPotentiallyNegativeVLong(BytesStreamInput stream) throws IOException {
         return stream.readVLong() - 1;
     }
-
 }

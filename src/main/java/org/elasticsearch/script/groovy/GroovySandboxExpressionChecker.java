@@ -21,10 +21,7 @@ package org.elasticsearch.script.groovy;
 
 import com.google.common.collect.ImmutableSet;
 import org.codehaus.groovy.ast.ClassNode;
-import org.codehaus.groovy.ast.expr.ConstructorCallExpression;
-import org.codehaus.groovy.ast.expr.Expression;
-import org.codehaus.groovy.ast.expr.GStringExpression;
-import org.codehaus.groovy.ast.expr.MethodCallExpression;
+import org.codehaus.groovy.ast.expr.*;
 import org.codehaus.groovy.control.customizers.SecureASTCustomizer;
 import org.elasticsearch.common.settings.Settings;
 
@@ -68,6 +65,7 @@ public class GroovySandboxExpressionChecker implements SecureASTCustomizer.Expre
             "wait",
             "notify",
             "notifyAll",
+            "invokeMethod",
             "finalize"
     };
 
@@ -119,7 +117,9 @@ public class GroovySandboxExpressionChecker implements SecureASTCustomizer.Expre
      */
     @Override
     public boolean isAuthorized(Expression expression) {
-        if (expression instanceof MethodCallExpression) {
+        if (expression instanceof MethodPointerExpression) {
+            return false;
+        } else if (expression instanceof MethodCallExpression) {
             MethodCallExpression mce = (MethodCallExpression) expression;
             String methodName = mce.getMethodAsString();
             if (methodBlacklist.contains(methodName)) {

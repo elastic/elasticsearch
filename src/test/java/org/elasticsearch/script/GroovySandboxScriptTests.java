@@ -90,6 +90,12 @@ public class GroovySandboxScriptTests extends ElasticsearchIntegrationTest {
 
         testFailure("def methodName = 'ex'; Runtime.\\\"${'get' + 'Runtime'}\\\"().\\\"${methodName}ec\\\"(\\\"touch /tmp/gotcha2\\\")",
                 "Expression [MethodCallExpression] is not allowed: java.lang.Runtime.$(get + Runtime)().$methodNameec(touch /tmp/gotcha2)");
+
+        testFailure("def c = [doc['foo'].value, 3, 4].&size;  c()",
+                "Expression [MethodPointerExpression] is not allowed");
+
+        testFailure("[doc['foo'].value, 3, 4].invokeMethod([1,2],\\\"size\\\", new Object[0])",
+                "Expression [MethodCallExpression] is not allowed: [doc[foo].value, 3, 4].invokeMethod([1, 2], size, [])");
     }
 
     @Test

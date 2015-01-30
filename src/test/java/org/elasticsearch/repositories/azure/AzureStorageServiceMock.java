@@ -100,6 +100,17 @@ public class AzureStorageServiceMock extends AbstractLifecycleComponent<AzureSto
     }
 
     @Override
+    public void moveBlob(String container, String sourceBlob, String targetBlob) throws URISyntaxException, StorageException {
+        for (String blobName : blobs.keySet()) {
+            if (endsWithIgnoreCase(blobName, sourceBlob)) {
+                ByteArrayOutputStream outputStream = blobs.get(blobName);
+                blobs.put(blobName.replace(sourceBlob, targetBlob), outputStream);
+                blobs.remove(blobName);
+            }
+        }
+    }
+
+    @Override
     protected void doStart() throws ElasticsearchException {
     }
 
@@ -131,6 +142,29 @@ public class AzureStorageServiceMock extends AbstractLifecycleComponent<AzureSto
         }
         String lcStr = str.substring(0, prefix.length()).toLowerCase(Locale.ROOT);
         String lcPrefix = prefix.toLowerCase(Locale.ROOT);
+        return lcStr.equals(lcPrefix);
+    }
+
+    /**
+     * Test if the given String ends with the specified suffix,
+     * ignoring upper/lower case.
+     *
+     * @param str    the String to check
+     * @param suffix the suffix to look for
+     * @see java.lang.String#startsWith
+     */
+    public static boolean endsWithIgnoreCase(String str, String suffix) {
+        if (str == null || suffix == null) {
+            return false;
+        }
+        if (str.endsWith(suffix)) {
+            return true;
+        }
+        if (str.length() < suffix.length()) {
+            return false;
+        }
+        String lcStr = str.substring(0, suffix.length()).toLowerCase(Locale.ROOT);
+        String lcPrefix = suffix.toLowerCase(Locale.ROOT);
         return lcStr.equals(lcPrefix);
     }
 }

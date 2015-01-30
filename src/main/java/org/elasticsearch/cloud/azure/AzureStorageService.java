@@ -59,4 +59,6 @@ public interface AzureStorageService {
     OutputStream getOutputStream(String container, String blob) throws URISyntaxException, StorageException;
 
     ImmutableMap<String,BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix) throws URISyntaxException, StorageException, ServiceException;
+
+    void moveBlob(String container, String sourceBlob, String targetBlob) throws URISyntaxException, StorageException;
 }

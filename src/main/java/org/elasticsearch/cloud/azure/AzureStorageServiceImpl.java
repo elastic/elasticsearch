@@ -215,6 +215,19 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
     }
 
     @Override
+    public void moveBlob(String container, String sourceBlob, String targetBlob) throws URISyntaxException, StorageException {
+        logger.debug("moveBlob container [{}], sourceBlob [{}], targetBlob [{}]", container, sourceBlob, targetBlob);
+        CloudBlobContainer blob_container = client.getContainerReference(container);
+        CloudBlockBlob blobSource = blob_container.getBlockBlobReference(sourceBlob);
+        if (blobSource.exists()) {
+            CloudBlockBlob blobTarget = blob_container.getBlockBlobReference(targetBlob);
+            blobTarget.copyFromBlob(blobSource);
+            blobSource.delete();
+            logger.debug("moveBlob container [{}], sourceBlob [{}], targetBlob [{}] -> done", container, sourceBlob, targetBlob);
+        }
+    }
+
+    @Override
     protected void doStart() throws ElasticsearchException {
         logger.debug("starting azure storage client instance");
     }

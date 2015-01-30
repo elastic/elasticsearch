@@ -42,12 +42,11 @@ For the beta version, simply run:
 When looking for `light` or `hadoop2` artifacts use:
 `bin/plugin -i elasticsearch/elasticsearch-repository-hdfs/2.1.0.Beta3-<classifier>`
 
-### Development snashot
+### Development Snapshot
 To install the latest snapshot, please install the plugin manually using:
 `bin/plugin -u <url-path-to-plugin.zip> -i elasticsearch-repository-hdfs-2.1.0-BUILD-SNAPSHOT`
 
-### Development Snapshot
-Grab the latest nightly build from the [repository](http://oss.sonatype.org/content/repositories/snapshots/org/elasticsearch/elasticsearch-repository-hdfs/) again through Maven:
+Or grab the latest nightly build from the [repository](http://oss.sonatype.org/content/repositories/snapshots/org/elasticsearch/elasticsearch-repository-hdfs/) again through Maven:
 
 ```xml
 <dependency>

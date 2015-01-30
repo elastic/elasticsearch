@@ -176,6 +176,7 @@ public class RecoveriesCollection {
          */
         public StatusRef(RecoveryStatus status) {
             this.status = status;
+            this.status.setLastAccessTime();
         }
 
         @Override

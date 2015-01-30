@@ -1719,50 +1719,20 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     }
 
     private static final class InternalLock implements Releasable {
-        private final ThreadLocal<AtomicInteger> lockIsHeld;
         private final Lock lock;
 
         InternalLock(Lock lock) {
-            ThreadLocal<AtomicInteger> tl = null;
-            assert (tl = new ThreadLocal<>()) != null;
-            lockIsHeld = tl;
             this.lock = lock;
         }
 
         @Override
         public void close() {
             lock.unlock();
-            assert onAssertRelease();
         }
 
         InternalLock acquire() throws EngineException {
             lock.lock();
-            assert onAssertLock();
             return this;
-        }
-
-
-        protected boolean onAssertRelease() {
-            AtomicInteger count = lockIsHeld.get();
-            if (count.decrementAndGet() == 0) {
-                lockIsHeld.remove();
-            }
-            return true;
-        }
-
-        protected boolean onAssertLock() {
-            AtomicInteger count = lockIsHeld.get();
-            if (count == null) {
-                count = new AtomicInteger(0);
-                lockIsHeld.set(count);
-            }
-            count.incrementAndGet();
-            return true;
-        }
-
-        boolean assertLockIsHeld() {
-            AtomicInteger count = lockIsHeld.get();
-            return count != null && count.get() > 0;
         }
     }
 

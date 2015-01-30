@@ -160,8 +160,8 @@ public class SimpleQueryStringTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, "1");
 
-        searchResponse = client().prepareSearch().setQuery(
-                simpleQueryStringQuery("foo bar baz").field("type1.body")).get();
+        searchResponse = client().prepareSearch().setTypes("type1").setQuery(
+                simpleQueryStringQuery("foo bar baz").field("body")).get();
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, "1");
 
@@ -170,8 +170,8 @@ public class SimpleQueryStringTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, "1");
 
-        searchResponse = client().prepareSearch().setQuery(
-                simpleQueryStringQuery("foo bar baz").field("type1.body.sub")).get();
+        searchResponse = client().prepareSearch().setTypes("type1").setQuery(
+                simpleQueryStringQuery("foo bar baz").field("body.sub")).get();
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, "1");
     }

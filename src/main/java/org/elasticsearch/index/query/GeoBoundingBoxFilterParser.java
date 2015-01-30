@@ -36,8 +36,6 @@ import org.elasticsearch.index.search.geo.IndexedGeoBoundingBoxFilter;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
-
 /**
  *
  */
@@ -192,7 +190,6 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
         if (cache != null) {
             filter = parseContext.cacheFilter(filter, cacheKey, cache);
         }
-        filter = wrapSmartNameFilter(filter, smartMappers, parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

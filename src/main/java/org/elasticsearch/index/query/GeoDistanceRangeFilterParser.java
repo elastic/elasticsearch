@@ -37,8 +37,6 @@ import org.elasticsearch.index.search.geo.GeoDistanceRangeFilter;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
-
 /**
  * <pre>
  * {
@@ -211,7 +209,6 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
         if (cache != null) {
             filter = parseContext.cacheFilter(filter, cacheKey, cache);
         }
-        filter = wrapSmartNameFilter(filter, smartMappers, parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

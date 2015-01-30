@@ -33,8 +33,6 @@ import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
-
 /**
  * <pre>
  * {
@@ -154,10 +152,9 @@ public class FuzzyLikeThisFieldQueryParser implements QueryParser {
         }
         assert token == XContentParser.Token.END_OBJECT;
 
-        Query query = wrapSmartNameQuery(fuzzyLikeThisQuery, smartNameFieldMappers, parseContext);
         if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
+            parseContext.addNamedQuery(queryName, fuzzyLikeThisQuery);
         }
-        return query;
+        return fuzzyLikeThisQuery;
     }
 }

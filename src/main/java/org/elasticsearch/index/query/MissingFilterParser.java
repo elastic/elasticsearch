@@ -36,8 +36,6 @@ import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
-
 /**
  *
  */
@@ -185,7 +183,6 @@ public class MissingFilterParser implements FilterParser {
             return null;
         }
 
-        filter = wrapSmartNameFilter(filter, nonNullFieldMappers, parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, existenceFilter);
         }

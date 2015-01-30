@@ -35,7 +35,6 @@ import java.util.List;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
 
 /**
  * <pre>
@@ -114,32 +113,24 @@ public class TermsQueryParser implements QueryParser {
         String[] previousTypes = null;
         if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
             mapper = smartNameFieldMappers.mapper();
-            if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
-                previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
-            }
         }
 
-        try {
-            BooleanQuery booleanQuery = new BooleanQuery(disableCoord);
-            for (Object value : values) {
-                if (mapper != null) {
-                    booleanQuery.add(new BooleanClause(mapper.termQuery(value, parseContext), BooleanClause.Occur.SHOULD));
-                } else {
-                    booleanQuery.add(new TermQuery(new Term(fieldName, BytesRefs.toString(value))), BooleanClause.Occur.SHOULD);
-                }
-            }
-            booleanQuery.setBoost(boost);
-            Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
-            Query query = wrapSmartNameQuery(fixNegativeQueryIfNeeded(booleanQuery), smartNameFieldMappers, parseContext);
-            if (queryName != null) {
-                parseContext.addNamedQuery(queryName, query);
-            }
-            return query;
-        } finally {
-            if (smartNameFieldMappers != null && smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
-                QueryParseContext.setTypes(previousTypes);
+
+        BooleanQuery booleanQuery = new BooleanQuery(disableCoord);
+        for (Object value : values) {
+            if (mapper != null) {
+                booleanQuery.add(new BooleanClause(mapper.termQuery(value, parseContext), BooleanClause.Occur.SHOULD));
+            } else {
+                booleanQuery.add(new TermQuery(new Term(fieldName, BytesRefs.toString(value))), BooleanClause.Occur.SHOULD);
             }
         }
+        booleanQuery.setBoost(boost);
+        Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
+        Query query = fixNegativeQueryIfNeeded(booleanQuery);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
+        return query;
     }
 }
 

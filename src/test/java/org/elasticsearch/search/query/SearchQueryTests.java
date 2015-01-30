@@ -1492,14 +1492,10 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 .setQuery(spanOrQuery().clause(spanTermQuery("description", "bar"))).get();
         assertHitCount(searchResponse, 1l);
 
-        searchResponse = client().prepareSearch("test")
-                .setQuery(spanOrQuery().clause(spanTermQuery("test.description", "bar"))).get();
-        assertHitCount(searchResponse, 1l);
-
         searchResponse = client().prepareSearch("test").setQuery(
                 spanNearQuery()
                         .clause(spanTermQuery("description", "foo"))
-                        .clause(spanTermQuery("test.description", "other"))
+                        .clause(spanTermQuery("description", "other"))
                         .slop(3)).get();
         assertHitCount(searchResponse, 3l);
     }
@@ -2097,19 +2093,19 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
             assertHitCount(searchResponse, 2);
         }
         {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("\"one two\"").field("product.desc")).get();
+            SearchResponse searchResponse = client().prepareSearch("test").setTypes("product").setQuery(QueryBuilders.queryStringQuery("\"one two\"").field("desc")).get();
             assertHitCount(searchResponse, 1);
         }
         {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("\"one three\"~5").field("product.desc")).get();
+            SearchResponse searchResponse = client().prepareSearch("test").setTypes("product").setQuery(QueryBuilders.queryStringQuery("\"one three\"~5").field("desc")).get();
             assertHitCount(searchResponse, 1);
         }
         {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("\"one two\"").defaultField("customer.desc")).get();
+            SearchResponse searchResponse = client().prepareSearch("test").setTypes("customer").setQuery(QueryBuilders.queryStringQuery("\"one two\"").defaultField("desc")).get();
             assertHitCount(searchResponse, 1);
         }
         {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("\"one two\"").defaultField("customer.desc")).get();
+            SearchResponse searchResponse = client().prepareSearch("test").setTypes("customer").setQuery(QueryBuilders.queryStringQuery("\"one two\"").defaultField("desc")).get();
             assertHitCount(searchResponse, 1);
         }
     }

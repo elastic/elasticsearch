@@ -61,7 +61,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         // check on no data, see it works
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(termQuery("_all", "n_value1_1")).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
-        searchResponse = client().prepareSearch("test").setQuery(termQuery("nested1.n_field1", "n_value1_1")).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1")).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
@@ -91,21 +91,21 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         // check that _all is working on nested docs
         searchResponse = client().prepareSearch("test").setQuery(termQuery("_all", "n_value1_1")).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-        searchResponse = client().prepareSearch("test").setQuery(termQuery("nested1.n_field1", "n_value1_1")).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1")).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
 
         // search for something that matches the nested doc, and see that we don't find the nested doc
         searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).get();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-        searchResponse = client().prepareSearch("test").setQuery(termQuery("nested1.n_field1", "n_value1_1")).get();
+        searchResponse = client().prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1")).get();
         assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
 
         // now, do a nested query
-        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).get();
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("n_field1", "n_value1_1"))).get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
-        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).get();
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("n_field1", "n_value1_1"))).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -130,19 +130,19 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertDocumentCount("test", 6);
 
         searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1",
-                boolQuery().must(termQuery("nested1.n_field1", "n_value1_1")).must(termQuery("nested1.n_field2", "n_value2_1")))).execute().actionGet();
+                boolQuery().must(termQuery("n_field1", "n_value1_1")).must(termQuery("n_field2", "n_value2_1")))).execute().actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         // filter
         searchResponse = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), nestedFilter("nested1",
-                boolQuery().must(termQuery("nested1.n_field1", "n_value1_1")).must(termQuery("nested1.n_field2", "n_value2_1"))))).execute().actionGet();
+                boolQuery().must(termQuery("n_field1", "n_value1_1")).must(termQuery("n_field2", "n_value2_1"))))).execute().actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         // check with type prefix
-        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("type1.nested1",
-                boolQuery().must(termQuery("nested1.n_field1", "n_value1_1")).must(termQuery("nested1.n_field2", "n_value2_1")))).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1",
+                boolQuery().must(termQuery("n_field1", "n_value1_1")).must(termQuery("n_field2", "n_value2_1")))).execute().actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -154,11 +154,11 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         flush();
         assertDocumentCount("test", 3);
 
-        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("n_field1", "n_value1_1"))).execute().actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
-        searchResponse = client().prepareSearch("test").setTypes("type1", "type2").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setTypes("type1", "type2").setQuery(nestedQuery("nested1", termQuery("n_field1", "n_value1_1"))).execute().actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }

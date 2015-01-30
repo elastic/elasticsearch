@@ -36,8 +36,6 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
-
 /**
  *
  */
@@ -176,7 +174,6 @@ public class RangeFilterParser implements FilterParser {
             filter = parseContext.cacheFilter(filter, cacheKey, cache);
         }
 
-        filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

@@ -31,8 +31,6 @@ import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
-
 /**
  *
  */
@@ -111,16 +109,7 @@ public class TermFilterParser implements FilterParser {
         Filter filter = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
-            if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
-                String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
-                try {
-                    filter = smartNameFieldMappers.mapper().termFilter(value, parseContext);
-                } finally {
-                    QueryParseContext.setTypes(previousTypes);
-                }
-            } else {
-                filter = smartNameFieldMappers.mapper().termFilter(value, parseContext);
-            }
+            filter = smartNameFieldMappers.mapper().termFilter(value, parseContext);
         }
         if (filter == null) {
             filter = new TermFilter(new Term(fieldName, BytesRefs.toBytesRef(value)));
@@ -130,7 +119,6 @@ public class TermFilterParser implements FilterParser {
             filter = parseContext.cacheFilter(filter, cacheKey, cache);
         }
 
-        filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

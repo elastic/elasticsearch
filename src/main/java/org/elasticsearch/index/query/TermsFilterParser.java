@@ -47,8 +47,6 @@ import org.elasticsearch.indices.cache.filter.terms.TermsLookup;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
-
 /**
  *
  */
@@ -168,15 +166,10 @@ public class TermsFilterParser implements FilterParser {
 
         FieldMapper<?> fieldMapper = null;
         smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        String[] previousTypes = null;
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
                 fieldMapper = smartNameFieldMappers.mapper();
                 fieldName = fieldMapper.names().indexName();
-            }
-            // if we have a doc mapper, its explicit type, mark it
-            if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
-                previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
             }
         }
 
@@ -192,8 +185,7 @@ public class TermsFilterParser implements FilterParser {
         if (terms.isEmpty()) {
             return Queries.MATCH_NO_FILTER;
         }
-
-        try {
+        
             Filter filter;
             if (EXECUTION_VALUE_PLAIN.equals(execution)) {
                 if (fieldMapper != null) {
@@ -211,7 +203,7 @@ public class TermsFilterParser implements FilterParser {
                 if (fieldMapper == null) {
                     return Queries.MATCH_NO_FILTER;
                 }
-
+    
                 filter = fieldMapper.fieldDataTermsFilter(terms, parseContext);
             } else if (EXECUTION_VALUE_BOOL.equals(execution)) {
                 XBooleanFilter boolFiler = new XBooleanFilter();
@@ -288,20 +280,14 @@ public class TermsFilterParser implements FilterParser {
             } else {
                 throw new QueryParsingException(parseContext.index(), "terms filter execution value [" + execution + "] not supported");
             }
-
+    
             if (cache != null) {
                 filter = parseContext.cacheFilter(filter, cacheKey, cache);
             }
-
-            filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
+    
             if (filterName != null) {
                 parseContext.addNamedFilter(filterName, filter);
             }
             return filter;
-        } finally {
-            if (smartNameFieldMappers != null && smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
-                QueryParseContext.setTypes(previousTypes);
-            }
-        }
     }
 }

@@ -825,14 +825,11 @@ public class CountQueryTests extends ElasticsearchIntegrationTest {
         CountResponse response = client().prepareCount("test")
                 .setQuery(QueryBuilders.spanOrQuery().clause(QueryBuilders.spanTermQuery("description", "bar"))).get();
         assertHitCount(response, 1l);
-        response = client().prepareCount("test")
-                .setQuery(QueryBuilders.spanOrQuery().clause(QueryBuilders.spanTermQuery("test.description", "bar"))).get();
-        assertHitCount(response, 1l);
 
         response = client().prepareCount("test").setQuery(
                 QueryBuilders.spanNearQuery()
                         .clause(QueryBuilders.spanTermQuery("description", "foo"))
-                        .clause(QueryBuilders.spanTermQuery("test.description", "other"))
+                        .clause(QueryBuilders.spanTermQuery("description", "other"))
                         .slop(3)).get();
         assertHitCount(response, 3l);
     }

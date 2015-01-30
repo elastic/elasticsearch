@@ -32,8 +32,6 @@ import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
-
 /**
  *
  */
@@ -116,16 +114,7 @@ public class RegexpFilterParser implements FilterParser {
 
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
-            if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
-                String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
-                try {
-                    filter = smartNameFieldMappers.mapper().regexpFilter(value, flagsValue, maxDeterminizedStates, parseContext);
-                } finally {
-                    QueryParseContext.setTypes(previousTypes);
-                }
-            } else {
-                filter = smartNameFieldMappers.mapper().regexpFilter(value, flagsValue, maxDeterminizedStates, parseContext);
-            }
+            filter = smartNameFieldMappers.mapper().regexpFilter(value, flagsValue, maxDeterminizedStates, parseContext);
         }
         if (filter == null) {
             filter = new RegexpFilter(new Term(fieldName, BytesRefs.toBytesRef(value)), flagsValue, maxDeterminizedStates);
@@ -135,7 +124,6 @@ public class RegexpFilterParser implements FilterParser {
             filter = parseContext.cacheFilter(filter, cacheKey, cache);
         }
 
-        filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

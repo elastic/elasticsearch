@@ -35,8 +35,6 @@ import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
-
 /**
  *
  */
@@ -129,7 +127,6 @@ public class ExistsFilterParser implements FilterParser {
         // its ok to cache under the fieldName cacheKey, since its per segment and the mapping applies to this data on this segment...
         Filter filter = parseContext.cacheFilter(boolFilter, new HashedBytesRef("$exists$" + fieldPattern), parseContext.autoFilterCachePolicy());
 
-        filter = wrapSmartNameFilter(filter, nonNullFieldMappers, parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

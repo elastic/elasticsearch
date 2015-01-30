@@ -29,8 +29,6 @@ import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
-
 /**
  *
  */
@@ -94,22 +92,12 @@ public class TermQueryParser implements QueryParser {
         Query query = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
-            if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
-                String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
-                try {
-                    query = smartNameFieldMappers.mapper().termQuery(value, parseContext);
-                } finally {
-                    QueryParseContext.setTypes(previousTypes);
-                }
-            } else {
-                query = smartNameFieldMappers.mapper().termQuery(value, parseContext);
-            }
+            query = smartNameFieldMappers.mapper().termQuery(value, parseContext);
         }
         if (query == null) {
             query = new TermQuery(new Term(fieldName, BytesRefs.toBytesRef(value)));
         }
         query.setBoost(boost);
-        query = wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }

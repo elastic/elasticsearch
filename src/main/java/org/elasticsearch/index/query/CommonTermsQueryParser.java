@@ -36,8 +36,6 @@ import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
-
 /**
  *
  */
@@ -224,6 +222,6 @@ public class CommonTermsQueryParser implements QueryParser {
         }
         query.setLowFreqMinimumNumberShouldMatch(lowFreqMinimumShouldMatch);
         query.setHighFreqMinimumNumberShouldMatch(highFreqMinimumShouldMatch);
-        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
+        return query;
     }
 }

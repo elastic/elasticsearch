@@ -145,5 +145,40 @@ primary shards.
 
 === Mappings
 
-The setting `index.mapping.allow_type_wrapper` has been removed.  Documents should always be sent without the type as the root element.
+* The setting `index.mapping.allow_type_wrapper` has been removed.  Documents should always be sent without the type as the root element.
+
+==== Removed type prefix on field names in queries
+Types can no longer be specified on fields within queries.  Instead, specify type restrictions in the search request.
+
+The following is an example query in 1.x over types `t1` and `t2`:
+`GET
+[source,sh]
+---------------
+curl -XGET 'localhost:9200/index/_search'
+{
+  "query": {
+    "bool": {
+      "should": [
+        {"match": { "t1.field_only_in_t1": "foo" }},
+        {"match": { "t2.field_only_in_t2": "bar" }}
+      ]
+    }
+  }
+}
+---------------
+
+In 2.0, the query should look like the following:
+---------------
+curl -XGET 'localhost:9200/index/t1,t2/_search'
+{
+  "query": {
+    "bool": {
+      "should": [
+        {"match": { "field_only_in_t1": "foo" }},
+        {"match": { "field_only_in_t2": "bar" }}
+      ]
+    }
+  }
+}
+---------------
 

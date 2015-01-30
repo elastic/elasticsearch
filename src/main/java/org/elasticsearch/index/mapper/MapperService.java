@@ -66,14 +66,9 @@ import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.script.ScriptService;
 
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.MalformedURLException;
-import java.net.URISyntaxException;
 import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -91,7 +86,6 @@ public class MapperService extends AbstractIndexComponent  {
             "_uid", "_id", "_type", "_all", "_analyzer", "_boost", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
     );
-
     private final AnalysisService analysisService;
     private final IndexFieldDataService fieldDataService;
 
@@ -605,19 +599,26 @@ public class MapperService extends AbstractIndexComponent  {
     }
 
     /**
+     * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
+     * then the fields will be returned with a type prefix.
+     */
+    public List<String> simpleMatchToIndexNames(String pattern) {
+        return simpleMatchToIndexNames(pattern, null);
+    }
+    /**
      * Returns all the fields that match the given pattern, with an optional narrowing
      * based on a list of types.
      */
     public List<String> simpleMatchToIndexNames(String pattern, @Nullable String[] types) {
-        if (types == null || types.length == 0) {
-            return simpleMatchToIndexNames(pattern);
-        }
-        if (types.length == 1 && types[0].equals("_all")) {
-            return simpleMatchToIndexNames(pattern);
-        }
-        if (!Regex.isSimpleMatchPattern(pattern)) {
+        if (Regex.isSimpleMatchPattern(pattern) == false) {
+            // no wildcards
             return ImmutableList.of(pattern);
         }
+        
+        if (types == null || types.length == 0 || types.length == 1 && types[0].equals("_all")) {
+            return fieldMappers.simpleMatchToIndexNames(pattern);
+        }
+
         List<String> fields = Lists.newArrayList();
         for (String type : types) {
             DocumentMapper possibleDocMapper = mappers.get(type);
@@ -630,35 +631,13 @@ public class MapperService extends AbstractIndexComponent  {
         return fields;
     }
 
-    /**
-     * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
-     * then the fields will be returned with a type prefix.
-     */
-    public List<String> simpleMatchToIndexNames(String pattern) {
-        if (!Regex.isSimpleMatchPattern(pattern)) {
-            return ImmutableList.of(pattern);
-        }
-        int dotIndex = pattern.indexOf('.');
-        if (dotIndex != -1) {
-            String possibleType = pattern.substring(0, dotIndex);
-            DocumentMapper possibleDocMapper = mappers.get(possibleType);
-            if (possibleDocMapper != null) {
-                List<String> typedFields = Lists.newArrayList();
-                for (String indexName : possibleDocMapper.mappers().simpleMatchToIndexNames(pattern)) {
-                    typedFields.add(possibleType + "." + indexName);
-                }
-                return typedFields;
-            }
-        }
-        return fieldMappers.simpleMatchToIndexNames(pattern);
-    }
-
     public SmartNameObjectMapper smartNameObjectMapper(String smartName, @Nullable String[] types) {
-        if (types == null || types.length == 0) {
-            return smartNameObjectMapper(smartName);
-        }
-        if (types.length == 1 && types[0].equals("_all")) {
-            return smartNameObjectMapper(smartName);
+        if (types == null || types.length == 0 || types.length == 1 && types[0].equals("_all")) {
+            ObjectMappers mappers = objectMapper(smartName);
+            if (mappers != null) {
+                return new SmartNameObjectMapper(mappers.mapper(), guessDocMapper(smartName));
+            }
+            return null;
         }
         for (String type : types) {
             DocumentMapper possibleDocMapper = mappers.get(type);
@@ -668,40 +647,6 @@ public class MapperService extends AbstractIndexComponent  {
                     return new SmartNameObjectMapper(mapper, possibleDocMapper);
                 }
             }
-        }
-        // did not find one, see if its prefixed by type
-        int dotIndex = smartName.indexOf('.');
-        if (dotIndex != -1) {
-            String possibleType = smartName.substring(0, dotIndex);
-            DocumentMapper possibleDocMapper = mappers.get(possibleType);
-            if (possibleDocMapper != null) {
-                String possiblePath = smartName.substring(dotIndex + 1);
-                ObjectMapper mapper = possibleDocMapper.objectMappers().get(possiblePath);
-                if (mapper != null) {
-                    return new SmartNameObjectMapper(mapper, possibleDocMapper);
-                }
-            }
-        }
-        // did not explicitly find one under the types provided, or prefixed by type...
-        return null;
-    }
-
-    public SmartNameObjectMapper smartNameObjectMapper(String smartName) {
-        int dotIndex = smartName.indexOf('.');
-        if (dotIndex != -1) {
-            String possibleType = smartName.substring(0, dotIndex);
-            DocumentMapper possibleDocMapper = mappers.get(possibleType);
-            if (possibleDocMapper != null) {
-                String possiblePath = smartName.substring(dotIndex + 1);
-                ObjectMapper mapper = possibleDocMapper.objectMappers().get(possiblePath);
-                if (mapper != null) {
-                    return new SmartNameObjectMapper(mapper, possibleDocMapper);
-                }
-            }
-        }
-        ObjectMappers mappers = objectMapper(smartName);
-        if (mappers != null) {
-            return new SmartNameObjectMapper(mappers.mapper(), guessDocMapper(smartName));
         }
         return null;
     }
@@ -750,21 +695,6 @@ public class MapperService extends AbstractIndexComponent  {
                 }
             }
         }
-        // did not find explicit field in the type provided, see if its prefixed with type
-        int dotIndex = smartName.indexOf('.');
-        if (dotIndex != -1) {
-            String possibleType = smartName.substring(0, dotIndex);
-            DocumentMapper possibleDocMapper = mappers.get(possibleType);
-            if (possibleDocMapper != null) {
-                String possibleName = smartName.substring(dotIndex + 1);
-                FieldMappers mappers = possibleDocMapper.mappers().smartName(possibleName);
-                if (mappers != null) {
-                    return mappers;
-                }
-            }
-        }
-        // we did not find the field mapping in any of the types, so don't go and try to find
-        // it in other types...
         return null;
     }
 
@@ -772,18 +702,6 @@ public class MapperService extends AbstractIndexComponent  {
      * Same as {@link #smartName(String)}, except it returns just the field mappers.
      */
     public FieldMappers smartNameFieldMappers(String smartName) {
-        int dotIndex = smartName.indexOf('.');
-        if (dotIndex != -1) {
-            String possibleType = smartName.substring(0, dotIndex);
-            DocumentMapper possibleDocMapper = mappers.get(possibleType);
-            if (possibleDocMapper != null) {
-                String possibleName = smartName.substring(dotIndex + 1);
-                FieldMappers mappers = possibleDocMapper.mappers().smartName(possibleName);
-                if (mappers != null) {
-                    return mappers;
-                }
-            }
-        }
         FieldMappers mappers = fullName(smartName);
         if (mappers != null) {
             return mappers;
@@ -813,21 +731,6 @@ public class MapperService extends AbstractIndexComponent  {
                 }
             }
         }
-        // did not find explicit field in the type provided, see if its prefixed with type
-        int dotIndex = smartName.indexOf('.');
-        if (dotIndex != -1) {
-            String possibleType = smartName.substring(0, dotIndex);
-            DocumentMapper possibleDocMapper = mappers.get(possibleType);
-            if (possibleDocMapper != null) {
-                String possibleName = smartName.substring(dotIndex + 1);
-                FieldMappers mappers = possibleDocMapper.mappers().smartName(possibleName);
-                if (mappers != null) {
-                    return new SmartNameFieldMappers(this, mappers, possibleDocMapper, true);
-                }
-            }
-        }
-        // we did not find the field mapping in any of the types, so don't go and try to find
-        // it in other types...
         return null;
     }
 
@@ -844,18 +747,6 @@ public class MapperService extends AbstractIndexComponent  {
      * <p>If nothing is found, returns null.
      */
     public SmartNameFieldMappers smartName(String smartName) {
-        int dotIndex = smartName.indexOf('.');
-        if (dotIndex != -1) {
-            String possibleType = smartName.substring(0, dotIndex);
-            DocumentMapper possibleDocMapper = mappers.get(possibleType);
-            if (possibleDocMapper != null) {
-                String possibleName = smartName.substring(dotIndex + 1);
-                FieldMappers mappers = possibleDocMapper.mappers().smartName(possibleName);
-                if (mappers != null) {
-                    return new SmartNameFieldMappers(this, mappers, possibleDocMapper, true);
-                }
-            }
-        }
         FieldMappers fieldMappers = fullName(smartName);
         if (fieldMappers != null) {
             return new SmartNameFieldMappers(this, fieldMappers, null, false);
@@ -942,7 +833,7 @@ public class MapperService extends AbstractIndexComponent  {
     public static boolean isMetadataField(String fieldName) {
         return META_FIELDS.contains(fieldName);
     }
-
+    
     public static class SmartNameObjectMapper {
         private final ObjectMapper mapper;
         private final DocumentMapper docMapper;
@@ -973,13 +864,11 @@ public class MapperService extends AbstractIndexComponent  {
         private final MapperService mapperService;
         private final FieldMappers fieldMappers;
         private final DocumentMapper docMapper;
-        private final boolean explicitTypeInName;
 
         public SmartNameFieldMappers(MapperService mapperService, FieldMappers fieldMappers, @Nullable DocumentMapper docMapper, boolean explicitTypeInName) {
             this.mapperService = mapperService;
             this.fieldMappers = fieldMappers;
             this.docMapper = docMapper;
-            this.explicitTypeInName = explicitTypeInName;
         }
 
         /**
@@ -1020,17 +909,6 @@ public class MapperService extends AbstractIndexComponent  {
         }
 
         /**
-         * Returns <tt>true</tt> if the type is explicitly specified in the name.
-         */
-        public boolean explicitTypeInName() {
-            return this.explicitTypeInName;
-        }
-
-        public boolean explicitTypeInNameWithDocMapper() {
-            return explicitTypeInName && docMapper != null;
-        }
-
-        /**
          * The best effort search analyzer associated with this field.
          */
         public Analyzer searchAnalyzer() {
@@ -1065,14 +943,6 @@ public class MapperService extends AbstractIndexComponent  {
 
         @Override
         protected Analyzer getWrappedAnalyzer(String fieldName) {
-            int dotIndex = fieldName.indexOf('.');
-            if (dotIndex != -1) {
-                String possibleType = fieldName.substring(0, dotIndex);
-                DocumentMapper possibleDocMapper = mappers.get(possibleType);
-                if (possibleDocMapper != null) {
-                    return possibleDocMapper.mappers().searchAnalyzer();
-                }
-            }
             FieldMappers mappers = fieldMappers.fullName(fieldName);
             if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
                 return mappers.mapper().searchAnalyzer();
@@ -1097,14 +967,6 @@ public class MapperService extends AbstractIndexComponent  {
 
         @Override
         protected Analyzer getWrappedAnalyzer(String fieldName) {
-            int dotIndex = fieldName.indexOf('.');
-            if (dotIndex != -1) {
-                String possibleType = fieldName.substring(0, dotIndex);
-                DocumentMapper possibleDocMapper = mappers.get(possibleType);
-                if (possibleDocMapper != null) {
-                    return possibleDocMapper.mappers().searchQuoteAnalyzer();
-                }
-            }
             FieldMappers mappers = fieldMappers.fullName(fieldName);
             if (mappers != null && mappers.mapper() != null && mappers.mapper().searchQuoteAnalyzer() != null) {
                 return mappers.mapper().searchQuoteAnalyzer();

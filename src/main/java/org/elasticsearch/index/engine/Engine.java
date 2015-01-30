@@ -211,67 +211,6 @@ public interface Engine extends Closeable {
         COMMIT_TRANSLOG
     }
 
-    static class Optimize {
-        private boolean waitForMerge = true;
-        private int maxNumSegments = -1;
-        private boolean onlyExpungeDeletes = false;
-        private boolean flush = false;
-        private boolean upgrade = false;
-
-        public Optimize() {
-        }
-
-        public boolean waitForMerge() {
-            return waitForMerge;
-        }
-
-        public Optimize waitForMerge(boolean waitForMerge) {
-            this.waitForMerge = waitForMerge;
-            return this;
-        }
-
-        public int maxNumSegments() {
-            return maxNumSegments;
-        }
-
-        public Optimize maxNumSegments(int maxNumSegments) {
-            this.maxNumSegments = maxNumSegments;
-            return this;
-        }
-
-        public boolean onlyExpungeDeletes() {
-            return onlyExpungeDeletes;
-        }
-
-        public Optimize onlyExpungeDeletes(boolean onlyExpungeDeletes) {
-            this.onlyExpungeDeletes = onlyExpungeDeletes;
-            return this;
-        }
-
-        public boolean flush() {
-            return flush;
-        }
-
-        public Optimize flush(boolean flush) {
-            this.flush = flush;
-            return this;
-        }
-
-        public boolean upgrade() {
-            return upgrade;
-        }
-
-        public Optimize upgrade(boolean upgrade) {
-            this.upgrade = upgrade;
-            return this;
-        }
-
-        @Override
-        public String toString() {
-            return "waitForMerge[" + waitForMerge + "], maxNumSegments[" + maxNumSegments + "], onlyExpungeDeletes[" + onlyExpungeDeletes + "], flush[" + flush + "], upgrade[" + upgrade + "]";
-        }
-    }
-
     static interface Operation {
         static enum Type {
             CREATE,

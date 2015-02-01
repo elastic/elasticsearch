@@ -289,7 +289,7 @@
         <dependency>
             <groupId>org.codehaus.groovy</groupId>
             <artifactId>groovy-all</artifactId>
-            <version>2.3.2</version>
+            <version>2.4.0</version>
             <classifier>indy</classifier>
             <scope>compile</scope>
             <optional>true</optional>

@@ -10,7 +10,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.AlertUtils;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
+import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -19,7 +20,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
@@ -29,12 +29,12 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class TriggerService extends AbstractComponent {
 
-    private final Client client;
-    private final ScriptService scriptService;
+    private final ClientProxy client;
+    private final ScriptServiceProxy scriptService;
     private volatile ImmutableOpenMap<String, TriggerFactory> triggersImplemented;
 
     @Inject
-    public TriggerService(Settings settings, Client client, ScriptService scriptService) {
+    public TriggerService(Settings settings, ClientProxy client, ScriptServiceProxy scriptService) {
         super(settings);
         this.client = client;
         this.scriptService = scriptService;

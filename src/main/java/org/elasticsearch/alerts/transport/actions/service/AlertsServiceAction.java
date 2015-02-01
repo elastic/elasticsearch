@@ -5,17 +5,17 @@
  */
 package org.elasticsearch.alerts.transport.actions.service;
 
-import org.elasticsearch.alerts.client.AlertsClient;
-import org.elasticsearch.alerts.client.AlertsClientAction;
+import org.elasticsearch.alerts.client.AlertsAction;
+import org.elasticsearch.client.Client;
 
 /**
  */
-public class AlertServiceAction  extends AlertsClientAction<AlertsServiceRequest, AlertsServiceResponse, AlertServiceRequestBuilder> {
+public class AlertsServiceAction extends AlertsAction<AlertsServiceRequest, AlertsServiceResponse, AlertsServiceRequestBuilder> {
 
-    public static final AlertServiceAction INSTANCE = new AlertServiceAction();
+    public static final AlertsServiceAction INSTANCE = new AlertsServiceAction();
     public static final String NAME = "cluster:admin/alerts/service";
 
-    private AlertServiceAction() {
+    private AlertsServiceAction() {
         super(NAME);
     }
 
@@ -25,7 +25,8 @@ public class AlertServiceAction  extends AlertsClientAction<AlertsServiceRequest
     }
 
     @Override
-    public AlertServiceRequestBuilder newRequestBuilder(AlertsClient client) {
-        return new AlertServiceRequestBuilder(client);
+    public AlertsServiceRequestBuilder newRequestBuilder(Client client) {
+        return new AlertsServiceRequestBuilder(client);
     }
+
 }

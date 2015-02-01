@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.alerts.transport.actions.config;
 
-import org.elasticsearch.alerts.client.AlertsClient;
-import org.elasticsearch.alerts.client.AlertsClientAction;
+import org.elasticsearch.alerts.client.AlertsAction;
+import org.elasticsearch.client.Client;
 
 /**
  * This action deletes an alert from in memory, the scheduler and the index
  */
-public class ConfigAlertAction extends AlertsClientAction<ConfigAlertRequest, ConfigAlertResponse, ConfigAlertRequestBuilder> {
+public class ConfigAlertAction extends AlertsAction<ConfigAlertRequest, ConfigAlertResponse, ConfigAlertRequestBuilder> {
 
     public static final ConfigAlertAction INSTANCE = new ConfigAlertAction();
     public static final String NAME = "indices:data/write/alert/config";
@@ -26,7 +26,8 @@ public class ConfigAlertAction extends AlertsClientAction<ConfigAlertRequest, Co
     }
 
     @Override
-    public ConfigAlertRequestBuilder newRequestBuilder(AlertsClient client) {
+    public ConfigAlertRequestBuilder newRequestBuilder(Client client) {
         return new ConfigAlertRequestBuilder(client);
     }
+
 }

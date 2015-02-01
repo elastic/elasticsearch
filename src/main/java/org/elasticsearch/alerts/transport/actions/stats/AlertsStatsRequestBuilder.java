@@ -8,25 +8,24 @@ package org.elasticsearch.alerts.transport.actions.stats;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.alerts.client.AlertsClient;
+import org.elasticsearch.client.Client;
 
 /**
  * An alert stats document action request builder.
  */
-public class AlertsStatsRequestBuilder
-        extends MasterNodeOperationRequestBuilder<AlertsStatsRequest, AlertsStatsResponse, AlertsStatsRequestBuilder, AlertsClient> {
+public class AlertsStatsRequestBuilder extends MasterNodeOperationRequestBuilder<AlertsStatsRequest, AlertsStatsResponse, AlertsStatsRequestBuilder, Client> {
 
     /**
      * The constructor for the AlertsStatsRequestBuilder
-     * @param client
      */
-    public AlertsStatsRequestBuilder(AlertsClient client) {
+    public AlertsStatsRequestBuilder(Client client) {
         super(client, new AlertsStatsRequest());
     }
 
 
     @Override
     protected void doExecute(final ActionListener<AlertsStatsResponse> listener) {
-        client.alertsStats(request, listener);
+        new AlertsClient(client).alertsStats(request, listener);
     }
 
 }

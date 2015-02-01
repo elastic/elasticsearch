@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.netty.handler.codec.http.HttpMethod;
@@ -38,11 +39,11 @@ public class WebhookAlertActionFactory implements AlertActionFactory {
     private static String REQUEST = "request";
     static String DEFAULT_PARAMETER_STRING = "alertname={{alert_name}}&request=%{{request}}&response=%{{response}}";
 
-    private final ScriptService scriptService;
+    private final ScriptServiceProxy scriptService;
 
     private final Logger logger = Logger.getLogger(WebhookAlertActionFactory.class);
 
-    public WebhookAlertActionFactory(ScriptService scriptService) {
+    public WebhookAlertActionFactory(ScriptServiceProxy scriptService) {
         this.scriptService = scriptService;
     }
 
@@ -129,7 +130,7 @@ public class WebhookAlertActionFactory implements AlertActionFactory {
 
     }
 
-    static String encodeParameterString(String parameterString, Alert alert, TriggerResult result, ScriptService scriptService) throws IOException {
+    static String encodeParameterString(String parameterString, Alert alert, TriggerResult result, ScriptServiceProxy scriptService) throws IOException {
         XContentBuilder responseBuilder = XContentFactory.jsonBuilder();
 
         responseBuilder.startObject();
@@ -150,7 +151,7 @@ public class WebhookAlertActionFactory implements AlertActionFactory {
     }
 
 
-    public String renderUrl(String url, Alert alert, TriggerResult result, ScriptService scriptService) {
+    public String renderUrl(String url, Alert alert, TriggerResult result, ScriptServiceProxy scriptService) {
          Map<String, Object> templateParams = new HashMap<>();
          templateParams.put(ALERT_NAME, alert.getAlertName());
          templateParams.put(RESPONSE, result.getActionResponse());

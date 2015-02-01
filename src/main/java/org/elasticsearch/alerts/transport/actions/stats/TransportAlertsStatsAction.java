@@ -10,9 +10,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.alerts.AlertService;
-import org.elasticsearch.alerts.actions.AlertActionService;
 import org.elasticsearch.alerts.AlertsBuild;
 import org.elasticsearch.alerts.AlertsVersion;
+import org.elasticsearch.alerts.actions.AlertActionService;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -25,15 +25,15 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Performs the stats operation.
  */
-public class TransportAlertStatsAction extends TransportMasterNodeOperationAction<AlertsStatsRequest, AlertsStatsResponse> {
+public class TransportAlertsStatsAction extends TransportMasterNodeOperationAction<AlertsStatsRequest, AlertsStatsResponse> {
 
     private final AlertService alertService;
     private final AlertActionService alertActionService;
 
     @Inject
-    public TransportAlertStatsAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                     ThreadPool threadPool, ActionFilters actionFilters, AlertService alertService,
-                                     AlertActionService alertActionService) {
+    public TransportAlertsStatsAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                      ThreadPool threadPool, ActionFilters actionFilters, AlertService alertService,
+                                      AlertActionService alertActionService) {
         super(settings, AlertsStatsAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.alertService = alertService;
         this.alertActionService = alertActionService;

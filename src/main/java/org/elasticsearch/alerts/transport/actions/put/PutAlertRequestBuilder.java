@@ -8,37 +8,25 @@ package org.elasticsearch.alerts.transport.actions.put;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.alerts.client.AlertsClient;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 
 /**
  * A Builder to build a PutAlertRequest
  */
-public class PutAlertRequestBuilder
-        extends MasterNodeOperationRequestBuilder<PutAlertRequest, PutAlertResponse,
-        PutAlertRequestBuilder, AlertsClient> {
+public class PutAlertRequestBuilder extends MasterNodeOperationRequestBuilder<PutAlertRequest, PutAlertResponse, PutAlertRequestBuilder, Client> {
 
-    /**
-     * The Constructor for the PutAlertRequestBuilder
-     * @param client The client that will execute the action
-     */
-    public PutAlertRequestBuilder(AlertsClient client) {
+    public PutAlertRequestBuilder(Client client) {
         super(client, new PutAlertRequest());
     }
 
-    /**
-     * The Constructor for the PutAlertRequestBuilder
-     * @param client The client that will execute the action
-     * @param alertName The name of the alert to be put
-     */
-    public PutAlertRequestBuilder(AlertsClient client, String alertName) {
+    public PutAlertRequestBuilder(Client client, String alertName) {
         super(client, new PutAlertRequest());
         request.setAlertName(alertName);
     }
 
     /**
-     * Sets the alert name to be created
-     * @param alertName
-     * @return
+     * @param alertName The alert name to be created
      */
     public PutAlertRequestBuilder setAlertName(String alertName){
         request.setAlertName(alertName);
@@ -46,9 +34,7 @@ public class PutAlertRequestBuilder
     }
 
     /**
-     * Sets the source of the alert to be created
-     * @param alertSource
-     * @return
+     * @param alertSource the source of the alert to be created
      */
     public PutAlertRequestBuilder setAlertSource(BytesReference alertSource) {
         request.setAlertSource(alertSource);
@@ -58,6 +44,6 @@ public class PutAlertRequestBuilder
 
     @Override
     protected void doExecute(ActionListener<PutAlertResponse> listener) {
-        client.putAlert(request, listener);
+        new AlertsClient(client).putAlert(request, listener);
     }
 }

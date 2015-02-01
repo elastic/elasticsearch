@@ -24,23 +24,18 @@ public class ConfigAlertRequest extends MasterNodeOperationRequest<ConfigAlertRe
     private BytesReference configSource;
     private boolean configSourceUnsafe;
 
-
     public ConfigAlertRequest() {
     }
 
-
-
     /**
-     * The source of the config
-     * @return
+     * @return The source of the config
      */
     public BytesReference getConfigSource() {
         return configSource;
     }
 
     /**
-     * The source of the config document
-     * @param configSource
+     * Sets the source of the config document
      */
     public void setConfigSource(BytesReference configSource) {
         this.configSource = configSource;
@@ -48,8 +43,7 @@ public class ConfigAlertRequest extends MasterNodeOperationRequest<ConfigAlertRe
     }
 
     /**
-     * Is the ByteRef configSource safe
-     * @return
+     * @return Whether the ByteRef configSource safe
      */
     public boolean isConfigSourceUnsafe() {
         return configSourceUnsafe;
@@ -62,8 +56,6 @@ public class ConfigAlertRequest extends MasterNodeOperationRequest<ConfigAlertRe
 
     /**
      * Set the source of the config with boolean to control source safety
-     * @param configSource
-     * @param configSourceUnsafe
      */
     public void setConfigSource(BytesReference configSource, boolean configSourceUnsafe) {
         this.configSource = configSource;

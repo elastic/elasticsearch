@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.alerts.actions;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.AlertAckState;
+import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.alerts.triggers.ScriptedTrigger;
 import org.elasticsearch.alerts.triggers.TriggerResult;
@@ -64,7 +64,7 @@ public class WebhookTest extends ElasticsearchTestCase {
 
 
         String encodedRequestParameters = WebhookAlertActionFactory.encodeParameterString(WebhookAlertActionFactory.DEFAULT_PARAMETER_STRING, alert,
-                new TriggerResult(true, triggerRequest, responseMap, trigger), scriptService);
+                new TriggerResult(true, triggerRequest, responseMap, trigger), ScriptServiceProxy.of(scriptService));
         assertEquals("alertname=test-email-template&request=%%7B%22query%22%3A%7B%22match_all%22%3A%7B%7D%7D%7D&response=%%7B%22response%22%3A%7B%22hits%22%3A0%7D%7D", encodedRequestParameters);
         tp.shutdownNow();
 

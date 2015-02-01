@@ -12,13 +12,14 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.alerts.actions.AlertHistory;
-import org.elasticsearch.alerts.actions.AlertActionService;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
+import org.elasticsearch.alerts.actions.AlertActionService;
+import org.elasticsearch.alerts.actions.AlertHistory;
 import org.elasticsearch.alerts.scheduler.AlertScheduler;
-import org.elasticsearch.alerts.triggers.TriggerService;
+import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
+import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.alerts.triggers.TriggerResult;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.alerts.triggers.TriggerService;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -35,7 +36,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -47,6 +47,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class AlertService extends AbstractComponent {
 
+    private final ClientProxy client;
     private final AlertScheduler scheduler;
     private final AlertsStore alertsStore;
     private final TriggerService triggerService;
@@ -54,18 +55,18 @@ public class AlertService extends AbstractComponent {
     private final AlertActionRegistry actionRegistry;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
-    private final ScriptService scriptService;
-    private final Client client;
+    private final ScriptServiceProxy scriptService;
     private final KeyedLock<String> alertLock = new KeyedLock<>();
     private final AtomicReference<State> state = new AtomicReference<>(State.STOPPED);
 
     private volatile boolean manuallyStopped;
 
     @Inject
-    public AlertService(Settings settings, ClusterService clusterService, AlertScheduler scheduler, AlertsStore alertsStore,
+    public AlertService(Settings settings, ClientProxy client, ClusterService clusterService, AlertScheduler scheduler, AlertsStore alertsStore,
                         IndicesService indicesService, TriggerService triggerService, AlertActionService actionManager,
-                        AlertActionRegistry actionRegistry, ThreadPool threadPool, ScriptService scriptService, Client client) {
+                        AlertActionRegistry actionRegistry, ThreadPool threadPool, ScriptServiceProxy scriptService) {
         super(settings);
+        this.client = client;
         this.scheduler = scheduler;
         this.threadPool = threadPool;
         this.scheduler.setAlertService(this);
@@ -75,9 +76,7 @@ public class AlertService extends AbstractComponent {
         this.actionManager.setAlertService(this);
         this.actionRegistry = actionRegistry;
         this.clusterService = clusterService;
-
         this.scriptService = scriptService;
-        this.client = client;
 
         clusterService.add(new AlertsClusterStateListener());
         // Close if the indices service is being stopped, so we don't run into search failures (locally) that will

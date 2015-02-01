@@ -25,23 +25,18 @@ public class PutAlertRequest extends MasterNodeOperationRequest<PutAlertRequest>
     private BytesReference alertSource;
     private boolean alertSourceUnsafe;
 
-    /**
-     * Constructor
-     */
     public PutAlertRequest() {
     }
 
     /**
-     * Constructor that sets the alertSource
-     * @param alertSource
+     * @param alertSource The alertSource
      */
     public PutAlertRequest(BytesReference alertSource) {
         this.alertSource = alertSource;
     }
 
     /**
-     * Get the name that will be the ID of the indexed document
-     * @return the alert name
+     * @return The name that will be the ID of the indexed document
      */
     public String getAlertName() {
         return alertName;
@@ -49,15 +44,13 @@ public class PutAlertRequest extends MasterNodeOperationRequest<PutAlertRequest>
 
     /**
      * Set the alert name
-     * @param alertName
      */
     public void setAlertName(String alertName) {
         this.alertName = alertName;
     }
 
     /**
-     * The source of the alert
-     * @return
+     * @return The source of the alert
      */
     public BytesReference getAlertSource() {
         return alertSource;
@@ -65,7 +58,6 @@ public class PutAlertRequest extends MasterNodeOperationRequest<PutAlertRequest>
 
     /**
      * Set the source of the alert
-     * @param alertSource
      */
     public void setAlertSource(BytesReference alertSource) {
         this.alertSource = alertSource;
@@ -74,8 +66,6 @@ public class PutAlertRequest extends MasterNodeOperationRequest<PutAlertRequest>
 
     /**
      * Set the source of the alert with boolean to control source safety
-     * @param alertSource
-     * @param alertSourceUnsafe
      */
     public void setAlertSource(BytesReference alertSource, boolean alertSourceUnsafe) {
         this.alertSource = alertSource;

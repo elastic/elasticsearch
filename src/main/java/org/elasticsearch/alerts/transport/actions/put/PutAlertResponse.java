@@ -17,12 +17,9 @@ import java.io.IOException;
  * This response wraps the #IndexResponse returned from the persisting of the alert
  */
 public class PutAlertResponse extends ActionResponse {
+
     private IndexResponse indexResponse;
 
-    /**
-     * Create the PutAlertResponse with the wrapped IndexResponse
-     * @param indexResponse
-     */
     public PutAlertResponse(IndexResponse indexResponse) {
         this.indexResponse = indexResponse;
     }
@@ -32,8 +29,7 @@ public class PutAlertResponse extends ActionResponse {
     }
 
     /**
-     * Get the IndexResponse for this PutAlertResponse
-     * @return
+     * @return The IndexResponse for this PutAlertResponse
      */
     public IndexResponse indexResponse(){
         return indexResponse;
@@ -41,7 +37,6 @@ public class PutAlertResponse extends ActionResponse {
 
     /**
      * Set the IndexResponse on this PutAlertResponse
-     * @param indexResponse
      */
     public void indexResponse(IndexResponse indexResponse){
         this.indexResponse = indexResponse;

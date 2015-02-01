@@ -8,14 +8,14 @@ package org.elasticsearch.alerts.actions;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.ConfigurationService;
+import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
+import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.alerts.triggers.TriggerResult;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -26,8 +26,7 @@ public class AlertActionRegistry extends AbstractComponent {
     private volatile ImmutableOpenMap<String, AlertActionFactory> actionImplemented;
 
     @Inject
-    public AlertActionRegistry(Settings settings, Client client, ConfigurationService configurationService,
-                               ScriptService scriptService) {
+    public AlertActionRegistry(Settings settings, ClientProxy client, ConfigurationService configurationService, ScriptServiceProxy scriptService) {
         super(settings);
         actionImplemented = ImmutableOpenMap.<String, AlertActionFactory>builder()
                 .fPut("email", new SmtpAlertActionFactory(configurationService, scriptService))

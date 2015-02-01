@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -60,7 +61,7 @@ public class TriggerUnitTest extends ElasticsearchTestCase {
         engineServiceSet.add(groovyScriptEngineService);
 
         ScriptService scriptService = new ScriptService(settings, new Environment(), engineServiceSet, new ResourceWatcherService(settings, tp));
-        TriggerService triggerService = new TriggerService(settings, null, scriptService);
+        TriggerService triggerService = new TriggerService(settings, null, ScriptServiceProxy.of(scriptService));
 
         try {
             XContentBuilder builder = createTriggerContent("hits.total > 1", null, null);

@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.alerts.transport.actions.get;
 
-import org.elasticsearch.alerts.client.AlertsClientAction;
-import org.elasticsearch.alerts.client.AlertsClient;
+import org.elasticsearch.alerts.client.AlertsAction;
+import org.elasticsearch.client.Client;
 
 /**
  * This action gets an alert by name
  */
-public class GetAlertAction extends AlertsClientAction<GetAlertRequest, GetAlertResponse, GetAlertRequestBuilder> {
+public class GetAlertAction extends AlertsAction<GetAlertRequest, GetAlertResponse, GetAlertRequestBuilder> {
 
     public static final GetAlertAction INSTANCE = new GetAlertAction();
     public static final String NAME = "indices:data/read/alert/get";
@@ -26,7 +26,7 @@ public class GetAlertAction extends AlertsClientAction<GetAlertRequest, GetAlert
     }
 
     @Override
-    public GetAlertRequestBuilder newRequestBuilder(AlertsClient client) {
+    public GetAlertRequestBuilder newRequestBuilder(Client client) {
         return new GetAlertRequestBuilder(client);
     }
 }

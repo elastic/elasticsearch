@@ -11,8 +11,8 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.ConfigurationService;
+import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.triggers.TriggerResult;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -23,10 +23,10 @@ import java.io.IOException;
  */
 public class IndexAlertActionFactory implements AlertActionFactory {
 
-    private final Client client;
+    private final ClientProxy client;
     private final ConfigurationService configurationService;
 
-    public IndexAlertActionFactory(Client client, ConfigurationService configurationService){
+    public IndexAlertActionFactory(ClientProxy client, ConfigurationService configurationService){
         this.client = client;
         this.configurationService = configurationService;
     }

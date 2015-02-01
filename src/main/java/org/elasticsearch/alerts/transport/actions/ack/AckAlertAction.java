@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.alerts.transport.actions.ack;
 
-import org.elasticsearch.alerts.client.AlertsClient;
-import org.elasticsearch.alerts.client.AlertsClientAction;
+import org.elasticsearch.alerts.client.AlertsAction;
+import org.elasticsearch.client.Client;
 
 /**
  * This action acks an alert in memory, and the index
  */
-public class AckAlertAction extends AlertsClientAction<AckAlertRequest, AckAlertResponse, AckAlertRequestBuilder> {
+public class AckAlertAction extends AlertsAction<AckAlertRequest, AckAlertResponse, AckAlertRequestBuilder> {
 
     public static final AckAlertAction INSTANCE = new AckAlertAction();
     public static final String NAME = "indices:data/write/alert/ack";
@@ -26,7 +26,8 @@ public class AckAlertAction extends AlertsClientAction<AckAlertRequest, AckAlert
     }
 
     @Override
-    public AckAlertRequestBuilder newRequestBuilder(AlertsClient client) {
+    public AckAlertRequestBuilder newRequestBuilder(Client client) {
         return new AckAlertRequestBuilder(client);
     }
+
 }

@@ -6,6 +6,7 @@
 package org.elasticsearch.alerts;
 
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -36,7 +37,7 @@ public class ConfigTest extends ElasticsearchIntegrationTest {
                 .put("bar", 1)
                 .put("baz", true)
                 .build();
-        ConfigurationService configurationService = new ConfigurationService(oldSettings, client());
+        ConfigurationService configurationService = new ConfigurationService(oldSettings, ClientProxy.of(client()));
 
         SettingsListener settingsListener = new SettingsListener();
         configurationService.registerListener(settingsListener);
@@ -79,10 +80,12 @@ public class ConfigTest extends ElasticsearchIntegrationTest {
                 .get();
         assertTrue(indexResponse.isCreated());
 
-        ConfigurationService configurationService = new ConfigurationService(oldSettings, client());
+        ConfigurationService configurationService = new ConfigurationService(oldSettings, ClientProxy.of(client()));
         Settings loadedSettings = configurationService.getConfig();
         assertThat(loadedSettings.get("foo"), equalTo(newSettings.get("foo")));
         assertThat(loadedSettings.get("bar"), equalTo(newSettings.get("bar")));
         assertThat(loadedSettings.get("baz"), equalTo(newSettings.get("baz")));
     }
+
+
 }

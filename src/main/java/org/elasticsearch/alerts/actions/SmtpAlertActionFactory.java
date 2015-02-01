@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.ConfigurableComponentListener;
 import org.elasticsearch.alerts.ConfigurationService;
+import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -39,11 +40,11 @@ public class SmtpAlertActionFactory implements AlertActionFactory, ConfigurableC
     private static final String DEFAULT_MESSAGE = "{{alert_name}} triggered with {{response.hits.total}} results";
 
     private final ConfigurationService configurationService;
-    private final ScriptService scriptService;
+    private final ScriptServiceProxy scriptService;
 
     private volatile Settings settings;
 
-    public SmtpAlertActionFactory(ConfigurationService configurationService, ScriptService scriptService) {
+    public SmtpAlertActionFactory(ConfigurationService configurationService, ScriptServiceProxy scriptService) {
         this.configurationService = configurationService;
         this.scriptService = scriptService;
     }
@@ -154,7 +155,7 @@ public class SmtpAlertActionFactory implements AlertActionFactory, ConfigurableC
         this.settings = settings;
     }
 
-    public static String renderTemplate(String template, Alert alert, TriggerResult result, ScriptService scriptService) {
+    public static String renderTemplate(String template, Alert alert, TriggerResult result, ScriptServiceProxy scriptService) {
         Map<String, Object> templateParams = new HashMap<>();
         templateParams.put(ALERT_NAME_VARIABLE_NAME, alert.getAlertName());
         templateParams.put(RESPONSE_VARIABLE_NAME, result.getActionResponse());

@@ -6,7 +6,10 @@
 package org.elasticsearch.alerts.plugin;
 
 import org.elasticsearch.alerts.AlertingModule;
+import org.elasticsearch.alerts.support.init.InitializingService;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.AbstractPlugin;
@@ -33,6 +36,15 @@ public class AlertsPlugin extends AbstractPlugin {
         Collection<Class<? extends Module>> modules = Lists.newArrayList();
         modules.add(AlertingModule.class);
         return modules;
+    }
+
+    @Override
+    public Collection<Class<? extends LifecycleComponent>> services() {
+        return ImmutableList.<Class<? extends LifecycleComponent>>of(
+                // the initialization service must be first in the list
+                // as other services may depend on one of the initialized
+                // constructs
+                InitializingService.class);
     }
 
     @Override

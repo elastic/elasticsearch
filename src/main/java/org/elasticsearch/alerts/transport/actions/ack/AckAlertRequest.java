@@ -24,25 +24,19 @@ public class AckAlertRequest extends MasterNodeOperationRequest<AckAlertRequest>
     public AckAlertRequest() {
     }
 
-    /**
-     * The constructor for the requests that takes the name of the alert to ack
-     * @param alertName
-     */
     public AckAlertRequest(String alertName) {
         this.alertName = alertName;
     }
 
     /**
-     * The name of the alert to be acked
-     * @return
+     * @return The name of the alert to be acked
      */
     public String getAlertName() {
         return alertName;
     }
 
     /**
-     * The name of the alert to be acked
-     * @param alertName
+     * Sets the name of the alert to be acked
      */
     public void setAlertName(String alertName) {
         this.alertName = alertName;

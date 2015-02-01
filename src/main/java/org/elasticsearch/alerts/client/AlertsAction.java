@@ -5,17 +5,18 @@
  */
 package org.elasticsearch.alerts.client;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ClientAction;
+import org.elasticsearch.client.Client;
 
 /**
  * Base alert action class.
  */
-public abstract class AlertsClientAction<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, AlertsClient>> extends Action<Request, Response, RequestBuilder, AlertsClient> {
+public abstract class AlertsAction<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> extends ClientAction<Request, Response, RequestBuilder> {
 
-    protected AlertsClientAction(String name) {
+    protected AlertsAction(String name) {
         super(name);
     }
 

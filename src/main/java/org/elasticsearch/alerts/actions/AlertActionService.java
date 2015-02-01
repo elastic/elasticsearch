@@ -17,9 +17,9 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.alerts.*;
 import org.elasticsearch.alerts.plugin.AlertsPlugin;
-import org.elasticsearch.alerts.triggers.TriggerService;
+import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.triggers.TriggerResult;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.alerts.triggers.TriggerService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -66,7 +66,7 @@ public class AlertActionService extends AbstractComponent {
     public static final DateTimeFormatter alertHistoryIndexTimeFormat = DateTimeFormat.forPattern("YYYY-MM-dd");
     public static final String ALERT_HISTORY_TYPE = "alerthistory";
 
-    private final Client client;
+    private final ClientProxy client;
     private AlertService alertService;
     private final ThreadPool threadPool;
     private final AlertsStore alertsStore;
@@ -83,7 +83,7 @@ public class AlertActionService extends AbstractComponent {
     private volatile Thread queueReaderThread;
 
     @Inject
-    public AlertActionService(Settings settings, Client client, AlertActionRegistry actionRegistry,
+    public AlertActionService(Settings settings, ClientProxy client, AlertActionRegistry actionRegistry,
                               ThreadPool threadPool, AlertsStore alertsStore, TriggerService triggerService,
                               TemplateHelper templateHelper) {
         super(settings);

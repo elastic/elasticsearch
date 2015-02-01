@@ -10,7 +10,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 
@@ -18,9 +19,10 @@ import java.io.IOException;
 import java.util.Map;
 
 public class ScriptedTriggerFactory implements TriggerFactory {
-    private final ScriptService scriptService;
 
-    public ScriptedTriggerFactory(ScriptService service) {
+    private final ScriptServiceProxy scriptService;
+
+    public ScriptedTriggerFactory(ScriptServiceProxy service) {
         scriptService = service;
     }
 
@@ -76,9 +78,8 @@ public class ScriptedTriggerFactory implements TriggerFactory {
         }
 
         ScriptedTrigger scriptedTrigger = (ScriptedTrigger)trigger;
-        ExecutableScript executable = scriptService.executable(
-                scriptedTrigger.getScriptLang(), scriptedTrigger.getScript(), scriptedTrigger.getScriptType(), response
-        );
+        ExecutableScript executable = scriptService.executable(scriptedTrigger.getScriptLang(),
+                scriptedTrigger.getScript(), scriptedTrigger.getScriptType(), response);
         Object returnValue = executable.run();
         if (returnValue instanceof Boolean) {
             return (Boolean) returnValue;

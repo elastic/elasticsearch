@@ -8,20 +8,20 @@ package org.elasticsearch.alerts.transport.actions.get;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.alerts.client.AlertsClient;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.index.VersionType;
 
 /**
  * A delete document action request builder.
  */
-public class GetAlertRequestBuilder extends ActionRequestBuilder<GetAlertRequest, GetAlertResponse, GetAlertRequestBuilder, AlertsClient> {
+public class GetAlertRequestBuilder extends ActionRequestBuilder<GetAlertRequest, GetAlertResponse, GetAlertRequestBuilder, Client> {
 
-
-    public GetAlertRequestBuilder(AlertsClient client, String alertName) {
+    public GetAlertRequestBuilder(Client client, String alertName) {
         super(client, new GetAlertRequest(alertName));
     }
 
 
-    public GetAlertRequestBuilder(AlertsClient client) {
+    public GetAlertRequestBuilder(Client client) {
         super(client, new GetAlertRequest());
     }
 
@@ -40,6 +40,6 @@ public class GetAlertRequestBuilder extends ActionRequestBuilder<GetAlertRequest
 
     @Override
     protected void doExecute(final ActionListener<GetAlertResponse> listener) {
-        client.getAlert(request, listener);
+        new AlertsClient(client).getAlert(request, listener);
     }
 }

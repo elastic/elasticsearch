@@ -18,8 +18,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.alerts.actions.AlertAction;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
+import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.triggers.TriggerService;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
@@ -59,7 +59,7 @@ public class AlertsStore extends AbstractComponent {
     public static final ParseField ACK_STATE_FIELD = new ParseField("ack_state");
     public static final ParseField META_FIELD = new ParseField("meta");
 
-    private final Client client;
+    private final ClientProxy client;
     private final TriggerService triggerService;
     private final TemplateHelper templateHelper;
     private final ConcurrentMap<String, Alert> alertMap;
@@ -70,7 +70,7 @@ public class AlertsStore extends AbstractComponent {
     private final TimeValue scrollTimeout;
 
     @Inject
-    public AlertsStore(Settings settings, Client client, AlertActionRegistry alertActionRegistry,
+    public AlertsStore(Settings settings, ClientProxy client, AlertActionRegistry alertActionRegistry,
                        TriggerService triggerService, TemplateHelper templateHelper) {
         super(settings);
         this.client = client;
@@ -81,7 +81,6 @@ public class AlertsStore extends AbstractComponent {
         // Not using component settings, to let AlertsStore and AlertActionManager share the same settings
         this.scrollTimeout = settings.getAsTime("alerts.scroll.timeout", TimeValue.timeValueSeconds(30));
         this.scrollSize = settings.getAsInt("alerts.scroll.size", 100);
-
     }
 
     /**

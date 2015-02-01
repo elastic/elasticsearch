@@ -7,7 +7,7 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -29,11 +29,11 @@ public class ConfigurationService extends AbstractComponent {
     public static final String CONFIG_TYPE = "config";
     public static final String GLOBAL_CONFIG_NAME = "global";
 
-    private final Client client;
+    private final ClientProxy client;
     private final CopyOnWriteArrayList<ConfigurableComponentListener> registeredComponents;
 
     @Inject
-    public ConfigurationService(Settings settings, Client client) {
+    public ConfigurationService(Settings settings, ClientProxy client) {
         super(settings);
         this.client = client;
         registeredComponents = new CopyOnWriteArrayList<>();
@@ -60,8 +60,6 @@ public class ConfigurationService extends AbstractComponent {
 
     /**
      * Notify the listeners of a new config
-     *
-     * @param settingsSource
      */
     public IndexResponse updateConfig(BytesReference settingsSource) throws IOException {
 

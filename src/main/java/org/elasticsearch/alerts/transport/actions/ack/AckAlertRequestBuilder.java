@@ -8,25 +8,23 @@ package org.elasticsearch.alerts.transport.actions.ack;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.alerts.client.AlertsClient;
+import org.elasticsearch.client.Client;
 
 /**
  * A ack alert action request builder.
  */
-public class AckAlertRequestBuilder
-        extends MasterNodeOperationRequestBuilder<AckAlertRequest, AckAlertResponse, AckAlertRequestBuilder, AlertsClient> {
+public class AckAlertRequestBuilder extends MasterNodeOperationRequestBuilder<AckAlertRequest, AckAlertResponse, AckAlertRequestBuilder, Client> {
 
-    public AckAlertRequestBuilder(AlertsClient client) {
+    public AckAlertRequestBuilder(Client client) {
         super(client, new AckAlertRequest());
     }
 
-    public AckAlertRequestBuilder(AlertsClient client, String alertName) {
+    public AckAlertRequestBuilder(Client client, String alertName) {
         super(client, new AckAlertRequest(alertName));
     }
 
     /**
      * Sets the name of the alert to be ack
-     * @param alertName
-     * @return
      */
     public AckAlertRequestBuilder setAlertName(String alertName) {
         this.request().setAlertName(alertName);
@@ -35,7 +33,7 @@ public class AckAlertRequestBuilder
 
     @Override
     protected void doExecute(final ActionListener<AckAlertResponse> listener) {
-        client.ackAlert(request, listener);
+        new AlertsClient(client).ackAlert(request, listener);
     }
 
 }

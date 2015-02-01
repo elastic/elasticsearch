@@ -8,19 +8,20 @@ package org.elasticsearch.alerts.transport.actions.service;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.alerts.client.AlertsClient;
+import org.elasticsearch.client.Client;
 
 /**
  */
-public class AlertServiceRequestBuilder extends MasterNodeOperationRequestBuilder<AlertsServiceRequest, AlertsServiceResponse, AlertServiceRequestBuilder, AlertsClient> {
+public class AlertsServiceRequestBuilder extends MasterNodeOperationRequestBuilder<AlertsServiceRequest, AlertsServiceResponse, AlertsServiceRequestBuilder, Client> {
 
-    public AlertServiceRequestBuilder(AlertsClient client) {
+    public AlertsServiceRequestBuilder(Client client) {
         super(client, new AlertsServiceRequest());
     }
 
     /**
      * Starts alerting if not already started.
      */
-    public AlertServiceRequestBuilder start() {
+    public AlertsServiceRequestBuilder start() {
         request.start();
         return this;
     }
@@ -28,7 +29,7 @@ public class AlertServiceRequestBuilder extends MasterNodeOperationRequestBuilde
     /**
      * Stops alerting if not already stopped.
      */
-    public AlertServiceRequestBuilder stop() {
+    public AlertsServiceRequestBuilder stop() {
         request.stop();
         return this;
     }
@@ -36,13 +37,13 @@ public class AlertServiceRequestBuilder extends MasterNodeOperationRequestBuilde
     /**
      * Starts and stops alerting.
      */
-    public AlertServiceRequestBuilder restart() {
+    public AlertsServiceRequestBuilder restart() {
         request.restart();
         return this;
     }
 
     @Override
     protected void doExecute(ActionListener<AlertsServiceResponse> listener) {
-        client.alertService(request, listener);
+        new AlertsClient(client).alertService(request, listener);
     }
 }

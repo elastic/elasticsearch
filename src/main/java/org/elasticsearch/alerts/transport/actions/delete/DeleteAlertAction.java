@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.alerts.transport.actions.delete;
 
-import org.elasticsearch.alerts.client.AlertsClientAction;
-import org.elasticsearch.alerts.client.AlertsClient;
+import org.elasticsearch.alerts.client.AlertsAction;
+import org.elasticsearch.client.Client;
 
 /**
  * This action deletes an alert from in memory, the scheduler and the index
  */
-public class DeleteAlertAction extends AlertsClientAction<DeleteAlertRequest, DeleteAlertResponse, DeleteAlertRequestBuilder> {
+public class DeleteAlertAction extends AlertsAction<DeleteAlertRequest, DeleteAlertResponse, DeleteAlertRequestBuilder> {
 
     public static final DeleteAlertAction INSTANCE = new DeleteAlertAction();
     public static final String NAME = "indices:data/write/alert/delete";
@@ -26,7 +26,7 @@ public class DeleteAlertAction extends AlertsClientAction<DeleteAlertRequest, De
     }
 
     @Override
-    public DeleteAlertRequestBuilder newRequestBuilder(AlertsClient client) {
+    public DeleteAlertRequestBuilder newRequestBuilder(Client client) {
         return new DeleteAlertRequestBuilder(client);
     }
 }

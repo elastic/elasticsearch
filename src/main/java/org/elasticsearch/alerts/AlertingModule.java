@@ -6,27 +6,33 @@
 package org.elasticsearch.alerts;
 
 
-import org.elasticsearch.alerts.actions.AlertActionService;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
-import org.elasticsearch.alerts.client.NodeAlertsClient;
-import org.elasticsearch.alerts.client.AlertsClient;
+import org.elasticsearch.alerts.actions.AlertActionService;
+import org.elasticsearch.alerts.client.AlertsClientModule;
 import org.elasticsearch.alerts.rest.*;
 import org.elasticsearch.alerts.scheduler.AlertScheduler;
-import org.elasticsearch.alerts.transport.actions.ack.TransportAckAlertAction;
-import org.elasticsearch.alerts.transport.actions.config.TransportConfigAlertAction;
-import org.elasticsearch.alerts.transport.actions.delete.TransportDeleteAlertAction;
-import org.elasticsearch.alerts.transport.actions.get.TransportGetAlertAction;
-import org.elasticsearch.alerts.transport.actions.put.TransportPutAlertAction;
-import org.elasticsearch.alerts.transport.actions.service.TransportAlertsServiceAction;
-import org.elasticsearch.alerts.transport.actions.stats.TransportAlertStatsAction;
+import org.elasticsearch.alerts.support.init.InitializingModule;
+import org.elasticsearch.alerts.transport.AlertsTransportModule;
 import org.elasticsearch.alerts.triggers.TriggerService;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.SpawnModules;
 
 
-public class AlertingModule extends AbstractModule {
+public class AlertingModule extends AbstractModule implements SpawnModules {
+
+    @Override
+    public Iterable<? extends Module> spawnModules() {
+        return ImmutableList.of(
+                new InitializingModule(),
+                new AlertsTransportModule(),
+                new AlertsClientModule());
+    }
 
     @Override
     protected void configure() {
+
         // Core components
         bind(TemplateHelper.class).asEagerSingleton();
         bind(AlertsStore.class).asEagerSingleton();
@@ -36,16 +42,6 @@ public class AlertingModule extends AbstractModule {
         bind(AlertScheduler.class).asEagerSingleton();
         bind(AlertActionRegistry.class).asEagerSingleton();
         bind(ConfigurationService.class).asEagerSingleton();
-
-        // Transport and client layer
-        bind(TransportPutAlertAction.class).asEagerSingleton();
-        bind(TransportDeleteAlertAction.class).asEagerSingleton();
-        bind(TransportGetAlertAction.class).asEagerSingleton();
-        bind(TransportAlertStatsAction.class).asEagerSingleton();
-        bind(TransportAckAlertAction.class).asEagerSingleton();
-        bind(TransportAlertsServiceAction.class).asEagerSingleton();
-        bind(TransportConfigAlertAction.class).asEagerSingleton();
-        bind(AlertsClient.class).to(NodeAlertsClient.class).asEagerSingleton();
 
         // Rest layer
         bind(RestPutAlertAction.class).asEagerSingleton();

@@ -28,8 +28,7 @@ public class GetAlertResponse extends ActionResponse {
     }
 
     /**
-     * The GetResponse containing the alert source
-     * @param getResponse
+     * Sets the GetResponse containing the alert source
      */
     public void getResponse(GetResponse getResponse) {
         this.getResponse = getResponse;

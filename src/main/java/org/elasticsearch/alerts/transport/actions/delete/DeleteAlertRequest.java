@@ -26,25 +26,19 @@ public class DeleteAlertRequest extends MasterNodeOperationRequest<DeleteAlertRe
     public DeleteAlertRequest() {
     }
 
-    /**
-     * The constructor for the requests that takes the name of the alert to delete
-     * @param alertName
-     */
     public DeleteAlertRequest(String alertName) {
         this.alertName = alertName;
     }
 
     /**
-     * The name of the alert to be deleted
-     * @return
+     * @return The name of the alert to be deleted
      */
     public String getAlertName() {
         return alertName;
     }
 
     /**
-     * The name of the alert to be deleted
-     * @param alertName
+     * Sets the name of the alert to be deleted
      */
     public void setAlertName(String alertName) {
         this.alertName = alertName;

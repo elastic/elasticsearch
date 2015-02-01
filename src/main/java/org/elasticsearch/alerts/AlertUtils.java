@@ -10,7 +10,7 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.alerts.triggers.TriggerResult;
+import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -48,7 +48,7 @@ public final class AlertUtils {
     /**
      * Creates a new search request applying the scheduledFireTime and fireTime to the original request
      */
-    public static SearchRequest createSearchRequestWithTimes(SearchRequest request, DateTime scheduledFireTime, DateTime fireTime, ScriptService scriptService) throws IOException {
+    public static SearchRequest createSearchRequestWithTimes(SearchRequest request, DateTime scheduledFireTime, DateTime fireTime, ScriptServiceProxy scriptService) throws IOException {
         SearchRequest triggerSearchRequest = new SearchRequest(request)
                 .indicesOptions(request.indicesOptions())
                 .indices(request.indices());

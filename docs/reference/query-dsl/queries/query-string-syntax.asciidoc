@@ -275,7 +275,7 @@ query itself (and not as operators), then you should escape them with
 a leading backslash. For instance, to search for `(1+1)=2`, you would
 need to write your query as `\(1\+1\)=2`.
 
-The reserved characters are:  `+ - && || ! ( ) { } [ ] ^ " ~ * ? : \ /`
+The reserved characters are:  `+ - = && || > < ! ( ) { } [ ] ^ " ~ * ? : \ /`
 
 Failing to escape these special characters correctly could lead to a syntax
 error which prevents your query from running.

@@ -220,10 +220,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         // handle closed indices, since they are not allocated on a node once they are closed
         // so applyDeletedIndices might not take them into account
         for (IndexService indexService : indicesService) {
-            if (indexService == null) {
-                // already deleted on us, ignore it
-                continue;
-            }
             String index = indexService.index().getName();
             IndexMetaData indexMetaData = event.state().metaData().index(index);
             if (indexMetaData != null && indexMetaData.state() == IndexMetaData.State.CLOSE) {
@@ -251,10 +247,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
     private void applyDeletedIndices(final ClusterChangedEvent event) {
         for (IndexService indexService : indicesService) {
-            if (indexService == null) {
-                // got deleted already on us, skip
-                continue;
-            }
             final String index = indexService.index().name();
             if (!event.state().metaData().hasIndex(index)) {
                 if (logger.isDebugEnabled()) {
@@ -272,10 +264,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
         IntOpenHashSet newShardIds = new IntOpenHashSet();
         for (IndexService indexService : indicesService) {
-            if (indexService == null) {
-                // already deleted on us
-                continue;
-            }
             String index = indexService.index().name();
             IndexMetaData indexMetaData = event.state().metaData().index(index);
             if (indexMetaData == null) {
@@ -323,7 +311,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 try {
                     indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), event.state().nodes().localNode().id());
                 } catch (Exception e) {
-                    logger.warn("failed to create index [{}]", e, indexMetaData.index());
+                    logger.warn("[{}] failed to create index", e, indexMetaData.index());
                 }
             }
         }
@@ -343,7 +331,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 continue;
             }
             String index = indexMetaData.index();
-            IndexService indexService = indicesService.indexServiceSafe(index);
+            IndexService indexService = indicesService.indexService(index);
             if (indexService == null) {
                 // already deleted on us, ignore it
                 continue;

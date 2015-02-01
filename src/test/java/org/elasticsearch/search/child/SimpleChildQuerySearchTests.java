@@ -1371,7 +1371,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh("test").get();
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue")).cache(true)))
+                .setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue"))))
                 .get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
@@ -1380,7 +1380,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh("test").get();
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue")).cache(true)))
+                .setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue"))))
                 .get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
@@ -2039,7 +2039,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         long initialCacheSize = statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes();
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.hasChildFilter("child", matchAllQuery()).cache(true)))
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.hasChildFilter("child", matchAllQuery())))
                 .get();
         assertHitCount(searchResponse, 1l);
 
@@ -2047,7 +2047,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), equalTo(initialCacheSize));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.hasParentFilter("parent", matchAllQuery()).cache(true)))
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.hasParentFilter("parent", matchAllQuery())))
                 .get();
         assertHitCount(searchResponse, 1l);
 
@@ -2060,7 +2060,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                         matchAllQuery(),
                         FilterBuilders.boolFilter().cache(true)
                                 .must(FilterBuilders.matchAllFilter())
-                                .must(FilterBuilders.hasChildFilter("child", matchAllQuery()).cache(true))
+                                .must(FilterBuilders.hasChildFilter("child", matchAllQuery()))
                 ))
                 .get();
         assertHitCount(searchResponse, 1l);
@@ -2070,7 +2070,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                         matchAllQuery(),
                         FilterBuilders.boolFilter().cache(true)
                                 .must(FilterBuilders.matchAllFilter())
-                                .must(FilterBuilders.hasParentFilter("parent", matchAllQuery()).cache(true))
+                                .must(FilterBuilders.hasParentFilter("parent", matchAllQuery()))
                 ))
                 .get();
         assertHitCount(searchResponse, 1l);
@@ -2084,7 +2084,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                         matchAllQuery(),
                         FilterBuilders.boolFilter().cache(true)
                                 .must(FilterBuilders.termFilter("field", "value").cache(true))
-                                .must(FilterBuilders.hasChildFilter("child", matchAllQuery()).cache(true))
+                                .must(FilterBuilders.hasChildFilter("child", matchAllQuery()))
                 ))
                 .get();
         assertHitCount(searchResponse, 1l);
@@ -2094,7 +2094,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                         matchAllQuery(),
                         FilterBuilders.boolFilter().cache(true)
                                 .must(FilterBuilders.termFilter("field", "value").cache(true))
-                                .must(FilterBuilders.hasParentFilter("parent", matchAllQuery()).cache(true))
+                                .must(FilterBuilders.hasParentFilter("parent", matchAllQuery()))
                 ))
                 .get();
         assertHitCount(searchResponse, 1l);

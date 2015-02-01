@@ -104,10 +104,6 @@ public class HasChildFilterParser implements FilterParser {
                     childType = parser.text();
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
-                } else if ("_cache".equals(currentFieldName)) {
-                    // noop to be backwards compatible
-                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    // noop to be backwards compatible
                 } else if ("short_circuit_cutoff".equals(currentFieldName)) {
                     shortCircuitParentDocSet = parser.intValue();
                 } else if ("min_children".equals(currentFieldName) || "minChildren".equals(currentFieldName)) {

@@ -179,7 +179,7 @@ public class MapperService extends AbstractIndexComponent  {
             } catch (FailedToResolveConfigException e) {
                 // not there, default to the built in one
                 try {
-                percolatorMappingUrl = Paths.get(percolatorMappingLocation).toUri().toURL();
+                    percolatorMappingUrl = Paths.get(percolatorMappingLocation).toUri().toURL();
                 } catch (MalformedURLException e1) {
                     throw new FailedToResolveConfigException("Failed to resolve default percolator mapping location [" + percolatorMappingLocation + "]");
                 }

@@ -420,15 +420,15 @@ public class InternalEngine implements Engine {
 
         if (doUpdate) {
             if (create.docs().size() > 1) {
-                writer.updateDocuments(create.uid(), create.docs(), create.analyzer());
+                writer.updateDocuments(create.uid(), create.docs());
             } else {
-                writer.updateDocument(create.uid(), create.docs().get(0), create.analyzer());
+                writer.updateDocument(create.uid(), create.docs().get(0));
             }
         } else {
             if (create.docs().size() > 1) {
-                writer.addDocuments(create.docs(), create.analyzer());
+                writer.addDocuments(create.docs());
             } else {
-                writer.addDocument(create.docs().get(0), create.analyzer());
+                writer.addDocument(create.docs().get(0));
             }
         }
         Translog.Location translogLocation = translog.add(new Translog.Create(create));
@@ -516,18 +516,18 @@ public class InternalEngine implements Engine {
                 // document does not exists, we can optimize for create
                 index.created(true);
                 if (index.docs().size() > 1) {
-                    writer.addDocuments(index.docs(), index.analyzer());
+                    writer.addDocuments(index.docs());
                 } else {
-                    writer.addDocument(index.docs().get(0), index.analyzer());
+                    writer.addDocument(index.docs().get(0));
                 }
             } else {
                 if (versionValue != null) {
                     index.created(versionValue.delete()); // we have a delete which is not GC'ed...
                 }
                 if (index.docs().size() > 1) {
-                    writer.updateDocuments(index.uid(), index.docs(), index.analyzer());
+                    writer.updateDocuments(index.uid(), index.docs());
                 } else {
-                    writer.updateDocument(index.uid(), index.docs().get(0), index.analyzer());
+                    writer.updateDocument(index.uid(), index.docs().get(0));
                 }
             }
             Translog.Location translogLocation = translog.add(new Translog.Index(index));

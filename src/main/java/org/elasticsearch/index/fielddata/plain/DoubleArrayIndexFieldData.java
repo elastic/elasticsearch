@@ -96,7 +96,7 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         Terms terms = reader.terms(getFieldNames().indexName());
         AtomicNumericFieldData data = null;
         // TODO: Use an actual estimator to estimate before loading.
-        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA));
+        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker(CircuitBreaker.FIELDDATA));
         if (terms == null) {
             data = AtomicDoubleFieldData.empty(reader.maxDoc());
             estimator.afterLoad(null, data.ramBytesUsed());

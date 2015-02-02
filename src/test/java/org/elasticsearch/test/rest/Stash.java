@@ -35,6 +35,8 @@ public class Stash {
 
     private static final ESLogger logger = Loggers.getLogger(Stash.class);
 
+    public static final Stash EMPTY = new Stash();
+
     private final Map<String, Object> stash = Maps.newHashMap();
 
     /**
@@ -93,7 +95,7 @@ public class Stash {
     @SuppressWarnings("unchecked")
     private void unstashObject(Object obj) {
         if (obj instanceof List) {
-            List list = (List)obj;
+            List list = (List) obj;
             for (int i = 0; i < list.size(); i++) {
                 Object o = list.get(i);
                 if (isStashedValue(o)) {

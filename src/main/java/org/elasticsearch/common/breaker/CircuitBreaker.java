@@ -20,10 +20,7 @@
 package org.elasticsearch.common.breaker;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 
-import java.io.IOException;
 import java.util.Locale;
 
 /**
@@ -32,42 +29,9 @@ import java.util.Locale;
  */
 public interface CircuitBreaker {
 
-    /**
-     * Enum used for specifying different types of circuit breakers
-     */
-    public static enum Name {
-        PARENT(0),
-        FIELDDATA(1),
-        REQUEST(2);
-
-        private int ordinal;
-
-        Name(int ordinal) {
-            this.ordinal = ordinal;
-        }
-
-        public int getSerializableValue() {
-            return this.ordinal;
-        }
-
-        public static Name readFrom(StreamInput in) throws IOException {
-            int value = in.readVInt();
-            switch (value) {
-                case 0:
-                    return Name.PARENT;
-                case 1:
-                    return Name.FIELDDATA;
-                case 2:
-                    return Name.REQUEST;
-                default:
-                    throw new ElasticsearchIllegalArgumentException("No CircuitBreaker with ordinal: " + value);
-            }
-        }
-
-        public static void writeTo(Name name, StreamOutput out) throws IOException {
-            out.writeVInt(name.getSerializableValue());
-        }
-    }
+    public static final String PARENT = "parent";
+    public static final String FIELDDATA = "fielddata";
+    public static final String REQUEST = "request";
 
     public static enum Type {
         // A regular or child MemoryCircuitBreaker
@@ -135,5 +99,5 @@ public interface CircuitBreaker {
     /**
      * @return the name of the breaker
      */
-    public Name getName();
+    public String getName();
 }

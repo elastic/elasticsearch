@@ -40,24 +40,11 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ActionNotFoundTransportException;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.NodeNotConnectedException;
-import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.ResponseHandlerFailureTransportException;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseHandler;
-import org.elasticsearch.transport.TransportSerializationException;
-import org.elasticsearch.transport.TransportServiceAdapter;
-import org.elasticsearch.transport.Transports;
+import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.support.TransportStatus;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadFactory;
@@ -151,6 +138,11 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     @Override
     public BoundTransportAddress boundAddress() {
         return boundAddress;
+    }
+
+    @Override
+    public Map<String, BoundTransportAddress> profileBoundAddresses() {
+        return Collections.EMPTY_MAP;
     }
 
     @Override

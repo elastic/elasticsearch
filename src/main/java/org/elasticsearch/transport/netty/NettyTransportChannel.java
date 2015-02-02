@@ -49,13 +49,19 @@ public class NettyTransportChannel implements TransportChannel {
     private final String action;
     private final Channel channel;
     private final long requestId;
+    private final String profileName;
 
-    public NettyTransportChannel(NettyTransport transport, String action, Channel channel, long requestId, Version version) {
+    public NettyTransportChannel(NettyTransport transport, String action, Channel channel, long requestId, Version version, String profileName) {
         this.version = version;
         this.transport = transport;
         this.action = action;
         this.channel = channel;
         this.requestId = requestId;
+        this.profileName = profileName;
+    }
+
+    public String getProfileName() {
+        return profileName;
     }
 
     @Override

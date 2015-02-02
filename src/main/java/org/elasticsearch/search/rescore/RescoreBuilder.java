@@ -86,6 +86,7 @@ public class RescoreBuilder implements ToXContent {
         private Float rescoreQueryWeight;
         private Float queryWeight;
         private String scoreMode;
+        private boolean normalize;
 
         /**
          * Creates a new {@link QueryRescorer} instance
@@ -119,6 +120,14 @@ public class RescoreBuilder implements ToXContent {
             return this;
         }
 
+        /**
+         * Sets the flag to determine if results should be normalized before calculating. The default is <tt>false</tt>
+         */
+        public QueryRescorer setNormalize(boolean normalize) {
+            this.normalize = normalize;
+            return this;
+        }
+
         @Override
         protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field("rescore_query", queryBuilder);
@@ -131,6 +140,7 @@ public class RescoreBuilder implements ToXContent {
             if (scoreMode != null) {
                 builder.field("score_mode", scoreMode);
             }
+            builder.field("normalize", normalize);
             return builder;
         }
     }

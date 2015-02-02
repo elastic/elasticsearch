@@ -19,8 +19,10 @@
 
 package org.elasticsearch.search.rescore;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -32,6 +34,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Set;
+import java.util.HashMap;
+import java.util.Collections;
+import java.util.List;
 
 public final class QueryRescorer implements Rescorer {
 
@@ -105,32 +110,17 @@ public final class QueryRescorer implements Rescorer {
 
     @Override
     public TopDocs rescore(TopDocs topDocs, SearchContext context, RescoreSearchContext rescoreContext) throws IOException {
-
         assert rescoreContext != null;
         if (topDocs == null || topDocs.totalHits == 0 || topDocs.scoreDocs.length == 0) {
             return topDocs;
         }
 
         final QueryRescoreContext rescore = (QueryRescoreContext) rescoreContext;
-
-        org.apache.lucene.search.Rescorer rescorer = new org.apache.lucene.search.QueryRescorer(rescore.query()) {
-
-            @Override
-            protected float combine(float firstPassScore, boolean secondPassMatches, float secondPassScore) {
-                if (secondPassMatches) {
-                    return rescore.scoreMode.combine(firstPassScore * rescore.queryWeight(), secondPassScore * rescore.rescoreQueryWeight());
-                }
-                // TODO: shouldn't this be up to the ScoreMode?  I.e., we should just invoke ScoreMode.combine, passing 0.0f for the
-                // secondary score?
-                return firstPassScore * rescore.queryWeight();
-            }
-        };
-
         // First take top slice of incoming docs, to be rescored:
         TopDocs topNFirstPass = topN(topDocs, rescoreContext.window());
 
         // Rescore them:
-        TopDocs rescored = rescorer.rescore(context.searcher(), topNFirstPass, rescoreContext.window());
+        HashMap<Integer, Float> rescored = rescoreElastic(context.searcher(), topNFirstPass, rescore.query());
 
         // Splice back to non-topN hits and resort all of them:
         return combine(topDocs, rescored, (QueryRescoreContext) rescoreContext);
@@ -209,6 +199,8 @@ public final class QueryRescorer implements Rescorer {
                     } else {
                         throw new ElasticsearchIllegalArgumentException("[rescore] illegal score_mode [" + sScoreMode + "]");
                     }
+                } else if ("normalize".equals(fieldName)) {
+                    rescoreContext.setNormalize(parser.booleanValue());
                 } else {
                     throw new ElasticsearchIllegalArgumentException("rescore doesn't support [" + fieldName + "]");
                 }
@@ -239,23 +231,83 @@ public final class QueryRescorer implements Rescorer {
         return new TopDocs(in.totalHits, subset, in.getMaxScore());
     }
 
-    /** Modifies incoming TopDocs (in) by replacing the top hits with resorted's hits, and then resorting all hits. */
-    private TopDocs combine(TopDocs in, TopDocs resorted, QueryRescoreContext ctx) {
 
-        System.arraycopy(resorted.scoreDocs, 0, in.scoreDocs, 0, resorted.scoreDocs.length);
-        if (in.scoreDocs.length > resorted.scoreDocs.length) {
-            // These hits were not rescored (beyond the rescore window), so we treat them the same as a hit that did get rescored but did
-            // not match the 2nd pass query:
-            for(int i=resorted.scoreDocs.length;i<in.scoreDocs.length;i++) {
-                // TODO: shouldn't this be up to the ScoreMode?  I.e., we should just invoke ScoreMode.combine, passing 0.0f for the
-                // secondary score?
+    public HashMap<Integer, Float> rescoreElastic(IndexSearcher searcher, TopDocs firstPassTopDocs, Query query) throws IOException {
+        ScoreDoc[] topByID = (ScoreDoc[])firstPassTopDocs.scoreDocs.clone();
+        //Scorer returns results by document ID, when looping through, there is no Random Access so scorer.advance(int) has to be the next
+        // ID in the TopDocs
+        Arrays.sort(topByID, new Comparator<ScoreDoc>() {
+            public int compare(ScoreDoc a, ScoreDoc b) {
+                return a.doc - b.doc;
+            }
+        });
+        HashMap<Integer, Float> hits = new HashMap<Integer, Float>();
+        List leaves = searcher.getIndexReader().leaves();
+        Weight weight = searcher.createNormalizedWeight(query);
+        int hitUpto = 0;
+        int readerUpto = -1;
+        int endDoc = 0;
+        int docBase = 0;
+        for(Scorer scorer = null; hitUpto < topByID.length; ++hitUpto) {
+            int docID = topByID[hitUpto].doc;
+
+            LeafReaderContext readerContext;
+            for(readerContext = null; docID >= endDoc; endDoc = readerContext.docBase + readerContext.reader().maxDoc()) {
+                ++readerUpto;
+                readerContext = (LeafReaderContext)leaves.get(readerUpto);
+            }
+
+            if(readerContext != null) {
+                docBase = readerContext.docBase;
+                scorer = weight.scorer(readerContext, (Bits)null);
+            }
+
+            if(scorer != null) {
+                int targetDoc = docID - docBase;
+                int actualDoc = scorer.docID();
+                if(actualDoc < targetDoc) {
+                    actualDoc = scorer.advance(targetDoc);
+                }
+
+                if(actualDoc == targetDoc) {
+                    hits.put(docID, scorer.score());
+                } else {
+                    assert actualDoc > targetDoc;
+                }
+            }
+        }
+        return hits;
+    }
+
+    /** Modifies incoming TopDocs (in) by replacing the top hits with resorted's hits, and then resorting all hits. */
+    private TopDocs combine(TopDocs in, HashMap<Integer, Float> resorted, QueryRescoreContext ctx) {
+        float bottomScore = 0;
+        float denominator = 0;
+
+        if (resorted != null && ctx.normalize)
+        {
+            float topScore = Collections.max(resorted.values());
+            bottomScore = Collections.min(resorted.values());
+            denominator = (topScore == bottomScore) ? 1 : (topScore - bottomScore);
+        }
+
+        for(int i=0;i<in.scoreDocs.length;i++) {
+            if (resorted.containsKey(in.scoreDocs[i].doc))
+            {
+                float score = (!ctx.normalize) ? resorted.get(in.scoreDocs[i].doc) :
+                                                ((resorted.get(in.scoreDocs[i].doc) - bottomScore) / denominator);
+                in.scoreDocs[i].score = ctx.scoreMode.combine(in.scoreDocs[i].score * ctx.queryWeight(), score * ctx.rescoreQueryWeight());
+            }
+            else
+            {
                 in.scoreDocs[i].score *= ctx.queryWeight();
             }
-            
-            // TODO: this is wrong, i.e. we are comparing apples and oranges at this point.  It would be better if we always rescored all
-            // incoming first pass hits, instead of allowing recoring of just the top subset:
-            Arrays.sort(in.scoreDocs, SCORE_DOC_COMPARATOR);
         }
+
+        // TODO: this is wrong, i.e. we are comparing apples and oranges at this point.  It would be better if we always rescored all
+        // incoming first pass hits, instead of allowing recoring of just the top subset:
+        Arrays.sort(in.scoreDocs, SCORE_DOC_COMPARATOR);
+
         return in;
     }
 
@@ -270,6 +322,8 @@ public final class QueryRescorer implements Rescorer {
         private float queryWeight = 1.0f;
         private float rescoreQueryWeight = 1.0f;
         private ScoreMode scoreMode;
+        private boolean normalize;
+
 
         public void setParsedQuery(ParsedQuery parsedQuery) {
             this.parsedQuery = parsedQuery;
@@ -291,6 +345,10 @@ public final class QueryRescorer implements Rescorer {
             return scoreMode;
         }
 
+        public boolean normalize() {
+            return normalize;
+        }
+
         public void setRescoreQueryWeight(float rescoreQueryWeight) {
             this.rescoreQueryWeight = rescoreQueryWeight;
         }
@@ -303,6 +361,9 @@ public final class QueryRescorer implements Rescorer {
             this.scoreMode = scoreMode;
         }
 
+        public void setNormalize(boolean normalize) {
+            this.normalize = normalize;
+        }
     }
 
     @Override

@@ -39,6 +39,7 @@ import org.elasticsearch.transport.*;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
@@ -402,6 +403,11 @@ public class MockTransportService extends TransportService {
         @Override
         public void close() throws ElasticsearchException {
             transport.close();
+        }
+
+        @Override
+        public Map<String, BoundTransportAddress> profileBoundAddresses() {
+            return transport.profileBoundAddresses();
         }
     }
 }

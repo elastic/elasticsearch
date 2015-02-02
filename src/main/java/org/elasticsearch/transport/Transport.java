@@ -25,6 +25,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
@@ -41,6 +42,12 @@ public interface Transport extends LifecycleComponent<Transport> {
      * The address the transport is bound on.
      */
     BoundTransportAddress boundAddress();
+
+    /**
+     * Further profile bound addresses
+     * @return Should return null if transport does not support profiles, otherwise a map with name of profile and its bound transport address
+     */
+    Map<String, BoundTransportAddress> profileBoundAddresses();
 
     /**
      * Returns an address from its string representation.
@@ -78,5 +85,8 @@ public interface Transport extends LifecycleComponent<Transport> {
      */
     void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException;
 
+    /**
+     * Returns count of currently open connections
+     */
     long serverOpen();
 }

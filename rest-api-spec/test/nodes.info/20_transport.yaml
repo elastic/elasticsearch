@@ -1,0 +1,9 @@
+---
+"node_info test profile is empty":
+  - do:
+      nodes.info:
+        metric: [ transport ]
+
+# there is no possbility to use is_true here due to unknown node_id
+# which is part of the path, just checking for profiles in the body
+  - match: { $body: /profiles/ }

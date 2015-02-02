@@ -56,8 +56,7 @@ public class HistogramParser implements Aggregator.Parser {
         InternalOrder order = (InternalOrder) InternalOrder.KEY_ASC;
         long interval = -1;
         ExtendedBounds extendedBounds = null;
-        long preOffset = 0;
-        long postOffset = 0;
+        long offset = 0;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -73,10 +72,8 @@ public class HistogramParser implements Aggregator.Parser {
                     minDocCount = parser.longValue();
                 } else if ("keyed".equals(currentFieldName)) {
                     keyed = parser.booleanValue();
-                } else if ("pre_offset".equals(currentFieldName) || "preOffset".equals(currentFieldName)) {
-                    preOffset = parser.longValue();
-                } else if ("post_offset".equals(currentFieldName) || "postOffset".equals(currentFieldName)) {
-                    postOffset = parser.longValue();
+                } else if ("offset".equals(currentFieldName)) {
+                    offset = parser.longValue();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
@@ -121,10 +118,10 @@ public class HistogramParser implements Aggregator.Parser {
         if (interval < 0) {
             throw new SearchParseException(context, "Missing required field [interval] for histogram aggregation [" + aggregationName + "]");
         }
-        
+
         Rounding rounding = new Rounding.Interval(interval);
-        if (preOffset != 0 || postOffset != 0) {
-            rounding = new Rounding.PrePostRounding((Rounding.Interval) rounding, preOffset, postOffset);
+        if (offset != 0) {
+            rounding = new Rounding.PrePostRounding((Rounding.Interval) rounding, -offset, offset);
         }
 
         if (extendedBounds != null) {

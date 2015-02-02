@@ -125,7 +125,6 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
 
         assertSearchResponse(response);
 
-
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
@@ -140,51 +139,71 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    @Test
-    public void singleValuedField_withPreOffset() throws Exception {
-        long preOffsetMultiplier = randomIntBetween(2, 10);
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).preOffset(preOffsetMultiplier * interval))
+    public void singleValuedField_withOffset() throws Exception {
+        int interval1 = 10;
+        int offset = 5;
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval1).offset(offset))
                 .execute().actionGet();
 
-        assertSearchResponse(response);
-
-
+        // from setup we have between 6 and 20 documents, each with value 1 in test field
+        int expectedNumberOfBuckets = (offset >= (numDocs % interval + 1)) ? numValueBuckets   : numValueBuckets + 1;
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
-        List<? extends Bucket> buckets = histo.getBuckets();
-        assertThat(buckets.size(), equalTo(numValueBuckets));
+        assertThat(histo.getBuckets().size(), equalTo(expectedNumberOfBuckets));
 
-        for (int i = 0; i < numValueBuckets; ++i) {
-            Histogram.Bucket bucket = buckets.get(i);
-            assertThat(bucket, notNullValue());
-            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) (i + preOffsetMultiplier) * interval));
-            assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
-        }
+        // first bucket should start at -5, contain 4 documents
+        Histogram.Bucket bucket = histo.getBuckets().get(0);
+        assertThat(bucket, notNullValue());
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(-5L));
+        assertThat(bucket.getDocCount(), equalTo(4L));
+
+        // last bucket should have (numDocs % interval + 1) docs
+        bucket = histo.getBuckets().get(0);
+        assertThat(bucket, notNullValue());
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(numDocs%interval1 + 5L));
+        assertThat(bucket.getDocCount(), equalTo((numDocs % interval) + 1L));
     }
 
+    /**
+     * Shift buckets by random offset between [2..interval]. From setup we have 1 doc per values from 1..numdocs.
+     * Special care needs to be taken for expecations on counts in first and last bucket.
+     */
     @Test
-    public void singleValuedField_withPostOffset() throws Exception {
-        long postOffsetMultiplier = randomIntBetween(2, 10);
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).postOffset(postOffsetMultiplier * interval))
+    public void singleValuedField_withRandomOffset() throws Exception {
+        int offset = randomIntBetween(2, interval);
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).offset(offset))
                 .execute().actionGet();
-
         assertSearchResponse(response);
-
+        // shifting by offset>2 creates new extra bucket [0,offset-1]
+        // if offset is >= number of values in original last bucket, that effect is canceled
+        int expectedNumberOfBuckets = (offset >= (numDocs % interval + 1)) ? numValueBuckets   : numValueBuckets + 1;
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
-        List<? extends Bucket> buckets = histo.getBuckets();
-        assertThat(buckets.size(), equalTo(numValueBuckets));
+        assertThat(histo.getBuckets().size(), equalTo(expectedNumberOfBuckets));
 
-        for (int i = 0; i < numValueBuckets; ++i) {
-            Histogram.Bucket bucket = buckets.get(i);
+        int docsCounted = 0;
+        for (int i = 0; i < expectedNumberOfBuckets; ++i) {
+            Histogram.Bucket bucket = histo.getBuckets().get(i);
             assertThat(bucket, notNullValue());
-            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) (i + postOffsetMultiplier) * interval));
-            assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) ((i-1) * interval  + offset)));
+            if (i==0) {
+                // first bucket
+                long expectedFirstBucketCount = offset-1;
+                assertThat(bucket.getDocCount(), equalTo(expectedFirstBucketCount));
+                docsCounted += expectedFirstBucketCount;
+            } else if(i<expectedNumberOfBuckets-1) {
+                assertThat(bucket.getDocCount(), equalTo((long) interval));
+                docsCounted += interval;
+            } else {
+                assertThat(bucket.getDocCount(), equalTo((long) numDocs - docsCounted));
+            }
         }
     }
 

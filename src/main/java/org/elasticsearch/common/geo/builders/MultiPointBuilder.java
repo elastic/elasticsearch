@@ -21,8 +21,8 @@ package org.elasticsearch.common.geo.builders;
 
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Shape;
-import com.spatial4j.core.shape.ShapeCollection;
 import com.vividsolutions.jts.geom.Coordinate;
+import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -51,7 +51,7 @@ public class MultiPointBuilder extends PointCollection<MultiPointBuilder> {
         for (Coordinate coord : points) {
             shapes.add(SPATIAL_CONTEXT.makePoint(coord.x, coord.y));
         }
-        return new ShapeCollection<>(shapes, SPATIAL_CONTEXT);
+        return new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
     }
 
     @Override

@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -110,6 +111,7 @@ public class ZenDiscoveryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @TestLogging(value = "action.admin.cluster.health:TRACE")
     public void testNodeFailuresAreProcessedOnce() throws ExecutionException, InterruptedException, IOException {
         Settings defaultSettings = ImmutableSettings.builder()
                 .put(FaultDetection.SETTING_PING_TIMEOUT, "1s")

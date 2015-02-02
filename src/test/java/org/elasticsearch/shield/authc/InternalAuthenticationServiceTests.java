@@ -401,6 +401,84 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         assertThat(message.getHeader(InternalAuthenticationService.USER_KEY), equalTo((Object) "_signed_user"));
     }
 
+    @Test
+    public void testResolveAnonymousUser() throws Exception {
+        Settings settings = ImmutableSettings.builder()
+                .put("anonymous.username", "anonym1")
+                .putArray("anonymous.roles", "r1", "r2", "r3")
+                .build();
+        User user = InternalAuthenticationService.resolveAnonymouseUser(settings);
+        assertThat(user, notNullValue());
+        assertThat(user.principal(), equalTo("anonym1"));
+        assertThat(user.roles(), arrayContainingInAnyOrder("r1", "r2", "r3"));
+
+        settings = ImmutableSettings.builder()
+                .putArray("anonymous.roles", "r1", "r2", "r3")
+                .build();
+        user = InternalAuthenticationService.resolveAnonymouseUser(settings);
+        assertThat(user, notNullValue());
+        assertThat(user.principal(), equalTo(InternalAuthenticationService.ANONYMOUS_USERNAME));
+        assertThat(user.roles(), arrayContainingInAnyOrder("r1", "r2", "r3"));
+    }
+
+    @Test
+    public void testResolveAnonymousUser_NoSettings() throws Exception {
+        Settings settings = randomBoolean() ?
+                ImmutableSettings.EMPTY :
+                ImmutableSettings.builder().put("anonymous.username", "user1").build();
+        User user = InternalAuthenticationService.resolveAnonymouseUser(settings);
+        assertThat(user, nullValue());
+    }
+
+    @Test
+    public void testAnonymousUser_Rest() throws Exception {
+        String username = randomBoolean() ? InternalAuthenticationService.ANONYMOUS_USERNAME : "user1";
+        ImmutableSettings.Builder builder = ImmutableSettings.builder()
+                .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3");
+        if (username != InternalAuthenticationService.ANONYMOUS_USERNAME) {
+            builder.put("shield.authc.anonymous.username", username);
+        }
+        service = new InternalAuthenticationService(builder.build(), realms, auditTrail, signatureService);
+
+        RestRequest request = new InternalRestRequest();
+
+        User user = service.authenticate(request);
+        assertThat(user, notNullValue());
+        assertThat(user.principal(), equalTo(username));
+        assertThat(user.roles(), arrayContainingInAnyOrder("r1", "r2", "r3"));
+    }
+
+    @Test
+    public void testAnonymousUser_Transport_NoDefaultUser() throws Exception {
+        Settings settings = ImmutableSettings.builder()
+                .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3")
+                .build();
+        service = new InternalAuthenticationService(settings, realms, auditTrail, signatureService);
+
+        InternalMessage message = new InternalMessage();
+
+        User user = service.authenticate("_action", message, null);
+        assertThat(user, notNullValue());
+        assertThat(user.principal(), equalTo(InternalAuthenticationService.ANONYMOUS_USERNAME));
+        assertThat(user.roles(), arrayContainingInAnyOrder("r1", "r2", "r3"));
+    }
+
+    @Test
+    public void testAnonymousUser_Transport_WithDefaultUser() throws Exception {
+        Settings settings = ImmutableSettings.builder()
+                .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3")
+                .build();
+        service = new InternalAuthenticationService(settings, realms, auditTrail, signatureService);
+
+        InternalMessage message = new InternalMessage();
+
+        User user = service.authenticate("_action", message, User.SYSTEM);
+        assertThat(user, notNullValue());
+        assertThat(user, sameInstance(User.SYSTEM));
+    }
+
+
+
     private static class InternalMessage extends TransportMessage<InternalMessage> {
     }
 

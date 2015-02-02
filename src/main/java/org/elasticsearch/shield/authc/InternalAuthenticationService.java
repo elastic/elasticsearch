@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.authc;
 
 import org.apache.commons.codec.binary.Base64;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
@@ -27,6 +28,8 @@ import java.io.IOException;
  */
 public class InternalAuthenticationService extends AbstractComponent implements AuthenticationService {
 
+    static final String ANONYMOUS_USERNAME = "_es_anonymous_user";
+
     static final String TOKEN_KEY = "_shield_token";
     static final String USER_KEY = "_shield_user";
 
@@ -35,6 +38,9 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     private final SignatureService signatureService;
     private final boolean signUserHeader;
 
+    @Nullable
+    private final User anonymouseUser;
+
     @Inject
     public InternalAuthenticationService(Settings settings, Realms realms, AuditTrail auditTrail, SignatureService signatureService) {
         super(settings);
@@ -42,12 +48,16 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         this.auditTrail = auditTrail;
         this.signatureService = signatureService;
         this.signUserHeader = componentSettings.getAsBoolean("sign_user_header", true);
+        anonymouseUser = resolveAnonymouseUser(componentSettings);
     }
 
     @Override
     public User authenticate(RestRequest request) throws AuthenticationException {
         AuthenticationToken token = token(request);
         if (token == null) {
+            if (anonymouseUser != null) {
+                return anonymouseUser;
+            }
             auditTrail.anonymousAccessDenied(request);
             throw new AuthenticationException("missing authentication token for REST request [" + request.uri() + "]");
         }
@@ -122,6 +132,15 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         }
     }
 
+    static User resolveAnonymouseUser(Settings settings) {
+        String[] roles = settings.getAsArray("anonymous.roles", null);
+        if (roles == null) {
+            return null;
+        }
+        String username = settings.get("anonymous.username", ANONYMOUS_USERNAME);
+        return new User.Simple(username, roles);
+    }
+
     /**
      * Authenticates the user associated with the given request by delegating the authentication to
      * the configured realms. Each realm that supports the given token will be asked to perform authentication,
@@ -145,11 +164,14 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         AuthenticationToken token = token(action, message);
 
         if (token == null) {
-            if (fallbackUser == null) {
-                auditTrail.anonymousAccessDenied(action, message);
-                throw new AuthenticationException("missing authentication token for action [" + action + "]");
+            if (fallbackUser != null) {
+                return fallbackUser;
             }
-            return fallbackUser;
+            if (anonymouseUser != null) {
+                return anonymouseUser;
+            }
+            auditTrail.anonymousAccessDenied(action, message);
+            throw new AuthenticationException("missing authentication token for action [" + action + "]");
         }
 
         try {

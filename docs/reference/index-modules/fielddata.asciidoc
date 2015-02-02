@@ -265,7 +265,8 @@ to reload the fielddata using the new filters.
 
 The frequency filter allows you to only load terms whose frequency falls
 between a `min` and `max` value, which can be expressed an absolute
-number or as a percentage (eg `0.01` is `1%`). Frequency is calculated
+number (when the number is bigger than 1.0) or as a percentage
+(eg `0.01` is `1%` and `1.0` is `100%`). Frequency is calculated
 *per segment*. Percentages are based on the number of docs which have a
 value for the field, as opposed to all docs in the segment.
 

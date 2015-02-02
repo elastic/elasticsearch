@@ -114,8 +114,8 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
             final double maxFrequency = settings.getAsDouble("max", docCount+1d);
             final double minSegmentSize = settings.getAsInt("min_segment_size", 0);
             if (minSegmentSize < docCount) {
-                final int minFreq = minFrequency >= 1.0? (int) minFrequency : (int)(docCount * minFrequency);
-                final int maxFreq = maxFrequency >= 1.0? (int) maxFrequency : (int)(docCount * maxFrequency);
+                final int minFreq = minFrequency > 1.0? (int) minFrequency : (int)(docCount * minFrequency);
+                final int maxFreq = maxFrequency > 1.0? (int) maxFrequency : (int)(docCount * maxFrequency);
                 assert minFreq < maxFreq;
                 return new FrequencyFilter(toFilter, minFreq, maxFreq);
             }

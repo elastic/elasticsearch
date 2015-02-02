@@ -138,7 +138,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         if (boundTransportAddress == null) {
             return null;
         }
-        return new TransportInfo(boundTransportAddress);
+        return new TransportInfo(boundTransportAddress, transport.profileBoundAddresses());
     }
 
     public TransportStats stats() {

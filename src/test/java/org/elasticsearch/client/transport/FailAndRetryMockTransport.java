@@ -35,6 +35,8 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -187,5 +189,10 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     @Override
     public void close() throws ElasticsearchException {
 
+    }
+
+    @Override
+    public Map<String, BoundTransportAddress> profileBoundAddresses() {
+        return Collections.EMPTY_MAP;
     }
 }

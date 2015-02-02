@@ -48,12 +48,14 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
     protected final ThreadPool threadPool;
     protected final TransportServiceAdapter transportServiceAdapter;
     protected final NettyTransport transport;
+    protected final String profileName;
 
-    public MessageChannelHandler(NettyTransport transport, ESLogger logger) {
+    public MessageChannelHandler(NettyTransport transport, ESLogger logger, String profileName) {
         this.threadPool = transport.threadPool();
         this.transportServiceAdapter = transport.transportServiceAdapter();
         this.transport = transport;
         this.logger = logger;
+        this.profileName = profileName;
     }
 
     @Override
@@ -203,7 +205,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
     protected String handleRequest(Channel channel, StreamInput buffer, long requestId, Version version) throws IOException {
         final String action = buffer.readString();
 
-        final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, action, channel, requestId, version);
+        final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, action, channel, requestId, version, profileName);
         try {
             final TransportRequestHandler handler = transportServiceAdapter.handler(action);
             if (handler == null) {

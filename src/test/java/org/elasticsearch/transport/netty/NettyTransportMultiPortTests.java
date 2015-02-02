@@ -60,7 +60,6 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
         if (threadPool != null) {
             threadPool.shutdownNow();
         }
-
     }
 
     @Test

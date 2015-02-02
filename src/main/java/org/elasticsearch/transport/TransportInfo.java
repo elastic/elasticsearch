@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import com.google.common.collect.Maps;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -84,29 +86,36 @@ public class TransportInfo implements Streamable, Serializable, ToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         address = BoundTransportAddress.readBoundTransportAddress(in);
-        int size = in.readVInt();
-        if (size > 0) {
-            profileAddresses = Maps.newHashMapWithExpectedSize(size);
-            for (int i = 0; i < size; i++) {
-                String key = in.readString();
-                BoundTransportAddress value = BoundTransportAddress.readBoundTransportAddress(in);
-                profileAddresses.put(key, value);
+        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+            int size = in.readVInt();
+            if (size > 0) {
+                profileAddresses = Maps.newHashMapWithExpectedSize(size);
+                for (int i = 0; i < size; i++) {
+                    String key = in.readString();
+                    BoundTransportAddress value = BoundTransportAddress.readBoundTransportAddress(in);
+                    profileAddresses.put(key, value);
+                }
             }
+        } else {
+            profileAddresses = Collections.EMPTY_MAP;
+            return;
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         address.writeTo(out);
-        if (profileAddresses != null) {
-            out.writeVInt(profileAddresses.size());
-        } else {
-            out.writeVInt(0);
-        }
-        if (profileAddresses != null && profileAddresses.size() > 0) {
-            for (Map.Entry<String, BoundTransportAddress> entry : profileAddresses.entrySet()) {
-                out.writeString(entry.getKey());
-                entry.getValue().writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+            if (profileAddresses != null) {
+                out.writeVInt(profileAddresses.size());
+            } else {
+                out.writeVInt(0);
+            }
+            if (profileAddresses != null && profileAddresses.size() > 0) {
+                for (Map.Entry<String, BoundTransportAddress> entry : profileAddresses.entrySet()) {
+                    out.writeString(entry.getKey());
+                    entry.getValue().writeTo(out);
+                }
             }
         }
     }

@@ -52,8 +52,9 @@ public final class FieldNameAnalyzer extends DelegatingAnalyzerWrapper {
         return defaultAnalyzer;
     }
 
+    /** NOTE: public so MapperAnalyzer can invoke: */
     @Override
-    protected Analyzer getWrappedAnalyzer(String fieldName) {
+    public Analyzer getWrappedAnalyzer(String fieldName) {
         return getAnalyzer(fieldName);
     }
 

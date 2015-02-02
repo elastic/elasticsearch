@@ -1,6 +1,9 @@
 ---
 
 "node_info test profile is empty":
+  - skip:
+        features: stash_in_path
+
   - do:
       cluster.state: {}
 

@@ -45,6 +45,13 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardCompatibilityTest {
     
     List<String> indexes = Arrays.asList(
+        "index-0.20.0.RC1.zip",
+        "index-0.20.0.zip",
+        "index-0.20.1.zip",
+        "index-0.20.2.zip",
+        "index-0.20.3.zip",
+        "index-0.20.4.zip",
+        "index-0.20.5.zip",
         "index-0.20.6.zip",
         "index-0.90.0.Beta1.zip",
         "index-0.90.0.RC1.zip",
@@ -99,7 +106,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
             if (Modifier.isStatic(field.getModifiers()) && field.getType() == Version.class) {
                 Version v = (Version)field.get(Version.class);
                 if (v.snapshot()) continue;
-                if (v.onOrBefore(Version.V_0_20_5)) continue;
+                if (v.before(Version.V_0_20_0_RC1)) continue;
 
                 expectedVersions.add("index-" + v.toString() + ".zip");
             }

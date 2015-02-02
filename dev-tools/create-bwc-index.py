@@ -136,11 +136,39 @@ def generate_index(client):
   num_shards = random.randint(1, 10)
   num_replicas = random.randint(0, 1)
   logging.info('Create single shard test index')
+
+  mappings = {}
+  if not version.startswith('2.'):
+    # TODO: we need better "before/onOr/after" logic in python
+
+    # backcompat test for legacy type level analyzer settings, see #8874
+    mappings['analyzer_type1'] = {
+      'analyzer': 'standard',
+      'properties': {
+        'string_with_index_analyzer': {
+          'type': 'string',
+          'index_analyzer': 'standard'
+        },
+      }
+    }
+    if not version.startswith('0.20') or version == '0.20.6':
+      mappings['analyzer_1']['properties']['completion_with_index_analyzer'] = {
+        'type': 'completion',
+        'index_analyzer': 'standard'
+      }
+
+    mappings['analyzer_type2'] = {
+      'index_analyzer': 'standard',
+      'search_analyzer': 'keyword',
+      'search_quote_analyzer': 'english',
+    }
+
   client.indices.create(index='test', body={
       'settings': {
           'number_of_shards': 1,
           'number_of_replicas': 0
-      }
+      },
+      'mappings': mappings
   })
   health = client.cluster.health(wait_for_status='green', wait_for_relocating_shards=0)
   assert health['timed_out'] == False, 'cluster health timed out %s' % health

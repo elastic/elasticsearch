@@ -20,7 +20,7 @@
 package org.elasticsearch.common.geo.builders;
 
 import com.spatial4j.core.shape.Shape;
-import com.spatial4j.core.shape.ShapeCollection;
+import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -115,7 +115,7 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
         if (shapes.size() == 1)
             return shapes.get(0);
         else
-            return new ShapeCollection<>(shapes, SPATIAL_CONTEXT);
+            return new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
         //note: ShapeCollection is probably faster than a Multi* geom.
     }
 

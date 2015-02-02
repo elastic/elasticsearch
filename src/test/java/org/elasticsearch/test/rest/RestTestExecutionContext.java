@@ -114,7 +114,7 @@ public class RestTestExecutionContext implements Closeable {
      * Extracts a specific value from the last saved response
      */
     public Object response(String path) throws IOException {
-        return response.evaluate(path);
+        return response.evaluate(path, stash);
     }
 
     /**

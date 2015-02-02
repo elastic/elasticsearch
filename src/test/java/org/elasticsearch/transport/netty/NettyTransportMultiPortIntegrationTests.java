@@ -55,7 +55,7 @@ public class NettyTransportMultiPortIntegrationTests extends ElasticsearchIntegr
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName())
                 .put("node.mode", "network")
                 .put("transport.profiles.client1.port", randomPortRange)
-                .put("transport.profiles.client1.publish_host", "10.0.254.253")
+                .put("transport.profiles.client1.publish_host", "127.0.0.7")
                 .put("transport.profiles.client1.publish_port", "4321")
                 .put("transport.profiles.client1.reuse_address", true)
                 .build();
@@ -90,7 +90,7 @@ public class NettyTransportMultiPortIntegrationTests extends ElasticsearchIntegr
             // publish address
             assertThat(nodeInfo.getTransport().getProfileAddresses().get("client1").publishAddress(), instanceOf(InetSocketTransportAddress.class));
             InetSocketTransportAddress publishAddress = (InetSocketTransportAddress) nodeInfo.getTransport().getProfileAddresses().get("client1").publishAddress();
-            assertThat(publishAddress.address().getHostName(), is("10.0.254.253"));
+            assertThat(publishAddress.address().getHostName(), is("127.0.0.7"));
             assertThat(publishAddress.address().getPort(), is(4321));
         }
     }

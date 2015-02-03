@@ -42,11 +42,8 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.is;
 
-@ClusterScope(scope = Scope.TEST, numDataNodes = 1)
 public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
 
     private NettyTransport nettyTransport;

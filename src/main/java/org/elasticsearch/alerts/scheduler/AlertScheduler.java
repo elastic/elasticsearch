@@ -7,8 +7,8 @@ package org.elasticsearch.alerts.scheduler;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.alerts.Alert;
-import org.elasticsearch.alerts.AlertService;
-import org.elasticsearch.alerts.plugin.AlertsPlugin;
+import org.elasticsearch.alerts.AlertsService;
+import org.elasticsearch.alerts.AlertsPlugin;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
@@ -26,7 +26,7 @@ public class AlertScheduler extends AbstractComponent {
     // Not happy about it, but otherwise we're stuck with Quartz's SimpleThreadPool
     private volatile static ThreadPool threadPool;
 
-    private AlertService alertService;
+    private AlertsService alertsService;
     private volatile Scheduler scheduler;
 
     @Inject
@@ -35,8 +35,8 @@ public class AlertScheduler extends AbstractComponent {
         AlertScheduler.threadPool = threadPool;
     }
 
-    public void setAlertService(AlertService alertService){
-        this.alertService = alertService;
+    public void setAlertsService(AlertsService alertsService){
+        this.alertsService = alertsService;
     }
 
     /**
@@ -88,7 +88,7 @@ public class AlertScheduler extends AbstractComponent {
     public void executeAlert(String alertName, JobExecutionContext jobExecutionContext){
         DateTime scheduledFireTime = new DateTime(jobExecutionContext.getScheduledFireTime());
         DateTime fireTime = new DateTime(jobExecutionContext.getFireTime());
-        alertService.scheduleAlert(alertName, scheduledFireTime, fireTime);
+        alertsService.scheduleAlert(alertName, scheduledFireTime, fireTime);
     }
 
     public boolean remove(String alertName) {

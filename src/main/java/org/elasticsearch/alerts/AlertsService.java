@@ -7,6 +7,7 @@ package org.elasticsearch.alerts;
 
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
@@ -16,6 +17,7 @@ import org.elasticsearch.alerts.actions.AlertActionRegistry;
 import org.elasticsearch.alerts.actions.AlertActionService;
 import org.elasticsearch.alerts.actions.AlertHistory;
 import org.elasticsearch.alerts.scheduler.AlertScheduler;
+import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.alerts.triggers.TriggerResult;
@@ -45,7 +47,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public class AlertService extends AbstractComponent {
+public class AlertsService extends AbstractComponent {
 
     private final ClientProxy client;
     private final AlertScheduler scheduler;
@@ -62,18 +64,18 @@ public class AlertService extends AbstractComponent {
     private volatile boolean manuallyStopped;
 
     @Inject
-    public AlertService(Settings settings, ClientProxy client, ClusterService clusterService, AlertScheduler scheduler, AlertsStore alertsStore,
-                        IndicesService indicesService, TriggerService triggerService, AlertActionService actionManager,
-                        AlertActionRegistry actionRegistry, ThreadPool threadPool, ScriptServiceProxy scriptService) {
+    public AlertsService(Settings settings, ClientProxy client, ClusterService clusterService, AlertScheduler scheduler, AlertsStore alertsStore,
+                         IndicesService indicesService, TriggerService triggerService, AlertActionService actionManager,
+                         AlertActionRegistry actionRegistry, ThreadPool threadPool, ScriptServiceProxy scriptService) {
         super(settings);
         this.client = client;
         this.scheduler = scheduler;
         this.threadPool = threadPool;
-        this.scheduler.setAlertService(this);
+        this.scheduler.setAlertsService(this);
         this.alertsStore = alertsStore;
         this.triggerService = triggerService;
         this.actionManager = actionManager;
-        this.actionManager.setAlertService(this);
+        this.actionManager.setAlertsService(this);
         this.actionRegistry = actionRegistry;
         this.clusterService = clusterService;
         this.scriptService = scriptService;
@@ -379,4 +381,54 @@ public class AlertService extends AbstractComponent {
 
     }
 
+    /**
+     * Encapsulates the state of the alerts plugin.
+     */
+    public static enum State {
+
+        /**
+         * The alerts plugin is not running and not functional.
+         */
+        STOPPED(0),
+
+        /**
+         * The alerts plugin is performing the necessary operations to get into a started state.
+         */
+        STARTING(1),
+
+        /**
+         * The alerts plugin is running and completely functional.
+         */
+        STARTED(2),
+
+        /**
+         * The alerts plugin is shutting down and not functional.
+         */
+        STOPPING(3);
+
+        private final byte id;
+
+        State(int id) {
+            this.id = (byte) id;
+        }
+
+        public byte getId() {
+            return id;
+        }
+
+        public static State fromId(byte id) {
+            switch (id) {
+                case 0:
+                    return STOPPED;
+                case 1:
+                    return STARTING;
+                case 2:
+                    return STARTED;
+                case 3:
+                    return STOPPING;
+                default:
+                    throw new ElasticsearchIllegalArgumentException("Unknown id: " + id);
+            }
+        }
+    }
 }

@@ -9,7 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
-import org.elasticsearch.alerts.AlertService;
+import org.elasticsearch.alerts.AlertsService;
 import org.elasticsearch.alerts.AlertsBuild;
 import org.elasticsearch.alerts.AlertsVersion;
 import org.elasticsearch.alerts.actions.AlertActionService;
@@ -27,15 +27,15 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportAlertsStatsAction extends TransportMasterNodeOperationAction<AlertsStatsRequest, AlertsStatsResponse> {
 
-    private final AlertService alertService;
+    private final AlertsService alertsService;
     private final AlertActionService alertActionService;
 
     @Inject
     public TransportAlertsStatsAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                      ThreadPool threadPool, ActionFilters actionFilters, AlertService alertService,
+                                      ThreadPool threadPool, ActionFilters actionFilters, AlertsService alertsService,
                                       AlertActionService alertActionService) {
         super(settings, AlertsStatsAction.NAME, transportService, clusterService, threadPool, actionFilters);
-        this.alertService = alertService;
+        this.alertsService = alertsService;
         this.alertActionService = alertActionService;
     }
 
@@ -57,10 +57,10 @@ public class TransportAlertsStatsAction extends TransportMasterNodeOperationActi
     @Override
     protected void masterOperation(AlertsStatsRequest request, ClusterState state, ActionListener<AlertsStatsResponse> listener) throws ElasticsearchException {
         AlertsStatsResponse statsResponse = new AlertsStatsResponse();
-        statsResponse.setAlertManagerState(alertService.getState());
+        statsResponse.setAlertManagerState(alertsService.getState());
         statsResponse.setAlertActionManagerStarted(alertActionService.started());
         statsResponse.setAlertActionManagerQueueSize(alertActionService.getQueueSize());
-        statsResponse.setNumberOfRegisteredAlerts(alertService.getNumberOfAlerts());
+        statsResponse.setNumberOfRegisteredAlerts(alertsService.getNumberOfAlerts());
         statsResponse.setAlertActionManagerLargestQueueSize(alertActionService.getLargestQueueSize());
         statsResponse.setVersion(AlertsVersion.CURRENT);
         statsResponse.setBuild(AlertsBuild.CURRENT);

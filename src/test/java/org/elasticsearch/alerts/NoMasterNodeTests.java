@@ -141,8 +141,8 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
             }
         }), equalTo(true));
         // Ensure that the alert manager doesn't run elsewhere
-        for (AlertService alertService : internalTestCluster().getInstances(AlertService.class)) {
-            assertThat(alertService.getState(), is(State.STOPPED));
+        for (AlertsService alertsService : internalTestCluster().getInstances(AlertsService.class)) {
+            assertThat(alertsService.getState(), is(AlertsService.State.STOPPED));
         }
     }
 

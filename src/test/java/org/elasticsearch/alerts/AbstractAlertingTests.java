@@ -11,7 +11,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.alerts.actions.AlertActionService;
 import org.elasticsearch.alerts.actions.AlertActionState;
 import org.elasticsearch.alerts.client.AlertsClient;
-import org.elasticsearch.alerts.plugin.AlertsPlugin;
+import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -71,7 +71,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
     public void startAlertsIfNodesExist() throws Exception {
         if (internalTestCluster().size() > 0) {
             AlertsStatsResponse response = alertClient().prepareAlertsStats().get();
-            if (response.getAlertManagerStarted() == State.STOPPED) {
+            if (response.getAlertManagerStarted() == AlertsService.State.STOPPED) {
                 logger.info("[{}#{}]: starting alerts", getTestClass().getSimpleName(), getTestName());
                 startAlerting();
             } else {
@@ -223,7 +223,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                assertThat(alertClient().prepareAlertsStats().get().getAlertManagerStarted(), is(State.STARTED));
+                assertThat(alertClient().prepareAlertsStats().get().getAlertManagerStarted(), is(AlertsService.State.STARTED));
             }
         });
     }
@@ -232,7 +232,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                assertThat(alertClient().prepareAlertsStats().get().getAlertManagerStarted(), is(State.STOPPED));
+                assertThat(alertClient().prepareAlertsStats().get().getAlertManagerStarted(), is(AlertsService.State.STOPPED));
             }
         });
     }
@@ -330,29 +330,29 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
             // First manually stop alerting on non elected master node, this will prevent that alerting becomes active
             // on these nodes
             for (String node : nodes) {
-                AlertService alertService = _testCluster.getInstance(AlertService.class, node);
-                assertThat(alertService.getState(), equalTo(State.STOPPED));
-                alertService.stop(); // Prevents these nodes from starting alerting when new elected master node is picked.
+                AlertsService alertsService = _testCluster.getInstance(AlertsService.class, node);
+                assertThat(alertsService.getState(), equalTo(AlertsService.State.STOPPED));
+                alertsService.stop(); // Prevents these nodes from starting alerting when new elected master node is picked.
             }
 
             // Then stop alerting on elected master node and wait until alerting has stopped on it.
-            final AlertService alertService = _testCluster.getInstance(AlertService.class, masterNode);
+            final AlertsService alertsService = _testCluster.getInstance(AlertsService.class, masterNode);
             try {
                 assertBusy(new Runnable() {
                     @Override
                     public void run() {
-                        assertThat(alertService.getState(), not(equalTo(State.STARTING)));
+                        assertThat(alertsService.getState(), not(equalTo(AlertsService.State.STARTING)));
                     }
                 });
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-            alertService.stop();
+            alertsService.stop();
             try {
                 assertBusy(new Runnable() {
                     @Override
                     public void run() {
-                        assertThat(alertService.getState(), equalTo(State.STOPPED));
+                        assertThat(alertsService.getState(), equalTo(AlertsService.State.STOPPED));
                     }
                 });
             } catch (Exception e) {

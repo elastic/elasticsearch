@@ -7,8 +7,8 @@ package org.elasticsearch.alerts.transport.actions.stats;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.alerts.AlertsBuild;
+import org.elasticsearch.alerts.AlertsService;
 import org.elasticsearch.alerts.AlertsVersion;
-import org.elasticsearch.alerts.State;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -22,7 +22,7 @@ public class AlertsStatsResponse extends ActionResponse {
     private AlertsVersion version;
     private AlertsBuild build;
     private long numberOfRegisteredAlerts;
-    private State alertManagerState;
+    private AlertsService.State alertManagerState;
     private boolean alertActionManagerStarted;
     private long alertActionManagerQueueSize;
     private long alertActionManagerLargestQueueSize;
@@ -55,11 +55,11 @@ public class AlertsStatsResponse extends ActionResponse {
     /**
      * Returns the state of the alert manager.
      */
-    public State getAlertManagerStarted() {
+    public AlertsService.State getAlertManagerStarted() {
         return alertManagerState;
     }
 
-    void setAlertManagerState(State alertManagerState) {
+    void setAlertManagerState(AlertsService.State alertManagerState) {
         this.alertManagerState = alertManagerState;
     }
 
@@ -113,7 +113,7 @@ public class AlertsStatsResponse extends ActionResponse {
         numberOfRegisteredAlerts = in.readLong();
         alertActionManagerQueueSize = in.readLong();
         alertActionManagerLargestQueueSize = in.readLong();
-        alertManagerState = State.fromId(in.readByte());
+        alertManagerState = AlertsService.State.fromId(in.readByte());
         alertActionManagerStarted = in.readBoolean();
         version = AlertsVersion.readVersion(in);
         build = AlertsBuild.readBuild(in);

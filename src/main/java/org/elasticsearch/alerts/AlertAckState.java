@@ -19,6 +19,7 @@ import java.io.IOException;
  * ACKED : This alert has been acknowleged, subsequent positive triggers will not cause actions to occur, a negative trigger will move the alert back into NOT_TRIGGERED state
  */
 public enum AlertAckState implements ToXContent {
+
     NOT_ACKABLE, ///@TODO perhaps null
     NEEDS_ACK,
     ACKED,

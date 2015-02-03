@@ -9,7 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
-import org.elasticsearch.alerts.AlertService;
+import org.elasticsearch.alerts.AlertsService;
 import org.elasticsearch.alerts.AlertsStore;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,13 +25,13 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportAckAlertAction extends TransportMasterNodeOperationAction<AckAlertRequest, AckAlertResponse> {
 
-    private final AlertService alertService;
+    private final AlertsService alertsService;
 
     @Inject
     public TransportAckAlertAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                   ThreadPool threadPool, ActionFilters actionFilters, AlertService alertService) {
+                                   ThreadPool threadPool, ActionFilters actionFilters, AlertsService alertsService) {
         super(settings, AckAlertAction.NAME, transportService, clusterService, threadPool, actionFilters);
-        this.alertService = alertService;
+        this.alertsService = alertsService;
     }
 
     @Override
@@ -52,7 +52,7 @@ public class TransportAckAlertAction extends TransportMasterNodeOperationAction<
     @Override
     protected void masterOperation(AckAlertRequest request, ClusterState state, ActionListener<AckAlertResponse> listener) throws ElasticsearchException {
         try {
-            AckAlertResponse response = new AckAlertResponse(alertService.ackAlert(request.getAlertName()));
+            AckAlertResponse response = new AckAlertResponse(alertsService.ackAlert(request.getAlertName()));
             listener.onResponse(response);
         } catch (Exception e) {
             listener.onFailure(e);

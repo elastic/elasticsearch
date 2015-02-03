@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerts.rest;
+package org.elasticsearch.alerts.rest.action;
 
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.alerts.AlertsStore;

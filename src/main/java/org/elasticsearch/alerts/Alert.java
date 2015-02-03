@@ -7,6 +7,7 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.alerts.actions.AlertAction;
+import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;

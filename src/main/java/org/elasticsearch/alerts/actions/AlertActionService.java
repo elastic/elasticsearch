@@ -16,7 +16,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.alerts.*;
-import org.elasticsearch.alerts.plugin.AlertsPlugin;
+import org.elasticsearch.alerts.AlertsPlugin;
+import org.elasticsearch.alerts.support.AlertUtils;
+import org.elasticsearch.alerts.support.TemplateUtils;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.alerts.triggers.TriggerService;
@@ -67,11 +69,11 @@ public class AlertActionService extends AbstractComponent {
     public static final String ALERT_HISTORY_TYPE = "alerthistory";
 
     private final ClientProxy client;
-    private AlertService alertService;
+    private AlertsService alertsService;
     private final ThreadPool threadPool;
     private final AlertsStore alertsStore;
     private final TriggerService triggerService;
-    private final TemplateHelper templateHelper;
+    private final TemplateUtils templateUtils;
     private final AlertActionRegistry actionRegistry;
 
     private final int scrollSize;
@@ -85,22 +87,22 @@ public class AlertActionService extends AbstractComponent {
     @Inject
     public AlertActionService(Settings settings, ClientProxy client, AlertActionRegistry actionRegistry,
                               ThreadPool threadPool, AlertsStore alertsStore, TriggerService triggerService,
-                              TemplateHelper templateHelper) {
+                              TemplateUtils templateUtils) {
         super(settings);
         this.client = client;
         this.actionRegistry = actionRegistry;
         this.threadPool = threadPool;
         this.alertsStore = alertsStore;
         this.triggerService = triggerService;
-        this.templateHelper = templateHelper;
+        this.templateUtils = templateUtils;
         // Not using component settings, to let AlertsStore and AlertActionManager share the same settings
         this.scrollTimeout = settings.getAsTime("alerts.scroll.timeout", TimeValue.timeValueSeconds(30));
         this.scrollSize = settings.getAsInt("alerts.scroll.size", 100);
 
     }
 
-    public void setAlertService(AlertService alertService){
-        this.alertService = alertService;
+    public void setAlertsService(AlertsService alertsService){
+        this.alertsService = alertsService;
     }
 
     public boolean start(ClusterState state) {
@@ -111,7 +113,7 @@ public class AlertActionService extends AbstractComponent {
         String[] indices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), ALERT_HISTORY_INDEX_PREFIX + "*");
         if (indices.length == 0) {
             logger.info("No previous .alerthistory index, skip loading of alert actions");
-            templateHelper.checkAndUploadIndexTemplate(state, "alerthistory");
+            templateUtils.checkAndUploadIndexTemplate(state, "alerthistory");
             doStart();
             return true;
         }
@@ -135,7 +137,7 @@ public class AlertActionService extends AbstractComponent {
             actionsToBeProcessed.clear();
             return false;
         }
-        templateHelper.checkAndUploadIndexTemplate(state, "alerthistory");
+        templateUtils.checkAndUploadIndexTemplate(state, "alerthistory");
         doStart();
         return true;
     }
@@ -368,7 +370,7 @@ public class AlertActionService extends AbstractComponent {
                 }
                 updateHistoryEntry(entry, AlertActionState.SEARCH_UNDERWAY);
                 logger.debug("Running an alert action entry for [{}]", entry.getAlertName());
-                TriggerResult result = alertService.executeAlert(entry);
+                TriggerResult result = alertsService.executeAlert(entry);
                 entry.setTriggerResponse(result.getTriggerResponse());
                 if (result.isTriggered()) {
                     entry.setTriggered(true);
@@ -410,7 +412,7 @@ public class AlertActionService extends AbstractComponent {
                 while (started()) {
                     AlertHistory entry = actionsToBeProcessed.take();
                     if (entry != null) {
-                        threadPool.executor(AlertsPlugin.ALERT_THREAD_POOL_NAME).execute(new AlertHistoryRunnable(entry));
+                        threadPool.executor(AlertsPlugin.NAME).execute(new AlertHistoryRunnable(entry));
                     }
                 }
             } catch (Exception e) {

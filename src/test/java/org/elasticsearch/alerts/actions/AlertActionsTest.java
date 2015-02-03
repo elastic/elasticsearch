@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.alerts.*;
 import org.elasticsearch.alerts.client.AlertsClient;
+import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertRequest;
@@ -110,11 +111,11 @@ public class AlertActionsTest extends AbstractAlertingTests {
                 .setSource(jsonBuilder().startObject().startObject("template").startObject("match_all").endObject().endObject().endObject())
                 .get();
 
-        final AlertService alertService = internalTestCluster().getInstance(AlertService.class, internalTestCluster().getMasterName());
+        final AlertsService alertsService = internalTestCluster().getInstance(AlertsService.class, internalTestCluster().getMasterName());
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                assertThat(alertService.getState(), is(State.STARTED));
+                assertThat(alertsService.getState(), is(AlertsService.State.STARTED));
             }
         });
         final AtomicBoolean alertActionInvoked = new AtomicBoolean(false);

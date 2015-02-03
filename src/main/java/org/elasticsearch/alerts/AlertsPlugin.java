@@ -3,9 +3,9 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerts.plugin;
+package org.elasticsearch.alerts;
 
-import org.elasticsearch.alerts.AlertingModule;
+import org.elasticsearch.alerts.AlertsModule;
 import org.elasticsearch.alerts.support.init.InitializingService;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.Lists;
@@ -20,11 +20,11 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 
 public class AlertsPlugin extends AbstractPlugin {
 
-    public static final String ALERT_THREAD_POOL_NAME = "alerts";
+    public static final String NAME = "alerts";
     public static final String SCHEDULER_THREAD_POOL_NAME = "alerts_scheduler";
 
     @Override public String name() {
-        return ALERT_THREAD_POOL_NAME;
+        return NAME;
     }
 
     @Override public String description() {
@@ -33,9 +33,7 @@ public class AlertsPlugin extends AbstractPlugin {
 
     @Override
     public Collection<Class<? extends Module>> modules() {
-        Collection<Class<? extends Module>> modules = Lists.newArrayList();
-        modules.add(AlertingModule.class);
-        return modules;
+        return ImmutableList.<Class<? extends Module>>of(AlertsModule.class);
     }
 
     @Override
@@ -50,8 +48,8 @@ public class AlertsPlugin extends AbstractPlugin {
     @Override
     public Settings additionalSettings() {
         return settingsBuilder()
-                .put("threadpool." + ALERT_THREAD_POOL_NAME + ".type", "fixed")
-                .put("threadpool." + ALERT_THREAD_POOL_NAME + ".size", 32) // Executing an alert involves a lot of wait time for networking (search, several index requests + optional trigger logic)
+                .put("threadpool." + NAME + ".type", "fixed")
+                .put("threadpool." + NAME + ".size", 32) // Executing an alert involves a lot of wait time for networking (search, several index requests + optional trigger logic)
                 .put("threadpool." + SCHEDULER_THREAD_POOL_NAME + ".type", "cached")
                 .build();
     }

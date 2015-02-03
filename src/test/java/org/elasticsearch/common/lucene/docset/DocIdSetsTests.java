@@ -23,7 +23,11 @@ import java.io.IOException;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.RoaringDocIdSet;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -119,4 +123,46 @@ public class DocIdSetsTests extends ElasticsearchSingleNodeTest {
         test(indexService, true, filter);
     }
 
+    public void testAsSequentialAccessBits() throws IOException {
+        final int maxDoc = randomIntBetween(5, 100);
+
+        // Null DocIdSet maps to empty bits
+        Bits bits = DocIdSets.asSequentialAccessBits(100, null);
+        for (int i = 0; i < maxDoc; ++i) {
+            assertFalse(bits.get(i));
+        }
+
+        // Empty set maps to empty bits
+        bits = DocIdSets.asSequentialAccessBits(100, DocIdSet.EMPTY);
+        for (int i = 0; i < maxDoc; ++i) {
+            assertFalse(bits.get(i));
+        }
+
+        RoaringDocIdSet.Builder b = new RoaringDocIdSet.Builder(maxDoc);
+        for (int i = randomInt(maxDoc - 1); i < maxDoc; i += randomIntBetween(1, 10)) {
+            b.add(i);
+        }
+        final RoaringDocIdSet set = b.build();
+        // RoaringDocIdSet does not support random access
+        assertNull(set.bits());
+
+        bits = DocIdSets.asSequentialAccessBits(100, set);
+        bits.get(4);
+        try {
+            bits.get(2);
+            fail("Should have thrown an exception because of out-of-order consumption");
+        } catch (ElasticsearchIllegalArgumentException e) {
+            // ok
+        }
+
+        bits = DocIdSets.asSequentialAccessBits(100, set);
+        DocIdSetIterator iterator = set.iterator();
+        for (int i = randomInt(maxDoc - 1); i < maxDoc; i += randomIntBetween(1, 10)) {
+            if (iterator.docID() < i) {
+                iterator.advance(i);
+            }
+
+            assertEquals(iterator.docID() == i, bits.get(i));
+        }
+    }
 }

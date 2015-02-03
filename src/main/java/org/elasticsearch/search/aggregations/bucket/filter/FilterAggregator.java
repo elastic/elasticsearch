@@ -51,7 +51,7 @@ public class FilterAggregator extends SingleBucketAggregator {
     @Override
     public void setNextReader(LeafReaderContext reader) {
         try {
-            bits = DocIdSets.toSafeBits(reader.reader(), filter.getDocIdSet(reader, null));
+            bits = DocIdSets.asSequentialAccessBits(reader.reader().maxDoc(), filter.getDocIdSet(reader, null));
         } catch (IOException ioe) {
             throw new AggregationExecutionException("Failed to aggregate filter aggregator [" + name + "]", ioe);
         }

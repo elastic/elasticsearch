@@ -96,7 +96,7 @@ public class FilterableTermsEnum extends TermsEnum {
                     // fully filtered, none matching, no need to iterate on this
                     continue;
                 }
-                bits = DocIdSets.toSafeBits(context.reader(), docIdSet);
+                bits = DocIdSets.toSafeBits(context.reader().maxDoc(), docIdSet);
                 // Count how many docs are in our filtered set
                 // TODO make this lazy-loaded only for those that need it?
                 DocIdSetIterator iterator = docIdSet.iterator();

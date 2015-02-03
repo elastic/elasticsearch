@@ -129,7 +129,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
             // The DocIdSets.toSafeBits(...) can convert to FixedBitSet, but this
             // will only happen if the none filter cache is used. (which only happens in tests)
             // Otherwise the filter cache will produce a bitset based filter.
-            parentDocs = DocIdSets.toSafeBits(reader.reader(), parentDocIdSet);
+            parentDocs = DocIdSets.asSequentialAccessBits(reader.reader().maxDoc(), parentDocIdSet);
             DocIdSet childDocIdSet = childFilter.getDocIdSet(reader, null);
             if (globalOrdinals != null && !DocIdSets.isEmpty(childDocIdSet)) {
                 replay.add(reader);

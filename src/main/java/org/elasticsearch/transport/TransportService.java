@@ -43,6 +43,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -123,8 +124,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             if (newTracerLogInclude == TransportService.this.tracerLogInclude && newTracerLogExclude == TransportService.this.tracelLogExclude) {
                 return;
             }
-            if (Strings.arrayToCommaDelimitedString(newTracerLogInclude).equals(Strings.arrayToCommaDelimitedString(TransportService.this.tracerLogInclude)) &&
-                    Strings.arrayToCommaDelimitedString(newTracerLogExclude).equals(Strings.arrayToCommaDelimitedString(TransportService.this.tracelLogExclude))) {
+            if (Arrays.equals(newTracerLogInclude, TransportService.this.tracerLogInclude) &&
+                    Arrays.equals(newTracerLogExclude, TransportService.this.tracelLogExclude)) {
                 return;
             }
             TransportService.this.tracerLogInclude = newTracerLogInclude;
@@ -380,7 +381,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                     }
                 }
                 if (action == null) {
-                    tracerLog.trace("[{}] received response but can't resolve it to a request");
+                    tracerLog.trace("[{}] received response but can't resolve it to a request", requestId);
                 } else if (shouldTraceAction(action)) {
                     tracerLog.trace("[{}][{}] received response from [{}]", requestId, action, sourceNode);
                 }

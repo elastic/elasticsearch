@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -34,7 +33,6 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.node.service.NodeService;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -54,8 +52,6 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
         int startPort = 11000 + randomIntBetween(0, 1000);
         int endPort = startPort + 10;
         settings = ImmutableSettings.builder().put(settings).put("transport.tcp.port", startPort + "-" + endPort).build();
-        NodeSettingsService nodeSettingsService = new NodeSettingsService(settings);
-        DynamicSettings dynamicSettings = new DynamicSettings();
 
         ThreadPool threadPool = new ThreadPool(getClass().getName());
         ClusterName clusterName = new ClusterName("test");

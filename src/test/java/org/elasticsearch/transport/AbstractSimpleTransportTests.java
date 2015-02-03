@@ -356,7 +356,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
                     @Override
                     public void handleResponse(StringMessageResponse response) {
-                        assertThat("got response instead of exception", false, equalTo(true));
+                        fail("got response instead of exception");
                     }
 
                     @Override
@@ -367,7 +367,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
         try {
             res.txGet();
-            assertThat("exception should be thrown", false, equalTo(true));
+            fail("exception should be thrown");
         } catch (Exception e) {
             assertThat("bad message !!!", equalTo(e.getCause().getMessage()));
         }
@@ -473,7 +473,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
                     @Override
                     public void handleResponse(StringMessageResponse response) {
-                        assertThat("got response instead of exception", false, equalTo(true));
+                        fail("got response instead of exception");
                     }
 
                     @Override
@@ -484,7 +484,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
         try {
             StringMessageResponse message = res.txGet();
-            assertThat("exception should be thrown", false, equalTo(true));
+            fail("exception should be thrown");
         } catch (Exception e) {
             assertThat(e, instanceOf(ReceiveTimeoutTransportException.class));
         }
@@ -537,7 +537,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
                     @Override
                     public void handleResponse(StringMessageResponse response) {
                         latch.countDown();
-                        assertThat("got response instead of exception", false, equalTo(true));
+                        fail("got response instead of exception");
                     }
 
                     @Override
@@ -549,7 +549,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
         try {
             StringMessageResponse message = res.txGet();
-            assertThat("exception should be thrown", false, equalTo(true));
+            fail("exception should be thrown");
         } catch (Exception e) {
             assertThat(e, instanceOf(ReceiveTimeoutTransportException.class));
         }
@@ -578,7 +578,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
                         @Override
                         public void handleException(TransportException exp) {
                             exp.printStackTrace();
-                            assertThat("got exception instead of a response for " + counter + ": " + exp.getDetailedMessage(), false, equalTo(true));
+                            fail("got exception instead of a response for " + counter + ": " + exp.getDetailedMessage());
                         }
                     });
 
@@ -1131,7 +1131,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
                     @Override
                     public void handleResponse(StringMessageResponse response) {
-                        assertThat("got response instead of exception", false, equalTo(true));
+                        fail("got response instead of exception");
                     }
 
                     @Override
@@ -1142,21 +1142,21 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
         try {
             res.txGet();
-            assertThat("exception should be thrown", false, equalTo(true));
+            fail("exception should be thrown");
         } catch (Exception e) {
             assertThat(e.getCause().getMessage(), endsWith("DISCONNECT: simulated"));
         }
 
         try {
             serviceB.connectToNode(nodeA);
-            assertThat("exception should be thrown", false, equalTo(true));
+            fail("exception should be thrown");
         } catch (ConnectTransportException e) {
             // all is well
         }
 
         try {
             serviceB.connectToNodeLight(nodeA);
-            assertThat("exception should be thrown", false, equalTo(true));
+            fail("exception should be thrown");
         } catch (ConnectTransportException e) {
             // all is well
         }
@@ -1200,7 +1200,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
                     @Override
                     public void handleResponse(StringMessageResponse response) {
-                        assertThat("got response instead of exception", false, equalTo(true));
+                        fail("got response instead of exception");
                     }
 
                     @Override
@@ -1211,21 +1211,21 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
         try {
             res.txGet();
-            assertThat("exception should be thrown", false, equalTo(true));
+            fail("exception should be thrown");
         } catch (Exception e) {
             assertThat(e, instanceOf(ReceiveTimeoutTransportException.class));
         }
 
         try {
             serviceB.connectToNode(nodeA);
-            assertThat("exception should be thrown", false, equalTo(true));
+            fail("exception should be thrown");
         } catch (ConnectTransportException e) {
             // all is well
         }
 
         try {
             serviceB.connectToNodeLight(nodeA);
-            assertThat("exception should be thrown", false, equalTo(true));
+            fail("exception should be thrown");
         } catch (ConnectTransportException e) {
             // all is well
         }

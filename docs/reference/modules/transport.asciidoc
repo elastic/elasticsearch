@@ -83,3 +83,34 @@ The following parameters can be configured like that
 This is a handy transport to use when running integration tests within
 the JVM. It is automatically enabled when using
 `NodeBuilder#local(true)`.
+
+[float]
+coming[1.5.0]
+=== Transport Tracer
+
+The transport module has a dedicated tracer logger which, when activated, logs incoming and out going requests. The log can be dynamically activated
+by settings the level of the `transport.tracer` logger to `TRACE`:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/_cluster/settings -d '{
+    "transient" : {
+        "logger.transport.tracer" : "TRACE"
+    }
+}'
+--------------------------------------------------
+
+You can also control which actions will be traced, using a set of include and exclude wildcard patterns. By default every request will be traced
+except for fault detection pings:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/_cluster/settings -d '{
+    "transient" : {
+        "transport.tracer.include" : "*"
+        "transport.tracer.exclude" : "internal:discovery/zen/fd*"
+    }
+}'
+--------------------------------------------------
+
+

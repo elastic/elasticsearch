@@ -821,10 +821,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                             MetaData.Builder metaDataBuilder = MetaData.builder(updatedState.metaData()).removeAllIndices();
                             for (IndexMetaData indexMetaData : updatedState.metaData()) {
                                 IndexMetaData currentIndexMetaData = currentState.metaData().index(indexMetaData.index());
-                                if (currentIndexMetaData == null || currentIndexMetaData.version() != indexMetaData.version()) {
-                                    metaDataBuilder.put(indexMetaData, false);
-                                } else {
+                                if (currentIndexMetaData != null && currentIndexMetaData.isSameUUID(indexMetaData.uuid()) &&
+                                        currentIndexMetaData.version() == indexMetaData.version()) {
+                                    // safe to reuse
                                     metaDataBuilder.put(currentIndexMetaData, false);
+                                } else {
+                                    metaDataBuilder.put(indexMetaData, false);
                                 }
                             }
                             builder.metaData(metaDataBuilder);

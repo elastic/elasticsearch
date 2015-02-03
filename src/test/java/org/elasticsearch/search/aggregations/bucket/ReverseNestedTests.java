@@ -483,7 +483,6 @@ public class ReverseNestedTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @AwaitsFix(bugUrl="http://github.com/elasticsearch/elasticsearch/issues/9547")
     public void testSameParentDocHavingMultipleBuckets() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject().startObject("product").field("dynamic", "strict").startObject("properties")
                 .startObject("id").field("type", "long").endObject()

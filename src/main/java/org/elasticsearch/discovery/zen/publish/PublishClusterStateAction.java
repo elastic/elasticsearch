@@ -32,14 +32,16 @@ import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.AckClusterStatePublishResponseHandler;
-import org.elasticsearch.discovery.ClusterStatePublishResponseHandler;
+import org.elasticsearch.discovery.BlockingClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -83,22 +85,27 @@ public class PublishClusterStateAction extends AbstractComponent {
     }
 
     public void publish(ClusterState clusterState, final Discovery.AckListener ackListener) {
-        publish(clusterState, new AckClusterStatePublishResponseHandler(clusterState.nodes().size() - 1, ackListener));
+        Set<DiscoveryNode> nodesToPublishTo = new HashSet<>(clusterState.nodes().size());
+        DiscoveryNode localNode = nodesProvider.nodes().localNode();
+        for (final DiscoveryNode node : clusterState.nodes()) {
+            if (node.equals(localNode)) {
+                continue;
+            }
+            nodesToPublishTo.add(node);
+        }
+        publish(clusterState, nodesToPublishTo, new AckClusterStatePublishResponseHandler(nodesToPublishTo, ackListener));
     }
 
-    private void publish(final ClusterState clusterState, final ClusterStatePublishResponseHandler publishResponseHandler) {
-
-        DiscoveryNode localNode = nodesProvider.nodes().localNode();
+    private void publish(final ClusterState clusterState, final Set<DiscoveryNode> nodesToPublishTo,
+                         final BlockingClusterStatePublishResponseHandler publishResponseHandler) {
 
         Map<Version, BytesReference> serializedStates = Maps.newHashMap();
 
         final AtomicBoolean timedOutWaitingForNodes = new AtomicBoolean(false);
         final TimeValue publishTimeout = discoverySettings.getPublishTimeout();
 
-        for (final DiscoveryNode node : clusterState.nodes()) {
-            if (node.equals(localNode)) {
-                continue;
-            }
+        for (final DiscoveryNode node : nodesToPublishTo) {
+
             // try and serialize the cluster state once (or per version), so we don't serialize it
             // per node when we send it over the wire, compress it while we are at it...
             BytesReference bytes = serializedStates.get(node.version());
@@ -152,7 +159,11 @@ public class PublishClusterStateAction extends AbstractComponent {
             try {
                 timedOutWaitingForNodes.set(!publishResponseHandler.awaitAllNodes(publishTimeout));
                 if (timedOutWaitingForNodes.get()) {
-                    logger.debug("timed out waiting for all nodes to process published state [{}] (timeout [{}])", clusterState.version(), publishTimeout);
+                    DiscoveryNode[] pendingNodes = publishResponseHandler.pendingNodes();
+                    // everyone may have just responded
+                    if (pendingNodes.length > 0) {
+                        logger.warn("timed out waiting for all nodes to process published state [{}] (timeout [{}], pending nodes: {})", clusterState.version(), publishTimeout, pendingNodes);
+                    }
                 }
             } catch (InterruptedException e) {
                 // ignore & restore interrupt

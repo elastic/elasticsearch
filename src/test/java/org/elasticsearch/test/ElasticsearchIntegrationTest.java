@@ -468,6 +468,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         if (random.nextBoolean()) {
             builder.put(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, random.nextBoolean());
         }
+        
+        if (random.nextBoolean()) {
+            builder.put("index.shard.check_on_startup", randomFrom(random, "false", "checksum", "true"));
+        }
 
         if (random.nextBoolean()) {
             builder.put(IndicesQueryCache.INDICES_CACHE_QUERY_CONCURRENCY_LEVEL, randomIntBetween(1, 32));

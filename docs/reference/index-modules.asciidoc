@@ -47,17 +47,20 @@ otherwise it is written in non-compound format.
         at the expense of slower stored fields performance.
 
 `index.shard.check_on_startup`::
-        Should shard consistency be checked upon opening.
-        When `true`, the shard will be checked, preventing it from being open in
-        case some segments appear to be corrupted.
-        When `fix`, the shard will also be checked but segments that were reported
-        as corrupted will be automatically removed.
-        Default value is `false`, which doesn't check shards.
+        Should shard consistency be checked upon opening. When corruption is detected,
+        it will prevent the shard from being opened.
+
+        When `checksum`, check for physical corruption.
+        When `true`, check for both physical and logical corruption. This is much
+        more expensive in terms of CPU and memory usage.
+        When `fix`, check for both physical and logical corruption, and segments 
+        that were reported as corrupted will be automatically removed.
+        Default value is `false`, which performs no checks.
 
 NOTE: Checking shards may take a lot of time on large indices.
 
 WARNING: Setting `index.shard.check_on_startup` to `fix` may result in data loss,
-         use with caution.
+         use with extreme caution.
 
 --
 

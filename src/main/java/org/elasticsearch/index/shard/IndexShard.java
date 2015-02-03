@@ -88,7 +88,9 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.index.store.Store.MetadataSnapshot;
 import org.elasticsearch.index.suggest.stats.ShardSuggestService;
 import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.index.termvectors.ShardTermVectorsService;
@@ -107,6 +109,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -689,7 +692,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                 throw new IndexShardRelocatedException(shardId);
             }
             if (Booleans.parseBoolean(checkIndexOnStartup, false)) {
-                checkIndex(true);
+                checkIndex();
             }
             createNewEngine();
             startScheduledTasksIfNeeded();
@@ -708,7 +711,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
         // also check here, before we apply the translog
         if (Booleans.parseBoolean(checkIndexOnStartup, false)) {
-            checkIndex(true);
+            checkIndex();
         }
         // we disable deletes since we allow for operations to be executed against the shard while recovering
         // but we need to make sure we don't loose deletes until we are done recovering
@@ -994,49 +997,77 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
         }
     }
-
-    private void checkIndex(boolean throwException) throws IndexShardException {
+    
+    private void checkIndex() throws IndexShardException {
         try {
-            checkIndexTook = 0;
-            long time = System.currentTimeMillis();
-            if (!Lucene.indexExists(store.directory())) {
-                return;
-            }
-            CheckIndex checkIndex = new CheckIndex(store.directory());
-            BytesStreamOutput os = new BytesStreamOutput();
-            PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
-            checkIndex.setInfoStream(out);
-            out.flush();
-            CheckIndex.Status status = checkIndex.checkIndex();
-            if (!status.clean) {
-                if (state == IndexShardState.CLOSED) {
-                    // ignore if closed....
-                    return;
+            doCheckIndex();
+        } catch (IOException e) {
+            throw new IndexShardException(shardId, "exception during checkindex", e);
+        }
+    }
+
+    private void doCheckIndex() throws IndexShardException, IOException {
+        checkIndexTook = 0;
+        long time = System.currentTimeMillis();
+        if (!Lucene.indexExists(store.directory())) {
+            return;
+        }
+        BytesStreamOutput os = new BytesStreamOutput();
+        PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
+        
+        if ("checksum".equalsIgnoreCase(checkIndexOnStartup)) {
+            // physical verification only: verify all checksums for the latest commit
+            boolean corrupt = false;
+            MetadataSnapshot metadata = store.getMetadata();
+            for (Map.Entry<String,StoreFileMetaData> entry : metadata.asMap().entrySet()) {
+                try {
+                    Store.checkIntegrity(entry.getValue(), store.directory());
+                    out.println("checksum passed: " + entry.getKey());
+                } catch (IOException exc) {
+                    out.println("checksum failed: " + entry.getKey());
+                    exc.printStackTrace(out);
+                    corrupt = true;
                 }
+            }
+            out.flush();
+            if (corrupt) {
                 logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
-                if ("fix".equalsIgnoreCase(checkIndexOnStartup)) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("fixing index, writing new segments file ...");
+                throw new IndexShardException(shardId, "index check failure");
+            }
+        } else {
+            // full checkindex
+            try (CheckIndex checkIndex = new CheckIndex(store.directory())) {
+                checkIndex.setInfoStream(out);
+                CheckIndex.Status status = checkIndex.checkIndex();
+                out.flush();
+                
+                if (!status.clean) {
+                    if (state == IndexShardState.CLOSED) {
+                        // ignore if closed....
+                        return;
                     }
-                    checkIndex.exorciseIndex(status);
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("index fixed, wrote new segments file \"{}\"", status.segmentsFileName);
-                    }
-                } else {
-                    // only throw a failure if we are not going to fix the index
-                    if (throwException) {
+                    logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+                    if ("fix".equalsIgnoreCase(checkIndexOnStartup)) {
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("fixing index, writing new segments file ...");
+                        }
+                        checkIndex.exorciseIndex(status);
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("index fixed, wrote new segments file \"{}\"", status.segmentsFileName);
+                        }
+                    } else {
+                        // only throw a failure if we are not going to fix the index
                         throw new IndexShardException(shardId, "index check failure");
                     }
                 }
-            } else {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
-                }
             }
-            checkIndexTook = System.currentTimeMillis() - time;
-        } catch (Exception e) {
-            logger.warn("failed to check index", e);
         }
+        
+        if (logger.isDebugEnabled()) {
+            logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+        }
+        
+        checkIndexTook = System.currentTimeMillis() - time;
     }
 
     public Engine engine() {

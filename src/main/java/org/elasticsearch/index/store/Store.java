@@ -22,6 +22,7 @@ package org.elasticsearch.index.store;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
+
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.*;
@@ -443,17 +444,32 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
-    public boolean checkIntegrity(StoreFileMetaData md) {
-        return checkIntegrity(md, directory());
+    public boolean checkIntegrityNoException(StoreFileMetaData md) {
+        return checkIntegrityNoException(md, directory());
+    }
+    
+    public static boolean checkIntegrityNoException(StoreFileMetaData md, Directory directory) {
+        try {
+            checkIntegrity(md, directory);
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
     }
 
-    public static boolean checkIntegrity(final StoreFileMetaData md, final Directory directory) {
+    public static void checkIntegrity(final StoreFileMetaData md, final Directory directory) throws IOException {
         try (IndexInput input = directory.openInput(md.name(), IOContext.READONCE)) {
             if (input.length() != md.length()) { // first check the length no matter how old this file is
-                return false;
+                throw new CorruptIndexException("expected length=" + md.length() + " != actual length: " + input.length() + " : file truncated?", input);
             }
             if (md.writtenBy() != null && md.writtenBy().onOrAfter(Version.LUCENE_4_8_0)) {
-                return Store.digestToString(CodecUtil.checksumEntireFile(input)).equals(md.checksum());
+                // throw exception if the file is corrupt
+                String checksum = Store.digestToString(CodecUtil.checksumEntireFile(input));
+                // throw exception if metadata is inconsistent
+                if (!checksum.equals(md.checksum())) {
+                    throw new CorruptIndexException("inconsistent metadata: lucene checksum=" + checksum +
+                                                                       ", metadata checksum=" + md.checksum(), input);
+                }
             } else if (md.hasLegacyChecksum()) {
                 // legacy checksum verification - no footer that we need to omit in the checksum!
                 final Checksum checksum = new Adler32();
@@ -467,12 +483,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     checksum.update(buffer, 0, bytesToRead);
                     read += bytesToRead;
                 }
-                return Store.digestToString(checksum.getValue()).equals(md.checksum());
+                String adler32 = Store.digestToString(checksum.getValue());
+                if (!adler32.equals(md.checksum())) {
+                    throw new CorruptIndexException("checksum failed (hardware problem?) : expected=" + md.checksum() +
+                                                                                           " actual=" + adler32, input);
+                }
             }
-        } catch (IOException ex) {
-            return false;
         }
-        return true;
     }
 
     public boolean isMarkedCorrupted() throws IOException {

@@ -41,8 +41,7 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
     private String postZone;
     private boolean preZoneAdjustLargeInterval;
     private String format;
-    private String preOffset;
-    private String postOffset;
+    private String offset;
     private float factor = 1.0f;
 
     /**
@@ -110,19 +109,12 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
     }
 
     /**
-     * Set the offset to apply prior to computing buckets.
+     * @param offset sets the offset of time intervals in this histogram
+     * @return the current builder
      */
-    public DateHistogramBuilder preOffset(String preOffset) {
-        this.preOffset = preOffset;
-        return this;
-    }
-
-    /**
-     * Set the offset to apply after having computed buckets.
-     */
-    public DateHistogramBuilder postOffset(String postOffset) {
-        this.postOffset = postOffset;
-        return this;
+    public DateHistogramBuilder offset(String offset) {
+       this.offset = offset;
+       return this;
     }
 
     /**
@@ -206,12 +198,8 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
             builder.field("pre_zone_adjust_large_interval", true);
         }
 
-        if (preOffset != null) {
-            builder.field("pre_offset", preOffset);
-        }
-
-        if (postOffset != null) {
-            builder.field("post_offset", postOffset);
+        if (offset != null) {
+            builder.field("offset", offset);
         }
 
         if (factor != 1.0f) {
@@ -235,5 +223,4 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
 
         return builder;
     }
-
 }

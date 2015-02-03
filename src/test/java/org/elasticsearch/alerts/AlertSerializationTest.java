@@ -9,7 +9,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.alerts.actions.AlertAction;
 import org.elasticsearch.alerts.actions.SmtpAlertAction;
 import org.elasticsearch.alerts.actions.WebhookAlertAction;
-import org.elasticsearch.alerts.triggers.ScriptedTrigger;
+import org.elasticsearch.alerts.triggers.ScriptTrigger;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.netty.handler.codec.http.HttpMethod;
 import org.elasticsearch.common.unit.TimeValue;
@@ -43,13 +43,13 @@ public class AlertSerializationTest extends AbstractAlertingTests {
 
         Alert alert = new Alert("test-serialization",
                 triggerRequest,
-                new ScriptedTrigger("return true", ScriptService.ScriptType.INLINE, "groovy"),
+                new ScriptTrigger("return true", ScriptService.ScriptType.INLINE, "groovy"),
                 actions,
                 "0/5 * * * * ? *",
                 new DateTime(),
                 0,
                 new TimeValue(0),
-                AlertAckState.NOT_TRIGGERED);
+                Alert.Status.NOT_TRIGGERED);
 
         alert.setPayloadSearchRequest(payloadRequest);
         Map<String, Object> metadata = new HashMap<>();
@@ -76,7 +76,7 @@ public class AlertSerializationTest extends AbstractAlertingTests {
         if (parsedAlert.getTimeLastActionExecuted() == null) {
             assertNull(alert.getTimeLastActionExecuted());
         }
-        assertEquals(parsedAlert.getAckState(), alert.getAckState());
+        assertEquals(parsedAlert.getStatus(), alert.getStatus());
         assertEquals(parsedAlert.getMetadata(), alert.getMetadata());
     }
 

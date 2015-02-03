@@ -6,7 +6,6 @@
 package org.elasticsearch.alerts;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -16,30 +15,22 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.alerts.actions.AlertAction;
-import org.elasticsearch.alerts.actions.AlertActionRegistry;
-import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.support.TemplateUtils;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
-import org.elasticsearch.alerts.triggers.TriggerService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -50,39 +41,26 @@ public class AlertsStore extends AbstractComponent {
     public static final String ALERT_INDEX = ".alerts";
     public static final String ALERT_TYPE = "alert";
 
-    public static final ParseField SCHEDULE_FIELD = new ParseField("schedule");
-    public static final ParseField TRIGGER_FIELD = new ParseField("trigger");
-    public static final ParseField ACTION_FIELD = new ParseField("actions");
-    public static final ParseField LAST_ACTION_FIRE = new ParseField("last_alert_executed");
-    public static final ParseField TRIGGER_REQUEST_FIELD = new ParseField("trigger_request");
-    public static final ParseField PAYLOAD_REQUEST_FIELD = new ParseField("payload_request");
-    public static final ParseField THROTTLE_PERIOD_FIELD = new ParseField("throttle_period");
-    public static final ParseField LAST_ACTION_EXECUTED_FIELD = new ParseField("last_action_executed");
-    public static final ParseField ACK_STATE_FIELD = new ParseField("ack_state");
-    public static final ParseField META_FIELD = new ParseField("meta");
-
     private final ClientProxy client;
-    private final TriggerService triggerService;
     private final TemplateUtils templateUtils;
+    private final Alert.Parser alertParser;
+
     private final ConcurrentMap<String, Alert> alertMap;
-    private final AlertActionRegistry alertActionRegistry;
     private final AtomicBoolean started = new AtomicBoolean(false);
 
     private final int scrollSize;
     private final TimeValue scrollTimeout;
 
     @Inject
-    public AlertsStore(Settings settings, ClientProxy client, AlertActionRegistry alertActionRegistry,
-                       TriggerService triggerService, TemplateUtils templateUtils) {
+    public AlertsStore(Settings settings, ClientProxy client, TemplateUtils templateUtils, Alert.Parser alertParser) {
         super(settings);
         this.client = client;
-        this.alertActionRegistry = alertActionRegistry;
         this.templateUtils = templateUtils;
+        this.alertParser = alertParser;
         this.alertMap = ConcurrentCollections.newConcurrentMap();
-        this.triggerService = triggerService;
-        // Not using component settings, to let AlertsStore and AlertActionManager share the same settings
-        this.scrollTimeout = settings.getAsTime("alerts.scroll.timeout", TimeValue.timeValueSeconds(30));
-        this.scrollSize = settings.getAsInt("alerts.scroll.size", 100);
+
+        this.scrollTimeout = componentSettings.getAsTime("scroll.timeout", TimeValue.timeValueSeconds(30));
+        this.scrollSize = componentSettings.getAsInt("scroll.size", 100);
     }
 
     /**
@@ -99,10 +77,10 @@ public class AlertsStore extends AbstractComponent {
      */
     public AlertStoreModification putAlert(String alertName, BytesReference alertSource) {
         ensureStarted();
-        Alert alert = parseAlert(alertName, alertSource);
+        Alert alert = alertParser.parse(alertName, false, alertSource);
         IndexRequest indexRequest = createIndexRequest(alertName, alertSource);
         IndexResponse response = client.index(indexRequest).actionGet();
-        alert.setVersion(response.getVersion());
+        alert.status().version(response.getVersion());
         Alert previous = alertMap.put(alertName, alert);
         return new AlertStoreModification(previous, alert, response);
     }
@@ -110,17 +88,24 @@ public class AlertsStore extends AbstractComponent {
     /**
      * Updates the specified alert by making sure that the made changes are persisted.
      */
+    public void updateAlertStatus(Alert alert) throws IOException {
+        updateAlert(alert);
+    }
+
+    /**
+     * Updates the specified alert by making sure that the made changes are persisted.
+     */
     public void updateAlert(Alert alert) throws IOException {
         ensureStarted();
-        BytesReference source = XContentFactory.contentBuilder(alert.getContentType()).value(alert).bytes();
-        IndexResponse response = client.index(createIndexRequest(alert.getAlertName(), source)).actionGet();
-        alert.setVersion(response.getVersion());
+        BytesReference source = XContentFactory.contentBuilder(XContentType.JSON).value(alert).bytes();
+        IndexResponse response = client.index(createIndexRequest(alert.name(), source)).actionGet();
+        alert.status().version(response.getVersion());
         // Don't need to update the alertMap, since we are working on an instance from it.
         assert verifySameInstance(alert);
     }
 
     private boolean verifySameInstance(Alert alert) {
-        Alert found = alertMap.get(alert.getAlertName());
+        Alert found = alertMap.get(alert.name());
         assert found == alert : "expected " + alert + " but got " + found;
         return true;
     }
@@ -136,7 +121,7 @@ public class AlertsStore extends AbstractComponent {
         }
 
         DeleteRequest deleteRequest = new DeleteRequest(ALERT_INDEX, ALERT_TYPE, name);
-        deleteRequest.version(alert.getVersion());
+        deleteRequest.version(alert.status().version());
         DeleteResponse deleteResponse = client.delete(deleteRequest).actionGet();
         assert deleteResponse.isFound();
         return deleteResponse;
@@ -221,7 +206,7 @@ public class AlertsStore extends AbstractComponent {
                 while (response.getHits().hits().length != 0) {
                     for (SearchHit sh : response.getHits()) {
                         String alertId = sh.getId();
-                        Alert alert = parseAlert(alertId, sh);
+                        Alert alert = parseLoadedAlert(alertId, sh);
                         alertMap.put(alertId, alert);
                     }
                     response = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollTimeout).get();
@@ -233,73 +218,9 @@ public class AlertsStore extends AbstractComponent {
         logger.info("Loaded [{}] alerts from the alert index.", alertMap.size());
     }
 
-    private Alert parseAlert(String alertId, SearchHit sh) {
-        Alert alert = parseAlert(alertId, sh.getSourceRef());
-        alert.setVersion(sh.version());
-        return alert;
-    }
-
-    protected Alert parseAlert(String alertName, BytesReference source) {
-        Alert alert = new Alert();
-        alert.setAlertName(alertName);
-        try (XContentParser parser = XContentHelper.createParser(source)) {
-            alert.setContentType(parser.contentType());
-
-            String currentFieldName = null;
-            XContentParser.Token token = parser.nextToken();
-            assert token == XContentParser.Token.START_OBJECT;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (TRIGGER_FIELD.match(currentFieldName)) {
-                        alert.setTrigger(triggerService.instantiateAlertTrigger(parser));
-                    } else if (ACTION_FIELD.match(currentFieldName)) {
-                        List<AlertAction> actions = alertActionRegistry.instantiateAlertActions(parser);
-                        alert.setActions(actions);
-                    } else if (TRIGGER_REQUEST_FIELD.match(currentFieldName)) {
-                        alert.setTriggerSearchRequest(AlertUtils.readSearchRequest(parser, AlertUtils.DEFAULT_TRIGGER_SEARCH_TYPE));
-                    } else if (PAYLOAD_REQUEST_FIELD.match(currentFieldName)) {
-                        alert.setPayloadSearchRequest(AlertUtils.readSearchRequest(parser, AlertUtils.DEFAULT_PAYLOAD_SEARCH_TYPE));
-                    } else if (META_FIELD.match(currentFieldName)) {
-                        alert.setMetadata(parser.map());
-                    } else {
-                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
-                    }
-                } else if (token.isValue()) {
-                    if (SCHEDULE_FIELD.match(currentFieldName)) {
-                        alert.setSchedule(parser.textOrNull());
-                    } else if (LAST_ACTION_FIRE.match(currentFieldName)) {
-                        alert.lastExecuteTime(DateTime.parse(parser.textOrNull()));
-                    } else if (LAST_ACTION_EXECUTED_FIELD.match(currentFieldName)) {
-                        alert.setTimeLastActionExecuted(DateTime.parse(parser.textOrNull()));
-                    } else if (THROTTLE_PERIOD_FIELD.match(currentFieldName)) {
-                        alert.setThrottlePeriod(TimeValue.parseTimeValue(parser.textOrNull(), new TimeValue(0)));
-                    } else if (ACK_STATE_FIELD.match(currentFieldName)) {
-                        alert.setAckState(AlertAckState.fromString(parser.textOrNull()));
-                    } else {
-                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
-                    }
-                } else {
-                    throw new ElasticsearchIllegalArgumentException("Unexpected token [" + token + "]");
-                }
-            }
-        } catch (IOException e) {
-            throw new ElasticsearchException("Error during parsing alert", e);
-        }
-
-        if (alert.getLastExecuteTime() == null) {
-            alert.lastExecuteTime(new DateTime(0));
-        }
-
-        if (alert.getSchedule() == null) {
-            throw new ElasticsearchIllegalArgumentException("Schedule is a required field");
-        }
-
-        if (alert.getTrigger() == null) {
-            throw new ElasticsearchIllegalArgumentException("Trigger is a required field");
-        }
-
+    private Alert parseLoadedAlert(String alertId, SearchHit sh) {
+        Alert alert = alertParser.parse(alertId, true, sh.getSourceRef());
+        alert.status().version(sh.version());
         return alert;
     }
 
@@ -321,15 +242,15 @@ public class AlertsStore extends AbstractComponent {
             this.indexResponse = indexResponse;
         }
 
-        public Alert getCurrent() {
+        public Alert current() {
             return current;
         }
 
-        public Alert getPrevious() {
+        public Alert previous() {
             return previous;
         }
 
-        public IndexResponse getIndexResponse() {
+        public IndexResponse indexResponse() {
             return indexResponse;
         }
     }

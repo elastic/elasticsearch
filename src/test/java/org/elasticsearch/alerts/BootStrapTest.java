@@ -9,11 +9,11 @@ import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.alerts.actions.AlertAction;
-import org.elasticsearch.alerts.actions.AlertHistory;
-import org.elasticsearch.alerts.actions.AlertActionService;
+import org.elasticsearch.alerts.history.AlertRecord;
+import org.elasticsearch.alerts.history.HistoryService;
 import org.elasticsearch.alerts.actions.AlertActionState;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
-import org.elasticsearch.alerts.triggers.ScriptedTrigger;
+import org.elasticsearch.alerts.triggers.ScriptTrigger;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
@@ -67,23 +67,23 @@ public class BootStrapTest extends AbstractAlertingTests {
         SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
         Alert alert = new Alert("my-first-alert",
                 searchRequest,
-                new ScriptedTrigger("hits.total == 1", ScriptService.ScriptType.INLINE, "groovy"),
+                new ScriptTrigger("hits.total == 1", ScriptService.ScriptType.INLINE, "groovy"),
                 new ArrayList< AlertAction>(),
                 "0 0/5 * * * ? *",
                 new DateTime(),
                 0,
                 new TimeValue(0),
-                AlertAckState.NOT_ACKABLE);
+                Alert.Status.NOT_ACKABLE);
 
         DateTime scheduledFireTime = new DateTime();
-        AlertHistory entry = new AlertHistory(alert, scheduledFireTime, scheduledFireTime, AlertActionState.SEARCH_NEEDED);
-        String actionHistoryIndex = AlertActionService.getAlertHistoryIndexNameForTime(scheduledFireTime);
+        AlertRecord entry = new AlertRecord(alert, scheduledFireTime, scheduledFireTime, AlertActionState.SEARCH_NEEDED);
+        String actionHistoryIndex = HistoryService.getAlertHistoryIndexNameForTime(scheduledFireTime);
 
         createIndex(actionHistoryIndex);
         ensureGreen(actionHistoryIndex);
         logger.info("Created index {}", actionHistoryIndex);
 
-        IndexResponse indexResponse = client().prepareIndex(actionHistoryIndex, AlertActionService.ALERT_HISTORY_TYPE, entry.getId())
+        IndexResponse indexResponse = client().prepareIndex(actionHistoryIndex, HistoryService.ALERT_HISTORY_TYPE, entry.getId())
                 .setConsistencyLevel(WriteConsistencyLevel.ALL)
                 .setSource(XContentFactory.jsonBuilder().value(entry))
                 .get();
@@ -109,7 +109,7 @@ public class BootStrapTest extends AbstractAlertingTests {
 
         for (int i = 0; i < numberOfAlertHistoryIndices; i++) {
             DateTime historyIndexDate = now.minus((new TimeValue(i, TimeUnit.DAYS)).getMillis());
-            String actionHistoryIndex = AlertActionService.getAlertHistoryIndexNameForTime(historyIndexDate);
+            String actionHistoryIndex = HistoryService.getAlertHistoryIndexNameForTime(historyIndexDate);
             createIndex(actionHistoryIndex);
             ensureGreen(actionHistoryIndex);
             logger.info("Created index {}", actionHistoryIndex);
@@ -117,16 +117,16 @@ public class BootStrapTest extends AbstractAlertingTests {
             for (int j=0; j<numberOfAlertHistoryEntriesPerIndex; ++j){
                 Alert alert = new Alert("action-test-"+ i + " " + j,
                         searchRequest,
-                        new ScriptedTrigger("hits.total == 1", ScriptService.ScriptType.INLINE, "groovy"),
+                        new ScriptTrigger("hits.total == 1", ScriptService.ScriptType.INLINE, "groovy"),
                         new ArrayList< AlertAction>(),
                         "0 0/5 * * * ? *",
                         new DateTime(),
                         0,
                         new TimeValue(0),
-                        AlertAckState.NOT_ACKABLE);
+                        Alert.Status.NOT_ACKABLE);
 
-                AlertHistory entry = new AlertHistory(alert, historyIndexDate, historyIndexDate, AlertActionState.SEARCH_NEEDED);
-                IndexResponse indexResponse = client().prepareIndex(actionHistoryIndex, AlertActionService.ALERT_HISTORY_TYPE, entry.getId())
+                AlertRecord entry = new AlertRecord(alert, historyIndexDate, historyIndexDate, AlertActionState.SEARCH_NEEDED);
+                IndexResponse indexResponse = client().prepareIndex(actionHistoryIndex, HistoryService.ALERT_HISTORY_TYPE, entry.getId())
                         .setConsistencyLevel(WriteConsistencyLevel.ALL)
                         .setSource(XContentFactory.jsonBuilder().value(entry))
                         .get();

@@ -11,7 +11,7 @@ import org.elasticsearch.alerts.actions.AlertAction;
 import org.elasticsearch.alerts.actions.IndexAlertAction;
 import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
-import org.elasticsearch.alerts.triggers.ScriptedTrigger;
+import org.elasticsearch.alerts.triggers.ScriptTrigger;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -48,13 +48,13 @@ public class PayloadSearchTest extends AbstractAlertingTests {
         actions.add(new IndexAlertAction("my-payload-output","result"));
         Alert alert = new Alert("test-payload",
                 triggerRequest,
-                new ScriptedTrigger("return true", ScriptService.ScriptType.INLINE, "groovy"),
+                new ScriptTrigger("return true", ScriptService.ScriptType.INLINE, "groovy"),
                 actions,
                 "0/5 * * * * ? *",
                 new DateTime(),
                 0,
                 new TimeValue(0),
-                AlertAckState.NOT_ACKABLE);
+                Alert.Status.NOT_ACKABLE);
 
         alert.setPayloadSearchRequest(payloadRequest);
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();

@@ -11,6 +11,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.alerts.*;
 import org.elasticsearch.alerts.client.AlertsClient;
+import org.elasticsearch.alerts.history.HistoryService;
+import org.elasticsearch.alerts.history.AlertRecord;
 import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
@@ -19,8 +21,7 @@ import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertRequest;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
-import org.elasticsearch.alerts.triggers.ScriptedTrigger;
-import org.elasticsearch.alerts.triggers.TriggerResult;
+import org.elasticsearch.alerts.triggers.ScriptTrigger;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.unit.TimeValue;
@@ -68,30 +69,30 @@ public class AlertActionsTest extends AbstractAlertingTests {
 
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.field(AlertActionService.ALERT_NAME_FIELD, "testName");
-        builder.field(AlertActionService.TRIGGERED_FIELD, true);
-        builder.field(AlertActionService.FIRE_TIME_FIELD, AlertUtils.dateTimeFormatter.printer().print(fireTime));
-        builder.field(AlertActionService.SCHEDULED_FIRE_TIME_FIELD, AlertUtils.dateTimeFormatter.printer().print(scheduledFireTime));
-        builder.field(AlertActionService.TRIGGER_FIELD, triggerMap);
+        builder.field(HistoryService.ALERT_NAME_FIELD, "testName");
+        builder.field(HistoryService.TRIGGERED_FIELD, true);
+        builder.field(HistoryService.FIRE_TIME_FIELD, AlertUtils.dateTimeFormatter.printer().print(fireTime));
+        builder.field(HistoryService.SCHEDULED_FIRE_TIME_FIELD, AlertUtils.dateTimeFormatter.printer().print(scheduledFireTime));
+        builder.field(HistoryService.TRIGGER_FIELD, triggerMap);
         SearchRequest searchRequest = new SearchRequest("test123");
-        builder.field(AlertActionService.TRIGGER_REQUEST);
+        builder.field(HistoryService.TRIGGER_REQUEST);
         AlertUtils.writeSearchRequest(searchRequest, builder, ToXContent.EMPTY_PARAMS);
         SearchResponse searchResponse = new SearchResponse(
                 new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[0], 10, 0), null, null, null, false, false),
                 null, 1, 1, 0, new ShardSearchFailure[0]
         );
-        builder.startObject(AlertActionService.TRIGGER_RESPONSE);
+        builder.startObject(HistoryService.TRIGGER_RESPONSE);
         builder.value(searchResponse);
         builder.endObject();
-        builder.field(AlertActionService.ACTIONS_FIELD, actionMap);
-        builder.field(AlertActionService.STATE, AlertActionState.SEARCH_NEEDED.toString());
+        builder.field(HistoryService.ACTIONS_FIELD, actionMap);
+        builder.field(HistoryService.STATE, AlertActionState.SEARCH_NEEDED.toString());
         builder.endObject();
         final AlertActionRegistry alertActionRegistry = internalTestCluster().getInstance(AlertActionRegistry.class, internalTestCluster().getMasterName());
-        final AlertActionService alertManager = internalTestCluster().getInstance(AlertActionService.class, internalTestCluster().getMasterName());
+        final HistoryService alertManager = internalTestCluster().getInstance(HistoryService.class, internalTestCluster().getMasterName());
 
-        AlertHistory actionEntry = alertManager.parseHistory("foobar", builder.bytes(), 0, alertActionRegistry);
+        AlertRecord actionEntry = alertManager.parseHistory("foobar", builder.bytes(), 0, alertActionRegistry);
         assertEquals(actionEntry.getVersion(), 0);
-        assertEquals(actionEntry.getAlertName(), "testName");
+        assertEquals(actionEntry.getName(), "testName");
         assertEquals(actionEntry.isTriggered(), true);
         assertEquals(actionEntry.getScheduledTime(), scheduledFireTime);
         assertEquals(actionEntry.getFireTime(), fireTime);
@@ -142,15 +143,15 @@ public class AlertActionsTest extends AbstractAlertingTests {
             }
 
             @Override
-            public boolean doAction(AlertAction action, Alert alert, TriggerResult actionEntry) {
-                logger.info("Alert {} invoked: {}", alert.getAlertName(), actionEntry);
+            public boolean doAction(AlertAction action, Alert alert, AlertsService.AlertRun alertRun) {
+                logger.info("Alert {} invoked: {}", alert.getName(), alertRun);
                 alertActionInvoked.set(true);
                 return true;
             }
 
         });
 
-        AlertTrigger alertTrigger = new ScriptedTrigger("return true", ScriptService.ScriptType.INLINE, "groovy");
+        AlertTrigger alertTrigger = new ScriptTrigger("return true", ScriptService.ScriptType.INLINE, "groovy");
 
 
         Alert alert = new Alert(
@@ -162,7 +163,7 @@ public class AlertActionsTest extends AbstractAlertingTests {
                 null,
                 1,
                 new TimeValue(0),
-                AlertAckState.NOT_ACKABLE
+                Alert.Status.NOT_ACKABLE
         );
 
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
@@ -175,12 +176,12 @@ public class AlertActionsTest extends AbstractAlertingTests {
         assertNotNull(alertsResponse.indexResponse());
         assertTrue(alertsResponse.indexResponse().isCreated());
 
-        GetAlertRequest getAlertRequest = new GetAlertRequest(alert.getAlertName());
+        GetAlertRequest getAlertRequest = new GetAlertRequest(alert.getName());
         GetAlertResponse getAlertResponse = alertsClient.getAlert(getAlertRequest).actionGet();
         assertTrue(getAlertResponse.getResponse().isExists());
         assertEquals(getAlertResponse.getResponse().getSourceAsMap().get("schedule").toString(), "0/5 * * * * ? *");
 
-        DeleteAlertRequest deleteAlertRequest = new DeleteAlertRequest(alert.getAlertName());
+        DeleteAlertRequest deleteAlertRequest = new DeleteAlertRequest(alert.getName());
         DeleteAlertResponse deleteAlertResponse = alertsClient.deleteAlert(deleteAlertRequest).actionGet();
         assertNotNull(deleteAlertResponse.deleteResponse());
         assertTrue(deleteAlertResponse.deleteResponse().isFound());

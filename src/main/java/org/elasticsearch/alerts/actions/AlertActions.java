@@ -9,37 +9,32 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Iterator;
+import java.util.List;
 
-public class IndexAlertAction implements AlertAction, ToXContent {
+/**
+ *
+ */
+public class AlertActions implements Iterable<AlertAction>, ToXContent {
 
-    private final String index;
-    private final String type;
+    private final List<AlertAction> actions;
 
-    public IndexAlertAction(String index, String type){
-        this.index = index;
-        this.type = type;
+    public AlertActions(List<AlertAction> actions) {
+        this.actions = actions;
     }
 
     @Override
-    public String getActionName() {
-        return "index";
+    public Iterator<AlertAction> iterator() {
+        return actions.iterator();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("index", index);
-        builder.field("type", type);
-        builder.endObject();
-        return builder;
+        for (AlertAction action : actions){
+            builder.field(action.getActionName());
+            action.toXContent(builder, params);
+        }
+        return builder.endObject();
     }
-
-    public String getType() {
-        return type;
-    }
-
-    public String getIndex() {
-        return index;
-    }
-
 }

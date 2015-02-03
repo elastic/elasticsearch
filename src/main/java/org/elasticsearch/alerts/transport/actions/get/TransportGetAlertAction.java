@@ -68,7 +68,7 @@ public class TransportGetAlertAction extends TransportMasterNodeOperationAction<
             } catch (IOException e) {
                 listener.onFailure(e);
             }
-            getResult = new GetResult(AlertsStore.ALERT_INDEX, AlertsStore.ALERT_TYPE, alert.getAlertName(), alert.getVersion(), true, alertSource, null);
+            getResult = new GetResult(AlertsStore.ALERT_INDEX, AlertsStore.ALERT_TYPE, alert.getName(), alert.getVersion(), true, alertSource, null);
         } else {
             getResult = new GetResult(AlertsStore.ALERT_INDEX, AlertsStore.ALERT_TYPE, request.alertName(), -1, false, null, null);
         }

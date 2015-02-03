@@ -39,7 +39,7 @@ public class RestAckAlertAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(AckAlertResponse ackAlertResponse, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                builder.field(AlertsStore.ACK_STATE_FIELD.getPreferredName(), ackAlertResponse.getAlertAckState().toString());
+                builder.field(AlertsStore.ACK_STATE_FIELD.getPreferredName(), ackAlertResponse.getStatus().toString());
                 builder.endObject();
                 return new BytesRestResponse(RestStatus.OK, builder);
             }

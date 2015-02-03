@@ -7,6 +7,7 @@ package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.AlertsService;
 import org.elasticsearch.alerts.ConfigurationService;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
@@ -42,7 +43,7 @@ public class AlertActionRegistry extends AbstractComponent {
     }
 
 
-    public List<AlertAction> instantiateAlertActions(XContentParser parser) throws IOException {
+    public AlertActions parse(XContentParser parser) throws IOException {
         List<AlertAction> actions = new ArrayList<>();
         ImmutableOpenMap<String, AlertActionFactory> actionImplemented = this.actionImplemented;
         String actionFactoryName = null;
@@ -59,14 +60,14 @@ public class AlertActionRegistry extends AbstractComponent {
                 }
             }
         }
-        return actions;
+        return new AlertActions(actions);
     }
 
-    public void doAction(Alert alert, TriggerResult triggerResult){
-        for (AlertAction action : alert.getActions()) {
+    public void doAction(Alert alert, AlertsService.AlertRun alertRun){
+        for (AlertAction action : alert.actions()) {
             AlertActionFactory factory = actionImplemented.get(action.getActionName());
             if (factory != null) {
-                factory.doAction(action, alert, triggerResult);
+                factory.doAction(action, alert, alertRun);
             } else {
                 throw new ElasticsearchIllegalArgumentException("No action exists with the name [" + action.getActionName() + "]");
             }

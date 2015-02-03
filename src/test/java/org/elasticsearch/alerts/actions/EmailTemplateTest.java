@@ -9,9 +9,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.alerts.Alert;
-import org.elasticsearch.alerts.AlertAckState;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
-import org.elasticsearch.alerts.triggers.ScriptedTrigger;
+import org.elasticsearch.alerts.triggers.ScriptTrigger;
 import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -46,13 +45,13 @@ public class EmailTemplateTest extends ElasticsearchTestCase {
 
         Alert alert = new Alert("test-email-template",
                 triggerRequest,
-                new ScriptedTrigger("return true", ScriptService.ScriptType.INLINE, "groovy"),
+                new ScriptTrigger("return true", ScriptService.ScriptType.INLINE, "groovy"),
                 actions,
                 "0/5 * * * * ? *",
                 new DateTime(),
                 0,
                 new TimeValue(0),
-                AlertAckState.NOT_TRIGGERED);
+                Alert.Status.NOT_TRIGGERED);
 
         SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(),"",0,0,0L, new ShardSearchFailure[0]);
 

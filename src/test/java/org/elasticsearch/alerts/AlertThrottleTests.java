@@ -10,14 +10,14 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.alerts.actions.AlertActionService;
+import org.elasticsearch.alerts.history.HistoryService;
 import org.elasticsearch.alerts.actions.AlertActionState;
 import org.elasticsearch.alerts.actions.IndexAlertAction;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.transport.actions.ack.AckAlertResponse;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
-import org.elasticsearch.alerts.triggers.ScriptedTrigger;
+import org.elasticsearch.alerts.triggers.ScriptTrigger;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -51,10 +51,10 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         refresh();
 
         Alert alert = new Alert();
-        alert.setAckState(AlertAckState.NOT_TRIGGERED);
+        alert.setStatus(Alert.Status.NOT_TRIGGERED);
 
         alert.setTriggerSearchRequest(createTriggerSearchRequest("test-index").source(searchSource().query(matchAllQuery())));
-        alert.setTrigger(new ScriptedTrigger("hits.total > 0", ScriptService.ScriptType.INLINE, "groovy"));
+        alert.setTrigger(new ScriptTrigger("hits.total > 0", ScriptService.ScriptType.INLINE, "groovy"));
         alert.getActions().add(new IndexAlertAction("action-index", "action-type"));
         alert.setSchedule("0/5 * * * * ? *");
         alert.lastExecuteTime(new DateTime());
@@ -66,7 +66,7 @@ public class AlertThrottleTests extends AbstractAlertingTests {
 
         Thread.sleep(20000);
         AckAlertResponse ackResponse = alertsClient.prepareAckAlert("throttled-alert").get();
-        assertEquals(AlertAckState.ACKED, ackResponse.getAlertAckState());
+        assertEquals(Alert.Status.ACKED, ackResponse.getStatus());
 
         refresh();
         SearchResponse searchResponse = client()
@@ -102,11 +102,11 @@ public class AlertThrottleTests extends AbstractAlertingTests {
 
         Alert parsedAlert = alertsStore.parseAlert(getAlertResponse.getResponse().getId(),
                 getAlertResponse.getResponse().getSourceAsBytesRef());
-        assertThat(parsedAlert.getAckState(), equalTo(AlertAckState.NOT_TRIGGERED));
+        assertThat(parsedAlert.getStatus(), equalTo(Alert.Status.NOT_TRIGGERED));
 
         CountResponse countOfThrottledActions = client()
-                .prepareCount(AlertActionService.ALERT_HISTORY_INDEX_PREFIX + "*")
-                .setQuery(QueryBuilders.matchQuery(AlertActionService.STATE, AlertActionState.THROTTLED.toString()))
+                .prepareCount(HistoryService.ALERT_HISTORY_INDEX_PREFIX + "*")
+                .setQuery(QueryBuilders.matchQuery(HistoryService.STATE, AlertActionState.THROTTLED.toString()))
                 .get();
         assertThat(countOfThrottledActions.getCount(), greaterThan(0L));
     }
@@ -123,9 +123,9 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         refresh();
 
         Alert alert = new Alert();
-        alert.setAckState(AlertAckState.NOT_ACKABLE);
+        alert.setStatus(Alert.Status.NOT_ACKABLE);
         alert.setTriggerSearchRequest(createTriggerSearchRequest("test-index").source(searchSource().query(matchAllQuery())));
-        alert.setTrigger(new ScriptedTrigger("hits.total > 0", ScriptService.ScriptType.INLINE, "groovy"));
+        alert.setTrigger(new ScriptTrigger("hits.total > 0", ScriptService.ScriptType.INLINE, "groovy"));
         alert.getActions().add(new IndexAlertAction("action-index", "action-type"));
         alert.setSchedule("0/5 * * * * ? *");
 
@@ -150,7 +150,7 @@ public class AlertThrottleTests extends AbstractAlertingTests {
                         .get();
 
                 if (countResponse.getCount() != 1){
-                    SearchResponse actionResponse = client().prepareSearch(AlertActionService.ALERT_HISTORY_INDEX_PREFIX + "*")
+                    SearchResponse actionResponse = client().prepareSearch(HistoryService.ALERT_HISTORY_INDEX_PREFIX + "*")
                             .setQuery(matchAllQuery())
                             .get();
                     for (SearchHit hit : actionResponse.getHits()) {
@@ -177,8 +177,8 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         });
 
         CountResponse countOfThrottledActions = client()
-                .prepareCount(AlertActionService.ALERT_HISTORY_INDEX_PREFIX + "*")
-                .setQuery(QueryBuilders.matchQuery(AlertActionService.STATE, AlertActionState.THROTTLED.toString()))
+                .prepareCount(HistoryService.ALERT_HISTORY_INDEX_PREFIX + "*")
+                .setQuery(QueryBuilders.matchQuery(HistoryService.STATE, AlertActionState.THROTTLED.toString()))
                 .get();
         assertThat(countOfThrottledActions.getCount(), greaterThan(0L));
     }

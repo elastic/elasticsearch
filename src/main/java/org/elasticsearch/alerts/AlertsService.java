@@ -11,17 +11,15 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
-import org.elasticsearch.alerts.actions.AlertActionService;
-import org.elasticsearch.alerts.actions.AlertHistory;
-import org.elasticsearch.alerts.scheduler.AlertScheduler;
-import org.elasticsearch.alerts.support.AlertUtils;
+import org.elasticsearch.alerts.history.AlertRecord;
+import org.elasticsearch.alerts.history.HistoryService;
+import org.elasticsearch.alerts.scheduler.Scheduler;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
-import org.elasticsearch.alerts.triggers.TriggerResult;
-import org.elasticsearch.alerts.triggers.TriggerService;
+import org.elasticsearch.alerts.throttle.Throttler;
+import org.elasticsearch.alerts.trigger.Trigger;
+import org.elasticsearch.alerts.trigger.TriggerRegistry;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -32,10 +30,7 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -45,15 +40,13 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-
 public class AlertsService extends AbstractComponent {
 
     private final ClientProxy client;
-    private final AlertScheduler scheduler;
+    private final Scheduler scheduler;
     private final AlertsStore alertsStore;
-    private final TriggerService triggerService;
-    private final AlertActionService actionManager;
+    private final TriggerRegistry triggerRegistry;
+    private final HistoryService historyService;
     private final AlertActionRegistry actionRegistry;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -64,21 +57,22 @@ public class AlertsService extends AbstractComponent {
     private volatile boolean manuallyStopped;
 
     @Inject
-    public AlertsService(Settings settings, ClientProxy client, ClusterService clusterService, AlertScheduler scheduler, AlertsStore alertsStore,
-                         IndicesService indicesService, TriggerService triggerService, AlertActionService actionManager,
+    public AlertsService(Settings settings, ClientProxy client, ClusterService clusterService, Scheduler scheduler, AlertsStore alertsStore,
+                         IndicesService indicesService, TriggerRegistry triggerRegistry, HistoryService historyService,
                          AlertActionRegistry actionRegistry, ThreadPool threadPool, ScriptServiceProxy scriptService) {
         super(settings);
         this.client = client;
         this.scheduler = scheduler;
         this.threadPool = threadPool;
-        this.scheduler.setAlertsService(this);
         this.alertsStore = alertsStore;
-        this.triggerService = triggerService;
-        this.actionManager = actionManager;
-        this.actionManager.setAlertsService(this);
+        this.triggerRegistry = triggerRegistry;
+        this.historyService = historyService;
+        this.historyService.setAlertsService(this);
         this.actionRegistry = actionRegistry;
         this.clusterService = clusterService;
         this.scriptService = scriptService;
+
+        scheduler.addListener(new SchedulerListener());
 
         clusterService.add(new AlertsClusterStateListener());
         // Close if the indices service is being stopped, so we don't run into search failures (locally) that will
@@ -111,21 +105,18 @@ public class AlertsService extends AbstractComponent {
         alertLock.acquire(alertName);
         try {
             AlertsStore.AlertStoreModification result = alertsStore.putAlert(alertName, alertSource);
-            if (result.getPrevious() == null) {
-                scheduler.schedule(alertName, result.getCurrent().getSchedule());
-            } else if (!result.getPrevious().getSchedule().equals(result.getCurrent().getSchedule())) {
-                scheduler.schedule(alertName, result.getCurrent().getSchedule());
+            if (result.previous() == null || !result.previous().schedule().equals(result.current().schedule())) {
+                scheduler.schedule(result.current());
             }
-            return result.getIndexResponse();
+            return result.indexResponse();
         } finally {
             alertLock.release(alertName);
         }
     }
 
     /**
-     * Retrieves an alert by name from memory.
+     * TODO: add version, fields, etc support that the core get api has as well.
      */
-    // TODO: add version, fields, etc support that the core get api has as well.
     public Alert getAlert(String alertName) {
         return alertsStore.getAlert(alertName);
     }
@@ -133,7 +124,6 @@ public class AlertsService extends AbstractComponent {
     public State getState() {
         return state.get();
     }
-
 
     /*
        The execution of an alert is split into operations, a schedule part which just makes sure that store the fact an alert
@@ -147,10 +137,10 @@ public class AlertsService extends AbstractComponent {
      */
 
     /**
-     * This does the necessary actions, so we don't lose the fact that an alert got execute from the {@link AlertScheduler}
+     * This does the necessary actions, so we don't lose the fact that an alert got execute from the {@link org.elasticsearch.alerts.scheduler.Scheduler}
      * It writes the an entry in the alert history index with the proper status for this alert.
      *
-     * The rest of the actions happen in {@link #executeAlert(org.elasticsearch.alerts.actions.AlertHistory)}.
+     * The rest of the actions happen in {@link #runAlert(org.elasticsearch.alerts.history.AlertRecord)}.
      *
      * The reason the executing of the alert is split into two, is that we don't want to lose the fact that an alert has
      * fired. If we were
@@ -166,7 +156,7 @@ public class AlertsService extends AbstractComponent {
             }
 
             try {
-                actionManager.addAlertAction(alert, scheduledFireTime, fireTime);
+                historyService.addAlertAction(alert, scheduledFireTime, fireTime);
             } catch (Exception e) {
                 logger.error("Failed to schedule alert action for [{}]", e, alert);
             }
@@ -182,66 +172,61 @@ public class AlertsService extends AbstractComponent {
      * 3) If the alert has been triggered, checks if the alert should be throttled
      * 4) If the alert hasn't been throttled runs the configured actions
      */
-    public TriggerResult executeAlert(AlertHistory entry) throws IOException {
+    public AlertRun runAlert(AlertRecord entry) throws IOException {
         ensureStarted();
-        alertLock.acquire(entry.getAlertName());
+        alertLock.acquire(entry.getName());
         try {
-            Alert alert = alertsStore.getAlert(entry.getAlertName());
+            Alert alert = alertsStore.getAlert(entry.getName());
             if (alert == null) {
                 throw new ElasticsearchException("Alert is not available");
             }
-            TriggerResult triggerResult = triggerService.isTriggered(alert, entry.getScheduledTime(), entry.getFireTime());
-
-            if (triggerResult.isTriggered()) {
-                triggerResult.setThrottled(isActionThrottled(alert));
-                if (!triggerResult.isThrottled()) {
-                    if (alert.getPayloadSearchRequest() != null) {
-                        SearchRequest payloadRequest = AlertUtils.createSearchRequestWithTimes(alert.getPayloadSearchRequest(), entry.getScheduledTime(), entry.getFireTime(), scriptService);
-                        SearchResponse payloadResponse = client.search(payloadRequest).actionGet();
-                        triggerResult.setPayloadRequest(payloadRequest);
-                        XContentBuilder builder = jsonBuilder().startObject().value(payloadResponse).endObject();
-                        Map<String, Object> responseMap = XContentHelper.convertToMap(builder.bytes(), false).v2();
-                        triggerResult.setPayloadResponse(responseMap);
-                    }
-                    actionRegistry.doAction(alert, triggerResult);
-                    alert.setTimeLastActionExecuted(entry.getScheduledTime());
-                    if (alert.getAckState() == AlertAckState.NOT_TRIGGERED) {
-                        alert.setAckState(AlertAckState.NEEDS_ACK);
-                    }
+            Trigger trigger = alert.trigger();
+            Trigger.Result triggerResult = trigger.execute(alert, entry.getScheduledTime(), entry.getFireTime());
+            AlertRun alertRun = null;
+            if (triggerResult.triggered()) {
+                alert.status().triggered(true, entry.getFireTime());
+                Throttler.Result throttleResult = alert.throttler().throttle(alert, triggerResult);
+                if (!throttleResult.throttle()) {
+                    Map<String, Object> data = alert.payload().execute(alert, triggerResult, entry.getScheduledTime(), entry.getFireTime());
+                    alertRun = new AlertRun(triggerResult, data);
+                    actionRegistry.doAction(alert, alertRun);
+                    alert.status().executed(entry.getScheduledTime());
+                } else {
+                    alert.status().throttled(entry.getFireTime(), throttleResult.reason());
                 }
-            } else if (alert.getAckState() == AlertAckState.ACKED) {
-                alert.setAckState(AlertAckState.NOT_TRIGGERED);
+            } else {
+                alert.status().triggered(false, entry.getFireTime());
             }
-            alert.lastExecuteTime(entry.getFireTime());
+            if (alertRun == null) {
+                alertRun = new AlertRun(triggerResult, null);
+            }
+            alert.status().ran(entry.getFireTime());
             alertsStore.updateAlert(alert);
-            return triggerResult;
+            return alertRun;
         } finally {
-            alertLock.release(entry.getAlertName());
+            alertLock.release(entry.getName());
         }
     }
 
     /**
      * Acks the alert if needed
      */
-    public AlertAckState ackAlert(String alertName) {
+    public Alert.Status ackAlert(String alertName) {
         ensureStarted();
         alertLock.acquire(alertName);
         try {
             Alert alert = alertsStore.getAlert(alertName);
             if (alert == null) {
-                throw new ElasticsearchException("Alert does not exist [" + alertName + "]");
+                throw new AlertsException("alert [" + alertName + "] does not exist");
             }
-            if (alert.getAckState() == AlertAckState.NEEDS_ACK) {
-                alert.setAckState(AlertAckState.ACKED);
+            if (alert.status().acked()) {
                 try {
-                    alertsStore.updateAlert(alert);
+                    alertsStore.updateAlertStatus(alert);
                 } catch (IOException ioe) {
-                    throw new ElasticsearchException("Failed to update the alert", ioe);
+                    throw new AlertsException("failed to update the alert on ack", ioe);
                 }
-                return AlertAckState.ACKED;
-            } else {
-                return alert.getAckState();
             }
+            return alert.status();
         } finally {
             alertLock.release(alertName);
         }
@@ -282,7 +267,7 @@ public class AlertsService extends AbstractComponent {
                 }
             }
 
-            actionManager.stop();
+            historyService.stop();
             scheduler.stop();
             alertsStore.stop();
             state.set(State.STOPPED);
@@ -302,13 +287,13 @@ public class AlertsService extends AbstractComponent {
                 clusterState = newClusterState(clusterState);
             }
             while (true) {
-                if (actionManager.start(clusterState)) {
+                if (historyService.start(clusterState)) {
                     break;
                 }
                 clusterState = newClusterState(clusterState);
             }
 
-            scheduler.start(alertsStore.getAlerts());
+            scheduler.start(alertsStore.getAlerts().values());
             state.set(State.STARTED);
             logger.info("Alert manager has started");
         }
@@ -337,14 +322,11 @@ public class AlertsService extends AbstractComponent {
         }
     }
 
-    private boolean isActionThrottled(Alert alert) {
-        if (alert.getThrottlePeriod() != null && alert.getTimeLastActionExecuted() != null) {
-            TimeValue timeSinceLastExeuted = new TimeValue((new DateTime()).getMillis() - alert.getTimeLastActionExecuted().getMillis());
-            if (timeSinceLastExeuted.getMillis() <= alert.getThrottlePeriod().getMillis()) {
-                return true;
-            }
+    private class SchedulerListener implements Scheduler.Listener {
+        @Override
+        public void fire(String alertName, DateTime scheduledFireTime, DateTime fireTime) {
+
         }
-        return alert.getAckState() == AlertAckState.ACKED;
     }
 
     private final class AlertsClusterStateListener implements ClusterStateListener {
@@ -379,6 +361,25 @@ public class AlertsService extends AbstractComponent {
             }
         }
 
+    }
+
+    public static class AlertRun {
+
+        private final Trigger.Result result;
+        private final Map<String, Object> data;
+
+        public AlertRun(Trigger.Result result, Map<String, Object> data) {
+            this.result = result;
+            this.data = data;
+        }
+
+        public Trigger.Result triggerResult() {
+            return result;
+        }
+
+        public Map<String, Object> data() {
+            return data;
+        }
     }
 
     /**

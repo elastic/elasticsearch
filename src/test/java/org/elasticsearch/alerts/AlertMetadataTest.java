@@ -14,7 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.alerts.actions.AlertActionService.ALERT_HISTORY_INDEX_PREFIX;
+import static org.elasticsearch.alerts.history.HistoryService.ALERT_HISTORY_INDEX_PREFIX;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;

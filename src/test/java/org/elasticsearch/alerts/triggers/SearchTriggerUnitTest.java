@@ -33,7 +33,7 @@ import java.util.Set;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 
-public class TriggerUnitTest extends ElasticsearchTestCase {
+public class SearchTriggerUnitTest extends ElasticsearchTestCase {
 
     private XContentBuilder createTriggerContent(String script, String scriptLang, ScriptService.ScriptType scriptType) throws IOException {
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();

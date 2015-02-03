@@ -6,7 +6,7 @@
 package org.elasticsearch.alerts.transport.actions.ack;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.alerts.AlertAckState;
+import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,40 +18,36 @@ import java.io.IOException;
  */
 public class AckAlertResponse extends ActionResponse {
 
-    private AlertAckState alertAckState;
+    private Alert.Status status;
 
     public AckAlertResponse() {
     }
 
-    public AckAlertResponse(@Nullable AlertAckState alertAckState) {
-        this.alertAckState = alertAckState;
+    public AckAlertResponse(@Nullable Alert.Status status) {
+        this.status = status;
     }
 
     /**
      * @return The ack state for the alert
      */
-    public AlertAckState getAlertAckState() {
-        return alertAckState;
-    }
-
-    public void setAlertAckState(AlertAckState alertAckState) {
-        this.alertAckState = alertAckState;
+    public Alert.Status getStatus() {
+        return status;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         if (in.readBoolean()) {
-            alertAckState = AlertAckState.fromString(in.readString());
+            status = Alert.Status.fromId(in.readString());
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(alertAckState != null);
-        if (alertAckState != null) {
-            out.writeString(alertAckState.toString());
+        out.writeBoolean(status != null);
+        if (status != null) {
+            out.writeString(status.id());
         }
     }
 }

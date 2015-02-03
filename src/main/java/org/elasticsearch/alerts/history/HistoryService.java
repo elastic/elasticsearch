@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerts.actions;
+package org.elasticsearch.alerts.history;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -17,11 +17,12 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.alerts.*;
 import org.elasticsearch.alerts.AlertsPlugin;
+import org.elasticsearch.alerts.actions.AlertActionRegistry;
+import org.elasticsearch.alerts.actions.AlertActionState;
 import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.support.TemplateUtils;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
-import org.elasticsearch.alerts.triggers.TriggerResult;
-import org.elasticsearch.alerts.triggers.TriggerService;
+import org.elasticsearch.alerts.trigger.TriggerRegistry;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -48,7 +49,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  */
-public class AlertActionService extends AbstractComponent {
+public class HistoryService extends AbstractComponent {
 
     public static final String ALERT_NAME_FIELD = "alert_name";
     public static final String TRIGGERED_FIELD = "triggered";
@@ -72,7 +73,7 @@ public class AlertActionService extends AbstractComponent {
     private AlertsService alertsService;
     private final ThreadPool threadPool;
     private final AlertsStore alertsStore;
-    private final TriggerService triggerService;
+    private final TriggerRegistry triggerRegistry;
     private final TemplateUtils templateUtils;
     private final AlertActionRegistry actionRegistry;
 
@@ -81,19 +82,19 @@ public class AlertActionService extends AbstractComponent {
 
     private final AtomicLong largestQueueSize = new AtomicLong(0);
     private final AtomicBoolean started = new AtomicBoolean(false);
-    private final BlockingQueue<AlertHistory> actionsToBeProcessed = new LinkedBlockingQueue<>();
+    private final BlockingQueue<AlertRecord> actionsToBeProcessed = new LinkedBlockingQueue<>();
     private volatile Thread queueReaderThread;
 
     @Inject
-    public AlertActionService(Settings settings, ClientProxy client, AlertActionRegistry actionRegistry,
-                              ThreadPool threadPool, AlertsStore alertsStore, TriggerService triggerService,
-                              TemplateUtils templateUtils) {
+    public HistoryService(Settings settings, ClientProxy client, AlertActionRegistry actionRegistry,
+                          ThreadPool threadPool, AlertsStore alertsStore, TriggerRegistry triggerRegistry,
+                          TemplateUtils templateUtils) {
         super(settings);
         this.client = client;
         this.actionRegistry = actionRegistry;
         this.threadPool = threadPool;
         this.alertsStore = alertsStore;
-        this.triggerService = triggerService;
+        this.triggerRegistry = triggerRegistry;
         this.templateUtils = templateUtils;
         // Not using component settings, to let AlertsStore and AlertActionManager share the same settings
         this.scrollTimeout = settings.getAsTime("alerts.scroll.timeout", TimeValue.timeValueSeconds(30));
@@ -195,7 +196,7 @@ public class AlertActionService extends AbstractComponent {
                 while (response.getHits().hits().length != 0) {
                     for (SearchHit sh : response.getHits()) {
                         String historyId = sh.getId();
-                        AlertHistory historyEntry = parseHistory(historyId, sh.getSourceRef(), sh.version(), actionRegistry);
+                        AlertRecord historyEntry = parseHistory(historyId, sh.getSourceRef(), sh.version(), actionRegistry);
                         assert historyEntry.getState() == AlertActionState.SEARCH_NEEDED;
                         logger.debug("Adding entry: [{}/{}/{}]", sh.index(), sh.type(), sh.id());
                         actionsToBeProcessed.add(historyEntry);
@@ -210,8 +211,8 @@ public class AlertActionService extends AbstractComponent {
         largestQueueSize.set(actionsToBeProcessed.size());
     }
 
-    AlertHistory parseHistory(String historyId, BytesReference source, long version, AlertActionRegistry actionRegistry) {
-        AlertHistory entry = new AlertHistory();
+    AlertRecord parseHistory(String historyId, BytesReference source, long version, AlertActionRegistry actionRegistry) {
+        AlertRecord entry = new AlertRecord();
         entry.setId(historyId);
         entry.setVersion(version);
 
@@ -227,13 +228,10 @@ public class AlertActionService extends AbstractComponent {
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     switch (currentFieldName) {
                         case ACTIONS_FIELD:
-                            entry.setActions(actionRegistry.instantiateAlertActions(parser));
+                            entry.setActions(actionRegistry.parse(parser));
                             break;
                         case TRIGGER_FIELD:
-                            entry.setTrigger(triggerService.instantiateAlertTrigger(parser));
-                            break;
-                        case TRIGGER_REQUEST:
-                            entry.setTriggerRequest(AlertUtils.readSearchRequest(parser));
+                            entry.setTrigger(triggerRegistry.parse(parser));
                             break;
                         case TRIGGER_RESPONSE:
                             entry.setTriggerResponse(parser.map());
@@ -252,7 +250,7 @@ public class AlertActionService extends AbstractComponent {
                 } else if (token.isValue()) {
                     switch (currentFieldName) {
                         case ALERT_NAME_FIELD:
-                            entry.setAlertName(parser.text());
+                            entry.setName(parser.text());
                             break;
                         case TRIGGERED_FIELD:
                             entry.setTriggered(parser.booleanValue());
@@ -284,15 +282,15 @@ public class AlertActionService extends AbstractComponent {
 
     public void addAlertAction(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
         ensureStarted();
-        logger.debug("Adding alert action for alert [{}]", alert.getAlertName());
+        logger.debug("Adding alert action for alert [{}]", alert.getName());
         String alertHistoryIndex = getAlertHistoryIndexNameForTime(scheduledFireTime);
-        AlertHistory entry = new AlertHistory(alert, scheduledFireTime, fireTime, AlertActionState.SEARCH_NEEDED);
+        AlertRecord entry = new AlertRecord(alert, scheduledFireTime, fireTime, AlertActionState.SEARCH_NEEDED);
         IndexResponse response = client.prepareIndex(alertHistoryIndex, ALERT_HISTORY_TYPE, entry.getId())
                 .setSource(XContentFactory.contentBuilder(alert.getContentType()).value(entry))
                 .setOpType(IndexRequest.OpType.CREATE)
                 .get();
         entry.setVersion(response.getVersion());
-        logger.debug("Added alert action for alert [{}]", alert.getAlertName());
+        logger.debug("Added alert action for alert [{}]", alert.getName());
 
         long currentSize = actionsToBeProcessed.size() + 1;
         actionsToBeProcessed.add(entry);
@@ -309,7 +307,7 @@ public class AlertActionService extends AbstractComponent {
     }
 
 
-    private void updateHistoryEntry(AlertHistory entry) throws IOException {
+    private void updateHistoryEntry(AlertRecord entry) throws IOException {
         ensureStarted();
         logger.debug("Updating alert action [{}]", entry.getId());
         IndexResponse response = client.prepareIndex(getAlertHistoryIndexNameForTime(entry.getScheduledTime()), ALERT_HISTORY_TYPE, entry.getId())
@@ -320,7 +318,7 @@ public class AlertActionService extends AbstractComponent {
     }
 
 
-    private void updateHistoryEntry(AlertHistory entry, AlertActionState actionPerformed) throws IOException {
+    private void updateHistoryEntry(AlertRecord entry, AlertActionState actionPerformed) throws IOException {
         entry.setState(actionPerformed);
         updateHistoryEntry(entry);
     }
@@ -353,39 +351,25 @@ public class AlertActionService extends AbstractComponent {
 
     private class AlertHistoryRunnable implements Runnable {
 
-        private final AlertHistory entry;
+        private final AlertRecord entry;
 
-        private AlertHistoryRunnable(AlertHistory entry) {
+        private AlertHistoryRunnable(AlertRecord entry) {
             this.entry = entry;
         }
 
         @Override
         public void run() {
             try {
-                Alert alert = alertsStore.getAlert(entry.getAlertName());
+                Alert alert = alertsStore.getAlert(entry.getName());
                 if (alert == null) {
                     entry.setErrorMsg("Alert was not found in the alerts store");
                     updateHistoryEntry(entry, AlertActionState.ERROR);
                     return;
                 }
                 updateHistoryEntry(entry, AlertActionState.SEARCH_UNDERWAY);
-                logger.debug("Running an alert action entry for [{}]", entry.getAlertName());
-                TriggerResult result = alertsService.executeAlert(entry);
-                entry.setTriggerResponse(result.getTriggerResponse());
-                if (result.isTriggered()) {
-                    entry.setTriggered(true);
-                    if (result.isThrottled()) {
-                        if (alert.getAckState() != AlertAckState.NOT_TRIGGERED) {
-                            entry.setState(AlertActionState.THROTTLED);
-                        }
-                    } else if (entry.getState() != AlertActionState.THROTTLED) {
-                        entry.setState(AlertActionState.ACTION_PERFORMED);
-                    }
-                    entry.setPayloadRequest(result.getPayloadRequest());
-                    entry.setPayloadResponse(result.getPayloadResponse());
-                } else {
-                    entry.setState(AlertActionState.NO_ACTION_NEEDED);
-                }
+                logger.debug("Running an alert action entry for [{}]", entry.getName());
+                AlertsService.AlertRun alertRun = alertsService.runAlert(entry);
+                entry.execution(alert, alertRun);
                 updateHistoryEntry(entry);
             } catch (Exception e) {
                 if (started()) {
@@ -410,7 +394,7 @@ public class AlertActionService extends AbstractComponent {
             try {
                 logger.debug("Starting thread to read from the job queue");
                 while (started()) {
-                    AlertHistory entry = actionsToBeProcessed.take();
+                    AlertRecord entry = actionsToBeProcessed.take();
                     if (entry != null) {
                         threadPool.executor(AlertsPlugin.NAME).execute(new AlertHistoryRunnable(entry));
                     }

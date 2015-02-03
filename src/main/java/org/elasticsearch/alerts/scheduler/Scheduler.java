@@ -5,10 +5,9 @@
  */
 package org.elasticsearch.alerts.scheduler;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.alerts.Alert;
-import org.elasticsearch.alerts.AlertsService;
 import org.elasticsearch.alerts.AlertsPlugin;
+import org.elasticsearch.alerts.scheduler.schedule.Schedule;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
@@ -20,23 +19,24 @@ import org.quartz.impl.StdSchedulerFactory;
 import org.quartz.simpl.SimpleJobFactory;
 
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 
-public class AlertScheduler extends AbstractComponent {
+import static org.elasticsearch.alerts.scheduler.FireAlertJob.jobDetail;
+
+public class Scheduler extends AbstractComponent {
 
     // Not happy about it, but otherwise we're stuck with Quartz's SimpleThreadPool
     private volatile static ThreadPool threadPool;
 
-    private AlertsService alertsService;
-    private volatile Scheduler scheduler;
+    private volatile org.quartz.Scheduler scheduler;
+
+    private List<Listener> listeners;
 
     @Inject
-    public AlertScheduler(Settings settings, ThreadPool threadPool) {
+    public Scheduler(Settings settings, ThreadPool threadPool) {
         super(settings);
-        AlertScheduler.threadPool = threadPool;
-    }
-
-    public void setAlertsService(AlertsService alertsService){
-        this.alertsService = alertsService;
+        this.listeners = new CopyOnWriteArrayList<>();
+        Scheduler.threadPool = threadPool;
     }
 
     /**
@@ -45,7 +45,7 @@ public class AlertScheduler extends AbstractComponent {
      * Both the start and stop are synchronized to avoid that scheduler gets stopped while previously stored alerts
      * are being loaded.
      */
-    public synchronized void start(Map<String, Alert> alerts) {
+    public synchronized void start(Collection<Alert> alerts) {
         try {
             logger.info("Starting scheduler");
             // Can't start a scheduler that has been shutdown, so we need to re-create each time start() is invoked
@@ -58,12 +58,12 @@ public class AlertScheduler extends AbstractComponent {
             scheduler = schFactory.getScheduler();
             scheduler.setJobFactory(new SimpleJobFactory());
             Map<JobDetail, Set<? extends Trigger>> jobs = new HashMap<>();
-            for (Map.Entry<String, Alert> entry : alerts.entrySet()) {
-                jobs.put(createJobDetail(entry.getKey()), createTrigger(entry.getValue().getSchedule()));
+            for (Alert alert : alerts) {
+                jobs.put(jobDetail(alert.name(), this), createTrigger(alert.schedule()));
             }
             scheduler.scheduleJobs(jobs, false);
             scheduler.start();
-        } catch (SchedulerException se){
+        } catch (org.quartz.SchedulerException se) {
             logger.error("Failed to start quartz scheduler", se);
         }
     }
@@ -73,56 +73,57 @@ public class AlertScheduler extends AbstractComponent {
      */
     public synchronized void stop() {
         try {
-            Scheduler scheduler = this.scheduler;
+            org.quartz.Scheduler scheduler = this.scheduler;
             if (scheduler != null) {
                 logger.info("Stopping scheduler...");
                 scheduler.shutdown(true);
                 this.scheduler = null;
                 logger.info("Stopped scheduler");
             }
-        } catch (SchedulerException se){
+        } catch (org.quartz.SchedulerException se){
             logger.error("Failed to stop quartz scheduler", se);
         }
     }
 
-    public void executeAlert(String alertName, JobExecutionContext jobExecutionContext){
-        DateTime scheduledFireTime = new DateTime(jobExecutionContext.getScheduledFireTime());
-        DateTime fireTime = new DateTime(jobExecutionContext.getFireTime());
-        alertsService.scheduleAlert(alertName, scheduledFireTime, fireTime);
+    public void addListener(Listener listener) {
+        listeners.add(listener);
+    }
+
+    void notifyListeners(String alertName, JobExecutionContext ctx) {
+        DateTime scheduledTime = new DateTime(ctx.getScheduledFireTime());
+        DateTime fireTime = new DateTime(ctx.getFireTime());
+        for (Listener listener : listeners) {
+            listener.fire(alertName, scheduledTime, fireTime);
+        }
+    }
+
+    /**
+     * Schedules the given alert
+     */
+    public void schedule(Alert alert) {
+        try {
+            logger.trace("scheduling [{}] with schedule [{}]", alert.name(), alert.schedule());
+            scheduler.scheduleJob(jobDetail(alert.name(), this), createTrigger(alert.schedule()), true);
+        } catch (org.quartz.SchedulerException se) {
+            logger.error("Failed to schedule job",se);
+            throw new SchedulerException("Failed to schedule job", se);
+        }
     }
 
     public boolean remove(String alertName) {
         try {
             return scheduler.deleteJob(new JobKey(alertName));
-        } catch (SchedulerException se){
-            throw new ElasticsearchException("Failed to remove [" + alertName + "] from the scheduler", se);
+        } catch (org.quartz.SchedulerException se){
+            throw new SchedulerException("Failed to remove [" + alertName + "] from the scheduler", se);
         }
     }
 
-    /**
-     * Schedules the alert with the specified name to be fired according to the specified cron expression.
-     */
-    public void schedule(String alertName, String cronExpression) {
-        try {
-            logger.trace("Scheduling [{}] with schedule [{}]", alertName, cronExpression);
-            scheduler.scheduleJob(createJobDetail(alertName), createTrigger(cronExpression), true);
-        } catch (SchedulerException se) {
-            logger.error("Failed to schedule job",se);
-            throw new ElasticsearchException("Failed to schedule job", se);
-        }
-    }
-
-    private Set<CronTrigger> createTrigger(String cronExpression) {
+    static Set<CronTrigger> createTrigger(Schedule schedule) {
         return new HashSet<>(Arrays.asList(
-                TriggerBuilder.newTrigger().withSchedule(CronScheduleBuilder.cronSchedule(cronExpression)).build()
+                TriggerBuilder.newTrigger().withSchedule(CronScheduleBuilder.cronSchedule(schedule.cron())).build()
         ));
     }
 
-    private JobDetail createJobDetail(String alertName) {
-        JobDetail job = JobBuilder.newJob(AlertExecutorJob.class).withIdentity(alertName).build();
-        job.getJobDataMap().put("manager", this);
-        return job;
-    }
 
     // This Quartz thread pool will always accept. On this thread we will only index an alert action and add it to the work queue
     public static final class AlertQuartzThreadPool implements org.quartz.spi.ThreadPool {
@@ -168,4 +169,9 @@ public class AlertScheduler extends AbstractComponent {
         }
     }
 
+    public static interface Listener {
+
+        void fire(String alertName, DateTime scheduledFireTime, DateTime fireTime);
+
+    }
 }

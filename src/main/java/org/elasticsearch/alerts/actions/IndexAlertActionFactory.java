@@ -10,9 +10,9 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.AlertsService;
 import org.elasticsearch.alerts.ConfigurationService;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
-import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -60,7 +60,7 @@ public class IndexAlertActionFactory implements AlertActionFactory {
     }
 
     @Override
-    public boolean doAction(AlertAction action, Alert alert, TriggerResult result) {
+    public boolean doAction(AlertAction action, Alert alert, AlertsService.AlertRun alertRun) {
         if (!(action instanceof IndexAlertAction)) {
             throw new ElasticsearchIllegalStateException("Bad action [" + action.getClass() + "] passed to IndexAlertActionFactory expected [" + IndexAlertAction.class + "]");
         }
@@ -73,7 +73,7 @@ public class IndexAlertActionFactory implements AlertActionFactory {
         try {
             XContentBuilder resultBuilder = XContentFactory.jsonBuilder().prettyPrint();
             resultBuilder.startObject();
-            resultBuilder.field("response", result.getActionResponse());
+            resultBuilder.field("response", alertRun.data());
             resultBuilder.field("timestamp", alert.getLastExecuteTime()); ///@TODO FIXME the firetime should be in the result ?
             resultBuilder.endObject();
             indexRequest.source(resultBuilder);

@@ -7,10 +7,9 @@ package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.alerts.Alert;
-import org.elasticsearch.alerts.AlertAckState;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
-import org.elasticsearch.alerts.triggers.ScriptedTrigger;
+import org.elasticsearch.alerts.triggers.ScriptTrigger;
 import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -35,7 +34,7 @@ public class WebhookTest extends ElasticsearchTestCase {
 
     public void testRequestParameterSerialization() throws Exception {
         SearchRequest triggerRequest = (new SearchRequest()).source(searchSource().query(matchAllQuery()));
-        AlertTrigger trigger = new ScriptedTrigger("return true", ScriptService.ScriptType.INLINE, "groovy");
+        AlertTrigger trigger = new ScriptTrigger("return true", ScriptService.ScriptType.INLINE, "groovy");
         List<AlertAction> actions = new ArrayList<>();
 
         Alert alert = new Alert("test-email-template",
@@ -46,7 +45,7 @@ public class WebhookTest extends ElasticsearchTestCase {
                 new DateTime(),
                 0,
                 new TimeValue(0),
-                AlertAckState.NOT_TRIGGERED);
+                Alert.Status.NOT_TRIGGERED);
 
 
 

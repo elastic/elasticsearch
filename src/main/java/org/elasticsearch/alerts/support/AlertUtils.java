@@ -8,24 +8,27 @@ package org.elasticsearch.alerts.support;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.alerts.AlertsException;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
 import java.util.*;
+
+import static org.elasticsearch.alerts.support.AlertsDateUtils.formatDate;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  */
@@ -35,14 +38,22 @@ public final class AlertUtils {
     public final static SearchType DEFAULT_TRIGGER_SEARCH_TYPE = SearchType.COUNT;
     public final static SearchType DEFAULT_PAYLOAD_SEARCH_TYPE = SearchType.DFS_QUERY_AND_FETCH;
 
-    private static final String FIRE_TIME_VARIABLE_NAME = "FIRE_TIME";
-    private static final String SCHEDULED_FIRE_TIME_VARIABLE_NAME = "SCHEDULED_FIRE_TIME";
-    private static final String ALERT_NAME_VARIABLE_NAME = "ALERT_NAME";
-    private static final String RESPONSE_VARIABLE_NAME = "response";
+    public static final String FIRE_TIME_VARIABLE_NAME = "fire_time";
+    public static final String SCHEDULED_FIRE_TIME_VARIABLE_NAME = "scheduled_fire_time";
+    public static final String ALERT_NAME_VARIABLE_NAME = "alert_name";
+    public static final String RESPONSE_VARIABLE_NAME = "response";
 
-    public static final FormatDateTimeFormatter dateTimeFormatter = DateFieldMapper.Defaults.DATE_TIME_FORMATTER;
 
     private AlertUtils() {
+    }
+
+    public static Map<String, Object> responseToData(SearchResponse response) {
+        try {
+            XContentBuilder builder = jsonBuilder().startObject().value(response).endObject();
+            return XContentHelper.convertToMap(builder.bytes(), false).v2();
+        } catch (IOException ioe) {
+            throw new AlertsException("failed to convert search response to script parameters", ioe);
+        }
     }
 
     /**
@@ -54,15 +65,15 @@ public final class AlertUtils {
                 .indices(request.indices());
         if (Strings.hasLength(request.source())) {
             Map<String, String> templateParams = new HashMap<>();
-            templateParams.put(SCHEDULED_FIRE_TIME_VARIABLE_NAME, dateTimeFormatter.printer().print(scheduledFireTime));
-            templateParams.put(FIRE_TIME_VARIABLE_NAME, dateTimeFormatter.printer().print(fireTime));
+            templateParams.put(SCHEDULED_FIRE_TIME_VARIABLE_NAME, formatDate(scheduledFireTime));
+            templateParams.put(FIRE_TIME_VARIABLE_NAME, formatDate(fireTime));
             String requestSource = XContentHelper.convertToJson(request.source(), false);
             ExecutableScript script = scriptService.executable("mustache", requestSource, ScriptService.ScriptType.INLINE, templateParams);
             triggerSearchRequest.source((BytesReference) script.unwrap(script.run()), false);
         } else if (request.templateName() != null) {
             MapBuilder<String, String> templateParams = MapBuilder.newMapBuilder(request.templateParams())
-                    .put(SCHEDULED_FIRE_TIME_VARIABLE_NAME, dateTimeFormatter.printer().print(scheduledFireTime))
-                    .put(FIRE_TIME_VARIABLE_NAME, dateTimeFormatter.printer().print(fireTime));
+                    .put(SCHEDULED_FIRE_TIME_VARIABLE_NAME, formatDate(scheduledFireTime))
+                    .put(FIRE_TIME_VARIABLE_NAME, formatDate(fireTime));
             triggerSearchRequest.templateParams(templateParams.map());
             triggerSearchRequest.templateName(request.templateName());
             triggerSearchRequest.templateType(request.templateType());

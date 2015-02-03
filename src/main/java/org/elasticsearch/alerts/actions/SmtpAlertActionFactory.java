@@ -157,7 +157,7 @@ public class SmtpAlertActionFactory implements AlertActionFactory, ConfigurableC
 
     public static String renderTemplate(String template, Alert alert, TriggerResult result, ScriptServiceProxy scriptService) {
         Map<String, Object> templateParams = new HashMap<>();
-        templateParams.put(ALERT_NAME_VARIABLE_NAME, alert.getAlertName());
+        templateParams.put(ALERT_NAME_VARIABLE_NAME, alert.getName());
         templateParams.put(RESPONSE_VARIABLE_NAME, result.getActionResponse());
         ExecutableScript script = scriptService.executable("mustache", template, ScriptService.ScriptType.INLINE, templateParams);
         return ((BytesReference) script.run()).toUtf8();

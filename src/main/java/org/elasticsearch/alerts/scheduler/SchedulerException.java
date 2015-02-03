@@ -5,15 +5,18 @@
  */
 package org.elasticsearch.alerts.scheduler;
 
-import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.alerts.AlertsException;
 
 /**
  *
  */
-public class AlertsSchedulerModule extends AbstractModule {
+public class SchedulerException extends AlertsException {
 
-    @Override
-    protected void configure() {
-        bind(AlertScheduler.class).asEagerSingleton();
+    public SchedulerException(String msg) {
+        super(msg);
+    }
+
+    public SchedulerException(String msg, Throwable cause) {
+        super(msg, cause);
     }
 }

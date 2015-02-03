@@ -8,7 +8,7 @@ package org.elasticsearch.alerts;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.alerts.actions.AlertActionService;
+import org.elasticsearch.alerts.history.HistoryService;
 import org.elasticsearch.alerts.actions.AlertActionState;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.support.AlertUtils;
@@ -146,7 +146,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
             @Override
             public void run() {
                 ClusterState state = client().admin().cluster().prepareState().get().getState();
-                String[] alertHistoryIndices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), AlertActionService.ALERT_HISTORY_INDEX_PREFIX + "*");
+                String[] alertHistoryIndices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), HistoryService.ALERT_HISTORY_INDEX_PREFIX + "*");
                 assertThat(alertHistoryIndices, not(emptyArray()));
                 for (String index : alertHistoryIndices) {
                     IndexRoutingTable routingTable = state.getRoutingTable().index(index);
@@ -168,7 +168,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
             @Override
             public void run() {
                 ClusterState state = client().admin().cluster().prepareState().get().getState();
-                String[] alertHistoryIndices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), AlertActionService.ALERT_HISTORY_INDEX_PREFIX + "*");
+                String[] alertHistoryIndices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), HistoryService.ALERT_HISTORY_INDEX_PREFIX + "*");
                 assertThat(alertHistoryIndices, not(emptyArray()));
                 for (String index : alertHistoryIndices) {
                     IndexRoutingTable routingTable = state.getRoutingTable().index(index);
@@ -176,7 +176,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
                     assertThat(routingTable.allPrimaryShardsActive(), is(true));
                 }
 
-                SearchResponse searchResponse = client().prepareSearch(AlertActionService.ALERT_HISTORY_INDEX_PREFIX + "*")
+                SearchResponse searchResponse = client().prepareSearch(HistoryService.ALERT_HISTORY_INDEX_PREFIX + "*")
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                         .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", AlertActionState.ACTION_PERFORMED.toString())))
                         .get();
@@ -189,7 +189,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
     }
 
     protected long findNumberOfPerformedActions(String alertName) {
-        SearchResponse searchResponse = client().prepareSearch(AlertActionService.ALERT_HISTORY_INDEX_PREFIX + "*")
+        SearchResponse searchResponse = client().prepareSearch(HistoryService.ALERT_HISTORY_INDEX_PREFIX + "*")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", AlertActionState.ACTION_PERFORMED.toString())))
                 .get();
@@ -202,7 +202,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
             public void run() {
                 // The alerthistory index gets created in the background when the first alert fires, so we to check first is this index is created and shards are started
                 ClusterState state = client().admin().cluster().prepareState().get().getState();
-                String[] alertHistoryIndices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), AlertActionService.ALERT_HISTORY_INDEX_PREFIX + "*");
+                String[] alertHistoryIndices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), HistoryService.ALERT_HISTORY_INDEX_PREFIX + "*");
                 assertThat(alertHistoryIndices, not(emptyArray()));
                 for (String index : alertHistoryIndices) {
                     IndexRoutingTable routingTable = state.getRoutingTable().index(index);
@@ -210,7 +210,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
                     assertThat(routingTable.allPrimaryShardsActive(), is(true));
                 }
 
-                SearchResponse searchResponse = client().prepareSearch(AlertActionService.ALERT_HISTORY_INDEX_PREFIX + "*")
+                SearchResponse searchResponse = client().prepareSearch(HistoryService.ALERT_HISTORY_INDEX_PREFIX + "*")
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                         .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", AlertActionState.NO_ACTION_NEEDED.toString())))
                         .get();

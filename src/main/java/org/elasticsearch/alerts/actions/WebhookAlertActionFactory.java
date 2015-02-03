@@ -141,7 +141,7 @@ public class WebhookAlertActionFactory implements AlertActionFactory {
         String responseJSON = XContentHelper.convertToJson(responseBuilder.bytes(), true);
 
         Map<String, Object> templateParams = new HashMap<>();
-        templateParams.put(ALERT_NAME, URLEncoder.encode(alert.getAlertName(), StandardCharsets.UTF_8.name()));
+        templateParams.put(ALERT_NAME, URLEncoder.encode(alert.getName(), StandardCharsets.UTF_8.name()));
         templateParams.put(RESPONSE, URLEncoder.encode(responseJSON, StandardCharsets.UTF_8.name()));
         templateParams.put(REQUEST, URLEncoder.encode(requestJSON, StandardCharsets.UTF_8.name()));
 
@@ -153,7 +153,7 @@ public class WebhookAlertActionFactory implements AlertActionFactory {
 
     public String renderUrl(String url, Alert alert, TriggerResult result, ScriptServiceProxy scriptService) {
          Map<String, Object> templateParams = new HashMap<>();
-         templateParams.put(ALERT_NAME, alert.getAlertName());
+         templateParams.put(ALERT_NAME, alert.getName());
          templateParams.put(RESPONSE, result.getActionResponse());
          ExecutableScript script = scriptService.executable("mustache", url, ScriptService.ScriptType.INLINE, templateParams);
          return ((BytesReference) script.run()).toUtf8();

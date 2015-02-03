@@ -121,6 +121,10 @@ to all bucket aggregations:
 * All other `getKeyAsX()` methods have been removed.
 * The `getBucketAsKey(String)` methods have been removed on all aggregations except the `filters` and `terms` aggregations.
 
+The `histogram` and the `date_histogram` aggregation now support a simplified `offset` option that replaces the previous `pre_offset` and
+`post_offset` rounding options. Instead of having to specify two separate offset shifts of the underlying buckets, the `offset` option
+moves the bucket boundaries in positive or negative direction depending on its argument.
+
 === Terms filter lookup caching
 
 The terms filter lookup mechanism does not support the `cache` option anymore

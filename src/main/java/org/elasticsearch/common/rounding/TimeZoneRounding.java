@@ -51,8 +51,7 @@ public abstract class TimeZoneRounding extends Rounding {
 
         private float factor = 1.0f;
 
-        private long preOffset;
-        private long postOffset;
+        private long offset;
 
         private boolean preZoneAdjustLargeInterval = false;
 
@@ -81,13 +80,8 @@ public abstract class TimeZoneRounding extends Rounding {
             return this;
         }
 
-        public Builder preOffset(long preOffset) {
-            this.preOffset = preOffset;
-            return this;
-        }
-
-        public Builder postOffset(long postOffset) {
-            this.postOffset = postOffset;
+        public Builder offset(long offset) {
+            this.offset = offset;
             return this;
         }
 
@@ -115,8 +109,8 @@ public abstract class TimeZoneRounding extends Rounding {
                     timeZoneRounding = new DayIntervalTimeZoneRounding(interval, preTz, postTz);
                 }
             }
-            if (preOffset != 0 || postOffset != 0) {
-                timeZoneRounding = new PrePostRounding(timeZoneRounding, preOffset, postOffset);
+            if (offset != 0) {
+                timeZoneRounding = new OffsetRounding(timeZoneRounding, offset);
             }
             if (factor != 1.0f) {
                 timeZoneRounding = new FactorRounding(timeZoneRounding, factor);

@@ -100,7 +100,7 @@ public class RareClusterStateTests extends ElasticsearchIntegrationTest {
                 .put(DiscoveryModule.DISCOVERY_TYPE_KEY, "zen")
                 .build()).get();
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
-        prepareCreate("test").setSettings(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, cluster().numDataNodes() - 1).addMapping("type").get();
+        prepareCreate("test").setSettings(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, true).addMapping("type").get();
         ensureGreen("test");
 
         // now that the cluster is stable, remove publishing timeout
@@ -118,7 +118,7 @@ public class RareClusterStateTests extends ElasticsearchIntegrationTest {
         disruption.startDisrupting();
         logger.info("--> delete index and recreate it");
         assertFalse(client().admin().indices().prepareDelete("test").setTimeout("200ms").get().isAcknowledged());
-        assertFalse(prepareCreate("test").setTimeout("200ms").setSettings(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, cluster().numDataNodes() - 1).get().isAcknowledged());
+        assertFalse(prepareCreate("test").setTimeout("200ms").setSettings(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, true).get().isAcknowledged());
         logger.info("--> letting cluster proceed");
         disruption.stopDisrupting();
         ensureGreen(TimeValue.timeValueMinutes(30), "test");

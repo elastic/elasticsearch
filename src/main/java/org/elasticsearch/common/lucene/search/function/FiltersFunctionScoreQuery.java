@@ -163,7 +163,7 @@ public class FiltersFunctionScoreQuery extends Query {
             for (int i = 0; i < filterFunctions.length; i++) {
                 FilterFunction filterFunction = filterFunctions[i];
                 filterFunction.function.setNextReader(context);
-                docSets[i] = DocIdSets.toSafeBits(context.reader(), filterFunction.filter.getDocIdSet(context, acceptDocs));
+                docSets[i] = DocIdSets.asSequentialAccessBits(context.reader().maxDoc(), filterFunction.filter.getDocIdSet(context, acceptDocs));
             }
             return new FiltersFunctionFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, docSets, combineFunction, minScore);
         }
@@ -186,7 +186,7 @@ public class FiltersFunctionScoreQuery extends Query {
                     weightSum++;
                 }
 
-                Bits docSet = DocIdSets.toSafeBits(context.reader(),
+                Bits docSet = DocIdSets.asSequentialAccessBits(context.reader().maxDoc(),
                         filterFunction.filter.getDocIdSet(context, context.reader().getLiveDocs()));
                 if (docSet.get(doc)) {
                     filterFunction.function.setNextReader(context);

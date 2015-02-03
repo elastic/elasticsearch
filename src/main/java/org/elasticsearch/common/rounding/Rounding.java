@@ -177,23 +177,21 @@ public abstract class Rounding implements Streamable {
             out.writeFloat(factor);
         }
     }
-    
-    public static class PrePostRounding extends Rounding {
+
+    public static class OffsetRounding extends Rounding {
 
         final static byte ID = 8;
 
         private Rounding rounding;
 
-        private long preOffset;
-        private long postOffset;
+        private long offset;
 
-        PrePostRounding() { // for serialization
+        OffsetRounding() { // for serialization
         }
 
-        public PrePostRounding(Rounding intervalRounding, long preOffset, long postOffset) {
+        public OffsetRounding(Rounding intervalRounding, long offset) {
             this.rounding = intervalRounding;
-            this.preOffset = preOffset;
-            this.postOffset = postOffset;
+            this.offset = offset;
         }
 
         @Override
@@ -203,41 +201,29 @@ public abstract class Rounding implements Streamable {
 
         @Override
         public long roundKey(long value) {
-            return rounding.roundKey(value + preOffset);
+            return rounding.roundKey(value - offset);
         }
 
         @Override
         public long valueForKey(long key) {
-            return postOffset + rounding.valueForKey(key);
+            return offset + rounding.valueForKey(key);
         }
 
         @Override
         public long nextRoundingValue(long value) {
-            return postOffset + rounding.nextRoundingValue(value - postOffset);
+            return rounding.nextRoundingValue(value - offset) + offset;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             rounding = Rounding.Streams.read(in);
-            if (in.getVersion().before(Version.V_1_4_0_Beta1)) {
-                preOffset = in.readVLong();
-                postOffset = in.readVLong();
-            } else {
-                preOffset = in.readLong();
-                postOffset = in.readLong();
-            }
+                offset = in.readLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             Rounding.Streams.write(rounding, out);
-            if (out.getVersion().before(Version.V_1_4_0_Beta1)) {
-                out.writeVLong(preOffset);
-                out.writeVLong(postOffset);
-            } else {
-                out.writeLong(preOffset);
-                out.writeLong(postOffset);
-            }
+                out.writeLong(offset);
         }
     }
 
@@ -260,7 +246,7 @@ public abstract class Rounding implements Streamable {
                 case TimeZoneRounding.TimeIntervalTimeZoneRounding.ID: rounding = new TimeZoneRounding.TimeIntervalTimeZoneRounding(); break;
                 case TimeZoneRounding.DayIntervalTimeZoneRounding.ID: rounding = new TimeZoneRounding.DayIntervalTimeZoneRounding(); break;
                 case TimeZoneRounding.FactorRounding.ID: rounding = new FactorRounding(); break;
-                case PrePostRounding.ID: rounding = new PrePostRounding(); break;
+                case OffsetRounding.ID: rounding = new OffsetRounding(); break;
                 default: throw new ElasticsearchException("unknown rounding id [" + id + "]");
             }
             rounding.readFrom(in);

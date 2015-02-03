@@ -20,8 +20,10 @@
 package org.elasticsearch.common.rounding;
 
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.hamcrest.core.IsEqual;
 import org.junit.Test;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -60,42 +62,44 @@ public class RoundingTests extends ElasticsearchTestCase {
     }
 
     /**
-     * Simple testcase to ilustrate how Rounding.Pre works on readable input.
-     * preOffset shifts input value before rounding (so here 24 -> 31)
-     * postOffset shifts rounded Value after rounding (here 30 -> 35)
+     * Simple test case to illustrate how Rounding.Offset works on readable input.
+     * offset shifts input value back before rounding (so here 6 - 7 -> -1)
+     * then shifts rounded Value back  (here -10 -> -3)
      */
     @Test
     public void testPrePostRounding() {
-        int interval = 10;
-        int value = 24;
-        int preOffset = 7;
-        int postOffset = 5;
-        Rounding.PrePostRounding rounding = new Rounding.PrePostRounding(new Rounding.Interval(interval), preOffset, postOffset);
-        final long key = rounding.roundKey(24);
-        final long roundedValue = rounding.round(24);
-        String message = "round(" + value + ", interval=" + interval + ") = " + roundedValue;
-        assertEquals(3, key);
-        assertEquals(35, roundedValue);
-        assertEquals(message, postOffset, roundedValue % interval);
+        final long interval = 10;
+        final long offset = 7;
+        Rounding.OffsetRounding rounding = new Rounding.OffsetRounding(new Rounding.Interval(interval), offset);
+        assertEquals(-1, rounding.roundKey(6));
+        assertEquals(-3, rounding.round(6));
+        assertEquals(7, rounding.nextRoundingValue(-3));
+        assertEquals(0, rounding.roundKey(7));
+        assertEquals(7, rounding.round(7));
+        assertEquals(17, rounding.nextRoundingValue(7));
+        assertEquals(0, rounding.roundKey(16));
+        assertEquals(7, rounding.round(16));
+        assertEquals(1, rounding.roundKey(17));
+        assertEquals(17, rounding.round(17));
+        assertEquals(27, rounding.nextRoundingValue(17));
     }
 
     @Test
-    public void testPrePostRoundingRandom() {
+    public void testOffsetRoundingRandom() {
         final long interval = randomIntBetween(1, 100);
         Rounding.Interval internalRounding = new Rounding.Interval(interval);
-        final long preRounding = randomIntBetween(-100, 100);
-        final long postRounding = randomIntBetween(-100, 100);
-        Rounding.PrePostRounding  prePost = new Rounding.PrePostRounding(new Rounding.Interval(interval), preRounding, postRounding);
-        long safetyMargin = Math.abs(interval) + Math.abs(preRounding) + Math.abs(postRounding); // to prevent range overflow / underflow
-        for (int i = 0; i < 1000; ++i) {
-            long l = Math.max(randomLong() - safetyMargin, Long.MIN_VALUE + safetyMargin);
-            final long key = prePost.roundKey(l);
-            final long r = prePost.round(l);
-            String message = "round(" + l + ", interval=" + interval + ") = "+ r;
-            assertEquals(message, internalRounding.round(l+preRounding), r - postRounding);
-            assertThat(message, r - postRounding, lessThanOrEqualTo(l + preRounding));
-            assertThat(message, r + interval - postRounding, greaterThan(l + preRounding));
-            assertEquals(message, r, key*interval + postRounding);
+        final long offset = randomIntBetween(-100, 100);
+        Rounding.OffsetRounding  rounding = new Rounding.OffsetRounding(internalRounding, offset);
+        long safetyMargin = Math.abs(interval) + Math.abs(offset); // to prevent range overflow / underflow
+        for (int i = 0; i < 100000; ++i) {
+            long value = Math.max(randomLong() - safetyMargin, Long.MIN_VALUE + safetyMargin);
+            final long key = rounding.roundKey(value);
+            final long key_next = rounding.roundKey(value + interval);
+            final long r_value = rounding.round(value);
+            assertThat("Rounding should be idempotent", r_value, equalTo(rounding.round(r_value)));
+            assertThat("Rounded value smaller than unrounded, regardless of offset", r_value - offset, lessThanOrEqualTo(value - offset));
+            assertThat("Key for value to key for value+inteval should differ by one", key_next - key, equalTo(1L));
+            assertThat("Rounded value <= value < next interval start", r_value + interval, greaterThan(value));
         }
     }
 }

@@ -88,8 +88,7 @@ public class DateHistogramParser implements Aggregator.Parser {
         boolean preZoneAdjustLargeInterval = false;
         DateTimeZone preZone = DateTimeZone.UTC;
         DateTimeZone postZone = DateTimeZone.UTC;
-        long preOffset = 0;
-        long postOffset = 0;
+        long offset = 0;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -105,10 +104,8 @@ public class DateHistogramParser implements Aggregator.Parser {
                     preZone = DateTimeZone.forID(parser.text());
                 } else if ("post_zone".equals(currentFieldName) || "postZone".equals(currentFieldName)) {
                     postZone = DateTimeZone.forID(parser.text());
-                } else if ("pre_offset".equals(currentFieldName) || "preOffset".equals(currentFieldName)) {
-                    preOffset = parseOffset(parser.text());
-                } else if ("post_offset".equals(currentFieldName) || "postOffset".equals(currentFieldName)) {
-                    postOffset = parseOffset(parser.text());
+                } else if ("offset".equals(currentFieldName)) {
+                    offset = parseOffset(parser.text());
                 } else if ("interval".equals(currentFieldName)) {
                     interval = parser.text();
                 } else {
@@ -196,8 +193,7 @@ public class DateHistogramParser implements Aggregator.Parser {
         Rounding rounding = tzRoundingBuilder
                 .preZone(preZone).postZone(postZone)
                 .preZoneAdjustLargeInterval(preZoneAdjustLargeInterval)
-                .preOffset(preOffset).postOffset(postOffset)
-                .build();
+                .offset(offset).build();
 
         return new HistogramAggregator.Factory(aggregationName, vsParser.config(), rounding, order, keyed, minDocCount, extendedBounds,
                 new InternalDateHistogram.Factory());

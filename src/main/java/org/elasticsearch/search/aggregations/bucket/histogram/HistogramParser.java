@@ -121,7 +121,7 @@ public class HistogramParser implements Aggregator.Parser {
 
         Rounding rounding = new Rounding.Interval(interval);
         if (offset != 0) {
-            rounding = new Rounding.PrePostRounding((Rounding.Interval) rounding, -offset, offset);
+            rounding = new Rounding.OffsetRounding((Rounding.Interval) rounding, offset);
         }
 
         if (extendedBounds != null) {

@@ -24,13 +24,13 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
-import org.elasticsearch.common.lucene.MultiCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.common.lucene.search.XCollector;
 import org.elasticsearch.index.engine.Engine;
@@ -151,7 +151,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 collector = new FilteredCollector(collector, searchContext.parsedPostFilter().filter());
             }
             if (queryCollectors != null && !queryCollectors.isEmpty()) {
-                collector = new MultiCollector(collector, queryCollectors.toArray(new Collector[queryCollectors.size()]));
+                ArrayList<Collector> allCollectors = new ArrayList<>(queryCollectors);
+                allCollectors.add(collector);
+                collector = MultiCollector.wrap(allCollectors);
             }
 
             // apply the minimum score after multi collector so we filter aggs as well

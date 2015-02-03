@@ -185,6 +185,31 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
         assertGeometryEquals(jtsGeom(expected), polygonGeoJson);
     }
 
+    public void testParse_polygonWithCoordinateWithMoreThanTwoElements() throws IOException {
+        String polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
+                .startArray("coordinates")
+                .startArray()
+                .startArray().value(100.0).value(1.0).endArray()
+                .startArray().value(101.0).value(1.0).value(2.0).endArray()
+                .startArray().value(101.0).value(0.0).endArray()
+                .startArray().value(100.0).value(0.0).endArray()
+                .startArray().value(100.0).value(1.0).endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+
+        List<Coordinate> shellCoordinates = new ArrayList<>();
+        shellCoordinates.add(new Coordinate(100, 0));
+        shellCoordinates.add(new Coordinate(101, 0));
+        shellCoordinates.add(new Coordinate(101, 1));
+        shellCoordinates.add(new Coordinate(100, 1));
+        shellCoordinates.add(new Coordinate(100, 0));
+
+        LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
+        Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
+        assertGeometryEquals(jtsGeom(expected), polygonGeoJson);
+    }
+
     public void testParse_invalidPoint() throws IOException {
         // test case 1: create an invalid point object with multipoint data format
         String invalidPoint1 = XContentFactory.jsonBuilder().startObject().field("type", "point")

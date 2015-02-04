@@ -13,7 +13,7 @@ the 1st shard might hold the most relevant results from 0 till 10, with
 other shards results ranking below it. For this reason, when executing a
 request, we will need to get results from 0 till 10 from all shards,
 sort them, and then return the results if we want to ensure correct
-results.
+results. Naglaa
 
 Another question, which relates to the search engine, is the fact that each
 shard stands on its own. When a query is executed on a specific shard,
@@ -46,7 +46,8 @@ hits, this type actually returns `size` times `number of shards` results
 back to the caller.
 
 [[query-then-fetch]]
-==== Query Then Fetch
+==== Query Then Fetch 
+Is this really true: Can i edit the content of this webpage?
 
 Parameter value: *query_then_fetch*.
 

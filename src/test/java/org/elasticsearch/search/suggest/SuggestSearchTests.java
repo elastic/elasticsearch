@@ -168,12 +168,11 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
                 .startObject("properties")
                 .startObject("name")
                     .field("type", "multi_field")
-                    .field("path", "just_name")
                     .startObject("fields")
                         .startObject("name")
                             .field("type", "string")
                         .endObject()
-                        .startObject("name_shingled")
+                        .startObject("shingled")
                             .field("type", "string")
                             .field("analyzer", "biword")
                             .field("search_analyzer", "standard")
@@ -192,7 +191,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
         refresh();
 
         DirectCandidateGenerator generator = candidateGenerator("name").prefixLength(0).minWordLength(0).suggestMode("always").maxEdits(2);
-        PhraseSuggestionBuilder phraseSuggestion = phraseSuggestion("did_you_mean").field("name_shingled")
+        PhraseSuggestionBuilder phraseSuggestion = phraseSuggestion("did_you_mean").field("name.shingled")
                 .addCandidateGenerator(generator)
                 .gramSize(3);
         Suggest searchSuggest = searchSuggest( "ice tea", phraseSuggestion);
@@ -244,12 +243,11 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
                 .startObject("properties")
                 .startObject("name")
                     .field("type", "multi_field")
-                    .field("path", "just_name")
                     .startObject("fields")
                         .startObject("name")
                             .field("type", "string")
                         .endObject()
-                        .startObject("name_shingled")
+                        .startObject("shingled")
                             .field("type", "string")
                             .field("analyzer", "biword")
                             .field("search_analyzer", "standard")
@@ -266,7 +264,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1").setSource("name", "I like ice cream."));
         refresh();
 
-        PhraseSuggestionBuilder phraseSuggestion = phraseSuggestion("did_you_mean").field("name_shingled")
+        PhraseSuggestionBuilder phraseSuggestion = phraseSuggestion("did_you_mean").field("name.shingled")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("name").prefixLength(0).minWordLength(0).suggestMode("always").maxEdits(2))
                 .gramSize(3);
         Suggest searchSuggest = searchSuggest( "ice tea", phraseSuggestion);
@@ -794,7 +792,6 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
                 .startObject("properties")
                     .startObject("name")
                         .field("type", "multi_field")
-                        .field("path", "just_name")
                         .startObject("fields")
                             .startObject("name")
                                 .field("type", "string")
@@ -840,7 +837,6 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
                         startObject("properties").
                             startObject("name").
                                 field("type", "multi_field").
-                                field("path", "just_name").
                                 startObject("fields").
                                     startObject("name").
                                         field("type", "string").

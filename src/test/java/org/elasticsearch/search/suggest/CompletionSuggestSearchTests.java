@@ -487,7 +487,6 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .startObject("properties")
                 .startObject(FIELD)
                 .field("type", "string")
-                .field("path", "just_name") // The path can't be changed / upgraded
                 .endObject()
                 .endObject()
                 .endObject()
@@ -500,7 +499,6 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .startObject(TYPE).startObject("properties")
                 .startObject(FIELD)
                 .field("type", "multi_field")
-                .field("path", "just_name")
                 .startObject("fields")
                 .startObject(FIELD).field("type", "string").endObject()
                 .startObject("suggest").field("type", "completion").field("analyzer", "simple").endObject()
@@ -520,7 +518,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         ensureGreen(INDEX);
 
         SuggestResponse afterReindexingResponse = client().prepareSuggest(INDEX).addSuggestion(
-                SuggestBuilders.completionSuggestion("suggs").field("suggest").text("f").size(10)
+                SuggestBuilders.completionSuggestion("suggs").field(FIELD + ".suggest").text("f").size(10)
         ).execute().actionGet();
         assertSuggestions(afterReindexingResponse, "suggs", "Foo Fighters");
     }
@@ -533,7 +531,6 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .startObject("properties")
                 .startObject(FIELD)
                 .field("type", "string")
-                .field("path", "just_name") // The path can't be changed / upgraded
                 .endObject()
                 .endObject()
                 .endObject()
@@ -546,7 +543,6 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .startObject(TYPE).startObject("properties")
                 .startObject(FIELD)
                 .field("type", "string")
-                .field("path", "just_name") // Need to specify path again, to make sure that the `path` is known when this mapping is parsed and turned into DocumentMapper that we merge with.
                 .startObject("fields")
                 .startObject("suggest").field("type", "completion").field("analyzer", "simple").endObject()
                 .endObject()
@@ -565,7 +561,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         ensureGreen(INDEX);
 
         SuggestResponse afterReindexingResponse = client().prepareSuggest(INDEX).addSuggestion(
-                SuggestBuilders.completionSuggestion("suggs").field("suggest").text("f").size(10)
+                SuggestBuilders.completionSuggestion("suggs").field(FIELD + ".suggest").text("f").size(10)
         ).execute().actionGet();
         assertSuggestions(afterReindexingResponse, "suggs", "Foo Fighters");
     }

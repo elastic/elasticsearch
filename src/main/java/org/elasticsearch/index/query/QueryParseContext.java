@@ -32,6 +32,7 @@ import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lucene.HashedBytesRef;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.lucene.search.NoCacheQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.ResolvableFilter;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -413,7 +415,9 @@ public class QueryParseContext {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString){
             StringFieldMapper.Builder builder = MapperBuilders.stringField(name);
-            StringFieldMapper stringFieldMapper = builder.build(new Mapper.BuilderContext(ImmutableSettings.EMPTY, new ContentPath(1)));
+            // it would be better to pass the real index settings, but they are not easily accessible from here...
+            Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, indexQueryParser.getIndexCreatedVersion()).build();
+            StringFieldMapper stringFieldMapper = builder.build(new Mapper.BuilderContext(settings, new ContentPath(1)));
             return new MapperService.SmartNameFieldMappers(mapperService(), new FieldMappers(stringFieldMapper), null, false);
         } else {
             Version indexCreatedVersion = indexQueryParser.getIndexCreatedVersion();

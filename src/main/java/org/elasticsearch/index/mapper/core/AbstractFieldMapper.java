@@ -35,6 +35,7 @@ import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -259,16 +260,26 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             return builder;
         }
 
-        public Names buildNames(BuilderContext context) {
-            return new Names(name, buildIndexName(context), indexName == null ? name : indexName, buildFullName(context), context.path().sourcePath());
+        protected Names buildNames(BuilderContext context) {
+            return new Names(name, buildIndexName(context), buildIndexNameClean(context), buildFullName(context), context.path().sourcePath());
         }
 
-        public String buildIndexName(BuilderContext context) {
+        protected String buildIndexName(BuilderContext context) {
+            if (context.indexCreatedVersion().onOrAfter(Version.V_2_0_0)) {
+                return buildFullName(context);
+            }
             String actualIndexName = indexName == null ? name : indexName;
             return context.path().pathAsText(actualIndexName);
         }
+        
+        protected String buildIndexNameClean(BuilderContext context) {
+            if (context.indexCreatedVersion().onOrAfter(Version.V_2_0_0)) {
+                return buildFullName(context);
+            }
+            return indexName == null ? name : indexName;
+        }
 
-        public String buildFullName(BuilderContext context) {
+        protected String buildFullName(BuilderContext context) {
             return context.path().fullPathAsText(name);
         }
     }
@@ -287,6 +298,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     protected FieldDataType fieldDataType;
     protected final MultiFields multiFields;
     protected CopyTo copyTo;
+    protected final boolean writePre20Metadata;
 
     protected AbstractFieldMapper(Names names, float boost, FieldType fieldType, Boolean docValues, NamedAnalyzer indexAnalyzer,
                                   NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsFormat,
@@ -340,6 +352,9 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
         this.multiFields = multiFields;
         this.copyTo = copyTo;
+        // the short circuit check to EMPTY here is necessary because some built in fields pass EMPTY for simplified ctors
+        this.writePre20Metadata = indexSettings != null && indexSettings.equals(ImmutableSettings.EMPTY) == false && 
+                                  Version.indexCreated(indexSettings).before(Version.V_2_0_0);
     }
 
     @Nullable
@@ -690,7 +705,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
 
         builder.field("type", contentType());
-        if (includeDefaults || !names.name().equals(names.indexNameClean())) {
+        if (writePre20Metadata && (includeDefaults || !names.name().equals(names.indexNameClean()))) {
             builder.field("index_name", names.indexNameClean());
         }
 

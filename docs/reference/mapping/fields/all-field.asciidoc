@@ -43,7 +43,7 @@ Here is a sample mapping:
                 "properties" : {
                     "first" : {
                         "properties" : {
-                            "location" : {"type" : "string", "store" : true, "index_name" : "firstLocation"}
+                            "location" : {"type" : "string", "store" : true}
                         }
                     },
                     "last" : {

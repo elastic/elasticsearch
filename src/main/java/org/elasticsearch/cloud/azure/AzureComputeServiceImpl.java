@@ -110,29 +110,24 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
         if (socketFactory == null) {
             // Azure plugin is disabled
             logger.trace("azure plugin is disabled. Returning an empty list of nodes.");
-            return new HashSet<Instance>();
+            return new HashSet<>();
         } else {
             try {
                 InputStream stream = getXML("/services/hostedservices/" + service_name + "?embed-detail=true");
                 Set<Instance> instances = buildInstancesFromXml(stream, port_name);
                 logger.trace("get instances from azure: {}", instances);
-
                 return instances;
-
             } catch (ParserConfigurationException e) {
                 logger.warn("can not parse XML response: {}", e.getMessage());
-                return new HashSet<Instance>();
             } catch (XPathExpressionException e) {
                 logger.warn("can not parse XML response: {}", e.getMessage());
-                return new HashSet<Instance>();
             } catch (SAXException e) {
                 logger.warn("can not parse XML response: {}", e.getMessage());
-                return new HashSet<Instance>();
             } catch (Exception e) {
                 logger.warn("can not get list of azure nodes: {}", e.getMessage());
-                return new HashSet<Instance>();
             }
         }
+        return new HashSet<>();
     }
 
     private static String extractValueFromPath(Node node, String path) throws XPathExpressionException {
@@ -142,7 +137,7 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
     }
 
     public static Set<Instance> buildInstancesFromXml(InputStream inputStream, String port_name) throws ParserConfigurationException, IOException, SAXException, XPathExpressionException {
-        Set<Instance> instances = new HashSet<Instance>();
+        Set<Instance> instances = new HashSet<>();
 
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();

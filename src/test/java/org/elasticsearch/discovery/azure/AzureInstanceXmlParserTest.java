@@ -52,7 +52,7 @@ public class AzureInstanceXmlParserTest {
         InputStream inputStream = AzureInstanceXmlParserTest.class.getResourceAsStream("/org/elasticsearch/azure/test/services.xml");
         Set<Instance> instances = AzureComputeServiceImpl.buildInstancesFromXml(inputStream, "elasticsearch");
 
-        Set<Instance> expected = new HashSet<Instance>();
+        Set<Instance> expected = new HashSet<>();
         expected.add(build("es-windows2008", "10.53.250.55", null, null, Instance.Status.STARTED));
         expected.add(build("myesnode1", "10.53.218.75", "137.116.213.150", "9300", Instance.Status.STARTED));
 

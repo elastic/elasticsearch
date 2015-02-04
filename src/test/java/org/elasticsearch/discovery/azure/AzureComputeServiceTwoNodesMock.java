@@ -38,7 +38,7 @@ public class AzureComputeServiceTwoNodesMock extends AzureComputeServiceAbstract
 
     @Override
     public Set<Instance> instances() {
-        Set<Instance> instances = new HashSet<Instance>();
+        Set<Instance> instances = new HashSet<>();
         Instance azureHost = new Instance();
         azureHost.setPrivateIp("127.0.0.1");
         instances.add(azureHost);

@@ -615,7 +615,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             logger.trace("flush with {}", request);
         }
         long time = System.nanoTime();
-        engine().flush(request.full() ? Engine.FlushType.NEW_WRITER : Engine.FlushType.COMMIT_TRANSLOG, request.force(), request.waitIfOngoing());
+        engine().flush(Engine.FlushType.COMMIT_TRANSLOG, request.force(), request.waitIfOngoing());
         flushMetric.inc(System.nanoTime() - time);
     }
 

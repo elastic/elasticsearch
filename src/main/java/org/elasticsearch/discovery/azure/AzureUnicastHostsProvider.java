@@ -89,7 +89,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
         if (refreshInterval.millis() != 0) {
             if (cachedDiscoNodes != null &&
                     (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
-                if (logger.isTraceEnabled()) logger.trace("using cache to retrieve node list");
+                logger.trace("using cache to retrieve node list");
                 return cachedDiscoNodes;
             }
             lastRefresh = System.currentTimeMillis();
@@ -106,10 +106,10 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
             if (inetAddress != null) {
                 ipAddress = inetAddress.getHostAddress();
             }
-            if (logger.isTraceEnabled()) logger.trace("ipAddress found: [{}]", ipAddress);
+            logger.trace("ipAddress found: [{}]", ipAddress);
         } catch (IOException e) {
             // We can't find the publish host address... Hmmm. Too bad :-(
-            if (logger.isTraceEnabled()) logger.trace("exception while finding ipAddress", e);
+            logger.trace("exception while finding ipAddress", e);
         }
 
         try {
@@ -118,10 +118,9 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                 // Let's detect if we want to use public or private IP
                 if (host_type == HostType.PRIVATE_IP) {
                     if (instance.getPrivateIp() != null) {
-                        if (logger.isTraceEnabled() && instance.getPrivateIp().equals(ipAddress)) {
+                        if (instance.getPrivateIp().equals(ipAddress)) {
                             logger.trace("adding ourselves {}", ipAddress);
                         }
-
                         networkAddress = instance.getPrivateIp();
                     } else {
                         logger.trace("no private ip provided ignoring {}", instance.getName());

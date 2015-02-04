@@ -83,8 +83,7 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
         // Check that we have all needed properties
         try {
             socketFactory = getSocketFactory(keystore, password);
-            if (logger.isTraceEnabled()) logger.trace("creating new Azure client for [{}], [{}], [{}], [{}]",
-                    subscription_id, service_name, port_name);
+            logger.trace("creating new Azure client for [{}], [{}], [{}]", subscription_id, service_name, port_name);
         } catch (Exception e) {
             // Can not start Azure Client
             logger.error("can not start azure client: {}", e.getMessage());
@@ -100,8 +99,8 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
         con.setSSLSocketFactory( socketFactory );
         con.setRequestProperty("x-ms-version", Azure.VERSION);
 
-        if (logger.isDebugEnabled()) logger.debug("calling azure REST API: {}", api);
-        if (logger.isTraceEnabled()) logger.trace("get {} from azure", https_url);
+        logger.debug("calling azure REST API: {}", api);
+        logger.trace("get {} from azure", https_url);
 
         return con.getInputStream();
     }
@@ -110,13 +109,13 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
     public Set<Instance> instances() {
         if (socketFactory == null) {
             // Azure plugin is disabled
-            if (logger.isTraceEnabled()) logger.trace("azure plugin is disabled. Returning an empty list of nodes.");
+            logger.trace("azure plugin is disabled. Returning an empty list of nodes.");
             return new HashSet<Instance>();
         } else {
             try {
                 InputStream stream = getXML("/services/hostedservices/" + service_name + "?embed-detail=true");
                 Set<Instance> instances = buildInstancesFromXml(stream, port_name);
-                if (logger.isTraceEnabled()) logger.trace("get instances from azure: {}", instances);
+                logger.trace("get instances from azure: {}", instances);
 
                 return instances;
 

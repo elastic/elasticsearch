@@ -76,8 +76,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
 
         try {
             if (account != null) {
-                if (logger.isTraceEnabled()) logger.trace("creating new Azure storage client using account [{}], key [{}], blob [{}]",
-                        account, key, blob);
+                logger.trace("creating new Azure storage client using account [{}], key [{}], blob [{}]", account, key, blob);
 
                 String storageConnectionString =
                         "DefaultEndpointsProtocol=http;"
@@ -120,27 +119,20 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         options.setRetryPolicyFactory(new RetryNoRetry());
         blob_container.deleteIfExists(options, null);
         */
-        if (logger.isTraceEnabled()) {
-            logger.trace("removing container [{}]", container);
-        }
+        logger.trace("removing container [{}]", container);
         blob_container.deleteIfExists();
     }
 
     @Override
     public void createContainer(String container) throws URISyntaxException, StorageException {
         CloudBlobContainer blob_container = client.getContainerReference(container);
-        if (logger.isTraceEnabled()) {
-            logger.trace("creating container [{}]", container);
-        }
+        logger.trace("creating container [{}]", container);
         blob_container.createIfNotExist();
     }
 
     @Override
     public void deleteFiles(String container, String path) throws URISyntaxException, StorageException, ServiceException {
-        if (logger.isTraceEnabled()) {
-            logger.trace("delete files container [{}], path [{}]",
-                    container, path);
-        }
+        logger.trace("delete files container [{}], path [{}]", container, path);
 
         // Container name must be lower case.
         CloudBlobContainer blob_container = client.getContainerReference(container);
@@ -150,10 +142,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
 
             List<ListBlobsResult.BlobEntry> blobs = service.listBlobs(container, options).getBlobs();
             for (ListBlobsResult.BlobEntry blob : blobs) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("removing in container [{}], path [{}], blob [{}]",
-                            container, path, blob.getName());
-                }
+                logger.trace("removing in container [{}], path [{}], blob [{}]", container, path, blob.getName());
                 service.deleteBlob(container, blob.getName());
             }
         }
@@ -173,18 +162,12 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
 
     @Override
     public void deleteBlob(String container, String blob) throws URISyntaxException, StorageException {
-        if (logger.isTraceEnabled()) {
-            logger.trace("delete blob for container [{}], blob [{}]",
-                    container, blob);
-        }
+        logger.trace("delete blob for container [{}], blob [{}]", container, blob);
 
         // Container name must be lower case.
         CloudBlobContainer blob_container = client.getContainerReference(container);
         if (blob_container.exists()) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("blob found. removing.",
-                        container, blob);
-            }
+            logger.trace("blob found. removing.", container, blob);
             // TODO A REVOIR
             CloudBlockBlob azureBlob = blob_container.getBlockBlobReference(blob);
             azureBlob.delete();
@@ -212,15 +195,11 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
             Iterable<ListBlobItem> blobs = blob_container.listBlobs(keyPath + prefix);
             for (ListBlobItem blob : blobs) {
                 URI uri = blob.getUri();
-                if (logger.isTraceEnabled()) {
-                    logger.trace("blob url [{}]", uri);
-                }
+                logger.trace("blob url [{}]", uri);
                 String blobpath = uri.getPath().substring(container.length() + 1);
                 BlobProperties properties = service.getBlobProperties(container, blobpath).getProperties();
                 String name = blobpath.substring(keyPath.length() + 1);
-                if (logger.isTraceEnabled()) {
-                    logger.trace("blob url [{}], name [{}], size [{}]", uri, name, properties.getContentLength());
-                }
+                logger.trace("blob url [{}], name [{}], size [{}]", uri, name, properties.getContentLength());
                 blobsBuilder.put(name, new PlainBlobMetaData(name, properties.getContentLength()));
             }
         }

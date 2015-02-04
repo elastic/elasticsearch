@@ -117,11 +117,7 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
                 Set<Instance> instances = buildInstancesFromXml(stream, port_name);
                 logger.trace("get instances from azure: {}", instances);
                 return instances;
-            } catch (ParserConfigurationException e) {
-                logger.warn("can not parse XML response: {}", e.getMessage());
-            } catch (XPathExpressionException e) {
-                logger.warn("can not parse XML response: {}", e.getMessage());
-            } catch (SAXException e) {
+            } catch (ParserConfigurationException | XPathExpressionException | SAXException e) {
                 logger.warn("can not parse XML response: {}", e.getMessage());
             } catch (Exception e) {
                 logger.warn("can not get list of azure nodes: {}", e.getMessage());

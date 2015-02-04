@@ -76,11 +76,7 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
 
         try {
             client.deleteFiles(container, keyPath);
-        } catch (URISyntaxException e) {
-            logger.warn("can not remove [{}] in container {{}}: {}", keyPath, container, e.getMessage());
-        } catch (StorageException e) {
-            logger.warn("can not remove [{}] in container {{}}: {}", keyPath, container, e.getMessage());
-        } catch (ServiceException e) {
+        } catch (URISyntaxException | StorageException | ServiceException e) {
             logger.warn("can not remove [{}] in container {{}}: {}", keyPath, container, e.getMessage());
         }
     }

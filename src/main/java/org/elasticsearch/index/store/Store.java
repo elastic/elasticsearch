@@ -49,7 +49,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.CloseableIndexComponent;
-import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -789,13 +788,16 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                 } else {
                     builder.put(segmentsFile, new StoreFileMetaData(segmentsFile, directory.fileLength(segmentsFile), legacyChecksum, null, hashFile(directory, segmentsFile)));
                 }
-            } catch (CorruptIndexException ex) {
+            } catch (CorruptIndexException | IndexNotFoundException ex) {
+                // we either know the index is corrupted or it's just not there
                 throw ex;
             } catch (Throwable ex) {
                 try {
                     // Lucene checks the checksum after it tries to lookup the codec etc.
                     // in that case we might get only IAE or similar exceptions while we are really corrupt...
                     // TODO we should check the checksum in lucene if we hit an exception
+                    logger.warn("failed to build store metadata. checking segment info integrity (with commit [{}])",
+                            ex, commit == null ? "no" : "yes");
                     Lucene.checkSegmentInfoIntegrity(directory);
                 } catch (CorruptIndexException cex) {
                   cex.addSuppressed(ex);

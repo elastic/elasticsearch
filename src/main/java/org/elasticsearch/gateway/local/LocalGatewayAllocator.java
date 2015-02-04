@@ -26,6 +26,7 @@ import com.carrotsearch.hppc.predicates.ObjectPredicate;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -50,7 +51,9 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.transport.ConnectTransportException;
 
-import java.util.*;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -402,19 +405,8 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
 
         String[] nodesIdsArray = nodeIds.toArray(String.class);
         TransportNodesListGatewayStartedShards.NodesLocalGatewayStartedShards response = listGatewayStartedShards.list(shard.shardId(), nodesIdsArray, listTimeout).actionGet();
-        if (logger.isDebugEnabled()) {
-            if (response.failures().length > 0) {
-                StringBuilder sb = new StringBuilder(shard + ": failures when trying to list shards on nodes:");
-                for (int i = 0; i < response.failures().length; i++) {
-                    Throwable cause = ExceptionsHelper.unwrapCause(response.failures()[i]);
-                    if (cause instanceof ConnectTransportException) {
-                        continue;
-                    }
-                    sb.append("\n    -> ").append(response.failures()[i].getDetailedMessage());
-                }
-                logger.debug(sb.toString());
-            }
-        }
+        logListActionFailures(shard, "state", response.failures());
+
 
         for (TransportNodesListGatewayStartedShards.NodeLocalGatewayStartedShards nodeShardState : response) {
             // -1 version means it does not exists, which is what the API returns, and what we expect to
@@ -423,6 +415,17 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
             shardStates.put(nodeShardState.getNode(), nodeShardState.version());
         }
         return shardStates;
+    }
+
+    private void logListActionFailures(MutableShardRouting shard, String actionType, FailedNodeException[] failures) {
+        for (final FailedNodeException failure : failures) {
+            Throwable cause = ExceptionsHelper.unwrapCause(failure);
+            if (cause instanceof ConnectTransportException) {
+                continue;
+            }
+            // we log warn here. debug logs with full stack traces will be logged if debug logging is turned on for TransportNodeListGatewayStartedShards
+            logger.warn("{}: failed to list shard {} on node [{}]", failure, shard.shardId(), actionType, failure.nodeId());
+        }
     }
 
     private Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> buildShardStores(DiscoveryNodes nodes, MutableShardRouting shard) {
@@ -453,19 +456,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
         if (!nodesIds.isEmpty()) {
             String[] nodesIdsArray = nodesIds.toArray(String.class);
             TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = listShardStoreMetaData.list(shard.shardId(), false, nodesIdsArray, listTimeout).actionGet();
-            if (logger.isTraceEnabled()) {
-                if (nodesStoreFilesMetaData.failures().length > 0) {
-                    StringBuilder sb = new StringBuilder(shard + ": failures when trying to list stores on nodes:");
-                    for (int i = 0; i < nodesStoreFilesMetaData.failures().length; i++) {
-                        Throwable cause = ExceptionsHelper.unwrapCause(nodesStoreFilesMetaData.failures()[i]);
-                        if (cause instanceof ConnectTransportException) {
-                            continue;
-                        }
-                        sb.append("\n    -> ").append(nodesStoreFilesMetaData.failures()[i].getDetailedMessage());
-                    }
-                    logger.trace(sb.toString());
-                }
-            }
+            logListActionFailures(shard, "stores", nodesStoreFilesMetaData.failures());
 
             for (TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData nodeStoreFilesMetaData : nodesStoreFilesMetaData) {
                 if (nodeStoreFilesMetaData.storeFilesMetaData() != null) {

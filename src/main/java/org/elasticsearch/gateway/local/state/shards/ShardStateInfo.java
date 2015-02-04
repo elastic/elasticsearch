@@ -35,4 +35,9 @@ public class ShardStateInfo {
         this.version = version;
         this.primary = primary;
     }
+
+    @Override
+    public String toString() {
+        return "version [" + version + "], primary [" + primary + "]";
+    }
 }

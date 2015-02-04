@@ -97,6 +97,7 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeBoolean(false);
         out.writeBoolean(force);
         if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeBoolean(waitIfOngoing);
@@ -106,6 +107,7 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        in.readBoolean();
         force = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             waitIfOngoing = in.readBoolean();

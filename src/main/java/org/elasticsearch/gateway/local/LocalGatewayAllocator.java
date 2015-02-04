@@ -26,6 +26,7 @@ import com.carrotsearch.hppc.predicates.ObjectPredicate;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -402,26 +403,33 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
 
         String[] nodesIdsArray = nodeIds.toArray(String.class);
         TransportNodesListGatewayStartedShards.NodesLocalGatewayStartedShards response = listGatewayStartedShards.list(shard.shardId(), nodesIdsArray, listTimeout).actionGet();
-        if (response.failures().length > 0) {
-            // we log warn here. debug logs with full stack traces will be logged if debug logging is turned on for TransportNodeListGatewayStartedShards
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < response.failures().length; i++) {
-                Throwable cause = ExceptionsHelper.unwrapCause(response.failures()[i]);
-                if (cause instanceof ConnectTransportException) {
-                    continue;
-                }
-                sb.append("\n    -> ").append(response.failures()[i].getMessage());
-            }
-            if (sb.length() > 0) {
-                logger.warn("{}: failures when trying to list shards on nodes:{}", shard, sb);
-            }
-        }
+        logListActionFailures(shard, "state", response.failures());
+
 
         for (TransportNodesListGatewayStartedShards.NodeLocalGatewayStartedShards nodeShardState : response) {
             // -1 version means it does not exists, which is what the API returns, and what we expect to
             shardStates.put(nodeShardState.getNode(), nodeShardState.version());
         }
         return shardStates;
+    }
+
+    private void logListActionFailures(MutableShardRouting shard, String actionType, FailedNodeException[] failures) {
+        if (failures == null || failures.length == 0) {
+            return;
+        }
+        int totalWarnFailures = 0;
+        for (final FailedNodeException failure : failures) {
+            Throwable cause = ExceptionsHelper.unwrapCause(failure);
+            if (cause instanceof ConnectTransportException) {
+                continue;
+            }
+            // we log warn here. debug logs with full stack traces will be logged if debug logging is turned on for TransportNodeListGatewayStartedShards
+            logger.warn("{}: failed to list shard {} on node [{}], reason [{}]", shard.shardId(), actionType, failure.nodeId(), failure.getMessage());
+            totalWarnFailures++;
+        }
+        if (totalWarnFailures > 0) {
+            logger.warn("{}: [{}] failures when trying to list shard {} on nodes.", shard.shardId(), totalWarnFailures, actionType);
+        }
     }
 
     private Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> buildShardStores(DiscoveryNodes nodes, MutableShardRouting shard) {
@@ -452,20 +460,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
         if (!nodesIds.isEmpty()) {
             String[] nodesIdsArray = nodesIds.toArray(String.class);
             TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = listShardStoreMetaData.list(shard.shardId(), false, nodesIdsArray, listTimeout).actionGet();
-            if (nodesStoreFilesMetaData.failures().length > 0) {
-                // we log warn here. debug logs with full stack traces will be logged if debug logging is turned on for TransportNodesListShardStoreMetaData
-                StringBuilder sb = new StringBuilder();
-                for (int i = 0; i < nodesStoreFilesMetaData.failures().length; i++) {
-                    Throwable cause = ExceptionsHelper.unwrapCause(nodesStoreFilesMetaData.failures()[i]);
-                    if (cause instanceof ConnectTransportException) {
-                        continue;
-                    }
-                    sb.append("\n    -> ").append(nodesStoreFilesMetaData.failures()[i].getMessage());
-                }
-                if (sb.length() > 0) {
-                    logger.warn("{}: failures when trying to list stores on nodes:{}", shard, sb);
-                }
-            }
+            logListActionFailures(shard, "stores", nodesStoreFilesMetaData.failures());
 
             for (TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData nodeStoreFilesMetaData : nodesStoreFilesMetaData) {
                 if (nodeStoreFilesMetaData.storeFilesMetaData() != null) {

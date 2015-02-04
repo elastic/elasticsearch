@@ -29,6 +29,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -211,7 +212,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
-                if (fieldName.equals("path")) {
+                if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                     builder.multiFieldPathType(parsePathType(name, fieldNode.toString()));
                     iterator.remove();
                 } else if (fieldName.equals("lat_lon")) {

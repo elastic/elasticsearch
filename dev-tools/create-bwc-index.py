@@ -159,7 +159,22 @@ def generate_index(client, version):
       'index_analyzer': 'standard',
       'search_analyzer': 'keyword',
       'search_quote_analyzer': 'english',
-   }
+    }
+    mappings['index_name_and_path'] = {
+      'properties': {
+        'parent_multi_field': {
+          'type': 'string',
+          'path': 'just_name',
+          'fields': {
+            'raw': {'type': 'string', 'index': 'not_analyzed', 'index_name': 'raw_multi_field'}
+          }
+        },
+        'field_with_index_name': {
+          'type': 'string',
+          'index_name': 'custom_index_name_for_field'
+        }
+      }
+    }
 
   client.indices.create(index='test', body={
       'settings': {

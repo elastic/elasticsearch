@@ -28,6 +28,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
@@ -217,7 +218,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
-                if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder) || parseObjectProperties(name, fieldName,  fieldNode,  builder)) {
+                if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder) || parseObjectProperties(name, fieldName,  fieldNode, parserContext, builder)) {
                     iterator.remove();
                 }
             }
@@ -252,8 +253,8 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             return false;
         }
 
-        protected static boolean parseObjectProperties(String name, String fieldName, Object fieldNode, ObjectMapper.Builder builder) {
-            if (fieldName.equals("path")) {
+        protected static boolean parseObjectProperties(String name, String fieldName, Object fieldNode, ParserContext parserContext, ObjectMapper.Builder builder) {
+            if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                 builder.pathType(parsePathType(name, fieldNode.toString()));
                 return true;
             }

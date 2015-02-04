@@ -38,7 +38,7 @@ is a sample explicit mapping:
     "tweet" : {
         "properties" : {
             "message" : {"type" : "string"},
-            "tags" : {"type" : "string", "index_name" : "tag"},
+            "tags" : {"type" : "string"},
             "lists" : {
                 "properties" : {
                     "name" : {"type" : "string"},

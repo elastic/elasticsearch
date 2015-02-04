@@ -188,10 +188,8 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                 } else if (Fields.MAX_INPUT_LENGTH.match(fieldName)) {
                     builder.maxInputLength(Integer.parseInt(fieldNode.toString()));
                     iterator.remove();
-                } else if ("fields".equals(fieldName) || "path".equals(fieldName)) {
-                    if (parseMultiField(builder, name, parserContext, fieldName, fieldNode)) {
-                        iterator.remove();
-                    }
+                } else if (parseMultiField(builder, name, parserContext, fieldName, fieldNode)) {
+                    iterator.remove();
                 } else if (fieldName.equals(Fields.CONTEXT)) {
                     builder.contextMapping(ContextBuilder.loadMappings(fieldNode, parserContext.indexVersionCreated()));
                     iterator.remove();

@@ -7,7 +7,6 @@
         dynamic:false,
         enabled:true,
         _id:{
-            index_name:"_id"
         },
         _source:{
         },
@@ -38,8 +37,7 @@
                         properties:{
                             location:{
                                 type:"string",
-                                store:"yes",
-                                index_name:"firstLocation"
+                                store:"yes"
                             }
                         }
                     },
@@ -64,8 +62,7 @@
                 type:"boolean"
             },
             dogs:{
-                type:"string",
-                index_name:"dog"
+                type:"string"
             },
             complex:{
                 type:"object",

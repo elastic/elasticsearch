@@ -630,7 +630,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                     // Lucene checks the checksum after it tries to lookup the codec etc.
                     // in that case we might get only IAE or similar exceptions while we are really corrupt...
                     // TODO we should check the checksum in lucene if we hit an exception
-                    logger.warn("checking segment info integrity (reason [{}])", ex.getMessage());
+                    logger.warn("failed to build store metadata. checking segment info integrity (with commit [{}], reason [{}])",
+                            ex, commit == null ? "no" : "yes", ex.getMessage());
                     Lucene.checkSegmentInfoIntegrity(directory);
                 } catch (CorruptIndexException cex) {
                   cex.addSuppressed(ex);

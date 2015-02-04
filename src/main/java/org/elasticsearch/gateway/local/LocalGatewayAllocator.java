@@ -50,7 +50,9 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.transport.ConnectTransportException;
 
-import java.util.*;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -400,17 +402,18 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
 
         String[] nodesIdsArray = nodeIds.toArray(String.class);
         TransportNodesListGatewayStartedShards.NodesLocalGatewayStartedShards response = listGatewayStartedShards.list(shard.shardId(), nodesIdsArray, listTimeout).actionGet();
-        if (logger.isDebugEnabled()) {
-            if (response.failures().length > 0) {
-                StringBuilder sb = new StringBuilder(shard + ": failures when trying to list shards on nodes:");
-                for (int i = 0; i < response.failures().length; i++) {
-                    Throwable cause = ExceptionsHelper.unwrapCause(response.failures()[i]);
-                    if (cause instanceof ConnectTransportException) {
-                        continue;
-                    }
-                    sb.append("\n    -> ").append(response.failures()[i].getDetailedMessage());
+        if (response.failures().length > 0) {
+            // we log warn here. debug logs with full stack traces will be logged if debug logging is turned on for TransportNodeListGatewayStartedShards
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < response.failures().length; i++) {
+                Throwable cause = ExceptionsHelper.unwrapCause(response.failures()[i]);
+                if (cause instanceof ConnectTransportException) {
+                    continue;
                 }
-                logger.debug(sb.toString());
+                sb.append("\n    -> ").append(response.failures()[i].getMessage());
+            }
+            if (sb.length() > 0) {
+                logger.warn("{}: failures when trying to list shards on nodes:{}", shard, sb);
             }
         }
 
@@ -449,17 +452,18 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
         if (!nodesIds.isEmpty()) {
             String[] nodesIdsArray = nodesIds.toArray(String.class);
             TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = listShardStoreMetaData.list(shard.shardId(), false, nodesIdsArray, listTimeout).actionGet();
-            if (logger.isTraceEnabled()) {
-                if (nodesStoreFilesMetaData.failures().length > 0) {
-                    StringBuilder sb = new StringBuilder(shard + ": failures when trying to list stores on nodes:");
-                    for (int i = 0; i < nodesStoreFilesMetaData.failures().length; i++) {
-                        Throwable cause = ExceptionsHelper.unwrapCause(nodesStoreFilesMetaData.failures()[i]);
-                        if (cause instanceof ConnectTransportException) {
-                            continue;
-                        }
-                        sb.append("\n    -> ").append(nodesStoreFilesMetaData.failures()[i].getDetailedMessage());
+            if (nodesStoreFilesMetaData.failures().length > 0) {
+                // we log warn here. debug logs with full stack traces will be logged if debug logging is turned on for TransportNodesListShardStoreMetaData
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < nodesStoreFilesMetaData.failures().length; i++) {
+                    Throwable cause = ExceptionsHelper.unwrapCause(nodesStoreFilesMetaData.failures()[i]);
+                    if (cause instanceof ConnectTransportException) {
+                        continue;
                     }
-                    logger.trace(sb.toString());
+                    sb.append("\n    -> ").append(nodesStoreFilesMetaData.failures()[i].getMessage());
+                }
+                if (sb.length() > 0) {
+                    logger.warn("{}: failures when trying to list stores on nodes:{}", shard, sb);
                 }
             }
 

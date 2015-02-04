@@ -734,7 +734,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 RecoveryState.Type type = shardRouting.primary() ? RecoveryState.Type.RELOCATION : RecoveryState.Type.REPLICA;
                 recoveryTarget.startRecovery(indexShard, type, sourceNode, new PeerRecoveryListener(shardRouting, indexService, indexMetaData));
             } catch (Throwable e) {
-                indexShard.engine().failEngine("corrupted preexisting index", e);
+                indexShard.failShard("corrupted preexisting index", e);
                 handleRecoveryFailure(indexService, indexMetaData, shardRouting, true, e);
             }
         } else {

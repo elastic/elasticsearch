@@ -274,8 +274,8 @@ def ensure_no_open_tickets(version):
       if issues:
         urls = []
         for issue in issues:
-          urls.append(issue['url'])
-        raise RuntimeError('Found open issues  for release version %s see - %s' % (version, urls))
+          urls.append(issue['html_url'])
+        raise RuntimeError('Found open issues for release version %s:\n%s' % (version, '\n'.join(urls)))
       else:
         log("No open issues found for version %s" % version)
     else:

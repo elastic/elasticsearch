@@ -53,6 +53,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -817,6 +818,48 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("--> make sure snapshot doesn't exist");
         assertThrows(client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1"), SnapshotMissingException.class);
     }
+
+    @Test
+    public void deleteSnapshotWithCorruptedSnapshotFileTest() throws Exception {
+        Client client = client();
+
+        File repo = newTempDir();
+        logger.info("-->  creating repository at " + repo.getAbsolutePath());
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                        .put("location", repo)
+                        .put("compress", false)
+                        .put("chunk_size", randomIntBetween(100, 1000))));
+
+        createIndex("test-idx-1", "test-idx-2");
+        ensureYellow();
+        logger.info("--> indexing some data");
+        indexRandom(true,
+                client().prepareIndex("test-idx-1", "doc").setSource("foo", "bar"),
+                client().prepareIndex("test-idx-2", "doc").setSource("foo", "bar"));
+
+        logger.info("--> creating snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1").setWaitForCompletion(true).setIndices("test-idx-*").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+
+        logger.info("--> truncate snapshot file to make it unreadable");
+        File snapshotPath = new File(repo, "snapshot-test-snap-1");
+        try(FileOutputStream out = new FileOutputStream(snapshotPath, true)) {
+            out.getChannel().truncate(randomInt(10));
+        }
+        logger.info("--> delete snapshot");
+        client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-1").get();
+
+        logger.info("--> make sure snapshot doesn't exist");
+        assertThrows(client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1"), SnapshotMissingException.class);
+
+        logger.info("--> make sure that we can create the snapshot again");
+        createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1").setWaitForCompletion(true).setIndices("test-idx-*").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+    }
+
 
     @Test
     public void snapshotClosedIndexTest() throws Exception {

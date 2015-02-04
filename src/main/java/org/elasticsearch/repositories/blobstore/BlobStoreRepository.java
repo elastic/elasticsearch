@@ -266,10 +266,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      */
     @Override
     public void deleteSnapshot(SnapshotId snapshotId) {
-        Snapshot snapshot = readSnapshot(snapshotId);
+        ImmutableList<String> indices = ImmutableList.of();
+        try {
+            indices = readSnapshot(snapshotId).indices();
+        } catch (SnapshotMissingException ex) {
+            throw ex;
+        } catch (SnapshotException | ElasticsearchParseException ex) {
+            logger.warn("cannot read snapshot file [{}]", ex, snapshotId);
+        }
         MetaData metaData = null;
         try {
-            metaData = readSnapshotMetaData(snapshotId, snapshot.indices(), true);
+            metaData = readSnapshotMetaData(snapshotId, indices, true);
         } catch (SnapshotException ex) {
             logger.warn("cannot read metadata for snapshot [{}]", ex, snapshotId);
         }
@@ -291,7 +298,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
             }
             writeSnapshotList(snapshotIds);
             // Now delete all indices
-            for (String index : snapshot.indices()) {
+            for (String index : indices) {
                 BlobPath indexPath = basePath().add("indices").add(index);
                 BlobContainer indexMetaDataBlobContainer = blobStore().blobContainer(indexPath);
                 try {

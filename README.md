@@ -93,7 +93,23 @@ other nodes. This feature was not documented before but was existing under `clou
 to elasticsearch (aka transport port name). Defaults to `elasticsearch`. In Azure management console, you could define
 an endpoint `elasticsearch` forwarding for example requests on public IP on port 8100 to the virtual machine on port 9300.
 This feature was not documented before but was existing under `cloud.azure.port_name`.
+* `deployment.name`: deployment name if any. Defaults to the value set with `cloud.azure.management.cloud.service.name`.
+* `deployment.slot`: either `staging` or `production` (default).
 
+For example:
+
+```
+discovery:
+    type: azure
+    azure:
+        host:
+            type: private_ip
+        endpoint:
+            name: elasticsearch
+        deployment:
+            name: your_azure_cloud_service_name
+            slot: production
+```
 
 How to start (long story)
 --------------------------

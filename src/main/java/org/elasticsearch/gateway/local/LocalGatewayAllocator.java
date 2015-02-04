@@ -414,21 +414,13 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
     }
 
     private void logListActionFailures(MutableShardRouting shard, String actionType, FailedNodeException[] failures) {
-        if (failures == null || failures.length == 0) {
-            return;
-        }
-        int totalWarnFailures = 0;
         for (final FailedNodeException failure : failures) {
             Throwable cause = ExceptionsHelper.unwrapCause(failure);
             if (cause instanceof ConnectTransportException) {
                 continue;
             }
             // we log warn here. debug logs with full stack traces will be logged if debug logging is turned on for TransportNodeListGatewayStartedShards
-            logger.warn("{}: failed to list shard {} on node [{}], reason [{}]", shard.shardId(), actionType, failure.nodeId(), failure.getMessage());
-            totalWarnFailures++;
-        }
-        if (totalWarnFailures > 0) {
-            logger.warn("{}: [{}] failures when trying to list shard {} on nodes.", shard.shardId(), totalWarnFailures, actionType);
+            logger.warn("{}: failed to list shard {} on node [{}]", failure, shard.shardId(), actionType, failure.nodeId());
         }
     }
 

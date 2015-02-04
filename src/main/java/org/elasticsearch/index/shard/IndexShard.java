@@ -610,7 +610,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             logger.trace("flush with {}", request);
         }
         long time = System.nanoTime();
-        engineSafe().flush(Engine.FlushType.COMMIT_TRANSLOG, request.force(), request.waitIfOngoing());
+        engineSafe().flush(request.force(), request.waitIfOngoing());
         flushMetric.inc(System.nanoTime() - time);
     }
 
@@ -739,7 +739,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public void performRecoveryFinalization(boolean withFlush) throws ElasticsearchException {
         if (withFlush) {
-            engineSafe().flush(Engine.FlushType.COMMIT_TRANSLOG, false, false);
+            engineSafe().flush();
         }
         // clear unreferenced files
         translog.clearUnreferenced();

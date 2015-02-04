@@ -31,18 +31,18 @@ public class InternalEngineSettingsTest extends ElasticsearchSingleNodeTest {
         final IndexService service = createIndex("foo");
         InternalEngine engine = ((InternalEngine)engine(service));
         // INDEX_COMPOUND_ON_FLUSH
-        assertThat(engine.currentIndexWriterConfig().getUseCompoundFile(), is(true));
+        assertThat(engine.getCurrentIndexWriterConfig().getUseCompoundFile(), is(true));
         client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, false).build()).get();
-        assertThat(engine.currentIndexWriterConfig().getUseCompoundFile(), is(false));
+        assertThat(engine.getCurrentIndexWriterConfig().getUseCompoundFile(), is(false));
         client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, true).build()).get();
-        assertThat(engine.currentIndexWriterConfig().getUseCompoundFile(), is(true));
+        assertThat(engine.getCurrentIndexWriterConfig().getUseCompoundFile(), is(true));
 
         // INDEX_CHECKSUM_ON_MERGE
-        assertThat(engine.currentIndexWriterConfig().getCheckIntegrityAtMerge(), is(false));
+        assertThat(engine.getCurrentIndexWriterConfig().getCheckIntegrityAtMerge(), is(false));
         client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put(EngineConfig.INDEX_CHECKSUM_ON_MERGE, true).build()).get();
-        assertThat(engine.currentIndexWriterConfig().getCheckIntegrityAtMerge(), is(true));
+        assertThat(engine.getCurrentIndexWriterConfig().getCheckIntegrityAtMerge(), is(true));
         client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put(EngineConfig.INDEX_CHECKSUM_ON_MERGE, false).build()).get();
-        assertThat(engine.currentIndexWriterConfig().getCheckIntegrityAtMerge(), is(false));
+        assertThat(engine.getCurrentIndexWriterConfig().getCheckIntegrityAtMerge(), is(false));
 
     }
 }

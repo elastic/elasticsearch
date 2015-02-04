@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure;
+package org.elasticsearch.cloud.azure.storage;
 
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -29,12 +29,16 @@ import java.net.URISyntaxException;
 
 /**
  * Azure Storage Service interface
- * @see org.elasticsearch.cloud.azure.AzureStorageServiceImpl for Azure REST API implementation
+ * @see AzureStorageServiceImpl for Azure REST API implementation
  */
 public interface AzureStorageService {
     static public final class Fields {
-        public static final String ACCOUNT = "storage_account";
-        public static final String KEY = "storage_key";
+        @Deprecated
+        public static final String ACCOUNT_DEPRECATED = "storage_account";
+        @Deprecated
+        public static final String KEY_DEPRECATED = "storage_key";
+        public static final String ACCOUNT = "account";
+        public static final String KEY = "key";
         public static final String CONTAINER = "container";
         public static final String BASE_PATH = "base_path";
         public static final String CHUNK_SIZE = "chunk_size";

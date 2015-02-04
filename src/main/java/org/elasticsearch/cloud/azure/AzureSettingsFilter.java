@@ -19,11 +19,12 @@
 
 package org.elasticsearch.cloud.azure;
 
+import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.SettingsFilter;
 
 /**
- * Filtering cloud.azure.* and repositories.azure.* settings
+ * Filtering cloud.azure.* settings
  */
 public class AzureSettingsFilter implements SettingsFilter.Filter {
 
@@ -35,10 +36,13 @@ public class AzureSettingsFilter implements SettingsFilter.Filter {
         settings.remove("cloud.azure.subscription_id");
         settings.remove("cloud.azure.service_name");
 
-        // Repositories settings
-        settings.remove("repositories.azure.account");
-        settings.remove("repositories.azure.key");
-        settings.remove("repositories.azure.container");
-        settings.remove("repositories.azure.base_path");
+        // Cloud storage API settings
+        settings.remove("cloud.azure.storage." + AzureStorageService.Fields.ACCOUNT);
+        settings.remove("cloud.azure.storage." + AzureStorageService.Fields.KEY);
+
+        // Deprecated Cloud storage API settings
+        // TODO Remove in 3.0.0
+        settings.remove("cloud.azure." + AzureStorageService.Fields.ACCOUNT_DEPRECATED);
+        settings.remove("cloud.azure." + AzureStorageService.Fields.KEY_DEPRECATED);
     }
 }

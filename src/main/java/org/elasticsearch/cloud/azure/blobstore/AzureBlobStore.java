@@ -20,7 +20,7 @@
 package org.elasticsearch.cloud.azure.blobstore;
 
 import com.microsoft.azure.storage.StorageException;
-import org.elasticsearch.cloud.azure.AzureStorageService;
+import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;

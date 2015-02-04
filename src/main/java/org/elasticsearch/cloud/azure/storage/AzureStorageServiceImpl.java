@@ -17,12 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure;
+package org.elasticsearch.cloud.azure.storage;
 
 import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.*;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cloud.azure.AzureSettingsFilter;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -54,9 +55,9 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         super(settings);
         settingsFilter.addFilter(new AzureSettingsFilter());
 
-        // We try to load storage API settings from `cloud.azure.`
-        account = settings.get("cloud.azure." + Fields.ACCOUNT);
-        key = settings.get("cloud.azure." + Fields.KEY);
+        // We try to load storage API settings from `repositories.azure.`
+        account = componentSettings.get(Fields.ACCOUNT, settings.get("cloud.azure." + Fields.ACCOUNT_DEPRECATED));
+        key = componentSettings.get(Fields.KEY, settings.get("cloud.azure." + Fields.KEY_DEPRECATED));
         blob = "http://" + account + ".blob.core.windows.net/";
 
         try {

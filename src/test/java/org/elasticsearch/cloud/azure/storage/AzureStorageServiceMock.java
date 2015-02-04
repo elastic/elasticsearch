@@ -17,11 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.azure;
+package org.elasticsearch.cloud.azure.storage;
 
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cloud.azure.AzureStorageService;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.ImmutableMap;

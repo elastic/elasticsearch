@@ -365,7 +365,17 @@ azure vm delete myesnode1
 Azure Repository
 ================
 
-To enable Azure repositories, you have first to set your azure storage settings:
+To enable Azure repositories, you have first to set your azure storage settings in `elasticsearch.yml` file:
+
+```
+cloud:
+    azure:
+        storage:
+            account: your_azure_storage_account
+            key: your_azure_storage_key
+```
+
+For information, in previous version of the azure plugin, settings were:
 
 ```
 cloud:
@@ -430,11 +440,12 @@ Testing
 =======
 
 Integrations tests in this plugin require working Azure configuration and therefore disabled by default.
-To enable tests prepare a config file elasticsearch.yml with the following content:
+To enable tests prepare a config file `elasticsearch.yml` with the following content:
 
 ```
 cloud:
   azure:
+    storage:
       account: "YOUR-AZURE-STORAGE-NAME"
       key: "YOUR-AZURE-STORAGE-KEY"
 ```

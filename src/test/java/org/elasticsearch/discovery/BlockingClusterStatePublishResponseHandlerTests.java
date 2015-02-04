@@ -89,10 +89,7 @@ public class BlockingClusterStatePublishResponseHandlerTests extends Elasticsear
         }
         // wait on the threads to finish
         for (Thread t : threads) {
-            t.join(30000);
-            if (t.isAlive()) {
-                fail("thread failed to finished within 30s");
-            }
+            t.join();
         }
         // verify that the publisher times out
         assertFalse("expected handler wait to timeout as not all nodes responded", handler.awaitAllNodes(new TimeValue(10)));
@@ -109,10 +106,7 @@ public class BlockingClusterStatePublishResponseHandlerTests extends Elasticsear
         }
         // wait on the threads to finish
         for (Thread t : threads) {
-            t.join(30000);
-            if (t.isAlive()) {
-                fail("thread failed to finished within 30s");
-            }
+            t.join();
         }
         assertTrue("expected handler not to timeout as all nodes responded", handler.awaitAllNodes(new TimeValue(10)));
         assertThat(handler.pendingNodes(), arrayWithSize(0));

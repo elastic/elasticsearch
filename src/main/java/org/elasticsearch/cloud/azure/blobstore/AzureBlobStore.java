@@ -19,8 +19,7 @@
 
 package org.elasticsearch.cloud.azure.blobstore;
 
-import com.microsoft.windowsazure.services.core.ServiceException;
-import com.microsoft.windowsazure.services.core.storage.StorageException;
+import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.cloud.azure.AzureStorageService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -81,7 +80,7 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
 
         try {
             client.deleteFiles(container, keyPath);
-        } catch (URISyntaxException | StorageException | ServiceException e) {
+        } catch (URISyntaxException | StorageException e) {
             logger.warn("can not remove [{}] in container {{}}: {}", keyPath, container, e.getMessage());
         }
     }

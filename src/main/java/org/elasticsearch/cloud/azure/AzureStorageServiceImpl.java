@@ -19,21 +19,9 @@
 
 package org.elasticsearch.cloud.azure;
 
-import com.microsoft.windowsazure.services.blob.BlobConfiguration;
-import com.microsoft.windowsazure.services.blob.BlobContract;
-import com.microsoft.windowsazure.services.blob.BlobService;
-import com.microsoft.windowsazure.services.blob.client.CloudBlobClient;
-import com.microsoft.windowsazure.services.blob.client.CloudBlobContainer;
-import com.microsoft.windowsazure.services.blob.client.CloudBlockBlob;
-import com.microsoft.windowsazure.services.blob.client.ListBlobItem;
-import com.microsoft.windowsazure.services.blob.models.BlobProperties;
-import com.microsoft.windowsazure.services.blob.models.GetBlobResult;
-import com.microsoft.windowsazure.services.blob.models.ListBlobsOptions;
-import com.microsoft.windowsazure.services.blob.models.ListBlobsResult;
-import com.microsoft.windowsazure.services.core.Configuration;
-import com.microsoft.windowsazure.services.core.ServiceException;
-import com.microsoft.windowsazure.services.core.storage.CloudStorageAccount;
-import com.microsoft.windowsazure.services.core.storage.StorageException;
+import com.microsoft.azure.storage.CloudStorageAccount;
+import com.microsoft.azure.storage.StorageException;
+import com.microsoft.azure.storage.blob.*;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
@@ -48,7 +36,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.List;
 
 /**
  *
@@ -60,10 +47,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
     private final String key;
     private final String blob;
 
-    private CloudStorageAccount storage_account;
     private CloudBlobClient client;
-    private BlobContract service;
-
 
     @Inject
     public AzureStorageServiceImpl(Settings settings, SettingsFilter settingsFilter) {
@@ -84,14 +68,11 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
                                 + "AccountName="+ account +";"
                                 + "AccountKey=" + key;
 
-                Configuration configuration = Configuration.getInstance();
-                configuration.setProperty(BlobConfiguration.ACCOUNT_NAME, account);
-                configuration.setProperty(BlobConfiguration.ACCOUNT_KEY, key);
-                configuration.setProperty(BlobConfiguration.URI, blob);
-                service = BlobService.create(configuration);
+                // Retrieve storage account from connection-string.
+                CloudStorageAccount storageAccount = CloudStorageAccount.parse(storageConnectionString);
 
-                storage_account = CloudStorageAccount.parse(storageConnectionString);
-                client = storage_account.createCloudBlobClient();
+                // Create the blob client.
+                client = storageAccount.createCloudBlobClient();
             }
         } catch (Exception e) {
             // Can not start Azure Storage Client
@@ -129,7 +110,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         try {
             CloudBlobContainer blob_container = client.getContainerReference(container);
             logger.trace("creating container [{}]", container);
-            blob_container.createIfNotExist();
+            blob_container.createIfNotExists();
         } catch (IllegalArgumentException e) {
             logger.trace("fails creating container [{}]", container, e.getMessage());
             throw new RepositoryException(container, e.getMessage());
@@ -137,19 +118,15 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
     }
 
     @Override
-    public void deleteFiles(String container, String path) throws URISyntaxException, StorageException, ServiceException {
+    public void deleteFiles(String container, String path) throws URISyntaxException, StorageException {
         logger.trace("delete files container [{}], path [{}]", container, path);
 
         // Container name must be lower case.
         CloudBlobContainer blob_container = client.getContainerReference(container);
         if (blob_container.exists()) {
-            ListBlobsOptions options = new ListBlobsOptions();
-            options.setPrefix(path);
-
-            List<ListBlobsResult.BlobEntry> blobs = service.listBlobs(container, options).getBlobs();
-            for (ListBlobsResult.BlobEntry blob : blobs) {
-                logger.trace("removing in container [{}], path [{}], blob [{}]", container, path, blob.getName());
-                service.deleteBlob(container, blob.getName());
+            for (ListBlobItem blobItem : blob_container.listBlobs(path)) {
+                logger.trace("removing blob [{}]", blobItem.getUri());
+                deleteBlob(container, blobItem.getUri().toString());
             }
         }
     }
@@ -180,10 +157,9 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
     }
 
     @Override
-    public InputStream getInputStream(String container, String blob) throws ServiceException {
+    public InputStream getInputStream(String container, String blob) throws URISyntaxException, StorageException {
         logger.trace("reading container [{}], blob [{}]", container, blob);
-        GetBlobResult blobResult = service.getBlob(container, blob);
-        return blobResult.getContentStream();
+        return client.getContainerReference(container).getBlockBlobReference(blob).openInputStream();
     }
 
     @Override
@@ -193,21 +169,20 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
     }
 
     @Override
-    public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix) throws URISyntaxException, StorageException, ServiceException {
+    public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix) throws URISyntaxException, StorageException {
         logger.debug("listing container [{}], keyPath [{}], prefix [{}]", container, keyPath, prefix);
         ImmutableMap.Builder<String, BlobMetaData> blobsBuilder = ImmutableMap.builder();
 
         CloudBlobContainer blob_container = client.getContainerReference(container);
         if (blob_container.exists()) {
-            Iterable<ListBlobItem> blobs = blob_container.listBlobs(keyPath + prefix);
-            for (ListBlobItem blob : blobs) {
-                URI uri = blob.getUri();
+            for (ListBlobItem blobItem : blob_container.listBlobs(keyPath + prefix)) {
+                URI uri = blobItem.getUri();
                 logger.trace("blob url [{}]", uri);
                 String blobpath = uri.getPath().substring(container.length() + 1);
-                BlobProperties properties = service.getBlobProperties(container, blobpath).getProperties();
+                BlobProperties properties = blob_container.getBlockBlobReference(blobpath).getProperties();
                 String name = blobpath.substring(keyPath.length() + 1);
-                logger.trace("blob url [{}], name [{}], size [{}]", uri, name, properties.getContentLength());
-                blobsBuilder.put(name, new PlainBlobMetaData(name, properties.getContentLength()));
+                logger.trace("blob url [{}], name [{}], size [{}]", uri, name, properties.getLength());
+                blobsBuilder.put(name, new PlainBlobMetaData(name, properties.getLength()));
             }
         }
 
@@ -221,7 +196,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         CloudBlockBlob blobSource = blob_container.getBlockBlobReference(sourceBlob);
         if (blobSource.exists()) {
             CloudBlockBlob blobTarget = blob_container.getBlockBlobReference(targetBlob);
-            blobTarget.copyFromBlob(blobSource);
+            blobTarget.startCopyFromBlob(blobSource);
             blobSource.delete();
             logger.debug("moveBlob container [{}], sourceBlob [{}], targetBlob [{}] -> done", container, sourceBlob, targetBlob);
         }

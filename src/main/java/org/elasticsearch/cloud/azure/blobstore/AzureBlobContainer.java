@@ -19,8 +19,7 @@
 
 package org.elasticsearch.cloud.azure.blobstore;
 
-import com.microsoft.windowsazure.services.core.ServiceException;
-import com.microsoft.windowsazure.services.core.storage.StorageException;
+import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -73,10 +72,12 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     public InputStream openInput(String blobName) throws IOException {
         try {
             return blobStore.client().getInputStream(blobStore.container(), buildKey(blobName));
-        } catch (ServiceException e) {
+        } catch (StorageException e) {
             if (e.getHttpStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
                 throw new FileNotFoundException(e.getMessage());
             }
+            throw new IOException(e);
+        } catch (URISyntaxException e) {
             throw new IOException(e);
         }
     }
@@ -112,7 +113,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
         try {
             return blobStore.client().listBlobsByPrefix(blobStore.container(), keyPath, prefix);
-        } catch (URISyntaxException | StorageException | ServiceException e) {
+        } catch (URISyntaxException | StorageException e) {
             logger.warn("can not access [{}] in container {{}}: {}", prefix, blobStore.container(), e.getMessage());
             throw new IOException(e);
         }

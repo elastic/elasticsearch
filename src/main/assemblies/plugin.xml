@@ -30,7 +30,7 @@ governing permissions and limitations under the License. -->
             <useProjectArtifact>true</useProjectArtifact>
             <useTransitiveFiltering>true</useTransitiveFiltering>
             <includes>
-                <include>com.microsoft.windowsazure:microsoft-windowsazure-api</include>
+                <include>com.microsoft.azure:azure-storage</include>
             </includes>
         </dependencySet>
     </dependencySets>

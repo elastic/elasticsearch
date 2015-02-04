@@ -19,8 +19,7 @@
 
 package org.elasticsearch.repositories.azure;
 
-import com.microsoft.windowsazure.services.core.ServiceException;
-import com.microsoft.windowsazure.services.core.storage.StorageException;
+import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.cloud.azure.AbstractAzureTest;
 import org.elasticsearch.cloud.azure.AzureStorageService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -87,7 +86,7 @@ public abstract class AbstractAzureRepositoryServiceTest extends AbstractAzureTe
     }
 
     @Before @After
-    public final void wipe() throws StorageException, ServiceException, URISyntaxException {
+    public final void wipe() throws StorageException, URISyntaxException {
         wipeRepositories();
         cleanRepositoryFiles(basePath);
     }
@@ -95,7 +94,7 @@ public abstract class AbstractAzureRepositoryServiceTest extends AbstractAzureTe
     /**
      * Purge the test container
      */
-    public void cleanRepositoryFiles(String path) throws StorageException, ServiceException, URISyntaxException {
+    public void cleanRepositoryFiles(String path) throws StorageException, URISyntaxException {
         String container = internalCluster().getInstance(Settings.class).get("repositories.azure.container");
         logger.info("--> remove blobs in container [{}]", container);
         AzureStorageService client = internalCluster().getInstance(AzureStorageService.class);

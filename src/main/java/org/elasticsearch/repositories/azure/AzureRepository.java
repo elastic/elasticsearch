@@ -19,7 +19,7 @@
 
 package org.elasticsearch.repositories.azure;
 
-import com.microsoft.windowsazure.services.core.storage.StorageException;
+import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.cloud.azure.AzureStorageService;
 import org.elasticsearch.cloud.azure.blobstore.AzureBlobStore;
 import org.elasticsearch.cluster.metadata.MetaData;

@@ -19,8 +19,7 @@
 
 package org.elasticsearch.cloud.azure;
 
-import com.microsoft.windowsazure.services.core.ServiceException;
-import com.microsoft.windowsazure.services.core.storage.StorageException;
+import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
 
@@ -48,17 +47,17 @@ public interface AzureStorageService {
 
     void createContainer(String container) throws URISyntaxException, StorageException;
 
-    void deleteFiles(String container, String path) throws URISyntaxException, StorageException, ServiceException;
+    void deleteFiles(String container, String path) throws URISyntaxException, StorageException;
 
     boolean blobExists(String container, String blob) throws URISyntaxException, StorageException;
 
     void deleteBlob(String container, String blob) throws URISyntaxException, StorageException;
 
-    InputStream getInputStream(String container, String blob) throws ServiceException;
+    InputStream getInputStream(String container, String blob) throws URISyntaxException, StorageException;
 
     OutputStream getOutputStream(String container, String blob) throws URISyntaxException, StorageException;
 
-    ImmutableMap<String,BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix) throws URISyntaxException, StorageException, ServiceException;
+    ImmutableMap<String,BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix) throws URISyntaxException, StorageException;
 
     void moveBlob(String container, String sourceBlob, String targetBlob) throws URISyntaxException, StorageException;
 }

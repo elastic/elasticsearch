@@ -20,8 +20,7 @@
 package org.elasticsearch.repositories.azure;
 
 
-import com.microsoft.windowsazure.services.core.ServiceException;
-import com.microsoft.windowsazure.services.core.storage.StorageException;
+import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -83,7 +82,7 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
     }
 
     @Before
-    public final void wipeBefore() throws StorageException, ServiceException, URISyntaxException {
+    public final void wipeBefore() throws StorageException, URISyntaxException {
         wipeRepositories();
         cleanRepositoryFiles(
                 getContainerName(),
@@ -92,7 +91,7 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
     }
 
     @After
-    public final void wipeAfter() throws StorageException, ServiceException, URISyntaxException {
+    public final void wipeAfter() throws StorageException, URISyntaxException {
         wipeRepositories();
         cleanRepositoryFiles(
                 getContainerName(),
@@ -243,7 +242,7 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
      * For issue #26: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/26
      */
     @Test
-    public void testListBlobs_26() throws StorageException, ServiceException, URISyntaxException {
+    public void testListBlobs_26() throws StorageException, URISyntaxException {
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
         ensureGreen();
 
@@ -302,7 +301,7 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
      * For issue #28: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/28
      */
     @Test
-    public void testGetDeleteNonExistingSnapshot_28() throws StorageException, ServiceException, URISyntaxException {
+    public void testGetDeleteNonExistingSnapshot_28() throws StorageException, URISyntaxException {
         ClusterAdminClient client = client().admin().cluster();
         logger.info("-->  creating azure repository without any path");
         PutRepositoryResponse putRepositoryResponse = client.preparePutRepository("test-repo").setType("azure")
@@ -452,7 +451,7 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
     /**
      * Purge the test containers
      */
-    public void cleanRepositoryFiles(String... containers) throws StorageException, ServiceException, URISyntaxException {
+    public void cleanRepositoryFiles(String... containers) throws StorageException, URISyntaxException {
         AzureStorageService client = internalCluster().getInstance(AzureStorageService.class);
         for (String container : containers) {
             logger.info("--> remove container [{}]", container);

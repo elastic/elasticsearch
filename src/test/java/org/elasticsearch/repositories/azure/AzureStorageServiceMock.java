@@ -19,7 +19,7 @@
 
 package org.elasticsearch.repositories.azure;
 
-import com.microsoft.windowsazure.services.core.storage.StorageException;
+import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.azure.AzureStorageService;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -29,7 +29,10 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.util.Locale;
 import java.util.Map;

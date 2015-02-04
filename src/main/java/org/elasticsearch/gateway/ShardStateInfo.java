@@ -58,9 +58,6 @@ public final class ShardStateInfo {
 
     @Override
     public String toString() {
-        return "ShardStateInfo{" +
-                "version=" + version +
-                ", primary=" + primary +
-                '}';
+        return "version [" + version + "], primary [" + primary + "]";
     }
 }

@@ -22,7 +22,6 @@ package org.elasticsearch.index.store;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
-
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.*;
@@ -717,13 +716,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 } else {
                     builder.put(segmentsFile, new StoreFileMetaData(segmentsFile, directory.fileLength(segmentsFile), legacyChecksum, maxVersion, hashFile(directory, segmentsFile)));
                 }
-            } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+            } catch (CorruptIndexException | IndexNotFoundException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+                // we either know the index is corrupted or it's just not there
                 throw ex;
             } catch (Throwable ex) {
                 try {
                     // Lucene checks the checksum after it tries to lookup the codec etc.
                     // in that case we might get only IAE or similar exceptions while we are really corrupt...
                     // TODO we should check the checksum in lucene if we hit an exception
+                    logger.warn("failed to build store metadata. checking segment info integrity (with commit [{}])",
+                            ex, commit == null ? "no" : "yes");
                     Lucene.checkSegmentInfoIntegrity(directory);
                 } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException cex) {
                     cex.addSuppressed(ex);

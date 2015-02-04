@@ -49,7 +49,7 @@ public class IndicesQueryCacheTests extends ElasticsearchIntegrationTest {
         // which used to not work well with the query cache because of the handles stream output
         // see #9500
         final SearchResponse r1 = client().prepareSearch("index").setSearchType(SearchType.COUNT)
-            .addAggregation(dateHistogram("histo").field("f").preZone("+01:00").minDocCount(0).interval(DateHistogramInterval.MONTH)).get();
+            .addAggregation(dateHistogram("histo").field("f").timeZone("+01:00").minDocCount(0).interval(DateHistogramInterval.MONTH)).get();
         assertSearchResponse(r1);
 
         // The cached is actually used
@@ -57,7 +57,7 @@ public class IndicesQueryCacheTests extends ElasticsearchIntegrationTest {
 
         for (int i = 0; i < 10; ++i) {
             final SearchResponse r2 = client().prepareSearch("index").setSearchType(SearchType.COUNT)
-                    .addAggregation(dateHistogram("histo").field("f").preZone("+01:00").minDocCount(0).interval(DateHistogramInterval.MONTH)).get();
+                    .addAggregation(dateHistogram("histo").field("f").timeZone("+01:00").minDocCount(0).interval(DateHistogramInterval.MONTH)).get();
             assertSearchResponse(r2);
             Histogram h1 = r1.getAggregations().get("histo");
             Histogram h2 = r2.getAggregations().get("histo");

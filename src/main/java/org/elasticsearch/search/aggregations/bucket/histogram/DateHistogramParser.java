@@ -86,8 +86,7 @@ public class DateHistogramParser implements Aggregator.Parser {
         InternalOrder order = (InternalOrder) Histogram.Order.KEY_ASC;
         String interval = null;
         boolean preZoneAdjustLargeInterval = false;
-        DateTimeZone preZone = DateTimeZone.UTC;
-        DateTimeZone postZone = DateTimeZone.UTC;
+        DateTimeZone timeZone = DateTimeZone.UTC;
         long offset = 0;
 
         XContentParser.Token token;
@@ -99,11 +98,7 @@ public class DateHistogramParser implements Aggregator.Parser {
                 continue;
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
-                    preZone = DateTimeZone.forID(parser.text());
-                } else if ("pre_zone".equals(currentFieldName) || "preZone".equals(currentFieldName)) {
-                    preZone = DateTimeZone.forID(parser.text());
-                } else if ("post_zone".equals(currentFieldName) || "postZone".equals(currentFieldName)) {
-                    postZone = DateTimeZone.forID(parser.text());
+                    timeZone = DateTimeZone.forID(parser.text());
                 } else if ("offset".equals(currentFieldName)) {
                     offset = parseOffset(parser.text());
                 } else if ("interval".equals(currentFieldName)) {
@@ -123,11 +118,7 @@ public class DateHistogramParser implements Aggregator.Parser {
                 if ("min_doc_count".equals(currentFieldName) || "minDocCount".equals(currentFieldName)) {
                     minDocCount = parser.longValue();
                 } else if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
-                    preZone = DateTimeZone.forOffsetHours(parser.intValue());
-                } else if ("pre_zone".equals(currentFieldName) || "preZone".equals(currentFieldName)) {
-                    preZone = DateTimeZone.forOffsetHours(parser.intValue());
-                } else if ("post_zone".equals(currentFieldName) || "postZone".equals(currentFieldName)) {
-                    postZone = DateTimeZone.forOffsetHours(parser.intValue());
+                    timeZone = DateTimeZone.forOffsetHours(parser.intValue());
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
@@ -191,7 +182,7 @@ public class DateHistogramParser implements Aggregator.Parser {
         }
 
         Rounding rounding = tzRoundingBuilder
-                .preZone(preZone).postZone(postZone)
+                .timeZone(timeZone)
                 .preZoneAdjustLargeInterval(preZoneAdjustLargeInterval)
                 .offset(offset).build();
 

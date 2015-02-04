@@ -37,8 +37,7 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
     private Long minDocCount;
     private Object extendedBoundsMin;
     private Object extendedBoundsMax;
-    private String preZone;
-    private String postZone;
+    private String timeZone;
     private boolean preZoneAdjustLargeInterval;
     private String format;
     private String offset;
@@ -87,16 +86,8 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
     /**
      * Set the timezone in which to translate dates before computing buckets.
      */
-    public DateHistogramBuilder preZone(String preZone) {
-        this.preZone = preZone;
-        return this;
-    }
-
-    /**
-     * Set the timezone in which to translate dates after having computed buckets.
-     */
-    public DateHistogramBuilder postZone(String postZone) {
-        this.postZone = postZone;
+    public DateHistogramBuilder timeZone(String timeZone) {
+        this.timeZone = timeZone;
         return this;
     }
 
@@ -186,12 +177,8 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
             order.toXContent(builder, params);
         }
 
-        if (preZone != null) {
-            builder.field("pre_zone", preZone);
-        }
-
-        if (postZone != null) {
-            builder.field("post_zone", postZone);
+        if (timeZone != null) {
+            builder.field("time_zone", timeZone);
         }
 
         if (preZoneAdjustLargeInterval) {

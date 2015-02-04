@@ -46,8 +46,7 @@ public abstract class TimeZoneRounding extends Rounding {
         private DateTimeUnit unit;
         private long interval = -1;
 
-        private DateTimeZone preTz = DateTimeZone.UTC;
-        private DateTimeZone postTz = DateTimeZone.UTC;
+        private DateTimeZone timeZone = DateTimeZone.UTC;
 
         private float factor = 1.0f;
 
@@ -65,8 +64,8 @@ public abstract class TimeZoneRounding extends Rounding {
             this.interval = interval.millis();
         }
 
-        public Builder preZone(DateTimeZone preTz) {
-            this.preTz = preTz;
+        public Builder timeZone(DateTimeZone timeZone) {
+            this.timeZone = timeZone;
             return this;
         }
 
@@ -75,10 +74,10 @@ public abstract class TimeZoneRounding extends Rounding {
             return this;
         }
 
-        public Builder postZone(DateTimeZone postTz) {
-            this.postTz = postTz;
-            return this;
-        }
+//        public Builder postZone(DateTimeZone postTz) {
+//            this.postTz = postTz;
+//            return this;
+//        }
 
         public Builder offset(long offset) {
             this.offset = offset;
@@ -93,20 +92,20 @@ public abstract class TimeZoneRounding extends Rounding {
         public Rounding build() {
             Rounding timeZoneRounding;
             if (unit != null) {
-                if (preTz.equals(DateTimeZone.UTC) && postTz.equals(DateTimeZone.UTC)) {
+                if (timeZone.equals(DateTimeZone.UTC)) {
                     timeZoneRounding = new UTCTimeZoneRoundingFloor(unit);
                 } else if (preZoneAdjustLargeInterval || unit.field().getDurationField().getUnitMillis() < DateTimeConstants.MILLIS_PER_HOUR * 12) {
-                    timeZoneRounding = new TimeTimeZoneRoundingFloor(unit, preTz, postTz);
+                    timeZoneRounding = new TimeTimeZoneRoundingFloor(unit, timeZone, timeZone);
                 } else {
-                    timeZoneRounding = new DayTimeZoneRoundingFloor(unit, preTz, postTz);
+                    timeZoneRounding = new DayTimeZoneRoundingFloor(unit, timeZone, timeZone);
                 }
             } else {
-                if (preTz.equals(DateTimeZone.UTC) && postTz.equals(DateTimeZone.UTC)) {
+                if (timeZone.equals(DateTimeZone.UTC)) {
                     timeZoneRounding = new UTCIntervalTimeZoneRounding(interval);
                 } else if (preZoneAdjustLargeInterval || interval < DateTimeConstants.MILLIS_PER_HOUR * 12) {
-                    timeZoneRounding = new TimeIntervalTimeZoneRounding(interval, preTz, postTz);
+                    timeZoneRounding = new TimeIntervalTimeZoneRounding(interval, timeZone, timeZone);
                 } else {
-                    timeZoneRounding = new DayIntervalTimeZoneRounding(interval, preTz, postTz);
+                    timeZoneRounding = new DayIntervalTimeZoneRounding(interval, timeZone, timeZone);
                 }
             }
             if (offset != 0) {
@@ -155,7 +154,7 @@ public abstract class TimeZoneRounding extends Rounding {
         @Override
         public long valueForKey(long time) {
             // now apply post Tz
-            time = time + postTz.getOffset(time);
+//            time = time + postTz.getOffset(time);
             return time;
         }
 
@@ -267,7 +266,7 @@ public abstract class TimeZoneRounding extends Rounding {
         public long valueForKey(long time) {
             // after rounding, since its day level (and above), its actually UTC!
             // now apply post Tz
-            time = time + postTz.getOffset(time);
+            time = time - postTz.getOffset(time);
             return time;
         }
 
@@ -372,7 +371,7 @@ public abstract class TimeZoneRounding extends Rounding {
             // now, time is still in local, move it to UTC
             time = time - preTz.getOffset(time);
             // now apply post Tz
-            time = time + postTz.getOffset(time);
+            //time = time - postTz.getOffset(time);
             return time;
         }
 
@@ -429,7 +428,7 @@ public abstract class TimeZoneRounding extends Rounding {
             long time = Rounding.Interval.roundValue(key, interval);
             // after rounding, since its day level (and above), its actually UTC!
             // now apply post Tz
-            time = time + postTz.getOffset(time);
+            time = time - postTz.getOffset(time);
             return time;
         }
 

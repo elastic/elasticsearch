@@ -28,6 +28,7 @@ import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.repositories.RepositoryException;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -45,8 +46,9 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     protected final AzureBlobStore blobStore;
 
     protected final String keyPath;
+    protected final String repositoryName;
 
-    public AzureBlobContainer(BlobPath path, AzureBlobStore blobStore) {
+    public AzureBlobContainer(String repositoryName, BlobPath path, AzureBlobStore blobStore) {
         super(path);
         this.blobStore = blobStore;
         String keyPath = path.buildAsString("/");
@@ -54,6 +56,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
             keyPath = keyPath + "/";
         }
         this.keyPath = keyPath;
+        this.repositoryName = repositoryName;
     }
 
     @Override
@@ -89,6 +92,8 @@ public class AzureBlobContainer extends AbstractBlobContainer {
             throw new IOException(e);
         } catch (URISyntaxException e) {
             throw new IOException(e);
+        } catch (IllegalArgumentException e) {
+            throw new RepositoryException(repositoryName, e.getMessage());
         }
     }
 

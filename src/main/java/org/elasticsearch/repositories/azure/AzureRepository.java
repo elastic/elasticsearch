@@ -22,16 +22,21 @@ package org.elasticsearch.repositories.azure;
 import com.microsoft.windowsazure.services.core.storage.StorageException;
 import org.elasticsearch.cloud.azure.AzureStorageService;
 import org.elasticsearch.cloud.azure.blobstore.AzureBlobStore;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
+import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.snapshots.SnapshotCreationException;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -60,23 +65,16 @@ public class AzureRepository extends BlobStoreRepository {
 
     private boolean compress;
 
-    /**
-     * Constructs new shared file system repository
-     *
-     * @param name                 repository name
-     * @param repositorySettings   repository settings
-     * @param indexShardRepository index shard repository
-     * @param azureStorageService  Azure Storage service
-     * @throws java.io.IOException
-     */
     @Inject
-    public AzureRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository, AzureStorageService azureStorageService) throws IOException, URISyntaxException, StorageException {
+    public AzureRepository(RepositoryName name, RepositorySettings repositorySettings,
+                           IndexShardRepository indexShardRepository,
+                           AzureBlobStore azureBlobStore) throws IOException, URISyntaxException, StorageException {
         super(name.getName(), repositorySettings, indexShardRepository);
 
         String container = repositorySettings.settings().get(AzureStorageService.Fields.CONTAINER,
                 componentSettings.get(AzureStorageService.Fields.CONTAINER, CONTAINER_DEFAULT));
 
-        this.blobStore = new AzureBlobStore(settings, azureStorageService, container);
+        this.blobStore = azureBlobStore;
         this.chunkSize = repositorySettings.settings().getAsBytesSize(AzureStorageService.Fields.CHUNK_SIZE,
                 componentSettings.getAsBytesSize(AzureStorageService.Fields.CHUNK_SIZE, new ByteSizeValue(64, ByteSizeUnit.MB)));
 
@@ -133,5 +131,37 @@ public class AzureRepository extends BlobStoreRepository {
         return chunkSize;
     }
 
+    @Override
+    public void initializeSnapshot(SnapshotId snapshotId, ImmutableList<String> indices, MetaData metaData) {
+        try {
+            if (!blobStore.client().doesContainerExist(blobStore.container())) {
+                logger.debug("container [{}] does not exist. Creating...", blobStore.container());
+                blobStore.client().createContainer(blobStore.container());
+            }
+            super.initializeSnapshot(snapshotId, indices, metaData);
+        } catch (StorageException e) {
+            logger.warn("can not initialize container [{}]: [{}]", blobStore.container(), e.getMessage());
+            throw new SnapshotCreationException(snapshotId, e);
+        } catch (URISyntaxException e) {
+            logger.warn("can not initialize container [{}]: [{}]", blobStore.container(), e.getMessage());
+            throw new SnapshotCreationException(snapshotId, e);
+        }
+    }
 
+    @Override
+    public String startVerification() {
+        try {
+            if (!blobStore.client().doesContainerExist(blobStore.container())) {
+                logger.debug("container [{}] does not exist. Creating...", blobStore.container());
+                blobStore.client().createContainer(blobStore.container());
+            }
+            return super.startVerification();
+        } catch (StorageException e) {
+            logger.warn("can not initialize container [{}]: [{}]", blobStore.container(), e.getMessage());
+            throw new RepositoryVerificationException(repositoryName, "can not initialize container " + blobStore.container(), e);
+        } catch (URISyntaxException e) {
+            logger.warn("can not initialize container [{}]: [{}]", blobStore.container(), e.getMessage());
+            throw new RepositoryVerificationException(repositoryName, "can not initialize container " + blobStore.container(), e);
+        }
+    }
 }

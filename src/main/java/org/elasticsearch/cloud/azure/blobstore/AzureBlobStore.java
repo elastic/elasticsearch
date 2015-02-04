@@ -26,7 +26,11 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.repositories.RepositoryName;
+import org.elasticsearch.repositories.RepositorySettings;
+import org.elasticsearch.repositories.azure.AzureRepository;
 
 import java.net.URISyntaxException;
 
@@ -38,15 +42,16 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
     private final AzureStorageService client;
 
     private final String container;
+    private final String repositoryName;
 
-    public AzureBlobStore(Settings settings, AzureStorageService client, String container) throws URISyntaxException, StorageException {
+    @Inject
+    public AzureBlobStore(RepositoryName name, Settings settings, RepositorySettings repositorySettings,
+                          AzureStorageService client) throws URISyntaxException, StorageException {
         super(settings);
         this.client = client;
-        this.container = container;
-
-        if (!client.doesContainerExist(container)) {
-            client.createContainer(container);
-        }
+        this.container = repositorySettings.settings().get(AzureStorageService.Fields.CONTAINER,
+                componentSettings.get(AzureStorageService.Fields.CONTAINER, AzureRepository.CONTAINER_DEFAULT));
+        this.repositoryName = name.getName();
     }
 
     @Override
@@ -64,7 +69,7 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
 
     @Override
     public BlobContainer blobContainer(BlobPath path) {
-        return new AzureBlobContainer(path, this);
+        return new AzureBlobContainer(repositoryName, path, this);
     }
 
     @Override

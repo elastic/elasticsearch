@@ -31,10 +31,12 @@ import org.elasticsearch.cloud.azure.AbstractAzureTest;
 import org.elasticsearch.cloud.azure.AzureStorageService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -44,6 +46,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.net.URISyntaxException;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.*;
 
@@ -385,6 +388,47 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
             fail("Shouldn't be here");
         } catch (SnapshotMissingException ex) {
             // Expected
+        }
+    }
+
+    /**
+     * When a user remove a container you can not immediately create it again.
+     */
+    @Test
+    public void testRemoveAndCreateContainer() throws URISyntaxException, StorageException, InterruptedException {
+        final String container = getContainerName();
+        final AzureStorageService storageService = internalCluster().getInstance(AzureStorageService.class);
+
+        // It could happen that we run this test really close to a previous one
+        // so we might need some time to be able to create the container
+        assertThat(awaitBusy(new Predicate<Object>() {
+            public boolean apply(Object obj) {
+                try {
+                    storageService.createContainer(container);
+                    logger.debug(" -> container created...");
+                    return true;
+                } catch (URISyntaxException e) {
+                    // Incorrect URL. This should never happen.
+                    return false;
+                } catch (StorageException e) {
+                    // It could happen. Let's wait for a while.
+                    logger.debug(" -> container is being removed. Let's wait a bit...");
+                    return false;
+                }
+            }
+        }, 30, TimeUnit.SECONDS), equalTo(true));
+        storageService.removeContainer(container);
+
+        ClusterAdminClient client = client().admin().cluster();
+        logger.info("-->  creating azure repository while container is being removed");
+        try {
+            client.preparePutRepository("test-repo").setType("azure")
+                    .setSettings(ImmutableSettings.settingsBuilder()
+                                    .put(AzureStorageService.Fields.CONTAINER, container)
+                    ).get();
+            fail("we should get a RepositoryVerificationException");
+        } catch (RepositoryVerificationException e) {
+            // Fine we expect that
         }
     }
 

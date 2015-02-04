@@ -42,6 +42,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.repositories.RepositoryException;
 
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -125,9 +126,14 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
 
     @Override
     public void createContainer(String container) throws URISyntaxException, StorageException {
-        CloudBlobContainer blob_container = client.getContainerReference(container);
-        logger.trace("creating container [{}]", container);
-        blob_container.createIfNotExist();
+        try {
+            CloudBlobContainer blob_container = client.getContainerReference(container);
+            logger.trace("creating container [{}]", container);
+            blob_container.createIfNotExist();
+        } catch (IllegalArgumentException e) {
+            logger.trace("fails creating container [{}]", container, e.getMessage());
+            throw new RepositoryException(container, e.getMessage());
+        }
     }
 
     @Override
@@ -175,18 +181,20 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
 
     @Override
     public InputStream getInputStream(String container, String blob) throws ServiceException {
+        logger.trace("reading container [{}], blob [{}]", container, blob);
         GetBlobResult blobResult = service.getBlob(container, blob);
         return blobResult.getContentStream();
     }
 
     @Override
     public OutputStream getOutputStream(String container, String blob) throws URISyntaxException, StorageException {
+        logger.trace("writing container [{}], blob [{}]", container, blob);
         return client.getContainerReference(container).getBlockBlobReference(blob).openOutputStream();
     }
 
     @Override
     public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix) throws URISyntaxException, StorageException, ServiceException {
-        logger.debug("listBlobsByPrefix container [{}], keyPath [{}], prefix [{}]", container, keyPath, prefix);
+        logger.debug("listing container [{}], keyPath [{}], prefix [{}]", container, keyPath, prefix);
         ImmutableMap.Builder<String, BlobMetaData> blobsBuilder = ImmutableMap.builder();
 
         CloudBlobContainer blob_container = client.getContainerReference(container);

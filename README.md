@@ -290,7 +290,7 @@ repositories:
         private-bucket:
             bucket: <bucket not accessible by default key>
             access_key: <access key>
-            secret_key: <access key>
+            secret_key: <secret key>
         remote-bucket:
             bucket: <bucket in other region>
             region: <region>

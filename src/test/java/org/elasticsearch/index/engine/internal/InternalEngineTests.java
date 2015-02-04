@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.engine.internal;
 
+import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Sets;
 import com.google.common.base.Predicate;
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
@@ -26,6 +27,7 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.log4j.spi.LoggingEvent;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
@@ -35,6 +37,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -42,6 +45,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.LuceneTest;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -121,14 +125,28 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     private IndexSettingsService replicaSettingsService;
 
     private Settings defaultSettings;
+    private int indexConcurrency;
+    private String codecName;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        CodecService codecService = new CodecService(shardId.index());
+        indexConcurrency = randomIntBetween(1, 20);
+        String name = Codec.getDefault().getName();
+        if (Arrays.asList(codecService.availableCodecs()).contains(name)) {
+            // some codecs are read only so we only take the ones that we have in the service and randomly
+            // selected by lucene test case.
+            codecName = name;
+        } else {
+            codecName = "default";
+        }
         defaultSettings = ImmutableSettings.builder()
                 .put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, randomBoolean())
                 .put(EngineConfig.INDEX_GC_DELETES_SETTING, "1h") // make sure this doesn't kick in on us
                 .put(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, randomBoolean())
+                .put(EngineConfig.INDEX_CODEC_SETTING, codecName)
+                .put(EngineConfig.INDEX_CONCURRENCY_SETTING, indexConcurrency)
                 .build(); // TODO randomize more settings
         threadPool = new ThreadPool(getClass().getName());
         store = createStore();
@@ -138,12 +156,20 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         engineSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         translog = createTranslog();
         engine = createEngine(engineSettingsService, store, translog);
+        LiveIndexWriterConfig currentIndexWriterConfig = ((InternalEngine)engine).getCurrentIndexWriterConfig();
+
+        assertEquals(((InternalEngine)engine).config().getCodec().getName(), codecService.codec(codecName).getName());
+        assertEquals(currentIndexWriterConfig.getCodec().getName(), codecService.codec(codecName).getName());
         if (randomBoolean()) {
             ((InternalEngine)engine).config().setEnableGcDeletes(false);
         }
         replicaSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         replicaTranslog = createTranslogReplica();
         replicaEngine = createEngine(replicaSettingsService, storeReplica, replicaTranslog);
+        currentIndexWriterConfig = ((InternalEngine)replicaEngine).getCurrentIndexWriterConfig();
+
+        assertEquals(((InternalEngine)replicaEngine).config().getCodec().getName(), codecService.codec(codecName).getName());
+        assertEquals(currentIndexWriterConfig.getCodec().getName(), codecService.codec(codecName).getName());
         if (randomBoolean()) {
             ((InternalEngine)engine).config().setEnableGcDeletes(false);
 
@@ -1511,53 +1537,45 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testSettings() {
+        InternalEngine engine = (InternalEngine) this.engine;
+        CodecService codecService = new CodecService(shardId.index());
+        LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
+
+        assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
+        assertEquals(currentIndexWriterConfig.getCodec().getName(), codecService.codec(codecName).getName());
+        assertEquals(engine.config().getIndexConcurrency(), indexConcurrency);
+        assertEquals(currentIndexWriterConfig.getMaxThreadStates(), indexConcurrency);
+
+
         IndexDynamicSettingsModule settings = new IndexDynamicSettingsModule();
         assertTrue(settings.containsSetting(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING));
         assertTrue(settings.containsSetting(EngineConfig.INDEX_COMPOUND_ON_FLUSH));
         assertTrue(settings.containsSetting(EngineConfig.INDEX_GC_DELETES_SETTING));
-        assertTrue(settings.containsSetting(EngineConfig.INDEX_CODEC_SETTING));
         assertTrue(settings.containsSetting(EngineConfig.INDEX_FAIL_ON_MERGE_FAILURE_SETTING));
-        assertTrue(settings.containsSetting(EngineConfig.INDEX_CONCURRENCY_SETTING));
-        InternalEngine engine = (InternalEngine) this.engine;
-        CodecService codecService = new CodecService(shardId.index());
         final int iters = between(1, 20);
         for (int i = 0; i < iters; i++) {
             boolean compoundOnFlush = randomBoolean();
             boolean failOnCorruption = randomBoolean();
             boolean failOnMerge = randomBoolean();
             long gcDeletes = Math.max(0, randomLong());
-            int indexConcurrency = randomIntBetween(1, 20);
-            String codecName = randomFrom(codecService.availableCodecs());
 
             Settings build = ImmutableSettings.builder()
                     .put(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, failOnCorruption)
                     .put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, compoundOnFlush)
                     .put(EngineConfig.INDEX_GC_DELETES_SETTING, gcDeletes)
-                    .put(EngineConfig.INDEX_CODEC_SETTING, codecName)
                     .put(EngineConfig.INDEX_FAIL_ON_MERGE_FAILURE_SETTING, failOnMerge)
-                    .put(EngineConfig.INDEX_CONCURRENCY_SETTING, indexConcurrency)
                     .build();
 
             engineSettingsService.refreshSettings(build);
-            LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
+            currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
             assertEquals(engine.config().isCompoundOnFlush(), compoundOnFlush);
             assertEquals(currentIndexWriterConfig.getUseCompoundFile(), compoundOnFlush);
 
 
             assertEquals(engine.config().getGcDeletesInMillis(), gcDeletes);
             assertEquals(engine.getGcDeletesInMillis(), gcDeletes);
-
-            assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
-            assertEquals(currentIndexWriterConfig.getCodec().getName(), codecService.codec(codecName).getName());
-
-
             assertEquals(engine.config().isFailEngineOnCorruption(), failOnCorruption);
-
             assertEquals(engine.config().isFailOnMergeFailure(), failOnMerge); // only on the holder
-
-            assertEquals(engine.config().getIndexConcurrency(), indexConcurrency);
-            assertEquals(currentIndexWriterConfig.getMaxThreadStates(), indexConcurrency);
-
 
         }
     }

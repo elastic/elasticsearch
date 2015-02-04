@@ -41,7 +41,6 @@ import java.io.IOException;
 public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
 
     private boolean force = false;
-    private boolean full = false;
     private boolean waitIfOngoing = false;
 
     FlushRequest() {
@@ -61,21 +60,6 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
      */
     public FlushRequest(String... indices) {
         super(indices);
-    }
-
-    /**
-     * Should a "full" flush be performed.
-     */
-    public boolean full() {
-        return this.full;
-    }
-
-    /**
-     * Should a "full" flush be performed.
-     */
-    public FlushRequest full(boolean full) {
-        this.full = full;
-        return this;
     }
 
     /**
@@ -113,7 +97,6 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(full);
         out.writeBoolean(force);
         out.writeBoolean(waitIfOngoing);
     }
@@ -121,7 +104,6 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        full = in.readBoolean();
         force = in.readBoolean();
         waitIfOngoing = in.readBoolean();
     }

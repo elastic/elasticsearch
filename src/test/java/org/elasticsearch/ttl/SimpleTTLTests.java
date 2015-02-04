@@ -165,7 +165,7 @@ public class SimpleTTLTests extends ElasticsearchIntegrationTest {
             @Override
             public boolean apply(Object input) {
                 if (rarely()) {
-                    client().admin().indices().prepareFlush("test").setFull(true).get();
+                    client().admin().indices().prepareFlush("test").get();
                 } else if (rarely()) {
                     client().admin().indices().prepareOptimize("test").setMaxNumSegments(1).get();
                 }

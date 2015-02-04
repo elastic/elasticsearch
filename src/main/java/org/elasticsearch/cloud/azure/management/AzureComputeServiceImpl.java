@@ -19,38 +19,24 @@
 
 package org.elasticsearch.cloud.azure.management;
 
+import com.microsoft.windowsazure.Configuration;
+import com.microsoft.windowsazure.core.utils.KeyStoreType;
+import com.microsoft.windowsazure.management.compute.ComputeManagementClient;
+import com.microsoft.windowsazure.management.compute.ComputeManagementService;
+import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDetailedResponse;
+import com.microsoft.windowsazure.management.configuration.ManagementConfiguration;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cloud.azure.AzureServiceDisableException;
+import org.elasticsearch.cloud.azure.AzureServiceRemoteException;
 import org.elasticsearch.cloud.azure.AzureSettingsFilter;
-import org.elasticsearch.cloud.azure.Instance;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.w3c.dom.Document;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-import org.xml.sax.SAXException;
 
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSocketFactory;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.xpath.XPath;
-import javax.xml.xpath.XPathConstants;
-import javax.xml.xpath.XPathExpressionException;
-import javax.xml.xpath.XPathFactory;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.security.*;
-import java.security.cert.CertificateException;
-import java.util.HashSet;
-import java.util.Set;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 /**
  *
@@ -60,140 +46,57 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
 
     static final class Azure {
         private static final String ENDPOINT = "https://management.core.windows.net/";
-        private static final String VERSION = "2013-03-01";
     }
 
-    private SSLSocketFactory socketFactory;
-
-    private final String keystorePath;
-    private final String keystorePassword;
-
-    private final String subscriptionId;
+    private final ComputeManagementClient computeManagementClient;
     private final String serviceName;
-    private final String publicEndpointName;
 
     @Inject
     public AzureComputeServiceImpl(Settings settings, SettingsFilter settingsFilter) {
         super(settings);
         settingsFilter.addFilter(new AzureSettingsFilter());
 
-        // Creating socketFactory
-        subscriptionId = componentSettings.get(Fields.SUBSCRIPTION_ID, settings.get("cloud.azure." + Fields.SUBSCRIPTION_ID_DEPRECATED));
+        String subscriptionId = componentSettings.get(Fields.SUBSCRIPTION_ID, settings.get("cloud.azure." + Fields.SUBSCRIPTION_ID_DEPRECATED));
 
         serviceName = componentSettings.get(Fields.SERVICE_NAME, settings.get("cloud.azure." + Fields.SERVICE_NAME_DEPRECATED));
-        keystorePath = componentSettings.get(Fields.KEYSTORE_PATH, settings.get("cloud.azure." + Fields.KEYSTORE_DEPRECATED));
-        keystorePassword = componentSettings.get(Fields.KEYSTORE_PASSWORD, settings.get("cloud.azure." + Fields.PASSWORD_DEPRECATED));
-
-        // TODO Remove in 3.0.0
-        String portName = settings.get("cloud.azure." + Fields.PORT_NAME_DEPRECATED);
-        if (portName != null) {
-            logger.warn("setting [cloud.azure.{}] has been deprecated. please replace with [discovery.azure.{}].",
-                    Fields.PORT_NAME_DEPRECATED, Fields.ENDPOINT_NAME);
-            this.publicEndpointName = portName;
-        } else {
-            this.publicEndpointName = componentSettings.get(Fields.ENDPOINT_NAME, "elasticsearch");
+        String keystorePath = componentSettings.get(Fields.KEYSTORE_PATH, settings.get("cloud.azure." + Fields.KEYSTORE_DEPRECATED));
+        String keystorePassword = componentSettings.get(Fields.KEYSTORE_PASSWORD, settings.get("cloud.azure." + Fields.PASSWORD_DEPRECATED));
+        String strKeyStoreType = componentSettings.get(Fields.KEYSTORE_TYPE, KeyStoreType.pkcs12.name());
+        KeyStoreType tmpKeyStoreType = KeyStoreType.pkcs12;
+        try {
+            tmpKeyStoreType = KeyStoreType.fromString(strKeyStoreType);
+        } catch (Exception e) {
+            logger.warn("wrong value for [{}]: [{}]. falling back to [{}]...", Fields.KEYSTORE_TYPE,
+                    strKeyStoreType, KeyStoreType.pkcs12.name());
         }
+        KeyStoreType keystoreType = tmpKeyStoreType;
 
         // Check that we have all needed properties
+        Configuration configuration;
         try {
-            socketFactory = getSocketFactory(keystorePath, keystorePassword);
-            logger.trace("creating new Azure client for [{}], [{}], [{}]", subscriptionId, serviceName, portName);
-        } catch (Exception e) {
-            // Can not start Azure Client
+            configuration = ManagementConfiguration.configure(new URI(Azure.ENDPOINT),
+                    subscriptionId, keystorePath, keystorePassword, keystoreType);
+        } catch (IOException|URISyntaxException e) {
             logger.error("can not start azure client: {}", e.getMessage());
-            socketFactory = null;
+            computeManagementClient = null;
+            return;
         }
-    }
-
-    private InputStream getXML(String api) throws UnrecoverableKeyException, NoSuchAlgorithmException, KeyStoreException, IOException, CertificateException, KeyManagementException {
-       String https_url = Azure.ENDPOINT + subscriptionId + api;
-
-        URL url = new URL( https_url );
-        HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
-        con.setSSLSocketFactory( socketFactory );
-        con.setRequestProperty("x-ms-version", Azure.VERSION);
-
-        logger.debug("calling azure REST API: {}", api);
-        logger.trace("get {} from azure", https_url);
-
-        return con.getInputStream();
+        logger.trace("creating new Azure client for [{}], [{}]", subscriptionId, serviceName);
+        computeManagementClient = ComputeManagementService.create(configuration);
     }
 
     @Override
-    public Set<Instance> instances() {
-        if (socketFactory == null) {
+    public HostedServiceGetDetailedResponse getServiceDetails() {
+        if (computeManagementClient == null) {
             // Azure plugin is disabled
-            logger.trace("azure plugin is disabled. Returning an empty list of nodes.");
-            return new HashSet<>();
-        } else {
-            try {
-                InputStream stream = getXML("/services/hostedservices/" + serviceName + "?embed-detail=true");
-                Set<Instance> instances = buildInstancesFromXml(stream, publicEndpointName);
-                logger.trace("get instances from azure: {}", instances);
-                return instances;
-            } catch (ParserConfigurationException | XPathExpressionException | SAXException e) {
-                logger.warn("can not parse XML response: {}", e.getMessage());
-            } catch (Exception e) {
-                logger.warn("can not get list of azure nodes: {}", e.getMessage());
-            }
-        }
-        return new HashSet<>();
-    }
-
-    private static String extractValueFromPath(Node node, String path) throws XPathExpressionException {
-        XPath xPath =  XPathFactory.newInstance().newXPath();
-        Node subnode = (Node) xPath.compile(path).evaluate(node, XPathConstants.NODE);
-        return subnode.getFirstChild().getNodeValue();
-    }
-
-    public static Set<Instance> buildInstancesFromXml(InputStream inputStream, String portName) throws ParserConfigurationException, IOException, SAXException, XPathExpressionException {
-        Set<Instance> instances = new HashSet<>();
-
-        DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
-        DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
-        Document doc = dBuilder.parse(inputStream);
-
-        doc.getDocumentElement().normalize();
-
-        XPath xPath =  XPathFactory.newInstance().newXPath();
-
-        // We only fetch Started nodes (TODO: should we start with all nodes whatever the status is?)
-        String expression = "/HostedService/Deployments/Deployment/RoleInstanceList/RoleInstance[PowerState='Started']";
-        NodeList nodeList = (NodeList) xPath.compile(expression).evaluate(doc, XPathConstants.NODESET);
-        for (int i = 0; i < nodeList.getLength(); i++) {
-            Instance instance = new Instance();
-            Node node = nodeList.item(i);
-            instance.setPrivateIp(extractValueFromPath(node, "IpAddress"));
-            instance.setName(extractValueFromPath(node, "InstanceName"));
-            instance.setStatus(Instance.Status.STARTED);
-
-            // Let's digg into <InstanceEndpoints>
-            expression = "InstanceEndpoints/InstanceEndpoint[Name='"+ portName +"']";
-            NodeList endpoints = (NodeList) xPath.compile(expression).evaluate(node, XPathConstants.NODESET);
-            for (int j = 0; j < endpoints.getLength(); j++) {
-                Node endpoint = endpoints.item(j);
-                instance.setPublicIp(extractValueFromPath(endpoint, "Vip"));
-                instance.setPublicPort(extractValueFromPath(endpoint, "PublicPort"));
-            }
-
-            instances.add(instance);
+            throw new AzureServiceDisableException("azure plugin is disabled.");
         }
 
-        return instances;
-    }
-
-    private SSLSocketFactory getSocketFactory(String keystore, String password) throws NoSuchAlgorithmException, KeyStoreException, IOException, CertificateException, UnrecoverableKeyException, KeyManagementException {
-        File pKeyFile = new File(keystore);
-        KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
-        KeyStore keyStore = KeyStore.getInstance("PKCS12");
-        InputStream keyInput = new FileInputStream(pKeyFile);
-        keyStore.load(keyInput, password.toCharArray());
-        keyInput.close();
-        keyManagerFactory.init(keyStore, password.toCharArray());
-
-        SSLContext context = SSLContext.getInstance("TLS");
-        context.init(keyManagerFactory.getKeyManagers(), null, new SecureRandom());
-        return context.getSocketFactory();
+        try {
+            return computeManagementClient.getHostedServicesOperations().getDetailed(serviceName);
+        } catch (Exception e) {
+            throw new AzureServiceRemoteException("can not get list of azure nodes", e);
+        }
     }
 
     @Override
@@ -206,5 +109,12 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
 
     @Override
     protected void doClose() throws ElasticsearchException {
+        if (computeManagementClient != null) {
+            try {
+                computeManagementClient.close();
+            } catch (IOException e) {
+                logger.error("error while closing Azure client", e);
+            }
+        }
     }
 }

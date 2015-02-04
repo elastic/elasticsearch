@@ -19,12 +19,12 @@
 
 package org.elasticsearch.cloud.azure.management;
 
-import org.elasticsearch.cloud.azure.Instance;
+import com.microsoft.windowsazure.management.compute.models.*;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.net.InetAddress;
 
 /**
  * Mock Azure API with a single started node
@@ -37,12 +37,32 @@ public class AzureComputeServiceSimpleMock extends AzureComputeServiceAbstractMo
     }
 
     @Override
-    public Set<Instance> instances() {
-        Set<Instance> instances = new HashSet<>();
-        Instance azureHost = new Instance();
-        azureHost.setPrivateIp("127.0.0.1");
-        instances.add(azureHost);
+    public HostedServiceGetDetailedResponse getServiceDetails() {
+        HostedServiceGetDetailedResponse response = new HostedServiceGetDetailedResponse();
+        HostedServiceGetDetailedResponse.Deployment deployment = new HostedServiceGetDetailedResponse.Deployment();
 
-        return instances;
+        // Fake the deployment
+        deployment.setName("dummy");
+        deployment.setDeploymentSlot(DeploymentSlot.Production);
+        deployment.setStatus(DeploymentStatus.Running);
+
+        // Fake an instance
+        RoleInstance instance = new RoleInstance();
+        instance.setInstanceName("dummy1");
+
+        // Fake the private IP
+        instance.setIPAddress(InetAddress.getLoopbackAddress());
+
+        // Fake the public IP
+        InstanceEndpoint endpoint = new InstanceEndpoint();
+        endpoint.setName("elasticsearch");
+        endpoint.setVirtualIPAddress(InetAddress.getLoopbackAddress());
+        endpoint.setPort(9400);
+        instance.setInstanceEndpoints(Lists.newArrayList(endpoint));
+
+        deployment.setRoleInstances(Lists.newArrayList(instance));
+        response.setDeployments(Lists.newArrayList(deployment));
+
+        return response;
     }
 }

@@ -19,9 +19,7 @@
 
 package org.elasticsearch.cloud.azure.management;
 
-import org.elasticsearch.cloud.azure.Instance;
-
-import java.util.Set;
+import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDetailedResponse;
 
 /**
  *
@@ -49,6 +47,7 @@ public interface AzureComputeService {
         // Keystore settings
         public static final String KEYSTORE_PATH = "keystore.path";
         public static final String KEYSTORE_PASSWORD = "keystore.password";
+        public static final String KEYSTORE_TYPE = "keystore.type";
 
         public static final String REFRESH = "refresh_interval";
 
@@ -56,5 +55,5 @@ public interface AzureComputeService {
         public static final String ENDPOINT_NAME = "endpoint.name";
     }
 
-    public Set<Instance> instances();
+    public HostedServiceGetDetailedResponse getServiceDetails();
 }

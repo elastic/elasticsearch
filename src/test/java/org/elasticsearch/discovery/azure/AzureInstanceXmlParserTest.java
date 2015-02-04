@@ -19,8 +19,8 @@
 
 package org.elasticsearch.discovery.azure;
 
-import org.elasticsearch.cloud.azure.AzureComputeServiceImpl;
 import org.elasticsearch.cloud.azure.Instance;
+import org.elasticsearch.cloud.azure.management.AzureComputeServiceImpl;
 import org.junit.Assert;
 import org.junit.Test;
 import org.xml.sax.SAXException;

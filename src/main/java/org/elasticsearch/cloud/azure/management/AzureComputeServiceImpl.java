@@ -17,9 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure;
+package org.elasticsearch.cloud.azure.management;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cloud.azure.AzureSettingsFilter;
+import org.elasticsearch.cloud.azure.Instance;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -62,11 +64,13 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
     }
 
     private SSLSocketFactory socketFactory;
-    private final String keystore;
-    private final String password;
-    private final String subscription_id;
-    private final String service_name;
-    private final String port_name;
+
+    private final String keystorePath;
+    private final String keystorePassword;
+
+    private final String subscriptionId;
+    private final String serviceName;
+    private final String publicEndpointName;
 
     @Inject
     public AzureComputeServiceImpl(Settings settings, SettingsFilter settingsFilter) {
@@ -74,16 +78,26 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
         settingsFilter.addFilter(new AzureSettingsFilter());
 
         // Creating socketFactory
-        subscription_id = componentSettings.get(Fields.SUBSCRIPTION_ID, settings.get("cloud.azure." + Fields.SUBSCRIPTION_ID));
-        service_name = componentSettings.get(Fields.SERVICE_NAME, settings.get("cloud.azure." + Fields.SERVICE_NAME));
-        keystore = componentSettings.get(Fields.KEYSTORE, settings.get("cloud.azure." + Fields.KEYSTORE));
-        password = componentSettings.get(Fields.PASSWORD, settings.get("cloud.azure." + Fields.PASSWORD));
-        port_name = componentSettings.get(Fields.PORT_NAME, settings.get("cloud.azure." + Fields.PORT_NAME, "elasticsearch"));
+        subscriptionId = componentSettings.get(Fields.SUBSCRIPTION_ID, settings.get("cloud.azure." + Fields.SUBSCRIPTION_ID_DEPRECATED));
+
+        serviceName = componentSettings.get(Fields.SERVICE_NAME, settings.get("cloud.azure." + Fields.SERVICE_NAME_DEPRECATED));
+        keystorePath = componentSettings.get(Fields.KEYSTORE_PATH, settings.get("cloud.azure." + Fields.KEYSTORE_DEPRECATED));
+        keystorePassword = componentSettings.get(Fields.KEYSTORE_PASSWORD, settings.get("cloud.azure." + Fields.PASSWORD_DEPRECATED));
+
+        // TODO Remove in 3.0.0
+        String portName = settings.get("cloud.azure." + Fields.PORT_NAME_DEPRECATED);
+        if (portName != null) {
+            logger.warn("setting [cloud.azure.{}] has been deprecated. please replace with [discovery.azure.{}].",
+                    Fields.PORT_NAME_DEPRECATED, Fields.ENDPOINT_NAME);
+            this.publicEndpointName = portName;
+        } else {
+            this.publicEndpointName = componentSettings.get(Fields.ENDPOINT_NAME, "elasticsearch");
+        }
 
         // Check that we have all needed properties
         try {
-            socketFactory = getSocketFactory(keystore, password);
-            logger.trace("creating new Azure client for [{}], [{}], [{}]", subscription_id, service_name, port_name);
+            socketFactory = getSocketFactory(keystorePath, keystorePassword);
+            logger.trace("creating new Azure client for [{}], [{}], [{}]", subscriptionId, serviceName, portName);
         } catch (Exception e) {
             // Can not start Azure Client
             logger.error("can not start azure client: {}", e.getMessage());
@@ -92,7 +106,7 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
     }
 
     private InputStream getXML(String api) throws UnrecoverableKeyException, NoSuchAlgorithmException, KeyStoreException, IOException, CertificateException, KeyManagementException {
-       String https_url = Azure.ENDPOINT + subscription_id + api;
+       String https_url = Azure.ENDPOINT + subscriptionId + api;
 
         URL url = new URL( https_url );
         HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
@@ -113,8 +127,8 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
             return new HashSet<>();
         } else {
             try {
-                InputStream stream = getXML("/services/hostedservices/" + service_name + "?embed-detail=true");
-                Set<Instance> instances = buildInstancesFromXml(stream, port_name);
+                InputStream stream = getXML("/services/hostedservices/" + serviceName + "?embed-detail=true");
+                Set<Instance> instances = buildInstancesFromXml(stream, publicEndpointName);
                 logger.trace("get instances from azure: {}", instances);
                 return instances;
             } catch (ParserConfigurationException | XPathExpressionException | SAXException e) {
@@ -132,7 +146,7 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
         return subnode.getFirstChild().getNodeValue();
     }
 
-    public static Set<Instance> buildInstancesFromXml(InputStream inputStream, String port_name) throws ParserConfigurationException, IOException, SAXException, XPathExpressionException {
+    public static Set<Instance> buildInstancesFromXml(InputStream inputStream, String portName) throws ParserConfigurationException, IOException, SAXException, XPathExpressionException {
         Set<Instance> instances = new HashSet<>();
 
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
@@ -154,7 +168,7 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
             instance.setStatus(Instance.Status.STARTED);
 
             // Let's digg into <InstanceEndpoints>
-            expression = "InstanceEndpoints/InstanceEndpoint[Name='"+ port_name +"']";
+            expression = "InstanceEndpoints/InstanceEndpoint[Name='"+ portName +"']";
             NodeList endpoints = (NodeList) xPath.compile(expression).evaluate(node, XPathConstants.NODESET);
             for (int j = 0; j < endpoints.getLength(); j++) {
                 Node endpoint = endpoints.item(j);

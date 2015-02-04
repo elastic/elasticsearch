@@ -20,7 +20,6 @@
 package org.elasticsearch.plugin.cloud.azure;
 
 import org.elasticsearch.cloud.azure.AzureModule;
-import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
@@ -33,7 +32,7 @@ import org.elasticsearch.repositories.azure.AzureRepositoryModule;
 
 import java.util.Collection;
 
-import static org.elasticsearch.cloud.azure.AzureModule.checkDeprecatedSettings;
+import static org.elasticsearch.cloud.azure.AzureModule.checkDeprecated;
 import static org.elasticsearch.cloud.azure.AzureModule.isSnapshotReady;
 
 /**
@@ -46,6 +45,8 @@ public class CloudAzurePlugin extends AbstractPlugin {
 
     public CloudAzurePlugin(Settings settings) {
         this.settings = settings;
+        logger.trace("starting azure plugin...");
+        checkDeprecated(settings, logger);
     }
 
     @Override
@@ -71,16 +72,7 @@ public class CloudAzurePlugin extends AbstractPlugin {
     public void processModule(Module module) {
         if (isSnapshotReady(settings, logger)
                 && module instanceof RepositoriesModule) {
-            // Check if we have any deprecated setting
-            checkDeprecated();
             ((RepositoriesModule)module).registerRepository(AzureRepository.TYPE, AzureRepositoryModule.class);
         }
-    }
-
-    private void checkDeprecated() {
-        checkDeprecatedSettings(settings, "cloud.azure." + AzureStorageService.Fields.ACCOUNT_DEPRECATED,
-                "cloud.azure.storage." + AzureStorageService.Fields.ACCOUNT, logger);
-        checkDeprecatedSettings(settings, "cloud.azure." + AzureStorageService.Fields.KEY_DEPRECATED,
-                "cloud.azure.storage." + AzureStorageService.Fields.KEY, logger);
     }
 }

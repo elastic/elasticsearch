@@ -22,6 +22,8 @@ package org.elasticsearch.cloud.azure;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
+import org.elasticsearch.cloud.azure.management.AzureComputeService;
+import org.elasticsearch.cloud.azure.management.AzureComputeServiceImpl;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
@@ -40,7 +42,7 @@ import org.elasticsearch.discovery.azure.AzureDiscovery;
  * to AzureStorageServiceImpl.</li>
  * </ul>
  *
- * @see org.elasticsearch.cloud.azure.AzureComputeServiceImpl
+ * @see org.elasticsearch.cloud.azure.management.AzureComputeServiceImpl
  * @see org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl
  */
 public class AzureModule extends AbstractModule {
@@ -99,11 +101,23 @@ public class AzureModule extends AbstractModule {
             return false;
         }
 
-        if (isPropertyMissing(settings, "cloud.azure." + AzureComputeService.Fields.SUBSCRIPTION_ID, logger) ||
-                isPropertyMissing(settings, "cloud.azure." + AzureComputeService.Fields.SERVICE_NAME, logger) ||
-                isPropertyMissing(settings, "cloud.azure." + AzureComputeService.Fields.KEYSTORE, logger) ||
-                isPropertyMissing(settings, "cloud.azure." + AzureComputeService.Fields.PASSWORD, logger)
+        if (    // We check new parameters
+                (isPropertyMissing(settings, "cloud.azure.management." + AzureComputeService.Fields.SUBSCRIPTION_ID) ||
+                        isPropertyMissing(settings, "cloud.azure.management." + AzureComputeService.Fields.SERVICE_NAME) ||
+                        isPropertyMissing(settings, "cloud.azure.management." + AzureComputeService.Fields.KEYSTORE_PATH) ||
+                        isPropertyMissing(settings, "cloud.azure.management." + AzureComputeService.Fields.KEYSTORE_PASSWORD))
+                // We check deprecated
+                && (isPropertyMissing(settings, "cloud.azure." + AzureComputeService.Fields.SUBSCRIPTION_ID_DEPRECATED) ||
+                        isPropertyMissing(settings, "cloud.azure." + AzureComputeService.Fields.SERVICE_NAME_DEPRECATED) ||
+                        isPropertyMissing(settings, "cloud.azure." + AzureComputeService.Fields.KEYSTORE_DEPRECATED) ||
+                        isPropertyMissing(settings, "cloud.azure." + AzureComputeService.Fields.PASSWORD_DEPRECATED))
                 ) {
+            logger.debug("one or more azure discovery settings are missing. " +
+                            "Check elasticsearch.yml file and `cloud.azure.management`. Should have [{}], [{}], [{}] and [{}].",
+                    AzureComputeService.Fields.SUBSCRIPTION_ID,
+                    AzureComputeService.Fields.SERVICE_NAME,
+                    AzureComputeService.Fields.KEYSTORE_PATH,
+                    AzureComputeService.Fields.KEYSTORE_PASSWORD);
             return false;
         }
 
@@ -123,11 +137,11 @@ public class AzureModule extends AbstractModule {
             return false;
         }
 
-        if ((isPropertyMissing(settings, "cloud.azure.storage." + AzureStorageService.Fields.ACCOUNT, null) ||
-                isPropertyMissing(settings, "cloud.azure.storage." + AzureStorageService.Fields.KEY, null)) &&
-                (isPropertyMissing(settings, "cloud.azure." + AzureStorageService.Fields.ACCOUNT_DEPRECATED, null) ||
-                isPropertyMissing(settings, "cloud.azure." + AzureStorageService.Fields.KEY_DEPRECATED, null))) {
-            logger.trace("azure repository is not set [using cloud.azure.storage.{}] and [cloud.azure.storage.{}] properties",
+        if ((isPropertyMissing(settings, "cloud.azure.storage." + AzureStorageService.Fields.ACCOUNT) ||
+                isPropertyMissing(settings, "cloud.azure.storage." + AzureStorageService.Fields.KEY)) &&
+                (isPropertyMissing(settings, "cloud.azure." + AzureStorageService.Fields.ACCOUNT_DEPRECATED) ||
+                isPropertyMissing(settings, "cloud.azure." + AzureStorageService.Fields.KEY_DEPRECATED))) {
+            logger.debug("azure repository is not set [using cloud.azure.storage.{}] and [cloud.azure.storage.{}] properties",
                     AzureStorageService.Fields.ACCOUNT,
                     AzureStorageService.Fields.KEY);
             return false;
@@ -142,18 +156,44 @@ public class AzureModule extends AbstractModule {
      * Check if we are using any deprecated settings
      */
     public static void checkDeprecatedSettings(Settings settings, String oldParameter, String newParameter, ESLogger logger) {
-        if (!isPropertyMissing(settings, oldParameter, null)) {
+        if (!isPropertyMissing(settings, oldParameter)) {
             logger.warn("using deprecated [{}]. Please change it to [{}] property.",
                     oldParameter,
                     newParameter);
         }
     }
 
-    public static boolean isPropertyMissing(Settings settings, String name, ESLogger logger) throws ElasticsearchException {
+    /**
+     * Check all deprecated settings
+     * @param settings
+     * @param logger
+     */
+    public static void checkDeprecated(Settings settings, ESLogger logger) {
+        // Cloud services are disabled
+        if (isCloudReady(settings)) {
+            checkDeprecatedSettings(settings, "cloud.azure." + AzureStorageService.Fields.ACCOUNT_DEPRECATED,
+                    "cloud.azure.storage." + AzureStorageService.Fields.ACCOUNT, logger);
+            checkDeprecatedSettings(settings, "cloud.azure." + AzureStorageService.Fields.KEY_DEPRECATED,
+                    "cloud.azure.storage." + AzureStorageService.Fields.KEY, logger);
+
+            // TODO Remove in 3.0.0
+            checkDeprecatedSettings(settings, "cloud.azure." + AzureComputeService.Fields.KEYSTORE_DEPRECATED,
+                    "cloud.azure.management." + AzureComputeService.Fields.KEYSTORE_PATH, logger);
+            checkDeprecatedSettings(settings, "cloud.azure." + AzureComputeService.Fields.PASSWORD_DEPRECATED,
+                    "cloud.azure.management." + AzureComputeService.Fields.KEYSTORE_PASSWORD, logger);
+            checkDeprecatedSettings(settings, "cloud.azure." + AzureComputeService.Fields.SERVICE_NAME_DEPRECATED,
+                    "cloud.azure.management." + AzureComputeService.Fields.SERVICE_NAME, logger);
+            checkDeprecatedSettings(settings, "cloud.azure." + AzureComputeService.Fields.SUBSCRIPTION_ID_DEPRECATED,
+                    "cloud.azure.management." + AzureComputeService.Fields.SUBSCRIPTION_ID, logger);
+            checkDeprecatedSettings(settings, "cloud.azure." + AzureComputeService.Fields.HOST_TYPE_DEPRECATED,
+                    "discovery.azure." + AzureComputeService.Fields.HOST_TYPE, logger);
+            checkDeprecatedSettings(settings, "cloud.azure." + AzureComputeService.Fields.PORT_NAME_DEPRECATED,
+                    "discovery.azure." + AzureComputeService.Fields.ENDPOINT_NAME, logger);
+        }
+    }
+
+    public static boolean isPropertyMissing(Settings settings, String name) throws ElasticsearchException {
         if (!Strings.hasText(settings.get(name))) {
-            if (logger != null) {
-                logger.warn("{} is not set or is incorrect.", name);
-            }
             return true;
         }
         return false;

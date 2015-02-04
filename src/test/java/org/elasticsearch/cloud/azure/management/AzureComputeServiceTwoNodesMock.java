@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.azure;
+package org.elasticsearch.cloud.azure.management;
 
 import org.elasticsearch.cloud.azure.Instance;
 import org.elasticsearch.common.inject.Inject;

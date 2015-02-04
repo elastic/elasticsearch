@@ -17,32 +17,34 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.azure;
+package org.elasticsearch.cloud.azure.management;
 
-import org.elasticsearch.cloud.azure.Instance;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.HashSet;
-import java.util.Set;
-
 /**
- * Mock Azure API with a single started node
+ *
  */
-public class AzureComputeServiceSimpleMock extends AzureComputeServiceAbstractMock {
+public abstract class AzureComputeServiceAbstractMock extends AbstractLifecycleComponent<AzureComputeServiceAbstractMock>
+    implements AzureComputeService {
 
-    @Inject
-    protected AzureComputeServiceSimpleMock(Settings settings) {
+    protected AzureComputeServiceAbstractMock(Settings settings) {
         super(settings);
+        logger.debug("starting Azure Mock [{}]", this.getClass().getSimpleName());
     }
 
     @Override
-    public Set<Instance> instances() {
-        Set<Instance> instances = new HashSet<>();
-        Instance azureHost = new Instance();
-        azureHost.setPrivateIp("127.0.0.1");
-        instances.add(azureHost);
+    protected void doStart() throws ElasticsearchException {
+        logger.debug("starting Azure Api Mock");
+    }
 
-        return instances;
+    @Override
+    protected void doStop() throws ElasticsearchException {
+        logger.debug("stopping Azure Api Mock");
+    }
+
+    @Override
+    protected void doClose() throws ElasticsearchException {
     }
 }

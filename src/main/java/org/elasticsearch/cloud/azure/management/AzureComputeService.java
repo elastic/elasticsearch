@@ -53,6 +53,8 @@ public interface AzureComputeService {
 
         public static final String HOST_TYPE = "host.type";
         public static final String ENDPOINT_NAME = "endpoint.name";
+        public static final String DEPLOYMENT_NAME = "deployment.name";
+        public static final String DEPLOYMENT_SLOT = "deployment.slot";
     }
 
     public HostedServiceGetDetailedResponse getServiceDetails();

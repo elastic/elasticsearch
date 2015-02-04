@@ -46,10 +46,46 @@ import java.util.List;
 public class AzureUnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
 
     public static enum HostType {
-        PRIVATE_IP,
-        PUBLIC_IP
+        PRIVATE_IP("private_ip"),
+        PUBLIC_IP("public_ip");
+
+        private String type ;
+
+        private HostType(String type) {
+            this.type = type ;
+        }
+
+        public static HostType fromString(String type) {
+            for (HostType hostType : values()) {
+                if (hostType.type.equalsIgnoreCase(type)) {
+                    return hostType;
+                }
+            }
+            return null;
+        }
     }
 
+    public static enum Deployment {
+        PRODUCTION("production", DeploymentSlot.Production),
+        STAGING("staging", DeploymentSlot.Staging);
+
+        private String deployment;
+        private DeploymentSlot slot;
+
+        private Deployment(String deployment, DeploymentSlot slot) {
+            this.deployment = deployment;
+            this.slot = slot;
+        }
+
+        public static Deployment fromString(String string) {
+            for (Deployment deployment : values()) {
+                if (deployment.deployment.equalsIgnoreCase(string)) {
+                    return deployment;
+                }
+            }
+            return null;
+        }
+    }
 
     private final AzureComputeService azureComputeService;
     private TransportService transportService;
@@ -78,12 +114,10 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
         this.refreshInterval = componentSettings.getAsTime(Fields.REFRESH,
                 settings.getAsTime("cloud.azure." + Fields.REFRESH, TimeValue.timeValueSeconds(0)));
 
-        HostType tmpHostType;
         String strHostType = componentSettings.get(Fields.HOST_TYPE,
                 settings.get("cloud.azure." + Fields.HOST_TYPE_DEPRECATED, HostType.PRIVATE_IP.name())).toUpperCase();
-        try {
-            tmpHostType = HostType.valueOf(strHostType);
-        } catch (IllegalArgumentException e) {
+        HostType tmpHostType = HostType.fromString(strHostType);
+        if (tmpHostType == null) {
             logger.warn("wrong value for [{}]: [{}]. falling back to [{}]...", Fields.HOST_TYPE,
                     strHostType, HostType.PRIVATE_IP.name().toLowerCase());
             tmpHostType = HostType.PRIVATE_IP;
@@ -99,8 +133,19 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
             this.publicEndpointName = componentSettings.get(Fields.ENDPOINT_NAME, "elasticsearch");
         }
 
-        this.deploymentName = componentSettings.get(Fields.SERVICE_NAME, settings.get("cloud.azure." + Fields.SERVICE_NAME_DEPRECATED));
-        this.deploymentSlot = DeploymentSlot.Production;
+        this.deploymentName = componentSettings.get(Fields.DEPLOYMENT_NAME,
+                settings.get("cloud.azure.management." + Fields.SERVICE_NAME,
+                        settings.get("cloud.azure." + Fields.SERVICE_NAME_DEPRECATED)));
+
+        // Reading deployment_slot
+        String strDeployment = componentSettings.get(Fields.DEPLOYMENT_SLOT, Deployment.PRODUCTION.deployment);
+        Deployment tmpDeployment = Deployment.fromString(strDeployment);
+        if (tmpDeployment == null) {
+            logger.warn("wrong value for [{}]: [{}]. falling back to [{}]...", Fields.DEPLOYMENT_SLOT,
+                    strDeployment, Deployment.PRODUCTION.deployment);
+            tmpDeployment = Deployment.PRODUCTION;
+        }
+        this.deploymentSlot = tmpDeployment.slot;
     }
 
     /**

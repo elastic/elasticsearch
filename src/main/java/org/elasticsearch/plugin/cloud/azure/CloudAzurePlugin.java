@@ -23,7 +23,7 @@ import org.elasticsearch.cloud.azure.AzureModule;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
@@ -38,7 +38,7 @@ import java.util.Collection;
 public class CloudAzurePlugin extends AbstractPlugin {
 
     private final Settings settings;
-    private final ESLogger logger = ESLoggerFactory.getLogger(CloudAzurePlugin.class.getName());
+    protected final ESLogger logger = Loggers.getLogger(CloudAzurePlugin.class);
 
     public CloudAzurePlugin(Settings settings) {
         this.settings = settings;

@@ -27,7 +27,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.Loggers;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -41,7 +41,7 @@ import java.net.URISyntaxException;
  */
 public class AzureBlobContainer extends AbstractBlobContainer {
 
-    protected final ESLogger logger = ESLoggerFactory.getLogger(AzureBlobContainer.class.getName());
+    protected final ESLogger logger = Loggers.getLogger(AzureBlobContainer.class);
     protected final AzureBlobStore blobStore;
 
     protected final String keyPath;

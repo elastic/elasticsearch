@@ -71,6 +71,12 @@ governing permissions and limitations under the License. -->
             <groupId>com.microsoft.windowsazure</groupId>
             <artifactId>microsoft-windowsazure-api</artifactId>
             <version>0.4.6</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>javax.xml.stream</groupId>
+                    <artifactId>stax-api</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>

@@ -24,7 +24,7 @@ package org.elasticsearch.cloud.azure;
  */
 public class Instance {
     public static enum Status {
-        STARTED;
+        STARTED
     }
 
     private String privateIp;

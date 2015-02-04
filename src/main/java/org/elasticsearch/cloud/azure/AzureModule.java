@@ -20,6 +20,8 @@
 package org.elasticsearch.cloud.azure;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cloud.azure.storage.AzureStorageService;
+import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
@@ -39,7 +41,7 @@ import org.elasticsearch.discovery.azure.AzureDiscovery;
  * </ul>
  *
  * @see org.elasticsearch.cloud.azure.AzureComputeServiceImpl
- * @see org.elasticsearch.cloud.azure.AzureStorageServiceImpl
+ * @see org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl
  */
 public class AzureModule extends AbstractModule {
     protected final ESLogger logger;
@@ -121,9 +123,11 @@ public class AzureModule extends AbstractModule {
             return false;
         }
 
-        if (isPropertyMissing(settings, "cloud.azure." + AzureStorageService.Fields.ACCOUNT, null) ||
-                isPropertyMissing(settings, "cloud.azure." + AzureStorageService.Fields.KEY, null)) {
-            logger.trace("azure repository is not set using {} and {} properties",
+        if ((isPropertyMissing(settings, "cloud.azure.storage." + AzureStorageService.Fields.ACCOUNT, null) ||
+                isPropertyMissing(settings, "cloud.azure.storage." + AzureStorageService.Fields.KEY, null)) &&
+                (isPropertyMissing(settings, "cloud.azure." + AzureStorageService.Fields.ACCOUNT_DEPRECATED, null) ||
+                isPropertyMissing(settings, "cloud.azure." + AzureStorageService.Fields.KEY_DEPRECATED, null))) {
+            logger.trace("azure repository is not set [using cloud.azure.storage.{}] and [cloud.azure.storage.{}] properties",
                     AzureStorageService.Fields.ACCOUNT,
                     AzureStorageService.Fields.KEY);
             return false;
@@ -133,6 +137,17 @@ public class AzureModule extends AbstractModule {
 
         return true;
    }
+
+    /**
+     * Check if we are using any deprecated settings
+     */
+    public static void checkDeprecatedSettings(Settings settings, String oldParameter, String newParameter, ESLogger logger) {
+        if (!isPropertyMissing(settings, oldParameter, null)) {
+            logger.warn("using deprecated [{}]. Please change it to [{}] property.",
+                    oldParameter,
+                    newParameter);
+        }
+    }
 
     public static boolean isPropertyMissing(Settings settings, String name, ESLogger logger) throws ElasticsearchException {
         if (!Strings.hasText(settings.get(name))) {

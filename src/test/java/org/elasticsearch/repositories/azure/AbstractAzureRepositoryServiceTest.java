@@ -21,7 +21,7 @@ package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.cloud.azure.AbstractAzureTest;
-import org.elasticsearch.cloud.azure.AzureStorageService;
+import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -66,10 +66,17 @@ public abstract class AbstractAzureRepositoryServiceTest extends AbstractAzureTe
     protected Settings nodeSettings(int nodeOrdinal) {
         ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder()
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
-                .put("cloud.azure." + AzureStorageService.Fields.ACCOUNT, "mock_azure_account")
-                .put("cloud.azure." + AzureStorageService.Fields.KEY, "mock_azure_key")
                 .put("repositories.azure.api.impl", mock)
                 .put("repositories.azure.container", "snapshots");
+
+        // We use sometime deprecated settings in tests
+        if (rarely()) {
+            builder.put("cloud.azure." + AzureStorageService.Fields.ACCOUNT_DEPRECATED, "mock_azure_account")
+                    .put("cloud.azure." + AzureStorageService.Fields.KEY_DEPRECATED, "mock_azure_key");
+        } else {
+            builder.put("cloud.azure.storage." + AzureStorageService.Fields.ACCOUNT, "mock_azure_account")
+                    .put("cloud.azure.storage." + AzureStorageService.Fields.KEY, "mock_azure_key");
+        }
 
         return builder.build();
     }

@@ -383,19 +383,26 @@ public enum FieldData {
     /**
      * Return a {@link String} representation of the provided values. That is
      * typically used for scripts or for the `map` execution mode of terms aggs.
-     * NOTE: this is very slow!
+     * NOTE: this is slow!
      */
     public static SortedBinaryDocValues toString(final RandomAccessOrds values) {
-        return toString(new ToStringValues() {
+        return new SortedBinaryDocValues() {
+
             @Override
-            public void get(int docID, List<CharSequence> list) {
-                values.setDocument(docID);
-                for (int i = 0, count = values.cardinality(); i < count; ++i) {
-                    final long ord = values.ordAt(i);
-                    list.add(values.lookupOrd(ord).utf8ToString());
-                }
+            public BytesRef valueAt(int index) {
+                return values.lookupOrd(values.ordAt(index));
             }
-        });
+
+            @Override
+            public void setDocument(int docId) {
+                values.setDocument(docId);
+            }
+
+            @Override
+            public int count() {
+                return values.cardinality();
+            }
+        };
     }
 
     /**

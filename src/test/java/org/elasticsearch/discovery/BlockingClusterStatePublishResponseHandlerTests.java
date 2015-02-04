@@ -53,17 +53,16 @@ public class BlockingClusterStatePublishResponseHandlerTests extends Elasticsear
         }
 
         @Override
-        public void onFailure(Throwable t) {
-            logger.error("unexpected error", t);
-        }
-
-        @Override
-        protected void doRun() throws Exception {
-            barrier.await();
-            if (fail) {
-                handler.onFailure(node, new Exception("bla"));
-            } else {
-                handler.onResponse(node);
+        public void run() {
+            try {
+                barrier.await();
+                if (fail) {
+                    handler.onFailure(node, new Exception("bla"));
+                } else {
+                    handler.onResponse(node);
+                }
+            } catch (Throwable t) {
+                logger.error("unexpected error", t);
             }
         }
     }

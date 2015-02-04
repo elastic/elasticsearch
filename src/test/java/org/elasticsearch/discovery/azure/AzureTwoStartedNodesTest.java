@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery.azure;
 
+import org.elasticsearch.cloud.azure.management.AzureComputeServiceTwoNodesMock;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 

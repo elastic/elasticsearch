@@ -20,7 +20,7 @@
 package org.elasticsearch.discovery.azure;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.cloud.azure.AzureComputeService;
+import org.elasticsearch.cloud.azure.management.AzureComputeService;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.PluginsService;

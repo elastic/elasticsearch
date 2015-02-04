@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery.azure;
 
+import org.elasticsearch.cloud.azure.management.AzureComputeServiceTwoNodesMock;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;

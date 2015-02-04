@@ -21,7 +21,8 @@ package org.elasticsearch.discovery.azure;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cloud.azure.AzureComputeService;
+import org.elasticsearch.cloud.azure.management.AzureComputeService;
+import org.elasticsearch.cloud.azure.management.AzureComputeService.Fields;
 import org.elasticsearch.cloud.azure.Instance;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Lists;
@@ -71,11 +72,10 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
         this.networkService = networkService;
         this.version = version;
 
-        this.refreshInterval = componentSettings.getAsTime(AzureComputeService.Fields.REFRESH,
-                settings.getAsTime("cloud.azure." + AzureComputeService.Fields.REFRESH, TimeValue.timeValueSeconds(0)));
-        this.host_type = HostType.valueOf(componentSettings.get(AzureComputeService.Fields.HOST_TYPE,
-                settings.get("cloud.azure." + AzureComputeService.Fields.HOST_TYPE, HostType.PRIVATE_IP.name())).toUpperCase());
-
+        this.refreshInterval = componentSettings.getAsTime(Fields.REFRESH,
+                settings.getAsTime("cloud.azure." + Fields.REFRESH, TimeValue.timeValueSeconds(0)));
+        this.host_type = HostType.valueOf(componentSettings.get(Fields.HOST_TYPE,
+                settings.get("cloud.azure." + Fields.HOST_TYPE_DEPRECATED, HostType.PRIVATE_IP.name())).toUpperCase());
     }
 
     /**

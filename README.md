@@ -39,12 +39,16 @@ multicast environments). Here is a simple sample configuration:
 ```
 cloud:
     azure:
-        keystore: /path/to/keystore
-        password: your_password_for_keystore
-        subscription_id: your_azure_subscription_id
-        service_name: your_azure_cloud_service_name
+        management:
+             subscription.id: XXX-XXX-XXX-XXX
+             cloud.service.name: es-demo-app
+             keystore:
+                   path: /path/to/azurekeystore.pkcs12
+                   password: WHATEVER
+                   type: pkcs12
+
 discovery:
-        type: azure
+    type: azure
 ```
 
 How to start (short story)
@@ -55,6 +59,41 @@ How to start (short story)
 * Install Azure plugin
 * Modify `elasticsearch.yml` file
 * Start Elasticsearch
+
+Azure credential API settings
+-----------------------------
+
+The following are a list of settings (prefixed with `cloud.azure.management`) that can further control the discovery:
+
+* `keystore.path`: /path/to/keystore
+* `keystore.type`: `pkcs12`, `jceks` or `jks`. Defaults to `pkcs12`.
+* `keystore.password`: your_password for the keystore
+* `subscription.id`: your_azure_subscription_id
+* `cloud.service.name`: your_azure_cloud_service_name
+
+Note that in previous versions, it was:
+
+```
+cloud:
+    azure:
+        keystore: /path/to/keystore
+        password: your_password_for_keystore
+        subscription_id: your_azure_subscription_id
+        service_name: your_azure_cloud_service_name
+```
+
+Advanced settings
+-----------------
+
+The following are a list of settings (prefixed with `discovery.azure`) that can further control the discovery:
+
+* `host.type`: either `public_ip` or `private_ip` (default). Azure discovery will use the one you set to ping
+other nodes. This feature was not documented before but was existing under `cloud.azure.host_type`.
+* `endpoint.name`: when using `public_ip` this setting is used to identify the endpoint name used to forward requests
+to elasticsearch (aka transport port name). Defaults to `elasticsearch`. In Azure management console, you could define
+an endpoint `elasticsearch` forwarding for example requests on public IP on port 8100 to the virtual machine on port 9300.
+This feature was not documented before but was existing under `cloud.azure.port_name`.
+
 
 How to start (long story)
 --------------------------

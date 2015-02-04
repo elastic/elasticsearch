@@ -279,11 +279,6 @@ public class InternalEngine implements Engine {
             final LiveIndexWriterConfig iwc = indexWriter.getConfig();
             iwc.setUseCompoundFile(engineConfig.isCompoundOnFlush());
             iwc.setCheckIntegrityAtMerge(engineConfig.isChecksumOnMerge());
-            final boolean concurrencyNeedsUpdate = iwc.getMaxThreadStates() != engineConfig.getIndexConcurrency();
-            final boolean codecNeedsUpdate = iwc.getCodec().equals(engineConfig.getCodec()) == false;
-            if (codecNeedsUpdate || concurrencyNeedsUpdate) {
-                flush(FlushType.NEW_WRITER, false, false);
-            }
         }
     }
 
@@ -761,7 +756,7 @@ public class InternalEngine implements Engine {
     @Override
     public void flush(FlushType type, boolean force, boolean waitIfOngoing) throws EngineException {
         ensureOpen();
-        if (type == FlushType.NEW_WRITER || type == FlushType.COMMIT_TRANSLOG) {
+        if (type == FlushType.COMMIT_TRANSLOG) {
             // check outside the lock as well so we can check without blocking on the write lock
             if (onGoingRecoveries.get() > 0) {
                 throw new FlushNotAllowedEngineException(shardId, "recovery is in progress, flush [" + type + "] is not allowed");
@@ -775,48 +770,7 @@ public class InternalEngine implements Engine {
 
         flushLock.lock();
         try {
-            if (type == FlushType.NEW_WRITER) {
-                try (InternalLock _ = writeLock.acquire()) {
-                    if (onGoingRecoveries.get() > 0) {
-                        throw new FlushNotAllowedEngineException(shardId, "Recovery is in progress, flush is not allowed");
-                    }
-                    // disable refreshing, not dirty
-                    dirty = false;
-                    try {
-                        { // commit and close the current writer - we write the current tanslog ID just in case
-                            final long translogId = translog.currentId();
-                            indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
-                            indexWriter.commit();
-                            indexWriter.rollback();
-                        }
-                        indexWriter = createWriter();
-                        // commit on a just opened writer will commit even if there are no changes done to it
-                        // we rely on that for the commit data translog id key
-                        if (flushNeeded || force) {
-                            flushNeeded = false;
-                            long translogId = translogIdGenerator.incrementAndGet();
-                            indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
-                            indexWriter.commit();
-                            translog.newTranslog(translogId);
-                        }
-
-                        SearcherManager current = this.searcherManager;
-                        this.searcherManager = buildSearchManager(indexWriter);
-                        versionMap.setManager(searcherManager);
-
-                        try {
-                            IOUtils.close(current);
-                        } catch (Throwable t) {
-                            logger.warn("Failed to close current SearcherManager", t);
-                        }
-
-                        maybePruneDeletedTombstones();
-
-                    } catch (Throwable t) {
-                        throw new FlushFailedEngineException(shardId, t);
-                    }
-                }
-            } else if (type == FlushType.COMMIT_TRANSLOG) {
+             if (type == FlushType.COMMIT_TRANSLOG) {
                 try (InternalLock _ = readLock.acquire()) {
                     final IndexWriter indexWriter = currentIndexWriter();
                     if (onGoingRecoveries.get() > 0) {

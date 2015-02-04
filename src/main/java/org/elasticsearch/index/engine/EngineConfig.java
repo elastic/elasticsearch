@@ -53,11 +53,11 @@ public final class EngineConfig {
     private volatile boolean failOnMergeFailure = true;
     private volatile boolean failEngineOnCorruption = true;
     private volatile ByteSizeValue indexingBufferSize;
-    private volatile int indexConcurrency = IndexWriterConfig.DEFAULT_MAX_THREAD_STATES;
+    private final int indexConcurrency;
     private volatile boolean compoundOnFlush = true;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private volatile boolean enableGcDeletes = true;
-    private volatile String codecName = DEFAULT_CODEC_NAME;
+    private final String codecName;
     private final boolean optimizeAutoGenerateId;
     private volatile boolean checksumOnMerge;
     private final ThreadPool threadPool;
@@ -78,7 +78,7 @@ public final class EngineConfig {
     /**
      * Index setting for index concurrency / number of threadstates in the indexwriter.
      * The default is depending on the number of CPUs in the system. We use a 0.65 the number of CPUs or at least {@value org.apache.lucene.index.IndexWriterConfig#DEFAULT_MAX_THREAD_STATES}
-     * This setting is realtime updateable
+     * This setting is <b>not</b> realtime updateable
      */
     public static final String INDEX_CONCURRENCY_SETTING = "index.index_concurrency";
 
@@ -119,7 +119,7 @@ public final class EngineConfig {
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
-     * This setting is realtime updateable.
+     * This setting is <b>not</b> realtime updateable.
      */
     public static final String INDEX_CODEC_SETTING = "index.codec";
 
@@ -174,15 +174,6 @@ public final class EngineConfig {
     public void setIndexingBufferSize(ByteSizeValue indexingBufferSize) {
         this.indexingBufferSize = indexingBufferSize;
     }
-
-    /**
-     * Sets the index concurrency
-     * @see #getIndexConcurrency()
-     */
-    public void setIndexConcurrency(int indexConcurrency) {
-        this.indexConcurrency = indexConcurrency;
-    }
-
 
     /**
      * Enables / disables gc deletes
@@ -254,9 +245,7 @@ public final class EngineConfig {
     /**
      * Returns the {@link Codec} used in the engines {@link org.apache.lucene.index.IndexWriter}
      * <p>
-     *     Note: this settings is only read on startup and if a new writer is created. This happens either due to a
-     *     settings change in the {@link org.elasticsearch.index.engine.EngineConfig.EngineSettingsListener} or if
-     *     {@link Engine#flush(org.elasticsearch.index.engine.Engine.FlushType, boolean, boolean)} with {@link org.elasticsearch.index.engine.Engine.FlushType#NEW_WRITER} is executed.
+     *     Note: this settings is only read on startup.
      * </p>
      */
     public Codec getCodec() {
@@ -423,20 +412,6 @@ public final class EngineConfig {
             if (failEngineOnCorruption != config.isFailEngineOnCorruption()) {
                 logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, config.isFailEngineOnCorruption(), failEngineOnCorruption);
                 config.failEngineOnCorruption = failEngineOnCorruption;
-                change = true;
-            }
-            int indexConcurrency = settings.getAsInt(EngineConfig.INDEX_CONCURRENCY_SETTING, config.getIndexConcurrency());
-            if (indexConcurrency != config.getIndexConcurrency()) {
-                logger.info("updating index.index_concurrency from [{}] to [{}]", config.getIndexConcurrency(), indexConcurrency);
-                config.setIndexConcurrency(indexConcurrency);
-                // we have to flush in this case, since it only applies on a new index writer
-                change = true;
-            }
-            final String codecName = settings.get(EngineConfig.INDEX_CODEC_SETTING, config.codecName);
-            if (!codecName.equals(config.codecName)) {
-                logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_CODEC_SETTING, config.codecName, codecName);
-                config.codecName = codecName;
-                // we want to flush in this case, so the new codec will be reflected right away...
                 change = true;
             }
             final boolean failOnMergeFailure = settings.getAsBoolean(EngineConfig.INDEX_FAIL_ON_MERGE_FAILURE_SETTING, config.isFailOnMergeFailure());

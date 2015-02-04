@@ -32,7 +32,6 @@ import java.io.IOException;
  */
 class ShardFlushRequest extends BroadcastShardOperationRequest {
 
-    private boolean full;
     private boolean force;
     private boolean waitIfOngoing;
 
@@ -41,13 +40,8 @@ class ShardFlushRequest extends BroadcastShardOperationRequest {
 
     ShardFlushRequest(ShardId shardId, FlushRequest request) {
         super(shardId, request);
-        this.full = request.full();
         this.force = request.force();
         this.waitIfOngoing = request.waitIfOngoing();
-    }
-
-    public boolean full() {
-        return this.full;
     }
 
     public boolean force() {
@@ -61,7 +55,7 @@ class ShardFlushRequest extends BroadcastShardOperationRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        full = in.readBoolean();
+        in.readBoolean();
         force = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             waitIfOngoing = in.readBoolean();
@@ -73,7 +67,7 @@ class ShardFlushRequest extends BroadcastShardOperationRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(full);
+        out.writeBoolean(false);
         out.writeBoolean(force);
         if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeBoolean(waitIfOngoing);

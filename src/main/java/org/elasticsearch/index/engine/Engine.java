@@ -198,10 +198,6 @@ public interface Engine extends Closeable {
 
     public static enum FlushType {
         /**
-         * A flush that causes a new writer to be created.
-         */
-        NEW_WRITER,
-        /**
          * A flush that just commits the writer, without cleaning the translog.
          */
         COMMIT,

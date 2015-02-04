@@ -610,7 +610,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             logger.trace("flush with {}", request);
         }
         long time = System.nanoTime();
-        engineSafe().flush(request.full() ? Engine.FlushType.NEW_WRITER : Engine.FlushType.COMMIT_TRANSLOG, request.force(), request.waitIfOngoing());
+        engineSafe().flush(Engine.FlushType.COMMIT_TRANSLOG, request.force(), request.waitIfOngoing());
         flushMetric.inc(System.nanoTime() - time);
     }
 

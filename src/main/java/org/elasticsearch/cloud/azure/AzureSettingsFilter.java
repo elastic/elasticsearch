@@ -31,9 +31,13 @@ public class AzureSettingsFilter implements SettingsFilter.Filter {
 
     @Override
     public void filter(ImmutableSettings.Builder settings) {
+        // Cloud global settings
+        settings.remove("cloud.azure." + AzureComputeService.Fields.REFRESH);
+
         // Cloud management API settings
         settings.remove("cloud.azure.management." + AzureComputeService.Fields.KEYSTORE_PATH);
         settings.remove("cloud.azure.management." + AzureComputeService.Fields.KEYSTORE_PASSWORD);
+        settings.remove("cloud.azure.management." + AzureComputeService.Fields.KEYSTORE_TYPE);
         settings.remove("cloud.azure.management." + AzureComputeService.Fields.SUBSCRIPTION_ID);
         settings.remove("cloud.azure.management." + AzureComputeService.Fields.SERVICE_NAME);
 

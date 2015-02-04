@@ -31,6 +31,8 @@ governing permissions and limitations under the License. -->
             <useTransitiveFiltering>true</useTransitiveFiltering>
             <includes>
                 <include>com.microsoft.azure:azure-storage</include>
+                <include>com.microsoft.azure:azure-management</include>
+                <include>com.microsoft.azure:azure-management-compute</include>
             </includes>
         </dependencySet>
     </dependencySets>

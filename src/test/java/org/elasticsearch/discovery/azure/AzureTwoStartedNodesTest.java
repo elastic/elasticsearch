@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery.azure;
 
 import org.elasticsearch.cloud.azure.management.AzureComputeServiceTwoNodesMock;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -36,13 +37,37 @@ public class AzureTwoStartedNodesTest extends AbstractAzureComputeServiceTest {
     }
 
     @Test
-    public void two_nodes_should_run() {
+    public void two_nodes_should_run_using_private_ip() {
+        ImmutableSettings.Builder settings = ImmutableSettings.settingsBuilder()
+                .put("cloud.azure.service_name", "dummy")
+                .put("cloud.azure.host_type", "private_ip")
+                .put(super.settingsBuilder());
+
         logger.info("--> start first node");
-        internalCluster().startNode(settingsBuilder());
+        internalCluster().startNode(settings);
         assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
 
         logger.info("--> start another node");
-        internalCluster().startNode(settingsBuilder());
+        internalCluster().startNode(settings);
+        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
+
+        // We expect having 2 nodes as part of the cluster, let's test that
+        checkNumberOfNodes(2);
+    }
+
+    @Test
+    public void two_nodes_should_run_using_public_ip() {
+        ImmutableSettings.Builder settings = ImmutableSettings.settingsBuilder()
+                .put("cloud.azure.service_name", "dummy")
+                .put("cloud.azure.host_type", "public_ip")
+                .put(super.settingsBuilder());
+
+        logger.info("--> start first node");
+        internalCluster().startNode(settings);
+        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
+
+        logger.info("--> start another node");
+        internalCluster().startNode(settings);
         assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
 
         // We expect having 2 nodes as part of the cluster, let's test that

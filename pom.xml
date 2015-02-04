@@ -74,6 +74,17 @@ governing permissions and limitations under the License. -->
         </dependency>
 
         <dependency>
+            <groupId>com.microsoft.azure</groupId>
+            <artifactId>azure-management-compute</artifactId>
+            <version>0.7.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.microsoft.azure</groupId>
+            <artifactId>azure-management</artifactId>
+            <version>0.7.0</version>
+        </dependency>
+
+        <dependency>
             <groupId>log4j</groupId>
             <artifactId>log4j</artifactId>
         </dependency>

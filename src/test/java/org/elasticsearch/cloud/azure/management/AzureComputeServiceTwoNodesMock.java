@@ -19,32 +19,69 @@
 
 package org.elasticsearch.cloud.azure.management;
 
-import org.elasticsearch.cloud.azure.Instance;
+import com.microsoft.windowsazure.management.compute.models.*;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.net.InetAddress;
 
 /**
  * Mock Azure API with two started nodes
  */
 public class AzureComputeServiceTwoNodesMock extends AzureComputeServiceAbstractMock {
 
+    NetworkService networkService;
+
     @Inject
-    protected AzureComputeServiceTwoNodesMock(Settings settings) {
+    protected AzureComputeServiceTwoNodesMock(Settings settings, NetworkService networkService) {
         super(settings);
+        this.networkService = networkService;
     }
 
     @Override
-    public Set<Instance> instances() {
-        Set<Instance> instances = new HashSet<>();
-        Instance azureHost = new Instance();
-        azureHost.setPrivateIp("127.0.0.1");
-        instances.add(azureHost);
-        azureHost = new Instance();
-        azureHost.setPrivateIp("127.0.0.1");
-        instances.add(azureHost);
-        return instances;
+    public HostedServiceGetDetailedResponse getServiceDetails() {
+        HostedServiceGetDetailedResponse response = new HostedServiceGetDetailedResponse();
+        HostedServiceGetDetailedResponse.Deployment deployment = new HostedServiceGetDetailedResponse.Deployment();
+
+        // Fake the deployment
+        deployment.setName("dummy");
+        deployment.setDeploymentSlot(DeploymentSlot.Production);
+        deployment.setStatus(DeploymentStatus.Running);
+
+        // Fake a first instance
+        RoleInstance instance1 = new RoleInstance();
+        instance1.setInstanceName("dummy1");
+
+        // Fake the private IP
+        instance1.setIPAddress(InetAddress.getLoopbackAddress());
+
+        // Fake the public IP
+        InstanceEndpoint endpoint1 = new InstanceEndpoint();
+        endpoint1.setName("elasticsearch");
+        endpoint1.setVirtualIPAddress(InetAddress.getLoopbackAddress());
+        endpoint1.setPort(9400);
+        instance1.setInstanceEndpoints(Lists.newArrayList(endpoint1));
+
+        // Fake a first instance
+        RoleInstance instance2 = new RoleInstance();
+        instance2.setInstanceName("dummy1");
+
+        // Fake the private IP
+        instance2.setIPAddress(InetAddress.getLoopbackAddress());
+
+        // Fake the public IP
+        InstanceEndpoint endpoint2 = new InstanceEndpoint();
+        endpoint2.setName("elasticsearch");
+        endpoint2.setVirtualIPAddress(InetAddress.getLoopbackAddress());
+        endpoint2.setPort(9401);
+        instance2.setInstanceEndpoints(Lists.newArrayList(endpoint2));
+
+        deployment.setRoleInstances(Lists.newArrayList(instance1, instance2));
+
+        response.setDeployments(Lists.newArrayList(deployment));
+
+        return response;
     }
 }

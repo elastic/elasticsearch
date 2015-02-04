@@ -323,12 +323,15 @@ And add the following lines:
 # If you don't remember your account id, you may get it with `azure account list`
 cloud:
     azure:
-        keystore: /home/elasticsearch/azurekeystore.pkcs12
-        password: your_password_for_keystore
-        subscription_id: your_azure_subscription_id
-        service_name: your_azure_cloud_service_name
+        management:
+             subscription.id: your_azure_subscription_id
+             cloud.service.name: your_azure_cloud_service_name
+             keystore:
+                   path: /home/elasticsearch/azurekeystore.pkcs12
+                   password: your_password_for_keystore
+
 discovery:
-        type: azure
+    type: azure
 
 # Recommended (warning: non durable disk)
 # path.data: /mnt/resource/elasticsearch/data

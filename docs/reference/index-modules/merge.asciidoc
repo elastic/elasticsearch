@@ -1,6 +1,8 @@
 [[index-modules-merge]]
 == Merge
 
+experimental[]
+
 A shard in elasticsearch is a Lucene index, and a Lucene index is broken
 down into segments. Segments are internal storage elements in the index
 where the index data is stored, and are immutable up to delete markers.

@@ -19,7 +19,7 @@ and  perform poorly.
 eg `30%` of node heap space, or an absolute value, eg `12GB`. Defaults
 to unbounded.
 
-|`indices.fielddata.cache.expire` |A time based setting that expires
+|`indices.fielddata.cache.expire` |experimental[] A time based setting that expires
 field data after a certain time of inactivity. Defaults to `-1`. For
 example, can be set to `5m` for a 5 minute expiry.
 |=======================================================================

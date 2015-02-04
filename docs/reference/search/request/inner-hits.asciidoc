@@ -2,6 +2,7 @@
 === Inner hits
 
 coming[1.5.0]
+experimental[]
 
 The <<mapping-parent-field, parent/child>> and <<mapping-nested-type, nested>> features allow the return of documents that
 have matches in a different scope. In the parent/child case, parent document are returned based on matches in child

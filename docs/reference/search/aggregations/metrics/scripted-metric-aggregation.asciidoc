@@ -1,14 +1,9 @@
 [[search-aggregations-metrics-scripted-metric-aggregation]]
 === Scripted Metric Aggregation
 
-A metric aggregation that executes using scripts to provide a metric output.
+experimental[]
 
-.Experimental!
-[IMPORTANT]
-=====
-This feature is marked as experimental, and may be subject to change in the
-future.  If you use this feature, please let us know your experience with it!
-=====
+A metric aggregation that executes using scripts to provide a metric output.
 
 Example:
 

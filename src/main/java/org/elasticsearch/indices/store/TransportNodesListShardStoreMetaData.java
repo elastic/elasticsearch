@@ -49,7 +49,10 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.*;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -141,44 +144,56 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
     }
 
     private StoreFilesMetaData listStoreMetaData(ShardId shardId) throws IOException {
-        IndexService indexService = indicesService.indexService(shardId.index().name());
-        if (indexService != null) {
-            InternalIndexShard indexShard = (InternalIndexShard) indexService.shard(shardId.id());
-            if (indexShard != null) {
-                final Store store = indexShard.store();
-                store.incRef();
-                try {
-                    return new StoreFilesMetaData(true, shardId, store.getMetadataOrEmpty().asMap());
-                } finally {
-                    store.decRef();
+        logger.trace("listing store meta data for {}", shardId);
+        long startTime = System.currentTimeMillis();
+        boolean exists = false;
+        try {
+            IndexService indexService = indicesService.indexService(shardId.index().name());
+            if (indexService != null) {
+                InternalIndexShard indexShard = (InternalIndexShard) indexService.shard(shardId.id());
+                if (indexShard != null) {
+                    final Store store = indexShard.store();
+                    store.incRef();
+                    try {
+                        exists = true;
+                        return new StoreFilesMetaData(true, shardId, store.getMetadataOrEmpty().asMap());
+                    } finally {
+                        store.decRef();
+                    }
                 }
             }
-        }
-        // try and see if we an list unallocated
-        IndexMetaData metaData = clusterService.state().metaData().index(shardId.index().name());
-        if (metaData == null) {
-            return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
-        }
-        String storeType = metaData.settings().get("index.store.type", "fs");
-        if (!storeType.contains("fs")) {
-            return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
-        }
-        File[] shardLocations = nodeEnv.shardLocations(shardId);
-        File[] shardIndexLocations = new File[shardLocations.length];
-        for (int i = 0; i < shardLocations.length; i++) {
-            shardIndexLocations[i] = new File(shardLocations[i], "index");
-        }
-        boolean exists = false;
-        for (File shardIndexLocation : shardIndexLocations) {
-            if (shardIndexLocation.exists()) {
-                exists = true;
-                break;
+            // try and see if we an list unallocated
+            IndexMetaData metaData = clusterService.state().metaData().index(shardId.index().name());
+            if (metaData == null) {
+                return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
+            }
+            String storeType = metaData.settings().get("index.store.type", "fs");
+            if (!storeType.contains("fs")) {
+                return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
+            }
+            File[] shardLocations = nodeEnv.shardLocations(shardId);
+            File[] shardIndexLocations = new File[shardLocations.length];
+            for (int i = 0; i < shardLocations.length; i++) {
+                shardIndexLocations[i] = new File(shardLocations[i], "index");
+            }
+            for (File shardIndexLocation : shardIndexLocations) {
+                if (shardIndexLocation.exists()) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists) {
+                return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
+            }
+            return new StoreFilesMetaData(false, shardId, Store.readMetadataSnapshot(shardIndexLocations, logger).asMap());
+        } finally {
+            TimeValue took = new TimeValue(System.currentTimeMillis() - startTime);
+            if (exists) {
+                logger.debug("loaded store meta data for {} (took [{}])", shardId, took);
+            } else {
+                logger.trace("loaded store meta data for {} (took [{}])", shardId, took);
             }
         }
-        if (!exists) {
-            return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
-        }
-        return new StoreFilesMetaData(false, shardId, Store.readMetadataSnapshot(shardIndexLocations, logger).asMap());
     }
 
     @Override

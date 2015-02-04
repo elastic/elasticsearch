@@ -56,10 +56,10 @@ settings API:
     The async refresh interval of a shard.
 
 `index.index_concurrency`::
-    Defaults to `8`.
+    experimental[] Defaults to `8`.
 
 `index.fail_on_merge_failure`::
-    Default to `true`.
+    experimental[] Default to `true`.
 
 `index.translog.flush_threshold_ops`::
     When to flush based on operations.
@@ -79,19 +79,19 @@ settings API:
     Set to `-1` to disable.
 
 `index.cache.filter.expire`::
-    The expire after access time for filter cache.
+    experimental[] The expire after access time for filter cache.
     Set to `-1` to disable.
 
 `index.gateway.snapshot_interval`::
-    The gateway snapshot interval (only applies to shared gateways).
-    Defaults to 10s.
+    experimental[] The gateway snapshot interval (only applies to shared
+    gateways). Defaults to 10s.
 
 <<index-modules-merge,merge policy>>::
     All the settings for the merge policy currently configured.
     A different merge policy can't be set.
 
 `index.merge.scheduler.*`::
-    All the settings for the merge scheduler.
+    experimental[] All the settings for the merge scheduler.
 
 `index.routing.allocation.include.*`::
     A node matching any rule will be allowed to host shards from the index.
@@ -137,22 +137,23 @@ settings API:
     * Number values are also supported, e.g. `1`.
 
 `index.gc_deletes`::
+    experimental[]
 
 `index.ttl.disable_purge`::
-    Disables temporarily the purge of expired docs.
+    experimental[] Disables temporarily the purge of expired docs.
 
 <<index-modules-store,store level throttling>>::
     All the settings for the store level throttling policy currently configured.
 
 `index.translog.fs.type`::
-    Either `simple` or `buffered` (default).
+    experimental[] Either `simple` or `buffered` (default).
 
 `index.compound_format`::
-    See <<index-compound-format,`index.compound_format`>> in
+    experimental[] See <<index-compound-format,`index.compound_format`>> in
     <<index-modules-settings>>.
 
 `index.compound_on_flush`::
-    See <<index-compound-on-flush,`index.compound_on_flush>> in
+    experimental[] See <<index-compound-on-flush,`index.compound_on_flush>> in
     <<index-modules-settings>>.
 
 <<index-modules-slowlog>>::

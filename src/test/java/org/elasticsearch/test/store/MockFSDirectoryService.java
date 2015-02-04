@@ -86,7 +86,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
                             // When the the internal engine closes we do a rollback, which removes uncommitted segments
                             // By doing a commit flush we perform a Lucene commit, but don't clear the translog,
                             // so that even in tests where don't flush we can check the integrity of the Lucene index
-                            indexShard.engine().flush(Engine.FlushType.COMMIT, false, true); // Keep translog for tests that rely on replaying it
+                            indexShard.engine().snapshotIndex(); // Keep translog for tests that rely on replaying it
                             logger.info("flush finished in beforeIndexShardClosed");
                         }
                     }

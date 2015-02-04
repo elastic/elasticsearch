@@ -31,11 +31,11 @@ public class InternalEngineSettingsTest extends ElasticsearchSingleNodeTest {
         final IndexService service = createIndex("foo");
         // INDEX_COMPOUND_ON_FLUSH
         InternalEngine engine = ((InternalEngine)engine(service));
-        assertThat(engine.currentIndexWriterConfig().getUseCompoundFile(), is(true));
+        assertThat(engine.getCurrentIndexWriterConfig().getUseCompoundFile(), is(true));
         client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, false).build()).get();
-        assertThat(engine.currentIndexWriterConfig().getUseCompoundFile(), is(false));
+        assertThat(engine.getCurrentIndexWriterConfig().getUseCompoundFile(), is(false));
         client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, true).build()).get();
-        assertThat(engine.currentIndexWriterConfig().getUseCompoundFile(), is(true));
+        assertThat(engine.getCurrentIndexWriterConfig().getUseCompoundFile(), is(true));
     }
 
 

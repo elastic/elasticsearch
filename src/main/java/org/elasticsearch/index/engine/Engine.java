@@ -92,9 +92,20 @@ public interface Engine extends Closeable {
     void refresh(String source) throws EngineException;
 
     /**
-     * Flushes the state of the engine, clearing memory.
+     * Flushes the state of the engine including the transaction log, clearing memory.
+     * @param force if <code>true</code> a lucene commit is executed even if no changes need to be committed.
+     * @param waitIfOngoing if <code>true</code> this call will block until all currently running flushes have finished.
+     *                      Otherwise this call will return without blocking.
      */
-    void flush(FlushType type, boolean force, boolean waitIfOngoing) throws EngineException;
+    void flush(boolean force, boolean waitIfOngoing) throws EngineException;
+
+    /**
+     * Flushes the state of the engine including the transaction log, clearing memory and persisting
+     * documents in the lucene index to disk including a potentially heavy and durable fsync operation.
+     * This operation is not going to block if another flush operation is currently running and won't write
+     * a lucene commit if nothing needs to be committed.
+     */
+    void flush() throws EngineException;
 
     /**
      * Optimizes to 1 segment
@@ -185,17 +196,6 @@ public interface Engine extends Closeable {
         public void close() throws ElasticsearchException {
             // nothing to release here...
         }
-    }
-
-    public static enum FlushType {
-        /**
-         * A flush that just commits the writer, without cleaning the translog.
-         */
-        COMMIT,
-        /**
-         * A flush that does a commit, as well as clears the translog.
-         */
-        COMMIT_TRANSLOG
     }
 
     static interface Operation {

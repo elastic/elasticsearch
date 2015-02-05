@@ -491,12 +491,22 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
 
             logger.info("--> waiting for node1 to process replica existence");
             allReplicasAssigned.await();
-            logger.info("--> waiting for the cluster to reach green");
-            ensureGreen();
+            logger.info("--> waiting for recovery to fail");
+            assertBusy(new Runnable() {
+                @Override
+                public void run() {
+                    ClusterHealthResponse response = client().admin().cluster().prepareHealth().get();
+                    assertThat(response.getUnassignedShards(), equalTo(1));
+                }
+            });
         } finally {
             logger.info("--> releasing cluster state update thread");
             releaseClusterState.countDown();
         }
+        logger.info("--> waiting for recovery to succeed");
+        // force a move.
+        client().admin().cluster().prepareReroute().get();
+        ensureGreen();
     }
 
 }

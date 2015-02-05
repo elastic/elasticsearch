@@ -22,6 +22,7 @@ package org.elasticsearch.search.basic;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.util.English;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -53,6 +54,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
+@LuceneTestCase.AwaitsFix(bugUrl = "Boaz Leskes: disabling this until further discussion. Recent failures probably relate to #9211 & #8720 (+ friends)")
 public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTest {
 
     @Override

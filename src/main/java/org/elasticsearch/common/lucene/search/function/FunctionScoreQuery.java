@@ -120,11 +120,11 @@ public class FunctionScoreQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs, boolean needsScores) throws IOException {
             // we ignore scoreDocsInOrder parameter, because we need to score in
             // order if documents are scored with a script. The
             // ShardLookup depends on in order scoring.
-            Scorer subQueryScorer = subQueryWeight.scorer(context, acceptDocs);
+            Scorer subQueryScorer = subQueryWeight.scorer(context, acceptDocs, needsScores);
             if (subQueryScorer == null) {
                 return null;
             }

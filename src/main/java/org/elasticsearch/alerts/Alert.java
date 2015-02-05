@@ -12,7 +12,7 @@ import org.elasticsearch.alerts.payload.PayloadRegistry;
 import org.elasticsearch.alerts.scheduler.schedule.Schedule;
 import org.elasticsearch.alerts.scheduler.schedule.ScheduleRegistry;
 import org.elasticsearch.alerts.throttle.AckThrottler;
-import org.elasticsearch.alerts.throttle.CompoundThrottler;
+import org.elasticsearch.alerts.throttle.AlertThrottler;
 import org.elasticsearch.alerts.throttle.PeriodThrottler;
 import org.elasticsearch.alerts.throttle.Throttler;
 import org.elasticsearch.alerts.trigger.Trigger;
@@ -65,14 +65,9 @@ public class Alert implements ToXContent {
         this.metadata = metadata;
         this.payload = payload != null ? payload : Payload.NOOP;
 
-        CompoundThrottler.Builder builder = CompoundThrottler.builder();
-        if (ackable) {
-            builder.add(new AckThrottler());
-        }
-        if (throttlePeriod != null) {
-            builder.add(new PeriodThrottler(throttlePeriod));
-        }
-        throttler = builder.build();
+        PeriodThrottler periodThrottler = throttlePeriod != null ? new PeriodThrottler(throttlePeriod) : null;
+        AckThrottler ackThrottler = ackable ? new AckThrottler() : null;
+        throttler = new AlertThrottler(periodThrottler, ackThrottler);
     }
 
     public String name() {

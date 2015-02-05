@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine.internal;
+package org.elasticsearch.index.engine;
 
 import java.io.IOException;
 import java.util.Map;

@@ -164,7 +164,7 @@ public class ChildrenQueryTests extends AbstractChildTests {
 
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher searcher = new IndexSearcher(indexReader);
-        Engine.Searcher engineSearcher = new Engine.SimpleSearcher(
+        Engine.Searcher engineSearcher = new Engine.Searcher(
                 ChildrenQueryTests.class.getSimpleName(), searcher
         );
         ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
@@ -193,7 +193,7 @@ public class ChildrenQueryTests extends AbstractChildTests {
                 indexReader.close();
                 indexReader = DirectoryReader.open(indexWriter.w, true);
                 searcher = new IndexSearcher(indexReader);
-                engineSearcher = new Engine.SimpleSearcher(
+                engineSearcher = new Engine.Searcher(
                         ChildrenConstantScoreQueryTests.class.getSimpleName(), searcher
                 );
                 ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
@@ -351,7 +351,7 @@ public class ChildrenQueryTests extends AbstractChildTests {
         IndexSearcher searcher = new IndexSearcher(reader);
 
         // setup to read the parent/child map
-        Engine.SimpleSearcher engineSearcher = new Engine.SimpleSearcher(ChildrenQueryTests.class.getSimpleName(), searcher);
+        Engine.Searcher engineSearcher = new Engine.Searcher(ChildrenQueryTests.class.getSimpleName(), searcher);
         ((TestSearchContext)context).setSearcher(new ContextIndexSearcher(context, engineSearcher));
 
         // child query that returns the score as the value of "childScore" for each child document, with the parent's score determined by the score type

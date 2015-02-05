@@ -17,15 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine.internal;
+package org.elasticsearch.index.engine;
 
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;

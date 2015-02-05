@@ -29,7 +29,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.engine.internal.InternalEngine;
+import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
@@ -132,7 +132,7 @@ public class MockInternalEngine extends InternalEngine {
         return reader;
     }
 
-    public final class AssertingSearcher implements Searcher {
+    public final class AssertingSearcher extends Searcher {
         private final Searcher wrappedSearcher;
         private final ShardId shardId;
         private final IndexSearcher indexSearcher;
@@ -141,6 +141,7 @@ public class MockInternalEngine extends InternalEngine {
         private final int initialRefCount;
 
         public AssertingSearcher(IndexSearcher indexSearcher, Searcher wrappedSearcher, ShardId shardId) {
+            super(wrappedSearcher.source(), indexSearcher);
             // we only use the given index searcher here instead of the IS of the wrapped searcher. the IS might be a wrapped searcher
             // with a wrapped reader.
             this.wrappedSearcher = wrappedSearcher;

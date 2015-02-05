@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine.internal;
+package org.elasticsearch.index.engine;
 
 import com.google.common.base.Predicate;
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
 import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.apache.log4j.spi.LoggingEvent;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
@@ -33,9 +33,9 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.store.IOContext;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -53,7 +53,6 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
 import org.elasticsearch.index.mapper.ParseContext.Document;
@@ -1331,10 +1330,10 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         MockAppender mockAppender = new MockAppender();
 
         // Works when running this test inside Intellij:
-        Logger iwIFDLogger = LogManager.exists("org.elasticsearch.index.engine.internal.lucene.iw.ifd");
+        Logger iwIFDLogger = LogManager.exists("org.elasticsearch.index.engine.lucene.iw.ifd");
         if (iwIFDLogger == null) {
             // Works when running this test from command line:
-            iwIFDLogger = LogManager.exists("index.engine.internal.lucene.iw.ifd");
+            iwIFDLogger = LogManager.exists("index.engine.lucene.iw.ifd");
             assertNotNull(iwIFDLogger);
         }
 

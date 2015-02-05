@@ -38,7 +38,9 @@ import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchSingleNodeLuceneTestCase;
 import org.junit.Test;
 
@@ -113,11 +115,13 @@ public class NestedAggregatorTest extends ElasticsearchSingleNodeLuceneTestCase 
 
         IndexService indexService = createIndex("test");
         indexService.mapperService().merge("test", new CompressedString(PutMappingRequest.buildFromSimplifiedDef("test", "nested_field", "type=nested").string()), true);
-        AggregationContext context = new AggregationContext(createSearchContext(indexService));
+        SearchContext searchContext = createSearchContext(indexService);
+        AggregationContext context = new AggregationContext(searchContext);
 
         AggregatorFactories.Builder builder = AggregatorFactories.builder();
         builder.add(new NestedAggregator.Factory("test", "nested_field", FilterCachingPolicy.ALWAYS_CACHE));
         AggregatorFactories factories = builder.build();
+        searchContext.aggregations(new SearchContextAggregations(factories));
         Aggregator[] aggs = factories.createTopLevelAggregators(context);
         AggregationPhase.AggregationsCollector collector = new AggregationPhase.AggregationsCollector(Arrays.asList(aggs), context);
         // A regular search always exclude nested docs, so we use NonNestedDocsFilter.INSTANCE here (otherwise MatchAllDocsQuery would be sufficient)

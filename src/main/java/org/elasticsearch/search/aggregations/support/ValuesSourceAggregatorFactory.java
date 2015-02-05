@@ -64,6 +64,15 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
         }
     }
 
+    @Override
+    public boolean needsScores() {
+        // TODO: we have no way to know whether scripts use the score so
+        // for now we assume that they do but in the future it would be
+        // nice to be able to know if they need scores so that the query
+        // would only provuce scores if required.
+        return config.script != null || super.needsScores();
+    }
+
     protected abstract Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException;
 
     protected abstract Aggregator doCreateInternal(VS valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException;

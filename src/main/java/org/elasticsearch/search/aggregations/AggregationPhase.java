@@ -94,7 +94,7 @@ public class AggregationPhase implements SearchPhase {
             }
             context.aggregations().aggregators(aggregators);
             if (!collectors.isEmpty()) {
-                context.searcher().addMainQueryCollector(new AggregationsCollector(collectors, aggregationContext));
+                context.searcher().queryCollectors().put(AggregationPhase.class, new AggregationsCollector(collectors, aggregationContext));
             }
             aggregationContext.setNextReader(context.searcher().getIndexReader().getContext());
         }
@@ -148,6 +148,7 @@ public class AggregationPhase implements SearchPhase {
 
         // disable aggregations so that they don't run on next pages in case of scrolling
         context.aggregations(null);
+        context.searcher().queryCollectors().remove(AggregationPhase.class);
     }
 
 
@@ -168,11 +169,7 @@ public class AggregationPhase implements SearchPhase {
 
         @Override
         public boolean needsScores() {
-            // TODO: we currently have no way to know if aggregations need scores
-            // since almost any aggregation can use the _score special variable
-            // in scripts which will poll the current scorer and compute the
-            // score.
-            return true;
+            return aggregationContext.needsScores();
         }
 
         @Override

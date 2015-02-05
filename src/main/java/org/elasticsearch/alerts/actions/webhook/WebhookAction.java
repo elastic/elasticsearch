@@ -11,7 +11,6 @@ import org.elasticsearch.alerts.actions.ActionException;
 import org.elasticsearch.alerts.support.StringTemplateUtils;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
@@ -22,9 +21,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.net.URLEncoder;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -35,6 +31,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
     public static final String TYPE = "webhook";
 
     private final StringTemplateUtils templateUtils;
+    private final HttpClient httpClient;
 
     private final StringTemplateUtils.Template urlTemplate;
     private final HttpMethod method;
@@ -46,10 +43,12 @@ public class WebhookAction extends Action<WebhookAction.Result> {
             "{ 'alertname' : '{{alert_name}}', 'request': {{request}}, 'response' : {{response}} }", null,
             "mustache", ScriptService.ScriptType.INLINE );
 
-    protected WebhookAction(ESLogger logger, StringTemplateUtils templateUtils, @Nullable StringTemplateUtils.Template bodyTemplate,
+    protected WebhookAction(ESLogger logger, StringTemplateUtils templateUtils, HttpClient httpClient,
+                            @Nullable StringTemplateUtils.Template bodyTemplate,
                             StringTemplateUtils.Template urlTemplate, HttpMethod method) {
         super(logger);
         this.templateUtils = templateUtils;
+        this.httpClient = httpClient;
         this.bodyTemplate = bodyTemplate;
         this.urlTemplate = urlTemplate;
         this.method = method;
@@ -65,17 +64,8 @@ public class WebhookAction extends Action<WebhookAction.Result> {
         String renderedUrl = applyTemplate(urlTemplate, alert, data);
 
         try {
-            URL urlToOpen = new URL(URLEncoder.encode(renderedUrl, Charsets.UTF_8.name()));
-
-            HttpURLConnection httpConnection = (HttpURLConnection) urlToOpen.openConnection();
-            httpConnection.setRequestMethod(method.getName());
-            httpConnection.setRequestProperty("Accept-Charset", Charsets.UTF_8.name());
-
-            httpConnection.setDoOutput(true);
             String body = applyTemplate(bodyTemplate != null ? bodyTemplate : DEFAULT_BODY_TEMPLATE, alert, data);
-            httpConnection.setRequestProperty("Content-Length", Integer.toString(body.length()));
-            httpConnection.getOutputStream().write(body.getBytes(Charsets.UTF_8.name()));
-            int status = httpConnection.getResponseCode();
+            int status = httpClient.execute(method, renderedUrl, body);
             if (status >= 400) {
                 logger.warn("got status [" + status + "] when connecting to [" + renderedUrl + "]");
             } else {
@@ -152,11 +142,13 @@ public class WebhookAction extends Action<WebhookAction.Result> {
         public static final ParseField BODY_TEMPLATE_FIELD = new ParseField("body_template");
 
         private final StringTemplateUtils templateUtils;
+        private final HttpClient httpClient;
 
         @Inject
-        public Parser(Settings settings, StringTemplateUtils templateUtils) {
+        public Parser(Settings settings, StringTemplateUtils templateUtils, HttpClient httpClient) {
             super(settings);
             this.templateUtils = templateUtils;
+            this.httpClient = httpClient;
         }
 
         @Override
@@ -199,7 +191,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
                 throw new ActionException("could not parse webhook action. [url_template] is required");
             }
 
-            return new WebhookAction(logger, templateUtils, bodyTemplate, urlTemplate, method);
+            return new WebhookAction(logger, templateUtils, httpClient, bodyTemplate, urlTemplate, method);
         }
     }
 }

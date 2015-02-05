@@ -7,6 +7,7 @@ package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.alerts.actions.email.EmailAction;
 import org.elasticsearch.alerts.actions.index.IndexAction;
+import org.elasticsearch.alerts.actions.webhook.HttpClient;
 import org.elasticsearch.alerts.actions.webhook.WebhookAction;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
@@ -44,6 +45,7 @@ public class ActionModule extends AbstractModule {
         }
 
         bind(ActionRegistry.class).asEagerSingleton();
+        bind(HttpClient.class).asEagerSingleton();
     }
 
 

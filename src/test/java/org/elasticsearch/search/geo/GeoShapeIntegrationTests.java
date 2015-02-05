@@ -21,7 +21,9 @@ package org.elasticsearch.search.geo;
 
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -376,6 +378,31 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(coordinates.get(1).get(0).doubleValue(), equalTo(45.0));
         assertThat(coordinates.get(1).get(1).doubleValue(), equalTo(-45.0));
         assertThat(locationMap.size(), equalTo(2));
+    }
+
+    @Test
+    public void testShapeFilter_randomGeometryCollection() throws Exception {
+        GeometryCollectionBuilder gcb;
+        // Create a random geometry collection.
+        gcb = RandomShapeGenerator.createGeometryCollection();
+
+        logger.info("Created Random GeometryCollection containing " + gcb.numShapes() + " shapes");
+
+        createIndex("randshapes");
+        assertAcked(prepareCreate("test").addMapping("type", "location", "type=geo_shape"));
+
+        XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("location"), null).endObject();
+        indexRandom(true, client().prepareIndex("test", "type", "1").setSource(docSource));
+
+        ensureSearchable("test");
+
+        ShapeBuilder filterShape = (gcb.getShapeAt(randomIntBetween(0, gcb.numShapes() - 1)));
+
+        GeoShapeFilterBuilder filter = FilterBuilders.geoShapeFilter("location", filterShape, ShapeRelation.INTERSECTS);
+        SearchResponse result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
+                .setPostFilter(filter).get();
+        assertSearchResponse(result);
+        assertHitCount(result, 1);
     }
 
     @Test

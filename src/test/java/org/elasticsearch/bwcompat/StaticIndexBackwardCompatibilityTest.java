@@ -57,6 +57,7 @@ public class StaticIndexBackwardCompatibilityTest extends ElasticsearchIntegrati
     public void unloadIndex() throws Exception {
         ElasticsearchAssertions.assertAcked(client().admin().indices().prepareDelete("test").get());
         while (internalCluster().stopRandomDataNode()) {} // stop all data nodes
+        ElasticsearchAssertions.assertAllFilesClosed();
     }
 
     void assertIndexSanity() {

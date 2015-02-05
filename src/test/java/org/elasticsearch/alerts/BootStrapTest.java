@@ -9,9 +9,9 @@ import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.alerts.actions.AlertAction;
-import org.elasticsearch.alerts.history.AlertRecord;
+import org.elasticsearch.alerts.history.FiredAlert;
 import org.elasticsearch.alerts.history.HistoryService;
-import org.elasticsearch.alerts.actions.AlertActionState;
+import org.elasticsearch.alerts.history.HistoryStore;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
 import org.elasticsearch.alerts.triggers.ScriptTrigger;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -76,14 +76,14 @@ public class BootStrapTest extends AbstractAlertingTests {
                 Alert.Status.NOT_ACKABLE);
 
         DateTime scheduledFireTime = new DateTime();
-        AlertRecord entry = new AlertRecord(alert, scheduledFireTime, scheduledFireTime, AlertActionState.SEARCH_NEEDED);
-        String actionHistoryIndex = HistoryService.getAlertHistoryIndexNameForTime(scheduledFireTime);
+        FiredAlert entry = new FiredAlert(alert, scheduledFireTime, scheduledFireTime, FiredAlert.State.AWAITS_RUN);
+        String actionHistoryIndex = HistoryStore.getAlertHistoryIndexNameForTime(scheduledFireTime);
 
         createIndex(actionHistoryIndex);
         ensureGreen(actionHistoryIndex);
         logger.info("Created index {}", actionHistoryIndex);
 
-        IndexResponse indexResponse = client().prepareIndex(actionHistoryIndex, HistoryService.ALERT_HISTORY_TYPE, entry.getId())
+        IndexResponse indexResponse = client().prepareIndex(actionHistoryIndex, HistoryService.ALERT_HISTORY_TYPE, entry.id())
                 .setConsistencyLevel(WriteConsistencyLevel.ALL)
                 .setSource(XContentFactory.jsonBuilder().value(entry))
                 .get();
@@ -109,7 +109,7 @@ public class BootStrapTest extends AbstractAlertingTests {
 
         for (int i = 0; i < numberOfAlertHistoryIndices; i++) {
             DateTime historyIndexDate = now.minus((new TimeValue(i, TimeUnit.DAYS)).getMillis());
-            String actionHistoryIndex = HistoryService.getAlertHistoryIndexNameForTime(historyIndexDate);
+            String actionHistoryIndex = HistoryStore.getAlertHistoryIndexNameForTime(historyIndexDate);
             createIndex(actionHistoryIndex);
             ensureGreen(actionHistoryIndex);
             logger.info("Created index {}", actionHistoryIndex);
@@ -123,10 +123,10 @@ public class BootStrapTest extends AbstractAlertingTests {
                         new DateTime(),
                         0,
                         new TimeValue(0),
-                        Alert.Status.NOT_ACKABLE);
+                        Alert.Status.State.NOT_ACKABLE);
 
-                AlertRecord entry = new AlertRecord(alert, historyIndexDate, historyIndexDate, AlertActionState.SEARCH_NEEDED);
-                IndexResponse indexResponse = client().prepareIndex(actionHistoryIndex, HistoryService.ALERT_HISTORY_TYPE, entry.getId())
+                FiredAlert entry = new FiredAlert(alert, historyIndexDate, historyIndexDate, FiredAlert.State.AWAITS_RUN);
+                IndexResponse indexResponse = client().prepareIndex(actionHistoryIndex, HistoryService.ALERT_HISTORY_TYPE, entry.id())
                         .setConsistencyLevel(WriteConsistencyLevel.ALL)
                         .setSource(XContentFactory.jsonBuilder().value(entry))
                         .get();

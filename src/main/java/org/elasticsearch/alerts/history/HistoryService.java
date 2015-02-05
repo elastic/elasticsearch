@@ -5,45 +5,19 @@
  */
 package org.elasticsearch.alerts.history;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.AlertsPlugin;
 import org.elasticsearch.alerts.AlertsService;
 import org.elasticsearch.alerts.AlertsStore;
-import org.elasticsearch.alerts.actions.ActionRegistry;
-import org.elasticsearch.alerts.actions.AlertActionState;
-import org.elasticsearch.alerts.support.AlertUtils;
-import org.elasticsearch.alerts.support.TemplateUtils;
-import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
-import org.elasticsearch.alerts.trigger.TriggerRegistry;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.joda.time.format.DateTimeFormat;
-import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -53,52 +27,22 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class HistoryService extends AbstractComponent {
 
-    public static final String ALERT_NAME_FIELD = "alert_name";
-    public static final String TRIGGERED_FIELD = "triggered";
-    public static final String FIRE_TIME_FIELD = "fire_time";
-    public static final String SCHEDULED_FIRE_TIME_FIELD = "scheduled_fire_time";
-    public static final String ERROR_MESSAGE = "error_msg";
-    public static final String TRIGGER_FIELD = "trigger";
-    public static final String TRIGGER_REQUEST = "trigger_request";
-    public static final String TRIGGER_RESPONSE = "trigger_response";
-    public static final String PAYLOAD_REQUEST = "payload_request";
-    public static final String PAYLOAD_RESPONSE = "payload_response";
-    public static final String ACTIONS_FIELD = "actions";
-    public static final String STATE = "state";
-    public static final String METADATA = "meta";
-
-    public static final String ALERT_HISTORY_INDEX_PREFIX = ".alert_history_";
-    public static final DateTimeFormatter alertHistoryIndexTimeFormat = DateTimeFormat.forPattern("YYYY-MM-dd");
-    public static final String ALERT_HISTORY_TYPE = "alerthistory";
-
-    private final ClientProxy client;
+    private final HistoryStore historyStore;
     private AlertsService alertsService;
     private final ThreadPool threadPool;
     private final AlertsStore alertsStore;
-    private final TriggerRegistry triggerRegistry;
-    private final TemplateUtils templateUtils;
-
-    private final int scrollSize;
-    private final TimeValue scrollTimeout;
 
     private final AtomicLong largestQueueSize = new AtomicLong(0);
     private final AtomicBoolean started = new AtomicBoolean(false);
-    private final BlockingQueue<AlertRecord> actionsToBeProcessed = new LinkedBlockingQueue<>();
+    private final BlockingQueue<FiredAlert> actionsToBeProcessed = new LinkedBlockingQueue<>();
     private volatile Thread queueReaderThread;
 
     @Inject
-    public HistoryService(Settings settings, ClientProxy client, ThreadPool threadPool, AlertsStore alertsStore,
-                          TriggerRegistry triggerRegistry, TemplateUtils templateUtils) {
+    public HistoryService(Settings settings, HistoryStore historyStore, ThreadPool threadPool, AlertsStore alertsStore) {
         super(settings);
-        this.client = client;
+        this.historyStore = historyStore;
         this.threadPool = threadPool;
         this.alertsStore = alertsStore;
-        this.triggerRegistry = triggerRegistry;
-        this.templateUtils = templateUtils;
-        // Not using component settings, to let AlertsStore and AlertActionManager share the same settings
-        this.scrollTimeout = settings.getAsTime("alerts.scroll.timeout", TimeValue.timeValueSeconds(30));
-        this.scrollSize = settings.getAsInt("alerts.scroll.size", 100);
-
     }
 
     public void setAlertsService(AlertsService alertsService){
@@ -110,36 +54,19 @@ public class HistoryService extends AbstractComponent {
             return true;
         }
 
-        String[] indices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), ALERT_HISTORY_INDEX_PREFIX + "*");
-        if (indices.length == 0) {
-            logger.info("No previous .alerthistory index, skip loading of alert actions");
-            templateUtils.ensureIndexTemplateIsLoaded(state, "alerthistory");
+        assert actionsToBeProcessed.isEmpty() : "Queue should be empty, but contains " + actionsToBeProcessed.size() + " elements.";
+        HistoryStore.LoadResult loadResult = historyStore.loadFiredAlerts(state);
+        if (loadResult.succeeded()) {
+            if (!loadResult.notRanFiredAlerts().isEmpty()) {
+                actionsToBeProcessed.addAll(loadResult.notRanFiredAlerts());
+                logger.debug("Loaded [{}] actions from the alert history index into actions queue", actionsToBeProcessed.size());
+                largestQueueSize.set(actionsToBeProcessed.size());
+            }
             doStart();
             return true;
-        }
-        int numPrimaryShards = 0;
-        for (String index : indices) {
-            IndexMetaData indexMetaData = state.getMetaData().index(index);
-            if (indexMetaData != null) {
-                if (!state.routingTable().index(index).allPrimaryShardsActive()) {
-                    logger.warn("Not all primary shards of the [{}] index are started. Schedule to retry alert action loading..", index);
-                    return false;
-                } else {
-                    numPrimaryShards += indexMetaData.numberOfShards();
-                }
-            }
-        }
-
-        try {
-            loadQueue(numPrimaryShards);
-        } catch (Exception e) {
-            logger.warn("Failed to load unfinished alert actions. Schedule to retry alert action loading...", e);
-            actionsToBeProcessed.clear();
+        } else {
             return false;
         }
-        templateUtils.ensureIndexTemplateIsLoaded(state, "alerthistory");
-        doStart();
-        return true;
     }
 
     public void stop() {
@@ -163,136 +90,14 @@ public class HistoryService extends AbstractComponent {
         return started.get();
     }
 
-    /**
-     * Calculates the correct alert history index name for a given time using alertHistoryIndexTimeFormat
-     */
-    public static String getAlertHistoryIndexNameForTime(DateTime time) {
-        return ALERT_HISTORY_INDEX_PREFIX + alertHistoryIndexTimeFormat.print(time);
-    }
-
-    private void loadQueue(int numPrimaryShards) {
-        assert actionsToBeProcessed.isEmpty() : "Queue should be empty, but contains " + actionsToBeProcessed.size() + " elements.";
-        RefreshResponse refreshResponse = client.admin().indices().refresh(new RefreshRequest(ALERT_HISTORY_INDEX_PREFIX + "*")).actionGet();
-        if (refreshResponse.getSuccessfulShards() < numPrimaryShards) {
-            throw new ElasticsearchException("Not all shards have been refreshed");
-        }
-
-        SearchResponse response = client.prepareSearch(ALERT_HISTORY_INDEX_PREFIX + "*")
-                .setQuery(QueryBuilders.termQuery(STATE, AlertActionState.SEARCH_NEEDED.toString()))
-                .setSearchType(SearchType.SCAN)
-                .setScroll(scrollTimeout)
-                .setSize(scrollSize)
-                .setTypes(ALERT_HISTORY_TYPE)
-                .setPreference("_primary")
-                .get();
-        try {
-            if (response.getTotalShards() != response.getSuccessfulShards()) {
-                throw new ElasticsearchException("Partial response while loading alert actions");
-            }
-
-            if (response.getHits().getTotalHits() > 0) {
-                response = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollTimeout).get();
-                while (response.getHits().hits().length != 0) {
-                    for (SearchHit sh : response.getHits()) {
-                        String historyId = sh.getId();
-                        AlertRecord historyEntry = parseHistory(historyId, sh.getSourceRef(), sh.version(), actionRegistry);
-                        assert historyEntry.getState() == AlertActionState.SEARCH_NEEDED;
-                        logger.debug("Adding entry: [{}/{}/{}]", sh.index(), sh.type(), sh.id());
-                        actionsToBeProcessed.add(historyEntry);
-                    }
-                    response = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollTimeout).get();
-                }
-            }
-        } finally {
-            client.prepareClearScroll().addScrollId(response.getScrollId()).get();
-        }
-        logger.info("Loaded [{}] actions from the alert history index into actions queue", actionsToBeProcessed.size());
-        largestQueueSize.set(actionsToBeProcessed.size());
-    }
-
-    AlertRecord parseHistory(String historyId, BytesReference source, long version, ActionRegistry actionRegistry) {
-        AlertRecord entry = new AlertRecord();
-        entry.setId(historyId);
-        entry.setVersion(version);
-
-        try (XContentParser parser = XContentHelper.createParser(source)) {
-            entry.setContentType(parser.contentType());
-
-            String currentFieldName = null;
-            XContentParser.Token token = parser.nextToken();
-            assert token == XContentParser.Token.START_OBJECT;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    switch (currentFieldName) {
-                        case ACTIONS_FIELD:
-                            entry.setActions(actionRegistry.parseActions(parser));
-                            break;
-                        case TRIGGER_FIELD:
-                            entry.setTrigger(triggerRegistry.parse(parser));
-                            break;
-                        case TRIGGER_RESPONSE:
-                            entry.setTriggerResponse(parser.map());
-                            break;
-                        case PAYLOAD_REQUEST:
-                            entry.setPayloadRequest(AlertUtils.readSearchRequest(parser));
-                            break;
-                        case PAYLOAD_RESPONSE:
-                            entry.setPayloadResponse(parser.map());
-                            break;
-                        case METADATA:
-                            entry.setMetadata(parser.map());
-                        default:
-                            throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
-                    }
-                } else if (token.isValue()) {
-                    switch (currentFieldName) {
-                        case ALERT_NAME_FIELD:
-                            entry.setName(parser.text());
-                            break;
-                        case TRIGGERED_FIELD:
-                            entry.setTriggered(parser.booleanValue());
-                            break;
-                        case FIRE_TIME_FIELD:
-                            entry.setFireTime(DateTime.parse(parser.text()));
-                            break;
-                        case SCHEDULED_FIRE_TIME_FIELD:
-                            entry.setScheduledTime(DateTime.parse(parser.text()));
-                            break;
-                        case ERROR_MESSAGE:
-                            entry.setErrorMsg(parser.textOrNull());
-                            break;
-                        case STATE:
-                            entry.setState(AlertActionState.fromString(parser.text()));
-                            break;
-                        default:
-                            throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
-                    }
-                } else {
-                    throw new ElasticsearchIllegalArgumentException("Unexpected token [" + token + "] for [" + currentFieldName + "]");
-                }
-            }
-        } catch (IOException e) {
-            throw new ElasticsearchException("Error during parsing alert action", e);
-        }
-        return entry;
-    }
-
-    public void addAlertAction(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
+    public void alertFired(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws HistoryException {
         ensureStarted();
-        logger.debug("Adding alert action for alert [{}]", alert.getName());
-        String alertHistoryIndex = getAlertHistoryIndexNameForTime(scheduledFireTime);
-        AlertRecord entry = new AlertRecord(alert, scheduledFireTime, fireTime, AlertActionState.SEARCH_NEEDED);
-        IndexResponse response = client.prepareIndex(alertHistoryIndex, ALERT_HISTORY_TYPE, entry.getId())
-                .setSource(XContentFactory.contentBuilder(alert.getContentType()).value(entry))
-                .setOpType(IndexRequest.OpType.CREATE)
-                .get();
-        entry.setVersion(response.getVersion());
-        logger.debug("Added alert action for alert [{}]", alert.getName());
+        FiredAlert firedAlert = new FiredAlert(alert, scheduledFireTime, fireTime, FiredAlert.State.AWAITS_RUN);
+        logger.debug("adding fired alert [{}]", alert.name());
+        historyStore.put(firedAlert);
 
         long currentSize = actionsToBeProcessed.size() + 1;
-        actionsToBeProcessed.add(entry);
+        actionsToBeProcessed.add(firedAlert);
         long currentLargestQueueSize = largestQueueSize.get();
         boolean done = false;
         while (!done) {
@@ -303,23 +108,6 @@ public class HistoryService extends AbstractComponent {
             }
             currentLargestQueueSize = largestQueueSize.get();
         }
-    }
-
-
-    private void updateHistoryEntry(AlertRecord entry) throws IOException {
-        ensureStarted();
-        logger.debug("Updating alert action [{}]", entry.getId());
-        IndexResponse response = client.prepareIndex(getAlertHistoryIndexNameForTime(entry.getScheduledTime()), ALERT_HISTORY_TYPE, entry.getId())
-                .setSource(XContentFactory.contentBuilder(entry.getContentType()).value(entry))
-                .get();
-        logger.debug("Updated alert action [{}]", entry.getId());
-        entry.setVersion(response.getVersion());
-    }
-
-
-    private void updateHistoryEntry(AlertRecord entry, AlertActionState actionPerformed) throws IOException {
-        entry.setState(actionPerformed);
-        updateHistoryEntry(entry);
     }
 
     public long getQueueSize() {
@@ -350,37 +138,40 @@ public class HistoryService extends AbstractComponent {
 
     private class AlertHistoryRunnable implements Runnable {
 
-        private final AlertRecord entry;
+        private final FiredAlert alert;
 
-        private AlertHistoryRunnable(AlertRecord entry) {
-            this.entry = entry;
+        private AlertHistoryRunnable(FiredAlert alert) {
+            this.alert = alert;
         }
 
         @Override
         public void run() {
             try {
-                Alert alert = alertsStore.getAlert(entry.getName());
+                Alert alert = alertsStore.getAlert(this.alert.name());
                 if (alert == null) {
-                    entry.setErrorMsg("Alert was not found in the alerts store");
-                    updateHistoryEntry(entry, AlertActionState.ERROR);
+                    this.alert.errorMsg("alert was not found in the alerts store");
+                    this.alert.state(FiredAlert.State.FAILED);
+                    historyStore.update(this.alert);
                     return;
                 }
-                updateHistoryEntry(entry, AlertActionState.SEARCH_UNDERWAY);
-                logger.debug("Running an alert action entry for [{}]", entry.getName());
-                AlertsService.AlertRun alertRun = alertsService.runAlert(entry);
-                entry.execution(alert, alertRun);
-                updateHistoryEntry(entry);
+                this.alert.state(FiredAlert.State.RUNNING);
+                historyStore.update(this.alert);
+                logger.debug("running an alert [{}]", this.alert.name());
+                AlertsService.AlertRun alertRun = alertsService.runAlert(this.alert);
+                this.alert.update(alert, alertRun);
+                historyStore.update(this.alert);
             } catch (Exception e) {
                 if (started()) {
-                    logger.warn("Failed to execute alert action", e);
+                    logger.warn("failed to run alert [{}]", e, alert.name());
                     try {
-                        entry.setErrorMsg(e.getMessage());
-                        updateHistoryEntry(entry, AlertActionState.ERROR);
+                        alert.errorMsg(e.getMessage());
+                        alert.state(FiredAlert.State.FAILED);
+                        historyStore.update(alert);
                     } catch (Exception e2) {
-                        logger.error("Failed to update action history entry with the error message", e2);
+                        logger.error("failed to update fired alert [{}] with the error message", e2, alert);
                     }
                 } else {
-                    logger.debug("Failed to execute alert action after shutdown", e);
+                    logger.debug("failed to execute fired alert [{}] after shutdown", e, alert);
                 }
             }
         }
@@ -391,19 +182,19 @@ public class HistoryService extends AbstractComponent {
         @Override
         public void run() {
             try {
-                logger.debug("Starting thread to read from the job queue");
+                logger.debug("starting thread to read from the job queue");
                 while (started()) {
-                    AlertRecord entry = actionsToBeProcessed.take();
-                    if (entry != null) {
-                        threadPool.executor(AlertsPlugin.NAME).execute(new AlertHistoryRunnable(entry));
+                    FiredAlert alert = actionsToBeProcessed.take();
+                    if (alert != null) {
+                        threadPool.executor(AlertsPlugin.NAME).execute(new AlertHistoryRunnable(alert));
                     }
                 }
             } catch (Exception e) {
                 if (started()) {
-                    logger.error("Error during reader thread, restarting queue reader thread...", e);
+                    logger.error("error during reader thread, restarting queue reader thread...", e);
                     startQueueReaderThread();
                 } else {
-                    logger.error("Error during reader thread", e);
+                    logger.error("error during reader thread", e);
                 }
             }
         }

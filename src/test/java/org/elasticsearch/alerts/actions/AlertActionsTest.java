@@ -12,7 +12,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.alerts.*;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.history.HistoryService;
-import org.elasticsearch.alerts.history.AlertRecord;
+import org.elasticsearch.alerts.history.FiredAlert;
 import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
@@ -69,34 +69,34 @@ public class AlertActionsTest extends AbstractAlertingTests {
 
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.field(HistoryService.ALERT_NAME_FIELD, "testName");
-        builder.field(HistoryService.TRIGGERED_FIELD, true);
-        builder.field(HistoryService.FIRE_TIME_FIELD, AlertUtils.dateTimeFormatter.printer().print(fireTime));
-        builder.field(HistoryService.SCHEDULED_FIRE_TIME_FIELD, AlertUtils.dateTimeFormatter.printer().print(scheduledFireTime));
-        builder.field(HistoryService.TRIGGER_FIELD, triggerMap);
+        builder.field(FiredAlert.Parser.ALERT_NAME_FIELD.getPreferredName(), "testName");
+        builder.field(FiredAlert.Parser.TRIGGERED_FIELD, true);
+        builder.field(FiredAlert.Parser.FIRE_TIME_FIELD.getPreferredName(), AlertUtils.dateTimeFormatter.printer().print(fireTime));
+        builder.field(FiredAlert.Parser.SCHEDULED_FIRE_TIME_FIELD, AlertUtils.dateTimeFormatter.printer().print(scheduledFireTime));
+        builder.field(FiredAlert.Parser.TRIGGER_FIELD.getPreferredName(), triggerMap);
         SearchRequest searchRequest = new SearchRequest("test123");
-        builder.field(HistoryService.TRIGGER_REQUEST);
+        builder.field(FiredAlert.Parser.TRIGGER_REQUEST);
         AlertUtils.writeSearchRequest(searchRequest, builder, ToXContent.EMPTY_PARAMS);
         SearchResponse searchResponse = new SearchResponse(
                 new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[0], 10, 0), null, null, null, false, false),
                 null, 1, 1, 0, new ShardSearchFailure[0]
         );
-        builder.startObject(HistoryService.TRIGGER_RESPONSE);
+        builder.startObject(FiredAlert.Parser.TRIGGER_RESPONSE.getPreferredName());
         builder.value(searchResponse);
         builder.endObject();
-        builder.field(HistoryService.ACTIONS_FIELD, actionMap);
-        builder.field(HistoryService.STATE, AlertActionState.SEARCH_NEEDED.toString());
+        builder.field(FiredAlert.Parser.ACTIONS_FIELD.getPreferredName(), actionMap);
+        builder.field(FiredAlert.Parser.STATE_FIELD.getPreferredName(), FiredAlert.State.AWAITS_RUN.toString());
         builder.endObject();
         final ActionRegistry alertActionRegistry = internalTestCluster().getInstance(ActionRegistry.class, internalTestCluster().getMasterName());
         final HistoryService alertManager = internalTestCluster().getInstance(HistoryService.class, internalTestCluster().getMasterName());
 
-        AlertRecord actionEntry = alertManager.parseHistory("foobar", builder.bytes(), 0, alertActionRegistry);
-        assertEquals(actionEntry.getVersion(), 0);
-        assertEquals(actionEntry.getName(), "testName");
+        FiredAlert actionEntry = alertManager.parseHistory("foobar", builder.bytes(), 0, alertActionRegistry);
+        assertEquals(actionEntry.version(), 0);
+        assertEquals(actionEntry.name(), "testName");
         assertEquals(actionEntry.isTriggered(), true);
-        assertEquals(actionEntry.getScheduledTime(), scheduledFireTime);
-        assertEquals(actionEntry.getFireTime(), fireTime);
-        assertEquals(actionEntry.getState(), AlertActionState.SEARCH_NEEDED);
+        assertEquals(actionEntry.scheduledTime(), scheduledFireTime);
+        assertEquals(actionEntry.fireTime(), fireTime);
+        assertEquals(actionEntry.state(), FiredAlert.State.AWAITS_RUN);
         assertEquals(XContentMapValues.extractValue("hits.total", actionEntry.getTriggerResponse()), 10);
     }
 
@@ -134,7 +134,7 @@ public class AlertActionsTest extends AbstractAlertingTests {
             }
 
         };
-        AlertActionRegistry alertActionRegistry = internalTestCluster().getInstance(AlertActionRegistry.class, internalTestCluster().getMasterName());
+        ActionRegistry alertActionRegistry = internalTestCluster().getInstance(ActionRegistry.class, internalTestCluster().getMasterName());
         alertActionRegistry.registerAction("test", new AlertActionFactory() {
             @Override
             public AlertAction createAction(XContentParser parser) throws IOException {

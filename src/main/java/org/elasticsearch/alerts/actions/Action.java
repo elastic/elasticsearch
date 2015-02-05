@@ -55,7 +55,7 @@ public abstract class Action<R extends Action.Result> implements ToXContent {
 
 
 
-    protected static abstract class Result implements ToXContent {
+    public static abstract class Result implements ToXContent {
 
         private final boolean success;
 

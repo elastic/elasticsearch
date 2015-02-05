@@ -10,7 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.alerts.actions.Action;
-import org.elasticsearch.alerts.history.AlertRecord;
+import org.elasticsearch.alerts.history.FiredAlert;
 import org.elasticsearch.alerts.history.HistoryService;
 import org.elasticsearch.alerts.scheduler.Scheduler;
 import org.elasticsearch.alerts.throttle.Throttler;
@@ -127,7 +127,7 @@ public class AlertsService extends AbstractComponent {
      * This does the necessary actions, so we don't lose the fact that an alert got execute from the {@link org.elasticsearch.alerts.scheduler.Scheduler}
      * It writes the an entry in the alert history index with the proper status for this alert.
      *
-     * The rest of the actions happen in {@link #runAlert(org.elasticsearch.alerts.history.AlertRecord)}.
+     * The rest of the actions happen in {@link #runAlert(org.elasticsearch.alerts.history.FiredAlert)}.
      *
      * The reason the executing of the alert is split into two, is that we don't want to lose the fact that an alert has
      * fired. If we were
@@ -143,7 +143,7 @@ public class AlertsService extends AbstractComponent {
             }
 
             try {
-                historyService.addAlertAction(alert, scheduledFireTime, fireTime);
+                historyService.alertFired(alert, scheduledFireTime, fireTime);
             } catch (Exception e) {
                 logger.error("Failed to schedule alert action for [{}]", e, alert);
             }
@@ -159,42 +159,42 @@ public class AlertsService extends AbstractComponent {
      * 3) If the alert has been triggered, checks if the alert should be throttled
      * 4) If the alert hasn't been throttled runs the configured actions
      */
-    public AlertRun runAlert(AlertRecord entry) throws IOException {
+    public AlertRun runAlert(FiredAlert entry) throws IOException {
         ensureStarted();
-        alertLock.acquire(entry.getName());
+        alertLock.acquire(entry.name());
         try {
-            Alert alert = alertsStore.getAlert(entry.getName());
+            Alert alert = alertsStore.getAlert(entry.name());
             if (alert == null) {
                 throw new ElasticsearchException("Alert is not available");
             }
             Trigger trigger = alert.trigger();
-            Trigger.Result triggerResult = trigger.execute(alert, entry.getScheduledTime(), entry.getFireTime());
+            Trigger.Result triggerResult = trigger.execute(alert, entry.scheduledTime(), entry.fireTime());
             AlertRun alertRun = null;
             if (triggerResult.triggered()) {
-                alert.status().triggered(true, entry.getFireTime());
+                alert.status().triggered(true, entry.fireTime());
                 Throttler.Result throttleResult = alert.throttler().throttle(alert, triggerResult);
                 if (!throttleResult.throttle()) {
-                    Map<String, Object> data = alert.payload().execute(alert, triggerResult, entry.getScheduledTime(), entry.getFireTime());
-                    alertRun = new AlertRun(triggerResult, data);
+                    Map<String, Object> data = alert.payload().execute(alert, triggerResult, entry.scheduledTime(), entry.fireTime());
+                    alertRun = new AlertRun(triggerResult, throttleResult, data);
                     for (Action action : alert.actions()){
                         Action.Result actionResult = action.execute(alert, data);
                         //TODO : process action result, what to do if just one action fails or throws exception ?
                     }
-                    alert.status().executed(entry.getScheduledTime());
+                    alert.status().executed(entry.scheduledTime());
                 } else {
-                    alert.status().throttled(entry.getFireTime(), throttleResult.reason());
+                    alert.status().throttled(entry.fireTime(), throttleResult.reason());
                 }
             } else {
-                alert.status().triggered(false, entry.getFireTime());
+                alert.status().triggered(false, entry.fireTime());
             }
             if (alertRun == null) {
-                alertRun = new AlertRun(triggerResult, null);
+                alertRun = new AlertRun(triggerResult, null, null);
             }
-            alert.status().ran(entry.getFireTime());
+            alert.status().ran(entry.fireTime());
             alertsStore.updateAlert(alert);
             return alertRun;
         } finally {
-            alertLock.release(entry.getName());
+            alertLock.release(entry.name());
         }
     }
 
@@ -355,16 +355,22 @@ public class AlertsService extends AbstractComponent {
 
     public static class AlertRun {
 
-        private final Trigger.Result result;
+        private final Trigger.Result triggerResult;
+        private final Throttler.Result throttleResult;
         private final Map<String, Object> data;
 
-        public AlertRun(Trigger.Result result, Map<String, Object> data) {
-            this.result = result;
+        public AlertRun(Trigger.Result triggerResult, Throttler.Result throttleResult, Map<String, Object> data) {
+            this.triggerResult = triggerResult;
+            this.throttleResult = throttleResult;
             this.data = data;
         }
 
         public Trigger.Result triggerResult() {
-            return result;
+            return triggerResult;
+        }
+
+        public Throttler.Result throttleResult() {
+            return throttleResult;
         }
 
         public Map<String, Object> data() {

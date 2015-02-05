@@ -10,14 +10,13 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.alerts.history.FiredAlert;
 import org.elasticsearch.alerts.history.HistoryService;
-import org.elasticsearch.alerts.actions.AlertActionState;
 import org.elasticsearch.alerts.actions.IndexAlertAction;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.transport.actions.ack.AckAlertResponse;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
-import org.elasticsearch.alerts.triggers.ScriptTrigger;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -51,7 +50,7 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         refresh();
 
         Alert alert = new Alert();
-        alert.setStatus(Alert.Status.NOT_TRIGGERED);
+        alert.setStatus(Alert.Status.State.NOT_TRIGGERED);
 
         alert.setTriggerSearchRequest(createTriggerSearchRequest("test-index").source(searchSource().query(matchAllQuery())));
         alert.setTrigger(new ScriptTrigger("hits.total > 0", ScriptService.ScriptType.INLINE, "groovy"));
@@ -106,7 +105,7 @@ public class AlertThrottleTests extends AbstractAlertingTests {
 
         CountResponse countOfThrottledActions = client()
                 .prepareCount(HistoryService.ALERT_HISTORY_INDEX_PREFIX + "*")
-                .setQuery(QueryBuilders.matchQuery(HistoryService.STATE, AlertActionState.THROTTLED.toString()))
+                .setQuery(QueryBuilders.matchQuery(FiredAlert.Parser.STATE_FIELD.getPreferredName(), FiredAlert.State.THROTTLED.toString()))
                 .get();
         assertThat(countOfThrottledActions.getCount(), greaterThan(0L));
     }
@@ -178,7 +177,7 @@ public class AlertThrottleTests extends AbstractAlertingTests {
 
         CountResponse countOfThrottledActions = client()
                 .prepareCount(HistoryService.ALERT_HISTORY_INDEX_PREFIX + "*")
-                .setQuery(QueryBuilders.matchQuery(HistoryService.STATE, AlertActionState.THROTTLED.toString()))
+                .setQuery(QueryBuilders.matchQuery(FiredAlert.Parser.STATE_FIELD.getPreferredName(), FiredAlert.State.THROTTLED.toString()))
                 .get();
         assertThat(countOfThrottledActions.getCount(), greaterThan(0L));
     }

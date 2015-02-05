@@ -21,15 +21,14 @@ package org.elasticsearch.gateway;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -51,7 +50,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -120,7 +119,6 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
     private final ThreadPool threadPool;
 
     private final LocalAllocateDangledIndices allocateDangledIndices;
-    private final NodeIndexDeletedAction nodeIndexDeletedAction;
 
     @Nullable
     private volatile MetaData currentMetaData;
@@ -135,17 +133,17 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
     private final TimeValue deleteTimeout;
     private final Map<String, DanglingIndex> danglingIndices = ConcurrentCollections.newConcurrentMap();
     private final Object danglingMutex = new Object();
+    private final IndicesService indicesService;
 
     @Inject
     public GatewayMetaState(Settings settings, ThreadPool threadPool, NodeEnvironment nodeEnv,
                             TransportNodesListGatewayMetaState nodesListGatewayMetaState, LocalAllocateDangledIndices allocateDangledIndices,
-                            NodeIndexDeletedAction nodeIndexDeletedAction) throws Exception {
+                            IndicesService indicesService) throws Exception {
         super(settings);
         this.nodeEnv = nodeEnv;
         this.threadPool = threadPool;
         this.format = XContentType.fromRestContentType(settings.get("format", "smile"));
         this.allocateDangledIndices = allocateDangledIndices;
-        this.nodeIndexDeletedAction = nodeIndexDeletedAction;
         nodesListGatewayMetaState.init(this);
 
         if (this.format == XContentType.SMILE) {
@@ -186,6 +184,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                 throw e;
             }
         }
+        this.indicesService = indicesService;
     }
 
     public MetaData loadMetaState() throws Exception {
@@ -194,18 +193,19 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().blocks().disableStatePersistence()) {
+        final ClusterState state = event.state();
+        if (state.blocks().disableStatePersistence()) {
             // reset the current metadata, we need to start fresh...
             this.currentMetaData = null;
             return;
         }
 
-        MetaData newMetaData = event.state().metaData();
+        MetaData newMetaData = state.metaData();
         // we don't check if metaData changed, since we might be called several times and we need to check dangling...
 
         boolean success = true;
         // only applied to master node, writing the global and index level states
-        if (event.state().nodes().localNode().masterNode()) {
+        if (state.nodes().localNode().masterNode()) {
             // check if the global state changed?
             if (currentMetaData == null || !MetaData.isGlobalStateEquals(currentMetaData, newMetaData)) {
                 try {
@@ -248,41 +248,6 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             }
         }
 
-        // delete indices that were there before, but are deleted now
-        // we need to do it so they won't be detected as dangling
-        if (currentMetaData != null) {
-            // only delete indices when we already received a state (currentMetaData != null)
-            // and we had a go at processing dangling indices at least once
-            // this will also delete the _state of the index itself
-            for (IndexMetaData current : currentMetaData) {
-                if (danglingIndices.containsKey(current.index())) {
-                    continue;
-                }
-                if (!newMetaData.hasIndex(current.index())) {
-                    logger.debug("[{}] deleting index that is no longer part of the metadata (indices: [{}])", current.index(), newMetaData.indices().keys());
-                    if (nodeEnv.hasNodeFile()) {
-                        try {
-                            final Index idx = new Index(current.index());
-                            MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(idx));
-                            // it may take a couple of seconds for outstanding shard reference
-                            // to release their refs (for example, on going recoveries)
-                            // we are working on a better solution see: https://github.com/elasticsearch/elasticsearch/pull/8608
-                            nodeEnv.deleteIndexDirectorySafe(idx, deleteTimeout.millis(), current.settings());
-                        } catch (LockObtainFailedException ex) {
-                            logger.debug("[{}] failed to delete index - at least one shards is still locked", ex, current.index());
-                        } catch (Exception ex) {
-                            logger.warn("[{}] failed to delete index", ex, current.index());
-                        }
-                    }
-                    try {
-                        nodeIndexDeletedAction.nodeIndexStoreDeleted(event.state(), current.index(), event.state().nodes().localNodeId());
-                    } catch (Throwable e) {
-                        logger.debug("[{}] failed to notify master on local index store deletion", e, current.index());
-                    }
-                }
-            }
-        }
-
         // handle dangling indices, we handle those for all nodes that have a node file (data or master)
         if (nodeEnv.hasNodeFile()) {
             if (danglingTimeout.millis() >= 0) {
@@ -306,45 +271,20 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                                 continue;
                             }
                             final IndexMetaData indexMetaData = loadIndexState(indexName);
-                            final Index index = new Index(indexName);
                             if (indexMetaData != null) {
-                                try {
-                                    // the index deletion might not have worked due to shards still being locked
-                                    // we have three cases here:
-                                    //  - we acquired all shards locks here --> we can import the dangling index
-                                    //  - we failed to acquire the lock --> somebody else uses it - DON'T IMPORT
-                                    //  - we acquired successfully but the lock list is empty --> no shards present - DON'T IMPORT
-                                    // in the last case we should in-fact try to delete the directory since it might be a leftover...
-                                    final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, 0);
-                                    if (shardLocks.isEmpty()) {
-                                        // no shards - try to remove the directory
-                                        nodeEnv.deleteIndexDirectorySafe(index, 0, indexMetaData.settings());
-                                        continue;
-                                    }
-                                    IOUtils.closeWhileHandlingException(shardLocks);
-                                } catch (IOException ex) {
-                                    logger.warn("[{}] skipping locked dangling index, exists on local file system, but not in cluster metadata, auto import to cluster state is set to [{}]", ex, indexName, autoImportDangled);
-                                    continue;
-                                }
                                 if(autoImportDangled.shouldImport()){
                                     logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, auto import to cluster state [{}]", indexName, autoImportDangled);
                                     danglingIndices.put(indexName, new DanglingIndex(indexName, null));
                                 } else if (danglingTimeout.millis() == 0) {
                                     logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, timeout set to 0, deleting now", indexName);
-                                    try {
-                                        nodeEnv.deleteIndexDirectorySafe(index, 0, indexMetaData.settings());
-                                    } catch (LockObtainFailedException ex) {
-                                        logger.debug("[{}] failed to delete index - at least one shards is still locked", ex, indexName);
-                                    } catch (Exception ex) {
-                                        logger.warn("[{}] failed to delete dangling index", ex, indexName);
-                                    }
+                                    indicesService.deleteIndexStore("dangling index with timeout set to 0", indexMetaData);
                                 } else {
                                     logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, scheduling to delete in [{}], auto import to cluster state [{}]", indexName, danglingTimeout, autoImportDangled);
                                     danglingIndices.put(indexName,
                                             new DanglingIndex(indexName,
                                                     threadPool.schedule(danglingTimeout,
                                                             ThreadPool.Names.SAME,
-                                                            new RemoveDanglingIndex(index, indexMetaData.settings()))));
+                                                            new RemoveDanglingIndex(indexMetaData))));
                                 }
                             }
                         }
@@ -572,27 +512,23 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
     class RemoveDanglingIndex implements Runnable {
 
-        private final Index index;
-        private final Settings indexSettings;
+        private final IndexMetaData metaData;
 
-        RemoveDanglingIndex(Index index, @IndexSettings Settings indexSettings) {
-            this.index = index;
-            this.indexSettings = indexSettings;
+        RemoveDanglingIndex(IndexMetaData metaData) {
+            this.metaData = metaData;
         }
 
         @Override
         public void run() {
             synchronized (danglingMutex) {
-                DanglingIndex remove = danglingIndices.remove(index.name());
+                DanglingIndex remove = danglingIndices.remove(metaData.index());
                 // no longer there...
                 if (remove == null) {
                     return;
                 }
-                logger.warn("[{}] deleting dangling index", index);
-
+                logger.warn("[{}] deleting dangling index", metaData.index());
                 try {
-                    MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(index));
-                    nodeEnv.deleteIndexDirectorySafe(index, 0, indexSettings);
+                    indicesService.deleteIndexStore("deleting dangling index", metaData);
                 } catch (Exception ex) {
                     logger.debug("failed to delete dangling index", ex);
                 }

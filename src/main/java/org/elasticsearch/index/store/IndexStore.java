@@ -45,17 +45,6 @@ public interface IndexStore extends Closeable {
     Class<? extends DirectoryService> shardDirectory();
 
     /**
-     * Returns <tt>true</tt> if this shard is allocated on this node. Allocated means
-     * that it has storage files that can be deleted using {@code deleteUnallocated(ShardId, Settings)}.
-     */
-    boolean canDeleteUnallocated(ShardId shardId, @IndexSettings Settings indexSettings);
-
-    /**
-     * Deletes this shard store since its no longer allocated.
-     */
-    void deleteUnallocated(ShardId shardId, @IndexSettings Settings indexSettings) throws IOException;
-
-    /**
      * Return an array of all index folder locations for a given shard
      */
     Path[] shardIndexLocations(ShardId shardId);

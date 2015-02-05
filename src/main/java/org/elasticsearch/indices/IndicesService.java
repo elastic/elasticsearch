@@ -21,6 +21,7 @@ package org.elasticsearch.indices;
 
 import com.google.common.base.Function;
 import com.google.common.collect.*;
+import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -29,12 +30,20 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.*;
+import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.*;
 import org.elasticsearch.index.aliases.IndexAliasesServiceModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
@@ -69,6 +78,7 @@ import org.elasticsearch.plugins.PluginsService;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -95,21 +105,23 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private final Injector injector;
 
     private final PluginsService pluginsService;
+    private final NodeEnvironment nodeEnv;
+    private final ClusterService clusterService;
 
     private volatile Map<String, Tuple<IndexService, Injector>> indices = ImmutableMap.of();
 
     private final OldShardsStats oldShardsStats = new OldShardsStats();
 
     @Inject
-    public IndicesService(Settings settings, IndicesLifecycle indicesLifecycle, IndicesAnalysisService indicesAnalysisService, Injector injector) {
+    public IndicesService(Settings settings, IndicesLifecycle indicesLifecycle, IndicesAnalysisService indicesAnalysisService, Injector injector, NodeEnvironment nodeEnv, ClusterService clusterService) {
         super(settings);
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
+        this.clusterService = clusterService;
         this.indicesAnalysisService = indicesAnalysisService;
         this.injector = injector;
-
         this.pluginsService = injector.getInstance(PluginsService.class);
-
         this.indicesLifecycle.addListener(oldShardsStats);
+        this.nodeEnv = nodeEnv;
     }
 
     @Override
@@ -164,7 +176,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * refresh and indexing, not for docs/store).
      */
     public NodeIndicesStats stats(boolean includePrevious) {
-        return stats(true, new CommonStatsFlags().all());
+        return stats(includePrevious, new CommonStatsFlags().all());
     }
 
     public NodeIndicesStats stats(boolean includePrevious, CommonStatsFlags flags) {
@@ -328,19 +340,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         removeIndex(index, reason, false);
     }
 
-    /**
-     * Deletes the given index. Persistent parts of the index
-     * like the shards files, state and transaction logs are removed once all resources are released.
-     *
-     * Equivalent to {@link #removeIndex(String, String)} but fires
-     * different lifecycle events to ensure pending resources of this index are immediately removed.
-     * @param index the index to delete
-     * @param reason the high level reason causing this delete
-     */
-    public void deleteIndex(String index, String reason) throws ElasticsearchException {
-        removeIndex(index, reason, true);
-    }
-
     private void removeIndex(String index, String reason, boolean delete) throws ElasticsearchException {
         try {
             final IndexService indexService;
@@ -390,7 +389,10 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             logger.debug("[{}] closed... (reason [{}])", index, reason);
             indicesLifecycle.afterIndexClosed(indexService.index(), indexService.settingsService().getSettings());
             if (delete) {
-                indicesLifecycle.afterIndexDeleted(indexService.index(), indexService.settingsService().getSettings());
+                final Settings indexSettings = indexService.getIndexSettings();
+                indicesLifecycle.afterIndexDeleted(indexService.index(), indexSettings);
+                // now we are done - try to wipe data on disk if possible
+                deleteIndexStore(reason, indexService.index(), indexSettings);
             }
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to remove index " + index, ex);
@@ -418,5 +420,154 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                 flushStats.add(indexShard.flushStats());
             }
         }
+    }
+
+    /**
+     * Deletes the given index. Persistent parts of the index
+     * like the shards files, state and transaction logs are removed once all resources are released.
+     *
+     * Equivalent to {@link #removeIndex(String, String)} but fires
+     * different lifecycle events to ensure pending resources of this index are immediately removed.
+     * @param index the index to delete
+     * @param reason the high level reason causing this delete
+     */
+    public void deleteIndex(String index, String reason) throws IOException {
+        removeIndex(index, reason, true);
+    }
+
+    public void deleteClosedIndex(String reason, IndexMetaData metaData) {
+        if (nodeEnv.hasNodeFile()) {
+            String indexName = metaData.getIndex();
+            try {
+                ClusterState clusterState = clusterService.state();
+                if (clusterState.metaData().hasIndex(indexName)) {
+                    final IndexMetaData index = clusterState.metaData().index(indexName);
+                    throw new ElasticsearchIllegalStateException("Can't delete closed index store for [" + indexName + "] - it's still part of the cluster state [" + index.getUUID() + "] [" + metaData.getUUID() + "]");
+                }
+                deleteIndexStore(reason, metaData);
+            } catch (IOException e) {
+                logger.warn("[{}] failed to delete closed index", e, metaData.index());
+            }
+        }
+    }
+
+    /**
+     * Deletes the index store trying to acquire all shards locks for this index.
+     * This method will delete the metadata for the index even if the actual shards can't be locked.
+     */
+    public void deleteIndexStore(String reason, IndexMetaData metaData) throws IOException {
+        if (nodeEnv.hasNodeFile()) {
+            synchronized (this) {
+                String indexName = metaData.index();
+                if (indices.containsKey(metaData.index())) {
+                    String localUUid = indices.get(metaData.index()).v1().indexUUID();
+                    throw new ElasticsearchIllegalStateException("Can't delete index store for [" + metaData.getIndex() + "] - it's still part of the indices service [" + localUUid+ "] [" + metaData.getUUID() + "]");
+                }
+                ClusterState clusterState = clusterService.state();
+                if (clusterState.metaData().hasIndex(indexName)) {
+                    final IndexMetaData index = clusterState.metaData().index(indexName);
+                    throw new ElasticsearchIllegalStateException("Can't delete closed index store for [" + indexName + "] - it's still part of the cluster state [" + index.getUUID() + "] [" + metaData.getUUID() + "]");
+                }
+            }
+            Index index = new Index(metaData.index());
+            final Settings indexSettings = buildIndexSettings(metaData);
+            deleteIndexStore(reason, index, indexSettings);
+        }
+    }
+
+    private void deleteIndexStore(String reason, Index index, Settings indexSettings) throws IOException {
+        try {
+            // we are trying to delete the index store here - not a big deal if the lock can't be obtained
+            // the store metadata gets wiped anyway even without the lock this is just best effort since
+            // every shards deletes its content under the shard lock it owns.
+            logger.debug("{} deleting index store reason [{}]", index, reason);
+            nodeEnv.deleteIndexDirectorySafe(index, 0, indexSettings);
+        } catch (LockObtainFailedException ex) {
+            logger.debug("{} failed to delete index store - at least one shards is still locked", ex, index);
+        } catch (Exception ex) {
+            logger.warn("{} failed to delete index", ex, index);
+        } finally {
+            // this is a pure protection to make sure this index doesn't get re-imported as a dangeling index.
+            // we should in the future rather write a tombstone rather than wiping the metadata.
+            MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(index));
+        }
+    }
+
+    /**
+     * Deletes the shard with an already acquired shard lock.
+     * @param reason the reason for the shard deletion
+     * @param lock the lock of the shard to delete
+     * @param indexSettings the shards index settings.
+     * @throws IOException if an IOException occurs
+     */
+    public void deleteShardStore(String reason, ShardLock lock, Settings indexSettings) throws IOException {
+        ShardId shardId = lock.getShardId();
+        if (canDeleteShardContent(shardId, indexSettings) == false) {
+            throw new ElasticsearchIllegalStateException("Can't delete shard " + shardId);
+        }
+        logger.trace("{} deleting shard reason [{}]", shardId, reason);
+        nodeEnv.deleteShardDirectoryUnderLock(lock, indexSettings);
+    }
+
+    /**
+     * This method deletes the shard contents on disk for the given shard ID. This method will fail if the shard deleting
+     * is prevented by {@link #canDeleteShardContent(org.elasticsearch.index.shard.ShardId, org.elasticsearch.cluster.metadata.IndexMetaData)}
+     * of if the shards lock can not be acquired.
+     * @param reason the reason for the shard deletion
+     * @param shardId the shards ID to delete
+     * @param metaData the shards index metadata. This is required to access the indexes settings etc.
+     * @throws IOException if an IOException occurs
+     */
+    public void deleteShardStore(String reason, ShardId shardId, IndexMetaData metaData) throws IOException {
+        final Settings indexSettings = buildIndexSettings(metaData);
+        if (canDeleteShardContent(shardId, indexSettings) == false) {
+            throw new ElasticsearchIllegalStateException("Can't delete shard " + shardId);
+        }
+        nodeEnv.deleteShardDirectorySafe(shardId, indexSettings);
+        logger.trace("{} deleting shard reason [{}]", shardId, reason);
+    }
+
+    /**
+     * Returns <code>true</code> iff the shards content for the given shard can be deleted.
+     * This method will return <code>false</code> if:
+     * <ul>
+     *     <li>if the shard is still allocated / active on this node</li>
+     *     <li>if for instance if the shard is located on shared and should not be deleted</li>
+     *     <li>if the shards data locations do not exists</li>
+     * </ul>
+     *
+     * @param shardId the shard to delete.
+     * @param metaData the shards index metadata. This is required to access the indexes settings etc.
+     */
+    public boolean canDeleteShardContent(ShardId shardId, IndexMetaData metaData) {
+        // we need the metadata here since we have to build the complete settings
+        // to decide where the shard content lives. In the future we might even need more info here ie. for shadow replicas
+        // The plan was to make it harder to miss-use and ask for metadata instead of simple settings
+        assert shardId.getIndex().equals(metaData.getIndex());
+        final Settings indexSettings = buildIndexSettings(metaData);
+        return canDeleteShardContent(shardId, indexSettings);
+    }
+
+    private boolean canDeleteShardContent(ShardId shardId, @IndexSettings Settings indexSettings) {
+        final Tuple<IndexService, Injector> indexServiceInjectorTuple = this.indices.get(shardId.getIndex());
+        // TODO add some protection here to prevent shard deletion if we are on a shard FS or have ShadowReplicas enabled.
+        if (indexServiceInjectorTuple != null && nodeEnv.hasNodeFile()) {
+            final IndexService indexService = indexServiceInjectorTuple.v1();
+            return indexService.hasShard(shardId.id()) == false;
+        } else if (nodeEnv.hasNodeFile()) {
+            final Path[] shardLocations = nodeEnv.shardDataPaths(shardId, indexSettings);
+            return FileSystemUtils.exists(shardLocations);
+        }
+        return false;
+    }
+
+    private Settings buildIndexSettings(IndexMetaData metaData) {
+        // play safe here and make sure that we take node level settings into account.
+        // we might run on nodes where we use shard FS and then in the future don't delete
+        // actual content.
+        ImmutableSettings.Builder builder = settingsBuilder();
+        builder.put(settings);
+        builder.put(metaData.getSettings());
+        return builder.build();
     }
 }

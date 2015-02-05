@@ -161,15 +161,8 @@ public class IndicesStoreTests extends ElasticsearchTestCase {
             }
         }
 
-        final boolean canBeDeleted;
-        if (nodeVersion.before(Version.V_1_3_0)) {
-            canBeDeleted = false;
-        } else {
-            canBeDeleted = true;
-        }
-
         // shard exist on other node (abc)
-        assertThat(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()), is(canBeDeleted));
+        assertTrue(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()));
     }
 
     @Test
@@ -194,14 +187,8 @@ public class IndicesStoreTests extends ElasticsearchTestCase {
             }
         }
 
-        final boolean canBeDeleted;
-        if (nodeVersion.before(Version.V_1_3_0)) {
-            canBeDeleted = false;
-        } else {
-            canBeDeleted = true;
-        }
         // shard exist on other node (abc and def)
-        assertThat(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()), is(canBeDeleted));
+        assertTrue(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()));
     }
 
 }

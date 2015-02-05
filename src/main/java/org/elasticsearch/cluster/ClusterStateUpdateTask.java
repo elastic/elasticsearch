@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 
 /**
@@ -36,7 +35,7 @@ abstract public class ClusterStateUpdateTask {
     /**
      * A callback called when execute fails.
      */
-    abstract public void onFailure(String source, @Nullable Throwable t);
+    abstract public void onFailure(String source, Throwable t);
 
 
     /**

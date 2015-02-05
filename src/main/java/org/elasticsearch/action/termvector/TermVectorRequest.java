@@ -72,6 +72,8 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     private EnumSet<Flag> flagsEnum = EnumSet.of(Flag.Positions, Flag.Offsets, Flag.Payloads,
             Flag.FieldStatistics);
 
+    long startTime;
+
     public TermVectorRequest() {
     }
 
@@ -95,13 +97,20 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         super(other.index());
         this.id = other.id();
         this.type = other.type();
+        if (this.doc != null) {
+            this.doc = other.doc().copyBytesArray();
+        }
         this.flagsEnum = other.getFlags().clone();
         this.preference = other.preference();
         this.routing = other.routing();
         if (other.selectedFields != null) {
             this.selectedFields = new HashSet<>(other.selectedFields);
         }
+        if (other.perFieldAnalyzer != null) {
+            this.perFieldAnalyzer = new HashMap<>(other.perFieldAnalyzer);
+        }
         this.realtime = other.realtime();
+        this.startTime = other.startTime();
     }
 
     public TermVectorRequest(MultiGetRequest.Item item) {
@@ -340,6 +349,10 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
             flagsEnum.remove(flag);
             assert (!flagsEnum.contains(flag));
         }
+    }
+
+    public long startTime() {
+        return this.startTime;
     }
 
     @Override

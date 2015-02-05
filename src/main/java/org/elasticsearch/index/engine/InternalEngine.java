@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine.internal;
+package org.elasticsearch.index.engine;
 
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
@@ -25,16 +25,13 @@ import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.routing.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
@@ -47,9 +44,9 @@ import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.OnGoingMerge;
@@ -57,7 +54,6 @@ import org.elasticsearch.index.merge.policy.ElasticsearchMergePolicy;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.search.nested.IncludeNestedDocsQuery;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -67,11 +63,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -79,7 +73,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 /**
  *
  */
-public class InternalEngine implements Engine {
+public class InternalEngine extends Engine {
 
     protected final ESLogger logger;
     protected final ShardId shardId;
@@ -101,12 +95,12 @@ public class InternalEngine implements Engine {
     private final MergeSchedulerProvider mergeScheduler;
 
     private final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
-    private final InternalLock readLock = new InternalLock(rwl.readLock());
-    private final InternalLock writeLock = new InternalLock(rwl.writeLock());
+    private final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
+    private final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
 
     private final IndexWriter indexWriter;
 
-    private final SearcherFactory searcherFactory = new SearchFactory();
+    private final SearcherFactory searcherFactory;
     private final SearcherManager searcherManager;
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
@@ -118,7 +112,7 @@ public class InternalEngine implements Engine {
     private final AtomicInteger flushing = new AtomicInteger();
     private final Lock flushLock = new ReentrantLock();
 
-    protected final RecoveryCounter onGoingRecoveries = new RecoveryCounter();
+    protected final FlushingRecoveryCounter onGoingRecoveries;
     // A uid (in the form of BytesRef) to the version map
     // we use the hashed variant since we iterate over it and check removal and additions on existing keys
     private final LiveVersionMap versionMap;
@@ -136,18 +130,17 @@ public class InternalEngine implements Engine {
     private final IndexThrottle throttle;
 
     public InternalEngine(EngineConfig engineConfig) throws EngineException {
-        Preconditions.checkNotNull(engineConfig.getStore(), "Store must be provided to the engine");
-        Preconditions.checkNotNull(engineConfig.getDeletionPolicy(), "Snapshot deletion policy must be provided to the engine");
-        Preconditions.checkNotNull(engineConfig.getTranslog(), "Translog must be provided to the engine");
+        super(engineConfig);
         this.store = engineConfig.getStore();
+        this.shardId = engineConfig.getShardId();
+        this.logger = Loggers.getLogger(getClass(), engineConfig.getIndexSettings(), shardId);
         this.versionMap = new LiveVersionMap();
         store.incRef();
         IndexWriter writer = null;
         SearcherManager manager = null;
         boolean success = false;
         try {
-            this.shardId = engineConfig.getShardId();
-            this.logger = Loggers.getLogger(getClass(), engineConfig.getIndexSettings(), shardId);
+            this.onGoingRecoveries = new FlushingRecoveryCounter(this, store, logger);
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
             this.indexingService = engineConfig.getIndexingService();
             this.warmer = engineConfig.getWarmer();
@@ -163,6 +156,7 @@ public class InternalEngine implements Engine {
             this.failedEngineListener = engineConfig.getFailedEngineListener();
             throttle = new IndexThrottle();
             this.engineConfig = engineConfig;
+            this.searcherFactory = new SearchFactory(engineConfig);
             listener = new EngineConfig.EngineSettingsListener(logger, engineConfig) {
                 @Override
                 protected void onChange() {
@@ -196,7 +190,7 @@ public class InternalEngine implements Engine {
     @Override
     public void updateIndexingBufferSize(ByteSizeValue indexingBufferSize) {
         ByteSizeValue preValue = engineConfig.getIndexingBufferSize();
-        try (InternalLock _ = readLock.acquire()) {
+        try (ReleasableLock _ = readLock.acquire()) {
             ensureOpen();
             engineConfig.setIndexingBufferSize(indexingBufferSize);
             indexWriter.getConfig().setRAMBufferSizeMB(indexingBufferSize.mbFrac());
@@ -273,7 +267,7 @@ public class InternalEngine implements Engine {
 
     @Override
     public GetResult get(Get get) throws EngineException {
-        try (InternalLock _ = readLock.acquire()) {
+        try (ReleasableLock _ = readLock.acquire()) {
             ensureOpen();
             if (get.realtime()) {
                 VersionValue versionValue = versionMap.getUnderLock(get.uid().bytes());
@@ -326,7 +320,7 @@ public class InternalEngine implements Engine {
 
     @Override
     public void create(Create create) throws EngineException {
-        try (InternalLock _ = readLock.acquire()) {
+        try (ReleasableLock _ = readLock.acquire()) {
             ensureOpen();
             if (create.origin() == Operation.Origin.RECOVERY) {
                 // Don't throttle recovery operations
@@ -432,7 +426,7 @@ public class InternalEngine implements Engine {
 
     @Override
     public void index(Index index) throws EngineException {
-        try (InternalLock _ = readLock.acquire()) {
+        try (ReleasableLock _ = readLock.acquire()) {
             ensureOpen();
             if (index.origin() == Operation.Origin.RECOVERY) {
                 // Don't throttle recovery operations
@@ -531,7 +525,7 @@ public class InternalEngine implements Engine {
 
     @Override
     public void delete(Delete delete) throws EngineException {
-        try (InternalLock _ = readLock.acquire()) {
+        try (ReleasableLock _ = readLock.acquire()) {
             ensureOpen();
             innerDelete(delete);
             flushNeeded = true;
@@ -598,7 +592,7 @@ public class InternalEngine implements Engine {
 
     @Override
     public void delete(DeleteByQuery delete) throws EngineException {
-        try (InternalLock _ = readLock.acquire()) {
+        try (ReleasableLock _ = readLock.acquire()) {
             ensureOpen();
             Query query;
             if (delete.nested() && delete.aliasFilter() != null) {
@@ -659,10 +653,6 @@ public class InternalEngine implements Engine {
         }
     }
 
-    protected Searcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
-        return new EngineSearcher(source, searcher, manager);
-    }
-
     @Override
     public boolean refreshNeeded() {
         if (store.tryIncRef()) {
@@ -689,7 +679,7 @@ public class InternalEngine implements Engine {
     public void refresh(String source) throws EngineException {
         // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
-        try (InternalLock _ = readLock.acquire()) {
+        try (ReleasableLock _ = readLock.acquire()) {
             ensureOpen();
             searcherManager.maybeRefreshBlocking();
         } catch (AlreadyClosedException e) {
@@ -735,7 +725,7 @@ public class InternalEngine implements Engine {
         flushLock.lock();
         try {
              if (commitTranslog) {
-                try (InternalLock _ = readLock.acquire()) {
+                try (ReleasableLock _ = readLock.acquire()) {
                     ensureOpen();
                     if (onGoingRecoveries.get() > 0) {
                         throw new FlushNotAllowedEngineException(shardId, "Recovery is in progress, flush is not allowed");
@@ -776,7 +766,7 @@ public class InternalEngine implements Engine {
                 // note, its ok to just commit without cleaning the translog, its perfectly fine to replay a
                 // translog on an index that was opened on a committed point in time that is "in the future"
                 // of that translog
-                try (InternalLock _ = readLock.acquire()) {
+                try (ReleasableLock _ = readLock.acquire()) {
                     ensureOpen();
                     // we allow to *just* commit if there is an ongoing recovery happening...
                     // its ok to use this, only a flush will cause a new translogId, and we are locked here from
@@ -798,7 +788,7 @@ public class InternalEngine implements Engine {
             }
 
             // reread the last committed segment infos
-            try (InternalLock _ = readLock.acquire()) {
+            try (ReleasableLock _ = readLock.acquire()) {
                 ensureOpen();
                 lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
             } catch (Throwable e) {
@@ -872,7 +862,7 @@ public class InternalEngine implements Engine {
     @Override
     public void forceMerge(final boolean flush, boolean waitForMerge, int maxNumSegments, boolean onlyExpungeDeletes, final boolean upgrade) throws EngineException {
         if (optimizeMutex.compareAndSet(false, true)) {
-            try (InternalLock _ = readLock.acquire()) {
+            try (ReleasableLock _ = readLock.acquire()) {
                 ensureOpen();
                 /*
                  * The way we implement upgrades is a bit hackish in the sense that we set an instance
@@ -928,7 +918,7 @@ public class InternalEngine implements Engine {
         // we have to flush outside of the readlock otherwise we might have a problem upgrading
         // the to a write lock when we fail the engine in this operation
         flush(false, false, true);
-        try (InternalLock _ = readLock.acquire()) {
+        try (ReleasableLock _ = readLock.acquire()) {
             ensureOpen();
             return deletionPolicy.snapshot();
         } catch (IOException e) {
@@ -940,7 +930,7 @@ public class InternalEngine implements Engine {
     public void recover(RecoveryHandler recoveryHandler) throws EngineException {
         // take a write lock here so it won't happen while a flush is in progress
         // this means that next commits will not be allowed once the lock is released
-        try (InternalLock _ = writeLock.acquire()) {
+        try (ReleasableLock _ = writeLock.acquire()) {
             ensureOpen();
             onGoingRecoveries.startRecovery();
         }
@@ -1020,13 +1010,6 @@ public class InternalEngine implements Engine {
         return t;
     }
 
-    private long guardedRamBytesUsed(Accountable a) {
-        if (a == null) {
-            return 0;
-        }
-        return a.ramBytesUsed();
-    }
-
     @Override
     public SegmentsStats segmentsStats() {
         ensureOpen();
@@ -1050,7 +1033,7 @@ public class InternalEngine implements Engine {
 
     @Override
     public List<Segment> segments(boolean verbose) {
-        try (InternalLock _ = readLock.acquire()) {
+        try (ReleasableLock _ = readLock.acquire()) {
             ensureOpen();
             Map<String, Segment> segments = new HashMap<>();
 
@@ -1136,7 +1119,7 @@ public class InternalEngine implements Engine {
     @Override
     public void close() throws ElasticsearchException {
         logger.debug("close now acquire writeLock");
-        try (InternalLock _ = writeLock.acquire()) {
+        try (ReleasableLock _ = writeLock.acquire()) {
             logger.debug("close acquired writeLock");
             if (isClosed.compareAndSet(false, true)) {
                 try {
@@ -1202,7 +1185,7 @@ public class InternalEngine implements Engine {
                 logger.warn("failEngine threw exception", t);
             } finally {
                 closedOrFailed = true;
-                try (InternalLock _ = readLock.acquire()) {
+                try (ReleasableLock _ = readLock.acquire()) {
                     // we take the readlock here to ensure nobody replaces this IW concurrently.
                     indexWriter.rollback();
                 } catch (Throwable t) {
@@ -1228,17 +1211,6 @@ public class InternalEngine implements Engine {
         try (final Searcher searcher = acquireSearcher("load_version")) {
             return Versions.loadVersion(searcher.reader(), uid);
         }
-    }
-
-    /**
-     * Returns whether a leaf reader comes from a merge (versus flush or addIndexes).
-     */
-    private static boolean isMergedSegment(LeafReader reader) {
-        // We expect leaves to be segment readers
-        final Map<String, String> diagnostics = segmentReader(reader).getSegmentInfo().info.getDiagnostics();
-        final String source = diagnostics.get(IndexWriter.SOURCE);
-        assert Arrays.asList(IndexWriter.SOURCE_ADDINDEXES_READERS, IndexWriter.SOURCE_FLUSH, IndexWriter.SOURCE_MERGE).contains(source) : "Unknown source " + source;
-        return IndexWriter.SOURCE_MERGE.equals(source);
     }
 
     private IndexWriter createWriter() throws IOException {
@@ -1274,7 +1246,7 @@ public class InternalEngine implements Engine {
                     try {
                         assert isMergedSegment(reader);
                         if (warmer != null) {
-                            final Engine.Searcher searcher = new SimpleSearcher("warmer", new IndexSearcher(reader));
+                            final Engine.Searcher searcher = new Searcher("warmer", new IndexSearcher(reader));
                             final IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, searcher);
                             warmer.warmNewReaders(context);
                         }
@@ -1298,59 +1270,12 @@ public class InternalEngine implements Engine {
         }
     }
 
-    class EngineSearcher implements Searcher {
-        private final String source;
-        private final IndexSearcher searcher;
-        private final SearcherManager manager;
-        private final AtomicBoolean released = new AtomicBoolean(false);
+    /** Extended SearcherFactory that warms the segments if needed when acquiring a new searcher */
+    class SearchFactory extends EngineSearcherFactory {
 
-        private EngineSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
-            this.source = source;
-            this.searcher = searcher;
-            this.manager = manager;
+        SearchFactory(EngineConfig engineConfig) {
+            super(engineConfig);
         }
-
-        @Override
-        public String source() {
-            return this.source;
-        }
-
-        @Override
-        public IndexReader reader() {
-            return searcher.getIndexReader();
-        }
-
-        @Override
-        public IndexSearcher searcher() {
-            return searcher;
-        }
-
-        @Override
-        public void close() throws ElasticsearchException {
-            if (!released.compareAndSet(false, true)) {
-                /* In general, searchers should never be released twice or this would break reference counting. There is one rare case
-                 * when it might happen though: when the request and the Reaper thread would both try to release it in a very short amount
-                 * of time, this is why we only log a warning instead of throwing an exception.
-                 */
-                logger.warn("Searcher was released twice", new ElasticsearchIllegalStateException("Double release"));
-                return;
-            }
-            try {
-                manager.release(searcher);
-            } catch (IOException e) {
-                throw new ElasticsearchIllegalStateException("Cannot close", e);
-            } catch (AlreadyClosedException e) {
-                /* this one can happen if we already closed the
-                 * underlying store / directory and we call into the
-                 * IndexWriter to free up pending files. */
-            } finally {
-                store.decRef();
-            }
-        }
-    }
-
-    class SearchFactory extends SearcherFactory {
-
 
         @Override
         public IndexSearcher newSearcher(IndexReader reader) throws IOException {
@@ -1394,10 +1319,10 @@ public class InternalEngine implements Engine {
                     }
 
                     if (newSearcher != null) {
-                        IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, new SimpleSearcher("warmer", newSearcher));
+                        IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, new Searcher("warmer", newSearcher));
                         warmer.warmNewReaders(context);
                     }
-                    warmer.warmTopReader(new IndicesWarmer.WarmerContext(shardId, new SimpleSearcher("warmer", searcher)));
+                    warmer.warmTopReader(new IndicesWarmer.WarmerContext(shardId, new Searcher("warmer", searcher)));
                 } catch (Throwable e) {
                     if (closedOrFailed == false) {
                         logger.warn("failed to prepare/warm", e);
@@ -1413,133 +1338,12 @@ public class InternalEngine implements Engine {
         }
     }
 
-    protected final class RecoveryCounter implements Releasable {
-        private final AtomicInteger onGoingRecoveries = new AtomicInteger();
-
-        void startRecovery() {
-            store.incRef();
-            onGoingRecoveries.incrementAndGet();
-        }
-
-        public int get() {
-            return onGoingRecoveries.get();
-        }
-
-        void endRecovery() throws ElasticsearchException {
-            store.decRef();
-            int left = onGoingRecoveries.decrementAndGet();
-            assert onGoingRecoveries.get() >= 0 : "ongoingRecoveries must be >= 0 but was: " + onGoingRecoveries.get();
-            if (left == 0) {
-                try {
-                    flush();
-                } catch (IllegalIndexShardStateException e) {
-                    // we are being closed, or in created state, ignore
-                } catch (FlushNotAllowedEngineException e) {
-                    // ignore this exception, we are not allowed to perform flush
-                } catch (Throwable e) {
-                    logger.warn("failed to flush shard post recovery", e);
-                }
-            }
-        }
-
-        @Override
-        public void close() throws ElasticsearchException {
-            endRecovery();
-        }
-    }
-
-    private static final class InternalLock implements Releasable {
-        private final Lock lock;
-
-        InternalLock(Lock lock) {
-            this.lock = lock;
-        }
-
-        @Override
-        public void close() {
-            lock.unlock();
-        }
-
-        InternalLock acquire() throws EngineException {
-            lock.lock();
-            return this;
-        }
-    }
-
     public void activateThrottling() {
         throttle.activate();
     }
 
     public void deactivateThrottling() {
         throttle.deactivate();
-    }
-
-    static final class IndexThrottle {
-
-        private static final InternalLock NOOP_LOCK = new InternalLock(new NoOpLock());
-        private final InternalLock lockReference = new InternalLock(new ReentrantLock());
-
-        private volatile InternalLock lock = NOOP_LOCK;
-
-
-        public Releasable acquireThrottle() {
-            return lock.acquire();
-        }
-
-        public void activate() {
-            assert lock == NOOP_LOCK : "throttling activated while already active";
-            lock = lockReference;
-        }
-
-        public void deactivate() {
-            assert lock != NOOP_LOCK : "throttling deactivated but not active";
-            lock = NOOP_LOCK;
-        }
-    }
-
-    private static final class NoOpLock implements Lock {
-
-        @Override
-        public void lock() {
-        }
-
-        @Override
-        public void lockInterruptibly() throws InterruptedException {
-        }
-
-        @Override
-        public boolean tryLock() {
-            return true;
-        }
-
-        @Override
-        public boolean tryLock(long time, TimeUnit unit) throws InterruptedException {
-            return true;
-        }
-
-        @Override
-        public void unlock() {
-        }
-
-        @Override
-        public Condition newCondition() {
-            throw new UnsupportedOperationException("NoOpLock can't provide a condition");
-        }
-    }
-
-    /**
-     * Tries to extract a segment reader from the given index reader.
-     * If no SegmentReader can be extracted an {@link org.elasticsearch.ElasticsearchIllegalStateException} is thrown.
-     */
-    private static SegmentReader segmentReader(LeafReader reader) {
-        if (reader instanceof SegmentReader) {
-            return (SegmentReader) reader;
-        } else if (reader instanceof FilterLeafReader) {
-            final FilterLeafReader fReader = (FilterLeafReader) reader;
-            return segmentReader(FilterLeafReader.unwrap(fReader));
-        }
-        // hard fail - we can't get a SegmentReader
-        throw new ElasticsearchIllegalStateException("Can not extract segment reader from given index reader [" + reader + "]");
     }
 
     long getGcDeletesInMillis() {

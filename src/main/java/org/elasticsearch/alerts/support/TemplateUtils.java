@@ -42,7 +42,7 @@ public class TemplateUtils extends AbstractComponent {
      *
      * In the the template doesn't exists this method blocks until the template has been created.
      */
-    public void checkAndUploadIndexTemplate(ClusterState state, final String templateName) {
+    public void ensureIndexTemplateIsLoaded(ClusterState state, final String templateName) {
         final byte[] template;
         try {
             InputStream is = AlertsStore.class.getResourceAsStream("/" + templateName + ".json");

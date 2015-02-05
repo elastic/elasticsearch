@@ -114,7 +114,7 @@ public class HistoryService extends AbstractComponent {
         String[] indices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), ALERT_HISTORY_INDEX_PREFIX + "*");
         if (indices.length == 0) {
             logger.info("No previous .alerthistory index, skip loading of alert actions");
-            templateUtils.checkAndUploadIndexTemplate(state, "alerthistory");
+            templateUtils.ensureIndexTemplateIsLoaded(state, "alerthistory");
             doStart();
             return true;
         }
@@ -138,7 +138,7 @@ public class HistoryService extends AbstractComponent {
             actionsToBeProcessed.clear();
             return false;
         }
-        templateUtils.checkAndUploadIndexTemplate(state, "alerthistory");
+        templateUtils.ensureIndexTemplateIsLoaded(state, "alerthistory");
         doStart();
         return true;
     }

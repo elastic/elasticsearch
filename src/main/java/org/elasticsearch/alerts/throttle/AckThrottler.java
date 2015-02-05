@@ -17,9 +17,8 @@ public class AckThrottler implements Throttler {
 
     @Override
     public Result throttle(Alert alert, Trigger.Result result) {
-        Alert.Status.Ack ack = alert.status().ack();
-        if (ack != null) {
-            return Result.throttle("alert [" + alert.name() + "] was acked at [" + formatDate(ack.timestamp()));
+        if (alert.status().state() != Alert.Status.State.ACKED) {
+            return Result.throttle("alert [" + alert.name() + "] was acked at [" + formatDate(alert.status().lastStateChanged()) + "]");
         }
         return Result.NO;
     }

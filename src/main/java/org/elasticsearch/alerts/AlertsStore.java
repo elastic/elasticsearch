@@ -22,15 +22,14 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -38,8 +37,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class AlertsStore extends AbstractComponent {
 
-    public static final String ALERT_INDEX = ".alerts";
-    public static final String ALERT_TYPE = "alert";
+    static final String ALERT_INDEX = ".alerts";
+    static final String ALERT_INDEX_TEMPLATE = "alerts";
+    static final String ALERT_TYPE = "alert";
 
     private final ClientProxy client;
     private final TemplateUtils templateUtils;
@@ -63,6 +63,48 @@ public class AlertsStore extends AbstractComponent {
         this.scrollSize = componentSettings.getAsInt("scroll.size", 100);
     }
 
+    public boolean start(ClusterState state) {
+        if (started.get()) {
+            return true;
+        }
+
+        IndexMetaData alertIndexMetaData = state.getMetaData().index(ALERT_INDEX);
+        if (alertIndexMetaData == null) {
+            logger.trace("alerts index [{}] was not found. skipping alerts loading...", ALERT_INDEX);
+            templateUtils.ensureIndexTemplateIsLoaded(state, ALERT_INDEX_TEMPLATE);
+            started.set(true);
+            return true;
+        }
+
+        if (state.routingTable().index(ALERT_INDEX).allPrimaryShardsActive()) {
+            logger.debug("alerts index [{}] found with all active primary shards. loading alerts...", ALERT_INDEX);
+            try {
+                int count = loadAlerts(client, scrollSize, scrollTimeout, alertIndexMetaData.numberOfShards(), alertParser, alertMap);
+                logger.info("loaded [{}] alerts from the alert index [{}]", count, ALERT_INDEX);
+            } catch (Exception e) {
+                logger.warn("failed to load alerts for alert index [{}]. scheduled to retry alert loading...", e, ALERT_INDEX);
+                alertMap.clear();
+                return false;
+            }
+            templateUtils.ensureIndexTemplateIsLoaded(state, ALERT_INDEX_TEMPLATE);
+            started.set(true);
+            return true;
+        }
+        logger.warn("not all primary shards of the alerts index [{}] are started. scheduled to retry alert loading...", ALERT_INDEX);
+        return false;
+    }
+
+    public boolean started() {
+        return started.get();
+    }
+
+    public void stop() {
+        if (started.compareAndSet(true, false)) {
+            alertMap.clear();
+            logger.info("stopped alerts store");
+        }
+    }
+
     /**
      * Returns the alert with the specified name otherwise <code>null</code> is returned.
      */
@@ -75,119 +117,77 @@ public class AlertsStore extends AbstractComponent {
      * Creates an alert with the specified name and source. If an alert with the specified name already exists it will
      * get overwritten.
      */
-    public AlertStoreModification putAlert(String alertName, BytesReference alertSource) {
+    public AlertPut putAlert(String alertName, BytesReference alertSource) {
         ensureStarted();
         Alert alert = alertParser.parse(alertName, false, alertSource);
         IndexRequest indexRequest = createIndexRequest(alertName, alertSource);
         IndexResponse response = client.index(indexRequest).actionGet();
         alert.status().version(response.getVersion());
         Alert previous = alertMap.put(alertName, alert);
-        return new AlertStoreModification(previous, alert, response);
+        return new AlertPut(previous, alert, response);
     }
 
     /**
-     * Updates the specified alert by making sure that the made changes are persisted.
+     * Updates and persists the status of the given alert
      */
-    public void updateAlertStatus(Alert alert) throws IOException {
+    void updateAlertStatus(Alert alert) throws IOException {
+        // at the moment we store the status together with the alert,
+        // so we just need to update the alert itself
+        // TODO: consider storing the status in a different documment (alert_status doc) (must smaller docs... faster for frequent updates)
         updateAlert(alert);
     }
 
     /**
-     * Updates the specified alert by making sure that the made changes are persisted.
+     * Updates and persists the given alert
      */
-    public void updateAlert(Alert alert) throws IOException {
+    void updateAlert(Alert alert) throws IOException {
         ensureStarted();
-        BytesReference source = XContentFactory.contentBuilder(XContentType.JSON).value(alert).bytes();
+        assert alert == alertMap.get(alert.name()) : "update alert can only be applied to an already loaded alert";
+        BytesReference source = JsonXContent.contentBuilder().value(alert).bytes();
         IndexResponse response = client.index(createIndexRequest(alert.name(), source)).actionGet();
         alert.status().version(response.getVersion());
         // Don't need to update the alertMap, since we are working on an instance from it.
-        assert verifySameInstance(alert);
-    }
-
-    private boolean verifySameInstance(Alert alert) {
-        Alert found = alertMap.get(alert.name());
-        assert found == alert : "expected " + alert + " but got " + found;
-        return true;
     }
 
     /**
      * Deletes the alert with the specified name if exists
      */
-    public DeleteResponse deleteAlert(String name) {
+    public AlertDelete deleteAlert(String name) {
         ensureStarted();
         Alert alert = alertMap.remove(name);
-        if (alert == null) {
-            return new DeleteResponse(ALERT_INDEX, ALERT_TYPE, name, Versions.MATCH_ANY, false);
+        // even if the alert was not found in the alert map, we should still try to delete it
+        // from the index, just to make sure we don't leave traces of it
+        DeleteRequest request = new DeleteRequest(ALERT_INDEX, ALERT_TYPE, name);
+        if (alert != null) {
+            request.version(alert.status().version());
         }
-
-        DeleteRequest deleteRequest = new DeleteRequest(ALERT_INDEX, ALERT_TYPE, name);
-        deleteRequest.version(alert.status().version());
-        DeleteResponse deleteResponse = client.delete(deleteRequest).actionGet();
-        assert deleteResponse.isFound();
-        return deleteResponse;
+        DeleteResponse response = client.delete(request).actionGet();
+        return new AlertDelete(response);
     }
 
     public ConcurrentMap<String, Alert> getAlerts() {
         return alertMap;
     }
 
-    public boolean start(ClusterState state) {
-        if (started.get()) {
-            return true;
-        }
-
-        IndexMetaData alertIndexMetaData = state.getMetaData().index(ALERT_INDEX);
-        if (alertIndexMetaData != null) {
-            logger.debug("Previous alerting index");
-            if (state.routingTable().index(ALERT_INDEX).allPrimaryShardsActive()) {
-                logger.debug("Previous alerting index with active primary shards");
-                try {
-                    loadAlerts(alertIndexMetaData.numberOfShards());
-                } catch (Exception e) {
-                    logger.warn("Failed to load previously stored alerts. Schedule to retry alert loading...", e);
-                    alertMap.clear();
-                    return false;
-                }
-                templateUtils.checkAndUploadIndexTemplate(state, "alerts");
-                started.set(true);
-                return true;
-            } else {
-                logger.warn("Not all primary shards of the .alerts index are started. Schedule to retry alert loading...");
-                return false;
-            }
-        } else {
-            logger.info("No previous .alert index, skip loading of alerts");
-            templateUtils.checkAndUploadIndexTemplate(state, "alerts");
-            started.set(true);
-            return true;
-        }
-    }
-
-    public boolean started() {
-        return started.get();
-    }
-
-    public void stop() {
-        if (started.compareAndSet(true, false)) {
-            alertMap.clear();
-            logger.info("Stopped alert store");
-        }
-    }
-
-    private IndexRequest createIndexRequest(String alertName, BytesReference alertSource) {
+    IndexRequest createIndexRequest(String alertName, BytesReference alertSource) {
         IndexRequest indexRequest = new IndexRequest(ALERT_INDEX, ALERT_TYPE, alertName);
         indexRequest.listenerThreaded(false);
         indexRequest.source(alertSource, false);
         return indexRequest;
     }
 
-    private void loadAlerts(int numPrimaryShards) {
-        assert alertMap.isEmpty() : "No alerts should reside, but there are " + alertMap.size() + " alerts.";
+    /**
+     * scrolls all the alert documents in the alerts index, parses them, and loads them into
+     * the given map.
+     */
+    static int loadAlerts(ClientProxy client, int scrollSize, TimeValue scrollTimeout, int numPrimaryShards, Alert.Parser parser, Map<String, Alert> alerts) {
+        assert alerts.isEmpty() : "no alerts should reside, but there are [" + alerts.size() + "] alerts.";
         RefreshResponse refreshResponse = client.admin().indices().refresh(new RefreshRequest(ALERT_INDEX)).actionGet();
         if (refreshResponse.getSuccessfulShards() < numPrimaryShards) {
-            throw new ElasticsearchException("Not all required shards have been refreshed");
+            throw new AlertsException("not all required shards have been refreshed");
         }
 
+        int count = 0;
         SearchResponse response = client.prepareSearch(ALERT_INDEX)
                 .setTypes(ALERT_TYPE)
                 .setPreference("_primary")
@@ -204,10 +204,12 @@ public class AlertsStore extends AbstractComponent {
             if (response.getHits().getTotalHits() > 0) {
                 response = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollTimeout).get();
                 while (response.getHits().hits().length != 0) {
-                    for (SearchHit sh : response.getHits()) {
-                        String alertId = sh.getId();
-                        Alert alert = parseLoadedAlert(alertId, sh);
-                        alertMap.put(alertId, alert);
+                    for (SearchHit hit : response.getHits()) {
+                        String name = hit.getId();
+                        Alert alert = parser.parse(name, true, hit.getSourceRef());
+                        alert.status().version(hit.version());
+                        alerts.put(name, alert);
+                        count++;
                     }
                     response = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollTimeout).get();
                 }
@@ -215,13 +217,7 @@ public class AlertsStore extends AbstractComponent {
         } finally {
             client.prepareClearScroll().addScrollId(response.getScrollId()).get();
         }
-        logger.info("Loaded [{}] alerts from the alert index.", alertMap.size());
-    }
-
-    private Alert parseLoadedAlert(String alertId, SearchHit sh) {
-        Alert alert = alertParser.parse(alertId, true, sh.getSourceRef());
-        alert.status().version(sh.version());
-        return alert;
+        return count;
     }
 
     private void ensureStarted() {
@@ -230,16 +226,16 @@ public class AlertsStore extends AbstractComponent {
         }
     }
 
-    public final class AlertStoreModification {
+    public final class AlertPut {
 
         private final Alert previous;
         private final Alert current;
-        private final IndexResponse indexResponse;
+        private final IndexResponse response;
 
-        public AlertStoreModification(Alert previous, Alert current, IndexResponse indexResponse) {
+        public AlertPut(Alert previous, Alert current, IndexResponse response) {
             this.current = current;
             this.previous = previous;
-            this.indexResponse = indexResponse;
+            this.response = response;
         }
 
         public Alert current() {
@@ -251,7 +247,20 @@ public class AlertsStore extends AbstractComponent {
         }
 
         public IndexResponse indexResponse() {
-            return indexResponse;
+            return response;
+        }
+    }
+
+    public final class AlertDelete {
+
+        private final DeleteResponse response;
+
+        public AlertDelete(DeleteResponse response) {
+            this.response = response;
+        }
+
+        public DeleteResponse deleteResponse() {
+            return response;
         }
     }
 

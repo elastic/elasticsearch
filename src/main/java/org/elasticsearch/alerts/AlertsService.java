@@ -7,19 +7,14 @@ package org.elasticsearch.alerts;
 
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
 import org.elasticsearch.alerts.history.AlertRecord;
 import org.elasticsearch.alerts.history.HistoryService;
 import org.elasticsearch.alerts.scheduler.Scheduler;
-import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
-import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.alerts.throttle.Throttler;
 import org.elasticsearch.alerts.trigger.Trigger;
-import org.elasticsearch.alerts.trigger.TriggerRegistry;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -42,35 +37,29 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class AlertsService extends AbstractComponent {
 
-    private final ClientProxy client;
     private final Scheduler scheduler;
     private final AlertsStore alertsStore;
-    private final TriggerRegistry triggerRegistry;
     private final HistoryService historyService;
     private final AlertActionRegistry actionRegistry;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
-    private final ScriptServiceProxy scriptService;
     private final KeyedLock<String> alertLock = new KeyedLock<>();
     private final AtomicReference<State> state = new AtomicReference<>(State.STOPPED);
 
     private volatile boolean manuallyStopped;
 
     @Inject
-    public AlertsService(Settings settings, ClientProxy client, ClusterService clusterService, Scheduler scheduler, AlertsStore alertsStore,
-                         IndicesService indicesService, TriggerRegistry triggerRegistry, HistoryService historyService,
-                         AlertActionRegistry actionRegistry, ThreadPool threadPool, ScriptServiceProxy scriptService) {
+    public AlertsService(Settings settings, ClusterService clusterService, Scheduler scheduler, AlertsStore alertsStore,
+                         IndicesService indicesService, HistoryService historyService,
+                         AlertActionRegistry actionRegistry, ThreadPool threadPool) {
         super(settings);
-        this.client = client;
         this.scheduler = scheduler;
         this.threadPool = threadPool;
         this.alertsStore = alertsStore;
-        this.triggerRegistry = triggerRegistry;
         this.historyService = historyService;
         this.historyService.setAlertsService(this);
         this.actionRegistry = actionRegistry;
         this.clusterService = clusterService;
-        this.scriptService = scriptService;
 
         scheduler.addListener(new SchedulerListener());
 
@@ -86,15 +75,15 @@ public class AlertsService extends AbstractComponent {
         manuallyStopped = !settings.getAsBoolean("alerts.start_immediately",  true);
     }
 
-    public DeleteResponse deleteAlert(String name) throws InterruptedException, ExecutionException {
+    public AlertsStore.AlertDelete deleteAlert(String name) throws InterruptedException, ExecutionException {
         ensureStarted();
         alertLock.acquire(name);
         try {
-            DeleteResponse deleteResponse = alertsStore.deleteAlert(name);
-            if (deleteResponse.isFound()) {
+            AlertsStore.AlertDelete delete = alertsStore.deleteAlert(name);
+            if (delete.deleteResponse().isFound()) {
                 scheduler.remove(name);
             }
-            return deleteResponse;
+            return delete;
         } finally {
             alertLock.release(name);
         }
@@ -104,7 +93,7 @@ public class AlertsService extends AbstractComponent {
         ensureStarted();
         alertLock.acquire(alertName);
         try {
-            AlertsStore.AlertStoreModification result = alertsStore.putAlert(alertName, alertSource);
+            AlertsStore.AlertPut result = alertsStore.putAlert(alertName, alertSource);
             if (result.previous() == null || !result.previous().schedule().equals(result.current().schedule())) {
                 scheduler.schedule(result.current());
             }
@@ -145,7 +134,7 @@ public class AlertsService extends AbstractComponent {
      * The reason the executing of the alert is split into two, is that we don't want to lose the fact that an alert has
      * fired. If we were
      */
-    public void scheduleAlert(String alertName, DateTime scheduledFireTime, DateTime fireTime){
+    void triggerAlert(String alertName, DateTime scheduledFireTime, DateTime fireTime){
         ensureStarted();
         alertLock.acquire(alertName);
         try {
@@ -325,7 +314,7 @@ public class AlertsService extends AbstractComponent {
     private class SchedulerListener implements Scheduler.Listener {
         @Override
         public void fire(String alertName, DateTime scheduledFireTime, DateTime fireTime) {
-
+            triggerAlert(alertName, scheduledFireTime, fireTime);
         }
     }
 
@@ -428,7 +417,7 @@ public class AlertsService extends AbstractComponent {
                 case 3:
                     return STOPPING;
                 default:
-                    throw new ElasticsearchIllegalArgumentException("Unknown id: " + id);
+                    throw new AlertsException("unknown id alerts service state id [" + id + "]");
             }
         }
     }

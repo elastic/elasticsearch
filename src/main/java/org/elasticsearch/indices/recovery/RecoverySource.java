@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -230,18 +231,18 @@ public class RecoverySource extends AbstractComponent {
                                 } catch (Throwable e) {
                                     final CorruptIndexException corruptIndexException;
                                     if ((corruptIndexException = ExceptionsHelper.unwrap(e, CorruptIndexException.class)) != null) {
-                                       if (store.checkIntegrity(md) == false) { // we are corrupted on the primary -- fail!
-                                           logger.warn("{} Corrupted file detected {} checksum mismatch", shard.shardId(), md);
-                                           if (corruptedEngine.compareAndSet(null, corruptIndexException) == false) {
-                                               // if we are not the first exception, add ourselves as suppressed to the main one:
-                                               corruptedEngine.get().addSuppressed(e);
-                                           }
-                                       } else { // corruption has happened on the way to replica
-                                           RemoteTransportException exception = new RemoteTransportException("File corruption occured on recovery but checksums are ok", null);
-                                           exception.addSuppressed(e);
-                                           exceptions.add(0, exception); // last exception first
-                                           logger.warn("{} File corruption on recovery {} local checksum OK", corruptIndexException, shard.shardId(), md);
-                                       }
+                                        if (store.checkIntegrity(md) == false) { // we are corrupted on the primary -- fail!
+                                            logger.warn("{} Corrupted file detected {} checksum mismatch", shard.shardId(), md);
+                                            if (corruptedEngine.compareAndSet(null, corruptIndexException) == false) {
+                                                // if we are not the first exception, add ourselves as suppressed to the main one:
+                                                corruptedEngine.get().addSuppressed(e);
+                                            }
+                                        } else { // corruption has happened on the way to replica
+                                            RemoteTransportException exception = new RemoteTransportException("File corruption occured on recovery but checksums are ok", null);
+                                            exception.addSuppressed(e);
+                                            exceptions.add(0, exception); // last exception first
+                                            logger.warn("{} File corruption on recovery {} local checksum OK", corruptIndexException, shard.shardId(), md);
+                                        }
                                     } else {
                                         exceptions.add(0, e); // last exceptions first
                                     }
@@ -310,7 +311,8 @@ public class RecoverySource extends AbstractComponent {
                 // while we're checking
                 final BlockingQueue<DocumentMapper> documentMappersToUpdate = ConcurrentCollections.newBlockingQueue();
                 final CountDownLatch latch = new CountDownLatch(1);
-                clusterService.submitStateUpdateTask("recovery_mapping_check", new ProcessedClusterStateNonMasterUpdateTask() {
+                // we use immediate as this is a very light weight check and we don't wait to delay recovery
+                clusterService.submitStateUpdateTask("recovery_mapping_check", Priority.IMMEDIATE, new ProcessedClusterStateNonMasterUpdateTask() {
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                         latch.countDown();
@@ -343,7 +345,10 @@ public class RecoverySource extends AbstractComponent {
                     }
                 });
                 try {
-                    latch.await();
+                    if (!latch.await(internalActionTimeout.millis(), TimeUnit.MILLISECONDS)) {
+                        logger.warn("mapping check cluster state tasks failed to be executed within [{}]", internalActionTimeout);
+                        return;
+                    }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }

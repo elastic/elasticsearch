@@ -33,7 +33,6 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 
-import java.io.File;
 import java.net.InetSocketAddress;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -57,6 +56,7 @@ public class StaticIndexBackwardCompatibilityTest extends ElasticsearchIntegrati
     public void unloadIndex() throws Exception {
         ElasticsearchAssertions.assertAcked(client().admin().indices().prepareDelete("test").get());
         while (internalCluster().stopRandomDataNode()) {} // stop all data nodes
+        ElasticsearchAssertions.assertAllFilesClosed();
     }
 
     void assertIndexSanity() {

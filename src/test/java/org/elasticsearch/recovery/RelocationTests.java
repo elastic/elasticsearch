@@ -33,14 +33,19 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -51,10 +56,12 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
@@ -415,6 +422,91 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
 
         stateResponse = client().admin().cluster().prepareState().get();
         assertTrue(stateResponse.getState().readOnlyRoutingNodes().node(blueNodeId).isEmpty());
+    }
+
+    @Test
+    @TestLogging("cluster.service:TRACE,indices.recovery:TRACE")
+    public void testRelocationWithBusyClusterUpdateThread() throws Exception {
+        final String indexName = "test";
+        final Settings settings = ImmutableSettings.builder()
+                .put("gateway.type", "local")
+                .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s")
+                .put("indices.recovery.internal_action_timeout", "1s").build();
+        String master = internalCluster().startNode(settings);
+        ensureGreen();
+        List<String> nodes = internalCluster().startNodesAsync(2, settings).get();
+        final String node1 = nodes.get(0);
+        final String node2 = nodes.get(1);
+        ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
+        assertThat(response.isTimedOut(), is(false));
+
+
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node1);
+
+
+        client().admin().indices().prepareCreate(indexName)
+                .setSettings(
+                        ImmutableSettings.builder()
+                                .put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "_name", node1)
+                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                ).get();
+
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        int numDocs = scaledRandomIntBetween(25, 250);
+        for (int i = 0; i < numDocs; i++) {
+            requests.add(client().prepareIndex(indexName, "type").setCreate(true).setSource("{}"));
+        }
+        indexRandom(true, requests);
+        ensureSearchable(indexName);
+
+        // capture the incoming state indicate that the replicas have upgraded and assigned
+
+        final CountDownLatch allReplicasAssigned = new CountDownLatch(1);
+        final CountDownLatch releaseClusterState = new CountDownLatch(1);
+        try {
+            clusterService.addLast(new ClusterStateListener() {
+                @Override
+                public void clusterChanged(ClusterChangedEvent event) {
+                    if (event.state().routingNodes().hasUnassignedShards() == false) {
+                        allReplicasAssigned.countDown();
+                        try {
+                            releaseClusterState.await();
+                        } catch (InterruptedException e) {
+                            //
+                        }
+                    }
+                }
+            });
+
+            logger.info("--> starting replica recovery");
+            // we don't expect this to be acknowledge by node1 where we block the cluster state thread
+            assertFalse(client().admin().indices().prepareUpdateSettings(indexName)
+                    .setSettings(ImmutableSettings.builder()
+                                    .put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "_name", node1 + "," + node2)
+                                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+
+                    ).setTimeout("200ms")
+                    .get().isAcknowledged());
+
+            logger.info("--> waiting for node1 to process replica existence");
+            allReplicasAssigned.await();
+            logger.info("--> waiting for recovery to fail");
+            assertBusy(new Runnable() {
+                @Override
+                public void run() {
+                    ClusterHealthResponse response = client().admin().cluster().prepareHealth().get();
+                    assertThat(response.getUnassignedShards(), equalTo(1));
+                }
+            });
+        } finally {
+            logger.info("--> releasing cluster state update thread");
+            releaseClusterState.countDown();
+        }
+        logger.info("--> waiting for recovery to succeed");
+        // force a move.
+        client().admin().cluster().prepareReroute().get();
+        ensureGreen();
     }
 
 }

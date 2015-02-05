@@ -33,6 +33,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 
+import java.io.File;
 import java.net.InetSocketAddress;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.action.index;
 
+import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -27,12 +29,19 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 
 /**
  *
@@ -45,14 +54,16 @@ public class NodeIndexDeletedAction extends AbstractComponent {
     private final ThreadPool threadPool;
     private final TransportService transportService;
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
+    private final NodeEnvironment nodeEnv;
 
     @Inject
-    public NodeIndexDeletedAction(Settings settings, ThreadPool threadPool, TransportService transportService) {
+    public NodeIndexDeletedAction(Settings settings, ThreadPool threadPool, TransportService transportService, NodeEnvironment nodeEnv) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         transportService.registerHandler(INDEX_DELETED_ACTION_NAME, new NodeIndexDeletedTransportHandler());
         transportService.registerHandler(INDEX_STORE_DELETED_ACTION_NAME, new NodeIndexStoreDeletedTransportHandler());
+        this.nodeEnv = nodeEnv;
     }
 
     public void add(Listener listener) {
@@ -64,32 +75,58 @@ public class NodeIndexDeletedAction extends AbstractComponent {
     }
 
     public void nodeIndexDeleted(final ClusterState clusterState, final String index, final String nodeId) throws ElasticsearchException {
-        DiscoveryNodes nodes = clusterState.nodes();
+        final DiscoveryNodes nodes = clusterState.nodes();
         if (nodes.localNodeMaster()) {
-            threadPool.generic().execute(new Runnable() {
+            threadPool.generic().execute(new AbstractRunnable() {
+
                 @Override
-                public void run() {
+                public void onFailure(Throwable t) {
+                    logger.warn("[{}]failed to ack index store deleted for index", t, index);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
                     innerNodeIndexDeleted(index, nodeId);
+                    lockIndexAndAck(index, nodes, nodeId, clusterState);
+
                 }
             });
         } else {
             transportService.sendRequest(clusterState.nodes().masterNode(),
                     INDEX_DELETED_ACTION_NAME, new NodeIndexDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
+            threadPool.generic().execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Throwable t) {
+                    logger.warn("[{}]failed to ack index store deleted for  index", t, index);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    lockIndexAndAck(index, nodes, nodeId, clusterState);
+                }
+            });
         }
     }
 
-    public void nodeIndexStoreDeleted(final ClusterState clusterState, final String index, final String nodeId) throws ElasticsearchException {
-        DiscoveryNodes nodes = clusterState.nodes();
-        if (nodes.localNodeMaster()) {
-            threadPool.generic().execute(new Runnable() {
-                @Override
-                public void run() {
+    private void lockIndexAndAck(String index, DiscoveryNodes nodes, String nodeId, ClusterState clusterState) throws IOException {
+        try {
+            // we are waiting until we can lock the index / all shards on the node and then we ack the delete of the store to the
+            // master. If we can't acquire the locks here immediately there might be a shard of this index still holding on to the lock
+            // due to a "currently canceled recovery" or so. The shard will delete itself BEFORE the lock is released so it's guaranteed to be
+            // deleted by the time we get the lock
+            final List<ShardLock> locks = nodeEnv.lockAllForIndex(new Index(index), TimeUnit.MINUTES.toMillis(30));
+            try {
+                if (nodes.localNodeMaster()) {
                     innerNodeIndexStoreDeleted(index, nodeId);
+                } else {
+                    transportService.sendRequest(clusterState.nodes().masterNode(),
+                            INDEX_STORE_DELETED_ACTION_NAME, new NodeIndexStoreDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
                 }
-            });
-        } else {
-            transportService.sendRequest(clusterState.nodes().masterNode(),
-                    INDEX_STORE_DELETED_ACTION_NAME, new NodeIndexStoreDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
+            } finally {
+                IOUtils.close(locks); // release them again
+            }
+        } catch (LockObtainFailedException exc) {
+            logger.warn("[{}] failed to lock all shards for index - timed out after 30 seconds", index);
         }
     }
 

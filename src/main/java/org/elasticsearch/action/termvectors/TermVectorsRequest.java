@@ -77,6 +77,8 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
     private EnumSet<Flag> flagsEnum = EnumSet.of(Flag.Positions, Flag.Offsets, Flag.Payloads,
             Flag.FieldStatistics);
 
+    long startTime;
+
     public TermVectorsRequest() {
     }
 
@@ -100,13 +102,22 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
         super(other.index());
         this.id = other.id();
         this.type = other.type();
+        if (this.doc != null) {
+            this.doc = other.doc().copyBytesArray();
+        }
         this.flagsEnum = other.getFlags().clone();
         this.preference = other.preference();
         this.routing = other.routing();
         if (other.selectedFields != null) {
             this.selectedFields = new HashSet<>(other.selectedFields);
         }
+        if (other.perFieldAnalyzer != null) {
+            this.perFieldAnalyzer = new HashMap<>(other.perFieldAnalyzer);
+        }
         this.realtime = other.realtime();
+        this.version = other.version();
+        this.versionType = VersionType.fromValue(other.versionType().getValue());
+        this.startTime = other.startTime();
     }
 
     public TermVectorsRequest(MultiGetRequest.Item item) {
@@ -387,6 +398,10 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
         }
     }
 
+    public long startTime() {
+        return this.startTime;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
@@ -438,6 +453,7 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
         realtime = in.readBoolean();
         versionType = VersionType.fromValue(in.readByte());
         version = in.readLong();
+        startTime = in.readVLong();
     }
 
     @Override
@@ -472,6 +488,7 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
         out.writeBoolean(realtime());
         out.writeByte(versionType.getValue());
         out.writeLong(version);
+        out.writeVLong(startTime);
     }
 
     public static enum Flag {

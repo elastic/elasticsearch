@@ -10,6 +10,7 @@ import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.actions.ActionException;
 import org.elasticsearch.alerts.support.StringTemplateUtils;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -99,9 +100,9 @@ public class WebhookAction extends Action<WebhookAction.Result> {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("method", method.getName());
-        StringTemplateUtils.writeTemplate("body_template", bodyTemplate, builder, params);
-        StringTemplateUtils.writeTemplate("url_template", urlTemplate, builder, params);
+        builder.field(Parser.METHOD_FIELD.getPreferredName(), method.getName());
+        StringTemplateUtils.writeTemplate(Parser.BODY_TEMPLATE_FIELD.getPreferredName(), bodyTemplate, builder, params);
+        StringTemplateUtils.writeTemplate(Parser.URL_TEMPLATE_FIELD.getPreferredName(), urlTemplate, builder, params);
         builder.endObject();
         return builder;
     }
@@ -146,6 +147,10 @@ public class WebhookAction extends Action<WebhookAction.Result> {
 
     public static class Parser extends AbstractComponent implements Action.Parser<WebhookAction> {
 
+        public static final ParseField METHOD_FIELD = new ParseField("method");
+        public static final ParseField URL_TEMPLATE_FIELD = new ParseField("url_template");
+        public static final ParseField BODY_TEMPLATE_FIELD = new ParseField("body_template");
+
         private final StringTemplateUtils templateUtils;
 
         @Inject
@@ -172,22 +177,18 @@ public class WebhookAction extends Action<WebhookAction.Result> {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
-                    switch (currentFieldName) {
-                        case "method":
-                            method = HttpMethod.valueOf(parser.text());
-                            if (method != HttpMethod.POST && method != HttpMethod.GET && method != HttpMethod.PUT) {
-                                throw new ActionException("could not parse webhook action. unsupported http method ["
-                                        + method.getName() + "]");
-                            }
-                            break;
-                        case "url_template":
-                            urlTemplate = StringTemplateUtils.readTemplate(parser);
-                            break;
-                        case "body_template":
-                            bodyTemplate = StringTemplateUtils.readTemplate(parser);
-                            break;
-                        default:
-                            throw new ActionException("could not parse webhook action. unexpected field [" + currentFieldName + "]");
+                    if (METHOD_FIELD.match(currentFieldName)) {
+                        method = HttpMethod.valueOf(parser.text());
+                        if (method != HttpMethod.POST && method != HttpMethod.GET && method != HttpMethod.PUT) {
+                            throw new ActionException("could not parse webhook action. unsupported http method ["
+                                    + method.getName() + "]");
+                        }
+                    } else if (URL_TEMPLATE_FIELD.match(currentFieldName)) {
+                        urlTemplate = StringTemplateUtils.readTemplate(parser);
+                    } else if (BODY_TEMPLATE_FIELD.match(currentFieldName)) {
+                        bodyTemplate = StringTemplateUtils.readTemplate(parser);
+                    } else {
+                        throw new ActionException("could not parse webhook action. unexpected field [" + currentFieldName + "]");
                     }
                 } else {
                     throw new ActionException("could not parse webhook action. unexpected token [" + token + "]");

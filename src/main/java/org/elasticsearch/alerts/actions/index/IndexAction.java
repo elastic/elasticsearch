@@ -11,6 +11,7 @@ import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.actions.ActionException;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
@@ -69,13 +70,16 @@ public class IndexAction extends Action<IndexAction.Result> {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("index", index);
-        builder.field("type", type);
+        builder.field(Parser.INDEX_FIELD.getPreferredName(), index);
+        builder.field(Parser.TYPE_FIELD.getPreferredName(), type);
         builder.endObject();
         return builder;
     }
 
     public static class Parser extends AbstractComponent implements Action.Parser<IndexAction> {
+
+        public static final ParseField INDEX_FIELD = new ParseField("index");
+        public static final ParseField TYPE_FIELD = new ParseField("type");
 
         private final ClientProxy client;
 
@@ -101,15 +105,12 @@ public class IndexAction extends Action<IndexAction.Result> {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
-                    switch (currentFieldName) {
-                        case "index":
-                            index = parser.text();
-                            break;
-                        case "type":
-                            type = parser.text();
-                            break;
-                        default:
-                            throw new ActionException("could not parse index action. unexpected field [" + currentFieldName + "]");
+                    if (INDEX_FIELD.match(currentFieldName)) {
+                        index = parser.text();
+                    } else if (TYPE_FIELD.match(currentFieldName)) {
+                        type = parser.text();
+                    } else {
+                        throw new ActionException("could not parse index action. unexpected field [" + currentFieldName + "]");
                     }
                 } else {
                     throw new ActionException("could not parse index action. unexpected token [" + token + "]");

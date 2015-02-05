@@ -11,6 +11,7 @@ import org.elasticsearch.alerts.actions.ActionException;
 import org.elasticsearch.alerts.support.StringTemplateUtils;
 import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.cluster.settings.Validator;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
@@ -145,7 +146,7 @@ public class EmailAction extends Action<EmailAction.Result> implements NodeSetti
             Transport.send(email);
 
             return new Result(true, fromAddressToUse, emailAddresses, subject, message  );
-        } catch (Throwable e){
+        } catch (Throwable e) {
             throw new ActionException("failed to send mail for alert [" + alert.name() + "]", e);
         }
 
@@ -154,7 +155,7 @@ public class EmailAction extends Action<EmailAction.Result> implements NodeSetti
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("addresses");
+        builder.field(Parser.ADDRESSES_FIELD.getPreferredName());
         builder.startArray();
         for (Address emailAddress : emailAddresses){
             builder.value(emailAddress.toString());
@@ -162,15 +163,15 @@ public class EmailAction extends Action<EmailAction.Result> implements NodeSetti
         builder.endArray();
 
         if (subjectTemplate != null) {
-            StringTemplateUtils.writeTemplate("subject_template", subjectTemplate, builder, params);
+            StringTemplateUtils.writeTemplate(Parser.SUBJECT_TEMPLATE_FIELD.getPreferredName(), subjectTemplate, builder, params);
         }
 
         if (messageTemplate != null) {
-            StringTemplateUtils.writeTemplate("message_template", messageTemplate, builder, params);
+            StringTemplateUtils.writeTemplate(Parser.MESSAGE_TEMPLATE_FIELD.getPreferredName(), messageTemplate, builder, params);
         }
 
         if (fromAddress != null) {
-            builder.field("from", fromAddress);
+            builder.field(Parser.FROM_FIELD.getPreferredName(), fromAddress);
         }
 
         builder.endObject();
@@ -185,9 +186,13 @@ public class EmailAction extends Action<EmailAction.Result> implements NodeSetti
 
     public static class Parser extends AbstractComponent implements Action.Parser<EmailAction> {
 
+        public static final ParseField FROM_FIELD = new ParseField("from");
+        public static final ParseField ADDRESSES_FIELD = new ParseField("addresses");
+        public static final ParseField MESSAGE_TEMPLATE_FIELD = new ParseField("message_template");
+        public static final ParseField SUBJECT_TEMPLATE_FIELD = new ParseField("subject_template");
+
         private final NodeSettingsService nodeSettingsService;
         private final StringTemplateUtils templateUtils;
-
 
         @Inject
         public Parser(Settings settings, DynamicSettings dynamicSettings, NodeSettingsService nodeSettingsService, StringTemplateUtils templateUtils) {
@@ -221,32 +226,26 @@ public class EmailAction extends Action<EmailAction.Result> implements NodeSetti
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
-                    switch (currentFieldName) {
-                        case "subject_template":
-                            subjectTemplate = StringTemplateUtils.readTemplate(parser);
-                            break;
-                        case "message_template":
-                            messageTemplate = StringTemplateUtils.readTemplate(parser);
-                            break;
-                        case "from":
-                            fromAddress = parser.text();
-                            break;
-                        default:
-                            throw new ActionException("could not parse email action. unexpected field [" + currentFieldName + "]");
+                    if (SUBJECT_TEMPLATE_FIELD.match(currentFieldName)) {
+                        subjectTemplate = StringTemplateUtils.readTemplate(parser);
+                    } else if (MESSAGE_TEMPLATE_FIELD.match(currentFieldName)) {
+                        messageTemplate = StringTemplateUtils.readTemplate(parser);
+                    } else if (FROM_FIELD.match(currentFieldName)) {
+                        fromAddress = parser.text();
+                    } else {
+                        throw new ActionException("could not parse email action. unexpected field [" + currentFieldName + "]");
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
-                    switch (currentFieldName) {
-                        case "addresses":
-                            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                                try {
-                                    addresses.add(InternetAddress.parse(parser.text())[0]);
-                                } catch (AddressException ae) {
-                                    throw new ActionException("could not parse email action. unable to parse [" + parser.text() + "] as an email address", ae);
-                                }
+                    if (ADDRESSES_FIELD.match(currentFieldName)) {
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            try {
+                                addresses.add(InternetAddress.parse(parser.text())[0]);
+                            } catch (AddressException ae) {
+                                throw new ActionException("could not parse email action. unable to parse [" + parser.text() + "] as an email address", ae);
                             }
-                            break;
-                        default:
-                            throw new ActionException("could not parse email action. unexpected field [" + currentFieldName + "]");
+                        }
+                    } else {
+                        throw new ActionException("could not parse email action. unexpected field [" + currentFieldName + "]");
                     }
                 } else {
                     throw new ActionException("could not parse email action. unexpected token [" + token + "]");

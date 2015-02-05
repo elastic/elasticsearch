@@ -73,7 +73,7 @@ public class CustomQueryWrappingFilter extends NoCacheFilter implements Releasab
                 final DocIdSet set = new DocIdSet() {
                     @Override
                     public DocIdSetIterator iterator() throws IOException {
-                        return weight.scorer(leaf, null);
+                        return weight.scorer(leaf, null, false);
                     }
                     @Override
                     public boolean isCacheable() { return false; }

@@ -111,6 +111,16 @@ abstract class QueryCollector extends SimpleCollector {
     }
 
     @Override
+    public boolean needsScores() {
+        for (Collector collector : aggregatorCollector) {
+            if (collector.needsScores()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
     public void doSetNextReader(LeafReaderContext context) throws IOException {
         // we use the UID because id might not be indexed
         values = idFieldData.load(context).getBytesValues();

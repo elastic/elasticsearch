@@ -284,7 +284,7 @@ public final class QueryRescorer implements Rescorer {
         float bottomScore = 0;
         float denominator = 0;
 
-        if (resorted != null && ctx.normalize)
+        if (resorted.size() != 0 && ctx.normalize)
         {
             float topScore = Collections.max(resorted.values());
             bottomScore = Collections.min(resorted.values());
@@ -292,7 +292,7 @@ public final class QueryRescorer implements Rescorer {
         }
 
         for(int i=0;i<in.scoreDocs.length;i++) {
-            if (resorted.containsKey(in.scoreDocs[i].doc))
+            if (resorted.size() != 0 && resorted.containsKey(in.scoreDocs[i].doc))
             {
                 float score = (!ctx.normalize) ? resorted.get(in.scoreDocs[i].doc) :
                                                 ((resorted.get(in.scoreDocs[i].doc) - bottomScore) / denominator);

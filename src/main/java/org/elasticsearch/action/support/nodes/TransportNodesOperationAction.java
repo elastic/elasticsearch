@@ -203,7 +203,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
                 logger.debug("failed to execute on node [{}]", t, nodeId);
             }
             if (accumulateExceptions()) {
-                responses.set(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "][" + t.getMessage() + "]", t));
+                responses.set(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
             }
             if (counter.incrementAndGet() == responses.length()) {
                 finishHim();

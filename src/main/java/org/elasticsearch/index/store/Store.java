@@ -623,7 +623,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                 } else {
                     builder.put(segmentsFile, new StoreFileMetaData(segmentsFile, directory.fileLength(segmentsFile), legacyChecksum, null));
                 }
-            } catch (CorruptIndexException ex) {
+            } catch (CorruptIndexException | IndexNotFoundException ex) {
+                // we either know the index is corrupted or it's just not there
                 throw ex;
             } catch (Throwable ex) {
                 try {

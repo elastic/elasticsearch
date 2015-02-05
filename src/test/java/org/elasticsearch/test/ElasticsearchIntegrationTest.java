@@ -1838,6 +1838,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     @After
     public final void after() throws Exception {
+        // Deleting indices is going to clear search contexts implicitely so we
+        // need to check that there are no more in-flight search contexts before
+        // we remove indices
+        super.ensureAllSearchContextsReleased();
         if (runTestScopeLifecycle()) {
             afterInternal(false);
         }

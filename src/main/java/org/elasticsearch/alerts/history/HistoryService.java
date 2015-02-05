@@ -15,9 +15,11 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.alerts.*;
+import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.AlertsPlugin;
-import org.elasticsearch.alerts.actions.AlertActionRegistry;
+import org.elasticsearch.alerts.AlertsService;
+import org.elasticsearch.alerts.AlertsStore;
+import org.elasticsearch.alerts.actions.ActionRegistry;
 import org.elasticsearch.alerts.actions.AlertActionState;
 import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.support.TemplateUtils;
@@ -75,7 +77,6 @@ public class HistoryService extends AbstractComponent {
     private final AlertsStore alertsStore;
     private final TriggerRegistry triggerRegistry;
     private final TemplateUtils templateUtils;
-    private final AlertActionRegistry actionRegistry;
 
     private final int scrollSize;
     private final TimeValue scrollTimeout;
@@ -86,12 +87,10 @@ public class HistoryService extends AbstractComponent {
     private volatile Thread queueReaderThread;
 
     @Inject
-    public HistoryService(Settings settings, ClientProxy client, AlertActionRegistry actionRegistry,
-                          ThreadPool threadPool, AlertsStore alertsStore, TriggerRegistry triggerRegistry,
-                          TemplateUtils templateUtils) {
+    public HistoryService(Settings settings, ClientProxy client, ThreadPool threadPool, AlertsStore alertsStore,
+                          TriggerRegistry triggerRegistry, TemplateUtils templateUtils) {
         super(settings);
         this.client = client;
-        this.actionRegistry = actionRegistry;
         this.threadPool = threadPool;
         this.alertsStore = alertsStore;
         this.triggerRegistry = triggerRegistry;
@@ -211,7 +210,7 @@ public class HistoryService extends AbstractComponent {
         largestQueueSize.set(actionsToBeProcessed.size());
     }
 
-    AlertRecord parseHistory(String historyId, BytesReference source, long version, AlertActionRegistry actionRegistry) {
+    AlertRecord parseHistory(String historyId, BytesReference source, long version, ActionRegistry actionRegistry) {
         AlertRecord entry = new AlertRecord();
         entry.setId(historyId);
         entry.setVersion(version);
@@ -228,7 +227,7 @@ public class HistoryService extends AbstractComponent {
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     switch (currentFieldName) {
                         case ACTIONS_FIELD:
-                            entry.setActions(actionRegistry.parse(parser));
+                            entry.setActions(actionRegistry.parseActions(parser));
                             break;
                         case TRIGGER_FIELD:
                             entry.setTrigger(triggerRegistry.parse(parser));

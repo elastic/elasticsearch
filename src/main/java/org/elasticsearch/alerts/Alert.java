@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.alerts;
 
-import org.elasticsearch.alerts.actions.AlertActionRegistry;
+import org.elasticsearch.alerts.actions.ActionRegistry;
 import org.elasticsearch.alerts.actions.AlertActions;
 import org.elasticsearch.alerts.payload.Payload;
 import org.elasticsearch.alerts.payload.PayloadRegistry;
@@ -160,11 +160,11 @@ public class Alert implements ToXContent {
         private final TriggerRegistry triggerRegistry;
         private final ScheduleRegistry scheduleRegistry;
         private final PayloadRegistry payloadRegistry;
-        private final AlertActionRegistry actionRegistry;
+        private final ActionRegistry actionRegistry;
 
         @Inject
         public Parser(Settings settings, TriggerRegistry triggerRegistry, ScheduleRegistry scheduleRegistry,
-                      PayloadRegistry payloadRegistry, AlertActionRegistry actionRegistry) {
+                      PayloadRegistry payloadRegistry, ActionRegistry actionRegistry) {
 
             super(settings);
             this.triggerRegistry = triggerRegistry;
@@ -201,7 +201,7 @@ public class Alert implements ToXContent {
                 } else if (TRIGGER_FIELD.match(currentFieldName)) {
                     trigger = triggerRegistry.parse(parser);
                 } else if (ACTIONS_FIELD.match(currentFieldName)) {
-                    actions = actionRegistry.parse(parser);
+                    actions = actionRegistry.parseActions(parser);
                 } else if (PAYLOAD_FIELD.match(currentFieldName)) {
                     payload = payloadRegistry.parse(parser);
                 } else if (META_FIELD.match(currentFieldName)) {

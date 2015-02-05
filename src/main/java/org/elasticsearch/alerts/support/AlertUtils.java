@@ -7,8 +7,8 @@ package org.elasticsearch.alerts.support;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.alerts.AlertsException;
@@ -47,7 +47,7 @@ public final class AlertUtils {
     private AlertUtils() {
     }
 
-    public static Map<String, Object> responseToData(SearchResponse response) {
+    public static Map<String, Object> responseToData(ActionResponse response) {
         try {
             XContentBuilder builder = jsonBuilder().startObject().value(response).endObject();
             return XContentHelper.convertToMap(builder.bytes(), false).v2();

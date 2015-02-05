@@ -5,18 +5,18 @@
  */
 package org.elasticsearch.alerts.actions;
 
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.alerts.AlertsException;
 
 /**
- * Classes that implement this interface should be a POJO
- * containing the data needed to do this action
+ *
  */
-public interface AlertAction extends ToXContent {
+public class ActionException extends AlertsException {
 
-    /**
-     *
-     * @return
-     */
-    public String getActionName();
+    public ActionException(String msg) {
+        super(msg);
+    }
 
+    public ActionException(String msg, Throwable cause) {
+        super(msg, cause);
+    }
 }

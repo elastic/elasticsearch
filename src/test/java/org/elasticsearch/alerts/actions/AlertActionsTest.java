@@ -87,7 +87,7 @@ public class AlertActionsTest extends AbstractAlertingTests {
         builder.field(HistoryService.ACTIONS_FIELD, actionMap);
         builder.field(HistoryService.STATE, AlertActionState.SEARCH_NEEDED.toString());
         builder.endObject();
-        final AlertActionRegistry alertActionRegistry = internalTestCluster().getInstance(AlertActionRegistry.class, internalTestCluster().getMasterName());
+        final ActionRegistry alertActionRegistry = internalTestCluster().getInstance(ActionRegistry.class, internalTestCluster().getMasterName());
         final HistoryService alertManager = internalTestCluster().getInstance(HistoryService.class, internalTestCluster().getMasterName());
 
         AlertRecord actionEntry = alertManager.parseHistory("foobar", builder.bytes(), 0, alertActionRegistry);

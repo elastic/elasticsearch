@@ -9,6 +9,7 @@ import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.AlertsService;
 import org.elasticsearch.alerts.actions.AlertAction;
 import org.elasticsearch.alerts.actions.AlertActionState;
+import org.elasticsearch.alerts.actions.AlertActions;
 import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.support.Payload;
 import org.elasticsearch.alerts.trigger.Trigger;
@@ -31,7 +32,7 @@ public class AlertRecord implements ToXContent {
     private DateTime fireTime;
     private DateTime scheduledTime;
     private Trigger trigger;
-    private List<AlertAction> actions;
+    private AlertActions actions;
     private AlertActionState state;
 
 
@@ -145,7 +146,7 @@ public class AlertRecord implements ToXContent {
         return actions;
     }
 
-    void setActions(List<AlertAction> actions) {
+    void setActions(AlertActions actions) {
         this.actions = actions;
     }
 

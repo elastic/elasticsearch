@@ -15,24 +15,24 @@ import java.util.List;
 /**
  *
  */
-public class AlertActions implements Iterable<AlertAction>, ToXContent {
+public class AlertActions implements Iterable<Action>, ToXContent {
 
-    private final List<AlertAction> actions;
+    private final List<Action> actions;
 
-    public AlertActions(List<AlertAction> actions) {
+    public AlertActions(List<Action> actions) {
         this.actions = actions;
     }
 
     @Override
-    public Iterator<AlertAction> iterator() {
+    public Iterator<Action> iterator() {
         return actions.iterator();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        for (AlertAction action : actions){
-            builder.field(action.getActionName());
+        for (Action action : actions){
+            builder.field(action.type());
             action.toXContent(builder, params);
         }
         return builder.endObject();

@@ -74,6 +74,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogModule;
 import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndicesLifecycle;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ShardsPluginsModule;
@@ -127,6 +128,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     private final IndexSettingsService settingsService;
 
     private final NodeEnvironment nodeEnv;
+    private final IndicesService indicesServices;
 
     private volatile ImmutableMap<Integer, Tuple<IndexShard, Injector>> shards = ImmutableMap.of();
 
@@ -138,7 +140,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                                 AnalysisService analysisService, MapperService mapperService, IndexQueryParserService queryParserService,
                                 SimilarityService similarityService, IndexAliasesService aliasesService, IndexCache indexCache, IndexEngine indexEngine,
                                 IndexGateway indexGateway, IndexStore indexStore, IndexSettingsService settingsService, IndexFieldDataService indexFieldData,
-                                FixedBitSetFilterCache fixedBitSetFilterCache) {
+                                FixedBitSetFilterCache fixedBitSetFilterCache,  IndicesService indicesServices) {
         super(index, indexSettings);
         this.injector = injector;
         this.indexSettings = indexSettings;
@@ -156,6 +158,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         this.fixedBitSetFilterCache = fixedBitSetFilterCache;
 
         this.pluginsService = injector.getInstance(PluginsService.class);
+        this.indicesServices = indicesServices;
         this.indicesLifecycle = (InternalIndicesLifecycle) injector.getInstance(IndicesLifecycle.class);
 
         // inject workarounds for cyclic dep
@@ -440,7 +443,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     private void onShardClose(ShardLock lock) {
         if (deleted.get()) { // we remove that shards content if this index has been deleted
             try {
-                nodeEnv.deleteShardDirectoryUnderLock(lock, indexSettings);
+                indicesServices.deleteShardStore("delete index", lock, indexSettings);
             } catch (IOException e) {
                 logger.warn("{} failed to delete shard content", e, lock.getShardId());
             }
@@ -459,5 +462,9 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             assert lock.getShardId().equals(shardId) : "shard Id mismatch, expected: "  + shardId + " but got: " + lock.getShardId();
             onShardClose(lock);
         }
+    }
+
+    public Settings getIndexSettings() {
+        return indexSettings;
     }
 }

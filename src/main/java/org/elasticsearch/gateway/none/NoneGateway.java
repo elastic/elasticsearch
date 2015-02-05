@@ -38,25 +38,16 @@ import org.elasticsearch.index.gateway.none.NoneIndexGatewayModule;
 /**
  *
  */
-public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements Gateway, ClusterStateListener {
+public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements Gateway {
 
     public static final String TYPE = "none";
 
-    private final NodeEnvironment nodeEnv;
-    private final NodeIndexDeletedAction nodeIndexDeletedAction;
     private final ClusterName clusterName;
 
-    @Nullable
-    private volatile MetaData currentMetaData;
-
     @Inject
-    public NoneGateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv, NodeIndexDeletedAction nodeIndexDeletedAction, ClusterName clusterName) {
+    public NoneGateway(Settings settings, ClusterName clusterName) {
         super(settings);
-        this.nodeEnv = nodeEnv;
-        this.nodeIndexDeletedAction = nodeIndexDeletedAction;
         this.clusterName = clusterName;
-
-        clusterService.addLast(this);
     }
 
     @Override
@@ -94,41 +85,5 @@ public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements 
 
     @Override
     public void reset() {
-    }
-
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().blocks().disableStatePersistence()) {
-            // reset the current metadata, we need to start fresh...
-            this.currentMetaData = null;
-            return;
-        }
-
-        MetaData newMetaData = event.state().metaData();
-
-        // delete indices that were there before, but are deleted now
-        // we need to do it so they won't be detected as dangling
-        if (currentMetaData != null) {
-            // only delete indices when we already received a state (currentMetaData != null)
-            for (IndexMetaData current : currentMetaData) {
-                if (!newMetaData.hasIndex(current.index())) {
-                    logger.debug("[{}] deleting index that is no longer part of the metadata (indices: [{}])", current.index(), newMetaData.indices().keys());
-                    if (nodeEnv.hasNodeFile()) {
-                        try {
-                            nodeEnv.deleteIndexDirectorySafe(new Index(current.index()), 30000, current.settings());
-                        } catch (Exception ex) {
-                            logger.debug("failed to delete shard locations", ex);
-                        }
-                    }
-                    try {
-                        nodeIndexDeletedAction.nodeIndexStoreDeleted(event.state(), current.index(), event.state().nodes().localNodeId());
-                    } catch (Exception e) {
-                        logger.debug("[{}] failed to notify master on local index store deletion", e, current.index());
-                    }
-                }
-            }
-        }
-
-        currentMetaData = newMetaData;
     }
 }

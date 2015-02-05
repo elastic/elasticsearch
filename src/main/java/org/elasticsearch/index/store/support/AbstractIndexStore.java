@@ -131,32 +131,6 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
         return nodeRateLimiting ? indicesStore.rateLimiting() : this.rateLimiting;
     }
 
-    @Override
-    public boolean canDeleteUnallocated(ShardId shardId, @IndexSettings Settings indexSettings) {
-        if (locations == null) {
-            return false;
-        }
-        if (indexService.hasShard(shardId.id())) {
-            return false;
-        }
-        return FileSystemUtils.exists(nodeEnv.shardPaths(shardId));
-    }
-
-    @Override
-    public void deleteUnallocated(ShardId shardId, @IndexSettings Settings indexSettings) throws IOException {
-        if (locations == null) {
-            return;
-        }
-        if (indexService.hasShard(shardId.id())) {
-            throw new ElasticsearchIllegalStateException(shardId + " allocated, can't be deleted");
-        }
-        try {
-            nodeEnv.deleteShardDirectorySafe(shardId, indexSettings);
-        } catch (Exception ex) {
-            logger.debug("failed to delete shard locations", ex);
-        }
-    }
-
     /**
      * Return an array of all index folder locations for a given shard. Uses
      * the index settings to determine if a custom data path is set for the

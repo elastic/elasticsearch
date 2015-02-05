@@ -58,19 +58,22 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
 
     private static class Holder {
         // lazy init on first access
-        private static Node NODE = newNode();
+        private static Node NODE = newNode(false);
 
-        private static void reset() {
+        private static boolean LOCAL_GATEWAY = false;
+
+        private static void reset(boolean localGateway) {
             assert NODE != null;
             node().stop();
-            Holder.NODE = newNode();
+            Holder.NODE = newNode(localGateway);
+            LOCAL_GATEWAY = localGateway;
         }
     }
 
     static void cleanup(boolean resetNode) {
         assertAcked(client().admin().indices().prepareDelete("*").get());
-        if (resetNode) {
-            Holder.reset();
+        if (resetNode || Holder.LOCAL_GATEWAY) {
+            Holder.reset(false);
         }
         MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(),
@@ -93,7 +96,15 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
         return false;
     }
 
-    private static Node newNode() {
+    /**
+     * Forces a reset of the current node to run with local gateway. This must be enforced per test method since
+     * this will trigger a forceful reset after the test.
+     */
+    public static void forceLocalGateway() {
+        Holder.reset(true);
+    }
+
+    private static Node newNode(boolean localGateway) {
         Node build = NodeBuilder.nodeBuilder().local(true).data(true).settings(ImmutableSettings.builder()
                 .put(ClusterName.SETTING, nodeName())
                 .put("node.name", nodeName())
@@ -103,7 +114,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
                 .put("http.enabled", false)
                 .put("index.store.type", "ram")
                 .put("config.ignore_system_properties", true) // make sure we get what we set :)
-                .put("gateway.type", "none")).build();
+                .put("gateway.type", localGateway ? "local" : "none")).build();
         build.start();
         assertThat(DiscoveryNode.localNode(build.settings()), is(true));
         return build;

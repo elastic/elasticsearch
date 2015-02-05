@@ -16,34 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.index.engine;
 
-package org.elasticsearch.index.engine.internal;
-
-import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.index.translog.Translog;
-
-/** Holds a deleted version, which just adds a timestmap to {@link VersionValue} so we know when we can expire the deletion. */
-
-class DeleteVersionValue extends VersionValue {
-    private final long time;
-
-    public DeleteVersionValue(long version, long time, Translog.Location translogLocation) {
-        super(version, translogLocation);
-        this.time = time;
-    }
-
+public class InternalEngineFactory implements EngineFactory {
     @Override
-    public long time() {
-        return this.time;
-    }
-
-    @Override
-    public boolean delete() {
-        return true;
-    }
-
-    @Override
-    public long ramBytesUsed() {
-        return super.ramBytesUsed() + RamUsageEstimator.NUM_BYTES_LONG;
+    public Engine newEngine(EngineConfig config) {
+        return new InternalEngine(config);
     }
 }

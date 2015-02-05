@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.engine.internal;
+package org.elasticsearch.index.engine;
 
 import com.google.common.base.Predicate;
 import org.apache.lucene.index.LogByteSizeMergePolicy;

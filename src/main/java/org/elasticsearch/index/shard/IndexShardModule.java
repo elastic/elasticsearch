@@ -22,7 +22,7 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.internal.InternalEngineFactory;
+import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 
 /**

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine.internal;
+package org.elasticsearch.index.engine;
 
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.util.Accountable;

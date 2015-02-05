@@ -16,11 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.engine.internal;
+package org.elasticsearch.index.engine;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 
 import static org.hamcrest.Matchers.is;

@@ -19,20 +19,24 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -42,24 +46,140 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.Closeable;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  *
  */
-public interface Engine extends Closeable {
+public abstract class Engine implements Closeable {
 
-    void updateIndexingBufferSize(ByteSizeValue indexingBufferSize);
+    private final ESLogger logger;
+    private final EngineConfig engineConfig;
 
-    void create(Create create) throws EngineException;
+    protected Engine(EngineConfig engineConfig) {
+        Preconditions.checkNotNull(engineConfig.getStore(), "Store must be provided to the engine");
+        Preconditions.checkNotNull(engineConfig.getDeletionPolicy(), "Snapshot deletion policy must be provided to the engine");
+        Preconditions.checkNotNull(engineConfig.getTranslog(), "Translog must be provided to the engine");
 
-    void index(Index index) throws EngineException;
+        this.engineConfig = engineConfig;
+        this.logger = Loggers.getLogger(getClass(), engineConfig.getIndexSettings(), engineConfig.getShardId());
+    }
 
-    void delete(Delete delete) throws EngineException;
+    /** Returns 0 in the case where accountable is null, otherwise returns {@code ramBytesUsed()} */
+    protected static long guardedRamBytesUsed(Accountable a) {
+        if (a == null) {
+            return 0;
+        }
+        return a.ramBytesUsed();
+    }
 
-    void delete(DeleteByQuery delete) throws EngineException;
+    /**
+     * Tries to extract a segment reader from the given index reader.
+     * If no SegmentReader can be extracted an {@link org.elasticsearch.ElasticsearchIllegalStateException} is thrown.
+     */
+    protected static SegmentReader segmentReader(LeafReader reader) {
+        if (reader instanceof SegmentReader) {
+            return (SegmentReader) reader;
+        } else if (reader instanceof FilterLeafReader) {
+            final FilterLeafReader fReader = (FilterLeafReader) reader;
+            return segmentReader(FilterLeafReader.unwrap(fReader));
+        }
+        // hard fail - we can't get a SegmentReader
+        throw new ElasticsearchIllegalStateException("Can not extract segment reader from given index reader [" + reader + "]");
+    }
 
-    GetResult get(Get get) throws EngineException;
+    /**
+     * Returns whether a leaf reader comes from a merge (versus flush or addIndexes).
+     */
+    protected static boolean isMergedSegment(LeafReader reader) {
+        // We expect leaves to be segment readers
+        final Map<String, String> diagnostics = segmentReader(reader).getSegmentInfo().info.getDiagnostics();
+        final String source = diagnostics.get(IndexWriter.SOURCE);
+        assert Arrays.asList(IndexWriter.SOURCE_ADDINDEXES_READERS, IndexWriter.SOURCE_FLUSH,
+                IndexWriter.SOURCE_MERGE).contains(source) : "Unknown source " + source;
+        return IndexWriter.SOURCE_MERGE.equals(source);
+    }
+
+    protected Searcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
+        return new EngineSearcher(source, searcher, manager, engineConfig.getStore(), logger);
+    }
+
+    /** A throttling class that can be activated, causing the
+     * {@code acquireThrottle} method to block on a lock when throttling
+     * is enabled
+     */
+    protected static final class IndexThrottle {
+
+        private static final ReleasableLock NOOP_LOCK = new ReleasableLock(new NoOpLock());
+        private final ReleasableLock lockReference = new ReleasableLock(new ReentrantLock());
+
+        private volatile ReleasableLock lock = NOOP_LOCK;
+
+        public Releasable acquireThrottle() {
+            return lock.acquire();
+        }
+
+        /** Activate throttling, which switches the lock to be a real lock */
+        public void activate() {
+            assert lock == NOOP_LOCK : "throttling activated while already active";
+            lock = lockReference;
+        }
+
+        /** Deactivate throttling, which switches the lock to be an always-acquirable NoOpLock */
+        public void deactivate() {
+            assert lock != NOOP_LOCK : "throttling deactivated but not active";
+            lock = NOOP_LOCK;
+        }
+    }
+
+    /** A Lock implementation that always allows the lock to be acquired */
+    protected static final class NoOpLock implements Lock {
+
+        @Override
+        public void lock() {
+        }
+
+        @Override
+        public void lockInterruptibly() throws InterruptedException {
+        }
+
+        @Override
+        public boolean tryLock() {
+            return true;
+        }
+
+        @Override
+        public boolean tryLock(long time, TimeUnit unit) throws InterruptedException {
+            return true;
+        }
+
+        @Override
+        public void unlock() {
+        }
+
+        @Override
+        public Condition newCondition() {
+            throw new UnsupportedOperationException("NoOpLock can't provide a condition");
+        }
+    }
+
+    public abstract void updateIndexingBufferSize(ByteSizeValue indexingBufferSize);
+
+    public abstract void create(Create create) throws EngineException;
+
+    public abstract void index(Index index) throws EngineException;
+
+    public abstract void delete(Delete delete) throws EngineException;
+
+    public abstract void delete(DeleteByQuery delete) throws EngineException;
+
+    public abstract GetResult get(Get get) throws EngineException;
 
     /**
      * Returns a new searcher instance. The consumer of this
@@ -68,28 +188,28 @@ public interface Engine extends Closeable {
      *
      * @see Searcher#close()
      */
-    Searcher acquireSearcher(String source) throws EngineException;
+    public abstract Searcher acquireSearcher(String source) throws EngineException;
 
     /**
      * Global stats on segments.
      */
-    SegmentsStats segmentsStats();
+    public abstract SegmentsStats segmentsStats();
 
     /**
      * The list of segments in the engine.
      */
-    List<Segment> segments(boolean verbose);
+    public abstract List<Segment> segments(boolean verbose);
 
     /**
      * Returns <tt>true</tt> if a refresh is really needed.
      */
-    boolean refreshNeeded();
+    public abstract boolean refreshNeeded();
 
     /**
      * Refreshes the engine for new search operations to reflect the latest
      * changes.
      */
-    void refresh(String source) throws EngineException;
+    public abstract void refresh(String source) throws EngineException;
 
     /**
      * Flushes the state of the engine including the transaction log, clearing memory.
@@ -97,7 +217,7 @@ public interface Engine extends Closeable {
      * @param waitIfOngoing if <code>true</code> this call will block until all currently running flushes have finished.
      *                      Otherwise this call will return without blocking.
      */
-    void flush(boolean force, boolean waitIfOngoing) throws EngineException;
+    public abstract void flush(boolean force, boolean waitIfOngoing) throws EngineException;
 
     /**
      * Flushes the state of the engine including the transaction log, clearing memory and persisting
@@ -105,32 +225,32 @@ public interface Engine extends Closeable {
      * This operation is not going to block if another flush operation is currently running and won't write
      * a lucene commit if nothing needs to be committed.
      */
-    void flush() throws EngineException;
+    public abstract void flush() throws EngineException;
 
     /**
      * Optimizes to 1 segment
      */
-    void forceMerge(boolean flush, boolean waitForMerge);
+    abstract void forceMerge(boolean flush, boolean waitForMerge);
 
     /**
      * Triggers a forced merge on this engine
      */
-    void forceMerge(boolean flush, boolean waitForMerge, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade) throws EngineException;
+    public abstract void forceMerge(boolean flush, boolean waitForMerge, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade) throws EngineException;
 
     /**
      * Snapshots the index and returns a handle to it. Will always try and "commit" the
      * lucene index to make sure we have a "fresh" copy of the files to snapshot.
      */
-    SnapshotIndexCommit snapshotIndex() throws EngineException;
+    public abstract SnapshotIndexCommit snapshotIndex() throws EngineException;
 
-    void recover(RecoveryHandler recoveryHandler) throws EngineException;
+    public abstract void recover(RecoveryHandler recoveryHandler) throws EngineException;
 
     /** fail engine due to some error. the engine will also be closed. */
-    void failEngine(String reason, Throwable failure);
+    public abstract void failEngine(String reason, Throwable failure);
 
-    ByteSizeValue indexingBufferSize();
+    public abstract ByteSizeValue indexingBufferSize();
 
-    static interface FailedEngineListener {
+    public static interface FailedEngineListener {
         void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t);
     }
 
@@ -146,7 +266,7 @@ public interface Engine extends Closeable {
      * <p>The last phase returns the remaining transaction log. During this phase, no dirty
      * operations are allowed on the index.
      */
-    static interface RecoveryHandler {
+    public static interface RecoveryHandler {
 
         void phase1(SnapshotIndexCommit snapshot) throws ElasticsearchException;
 
@@ -155,50 +275,38 @@ public interface Engine extends Closeable {
         void phase3(Translog.Snapshot snapshot) throws ElasticsearchException;
     }
 
-    static interface Searcher extends Releasable {
-
-        /**
-         * The source that caused this searcher to be acquired.
-         */
-        String source();
-
-        IndexReader reader();
-
-        IndexSearcher searcher();
-    }
-
-    static class SimpleSearcher implements Searcher {
+    public static class Searcher implements Releasable {
 
         private final String source;
         private final IndexSearcher searcher;
 
-        public SimpleSearcher(String source, IndexSearcher searcher) {
+        public Searcher(String source, IndexSearcher searcher) {
             this.source = source;
             this.searcher = searcher;
         }
 
-        @Override
+        /**
+         * The source that caused this searcher to be acquired.
+         */
         public String source() {
             return source;
         }
 
-        @Override
         public IndexReader reader() {
             return searcher.getIndexReader();
         }
 
-        @Override
         public IndexSearcher searcher() {
             return searcher;
         }
 
         @Override
         public void close() throws ElasticsearchException {
-            // nothing to release here...
+            // Nothing to close here
         }
     }
 
-    static interface Operation {
+    public static interface Operation {
         static enum Type {
             CREATE,
             INDEX,
@@ -216,7 +324,7 @@ public interface Engine extends Closeable {
         Origin origin();
     }
 
-    static abstract class IndexingOperation implements Operation {
+    public static abstract class IndexingOperation implements Operation {
 
         private final DocumentMapper docMapper;
         private final Term uid;
@@ -329,7 +437,7 @@ public interface Engine extends Closeable {
         }
     }
 
-    static final class Create extends IndexingOperation {
+    public static final class Create extends IndexingOperation {
         private final boolean autoGeneratedId;
 
         public Create(DocumentMapper docMapper, Term uid, ParsedDocument doc, long version, VersionType versionType, Origin origin, long startTime, boolean canHaveDuplicates, boolean autoGeneratedId) {
@@ -357,7 +465,7 @@ public interface Engine extends Closeable {
         }
     }
 
-    static final class Index extends IndexingOperation {
+    public static final class Index extends IndexingOperation {
         private boolean created;
 
         public Index(DocumentMapper docMapper, Term uid, ParsedDocument doc, long version, VersionType versionType, Origin origin, long startTime, boolean canHaveDuplicates) {
@@ -389,7 +497,7 @@ public interface Engine extends Closeable {
         }
     }
 
-    static class Delete implements Operation {
+    public static class Delete implements Operation {
         private final String type;
         private final String id;
         private final Term uid;
@@ -481,7 +589,7 @@ public interface Engine extends Closeable {
         }
     }
 
-    static class DeleteByQuery {
+    public static class DeleteByQuery {
         private final Query query;
         private final BytesReference source;
         private final String[] filteringAliases;
@@ -557,7 +665,7 @@ public interface Engine extends Closeable {
     }
 
 
-    static class Get {
+    public static class Get {
         private final boolean realtime;
         private final Term uid;
         private boolean loadSource = true;
@@ -605,7 +713,7 @@ public interface Engine extends Closeable {
         }
     }
 
-    static class GetResult {
+    public static class GetResult {
         private final boolean exists;
         private final long version;
         private final Translog.Source source;

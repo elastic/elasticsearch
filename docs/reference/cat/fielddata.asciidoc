@@ -2,7 +2,7 @@
 == cat fielddata
 
 `fielddata` shows information about currently loaded fielddata on a per-node
-basis.
+basis on all data nodes in cluster.
 
 [source,shell]
 --------------------------------------------------

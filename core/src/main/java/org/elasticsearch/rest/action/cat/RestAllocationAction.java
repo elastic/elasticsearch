@@ -58,7 +58,7 @@ public class RestAllocationAction extends AbstractCatAction {
 
     @Override
     public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
-        final String[] nodes = Strings.splitStringByCommaToArray(request.param("nodes"));
+        final String[] nodes = Strings.splitStringByCommaToArray(request.param("nodes", "data:true"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().routingTable(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));

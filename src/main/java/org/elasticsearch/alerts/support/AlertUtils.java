@@ -40,8 +40,6 @@ public final class AlertUtils {
 
     public static final String FIRE_TIME_VARIABLE_NAME = "fire_time";
     public static final String SCHEDULED_FIRE_TIME_VARIABLE_NAME = "scheduled_fire_time";
-    public static final String ALERT_NAME_VARIABLE_NAME = "alert_name";
-    public static final String RESPONSE_VARIABLE_NAME = "response";
 
 
     private AlertUtils() {

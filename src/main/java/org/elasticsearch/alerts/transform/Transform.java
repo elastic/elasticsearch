@@ -3,9 +3,10 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerts.payload;
+package org.elasticsearch.alerts.transform;
 
 import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.trigger.Trigger;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -13,22 +14,21 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  *
  */
-public interface Payload extends ToXContent {
+public interface Transform extends ToXContent {
 
-    static final Payload NOOP = new Payload() {
+    static final Transform NOOP = new Transform() {
         @Override
         public String type() {
             return "noop";
         }
 
         @Override
-        public Map<String, Object> execute(Alert alert, Trigger.Result result, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
-            return result.data();
+        public Payload apply(Alert alert, Trigger.Result result, Payload payload, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
+            return payload;
         }
 
         @Override
@@ -39,13 +39,14 @@ public interface Payload extends ToXContent {
 
     String type();
 
-    Map<String, Object> execute(Alert alert, Trigger.Result result, DateTime scheduledFireTime, DateTime fireTime) throws IOException;
+    Payload apply(Alert alert, Trigger.Result result, Payload payload, DateTime scheduledFireTime, DateTime fireTime) throws IOException;
 
-    static interface Parser<P extends Payload> {
+    static interface Parser<P extends Transform> {
 
         String type();
 
         P parse(XContentParser parser) throws IOException;
 
     }
+
 }

@@ -15,11 +15,11 @@ import java.util.List;
 /**
  *
  */
-public class AlertActions implements Iterable<Action>, ToXContent {
+public class Actions implements Iterable<Action>, ToXContent {
 
     private final List<Action> actions;
 
-    public AlertActions(List<Action> actions) {
+    public Actions(List<Action> actions) {
         this.actions = actions;
     }
 

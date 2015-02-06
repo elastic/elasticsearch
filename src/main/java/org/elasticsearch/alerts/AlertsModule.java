@@ -9,11 +9,11 @@ package org.elasticsearch.alerts;
 import org.elasticsearch.alerts.actions.ActionModule;
 import org.elasticsearch.alerts.client.AlertsClientModule;
 import org.elasticsearch.alerts.history.HistoryModule;
-import org.elasticsearch.alerts.payload.PayloadModule;
 import org.elasticsearch.alerts.rest.AlertsRestModule;
 import org.elasticsearch.alerts.scheduler.SchedulerModule;
 import org.elasticsearch.alerts.support.TemplateUtils;
 import org.elasticsearch.alerts.support.init.InitializingModule;
+import org.elasticsearch.alerts.transform.TransformModule;
 import org.elasticsearch.alerts.transport.AlertsTransportModule;
 import org.elasticsearch.alerts.trigger.TriggerModule;
 import org.elasticsearch.common.collect.ImmutableList;
@@ -29,7 +29,7 @@ public class AlertsModule extends AbstractModule implements SpawnModules {
         return ImmutableList.of(
                 new InitializingModule(),
                 new AlertsClientModule(),
-                new PayloadModule(),
+                new TransformModule(),
                 new AlertsRestModule(),
                 new SchedulerModule(),
                 new AlertsTransportModule(),

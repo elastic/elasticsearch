@@ -6,13 +6,13 @@
 package org.elasticsearch.alerts;
 
 import org.elasticsearch.alerts.actions.ActionRegistry;
-import org.elasticsearch.alerts.actions.AlertActions;
-import org.elasticsearch.alerts.payload.Payload;
-import org.elasticsearch.alerts.payload.PayloadRegistry;
+import org.elasticsearch.alerts.actions.Actions;
 import org.elasticsearch.alerts.scheduler.schedule.Schedule;
 import org.elasticsearch.alerts.scheduler.schedule.ScheduleRegistry;
 import org.elasticsearch.alerts.throttle.AlertThrottler;
 import org.elasticsearch.alerts.throttle.Throttler;
+import org.elasticsearch.alerts.transform.Transform;
+import org.elasticsearch.alerts.transform.TransformRegistry;
 import org.elasticsearch.alerts.trigger.Trigger;
 import org.elasticsearch.alerts.trigger.TriggerRegistry;
 import org.elasticsearch.common.Nullable;
@@ -42,7 +42,7 @@ public class Alert implements ToXContent {
     private final String name;
     private final Schedule schedule;
     private final Trigger trigger;
-    private final AlertActions actions;
+    private final Actions actions;
     private final Throttler throttler;
     private final Status status;
     private final TimeValue throttlePeriod;
@@ -51,9 +51,9 @@ public class Alert implements ToXContent {
     private final Map<String, Object> metadata;
 
     @Nullable
-    private final Payload payload;
+    private final Transform transform;
 
-    public Alert(String name, Schedule schedule, Trigger trigger, Payload payload, TimeValue throttlePeriod, AlertActions actions, Map<String, Object> metadata, Status status) {
+    public Alert(String name, Schedule schedule, Trigger trigger, Transform transform, TimeValue throttlePeriod, Actions actions, Map<String, Object> metadata, Status status) {
         this.name = name;
         this.schedule = schedule;
         this.trigger = trigger;
@@ -61,7 +61,7 @@ public class Alert implements ToXContent {
         this.status = status != null ? status : new Status();
         this.throttlePeriod = throttlePeriod;
         this.metadata = metadata;
-        this.payload = payload != null ? payload : Payload.NOOP;
+        this.transform = transform != null ? transform : Transform.NOOP;
 
         throttler = new AlertThrottler(throttlePeriod);
     }
@@ -78,15 +78,15 @@ public class Alert implements ToXContent {
         return trigger;
     }
 
-    public Payload payload() {
-        return payload;
+    public Transform transform() {
+        return transform;
     }
 
     public Throttler throttler() {
         return throttler;
     }
 
-    public AlertActions actions() {
+    public Actions actions() {
         return actions;
     }
 
@@ -122,8 +122,8 @@ public class Alert implements ToXContent {
         builder.startObject();
         builder.field(Parser.SCHEDULE_FIELD.getPreferredName(), schedule);
         builder.field(Parser.TRIGGER_FIELD.getPreferredName(), trigger);
-        if (payload != Payload.NOOP) {
-            builder.field(Parser.PAYLOAD_FIELD.getPreferredName(), payload);
+        if (transform != Transform.NOOP) {
+            builder.field(Parser.TRANSFORM_FIELD.getPreferredName(), transform);
         }
         if (throttlePeriod != null) {
             builder.field(Parser.THROTTLE_PERIOD_FIELD.getPreferredName(), throttlePeriod.getMillis());
@@ -142,24 +142,24 @@ public class Alert implements ToXContent {
         public static final ParseField SCHEDULE_FIELD = new ParseField("schedule");
         public static final ParseField TRIGGER_FIELD = new ParseField("trigger");
         public static final ParseField ACTIONS_FIELD = new ParseField("actions");
-        public static final ParseField PAYLOAD_FIELD = new ParseField("payload");
+        public static final ParseField TRANSFORM_FIELD = new ParseField("transform");
         public static final ParseField META_FIELD = new ParseField("meta");
         public static final ParseField STATUS_FIELD = new ParseField("status");
         public static final ParseField THROTTLE_PERIOD_FIELD = new ParseField("throttle_period");
 
         private final TriggerRegistry triggerRegistry;
         private final ScheduleRegistry scheduleRegistry;
-        private final PayloadRegistry payloadRegistry;
+        private final TransformRegistry transformRegistry;
         private final ActionRegistry actionRegistry;
 
         @Inject
         public Parser(Settings settings, TriggerRegistry triggerRegistry, ScheduleRegistry scheduleRegistry,
-                      PayloadRegistry payloadRegistry, ActionRegistry actionRegistry) {
+                      TransformRegistry transformRegistry, ActionRegistry actionRegistry) {
 
             super(settings);
             this.triggerRegistry = triggerRegistry;
             this.scheduleRegistry = scheduleRegistry;
-            this.payloadRegistry = payloadRegistry;
+            this.transformRegistry = transformRegistry;
             this.actionRegistry = actionRegistry;
         }
 
@@ -174,8 +174,8 @@ public class Alert implements ToXContent {
         public Alert parse(String name, boolean includeStatus, XContentParser parser) throws IOException {
             Schedule schedule = null;
             Trigger trigger = null;
-            AlertActions actions = null;
-            Payload payload = null;
+            Actions actions = null;
+            Transform transform = null;
             Map<String, Object> metatdata = null;
             Status status = null;
             TimeValue throttlePeriod = null;
@@ -191,8 +191,8 @@ public class Alert implements ToXContent {
                     trigger = triggerRegistry.parse(parser);
                 } else if (ACTIONS_FIELD.match(currentFieldName)) {
                     actions = actionRegistry.parseActions(parser);
-                } else if (PAYLOAD_FIELD.match(currentFieldName)) {
-                    payload = payloadRegistry.parse(parser);
+                } else if (TRANSFORM_FIELD.match(currentFieldName)) {
+                    transform = transformRegistry.parse(parser);
                 } else if (META_FIELD.match(currentFieldName)) {
                     metatdata = parser.map();
                 } else if (STATUS_FIELD.match(currentFieldName) && includeStatus) {
@@ -217,7 +217,7 @@ public class Alert implements ToXContent {
                 throw new AlertsSettingsException("could not parse alert [" + name + "]. missing alert actions");
             }
 
-            return new Alert(name, schedule, trigger, payload, throttlePeriod, actions, metatdata, status);
+            return new Alert(name, schedule, trigger, transform, throttlePeriod, actions, metatdata, status);
         }
 
     }

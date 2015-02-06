@@ -49,14 +49,14 @@ public class ActionRegistry  {
         return action;
     }
 
-    public AlertActions parseActions(XContentParser parser) throws IOException {
+    public Actions parseActions(XContentParser parser) throws IOException {
         List<Action> actions = new ArrayList<>();
 
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             actions.add(parse(parser));
         }
 
-        return new AlertActions(actions);
+        return new Actions(actions);
     }
 
 

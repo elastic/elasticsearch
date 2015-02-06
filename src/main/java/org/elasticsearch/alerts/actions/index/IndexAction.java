@@ -8,6 +8,7 @@ package org.elasticsearch.alerts.actions.index;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.actions.ActionException;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
@@ -21,7 +22,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.alerts.support.AlertUtils.responseToData;
 
@@ -49,14 +49,14 @@ public class IndexAction extends Action<IndexAction.Result> {
     }
 
     @Override
-    public Result execute(Alert alert, Map<String, Object> data) throws IOException {
+    public Result execute(Alert alert, Payload payload) throws IOException {
         IndexRequest indexRequest = new IndexRequest();
         indexRequest.index(index);
         indexRequest.type(type);
         try {
             XContentBuilder resultBuilder = XContentFactory.jsonBuilder().prettyPrint();
             resultBuilder.startObject();
-            resultBuilder.field("response", data);
+            resultBuilder.field("data", payload.data());
             resultBuilder.field("timestamp", alert.status().lastExecuted());
             resultBuilder.endObject();
             indexRequest.source(resultBuilder);

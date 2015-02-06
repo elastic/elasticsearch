@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerts.payload;
+package org.elasticsearch.alerts.transform;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
@@ -14,22 +14,22 @@ import java.util.Map;
 /**
  *
  */
-public class PayloadModule extends AbstractModule {
+public class TransformModule extends AbstractModule {
 
-    private Map<String, Class<? extends Payload.Parser>> parsers = new HashMap<>();
+    private Map<String, Class<? extends Transform.Parser>> parsers = new HashMap<>();
 
-    public void registerPayload(String payloadType, Class<? extends Payload.Parser> parserType) {
+    public void registerPayload(String payloadType, Class<? extends Transform.Parser> parserType) {
         parsers.put(payloadType, parserType);
     }
 
     @Override
     protected void configure() {
 
-        MapBinder<String, Payload.Parser> mbinder = MapBinder.newMapBinder(binder(), String.class, Payload.Parser.class);
-        bind(SearchPayload.Parser.class).asEagerSingleton();
-        mbinder.addBinding(SearchPayload.TYPE).to(SearchPayload.Parser.class);
+        MapBinder<String, Transform.Parser> mbinder = MapBinder.newMapBinder(binder(), String.class, Transform.Parser.class);
+        bind(SearchTransform.Parser.class).asEagerSingleton();
+        mbinder.addBinding(SearchTransform.TYPE).to(SearchTransform.Parser.class);
 
-        for (Map.Entry<String, Class<? extends Payload.Parser>> entry : parsers.entrySet()) {
+        for (Map.Entry<String, Class<? extends Transform.Parser>> entry : parsers.entrySet()) {
             bind(entry.getValue()).asEagerSingleton();
             mbinder.addBinding(entry.getKey()).to(entry.getValue());
         }

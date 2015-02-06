@@ -6,13 +6,13 @@
 package org.elasticsearch.alerts.trigger;
 
 import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  *
@@ -56,12 +56,12 @@ public abstract class Trigger<R extends Trigger.Result> implements ToXContent {
 
         private final String type;
         private final boolean triggered;
-        private final Map<String, Object> data;
+        private final Payload payload;
 
-        public Result(String type, boolean triggered, Map<String, Object> data) {
+        public Result(String type, boolean triggered, Payload payload) {
             this.type = type;
             this.triggered = triggered;
-            this.data = data;
+            this.payload = payload;
         }
 
         public String type() {
@@ -72,8 +72,8 @@ public abstract class Trigger<R extends Trigger.Result> implements ToXContent {
             return triggered;
         }
 
-        public Map<String, Object> data() {
-            return data;
+        public Payload payload() {
+            return payload;
         }
 
     }

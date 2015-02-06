@@ -6,12 +6,12 @@
 package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  */
@@ -34,7 +34,7 @@ public abstract class Action<R extends Action.Result> implements ToXContent {
     /**
      * Executes this action
      */
-    public abstract R execute(Alert alert, Map<String,Object> data) throws IOException;
+    public abstract R execute(Alert alert, Payload payload) throws IOException;
 
 
     /**

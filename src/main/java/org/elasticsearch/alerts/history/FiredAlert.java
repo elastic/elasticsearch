@@ -10,9 +10,9 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.AlertsService;
 import org.elasticsearch.alerts.actions.ActionRegistry;
-import org.elasticsearch.alerts.actions.AlertActions;
-import org.elasticsearch.alerts.payload.Payload;
-import org.elasticsearch.alerts.payload.PayloadRegistry;
+import org.elasticsearch.alerts.actions.Actions;
+import org.elasticsearch.alerts.transform.Transform;
+import org.elasticsearch.alerts.transform.TransformRegistry;
 import org.elasticsearch.alerts.trigger.Trigger;
 import org.elasticsearch.alerts.trigger.TriggerRegistry;
 import org.elasticsearch.common.ParseField;
@@ -37,11 +37,11 @@ public class FiredAlert implements ToXContent {
     private DateTime fireTime;
     private DateTime scheduledTime;
     private Trigger trigger;
-    private AlertActions actions;
+    private Actions actions;
     private State state;
 
     /*Optional*/
-    private Payload payload;
+    private Transform transform;
     private String errorMessage;
     private Map<String,Object> metadata;
 
@@ -85,7 +85,7 @@ public class FiredAlert implements ToXContent {
             } else {
                 state = State.ACTION_PERFORMED;
             }
-            payload = alert.payload();
+            transform = alert.transform();
         } else {
              state = State.NO_ACTION_NEEDED;
         }
@@ -123,11 +123,11 @@ public class FiredAlert implements ToXContent {
         this.trigger = trigger;
     }
 
-    public AlertActions actions() {
+    public Actions actions() {
         return actions;
     }
 
-    public void actions(AlertActions actions) {
+    public void actions(Actions actions) {
         this.actions = actions;
     }
 
@@ -163,12 +163,12 @@ public class FiredAlert implements ToXContent {
         this.metadata = metadata;
     }
 
-    public Payload payload() {
-        return payload;
+    public Transform transform() {
+        return transform;
     }
 
-    public void payload(Payload payload) {
-        this.payload = payload;
+    public void transform(Transform transform) {
+        this.transform = transform;
     }
 
     @Override
@@ -181,8 +181,8 @@ public class FiredAlert implements ToXContent {
         historyEntry.field(Parser.ACTIONS_FIELD.getPreferredName(), actions, params);
         historyEntry.field(Parser.STATE_FIELD.getPreferredName(), state.toString());
 
-        if (payload != null) {
-            historyEntry.field(Parser.PAYLOAD_FIELD.getPreferredName(), payload, params);
+        if (transform != null) {
+            historyEntry.field(Parser.TRANSFORM_FIELD.getPreferredName(), transform, params);
         }
         if (errorMessage != null) {
             historyEntry.field(Parser.ERROR_MESSAGE_FIELD.getPreferredName(), errorMessage);
@@ -192,8 +192,8 @@ public class FiredAlert implements ToXContent {
         }
         // TODO: maybe let AlertRun implement ToXContent?
         if (alertRun != null) {
-            historyEntry.field(Parser.TRIGGER_RESPONSE.getPreferredName(), alertRun.triggerResult().data());
-            historyEntry.field(Parser.PAYLOAD_RESPONSE.getPreferredName(), alertRun.data());
+            historyEntry.field(Parser.TRIGGER_RESPONSE.getPreferredName(), alertRun.triggerResult().payload());
+            historyEntry.field(Parser.PAYLOAD.getPreferredName(), alertRun.payload());
         }
 
         historyEntry.endObject();
@@ -279,21 +279,21 @@ public class FiredAlert implements ToXContent {
         public static final ParseField ERROR_MESSAGE_FIELD = new ParseField("error_msg");
         public static final ParseField TRIGGER_FIELD = new ParseField("trigger");
         public static final ParseField TRIGGER_RESPONSE = new ParseField("trigger_response");
-        public static final ParseField PAYLOAD_FIELD = new ParseField("payload_request");
-        public static final ParseField PAYLOAD_RESPONSE = new ParseField("payload_response");
+        public static final ParseField TRANSFORM_FIELD = new ParseField("transform");
+        public static final ParseField PAYLOAD = new ParseField("payload");
         public static final ParseField ACTIONS_FIELD = new ParseField("actions");
         public static final ParseField STATE_FIELD = new ParseField("state");
         public static final ParseField METADATA_FIELD = new ParseField("meta");
 
         private final TriggerRegistry triggerRegistry;
-        private final PayloadRegistry payloadRegistry;
+        private final TransformRegistry transformRegistry;
         private final ActionRegistry actionRegistry;
 
         @Inject
-        public Parser(Settings settings, TriggerRegistry triggerRegistry, PayloadRegistry payloadRegistry, ActionRegistry actionRegistry) {
+        public Parser(Settings settings, TriggerRegistry triggerRegistry, TransformRegistry transformRegistry, ActionRegistry actionRegistry) {
             super(settings);
             this.triggerRegistry = triggerRegistry;
-            this.payloadRegistry = payloadRegistry;
+            this.transformRegistry = transformRegistry;
             this.actionRegistry = actionRegistry;
         }
 
@@ -321,8 +321,8 @@ public class FiredAlert implements ToXContent {
                         entry.actions(actionRegistry.parseActions(parser));
                     } else if (TRIGGER_FIELD.match(currentFieldName)) {
                         entry.trigger(triggerRegistry.parse(parser));
-                    } else if (PAYLOAD_FIELD.match(currentFieldName)) {
-                        entry.payload(payloadRegistry.parse(parser));
+                    } else if (TRANSFORM_FIELD.match(currentFieldName)) {
+                        entry.transform(transformRegistry.parse(parser));
                     } else if (METADATA_FIELD.match(currentFieldName)) {
                         entry.metadata(parser.map());
                     } else {

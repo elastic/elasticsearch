@@ -7,6 +7,7 @@ package org.elasticsearch.alerts.trigger.search;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
@@ -22,9 +23,6 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
-import java.util.Map;
-
-import static org.elasticsearch.alerts.support.AlertUtils.responseToData;
 
 /**
  *
@@ -53,11 +51,11 @@ public class ScriptSearchTrigger extends SearchTrigger {
 
     @Override
     protected Result processSearchResponse(SearchResponse response) {
-        Map<String, Object> data = responseToData(response);
-        ExecutableScript executable = scriptService.executable(scriptLang, script, scriptType, data);
+        Payload payload = new Payload.ActionResponse(response);
+        ExecutableScript executable = scriptService.executable(scriptLang, script, scriptType, payload.data());
         Object value = executable.run();
         if (value instanceof Boolean) {
-            return new Result(TYPE, (Boolean) value, request, data);
+            return new Result(TYPE, (Boolean) value, request, payload);
         }
         throw new TriggerException("trigger script [" + script + "] did not return a boolean value");
     }

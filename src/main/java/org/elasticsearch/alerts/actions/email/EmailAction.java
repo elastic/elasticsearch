@@ -6,6 +6,7 @@
 package org.elasticsearch.alerts.actions.email;
 
 import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.actions.ActionException;
 import org.elasticsearch.alerts.support.StringTemplateUtils;
@@ -71,7 +72,7 @@ public class EmailAction extends Action<EmailAction.Result> {
     }
 
     @Override
-    public Result execute(Alert alert, Map<String, Object> data) throws IOException {
+    public Result execute(Alert alert, Payload payload) throws IOException {
 
         final EmailSettingsService.EmailServiceConfig emailSettings = emailSettingsService.emailServiceConfig();
 
@@ -118,7 +119,7 @@ public class EmailAction extends Action<EmailAction.Result> {
 
             Map<String, Object> alertParams = new HashMap<>();
             alertParams.put(Action.ALERT_NAME_VARIABLE_NAME, alert.name());
-            alertParams.put(RESPONSE_VARIABLE_NAME, data);
+            alertParams.put(RESPONSE_VARIABLE_NAME, payload.data());
 
 
             String subject = templateUtils.executeTemplate(

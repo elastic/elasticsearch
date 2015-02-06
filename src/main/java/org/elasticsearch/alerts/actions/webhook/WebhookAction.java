@@ -6,6 +6,7 @@
 package org.elasticsearch.alerts.actions.webhook;
 
 import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.actions.ActionException;
 import org.elasticsearch.alerts.support.StringTemplateUtils;
@@ -60,7 +61,8 @@ public class WebhookAction extends Action<WebhookAction.Result> {
     }
 
     @Override
-    public Result execute(Alert alert, Map<String, Object> data) throws IOException {
+    public Result execute(Alert alert, Payload payload) throws IOException {
+        Map<String, Object> data = payload.data();
         String renderedUrl = applyTemplate(urlTemplate, alert, data);
 
         try {

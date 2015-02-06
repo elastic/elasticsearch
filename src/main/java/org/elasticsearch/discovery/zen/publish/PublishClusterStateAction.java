@@ -199,7 +199,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                         try {
                             channel.sendResponse(TransportResponse.Empty.INSTANCE);
                         } catch (Throwable e) {
-                            logger.debug("failed to send response on cluster state processed", e);
+                            logger.warn("failed to send response on cluster state processed", e);
                         }
                     }
 
@@ -208,7 +208,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                         try {
                             channel.sendResponse(t);
                         } catch (Throwable e) {
-                            logger.debug("failed to send response on cluster state processed", e);
+                            logger.warn("failed to send response on cluster state processed", e);
                         }
                     }
                 });

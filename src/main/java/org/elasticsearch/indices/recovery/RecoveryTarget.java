@@ -19,6 +19,9 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.ElasticsearchException;
@@ -398,6 +401,14 @@ public class RecoveryTarget extends AbstractComponent {
                 Store.MetadataSnapshot sourceMetaData = request.sourceMetaSnapshot();
                 try {
                     store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
+                } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
+                    // this is a fatal exception at this stage.
+                    // this means we transferred files from the remote that have not be checksummed and they are
+                    // broken. We have to clean up this shard entirely, remove all files and bubble it up to the
+                    // source shard since this index might be broken there as well? The Source can handle this and checks
+                    // its content on disk if possible.
+                    store.deleteContent(); // clean up and delete all files
+                    throw new RecoveryFailedException(recoveryStatus.state(), "failed to clean after recovery", ex);
                 } catch (Exception ex) {
                     throw new RecoveryFailedException(recoveryStatus.state(), "failed to clean after recovery", ex);
                 }

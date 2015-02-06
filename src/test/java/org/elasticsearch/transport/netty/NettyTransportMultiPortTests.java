@@ -136,7 +136,7 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
     public void testThatBindingOnDifferentHostsWorks() throws Exception {
         int[] ports = getRandomPorts(2);
         InetAddress firstNonLoopbackAddress = NetworkUtils.getFirstNonLoopbackAddress(NetworkUtils.StackType.IPv4);
-
+        assumeTrue("No IP-v4 non-loopback address available - are you on a plane?", firstNonLoopbackAddress != null);
         Settings settings = settingsBuilder()
                 .put("network.host", "127.0.0.1")
                 .put("transport.tcp.port", ports[0])

@@ -190,9 +190,9 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         } finally {
             TimeValue took = new TimeValue(System.currentTimeMillis() - startTime);
             if (exists) {
-                logger.debug("loaded store meta data for {} (took [{}])", shardId, took);
+                logger.debug("{} loaded store meta data (took [{}])", shardId, took);
             } else {
-                logger.trace("loaded store meta data for {} (took [{}])", shardId, took);
+                logger.trace("{} didn't find any store meta data to load (took [{}])", shardId, took);
             }
         }
     }

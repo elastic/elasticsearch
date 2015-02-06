@@ -37,9 +37,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class AlertsStore extends AbstractComponent {
 
-    static final String ALERT_INDEX = ".alerts";
-    static final String ALERT_INDEX_TEMPLATE = "alerts";
-    static final String ALERT_TYPE = "alert";
+    public static final String ALERT_INDEX = ".alerts";
+    public static final String ALERT_INDEX_TEMPLATE = "alerts";
+    public static final String ALERT_TYPE = "alert";
 
     private final ClientProxy client;
     private final TemplateUtils templateUtils;

@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class FiredAlert implements ToXContent {
 
@@ -49,6 +50,8 @@ public class FiredAlert implements ToXContent {
     private transient AlertsService.AlertRun alertRun;
     // Used for assertion purposes, so we can ensure/test what we have loaded in memory is the same as what is persisted.
     private transient long version;
+
+    private final AtomicBoolean finalized = new AtomicBoolean(false);
 
     FiredAlert() {
     }
@@ -73,15 +76,13 @@ public class FiredAlert implements ToXContent {
         this.id = id;
     }
 
-    // TODO: Maybe pull into history service?
-    public void update(Alert alert, AlertsService.AlertRun alertRun) {
+    public void finalize(Alert alert, AlertsService.AlertRun alertRun) {
+        assert finalized.compareAndSet(false, true) : "finalizing an fired alert should only be done once";
         this.alertRun = alertRun;
         if (alertRun.triggerResult().triggered()) {
             if (alertRun.throttleResult().throttle()) {
-                if (alert.status().state() != Alert.Status.State.NOT_EXECUTED) {
-                    state = State.THROTTLED;
-                }
-            } else if (state != State.THROTTLED) {
+                state = State.THROTTLED;
+            } else {
                 state = State.ACTION_PERFORMED;
             }
             payload = alert.payload();

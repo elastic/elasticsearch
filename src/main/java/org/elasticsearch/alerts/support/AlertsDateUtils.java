@@ -6,6 +6,8 @@
 package org.elasticsearch.alerts.support;
 
 import org.elasticsearch.alerts.AlertsSettingsException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -43,5 +45,26 @@ public class AlertsDateUtils {
         }
         throw new AlertsSettingsException("could not parse date/time. expected [" + fieldName +
                     "] to be either a number or a string but was [" + token + "] instead");
+    }
+
+    public static void writeDate(StreamOutput out, DateTime date) throws IOException {
+        out.writeLong(date.getMillis());
+    }
+
+    public static DateTime readDate(StreamInput in) throws IOException {
+        return new DateTime(in.readLong());
+    }
+
+    public static void writeOptionalDate(StreamOutput out, DateTime date) throws IOException {
+        if (date == null) {
+            out.writeBoolean(false);
+            return;
+        }
+        out.writeBoolean(true);
+        out.writeLong(date.getMillis());
+    }
+
+    public static DateTime readOptionalDate(StreamInput in) throws IOException {
+        return in.readBoolean() ? new DateTime(in.readLong()) : null;
     }
 }

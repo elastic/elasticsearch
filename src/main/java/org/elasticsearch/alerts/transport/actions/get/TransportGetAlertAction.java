@@ -21,6 +21,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -62,13 +63,13 @@ public class TransportGetAlertAction extends TransportMasterNodeOperationAction<
         GetResult getResult;
         if (alert != null) {
             BytesReference alertSource = null;
-            try (XContentBuilder builder = XContentBuilder.builder(alert.getContentType().xContent())) {
+            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 builder.value(alert);
                 alertSource = builder.bytes();
             } catch (IOException e) {
                 listener.onFailure(e);
             }
-            getResult = new GetResult(AlertsStore.ALERT_INDEX, AlertsStore.ALERT_TYPE, alert.getName(), alert.getVersion(), true, alertSource, null);
+            getResult = new GetResult(AlertsStore.ALERT_INDEX, AlertsStore.ALERT_TYPE, alert.name(), alert.status().version(), true, alertSource, null);
         } else {
             getResult = new GetResult(AlertsStore.ALERT_INDEX, AlertsStore.ALERT_TYPE, request.alertName(), -1, false, null, null);
         }

@@ -171,7 +171,7 @@ public class AlertsService extends AbstractComponent {
             Trigger.Result triggerResult = trigger.execute(alert, entry.scheduledTime(), entry.fireTime());
             AlertRun alertRun = null;
             if (triggerResult.triggered()) {
-                alert.status().triggered(true, entry.fireTime());
+                alert.status().onTrigger(true, entry.fireTime());
                 Throttler.Result throttleResult = alert.throttler().throttle(alert, triggerResult);
                 if (!throttleResult.throttle()) {
                     Map<String, Object> data = alert.payload().execute(alert, triggerResult, entry.scheduledTime(), entry.fireTime());
@@ -180,17 +180,17 @@ public class AlertsService extends AbstractComponent {
                         Action.Result actionResult = action.execute(alert, data);
                         //TODO : process action result, what to do if just one action fails or throws exception ?
                     }
-                    alert.status().executed(entry.scheduledTime());
+                    alert.status().onExecution(entry.scheduledTime());
                 } else {
-                    alert.status().throttled(entry.fireTime(), throttleResult.reason());
+                    alert.status().onThrottle(entry.fireTime(), throttleResult.reason());
                 }
             } else {
-                alert.status().triggered(false, entry.fireTime());
+                alert.status().onTrigger(false, entry.fireTime());
             }
             if (alertRun == null) {
                 alertRun = new AlertRun(triggerResult, null, null);
             }
-            alert.status().ran(entry.fireTime());
+            alert.status().onRun(entry.fireTime());
             alertsStore.updateAlert(alert);
             return alertRun;
         } finally {
@@ -209,14 +209,15 @@ public class AlertsService extends AbstractComponent {
             if (alert == null) {
                 throw new AlertsException("alert [" + alertName + "] does not exist");
             }
-            if (alert.status().acked()) {
+            if (alert.status().onAck(new DateTime())) {
                 try {
                     alertsStore.updateAlertStatus(alert);
                 } catch (IOException ioe) {
                     throw new AlertsException("failed to update the alert on ack", ioe);
                 }
             }
-            return alert.status();
+            // we need to create a safe copy of the status
+            return new Alert.Status(alert.status());
         } finally {
             alertLock.release(alertName);
         }

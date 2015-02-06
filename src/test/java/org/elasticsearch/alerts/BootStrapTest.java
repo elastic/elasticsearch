@@ -73,7 +73,7 @@ public class BootStrapTest extends AbstractAlertingTests {
                 new DateTime(),
                 0,
                 new TimeValue(0),
-                Alert.Status.NOT_ACKABLE);
+                Alert.Status.Ack.State.AWAITS_EXECUTION);
 
         DateTime scheduledFireTime = new DateTime();
         FiredAlert entry = new FiredAlert(alert, scheduledFireTime, scheduledFireTime, FiredAlert.State.AWAITS_RUN);
@@ -123,7 +123,7 @@ public class BootStrapTest extends AbstractAlertingTests {
                         new DateTime(),
                         0,
                         new TimeValue(0),
-                        Alert.Status.State.NOT_ACKABLE);
+                        Alert.Status.Ack.State.AWAITS_EXECUTION);
 
                 FiredAlert entry = new FiredAlert(alert, historyIndexDate, historyIndexDate, FiredAlert.State.AWAITS_RUN);
                 IndexResponse indexResponse = client().prepareIndex(actionHistoryIndex, HistoryService.ALERT_HISTORY_TYPE, entry.id())

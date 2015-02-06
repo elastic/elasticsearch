@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.alerts.rest.action;
 
+import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.AlertsStore;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.transport.actions.ack.AckAlertRequest;
@@ -39,7 +40,7 @@ public class RestAckAlertAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(AckAlertResponse ackAlertResponse, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                builder.field(AlertsStore.ACK_STATE_FIELD.getPreferredName(), ackAlertResponse.getStatus().toString());
+                builder.field(Alert.Parser.STATUS_FIELD.getPreferredName(), ackAlertResponse.getStatus().toString());
                 builder.endObject();
                 return new BytesRestResponse(RestStatus.OK, builder);
             }

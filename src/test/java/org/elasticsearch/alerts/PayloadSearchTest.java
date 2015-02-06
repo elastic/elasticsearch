@@ -54,9 +54,9 @@ public class PayloadSearchTest extends AbstractAlertingTests {
                 new DateTime(),
                 0,
                 new TimeValue(0),
-                Alert.Status.NOT_ACKABLE);
+                Alert.Status.Ack.State.AWAITS_EXECUTION);
 
-        alert.setPayloadSearchRequest(payloadRequest);
+        alert.setPayload    SearchRequest(payloadRequest);
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
         PutAlertResponse putAlertResponse = alertClient().preparePutAlert("test-payload").setAlertSource(jsonBuilder.bytes()).get();

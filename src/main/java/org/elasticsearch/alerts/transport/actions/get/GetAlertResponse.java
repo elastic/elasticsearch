@@ -20,7 +20,6 @@ public class GetAlertResponse extends ActionResponse {
     private GetResponse getResponse;
 
     public GetAlertResponse() {
-
     }
 
     public GetAlertResponse(GetResponse getResponse) {

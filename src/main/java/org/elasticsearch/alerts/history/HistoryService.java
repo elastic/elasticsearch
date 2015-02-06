@@ -158,7 +158,7 @@ public class HistoryService extends AbstractComponent {
                 historyStore.update(this.alert);
                 logger.debug("running an alert [{}]", this.alert.name());
                 AlertsService.AlertRun alertRun = alertsService.runAlert(this.alert);
-                this.alert.update(alert, alertRun);
+                this.alert.finalize(alert, alertRun);
                 historyStore.update(this.alert);
             } catch (Exception e) {
                 if (started()) {

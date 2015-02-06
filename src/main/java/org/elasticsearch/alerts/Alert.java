@@ -11,9 +11,7 @@ import org.elasticsearch.alerts.payload.Payload;
 import org.elasticsearch.alerts.payload.PayloadRegistry;
 import org.elasticsearch.alerts.scheduler.schedule.Schedule;
 import org.elasticsearch.alerts.scheduler.schedule.ScheduleRegistry;
-import org.elasticsearch.alerts.throttle.AckThrottler;
 import org.elasticsearch.alerts.throttle.AlertThrottler;
-import org.elasticsearch.alerts.throttle.PeriodThrottler;
 import org.elasticsearch.alerts.throttle.Throttler;
 import org.elasticsearch.alerts.trigger.Trigger;
 import org.elasticsearch.alerts.trigger.TriggerRegistry;
@@ -22,6 +20,9 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -34,7 +35,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.alerts.support.AlertsDateUtils.parseDate;
+import static org.elasticsearch.alerts.support.AlertsDateUtils.*;
 
 public class Alert implements ToXContent {
 
@@ -45,7 +46,6 @@ public class Alert implements ToXContent {
     private final Throttler throttler;
     private final Status status;
     private final TimeValue throttlePeriod;
-    private final boolean ackable;
 
     @Nullable
     private final Map<String, Object> metadata;
@@ -53,21 +53,17 @@ public class Alert implements ToXContent {
     @Nullable
     private final Payload payload;
 
-    public Alert(String name, Schedule schedule, Trigger trigger, Payload payload, TimeValue throttlePeriod, boolean ackable, AlertActions actions, Map<String, Object> metadata, Status status) {
+    public Alert(String name, Schedule schedule, Trigger trigger, Payload payload, TimeValue throttlePeriod, AlertActions actions, Map<String, Object> metadata, Status status) {
         this.name = name;
         this.schedule = schedule;
         this.trigger = trigger;
         this.actions = actions;
         this.status = status != null ? status : new Status();
         this.throttlePeriod = throttlePeriod;
-        this.ackable = ackable;
-
         this.metadata = metadata;
         this.payload = payload != null ? payload : Payload.NOOP;
 
-        PeriodThrottler periodThrottler = throttlePeriod != null ? new PeriodThrottler(throttlePeriod) : null;
-        AckThrottler ackThrottler = ackable ? new AckThrottler() : null;
-        throttler = new AlertThrottler(periodThrottler, ackThrottler);
+        throttler = new AlertThrottler(throttlePeriod);
     }
 
     public String name() {
@@ -102,10 +98,6 @@ public class Alert implements ToXContent {
         return throttlePeriod;
     }
 
-    public boolean ackable() {
-        return ackable;
-    }
-
     public Status status() {
         return status;
     }
@@ -136,7 +128,6 @@ public class Alert implements ToXContent {
         if (throttlePeriod != null) {
             builder.field(Parser.THROTTLE_PERIOD_FIELD.getPreferredName(), throttlePeriod.getMillis());
         }
-        builder.field(Parser.ACKABLE_FIELD.getPreferredName(), ackable);
         builder.field(Parser.ACTIONS_FIELD.getPreferredName(), (ToXContent) actions);
         if (metadata != null) {
             builder.field(Parser.META_FIELD.getPreferredName(), metadata);
@@ -155,7 +146,6 @@ public class Alert implements ToXContent {
         public static final ParseField META_FIELD = new ParseField("meta");
         public static final ParseField STATUS_FIELD = new ParseField("status");
         public static final ParseField THROTTLE_PERIOD_FIELD = new ParseField("throttle_period");
-        public static final ParseField ACKABLE_FIELD = new ParseField("ackable");
 
         private final TriggerRegistry triggerRegistry;
         private final ScheduleRegistry scheduleRegistry;
@@ -177,7 +167,7 @@ public class Alert implements ToXContent {
             try (XContentParser parser = XContentHelper.createParser(source)) {
                 return parse(name, includeStatus, parser);
             } catch (IOException ioe) {
-                throw new AlertsException("could not parse alert", ioe);
+                throw new AlertsException("could not parse alert [" + name + "]", ioe);
             }
         }
 
@@ -188,7 +178,6 @@ public class Alert implements ToXContent {
             Payload payload = null;
             Map<String, Object> metatdata = null;
             Status status = null;
-            boolean ackable = false;
             TimeValue throttlePeriod = null;
 
             String currentFieldName = null;
@@ -208,72 +197,64 @@ public class Alert implements ToXContent {
                     metatdata = parser.map();
                 } else if (STATUS_FIELD.match(currentFieldName) && includeStatus) {
                     status = Status.fromXContent(parser);
-                } else if (ACKABLE_FIELD.match(currentFieldName)) {
-                    ackable = parser.booleanValue();
                 } else if (THROTTLE_PERIOD_FIELD.match(currentFieldName)) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         throttlePeriod = TimeValue.parseTimeValue(parser.text(), null);
                     } else if (token == XContentParser.Token.VALUE_NUMBER) {
                         throttlePeriod = TimeValue.timeValueMillis(parser.longValue());
                     } else {
-                        throw new AlertsSettingsException("could not parse alert throttle period. could not parse token [" + token + "] as time value (must either be string or number)");
+                        throw new AlertsSettingsException("could not parse alert [" + name + "] throttle period. could not parse token [" + token + "] as time value (must either be string or number)");
                     }
                 }
             }
             if (schedule == null) {
-                throw new AlertsSettingsException("coult not parse alert[" + name + "]. missing alert schedule");
+                throw new AlertsSettingsException("could not parse alert [" + name + "]. missing alert schedule");
             }
             if (trigger == null) {
-                throw new AlertsSettingsException("coult not parse alert[" + name + "]. missing alert trigger");
+                throw new AlertsSettingsException("could not parse alert [" + name + "]. missing alert trigger");
             }
             if (actions == null) {
-                throw new AlertsSettingsException("coult not parse alert[" + name + "]. missing alert actions");
+                throw new AlertsSettingsException("could not parse alert [" + name + "]. missing alert actions");
             }
 
-            return new Alert(name, schedule, trigger, payload, throttlePeriod, ackable, actions, metatdata, status);
+            return new Alert(name, schedule, trigger, payload, throttlePeriod, actions, metatdata, status);
         }
 
     }
 
-    public static class Status implements ToXContent {
+    public static class Status implements ToXContent, Streamable {
 
-        public enum State {
-            NOT_EXECUTED,
-            EXECUTED,
-            ACKED
-        }
-
+        public static final ParseField TIMESTAMP_FIELD = new ParseField("last_throttled");
         public static final ParseField LAST_RAN_FIELD = new ParseField("last_ran");
         public static final ParseField LAST_TRIGGERED_FIELD = new ParseField("last_triggered");
         public static final ParseField LAST_EXECUTED_FIELD = new ParseField("last_executed");
-        public static final ParseField LAST_STATE_CHANGED_FIELD = new ParseField("last_state_changed");
+        public static final ParseField ACK_FIELD = new ParseField("ack");
         public static final ParseField STATE_FIELD = new ParseField("state");
-        public static final ParseField LAST_THROTTLED_FIELD = new ParseField("last_throttled");
-        public static final ParseField LAST_THROTTLE_REASON_FIELD = new ParseField("last_throttle_reason");
+        public static final ParseField LAST_THROTTLE_FIELD = new ParseField("last_throttle");
+        public static final ParseField REASON_FIELD = new ParseField("reason");
 
         private transient long version;
         private DateTime lastRan;
         private DateTime lastTriggered;
         private DateTime lastExecuted;
-        private DateTime lastStateChanged;
-        private State state;
-        private DateTime lastThrottled;
-        private String lastThrottleReason;
+        private Ack ack;
+        private Throttle lastThrottle;
 
         public Status() {
-            this(-1, null, null, null, State.NOT_EXECUTED, new DateTime(), null, null);
+            this(-1, null, null, null, null, new Ack());
         }
 
-        private Status(long version, DateTime lastRan, DateTime lastTriggered, DateTime lastExecuted,
-                       State state, DateTime lastStateChanged, DateTime lastThrottled, String lastThrottleReason) {
+        public Status(Status other) {
+            this(other.version, other.lastRan, other.lastTriggered, other.lastExecuted, other.lastThrottle, other.ack);
+        }
+
+        private Status(long version, DateTime lastRan, DateTime lastTriggered, DateTime lastExecuted, Throttle lastThrottle, Ack ack) {
             this.version = version;
             this.lastRan = lastRan;
             this.lastTriggered = lastTriggered;
             this.lastExecuted = lastExecuted;
-            this.state = state;
-            this.lastStateChanged = lastStateChanged;
-            this.lastThrottled = lastThrottled;
-            this.lastThrottleReason = lastThrottleReason;
+            this.lastThrottle = lastThrottle;
+            this.ack = ack;
         }
 
         public long version() {
@@ -284,86 +265,127 @@ public class Alert implements ToXContent {
             this.version = version;
         }
 
+        public boolean ran() {
+            return lastRan != null;
+        }
+
         public DateTime lastRan() {
             return lastRan;
+        }
+
+        public boolean triggered() {
+            return lastTriggered != null;
         }
 
         public DateTime lastTriggered() {
             return lastTriggered;
         }
 
+        public boolean executed() {
+            return lastExecuted != null;
+        }
+
         public DateTime lastExecuted() {
             return lastExecuted;
         }
 
-        public State state() {
-            return state;
+        public Throttle lastThrottle() {
+            return lastThrottle;
         }
 
-        public DateTime lastStateChanged() {
-            return lastStateChanged;
+        public Ack ack() {
+            return ack;
         }
 
-        public DateTime lastThrottled() {
-            return lastThrottled;
-        }
-
-        public String lastThrottledReason() {
-            return lastThrottleReason;
+        public boolean acked() {
+            return ack.state == Ack.State.ACKED;
         }
 
         /**
          * Called whenever an alert is ran
          */
-        public void ran(DateTime timestamp) {
+        public void onRun(DateTime timestamp) {
             lastRan = timestamp;
         }
 
         /**
          * Called whenever an alert run is throttled
          */
-        public void throttled(DateTime timestamp, String reason) {
-            lastThrottled = timestamp;
-            lastThrottleReason = reason;
+        public void onThrottle(DateTime timestamp, String reason) {
+            lastThrottle = new Throttle(timestamp, reason);
         }
 
         /**
          * Notifies this status about the triggered event of an alert run. The state will be updated accordingly -
-         * if during a run, the alert was not triggered and the current state is ACKED, we the need to reset the
-         * state to NOT_EXECUTED...
+         * if the alert is can be acked and during a run, the alert was not triggered and the current state is {@link Status.Ack.State#ACKED},
+         * we then need to reset the state to {@link Status.Ack.State#AWAITS_EXECUTION}
          */
-        public void triggered(boolean triggered, DateTime timestamp) {
+        public void onTrigger(boolean triggered, DateTime timestamp) {
             if (triggered) {
                 lastTriggered = timestamp;
-            } else if (state == State.ACKED) {
-                state = State.NOT_EXECUTED;
+            } else if (ack.state == Ack.State.ACKED) {
+                // didn't trigger now after it triggered in the past - we need to reset the ack state
+                ack = new Ack(Ack.State.AWAITS_EXECUTION, timestamp);
             }
         }
 
         /**
-         * Notifies this status that the alert was acked. If the current state is EXECUTED, then we'll change it
-         * to ACKED (when set to ACKED, the {@link org.elasticsearch.alerts.throttle.AckThrottler} will throttle the
+         * Notifies this status that the alert was acked. If the current state is {@link Status.Ack.State#ACKABLE}, then we'll change it
+         * to {@link Status.Ack.State#ACKED} (when set to {@link Status.Ack.State#ACKED}, the {@link org.elasticsearch.alerts.throttle.AckThrottler} will lastThrottle the
          * execution.
          *
          * @return {@code true} if the state of changed due to the ack, {@code false} otherwise.
          */
-        public boolean acked() {
-            if (state == State.EXECUTED) {
-                state = State.ACKED;
+        public boolean onAck(DateTime timestamp) {
+            if (ack.state == Ack.State.ACKABLE) {
+                ack = new Ack(Ack.State.ACKED, timestamp);
                 return true;
             }
             return false;
         }
 
         /**
-         * Notified this status that the alert was executed. If the current state is NOT_EXECUTED, it will change to
-         * EXECUTED. When set to EXECUTED the alert can be acked (assuming the alert is ackable).
+         * Notified this status that the alert was executed. If the current state is {@link Status.Ack.State#AWAITS_EXECUTION}, it will change to
+         * {@link Status.Ack.State#ACKABLE}.
          */
-        public void executed(DateTime timestamp) {
+        public void onExecution(DateTime timestamp) {
             lastExecuted = timestamp;
-            if (state == State.NOT_EXECUTED) {
-                state = State.EXECUTED;
+            if (ack.state == Ack.State.AWAITS_EXECUTION) {
+                ack = new Ack(Ack.State.ACKABLE, timestamp);
             }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(version);
+            writeOptionalDate(out, lastRan);
+            writeOptionalDate(out, lastTriggered);
+            writeOptionalDate(out, lastExecuted);
+            if (lastThrottle == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                writeDate(out, lastThrottle.timestamp);
+                out.writeString(lastThrottle.reason);
+            }
+            out.writeString(ack.state.name());
+            writeDate(out, ack.timestamp);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            version = in.readLong();
+            lastRan = readOptionalDate(in);
+            lastTriggered = readOptionalDate(in);
+            lastExecuted = readOptionalDate(in);
+            ack = new Ack(Ack.State.valueOf(in.readString()), readDate(in));
+            lastThrottle = in.readBoolean() ? new Throttle(readDate(in), in.readString()) : null;
+        }
+
+        public static Status read(StreamInput in) throws IOException {
+            Alert.Status status = new Alert.Status();
+            status.readFrom(in);
+            return status;
         }
 
         @Override
@@ -372,10 +394,16 @@ public class Alert implements ToXContent {
             builder.field(LAST_RAN_FIELD.getPreferredName(), lastRan);
             builder.field(LAST_TRIGGERED_FIELD.getPreferredName(), lastTriggered);
             builder.field(LAST_EXECUTED_FIELD.getPreferredName(), lastExecuted);
-            builder.field(LAST_STATE_CHANGED_FIELD.getPreferredName(), lastStateChanged);
-            builder.field(STATE_FIELD.getPreferredName(), state.name().toLowerCase(Locale.ROOT));
-            builder.field(LAST_THROTTLED_FIELD.getPreferredName(), lastThrottled);
-            builder.field(LAST_THROTTLE_REASON_FIELD.getPreferredName(), lastThrottleReason);
+            builder.startObject(ACK_FIELD.getPreferredName())
+                    .field(STATE_FIELD.getPreferredName(), ack.state.name().toLowerCase(Locale.ROOT))
+                    .field(TIMESTAMP_FIELD.getPreferredName(), ack.timestamp)
+                    .endObject();
+            if (lastThrottle != null) {
+                builder.startObject(LAST_THROTTLE_FIELD.getPreferredName())
+                        .field(TIMESTAMP_FIELD.getPreferredName(), lastThrottle.timestamp)
+                        .field(REASON_FIELD.getPreferredName(), lastThrottle.reason)
+                        .endObject();
+            }
             return builder.endObject();
         }
 
@@ -384,36 +412,122 @@ public class Alert implements ToXContent {
             DateTime lastRan = null;
             DateTime lastTriggered = null;
             DateTime lastExecuted = null;
-            DateTime lastStateChanged = null;
-            State state = null;
-            DateTime lastThrottled = null;
-            String lastThrottleReason = null;
+            Throttle lastThrottle = null;
+            Ack ack = null;
 
             String currentFieldName = null;
             XContentParser.Token token = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (token.isValue()) {
-                    if (LAST_RAN_FIELD.match(currentFieldName)) {
+                } else if (LAST_RAN_FIELD.match(currentFieldName)) {
+                    if (token.isValue()) {
                         lastRan = parseDate(currentFieldName, token, parser);
-                    } else if (LAST_TRIGGERED_FIELD.match(currentFieldName)) {
+                    } else {
+                        throw new AlertsException("expecting field [" + currentFieldName + "] to hold a date value, found [" + token + "] instead");
+                    }
+                } else if (LAST_TRIGGERED_FIELD.match(currentFieldName)) {
+                    if (token.isValue()) {
                         lastTriggered = parseDate(currentFieldName, token, parser);
-                    } else if (LAST_EXECUTED_FIELD.match(currentFieldName)) {
+                    } else {
+                        throw new AlertsException("expecting field [" + currentFieldName + "] to hold a date value, found [" + token + "] instead");
+                    }
+                } else if (LAST_EXECUTED_FIELD.match(currentFieldName)) {
+                    if (token.isValue()) {
                         lastExecuted = parseDate(currentFieldName, token, parser);
-                    } else if (LAST_STATE_CHANGED_FIELD.match(currentFieldName)) {
-                        lastStateChanged = parseDate(currentFieldName, token, parser);
-                    } else if (STATE_FIELD.match(currentFieldName)) {
-                        state = State.valueOf(parser.text().toUpperCase(Locale.ROOT));
-                    } else if (LAST_THROTTLED_FIELD.match(currentFieldName)) {
-                        lastThrottled = parseDate(currentFieldName, token, parser);
-                    } else if (LAST_THROTTLE_REASON_FIELD.match(currentFieldName)) {
-                        lastThrottleReason = parser.textOrNull();
+                    } else {
+                        throw new AlertsException("expecting field [" + currentFieldName + "] to hold a date value, found [" + token + "] instead");
+                    }
+                } else if (LAST_THROTTLE_FIELD.match(currentFieldName)) {
+                    if (token == XContentParser.Token.START_OBJECT) {
+                        DateTime timestamp = null;
+                        String reason = null;
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                            } else if (token.isValue()) {
+                                if (TIMESTAMP_FIELD.match(currentFieldName)) {
+                                    timestamp = parseDate(currentFieldName, token, parser);
+                                } else if (REASON_FIELD.match(currentFieldName)) {
+                                    reason = parser.text();
+                                } else {
+                                    throw new AlertsException("unknown filed [" + currentFieldName + "] in alert status throttle entry");
+                                }
+                            }
+                        }
+                        lastThrottle = new Throttle(timestamp, reason);
+                    } else {
+                        throw new AlertsException("expecting field [" + currentFieldName + "] to be an object, found [" + token + "] instead");
+                    }
+                } else if (ACK_FIELD.match(currentFieldName)) {
+                    if (token == XContentParser.Token.START_OBJECT) {
+                        Ack.State state = null;
+                        DateTime timestamp = null;
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                            } else if (token.isValue()) {
+                                if (TIMESTAMP_FIELD.match(currentFieldName)) {
+                                    timestamp = parseDate(currentFieldName, token, parser);
+                                } else if (STATE_FIELD.match(currentFieldName)) {
+                                    state = Ack.State.valueOf(parser.text().toUpperCase(Locale.ROOT));
+                                } else {
+                                    throw new AlertsException("unknown filed [" + currentFieldName + "] in alert status throttle entry");
+                                }
+                            }
+                        }
+                        ack = new Ack(state, timestamp);
+                    } else {
+                        throw new AlertsException("expecting field [" + currentFieldName + "] to be an object, found [" + token + "] instead");
                     }
                 }
             }
 
-            return new Status(-1, lastRan, lastTriggered, lastExecuted, state, lastStateChanged, lastThrottled, lastThrottleReason);
+            return new Status(-1, lastRan, lastTriggered, lastExecuted, lastThrottle, ack);
         }
+
+
+        public static class Ack {
+
+            public static enum State {
+                AWAITS_EXECUTION,
+                ACKABLE,
+                ACKED
+            }
+
+            private final State state;
+            private final DateTime timestamp;
+
+            public Ack() {
+                this(State.AWAITS_EXECUTION, new DateTime());
+            }
+
+            public Ack(State state, DateTime timestamp) {
+                this.state = state;
+                this.timestamp = timestamp;
+            }
+
+            public State state() {
+                return state;
+            }
+
+            public DateTime timestamp() {
+                return timestamp;
+            }
+
+        }
+
+        public static class Throttle {
+
+            private final DateTime timestamp;
+            private final String reason;
+
+            public Throttle(DateTime timestamp, String reason) {
+                this.timestamp = timestamp;
+                this.reason = reason;
+            }
+
+        }
+
     }
 }

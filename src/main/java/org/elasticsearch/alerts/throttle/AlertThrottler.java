@@ -7,35 +7,30 @@ package org.elasticsearch.alerts.throttle;
 
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.trigger.Trigger;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.unit.TimeValue;
 
 /**
  *
  */
 public class AlertThrottler implements Throttler {
 
-    private final PeriodThrottler periodThrottler;
-    private final AckThrottler ackThrottler;
+    private static final AckThrottler ACK_THROTTLER = new AckThrottler();
 
-    public AlertThrottler(PeriodThrottler periodThrottler, AckThrottler ackThrottler) {
-        this.periodThrottler = periodThrottler;
-        this.ackThrottler = ackThrottler;
+    private final PeriodThrottler periodThrottler;
+
+    public AlertThrottler(@Nullable TimeValue throttlePeriod) {
+        this.periodThrottler = throttlePeriod != null ? new PeriodThrottler(throttlePeriod) : null;
     }
 
     @Override
     public Result throttle(Alert alert, Trigger.Result result) {
-        Result throttleResult = Result.NO;
         if (periodThrottler != null) {
-            throttleResult = periodThrottler.throttle(alert, result);
+            Result throttleResult = periodThrottler.throttle(alert, result);
             if (throttleResult.throttle()) {
                 return throttleResult;
             }
         }
-        if (ackThrottler != null) {
-            throttleResult = ackThrottler.throttle(alert, result);
-            if (throttleResult.throttle()) {
-                return throttleResult;
-            }
-        }
-        return throttleResult;
+        return ACK_THROTTLER.throttle(alert, result);
     }
 }

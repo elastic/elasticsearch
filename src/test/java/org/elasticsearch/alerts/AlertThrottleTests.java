@@ -50,7 +50,7 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         refresh();
 
         Alert alert = new Alert();
-        alert.setStatus(Alert.Status.State.NOT_TRIGGERED);
+        alert.setStatus(Alert.Status.Ack.State.AWAITS_EXECUTION);
 
         alert.setTriggerSearchRequest(createTriggerSearchRequest("test-index").source(searchSource().query(matchAllQuery())));
         alert.setTrigger(new ScriptTrigger("hits.total > 0", ScriptService.ScriptType.INLINE, "groovy"));
@@ -122,7 +122,7 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         refresh();
 
         Alert alert = new Alert();
-        alert.setStatus(Alert.Status.NOT_ACKABLE);
+        alert.setStatus(Alert.Status.Ack.State.AWAITS_EXECUTION);
         alert.setTriggerSearchRequest(createTriggerSearchRequest("test-index").source(searchSource().query(matchAllQuery())));
         alert.setTrigger(new ScriptTrigger("hits.total > 0", ScriptService.ScriptType.INLINE, "groovy"));
         alert.getActions().add(new IndexAlertAction("action-index", "action-type"));

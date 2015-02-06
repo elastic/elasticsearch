@@ -37,9 +37,7 @@ public class AckAlertResponse extends ActionResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.readBoolean()) {
-            status = Alert.Status.fromId(in.readString());
-        }
+        status = in.readBoolean() ? Alert.Status.read(in) : null;
     }
 
     @Override
@@ -47,7 +45,7 @@ public class AckAlertResponse extends ActionResponse {
         super.writeTo(out);
         out.writeBoolean(status != null);
         if (status != null) {
-            out.writeString(status.id());
+            status.writeTo(out);
         }
     }
 }

@@ -29,6 +29,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.alerts.support.AlertsDateUtils.formatDate;
+
 /**
  *
  */
@@ -72,15 +74,15 @@ public class SearchPayload implements Payload {
                 .indices(request.indices());
         if (Strings.hasLength(request.source())) {
             Map<String, String> templateParams = new HashMap<>();
-            templateParams.put(AlertUtils.SCHEDULED_FIRE_TIME_VARIABLE_NAME, AlertUtils.format(scheduledFireTime));
-            templateParams.put(AlertUtils.FIRE_TIME_VARIABLE_NAME, AlertUtils.format(fireTime));
+            templateParams.put(AlertUtils.SCHEDULED_FIRE_TIME_VARIABLE_NAME, formatDate(scheduledFireTime));
+            templateParams.put(AlertUtils.FIRE_TIME_VARIABLE_NAME, formatDate(fireTime));
             String requestSource = XContentHelper.convertToJson(request.source(), false);
             ExecutableScript script = scriptService.executable("mustache", requestSource, ScriptService.ScriptType.INLINE, templateParams);
             triggerSearchRequest.source((BytesReference) script.unwrap(script.run()), false);
         } else if (request.templateName() != null) {
             MapBuilder<String, String> templateParams = MapBuilder.newMapBuilder(request.templateParams())
-                    .put(AlertUtils.SCHEDULED_FIRE_TIME_VARIABLE_NAME, AlertUtils.format(scheduledFireTime))
-                    .put(AlertUtils.FIRE_TIME_VARIABLE_NAME, AlertUtils.format(fireTime));
+                    .put(AlertUtils.SCHEDULED_FIRE_TIME_VARIABLE_NAME, formatDate(scheduledFireTime))
+                    .put(AlertUtils.FIRE_TIME_VARIABLE_NAME, formatDate(fireTime));
             triggerSearchRequest.templateParams(templateParams.map());
             triggerSearchRequest.templateName(request.templateName());
             triggerSearchRequest.templateType(request.templateType());

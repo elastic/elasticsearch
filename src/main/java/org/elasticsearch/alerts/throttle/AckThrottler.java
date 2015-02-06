@@ -15,10 +15,12 @@ import static org.elasticsearch.alerts.support.AlertsDateUtils.formatDate;
  */
 public class AckThrottler implements Throttler {
 
+
+
     @Override
     public Result throttle(Alert alert, Trigger.Result result) {
-        if (alert.status().state() != Alert.Status.State.ACKED) {
-            return Result.throttle("alert [" + alert.name() + "] was acked at [" + formatDate(alert.status().lastStateChanged()) + "]");
+        if (alert.status().acked()) {
+            return Result.throttle("alert [" + alert.name() + "] was acked at [" + formatDate(alert.status().ack().timestamp()) + "]");
         }
         return Result.NO;
     }

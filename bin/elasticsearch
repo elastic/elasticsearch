@@ -148,6 +148,8 @@ launch_service()
     LANG=en_US.UTF-8
     LC_ALL=en_US.UTF-8
 
+    export HOSTNAME=`hostname -s`
+
     # The es-foreground option will tell Elasticsearch not to close stdout/stderr, but it's up to us not to daemonize.
     if [ "x$daemonized" = "x" ]; then
         es_parms="$es_parms -Des.foreground=yes"

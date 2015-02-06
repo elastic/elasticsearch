@@ -355,10 +355,11 @@ public class RecoverySource extends AbstractComponent {
                     }
                 });
                 try {
+                    // note, we can wait without timeout here since we added the task to the cluster service with timeout
                     latch.await();
                     if (mappingCheckException.get() != null) {
-                        logger.warn("error during mapping check, failing recovery", mappingCheckException.get());
-                        throw new ElasticsearchException("error during mapping check", mappingCheckException.get());
+                        logger.warn("{} error during mapping check, failing recovery", request.shardId(), mappingCheckException.get());
+                        throw new RecoveryFailedException(request, mappingCheckException.get());
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();

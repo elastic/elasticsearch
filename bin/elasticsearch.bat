@@ -33,6 +33,8 @@ FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
 	)
 )
 
+SET HOSTNAME=%COMPUTERNAME%
+
 CALL "%~dp0elasticsearch.in.bat"
 IF ERRORLEVEL 1 (
 	IF NOT DEFINED nopauseonerror (

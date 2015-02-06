@@ -463,9 +463,6 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
         assertThat(response.isTimedOut(), is(false));
 
 
-        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node1);
-
-
         client().admin().indices().prepareCreate(indexName)
                 .setSettings(
                         ImmutableSettings.builder()
@@ -487,8 +484,9 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
 
         final CountDownLatch allReplicasAssigned = new CountDownLatch(1);
         final CountDownLatch releaseClusterState = new CountDownLatch(1);
+        final CountDownLatch unassignedShardsAfterReplicasAssigned = new CountDownLatch(1);
         try {
-            clusterService.addLast(new ClusterStateListener() {
+            internalCluster().getInstance(ClusterService.class, node1).addLast(new ClusterStateListener() {
                 @Override
                 public void clusterChanged(ClusterChangedEvent event) {
                     if (event.state().routingNodes().hasUnassignedShards() == false) {
@@ -498,6 +496,15 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
                         } catch (InterruptedException e) {
                             //
                         }
+                    }
+                }
+            });
+
+            internalCluster().getInstance(ClusterService.class, master).addLast(new ClusterStateListener() {
+                @Override
+                public void clusterChanged(ClusterChangedEvent event) {
+                    if (event.state().routingNodes().hasUnassigned() && allReplicasAssigned.getCount() == 0) {
+                        unassignedShardsAfterReplicasAssigned.countDown();
                     }
                 }
             });
@@ -515,13 +522,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
             logger.info("--> waiting for node1 to process replica existence");
             allReplicasAssigned.await();
             logger.info("--> waiting for recovery to fail");
-            assertBusy(new Runnable() {
-                @Override
-                public void run() {
-                    ClusterHealthResponse response = client().admin().cluster().prepareHealth().get();
-                    assertThat(response.getUnassignedShards(), equalTo(1));
-                }
-            });
+            unassignedShardsAfterReplicasAssigned.countDown();
         } finally {
             logger.info("--> releasing cluster state update thread");
             releaseClusterState.countDown();

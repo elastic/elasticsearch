@@ -43,7 +43,7 @@ public abstract class AbstractSSLService extends AbstractComponent {
     /**
      * @return A SSLSocketFactory (for client-side SSL handshaking)
      */
-    public SSLSocketFactory getSSLSocketFactory() {
+    public SSLSocketFactory sslSocketFactory() {
         return sslContext(ImmutableSettings.EMPTY).getSocketFactory();
     }
 

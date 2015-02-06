@@ -3,33 +3,33 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.authc.support.ldap;
+package org.elasticsearch.shield.authc.ldap.support;
 
-import org.elasticsearch.shield.authc.ldap.LdapException;
+import com.unboundid.ldap.sdk.SearchScope;
+import org.elasticsearch.shield.authc.ldap.ShieldLdapException;
 
-import javax.naming.directory.SearchControls;
 import java.util.Locale;
 
 /**
  *
  */
-public enum SearchScope {
+public enum LdapSearchScope {
 
-    BASE(SearchControls.OBJECT_SCOPE),
-    ONE_LEVEL(SearchControls.ONELEVEL_SCOPE),
-    SUB_TREE(SearchControls.SUBTREE_SCOPE);
+    BASE(SearchScope.BASE),
+    ONE_LEVEL(SearchScope.ONE),
+    SUB_TREE(SearchScope.SUB);
 
-    private final int scope;
+    private final SearchScope scope;
 
-    SearchScope(int scope) {
+    LdapSearchScope(SearchScope scope) {
         this.scope = scope;
     }
 
-    public int scope() {
+    public SearchScope scope() {
         return scope;
     }
 
-    public static SearchScope resolve(String scope, SearchScope defaultScope) {
+    public static LdapSearchScope resolve(String scope, LdapSearchScope defaultScope) {
         if (scope == null) {
             return defaultScope;
         }
@@ -39,7 +39,7 @@ public enum SearchScope {
             case "one_level" : return ONE_LEVEL;
             case "sub_tree" : return SUB_TREE;
             default:
-                throw new LdapException("Unknown search scope [" + scope + "]");
+                throw new ShieldLdapException("Unknown search scope [" + scope + "]");
         }
     }
 }

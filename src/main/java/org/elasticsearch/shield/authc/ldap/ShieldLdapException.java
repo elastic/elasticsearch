@@ -8,24 +8,24 @@ package org.elasticsearch.shield.authc.ldap;
 import org.elasticsearch.shield.ShieldException;
 
 /**
- * LdapExceptions typically wrap jndi Naming exceptions, and have an additional
+ * LdapExceptions typically wrap {@link com.unboundid.ldap.sdk.LDAPException}, and have an additional
  * parameter of DN attached to each message.
  */
-public class LdapException extends ShieldException {
+public class ShieldLdapException extends ShieldException {
 
-    public LdapException(String msg){
+    public ShieldLdapException(String msg){
         super(msg);
     }
 
-    public LdapException(String msg, Throwable cause){
+    public ShieldLdapException(String msg, Throwable cause){
         super(msg, cause);
     }
 
-    public LdapException(String msg, String dn) {
+    public ShieldLdapException(String msg, String dn) {
         this(msg, dn, null);
     }
 
-    public LdapException(String msg, String dn, Throwable cause) {
+    public ShieldLdapException(String msg, String dn, Throwable cause) {
         super( msg + "; LDAP DN=[" + dn + "]", cause);
     }
 }

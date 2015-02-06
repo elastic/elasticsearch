@@ -43,7 +43,7 @@ givenname: Horatio
 sn: Hornblower
 uid: hhornblo
 mail: hhornblo@royalnavy.mod.uk
-userpassword: {SHA}nU4eI71bcnBGqeO0t9tXvY1u5oQ=
+userpassword: pass
 
 dn: cn=William Bush,ou=people,o=sevenSeas
 objectclass: person
@@ -57,7 +57,7 @@ manager: cn=Horatio Hornblower,ou=people,o=sevenSeas
 sn: Bush
 uid: wbush
 mail: wbush@royalnavy.mod.uk
-userpassword: {SHA}nU4eI71bcnBGqeO0t9tXvY1u5oQ=
+userpassword: pass
 
 dn: cn=Thomas Quist,ou=people,o=sevenSeas
 objectclass: person
@@ -71,7 +71,7 @@ manager: cn=Horatio Hornblower,ou=people,o=sevenSeas
 sn: Quist
 uid: tquist
 mail: tquist@royalnavy.mod.uk
-userpassword: {SHA}nU4eI71bcnBGqeO0t9tXvY1u5oQ=
+userpassword: pass
 
 dn: cn=Moultrie Crystal,ou=people,o=sevenSeas
 objectclass: person
@@ -85,7 +85,7 @@ manager: cn=Horatio Hornblower,ou=people,o=sevenSeas
 sn: Crystal
 uid: mchrysta
 mail: mchrysta@royalnavy.mod.uk
-userpassword: {SHA}nU4eI71bcnBGqeO0t9tXvY1u5oQ=
+userpassword: pass
 
 dn: cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas
 objectclass: groupOfUniqueNames
@@ -110,7 +110,7 @@ givenname: Horatio
 sn: Nelson
 uid: hnelson
 mail: hnelson@royalnavy.mod.uk
-userpassword: {SHA}nU4eI71bcnBGqeO0t9tXvY1u5oQ=
+userpassword: pass
 
 dn: cn=Thomas Masterman Hardy,ou=people,o=sevenSeas
 objectclass: person
@@ -124,7 +124,7 @@ manager: cn=Horatio Nelson,ou=people,o=sevenSeas
 sn: Hardy
 uid: thardy
 mail: thardy@royalnavy.mod.uk
-userpassword: {SHA}nU4eI71bcnBGqeO0t9tXvY1u5oQ=
+userpassword: pass
 
 dn: cn=Cornelius Buckley,ou=people,o=sevenSeas
 objectclass: person
@@ -138,7 +138,7 @@ manager: cn=Horatio Nelson,ou=people,o=sevenSeas
 sn: Buckley
 uid: cbuckley
 mail: cbuckley@royalnavy.mod.uk
-userpassword: {SHA}nU4eI71bcnBGqeO0t9tXvY1u5oQ=
+userpassword: pass
 
 dn: cn=HMS Victory,ou=crews,ou=groups,o=sevenSeas
 objectclass: groupOfUniqueNames
@@ -162,7 +162,7 @@ givenname: William
 sn: Bligh
 uid: wbligh
 mail: wbligh@royalnavy.mod.uk
-userpassword: {SHA}nU4eI71bcnBGqeO0t9tXvY1u5oQ=
+userpassword: pass
 
 dn: cn=Fletcher Christian,ou=people,o=sevenSeas
 objectclass: person
@@ -176,7 +176,7 @@ manager: cn=William Bligh,ou=people,o=sevenSeas
 sn: Christian
 uid: fchristi
 mail: fchristi@royalnavy.mod.uk
-userpassword: {SHA}nU4eI71bcnBGqeO0t9tXvY1u5oQ=
+userpassword: pass
 
 dn: cn=John Fryer,ou=people,o=sevenSeas
 objectclass: person
@@ -190,7 +190,7 @@ manager: cn=William Bligh,ou=people,o=sevenSeas
 sn: Fryer
 uid: jfryer
 mail: jfryer@royalnavy.mod.uk
-userpassword: {SHA}nU4eI71bcnBGqeO0t9tXvY1u5oQ=
+userpassword: pass
 
 dn: cn=John Hallett,ou=people,o=sevenSeas
 objectclass: person
@@ -204,7 +204,7 @@ manager: cn=William Bligh,ou=people,o=sevenSeas
 sn: Hallett
 uid: jhallett
 mail: jhallett@royalnavy.mod.uk
-userpassword: {SHA}nU4eI71bcnBGqeO0t9tXvY1u5oQ=
+userpassword: pass
 
 dn: cn=HMS Bounty,ou=crews,ou=groups,o=sevenSeas
 objectclass: groupOfUniqueNames

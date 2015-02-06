@@ -3,8 +3,9 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.authc.support.ldap;
+package org.elasticsearch.shield.authc.ldap.support;
 
+import com.unboundid.ldap.sdk.DN;
 import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -12,7 +13,9 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.audit.logfile.CapturingLogger;
-import org.elasticsearch.shield.authc.ldap.LdapGroupToRoleMapper;
+import org.elasticsearch.shield.authc.RealmConfig;
+import org.elasticsearch.shield.authc.activedirectory.ActiveDirectoryRealm;
+import org.elasticsearch.shield.authc.ldap.LdapRealm;
 import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -21,10 +24,11 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import javax.naming.ldap.LdapName;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.*;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -35,7 +39,18 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public abstract class AbstractGroupToRoleMapperTests extends ElasticsearchTestCase {
+public class GroupToRoleMapperTests extends ElasticsearchTestCase {
+
+    private static final String[] STARK_GROUP_DNS = new String[] {
+            //groups can be named by different attributes, depending on the directory,
+            //we don't care what it is named by
+            "cn=shield,ou=marvel,o=superheros",
+            "cn=avengers,ou=marvel,o=superheros",
+            "group=genius, dc=mit, dc=edu",
+            "groupName = billionaire , ou = acme",
+            "gid = playboy , dc = example , dc = com",
+            "groupid=philanthropist,ou=groups,dc=unitedway,dc=org"
+    };
 
     protected Settings settings;
     protected Environment env;
@@ -55,8 +70,6 @@ public abstract class AbstractGroupToRoleMapperTests extends ElasticsearchTestCa
         terminate(threadPool);
     }
 
-    protected abstract AbstractGroupToRoleMapper createMapper(Path file, ResourceWatcherService watcherService);
-
     @Test
     public void testMapper_ConfiguredWithUnreadableFile() throws Exception {
         Path file = newTempFile().toPath();
@@ -64,20 +77,20 @@ public abstract class AbstractGroupToRoleMapperTests extends ElasticsearchTestCa
         Files.write(file, ImmutableList.of("aldlfkjldjdflkjd"), Charsets.UTF_16);
 
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
-        AbstractGroupToRoleMapper mapper = createMapper(file, watcherService);
+        GroupToRoleMapper mapper = createMapper(file, watcherService);
         assertThat(mapper.mappingsCount(), is(0));
     }
 
     @Test
     public void testMapper_AutoReload() throws Exception {
-        Path roleMappingFile = Paths.get(AbstractGroupToRoleMapperTests.class.getResource("role_mapping.yml").toURI());
+        Path roleMappingFile = Paths.get(GroupToRoleMapperTests.class.getResource("role_mapping.yml").toURI());
         Path file = Files.createTempFile(null, ".yml");
         Files.copy(roleMappingFile, file, StandardCopyOption.REPLACE_EXISTING);
 
         final CountDownLatch latch = new CountDownLatch(1);
 
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
-        AbstractGroupToRoleMapper mapper = createMapper(file, watcherService);
+        GroupToRoleMapper mapper = createMapper(file, watcherService);
         mapper.addListener(new RefreshListener() {
             @Override
             public void onRefresh() {
@@ -110,14 +123,14 @@ public abstract class AbstractGroupToRoleMapperTests extends ElasticsearchTestCa
 
     @Test
     public void testMapper_AutoReload_WithParseFailures() throws Exception {
-        Path roleMappingFile = Paths.get(AbstractGroupToRoleMapperTests.class.getResource("role_mapping.yml").toURI());
+        Path roleMappingFile = Paths.get(GroupToRoleMapperTests.class.getResource("role_mapping.yml").toURI());
         Path file = Files.createTempFile(null, ".yml");
         Files.copy(roleMappingFile, file, StandardCopyOption.REPLACE_EXISTING);
 
         final CountDownLatch latch = new CountDownLatch(1);
 
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
-        AbstractGroupToRoleMapper mapper = createMapper(file, watcherService);
+        GroupToRoleMapper mapper = createMapper(file, watcherService);
         mapper.addListener(new RefreshListener() {
             @Override
             public void onRefresh() {
@@ -144,22 +157,22 @@ public abstract class AbstractGroupToRoleMapperTests extends ElasticsearchTestCa
 
     @Test
     public void testParseFile() throws Exception {
-        Path file = Paths.get(AbstractGroupToRoleMapperTests.class.getResource("role_mapping.yml").toURI());
+        Path file = Paths.get(GroupToRoleMapperTests.class.getResource("role_mapping.yml").toURI());
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
-        ImmutableMap<LdapName, Set<String>> mappings = LdapGroupToRoleMapper.parseFile(file, logger, "_type", "_name");
+        ImmutableMap<DN, Set<String>> mappings = GroupToRoleMapper.parseFile(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());
         assertThat(mappings.size(), is(2));
 
-        LdapName ldapName = new LdapName("cn=avengers,ou=marvel,o=superheros");
-        assertThat(mappings, hasKey(ldapName));
-        Set<String> roles = mappings.get(ldapName);
+        DN dn = new DN("cn=avengers,ou=marvel,o=superheros");
+        assertThat(mappings, hasKey(dn));
+        Set<String> roles = mappings.get(dn);
         assertThat(roles, notNullValue());
         assertThat(roles, hasSize(2));
         assertThat(roles, containsInAnyOrder("shield", "avenger"));
 
-        ldapName = new LdapName("cn=shield,ou=marvel,o=superheros");
-        assertThat(mappings, hasKey(ldapName));
-        roles = mappings.get(ldapName);
+        dn = new DN("cn=shield,ou=marvel,o=superheros");
+        assertThat(mappings, hasKey(dn));
+        roles = mappings.get(dn);
         assertThat(roles, notNullValue());
         assertThat(roles, hasSize(1));
         assertThat(roles, containsInAnyOrder("shield"));
@@ -169,7 +182,7 @@ public abstract class AbstractGroupToRoleMapperTests extends ElasticsearchTestCa
     public void testParseFile_Empty() throws Exception {
         Path file = newTempFile().toPath();
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
-        ImmutableMap<LdapName, Set<String>> mappings = LdapGroupToRoleMapper.parseFile(file, logger, "_type", "_name");
+        ImmutableMap<DN, Set<String>> mappings = GroupToRoleMapper.parseFile(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
         List<CapturingLogger.Msg> msgs = logger.output(CapturingLogger.Level.WARN);
@@ -181,7 +194,7 @@ public abstract class AbstractGroupToRoleMapperTests extends ElasticsearchTestCa
     public void testParseFile_WhenFileDoesNotExist() throws Exception {
         Path file = new File(randomAsciiOfLength(10)).toPath();
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
-        ImmutableMap<LdapName, Set<String>> mappings = LdapGroupToRoleMapper.parseFile(file, logger, "_type", "_name");
+        ImmutableMap<DN, Set<String>> mappings = GroupToRoleMapper.parseFile(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
     }
@@ -193,7 +206,7 @@ public abstract class AbstractGroupToRoleMapperTests extends ElasticsearchTestCa
         Files.write(file, ImmutableList.of("aldlfkjldjdflkjd"), Charsets.UTF_16);
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
         try {
-            LdapGroupToRoleMapper.parseFile(file, logger, "_type", "_name");
+            GroupToRoleMapper.parseFile(file, logger, "_type", "_name");
             fail("expected a parse failure");
         } catch (Exception e) {
             this.logger.info("expected", e);
@@ -206,11 +219,48 @@ public abstract class AbstractGroupToRoleMapperTests extends ElasticsearchTestCa
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, ImmutableList.of("aldlfkjldjdflkjd"), Charsets.UTF_16);
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
-        ImmutableMap<LdapName, Set<String>> mappings = LdapGroupToRoleMapper.parseFileLenient(file, logger, "_type", "_name");
+        ImmutableMap<DN, Set<String>> mappings = GroupToRoleMapper.parseFileLenient(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
         List<CapturingLogger.Msg> msgs = logger.output(CapturingLogger.Level.ERROR);
         assertThat(msgs.size(), is(1));
         assertThat(msgs.get(0).text, containsString("failed to parse role mappings file"));
+    }
+
+    @Test
+    public void testYaml() throws IOException {
+        File file = this.getResource("role_mapping.yml");
+        Settings ldapSettings = ImmutableSettings.settingsBuilder()
+                .put(GroupToRoleMapper.ROLE_MAPPING_FILE_SETTING, file.getCanonicalPath())
+                .build();
+        RealmConfig config = new RealmConfig("ldap1", ldapSettings);
+
+        GroupToRoleMapper mapper = new GroupToRoleMapper(LdapRealm.TYPE, config, new ResourceWatcherService(settings, threadPool), null);
+
+        Set<String> roles = mapper.mapRoles( Arrays.asList(STARK_GROUP_DNS) );
+
+        //verify
+        assertThat(roles, hasItems("shield", "avenger"));
+    }
+
+    @Test
+    public void testRelativeDN() {
+        Settings ldapSettings = ImmutableSettings.builder()
+                .put(GroupToRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
+                .build();
+        RealmConfig config = new RealmConfig("ldap1", ldapSettings);
+
+        GroupToRoleMapper mapper = new GroupToRoleMapper(LdapRealm.TYPE, config, new ResourceWatcherService(settings, threadPool), null);
+
+        Set<String> roles = mapper.mapRoles(Arrays.asList(STARK_GROUP_DNS));
+        assertThat(roles, hasItems("genius", "billionaire", "playboy", "philanthropist", "shield", "avengers"));
+    }
+
+    protected GroupToRoleMapper createMapper(Path file, ResourceWatcherService watcherService) {
+        Settings realmSettings = ImmutableSettings.builder()
+                .put("files.role_mapping", file.toAbsolutePath())
+                .build();
+        RealmConfig config = new RealmConfig("ad-group-mapper-test", realmSettings, settings, env);
+        return new GroupToRoleMapper(randomBoolean() ? ActiveDirectoryRealm.TYPE : LdapRealm.TYPE, config, watcherService, null);
     }
 }

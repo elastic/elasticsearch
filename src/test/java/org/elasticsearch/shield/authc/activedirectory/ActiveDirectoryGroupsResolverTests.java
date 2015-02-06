@@ -3,15 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.authc.active_directory;
+package org.elasticsearch.shield.authc.activedirectory;
 
+import com.unboundid.ldap.sdk.Filter;
+import com.unboundid.ldap.sdk.LDAPConnection;
+import com.unboundid.ldap.sdk.LDAPConnectionOptions;
+import com.unboundid.ldap.sdk.LDAPURL;
+import org.elasticsearch.common.primitives.Ints;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.shield.authc.support.ldap.AbstractLdapSslSocketFactory;
-import org.elasticsearch.shield.authc.support.ldap.ConnectionFactory;
-import org.elasticsearch.shield.authc.support.ldap.LdapSslSocketFactory;
-import org.elasticsearch.shield.authc.support.ldap.SearchScope;
+import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
+import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.shield.support.NoOpLogger;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -20,12 +23,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import javax.naming.Context;
-import javax.naming.directory.InitialDirContext;
-import java.io.Serializable;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Hashtable;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -35,50 +34,41 @@ import static org.hamcrest.Matchers.*;
 public class ActiveDirectoryGroupsResolverTests extends ElasticsearchTestCase {
 
     public static final String BRUCE_BANNER_DN = "cn=Bruce Banner,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
-    private InitialDirContext ldapContext;
+    private LDAPConnection ldapConnection;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        Path keystore = Paths.get(ActiveDirectoryGroupsResolverTests.class.getResource("../support/ldap/ldaptrust.jks").toURI()).toAbsolutePath();
+        Path keystore = Paths.get(ActiveDirectoryGroupsResolverTests.class.getResource("../ldap/support/ldaptrust.jks").toURI()).toAbsolutePath();
 
-        /*
-         * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
-         * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
-         * verification tests since a re-established connection does not perform hostname verification.
-         */
-        AbstractLdapSslSocketFactory.init(new ClientSSLService(ImmutableSettings.builder()
+        ClientSSLService clientSSLService = new ClientSSLService(ImmutableSettings.builder()
                 .put("shield.ssl.keystore.path", keystore)
                 .put("shield.ssl.keystore.password", "changeit")
-                .build()));
+                .build());
 
-        Hashtable<String, Serializable> ldapEnv = new Hashtable<>();
-        ldapEnv.put(Context.SECURITY_AUTHENTICATION, "simple");
-        ldapEnv.put(Context.SECURITY_PRINCIPAL, BRUCE_BANNER_DN);
-        ldapEnv.put(Context.SECURITY_CREDENTIALS, ActiveDirectoryFactoryTests.PASSWORD);
-        ldapEnv.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
-        ldapEnv.put(Context.PROVIDER_URL, ActiveDirectoryFactoryTests.AD_LDAP_URL);
-        ldapEnv.put(ConnectionFactory.JAVA_NAMING_LDAP_FACTORY_SOCKET, LdapSslSocketFactory.class.getName());
-        ldapEnv.put("java.naming.ldap.attributes.binary", "tokenGroups");
-        ldapEnv.put(Context.REFERRAL, "follow");
-        ldapContext = new InitialDirContext(ldapEnv);
-
+        LDAPURL ldapurl = new LDAPURL(ActiveDirectorySessionFactoryTests.AD_LDAP_URL);
+        LDAPConnectionOptions options = new LDAPConnectionOptions();
+        options.setFollowReferrals(true);
+        options.setAutoReconnect(true);
+        options.setAllowConcurrentSocketFactoryUse(true);
+        options.setConnectTimeoutMillis(Ints.checkedCast(SessionFactory.TIMEOUT_DEFAULT.millis()));
+        options.setResponseTimeoutMillis(SessionFactory.TIMEOUT_DEFAULT.millis());
+        ldapConnection = new LDAPConnection(clientSSLService.sslSocketFactory(), options, ldapurl.getHost(), ldapurl.getPort(), BRUCE_BANNER_DN, ActiveDirectorySessionFactoryTests.PASSWORD);
     }
 
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        ldapContext.close();
-        LdapSslSocketFactory.clear();
+        ldapConnection.close();
     }
 
     @Test
     public void testResolveSubTree() throws Exception {
         Settings settings = ImmutableSettings.builder()
-                .put("scope", SearchScope.SUB_TREE)
+                .put("scope", LdapSearchScope.SUB_TREE)
                 .build();
         ActiveDirectoryGroupsResolver resolver = new ActiveDirectoryGroupsResolver(settings, "DC=ad,DC=test,DC=elasticsearch,DC=com");
-        List<String> groups = resolver.resolve(ldapContext, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
+        List<String> groups = resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
         assertThat(groups, containsInAnyOrder(
                 containsString("Avengers"),
                 containsString("SHIELD"),
@@ -92,22 +82,22 @@ public class ActiveDirectoryGroupsResolverTests extends ElasticsearchTestCase {
     @Test
     public void testResolveOneLevel() throws Exception {
         Settings settings = ImmutableSettings.builder()
-                .put("scope", SearchScope.ONE_LEVEL)
+                .put("scope", LdapSearchScope.ONE_LEVEL)
                 .put("base_dn", "CN=Builtin, DC=ad, DC=test, DC=elasticsearch,DC=com")
                 .build();
         ActiveDirectoryGroupsResolver resolver = new ActiveDirectoryGroupsResolver(settings, "DC=ad,DC=test,DC=elasticsearch,DC=com");
-        List<String> groups = resolver.resolve(ldapContext, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
+        List<String> groups = resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
         assertThat(groups, hasItem(containsString("Users")));
     }
 
     @Test
     public void testResolveBaseLevel() throws Exception {
         Settings settings = ImmutableSettings.builder()
-                .put("scope", SearchScope.BASE)
+                .put("scope", LdapSearchScope.BASE)
                 .put("base_dn", "CN=Users, CN=Builtin, DC=ad, DC=test, DC=elasticsearch, DC=com")
                 .build();
         ActiveDirectoryGroupsResolver resolver = new ActiveDirectoryGroupsResolver(settings, "DC=ad,DC=test,DC=elasticsearch,DC=com");
-        List<String> groups = resolver.resolve(ldapContext, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
+        List<String> groups = resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
         assertThat(groups, hasItem(containsString("Users")));
     }
 
@@ -119,7 +109,7 @@ public class ActiveDirectoryGroupsResolverTests extends ElasticsearchTestCase {
                     "S-1-5-32-545", //Default Users group
                     "S-1-5-21-3510024162-210737641-214529065-513" //Default Domain Users group
             };
-            String query = ActiveDirectoryGroupsResolver.buildGroupQuery(ldapContext, "CN=Jarvis, CN=Users, DC=ad, DC=test, DC=elasticsearch, DC=com", TimeValue.timeValueSeconds(10));
+            Filter query = ActiveDirectoryGroupsResolver.buildGroupQuery(ldapConnection, "CN=Jarvis, CN=Users, DC=ad, DC=test, DC=elasticsearch, DC=com", TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
             assertValidSidQuery(query, expectedSids);
         }
 
@@ -129,7 +119,7 @@ public class ActiveDirectoryGroupsResolverTests extends ElasticsearchTestCase {
                     "S-1-5-32-545", //Default Users group
                     "S-1-5-21-3510024162-210737641-214529065-513",   //Default Domain Users group
                     "S-1-5-21-3510024162-210737641-214529065-1117"}; //Gods group
-            String query = ActiveDirectoryGroupsResolver.buildGroupQuery(ldapContext, "CN=Odin, CN=Users, DC=ad, DC=test, DC=elasticsearch, DC=com", TimeValue.timeValueSeconds(10));
+            Filter query = ActiveDirectoryGroupsResolver.buildGroupQuery(ldapConnection, "CN=Odin, CN=Users, DC=ad, DC=test, DC=elasticsearch, DC=com", TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
             assertValidSidQuery(query, expectedSids);
         }
 
@@ -143,16 +133,17 @@ public class ActiveDirectoryGroupsResolverTests extends ElasticsearchTestCase {
                     "S-1-5-21-3510024162-210737641-214529065-1108", //Geniuses
                     "S-1-5-21-3510024162-210737641-214529065-1106", //SHIELD
                     "S-1-5-21-3510024162-210737641-214529065-1105"};//Avengers
-            String query = ActiveDirectoryGroupsResolver.buildGroupQuery(ldapContext, "CN=Bruce Banner, CN=Users, DC=ad, DC=test, DC=elasticsearch, DC=com", TimeValue.timeValueSeconds(10));
+            Filter query = ActiveDirectoryGroupsResolver.buildGroupQuery(ldapConnection, "CN=Bruce Banner, CN=Users, DC=ad, DC=test, DC=elasticsearch, DC=com", TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
             assertValidSidQuery(query, expectedSids);
         }
     }
 
-    private void assertValidSidQuery(String query, String[] expectedSids) {
+    private void assertValidSidQuery(Filter query, String[] expectedSids) {
+        String queryString = query.toString();
         Pattern sidQueryPattern = Pattern.compile("\\(\\|(\\(objectSid=S(-\\d+)+\\))+\\)");
-        assertThat("[" + query + "] didn't match the search filter pattern", sidQueryPattern.matcher(query).matches(), is(true));
+        assertThat("[" + queryString + "] didn't match the search filter pattern", sidQueryPattern.matcher(queryString).matches(), is(true));
         for(String sid: expectedSids) {
-            assertThat(query, containsString(sid));
+            assertThat(queryString, containsString(sid));
         }
     }
 

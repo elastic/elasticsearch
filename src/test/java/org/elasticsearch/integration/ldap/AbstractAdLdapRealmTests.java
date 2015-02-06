@@ -13,11 +13,11 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.authc.active_directory.ActiveDirectoryRealm;
+import org.elasticsearch.shield.authc.activedirectory.ActiveDirectoryRealm;
 import org.elasticsearch.shield.authc.ldap.LdapRealm;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.shield.authc.support.ldap.SearchScope;
+import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authz.AuthorizationException;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.test.ShieldIntegrationTest;
@@ -175,7 +175,7 @@ abstract public class AbstractAdLdapRealmTests extends ShieldIntegrationTest {
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".type", ActiveDirectoryRealm.TYPE)
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".domain_name", "ad.test.elasticsearch.com")
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.base_dn", "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
-                        .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.scope", randomBoolean() ? SearchScope.SUB_TREE : SearchScope.ONE_LEVEL)
+                        .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.scope", randomBoolean() ? LdapSearchScope.SUB_TREE : LdapSearchScope.ONE_LEVEL)
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".url", "ldaps://ad.test.elasticsearch.com:636")
                         .build()),
 
@@ -184,7 +184,7 @@ abstract public class AbstractAdLdapRealmTests extends ShieldIntegrationTest {
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".type", LdapRealm.TYPE)
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".url", "ldaps://ad.test.elasticsearch.com:636")
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.base_dn", "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
-                        .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.scope", randomBoolean() ? SearchScope.SUB_TREE : SearchScope.ONE_LEVEL)
+                        .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.scope", randomBoolean() ? LdapSearchScope.SUB_TREE : LdapSearchScope.ONE_LEVEL)
                         .putArray(SHIELD_AUTHC_REALMS_EXTERNAL + ".user_dn_templates", "cn={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
                         .build()),
 
@@ -200,7 +200,7 @@ abstract public class AbstractAdLdapRealmTests extends ShieldIntegrationTest {
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".type", LdapRealm.TYPE)
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".url", "ldaps://54.200.235.244:636")
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.base_dn", "ou=people, dc=oldap, dc=test, dc=elasticsearch, dc=com")
-                        .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.scope", randomBoolean() ? SearchScope.SUB_TREE : SearchScope.ONE_LEVEL)
+                        .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.scope", randomBoolean() ? LdapSearchScope.SUB_TREE : LdapSearchScope.ONE_LEVEL)
                         .putArray(SHIELD_AUTHC_REALMS_EXTERNAL + ".user_dn_templates", "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
                         .build());
 

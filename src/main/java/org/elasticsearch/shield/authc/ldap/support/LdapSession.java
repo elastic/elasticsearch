@@ -3,23 +3,22 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.authc.support.ldap;
+package org.elasticsearch.shield.authc.ldap.support;
 
+import com.unboundid.ldap.sdk.LDAPConnection;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
 
-import javax.naming.NamingException;
-import javax.naming.directory.DirContext;
 import java.io.Closeable;
 import java.util.List;
 
 /**
  * Represents a LDAP connection with an authenticated/bound user that needs closing.
  */
-public abstract class AbstractLdapConnection implements Closeable {
+public class LdapSession implements Closeable {
 
     protected final ESLogger logger;
-    protected final DirContext jndiContext;
+    protected final LDAPConnection ldapConnection;
     protected final String bindDn;
     protected final GroupsResolver groupsResolver;
     protected final TimeValue timeout;
@@ -32,25 +31,20 @@ public abstract class AbstractLdapConnection implements Closeable {
      * outside of and be reused across all connections. We can't keep a static logger in this class
      * since we want the logger to be contextual (i.e. aware of the settings and its environment).
      */
-    public AbstractLdapConnection(ESLogger logger, DirContext ctx, String boundName, GroupsResolver groupsResolver, TimeValue timeout) {
+    public LdapSession(ESLogger logger, LDAPConnection connection, String boundName, GroupsResolver groupsResolver, TimeValue timeout) {
         this.logger = logger;
-        this.jndiContext = ctx;
+        this.ldapConnection = connection;
         this.bindDn = boundName;
         this.groupsResolver = groupsResolver;
         this.timeout = timeout;
     }
 
     /**
-     * LDAP connections should be closed to clean up resources.  However, the jndi contexts have the finalize
-     * implemented properly so that it will clean up on garbage collection.
+     * LDAP connections should be closed to clean up resources.
      */
     @Override
-    public void close(){
-        try {
-            jndiContext.close();
-        } catch (NamingException e) {
-            throw new SecurityException("could not close the LDAP connection", e);
-        }
+    public void close() {
+        ldapConnection.close();
     }
 
     /**
@@ -64,12 +58,12 @@ public abstract class AbstractLdapConnection implements Closeable {
      * @return List of fully distinguished group names
      */
     public List<String> groups() {
-        return groupsResolver.resolve(jndiContext, bindDn, timeout, logger);
+        return groupsResolver.resolve(ldapConnection, bindDn, timeout, logger);
     }
 
     public static interface GroupsResolver {
 
-        List<String> resolve(DirContext ctx, String userDn, TimeValue timeout, ESLogger logger);
+        List<String> resolve(LDAPConnection ldapConnection, String userDn, TimeValue timeout, ESLogger logger);
 
     }
 }

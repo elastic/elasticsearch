@@ -5,24 +5,24 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
+import com.unboundid.ldap.sdk.*;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.primitives.Ints;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.shield.authc.support.ldap.AbstractLdapConnection;
-import org.elasticsearch.shield.authc.support.ldap.ClosableNamingEnumeration;
+import org.elasticsearch.shield.authc.ldap.support.LdapSession.GroupsResolver;
 
-import javax.naming.NamingEnumeration;
-import javax.naming.NamingException;
-import javax.naming.directory.Attribute;
-import javax.naming.directory.Attributes;
-import javax.naming.directory.DirContext;
-import java.util.LinkedList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+
+import static org.elasticsearch.shield.authc.ldap.support.LdapUtils.OBJECT_CLASS_PRESENCE_FILTER;
+import static org.elasticsearch.shield.authc.ldap.support.LdapUtils.searchForEntry;
 
 /**
 *
 */
-class UserAttributeGroupsResolver implements AbstractLdapConnection.GroupsResolver {
+class UserAttributeGroupsResolver implements GroupsResolver {
 
     private final String attribute;
 
@@ -35,25 +35,19 @@ class UserAttributeGroupsResolver implements AbstractLdapConnection.GroupsResolv
     }
 
     @Override
-    public List<String> resolve(DirContext ctx, String userDn, TimeValue timeout, ESLogger logger) {
-        List<String> groupDns = new LinkedList<>();
+    public List<String> resolve(LDAPConnection connection, String userDn, TimeValue timeout, ESLogger logger) {
         try {
-            Attributes results = ctx.getAttributes(userDn, new String[] { attribute });
-            try (ClosableNamingEnumeration<? extends Attribute> ae = new ClosableNamingEnumeration<>(results.getAll())) {
-                while (ae.hasMore()) {
-                    Attribute attr = ae.next();
-                    for (NamingEnumeration attrEnum = attr.getAll(); attrEnum.hasMore(); ) {
-                        Object val = attrEnum.next();
-                        if (val instanceof String) {
-                            String stringVal = (String) val;
-                            groupDns.add(stringVal);
-                        }
-                    }
-                }
+            SearchRequest request = new SearchRequest(userDn, SearchScope.BASE, OBJECT_CLASS_PRESENCE_FILTER, attribute);
+            request.setTimeLimitSeconds(Ints.checkedCast(timeout.seconds()));
+            SearchResultEntry result = searchForEntry(connection, request, logger);
+            Attribute attributeReturned = result.getAttribute(attribute);
+            if (attributeReturned == null) {
+                return Collections.emptyList();
             }
-        } catch (NamingException | LdapException e) {
-            throw new LdapException("could not look up group attributes for user", userDn, e);
+            String[] values = attributeReturned.getValues();
+            return Arrays.asList(values);
+        } catch (LDAPException e) {
+            throw new ShieldLdapException("could not look up group attributes for user", userDn, e);
         }
-        return groupDns;
     }
 }

@@ -3,8 +3,10 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.authc.support.ldap;
+package org.elasticsearch.shield.authc.ldap.support;
 
+import com.unboundid.ldap.sdk.DN;
+import com.unboundid.ldap.sdk.LDAPException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.logging.ESLogger;
@@ -19,8 +21,6 @@ import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
-import javax.naming.InvalidNameException;
-import javax.naming.ldap.LdapName;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -30,10 +30,13 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import static org.elasticsearch.shield.authc.ldap.support.LdapUtils.dn;
+import static org.elasticsearch.shield.authc.ldap.support.LdapUtils.relativeName;
+
 /**
  * This class loads and monitors the file defining the mappings of LDAP Group DNs to internal ES Roles.
  */
-public abstract class AbstractGroupToRoleMapper {
+public class GroupToRoleMapper {
 
     public static final String DEFAULT_FILE_NAME = "role_mapping.yml";
     public static final String ROLE_MAPPING_FILE_SETTING = "files.role_mapping";
@@ -45,11 +48,11 @@ public abstract class AbstractGroupToRoleMapper {
     private final String realmType;
     private final Path file;
     private final boolean useUnmappedGroupsAsRoles;
-    protected volatile ImmutableMap<LdapName, Set<String>> groupRoles;
+    protected volatile ImmutableMap<DN, Set<String>> groupRoles;
 
     private CopyOnWriteArrayList<RefreshListener> listeners;
 
-    protected AbstractGroupToRoleMapper(String realmType, RealmConfig config, ResourceWatcherService watcherService, @Nullable RefreshListener listener) {
+    public GroupToRoleMapper(String realmType, RealmConfig config, ResourceWatcherService watcherService, @Nullable RefreshListener listener) {
         this.realmType = realmType;
         this.config = config;
         this.logger = config.logger(getClass());
@@ -83,7 +86,7 @@ public abstract class AbstractGroupToRoleMapper {
      * logging the error and skipping/removing all mappings. This is aligned with how we handle other auto-loaded files
      * in shield.
      */
-    public static ImmutableMap<LdapName, Set<String>> parseFileLenient(Path path, ESLogger logger, String realmType, String realmName) {
+    public static ImmutableMap<DN, Set<String>> parseFileLenient(Path path, ESLogger logger, String realmType, String realmName) {
         try {
             return parseFile(path, logger, realmType, realmName);
         } catch (Throwable t) {
@@ -92,7 +95,7 @@ public abstract class AbstractGroupToRoleMapper {
         }
     }
 
-    public static ImmutableMap<LdapName, Set<String>> parseFile(Path path, ESLogger logger, String realmType, String realmName) {
+    public static ImmutableMap<DN, Set<String>> parseFile(Path path, ESLogger logger, String realmType, String realmName) {
 
         logger.trace("reading realm [{}/{}] role mappings file [{}]...", realmType, realmName, path.toAbsolutePath());
 
@@ -105,19 +108,19 @@ public abstract class AbstractGroupToRoleMapper {
                     .loadFromStream(path.toString(), in)
                     .build();
 
-            Map<LdapName, Set<String>> groupToRoles = new HashMap<>();
+            Map<DN, Set<String>> groupToRoles = new HashMap<>();
             Set<String> roles = settings.names();
             for (String role : roles) {
                 for (String ldapDN : settings.getAsArray(role)) {
                     try {
-                        LdapName group = new LdapName(ldapDN);
+                        DN group = new DN(ldapDN);
                         Set<String> groupRoles = groupToRoles.get(group);
                         if (groupRoles == null) {
                             groupRoles = new HashSet<>();
                             groupToRoles.put(group, groupRoles);
                         }
                         groupRoles.add(role);
-                    } catch (InvalidNameException e) {
+                    } catch (LDAPException e) {
                         logger.error("invalid group DN [{}] found in [{}] group to role mappings [{}] for realm [{}/{}]. skipping... ", e, ldapDN, realmType, path.toAbsolutePath(), realmType, realmName);
                     }
                 }
@@ -145,21 +148,17 @@ public abstract class AbstractGroupToRoleMapper {
     public Set<String> mapRoles(List<String> groupDns) {
         Set<String> roles = new HashSet<>();
         for (String groupDn : groupDns) {
-            LdapName groupLdapName = LdapUtils.ldapName(groupDn);
+            DN groupLdapName = dn(groupDn);
             if (this.groupRoles.containsKey(groupLdapName)) {
                 roles.addAll(this.groupRoles.get(groupLdapName));
             } else if (useUnmappedGroupsAsRoles) {
-                roles.add(getRelativeName(groupLdapName));
+                roles.add(relativeName(groupLdapName));
             }
         }
         if (logger.isDebugEnabled()) {
             logger.debug("the roles [{}], are mapped from these [{}] groups [{}] for realm [{}/{}]", roles, realmType, groupDns, realmType, config.name());
         }
         return roles;
-    }
-
-    String getRelativeName(LdapName groupLdapName) {
-        return (String) groupLdapName.getRdn(groupLdapName.size() - 1).getValue();
     }
 
     public void notifyRefresh() {
@@ -181,7 +180,7 @@ public abstract class AbstractGroupToRoleMapper {
 
         @Override
         public void onFileChanged(File file) {
-            if (file.equals(AbstractGroupToRoleMapper.this.file.toFile())) {
+            if (file.equals(GroupToRoleMapper.this.file.toFile())) {
                 logger.info("role mappings file [{}] changed for realm [{}/{}]. updating mappings...", file.getAbsolutePath(), realmType, config.name());
                 groupRoles = parseFileLenient(file.toPath(), logger, realmType, config.name());
                 notifyRefresh();

@@ -7,10 +7,9 @@ package org.elasticsearch.shield.authc;
 
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.authc.active_directory.ActiveDirectoryRealm;
+import org.elasticsearch.shield.authc.activedirectory.ActiveDirectoryRealm;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.ldap.LdapRealm;
-import org.elasticsearch.shield.authc.support.ldap.AbstractLdapSslSocketFactory;
 import org.elasticsearch.shield.support.AbstractShieldModule;
 
 /**
@@ -24,11 +23,6 @@ public class AuthenticationModule extends AbstractShieldModule.Node {
 
     @Override
     protected void configureNode() {
-
-        // This socket factory needs to be configured before any LDAP connections are created.  LDAP configuration
-        // for JNDI invokes a static getSocketFactory method from LdapSslSocketFactory.
-        requestStaticInjection(AbstractLdapSslSocketFactory.class);
-
         MapBinder<String, Realm.Factory> mapBinder = MapBinder.newMapBinder(binder(), String.class, Realm.Factory.class);
         mapBinder.addBinding(ESUsersRealm.TYPE).to(ESUsersRealm.Factory.class).asEagerSingleton();
         mapBinder.addBinding(ActiveDirectoryRealm.TYPE).to(ActiveDirectoryRealm.Factory.class).asEagerSingleton();

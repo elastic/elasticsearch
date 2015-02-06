@@ -117,9 +117,9 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.apache.directory.server</groupId>
-            <artifactId>apacheds-all</artifactId>
-            <version>2.0.0-M17</version>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>3.3.2</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -177,13 +177,16 @@
             <artifactId>commons-codec</artifactId>
             <version>1.10</version>
         </dependency>
-
         <dependency>
             <groupId>dk.brics.automaton</groupId>
             <artifactId>automaton</artifactId>
             <version>1.11-8</version>
         </dependency>
-
+        <dependency>
+            <groupId>com.unboundid</groupId>
+            <artifactId>unboundid-ldapsdk</artifactId>
+            <version>2.3.8</version>
+        </dependency>
     </dependencies>
 
 

@@ -6,13 +6,13 @@
 package org.elasticsearch.shield.support;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import org.apache.commons.lang.ArrayUtils;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.util.Arrays;
 
-import static org.apache.commons.lang.ArrayUtils.addAll;
+import static org.apache.commons.lang3.ArrayUtils.add;
+import static org.apache.commons.lang3.ArrayUtils.addAll;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -29,7 +29,7 @@ public class ValidationTests extends ElasticsearchTestCase {
 
     private static final char[] numbers = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' };
 
-    private static final char[] allowedFirstChars = ArrayUtils.add(alphabet, '_');
+    private static final char[] allowedFirstChars = add(alphabet, '_');
 
     private static final char[] allowedSubsequent = addAll(addAll(alphabet, numbers), new char[] { '_', '@', '-', '$' });
 

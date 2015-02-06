@@ -30,11 +30,12 @@ public class Actions implements Iterable<Action>, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
+        builder.startArray();
         for (Action action : actions){
-            builder.field(action.type());
-            action.toXContent(builder, params);
+            builder.startObject().field(action.type(), action).endObject();
         }
-        return builder.endObject();
+        builder.endArray();
+        return builder;
     }
+
 }

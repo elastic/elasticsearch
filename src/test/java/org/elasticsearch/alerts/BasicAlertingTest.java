@@ -5,15 +5,17 @@
  */
 package org.elasticsearch.alerts;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.alerts.client.AlertsClient;
+import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService;
@@ -31,7 +33,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
@@ -53,7 +54,6 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         GetAlertResponse getAlertResponse = alertClient().prepareGetAlert().setAlertName("my-first-alert").get();
         assertThat(getAlertResponse.getResponse().isExists(), is(true));
         assertThat(getAlertResponse.getResponse().isSourceEmpty(), is(false));
-        assertThat(getAlertResponse.getResponse().getSource().get("last_action_executed"), notNullValue());
     }
 
     @Test
@@ -107,17 +107,23 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         createIndex("my-index");
         // Have a sample document in the index, the alert is going to evaluate
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
-        BytesReference alertSource = jsonBuilder().startObject()
-                .field("schedule", "0/5 * * * * ? *")
-                .startObject("trigger").startObject("script").field("script", "return true").endObject().endObject()
-                .field("malformed_field", "x")
-                .endObject().bytes();
+        XContentBuilder alertSource = jsonBuilder();
+
+        alertSource.startObject();
+        alertSource.field("malformed_field", "x");
+        alertSource.startObject("schedule").field("cron", "0/5 * * * * ? *").endObject();
+
+        alertSource.startObject("trigger").startObject("script").field("script", "return true").field("request");
+        AlertUtils.writeSearchRequest(createTriggerSearchRequest(), alertSource, ToXContent.EMPTY_PARAMS);
+        alertSource.endObject();
+
+        alertSource.endObject();
         try {
             alertsClient.preparePutAlert("my-first-alert")
-                    .setAlertSource(alertSource)
+                    .setAlertSource(alertSource.bytes())
                     .get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (AlertsException e) {
             // In AlertStore we fail parsing if an alert contains undefined fields.
         }
         try {
@@ -200,7 +206,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         assertAcked(prepareCreate("my-index").addMapping("my-type", "_timestamp", "enabled=true"));
         SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(
                 searchSource()
-                        .query(QueryBuilders.constantScoreQuery(FilterBuilders.rangeFilter("_timestamp").from("{{SCHEDULED_FIRE_TIME}}||-1m").to("{{SCHEDULED_FIRE_TIME}}")))
+                        .query(QueryBuilders.constantScoreQuery(FilterBuilders.rangeFilter("_timestamp").from("{{scheduled_fire_time}}||-1m").to("{{scheduled_fire_time}}")))
                         .aggregation(AggregationBuilders.dateHistogram("rate").field("_timestamp").interval(DateHistogram.Interval.SECOND).order(Histogram.Order.COUNT_DESC))
         );
         BytesReference reference = createAlertSource("* 0/1 * * * ? *", searchRequest, "aggregations.rate.buckets[0]?.doc_count > 5");
@@ -220,7 +226,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
     }
 
     private final SearchSourceBuilder searchSourceBuilder = searchSource().query(
-            filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{SCHEDULED_FIRE_TIME}}||-30s").to("{{SCHEDULED_FIRE_TIME}}"))
+            filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{" + AlertUtils.SCHEDULED_FIRE_TIME_VARIABLE_NAME + "}}||-30s").to("{{" + AlertUtils.SCHEDULED_FIRE_TIME_VARIABLE_NAME + "}}"))
     );
 
     @Test

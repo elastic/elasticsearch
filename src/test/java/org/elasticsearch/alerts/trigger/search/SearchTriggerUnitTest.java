@@ -3,18 +3,20 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerts.triggers;
+package org.elasticsearch.alerts.trigger.search;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.alerts.AbstractAlertingTests;
+import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptEngineService;
@@ -27,7 +29,6 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -35,7 +36,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class SearchTriggerUnitTest extends ElasticsearchTestCase {
 
-    private XContentBuilder createTriggerContent(String script, String scriptLang, ScriptService.ScriptType scriptType) throws IOException {
+    private XContentBuilder createTriggerContent(String script, String scriptLang, ScriptService.ScriptType scriptType, SearchRequest request) throws IOException {
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         jsonBuilder.startObject();
         jsonBuilder.field("script");
@@ -47,6 +48,8 @@ public class SearchTriggerUnitTest extends ElasticsearchTestCase {
         if (scriptType != null) {
             jsonBuilder.field("script_type", scriptType.toString());
         }
+        jsonBuilder.field(ScriptSearchTrigger.Parser.REQUEST_FIELD.getPreferredName());
+        AlertUtils.writeSearchRequest(request, jsonBuilder, ToXContent.EMPTY_PARAMS);
         jsonBuilder.endObject();
         jsonBuilder.endObject();
         return jsonBuilder;
@@ -61,12 +64,12 @@ public class SearchTriggerUnitTest extends ElasticsearchTestCase {
         engineServiceSet.add(groovyScriptEngineService);
 
         ScriptService scriptService = new ScriptService(settings, new Environment(), engineServiceSet, new ResourceWatcherService(settings, tp));
-        TriggerService triggerService = new TriggerService(settings, null, ScriptServiceProxy.of(scriptService));
+        ScriptSearchTrigger.Parser triggerParser = new ScriptSearchTrigger.Parser(settings, null, ScriptServiceProxy.of(scriptService));
 
         try {
-            XContentBuilder builder = createTriggerContent("hits.total > 1", null, null);
+            XContentBuilder builder = createTriggerContent("hits.total > 1", null, null, AbstractAlertingTests.createTriggerSearchRequest());
             XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
-            AlertTrigger trigger = triggerService.instantiateAlertTrigger(parser);
+            ScriptSearchTrigger trigger = triggerParser.parse(parser);
 
             SearchRequest request = new SearchRequest();
             request.indices("my-index");
@@ -75,19 +78,16 @@ public class SearchTriggerUnitTest extends ElasticsearchTestCase {
 
             SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
             XContentBuilder responseBuilder = jsonBuilder().startObject().value(response).endObject();
-            Map<String, Object> responseMap = XContentHelper.convertToMap(responseBuilder.bytes(), false).v2();
-            assertFalse(triggerService.isTriggered(trigger, request, responseMap).isTriggered());
+            assertFalse(trigger.processSearchResponse(response).triggered());
 
 
-            builder = createTriggerContent("return true", null, null);
+            builder = createTriggerContent("return true", null, null, AbstractAlertingTests.createTriggerSearchRequest());
             parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
-            trigger = triggerService.instantiateAlertTrigger(parser);
+            trigger = triggerParser.parse(parser);
 
-            assertTrue(triggerService.isTriggered(trigger, request, responseMap).isTriggered());
-
+            assertTrue(trigger.processSearchResponse(response).triggered());
 
             tp.shutdownNow();
-
         } catch (IOException ioe) {
             throw new ElasticsearchException("Failed to construct the trigger", ioe);
         }

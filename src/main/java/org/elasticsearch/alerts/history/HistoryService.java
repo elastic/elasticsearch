@@ -6,10 +6,7 @@
 package org.elasticsearch.alerts.history;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.alerts.Alert;
-import org.elasticsearch.alerts.AlertsPlugin;
-import org.elasticsearch.alerts.AlertsService;
-import org.elasticsearch.alerts.AlertsStore;
+import org.elasticsearch.alerts.*;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -17,11 +14,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -64,10 +61,25 @@ public class HistoryService extends AbstractComponent {
             logger.debug("starting history service");
             if (started.compareAndSet(false, true)) {
                 if (alertsThreadPool().isShutdown()) {
+                    logger.info("Restarting thread pool that had been shutdown");
                     // this update threadpool settings work around is for restarting the alerts thread pool,
                     // that creates a new alerts thread pool and cleans up the existing one that has previously been shutdown.
                     int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
-                    threadPool.updateSettings(AlertsPlugin.alertThreadPoolSettings(availableProcessors));
+                    /***
+                     *TODO Horrible horrible hack to make sure that settings are always different from the previous settings
+                     *
+                     * THIS NEEDS TO CHANGE ASAP
+                     */
+                    int queueSize = alertsThreadPool().getQueue().remainingCapacity();
+                    if (queueSize % 2 == 0){
+                        queueSize = queueSize + 1;
+                    } else {
+                        queueSize = queueSize - 1;
+                    }
+                    //TODO END HORRIBLE HACK
+
+                    threadPool.updateSettings(AlertsPlugin.alertThreadPoolSettings(availableProcessors, queueSize));
+                    assert !alertsThreadPool().isShutdown();
                 }
                 logger.debug("started history service");
             }
@@ -129,8 +141,11 @@ public class HistoryService extends AbstractComponent {
 
     private void innerExecute(FiredAlert firedAlert) {
         try {
+            if (alertsThreadPool().isShutdown()) {
+                throw new AlertsException("attempting to add to a shutdown thread pool");
+            }
             alertsThreadPool().execute(new AlertHistoryRunnable(firedAlert));
-        } catch (RejectedExecutionException e) {
+        } catch (EsRejectedExecutionException e) {
             logger.debug("[{}] failed to execute fired alert", firedAlert.name());
             firedAlert.state(FiredAlert.State.FAILED);
             firedAlert.errorMessage("failed to run fired alert due to thread pool capacity");

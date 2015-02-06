@@ -15,6 +15,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -40,7 +41,7 @@ public class EmailAction extends Action<EmailAction.Result> {
     private final EmailService emailService;
     private final StringTemplateUtils templateUtils;
 
-    protected EmailAction(ESLogger logger, EmailService emailService, StringTemplateUtils templateUtils,
+    public EmailAction(ESLogger logger, EmailService emailService, StringTemplateUtils templateUtils,
                           Email.Builder email, Authentication auth, Profile profile, String account,
                           StringTemplateUtils.Template subject, StringTemplateUtils.Template textBody,
                           StringTemplateUtils.Template htmlBody, boolean attachPayload) {
@@ -104,7 +105,7 @@ public class EmailAction extends Action<EmailAction.Result> {
         if (profile != null) {
             builder.field(Parser.PROFILE_FIELD.getPreferredName(), profile);
         }
-        builder.array(Email.TO_FIELD.getPreferredName(), email.to());
+        builder.field(Email.TO_FIELD.getPreferredName(), (ToXContent) email.to());
         if (subject != null) {
             StringTemplateUtils.writeTemplate(Email.SUBJECT_FIELD.getPreferredName(), subject, builder, params);
         }
@@ -119,8 +120,10 @@ public class EmailAction extends Action<EmailAction.Result> {
         public static final ParseField ACCOUNT_FIELD = new ParseField("account");
         public static final ParseField PROFILE_FIELD = new ParseField("profile");
         public static final ParseField USER_FIELD = new ParseField("user");
-        public static final ParseField PASSWD_FIELD = new ParseField("password");
+        public static final ParseField PASSWORD_FIELD = new ParseField("password");
         public static final ParseField ATTACH_PAYLOAD_FIELD = new ParseField("attach_payload");
+        public static final ParseField EMAIL_FIELD = new ParseField("email");
+        public static final ParseField REASON_FIELD = new ParseField("reason");
 
         private final StringTemplateUtils templateUtils;
         private final EmailService emailService;
@@ -154,44 +157,46 @@ public class EmailAction extends Action<EmailAction.Result> {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (Email.FROM_FIELD.match(currentFieldName)) {
-                    email.from(Email.Address.parse(currentFieldName, token, parser));
-                } else if (Email.REPLY_TO_FIELD.match(currentFieldName)) {
-                    email.replyTo(Email.AddressList.parse(currentFieldName, token, parser));
-                } else if (Email.TO_FIELD.match(currentFieldName)) {
-                    email.to(Email.AddressList.parse(currentFieldName, token, parser));
-                } else if (Email.CC_FIELD.match(currentFieldName)) {
-                    email.cc(Email.AddressList.parse(currentFieldName, token, parser));
-                } else if (Email.BCC_FIELD.match(currentFieldName)) {
-                    email.bcc(Email.AddressList.parse(currentFieldName, token, parser));
-                } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if (Email.PRIORITY_FIELD.match(currentFieldName)) {
-                        email.priority(Email.Priority.resolve(parser.text()));
+                } else if ((token.isValue() || token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) && currentFieldName != null) {
+                    if (Email.FROM_FIELD.match(currentFieldName)) {
+                        email.from(Email.Address.parse(currentFieldName, token, parser));
+                    } else if (Email.REPLY_TO_FIELD.match(currentFieldName)) {
+                        email.replyTo(Email.AddressList.parse(currentFieldName, token, parser));
+                    } else if (Email.TO_FIELD.match(currentFieldName)) {
+                        email.to(Email.AddressList.parse(currentFieldName, token, parser));
+                    } else if (Email.CC_FIELD.match(currentFieldName)) {
+                        email.cc(Email.AddressList.parse(currentFieldName, token, parser));
+                    } else if (Email.BCC_FIELD.match(currentFieldName)) {
+                        email.bcc(Email.AddressList.parse(currentFieldName, token, parser));
                     } else if (Email.SUBJECT_FIELD.match(currentFieldName)) {
                         subject = StringTemplateUtils.readTemplate(parser);
                     } else if (Email.TEXT_BODY_FIELD.match(currentFieldName)) {
                         textBody = StringTemplateUtils.readTemplate(parser);
-                    } else if (Email.HTML_BODY_FIELD.match(currentFieldName)) {
-                        htmlBody = StringTemplateUtils.readTemplate(parser);
-                    } else if (ACCOUNT_FIELD.match(currentFieldName)) {
-                        account = parser.text();
-                    } else if (USER_FIELD.match(currentFieldName)) {
-                        user = parser.text();
-                    } else if (PASSWD_FIELD.match(currentFieldName)) {
-                        password = parser.text();
-                    } else if (PROFILE_FIELD.match(currentFieldName)) {
-                        profile = Profile.resolve(parser.text());
+                    } else if (token == XContentParser.Token.VALUE_STRING) {
+                        if (Email.PRIORITY_FIELD.match(currentFieldName)) {
+                            email.priority(Email.Priority.resolve(parser.text()));
+                        }  else if (Email.HTML_BODY_FIELD.match(currentFieldName)) {
+                            htmlBody = StringTemplateUtils.readTemplate(parser);
+                        } else if (ACCOUNT_FIELD.match(currentFieldName)) {
+                            account = parser.text();
+                        } else if (USER_FIELD.match(currentFieldName)) {
+                            user = parser.text();
+                        } else if (PASSWORD_FIELD.match(currentFieldName)) {
+                            password = parser.text();
+                        } else if (PROFILE_FIELD.match(currentFieldName)) {
+                            profile = Profile.resolve(parser.text());
+                        } else {
+                            throw new EmailException("could not parse email action. unrecognized string field [" + currentFieldName + "]");
+                        }
+                    } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                        if (ATTACH_PAYLOAD_FIELD.match(currentFieldName)) {
+                            attachPayload = parser.booleanValue();
+                        } else {
+                            throw new EmailException("could not parse email action. unrecognized boolean field [" + currentFieldName + "]");
+                        }
                     } else {
-                        throw new EmailException("could not parse email action. unrecognized string field [" + currentFieldName + "]");
+                        throw new EmailException("could not parse email action. unexpected token [" + token + "]");
                     }
-                } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                    if (ATTACH_PAYLOAD_FIELD.match(currentFieldName)) {
-                        attachPayload = parser.booleanValue();
-                    } else {
-                        throw new EmailException("could not parse email action. unrecognized boolean field [" + currentFieldName + "]");
-                    }
-                } else {
-                    throw new EmailException("could not parse email action. unexpected token [" + token + "]");
                 }
             }
 
@@ -202,6 +207,52 @@ public class EmailAction extends Action<EmailAction.Result> {
             Authentication auth = new Authentication(user, password);
             return new EmailAction(logger, emailService, templateUtils, email, auth, profile, account, subject, textBody, htmlBody, attachPayload);
         }
+
+        @Override
+        public EmailAction.Result parseResult(XContentParser parser) throws IOException {
+
+            String currentFieldName = null;
+            XContentParser.Token token;
+            boolean success = false;
+            Email email = null;
+            String account = null;
+            String reason = null;
+
+
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token.isValue()) {
+                    if (ACCOUNT_FIELD.match(currentFieldName)) {
+                        account = parser.text();
+                    } else if (REASON_FIELD.match(currentFieldName)) {
+                        reason = parser.text();
+                    } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                        if (Action.Result.SUCCESS_FIELD.match(currentFieldName)) {
+                            success = parser.booleanValue();
+                        } else {
+                            throw new EmailException("could not parse email result. unexpected field [" + currentFieldName + "]");
+                        }
+                    } else {
+                        throw new EmailException("could not parse email result. unexpected field [" + currentFieldName + "]");
+                    }
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    if (EMAIL_FIELD.match(currentFieldName)) {
+                        email = Email.parse(parser);
+                    } else {
+                        throw new EmailException("could not parse email result. unexpected field [" + currentFieldName + "]");
+                    }
+                } else {
+                    throw new EmailException("could not parse email result. unexpected token [" + token + "]");
+                }
+            }
+
+            if (success) {
+                return new Result.Success(new EmailService.EmailSent(account, email));
+            } else {
+                return new Result.Failure(reason);
+            }
+        }
     }
 
     public static abstract class Result extends Action.Result {
@@ -209,6 +260,7 @@ public class EmailAction extends Action<EmailAction.Result> {
         public Result(String type, boolean success) {
             super(type, success);
         }
+
 
         public static class Success extends Result {
 
@@ -249,4 +301,7 @@ public class EmailAction extends Action<EmailAction.Result> {
             }
         }
     }
+
+
+
 }

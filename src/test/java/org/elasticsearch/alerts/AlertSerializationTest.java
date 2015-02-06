@@ -5,79 +5,71 @@
  */
 package org.elasticsearch.alerts;
 
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.alerts.actions.AlertAction;
-import org.elasticsearch.alerts.actions.SmtpAlertAction;
-import org.elasticsearch.alerts.actions.WebhookAlertAction;
-import org.elasticsearch.alerts.triggers.ScriptTrigger;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.netty.handler.codec.http.HttpMethod;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.script.ScriptService;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import java.io.IOException;
 
 public class AlertSerializationTest extends AbstractAlertingTests {
 
     @Test
     public void testAlertSerialization() throws Exception {
 
-        SearchRequest triggerRequest = createTriggerSearchRequest("my-trigger-index").source(searchSource().query(matchAllQuery()));
-        SearchRequest payloadRequest = createTriggerSearchRequest("my-payload-index").source(searchSource().query(matchAllQuery()));
+        Alert alert = createTestAlert("test-serialization");
 
-        List<AlertAction> actions = new ArrayList<>();
-
-
-        actions.add(new WebhookAlertAction("http://localhost/foobarbaz/{{alert_name}}", HttpMethod.GET, ""));
-        actions.add(new SmtpAlertAction("{ALERT_NAME} triggered", "{ALERT_NAME} triggered", "foo@bar.com"));
-
-        Alert alert = new Alert("test-serialization",
-                triggerRequest,
-                new ScriptTrigger("return true", ScriptService.ScriptType.INLINE, "groovy"),
-                actions,
-                "0/5 * * * * ? *",
-                new DateTime(),
-                0,
-                new TimeValue(0),
-                Alert.Status.NOT_TRIGGERED);
-
-        alert.setPayloadSearchRequest(payloadRequest);
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("foo", "bar");
-        metadata.put("list", "baz");
-        alert.setMetadata(metadata);
 
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
 
-        final AlertsStore alertsStore =
-                internalTestCluster().getInstance(AlertsStore.class, internalTestCluster().getMasterName());
+        final Alert.Parser alertParser =
+                internalTestCluster().getInstance(Alert.Parser.class, internalTestCluster().getMasterName());
 
-        Alert parsedAlert = alertsStore.parseAlert("test-serialization", jsonBuilder.bytes());
+        Alert parsedAlert = alertParser.parse("test-serialization", true, jsonBuilder.bytes());
 
-        assertEquals(parsedAlert.getVersion(), alert.getVersion());
-        assertEquals(parsedAlert.getActions(), alert.getActions());
-        assertEquals(parsedAlert.getLastExecuteTime().getMillis(), alert.getLastExecuteTime().getMillis());
-        assertEquals(parsedAlert.getSchedule(), alert.getSchedule());
-        assertEquals(parsedAlert.getTriggerSearchRequest().indices()[0], "my-trigger-index");
-        assertEquals(parsedAlert.getPayloadSearchRequest().indices()[0], "my-payload-index");
-        assertEquals(parsedAlert.getTrigger(), alert.getTrigger());
-        assertEquals(parsedAlert.getThrottlePeriod(), alert.getThrottlePeriod());
-        if (parsedAlert.getTimeLastActionExecuted() == null) {
-            assertNull(alert.getTimeLastActionExecuted());
+        long parsedActionCount = 0;
+
+        long alertActionCount = 0;
+        for (Action action : parsedAlert.actions()) {
+            boolean found = false;
+            ++parsedActionCount;
+            alertActionCount = 0;
+            for (Action action1 : alert.actions()) {
+                ++alertActionCount;
+                if (action.type().equals(action1.type())) {
+                    assertEqualByGeneratedXContent(action, action1);
+                    found = true;
+                }
+            }
+            assertTrue(found);
         }
-        assertEquals(parsedAlert.getStatus(), alert.getStatus());
-        assertEquals(parsedAlert.getMetadata(), alert.getMetadata());
+        assertEquals(parsedActionCount, alertActionCount);
+
+        assertEquals(parsedAlert,alert);
+
+        assertEquals(parsedAlert.status().version(), alert.status().version());
+        if (parsedAlert.status().lastExecuted() == null ) {
+            assertNull(alert.status().lastExecuted());
+        } else {
+            assertEquals(parsedAlert.status().lastExecuted().getMillis(), alert.status().lastExecuted().getMillis());
+        }
+        assertEqualByGeneratedXContent(parsedAlert.schedule(), alert.schedule());
+        assertEqualByGeneratedXContent(parsedAlert.trigger(), alert.trigger());
+        assertEquals(parsedAlert.throttlePeriod().getMillis(), alert.throttlePeriod().getMillis());
+        assertEquals(parsedAlert.status().ack().state(), alert.status().ack().state());
+        assertEquals(parsedAlert.metadata().get("foo"), "bar");
+    }
+
+
+    private void assertEqualByGeneratedXContent(ToXContent xCon1, ToXContent xCon2) throws IOException {
+        XContentBuilder builder1 = XContentFactory.jsonBuilder();
+        XContentBuilder builder2 = XContentFactory.jsonBuilder();
+        xCon1.toXContent(builder1, ToXContent.EMPTY_PARAMS);
+        xCon2.toXContent(builder2, ToXContent.EMPTY_PARAMS);
+        assertEquals(builder1.bytes().toUtf8(), builder2.bytes().toUtf8());
+
     }
 
 }

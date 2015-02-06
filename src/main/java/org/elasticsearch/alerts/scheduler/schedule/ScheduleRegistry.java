@@ -32,7 +32,7 @@ public class ScheduleRegistry {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT && type != null) {
+            } else if ((token.isValue() || token == XContentParser.Token.START_OBJECT) && type != null) {
                 Schedule.Parser scheduleParser = parsers.get(type);
                 if (scheduleParser == null) {
                     throw new AlertsSettingsException("unknown schedule type [" + type + "]");

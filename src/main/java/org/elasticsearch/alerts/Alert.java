@@ -120,10 +120,10 @@ public class Alert implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Parser.SCHEDULE_FIELD.getPreferredName(), schedule);
-        builder.field(Parser.TRIGGER_FIELD.getPreferredName(), trigger);
+        builder.field(Parser.SCHEDULE_FIELD.getPreferredName()).startObject().field(schedule.type(), schedule).endObject();
+        builder.field(Parser.TRIGGER_FIELD.getPreferredName()).startObject().field(trigger.type(), trigger).endObject();
         if (transform != Transform.NOOP) {
-            builder.field(Parser.TRANSFORM_FIELD.getPreferredName(), transform);
+            builder.field(Parser.TRANSFORM_FIELD.getPreferredName()).startObject().field(transform.type(), transform).endObject();
         }
         if (throttlePeriod != null) {
             builder.field(Parser.THROTTLE_PERIOD_FIELD.getPreferredName(), throttlePeriod.getMillis());
@@ -164,6 +164,9 @@ public class Alert implements ToXContent {
         }
 
         public Alert parse(String name, boolean includeStatus, BytesReference source) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("parsing alert [{}] ", source.toUtf8());
+            }
             try (XContentParser parser = XContentHelper.createParser(source)) {
                 return parse(name, includeStatus, parser);
             } catch (IOException ioe) {
@@ -185,25 +188,29 @@ public class Alert implements ToXContent {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (SCHEDULE_FIELD.match(currentFieldName)) {
-                    schedule = scheduleRegistry.parse(parser);
-                } else if (TRIGGER_FIELD.match(currentFieldName)) {
-                    trigger = triggerRegistry.parse(parser);
-                } else if (ACTIONS_FIELD.match(currentFieldName)) {
-                    actions = actionRegistry.parseActions(parser);
-                } else if (TRANSFORM_FIELD.match(currentFieldName)) {
-                    transform = transformRegistry.parse(parser);
-                } else if (META_FIELD.match(currentFieldName)) {
-                    metatdata = parser.map();
-                } else if (STATUS_FIELD.match(currentFieldName) && includeStatus) {
-                    status = Status.fromXContent(parser);
-                } else if (THROTTLE_PERIOD_FIELD.match(currentFieldName)) {
-                    if (token == XContentParser.Token.VALUE_STRING) {
-                        throttlePeriod = TimeValue.parseTimeValue(parser.text(), null);
-                    } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                        throttlePeriod = TimeValue.timeValueMillis(parser.longValue());
-                    } else {
-                        throw new AlertsSettingsException("could not parse alert [" + name + "] throttle period. could not parse token [" + token + "] as time value (must either be string or number)");
+                } else if (token == null ){
+                    throw new AlertsException("could not parse alert [" + name + "]. null token");
+                } else if ((token.isValue() || token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) && currentFieldName !=null ) {
+                    if (SCHEDULE_FIELD.match(currentFieldName)) {
+                        schedule = scheduleRegistry.parse(parser);
+                    } else if (TRIGGER_FIELD.match(currentFieldName)) {
+                        trigger = triggerRegistry.parse(parser);
+                    } else if (ACTIONS_FIELD.match(currentFieldName)) {
+                        actions = actionRegistry.parseActions(parser);
+                    } else if (TRANSFORM_FIELD.match(currentFieldName)) {
+                        transform = transformRegistry.parse(parser);
+                    } else if (META_FIELD.match(currentFieldName)) {
+                        metatdata = parser.map();
+                    } else if (STATUS_FIELD.match(currentFieldName) && includeStatus) {
+                        status = Status.fromXContent(parser);
+                    } else if (THROTTLE_PERIOD_FIELD.match(currentFieldName)) {
+                        if (token == XContentParser.Token.VALUE_STRING) {
+                            throttlePeriod = TimeValue.parseTimeValue(parser.text(), null);
+                        } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                            throttlePeriod = TimeValue.timeValueMillis(parser.longValue());
+                        } else {
+                            throw new AlertsSettingsException("could not parse alert [" + name + "] throttle period. could not parse token [" + token + "] as time value (must either be string or number)");
+                        }
                     }
                 }
             }
@@ -378,8 +385,8 @@ public class Alert implements ToXContent {
             lastRan = readOptionalDate(in);
             lastTriggered = readOptionalDate(in);
             lastExecuted = readOptionalDate(in);
-            ack = new Ack(Ack.State.valueOf(in.readString()), readDate(in));
             lastThrottle = in.readBoolean() ? new Throttle(readDate(in), in.readString()) : null;
+            ack = new Ack(Ack.State.valueOf(in.readString()), readDate(in));
         }
 
         public static Status read(StreamInput in) throws IOException {
@@ -391,9 +398,15 @@ public class Alert implements ToXContent {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(LAST_RAN_FIELD.getPreferredName(), lastRan);
-            builder.field(LAST_TRIGGERED_FIELD.getPreferredName(), lastTriggered);
-            builder.field(LAST_EXECUTED_FIELD.getPreferredName(), lastExecuted);
+            if (lastRan != null) {
+                builder.field(LAST_RAN_FIELD.getPreferredName(), lastRan);
+            }
+            if (lastTriggered != null) {
+                builder.field(LAST_TRIGGERED_FIELD.getPreferredName(), lastTriggered);
+            }
+            if (lastExecuted != null) {
+                builder.field(LAST_EXECUTED_FIELD.getPreferredName(), lastExecuted);
+            }
             builder.startObject(ACK_FIELD.getPreferredName())
                     .field(STATE_FIELD.getPreferredName(), ack.state.name().toLowerCase(Locale.ROOT))
                     .field(TIMESTAMP_FIELD.getPreferredName(), ack.timestamp)

@@ -35,10 +35,12 @@ public class PeriodThrottler implements Throttler {
     @Override
     public Result throttle(AlertContext ctx, Trigger.Result result) {
         Alert.Status status = ctx.alert().status();
-        TimeValue timeElapsed = new TimeValue(System.currentTimeMillis() - status.lastRan().getMillis());
-        if (timeElapsed.getMillis() <= period.getMillis()) {
-            return Result.throttle("throttling interval is set to [" + period.format(periodType) +
-                    "] but time elapsed since last execution is [" + timeElapsed.format(periodType) + "]");
+        if (status.lastRan() != null) {
+            TimeValue timeElapsed = new TimeValue(System.currentTimeMillis() - status.lastExecuted().getMillis());
+            if (timeElapsed.getMillis() <= period.getMillis()) {
+                return Result.throttle("throttling interval is set to [" + period.format(periodType) +
+                        "] but time elapsed since last execution is [" + timeElapsed.format(periodType) + "]");
+            }
         }
         return Result.NO;
     }

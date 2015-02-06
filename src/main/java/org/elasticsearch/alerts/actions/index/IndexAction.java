@@ -24,8 +24,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.alerts.support.AlertUtils.responseToData;
-
 /**
  */
 public class IndexAction extends Action<IndexAction.Result> {
@@ -37,7 +35,7 @@ public class IndexAction extends Action<IndexAction.Result> {
     private final String index;
     private final String type;
 
-    protected IndexAction(ESLogger logger, ClientProxy client, String index, String type) {
+    public IndexAction(ESLogger logger, ClientProxy client, String index, String type) {
         super(logger);
         this.client = client;
         this.index = index;
@@ -62,15 +60,18 @@ public class IndexAction extends Action<IndexAction.Result> {
             resultBuilder.endObject();
             indexRequest.source(resultBuilder);
         } catch (IOException ioe) {
-            logger.error("failed to index result for alert [{}]", ctx.alert().name());
-            return new Result(null, "failed ot build index request. " + ioe.getMessage());
+            logger.error("failed to index result for alert [{}]", ioe, ctx.alert().name());
+            return new Result(null, "failed to build index request. " + ioe.getMessage(), false);
         }
 
         try {
-            return new Result(client.index(indexRequest).actionGet(), null);
+            IndexResponse response = client.index(indexRequest).actionGet();
+            //@TODO this doesn't seem to work for index response
+            //return new Result(new Payload.Simple(responseToData(response)), null, true);
+            return new Result(new Payload.Simple(), null, response.isCreated());
         } catch (ElasticsearchException e) {
-            logger.error("failed to index result for alert [{}]", ctx.alert().name());
-            return new Result(null, "failed ot build index request. " + e.getMessage());
+            logger.error("failed to index result for alert [{}]", e, ctx.alert().name());
+            return new Result(null, "failed to build index request. " + e.getMessage(), false);
         }
     }
 
@@ -87,6 +88,9 @@ public class IndexAction extends Action<IndexAction.Result> {
 
         public static final ParseField INDEX_FIELD = new ParseField("index");
         public static final ParseField TYPE_FIELD = new ParseField("type");
+        public static final ParseField REASON_FIELD = new ParseField("reason");
+        public static final ParseField RESPONSE_FIELD = new ParseField("response");
+
 
         private final ClientProxy client;
 
@@ -134,31 +138,90 @@ public class IndexAction extends Action<IndexAction.Result> {
 
             return new IndexAction(logger, client, index, type);
         }
+
+        @Override
+        public Action.Result parseResult(XContentParser parser) throws IOException {
+            String currentFieldName = null;
+            XContentParser.Token token;
+            boolean success = false;
+            Payload payload = null;
+
+            String reason = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token.isValue()) {
+                    if (REASON_FIELD.match(currentFieldName)) {
+                        reason = parser.text();
+                    } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                        if (Action.Result.SUCCESS_FIELD.match(currentFieldName)) {
+                            success = parser.booleanValue();
+                        } else {
+                            throw new ActionException("could not parse index result. unexpected boolean field [" + currentFieldName + "]");
+                        }
+                    } else {
+                        throw new ActionException("could not parse index result. unexpected field [" + currentFieldName + "]");
+                    }
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    if (RESPONSE_FIELD.match(currentFieldName)) {
+                        payload = new Payload.Simple(parser.map());
+                    } else {
+                        throw new ActionException("could not parse index result. unexpected object field [" + currentFieldName + "]");
+                    }
+                } else {
+                    throw new ActionException("could not parse index result. unexpected token [" + token + "]");
+                }
+            }
+            return new Result(payload, reason, success);
+        }
     }
 
     public static class Result extends Action.Result {
 
-        private final IndexResponse response;
+        private final Payload response;
         private final String reason;
 
-        public Result(IndexResponse response, String reason) {
-            super(TYPE, response.isCreated());
+        public Result(Payload response, String reason, boolean isCreated) {
+            super(TYPE, isCreated);
             this.response = response;
             this.reason = reason;
         }
 
-        public IndexResponse response() {
+        public Payload response() {
             return response;
         }
 
         @Override
         protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
             if (reason != null) {
-                builder.field("reason", reason);
+                builder.field(Parser.REASON_FIELD.getPreferredName(), reason);
             }
-            return builder.field("index_response", responseToData(response()));
+            if (response != null) {
+                builder.field(Parser.RESPONSE_FIELD.getPreferredName(), response());
+            }
+            return builder;
         }
 
     }
 
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        IndexAction that = (IndexAction) o;
+
+        if (index != null ? !index.equals(that.index) : that.index != null) return false;
+        if (type != null ? !type.equals(that.type) : that.type != null) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = index != null ? index.hashCode() : 0;
+        result = 31 * result + (type != null ? type.hashCode() : 0);
+        return result;
+    }
 }

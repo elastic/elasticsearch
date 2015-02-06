@@ -49,8 +49,24 @@ public class CronSchedule implements Schedule {
         public CronSchedule parse(XContentParser parser) throws IOException {
             assert parser.currentToken() == XContentParser.Token.VALUE_STRING : "expecting a string value with cron expression";
             String cron = parser.text();
-            parser.nextToken();
             return new CronSchedule(cron);
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        CronSchedule that = (CronSchedule) o;
+
+        if (cron != null ? !cron.equals(that.cron) : that.cron != null) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        return cron != null ? cron.hashCode() : 0;
     }
 }

@@ -7,6 +7,7 @@ package org.elasticsearch.alerts.throttle;
 
 import org.elasticsearch.alerts.AlertContext;
 import org.elasticsearch.alerts.trigger.Trigger;
+import org.elasticsearch.common.ParseField;
 
 /**
  *
@@ -23,6 +24,8 @@ public interface Throttler {
     Result throttle(AlertContext ctx, Trigger.Result result);
 
     static class Result {
+        public static ParseField THROTTLE_FIELD = new ParseField("throttle");
+        public static ParseField REASON_FIELD = new ParseField("reason");
 
         static final Result NO = new Result(false, null);
         
@@ -45,5 +48,6 @@ public interface Throttler {
         public String reason() {
             return reason;
         }
+
     }
 }

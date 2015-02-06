@@ -13,7 +13,9 @@ import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.alerts.trigger.Trigger;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.SearchHit;
 
@@ -57,7 +59,8 @@ public abstract class SearchTrigger extends Trigger<SearchTrigger.Result> {
      */
     protected abstract Result processSearchResponse(SearchResponse response);
 
-    static class Result extends Trigger.Result {
+    public static class Result extends Trigger.Result {
+        public static final ParseField REQUEST_FIELD = new ParseField("request");
 
         private final SearchRequest request;
 
@@ -68,6 +71,13 @@ public abstract class SearchTrigger extends Trigger<SearchTrigger.Result> {
 
         public SearchRequest request() {
             return request;
+        }
+
+        @Override
+        public XContentBuilder toXContentBody(XContentBuilder builder, Params params) throws IOException {
+            builder.field(REQUEST_FIELD.getPreferredName());
+            AlertUtils.writeSearchRequest(request(), builder, params);
+            return builder;
         }
     }
 

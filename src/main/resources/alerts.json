@@ -12,21 +12,16 @@
       "dynamic" : "strict",
       "properties": {
         "schedule": {
-          "type": "string"
+          "type": "object",
+          "enabled" : false,
+          "dynamic" : true
         },
-        "last_fire_time": {
-          "type": "date"
-        },
-        "last_alert_executed": {
-          "type": "date"
-        },
-        "last_action_executed": {
-          "type": "date"
+        "status": {
+          "type": "object",
+          "enabled" : false,
+          "dynamic" : true
         },
         "throttle_period": {
-          "type": "string"
-        },
-        "ack_state" : {
           "type": "string"
         },
         "trigger": {
@@ -39,12 +34,7 @@
           "enabled" : false,
           "dynamic" : true
         },
-        "trigger_request": {
-          "type" : "object",
-          "enabled" : false,
-          "dynamic" : true
-        },
-        "payload_request": {
+        "transform": {
           "type" : "object",
           "enabled" : false,
           "dynamic" : true
@@ -54,10 +44,6 @@
           "dynamic": true
         }
       }
-    },
-    "config": {
-      "enabled" : false,
-      "properties" : {}
     }
   }
 }

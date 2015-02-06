@@ -36,9 +36,10 @@ import java.util.List;
  */
 public class HistoryStore extends AbstractComponent {
 
+    public static final String ALERT_HISTORY_INDEX_PREFIX = ".alert_history_";
+    public static final String ALERT_HISTORY_TYPE = "alerthistory";
+
     static final DateTimeFormatter alertHistoryIndexTimeFormat = DateTimeFormat.forPattern("YYYY-MM-dd");
-    static final String ALERT_HISTORY_INDEX_PREFIX = ".alert_history_";
-    static final String ALERT_HISTORY_TYPE = "alerthistory";
 
     private final ClientProxy client;
     private final TemplateUtils templateUtils;
@@ -115,6 +116,7 @@ public class HistoryStore extends AbstractComponent {
                 .setSize(scrollSize)
                 .setTypes(ALERT_HISTORY_TYPE)
                 .setPreference("_primary")
+                .setVersion(true)
                 .get();
         List<FiredAlert> alerts = new ArrayList<>();
         try {
@@ -145,7 +147,7 @@ public class HistoryStore extends AbstractComponent {
     /**
      * Calculates the correct alert history index name for a given time using alertHistoryIndexTimeFormat
      */
-    static String getAlertHistoryIndexNameForTime(DateTime time) {
+    public static String getAlertHistoryIndexNameForTime(DateTime time) {
         return ALERT_HISTORY_INDEX_PREFIX + alertHistoryIndexTimeFormat.print(time);
     }
 

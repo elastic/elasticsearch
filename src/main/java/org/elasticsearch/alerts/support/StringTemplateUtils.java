@@ -93,6 +93,7 @@ public class StringTemplateUtils extends AbstractComponent {
         }
         return new Template(script, params, language, type);
     }
+
     public static void writeTemplate(String objectName, Template template, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(objectName);
         builder.field("script", template.getTemplate());
@@ -103,6 +104,7 @@ public class StringTemplateUtils extends AbstractComponent {
         }
         builder.endObject();
     }
+
     private static ScriptService.ScriptType readScriptType(String value) {
         switch (value) {
             case "indexed":
@@ -155,6 +157,31 @@ public class StringTemplateUtils extends AbstractComponent {
         }
         public Map<String, String> getParams() {
             return params;
+        }
+
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            Template template1 = (Template) o;
+
+            if (language != null ? !language.equals(template1.language) : template1.language != null) return false;
+            if (params != null ? !params.equals(template1.params) : template1.params != null) return false;
+            if (scriptType != template1.scriptType) return false;
+            if (template != null ? !template.equals(template1.template) : template1.template != null) return false;
+
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = template != null ? template.hashCode() : 0;
+            result = 31 * result + (params != null ? params.hashCode() : 0);
+            result = 31 * result + (language != null ? language.hashCode() : 0);
+            result = 31 * result + (scriptType != null ? scriptType.hashCode() : 0);
+            return result;
         }
     }
 }

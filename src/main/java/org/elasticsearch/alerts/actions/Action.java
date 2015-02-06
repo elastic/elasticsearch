@@ -7,6 +7,7 @@ package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.alerts.AlertContext;
 import org.elasticsearch.alerts.Payload;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -52,12 +53,14 @@ public abstract class Action<R extends Action.Result> implements ToXContent {
          * Parses the given xcontent and creates a concrete action
          */
         T parse(XContentParser parser) throws IOException;
+
+        T.Result parseResult(XContentParser parser) throws IOException;
     }
 
 
 
     public static abstract class Result implements ToXContent {
-
+        public static final ParseField SUCCESS_FIELD = new ParseField("success");
         protected final String type;
         protected final boolean success;
 

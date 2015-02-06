@@ -8,35 +8,55 @@ package org.elasticsearch.alerts;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.alerts.history.FiredAlert;
-import org.elasticsearch.alerts.history.HistoryService;
+import org.elasticsearch.alerts.actions.Action;
+import org.elasticsearch.alerts.actions.Actions;
+import org.elasticsearch.alerts.actions.email.EmailAction;
+import org.elasticsearch.alerts.actions.email.service.Authentication;
+import org.elasticsearch.alerts.actions.email.service.Email;
+import org.elasticsearch.alerts.actions.email.service.EmailService;
+import org.elasticsearch.alerts.actions.email.service.Profile;
+import org.elasticsearch.alerts.actions.webhook.HttpClient;
+import org.elasticsearch.alerts.actions.webhook.WebhookAction;
 import org.elasticsearch.alerts.client.AlertsClient;
+import org.elasticsearch.alerts.history.FiredAlert;
+import org.elasticsearch.alerts.history.HistoryStore;
+import org.elasticsearch.alerts.scheduler.schedule.CronSchedule;
 import org.elasticsearch.alerts.support.AlertUtils;
+import org.elasticsearch.alerts.support.StringTemplateUtils;
+import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
+import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.alerts.transform.SearchTransform;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
+import org.elasticsearch.alerts.trigger.search.ScriptSearchTrigger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hppc.cursors.ObjectObjectCursor;
+import org.elasticsearch.common.netty.handler.codec.http.HttpMethod;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.TestCluster;
 import org.junit.After;
 import org.junit.Before;
 
+import javax.mail.internet.AddressException;
+import javax.mail.internet.InternetAddress;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.*;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
@@ -105,9 +125,8 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
             builder = smileBuilder();
         }
         builder.startObject();
-        builder.field("schedule", cron);
-        builder.field("trigger_request");
-        AlertUtils.writeSearchRequest(request, builder, ToXContent.EMPTY_PARAMS);
+
+        builder.startObject("schedule").field("cron", cron).endObject();
 
         if (metadata != null) {
             builder.field("meta", metadata);
@@ -115,38 +134,113 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
 
         builder.startObject("trigger");
         builder.startObject("script");
+        builder.field("request");
+        AlertUtils.writeSearchRequest(request, builder, ToXContent.EMPTY_PARAMS);
         builder.field("script", scriptTrigger);
         builder.endObject();
         builder.endObject();
 
-        builder.startObject("actions");
+        builder.startArray("actions");
+        builder.startObject();
         builder.startObject("index");
         builder.field("index", "my-index");
         builder.field("type", "trail");
         builder.endObject();
+        builder.endObject();
+        builder.endArray();
 
         builder.endObject();
 
-        return builder.endObject().bytes();
+        return builder.bytes();
     }
 
-    protected SearchRequest createTriggerSearchRequest(String... indices) {
+    public static SearchRequest createTriggerSearchRequest(String... indices) {
         SearchRequest request = new SearchRequest(indices);
         request.indicesOptions(AlertUtils.DEFAULT_INDICES_OPTIONS);
         request.searchType(AlertUtils.DEFAULT_TRIGGER_SEARCH_TYPE);
         return request;
     }
 
+    protected Alert createTestAlert(String alertName) throws AddressException {
+        SearchRequest triggerRequest = createTriggerSearchRequest("my-trigger-index").source(searchSource().query(matchAllQuery()));
+        SearchRequest transformRequest = createTriggerSearchRequest("my-payload-index").source(searchSource().query(matchAllQuery()));
+        transformRequest.searchType(AlertUtils.DEFAULT_PAYLOAD_SEARCH_TYPE);
+        triggerRequest.searchType(AlertUtils.DEFAULT_TRIGGER_SEARCH_TYPE);
+
+        List<Action> actions = new ArrayList<>();
+
+        StringTemplateUtils.Template template =
+                new StringTemplateUtils.Template("{{alert_name}} triggered with {{response.hits.total}} hits");
+
+        actions.add(new WebhookAction(logger, stringTemplateUtils(), httpClient(),  template, new StringTemplateUtils.Template("http://localhost/foobarbaz/{{alert_name}}"), HttpMethod.GET));
+
+        List<InternetAddress> addresses = new ArrayList<>();
+        addresses.addAll(Arrays.asList(InternetAddress.parse("you@foo.com")));
+
+        Email.Address from = new Email.Address("from@test.com");
+        List<Email.Address> emailAddressList = new ArrayList<>();
+        emailAddressList.add(new Email.Address("to@test.com"));
+        Email.AddressList to = new Email.AddressList(emailAddressList);
+
+
+        Email.Builder emailBuilder = Email.builder();
+        emailBuilder.from(from);
+        emailBuilder.to(to);
+
+
+        EmailAction emailAction = new EmailAction(logger, noopEmailService(), stringTemplateUtils(), emailBuilder,
+                new Authentication("testname", "testpassword"), Profile.STANDARD, "testaccount", template, template, null, true);
+
+        actions.add(emailAction);
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("foo", "bar");
+
+        return new Alert(
+                alertName,
+                new CronSchedule("0/5 * * * * ? *"),
+                new ScriptSearchTrigger(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()),
+                        triggerRequest,"return true", ScriptService.ScriptType.INLINE, "groovy"),
+                new SearchTransform(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()), transformRequest),
+                new TimeValue(0),
+                new Actions(actions),
+                metadata,
+                new Alert.Status()
+        );
+    }
+
+
     protected AlertsClient alertClient() {
         return internalTestCluster().getInstance(AlertsClient.class);
     }
+
+    protected ScriptService scriptService() {
+        return internalTestCluster().getInstance(ScriptService.class);
+    }
+
+    protected HttpClient httpClient() {
+        return internalTestCluster().getInstance(HttpClient.class);
+    }
+
+    protected EmailService noopEmailService() {
+        return new NoopEmailService();
+    }
+
+    protected StringTemplateUtils stringTemplateUtils() {
+        return internalTestCluster().getInstance(StringTemplateUtils.class);
+    }
+
+    protected FiredAlert.Parser firedAlertParser() {
+        return internalTestCluster().getInstance(FiredAlert.Parser.class);
+    }
+
 
     protected void assertAlertTriggeredExact(final String alertName, final long expectedAlertActionsWithActionPerformed) throws Exception {
         assertBusy(new Runnable() {
             @Override
             public void run() {
                 ClusterState state = client().admin().cluster().prepareState().get().getState();
-                String[] alertHistoryIndices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), HistoryService.ALERT_HISTORY_INDEX_PREFIX + "*");
+                String[] alertHistoryIndices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), HistoryStore.ALERT_HISTORY_INDEX_PREFIX + "*");
                 assertThat(alertHistoryIndices, not(emptyArray()));
                 for (String index : alertHistoryIndices) {
                     IndexRoutingTable routingTable = state.getRoutingTable().index(index);
@@ -168,7 +262,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
             @Override
             public void run() {
                 ClusterState state = client().admin().cluster().prepareState().get().getState();
-                String[] alertHistoryIndices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), HistoryService.ALERT_HISTORY_INDEX_PREFIX + "*");
+                String[] alertHistoryIndices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), HistoryStore.ALERT_HISTORY_INDEX_PREFIX + "*");
                 assertThat(alertHistoryIndices, not(emptyArray()));
                 for (String index : alertHistoryIndices) {
                     IndexRoutingTable routingTable = state.getRoutingTable().index(index);
@@ -176,20 +270,20 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
                     assertThat(routingTable.allPrimaryShardsActive(), is(true));
                 }
 
-                SearchResponse searchResponse = client().prepareSearch(HistoryService.ALERT_HISTORY_INDEX_PREFIX + "*")
+                SearchResponse searchResponse = client().prepareSearch(HistoryStore.ALERT_HISTORY_INDEX_PREFIX + "*")
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                         .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", FiredAlert.State.ACTION_PERFORMED.toString())))
                         .get();
                 assertThat(searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo(minimumExpectedAlertActionsWithActionPerformed));
                 if (assertTriggerSearchMatched) {
-                    assertThat((Integer) XContentMapValues.extractValue("trigger_response.hits.total", searchResponse.getHits().getAt(0).sourceAsMap()), greaterThanOrEqualTo(1));
+                    assertThat((Integer) XContentMapValues.extractValue("alert_run.trigger_result.script.payload.hits.total", searchResponse.getHits().getAt(0).sourceAsMap()), greaterThanOrEqualTo(1));
                 }
             }
         });
     }
 
     protected long findNumberOfPerformedActions(String alertName) {
-        SearchResponse searchResponse = client().prepareSearch(HistoryService.ALERT_HISTORY_INDEX_PREFIX + "*")
+        SearchResponse searchResponse = client().prepareSearch(HistoryStore.ALERT_HISTORY_INDEX_PREFIX + "*")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", FiredAlert.State.ACTION_PERFORMED.toString())))
                 .get();
@@ -202,7 +296,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
             public void run() {
                 // The alerthistory index gets created in the background when the first alert fires, so we to check first is this index is created and shards are started
                 ClusterState state = client().admin().cluster().prepareState().get().getState();
-                String[] alertHistoryIndices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), HistoryService.ALERT_HISTORY_INDEX_PREFIX + "*");
+                String[] alertHistoryIndices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), HistoryStore.ALERT_HISTORY_INDEX_PREFIX + "*");
                 assertThat(alertHistoryIndices, not(emptyArray()));
                 for (String index : alertHistoryIndices) {
                     IndexRoutingTable routingTable = state.getRoutingTable().index(index);
@@ -210,7 +304,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
                     assertThat(routingTable.allPrimaryShardsActive(), is(true));
                 }
 
-                SearchResponse searchResponse = client().prepareSearch(HistoryService.ALERT_HISTORY_INDEX_PREFIX + "*")
+                SearchResponse searchResponse = client().prepareSearch(HistoryStore.ALERT_HISTORY_INDEX_PREFIX + "*")
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                         .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", FiredAlert.State.NO_ACTION_NEEDED.toString())))
                         .get();
@@ -385,4 +479,28 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         }
 
     }
+
+    private final class NoopEmailService implements EmailService {
+        @Override
+        public void start(ClusterState state) {
+
+        }
+
+        @Override
+        public void stop() {
+
+        }
+
+        @Override
+        public EmailSent send(Email email, Authentication auth, Profile profile) {
+            return new EmailSent(auth.username(), email);
+        }
+
+        @Override
+        public EmailSent send(Email email, Authentication auth, Profile profile, String accountName) {
+            return new EmailSent(accountName, email);
+        }
+    };
+
+
 }

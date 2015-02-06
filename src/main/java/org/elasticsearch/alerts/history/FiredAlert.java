@@ -8,6 +8,7 @@ package org.elasticsearch.alerts.history;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.AlertsException;
 import org.elasticsearch.alerts.AlertsService;
 import org.elasticsearch.alerts.actions.ActionRegistry;
 import org.elasticsearch.alerts.actions.Actions;
@@ -181,12 +182,12 @@ public class FiredAlert implements ToXContent {
         historyEntry.field(Parser.ALERT_NAME_FIELD.getPreferredName(), name);
         historyEntry.field(Parser.FIRE_TIME_FIELD.getPreferredName(), fireTime.toDateTimeISO());
         historyEntry.field(Parser.SCHEDULED_FIRE_TIME_FIELD.getPreferredName(), scheduledTime.toDateTimeISO());
-        historyEntry.field(Parser.TRIGGER_FIELD.getPreferredName(), trigger, params);
+        historyEntry.startObject(Parser.TRIGGER_FIELD.getPreferredName()).field(trigger.type(), trigger, params).endObject();
         historyEntry.field(Parser.ACTIONS_FIELD.getPreferredName(), actions, params);
         historyEntry.field(Parser.STATE_FIELD.getPreferredName(), state.toString());
 
         if (transform != null) {
-            historyEntry.field(Parser.TRANSFORM_FIELD.getPreferredName(), transform, params);
+            historyEntry.startObject(Parser.TRANSFORM_FIELD.getPreferredName()).field(transform.type(), transform, params).endObject();
         }
         if (errorMessage != null) {
             historyEntry.field(Parser.ERROR_MESSAGE_FIELD.getPreferredName(), errorMessage);
@@ -194,10 +195,9 @@ public class FiredAlert implements ToXContent {
         if (metadata != null) {
             historyEntry.field(Parser.METADATA_FIELD.getPreferredName(), metadata);
         }
-        // TODO: maybe let AlertRun implement ToXContent?
+
         if (alertRun != null) {
-            historyEntry.field(Parser.TRIGGER_RESPONSE.getPreferredName(), alertRun.triggerResult().payload());
-            historyEntry.field(Parser.PAYLOAD.getPreferredName(), alertRun.payload());
+            historyEntry.field(Parser.ALERT_RUN_FIELD.getPreferredName(), alertRun);
         }
 
         historyEntry.endObject();
@@ -262,7 +262,7 @@ public class FiredAlert implements ToXContent {
                     return RUNNING;
                 case "NO_ACTION_NEEDED":
                     return NO_ACTION_NEEDED;
-                case "ACTION_UNDERWAY":
+                case "ACTION_PERFORMED":
                     return ACTION_PERFORMED;
                 case "FAILED":
                     return FAILED;
@@ -282,12 +282,11 @@ public class FiredAlert implements ToXContent {
         public static final ParseField SCHEDULED_FIRE_TIME_FIELD = new ParseField("scheduled_fire_time");
         public static final ParseField ERROR_MESSAGE_FIELD = new ParseField("error_msg");
         public static final ParseField TRIGGER_FIELD = new ParseField("trigger");
-        public static final ParseField TRIGGER_RESPONSE = new ParseField("trigger_response");
         public static final ParseField TRANSFORM_FIELD = new ParseField("transform");
-        public static final ParseField PAYLOAD = new ParseField("payload");
         public static final ParseField ACTIONS_FIELD = new ParseField("actions");
         public static final ParseField STATE_FIELD = new ParseField("state");
         public static final ParseField METADATA_FIELD = new ParseField("meta");
+        public static final ParseField ALERT_RUN_FIELD = new ParseField("alert_run");
 
         private final TriggerRegistry triggerRegistry;
         private final TransformRegistry transformRegistry;
@@ -313,24 +312,29 @@ public class FiredAlert implements ToXContent {
             FiredAlert entry = new FiredAlert();
             entry.id(id);
             entry.version(version);
-
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken();
             assert token == XContentParser.Token.START_OBJECT;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_OBJECT) {
+                } else if (token == XContentParser.Token.START_ARRAY) {
                     if (ACTIONS_FIELD.match(currentFieldName)) {
                         entry.actions(actionRegistry.parseActions(parser));
-                    } else if (TRIGGER_FIELD.match(currentFieldName)) {
+                    } else {
+                        throw new AlertsException("unable to parse fired alert. unexpected field [" + currentFieldName + "]");
+                    }
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    if (TRIGGER_FIELD.match(currentFieldName)) {
                         entry.trigger(triggerRegistry.parse(parser));
                     } else if (TRANSFORM_FIELD.match(currentFieldName)) {
                         entry.transform(transformRegistry.parse(parser));
                     } else if (METADATA_FIELD.match(currentFieldName)) {
                         entry.metadata(parser.map());
+                    } else if (ALERT_RUN_FIELD.match(currentFieldName)) {
+                        entry.alertRun = AlertsService.AlertRun.Parser.parse(parser, triggerRegistry, actionRegistry);
                     } else {
-                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
+                        throw new AlertsException("unable to parse fired alert. unexpected field [" + currentFieldName + "]");
                     }
                 } else if (token.isValue()) {
                     if (ALERT_NAME_FIELD.match(currentFieldName)) {
@@ -344,10 +348,10 @@ public class FiredAlert implements ToXContent {
                     } else if (STATE_FIELD.match(currentFieldName)) {
                         entry.state(State.fromString(parser.text()));
                     } else {
-                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
+                        throw new AlertsException("unable to parse fired alert. unexpected field [" + currentFieldName + "]");
                     }
                 } else {
-                    throw new ElasticsearchIllegalArgumentException("Unexpected token [" + token + "] for [" + currentFieldName + "]");
+                    throw new AlertsException("unable to parse fired alert. unexpected token [" + token + "] for [" + currentFieldName + "]");
                 }
             }
 

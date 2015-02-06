@@ -6,18 +6,28 @@
 package org.elasticsearch.alerts;
 
 import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.alerts.actions.AlertAction;
+import org.elasticsearch.alerts.actions.Action;
+import org.elasticsearch.alerts.actions.Actions;
 import org.elasticsearch.alerts.history.FiredAlert;
-import org.elasticsearch.alerts.history.HistoryService;
 import org.elasticsearch.alerts.history.HistoryStore;
+import org.elasticsearch.alerts.scheduler.schedule.CronSchedule;
+import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
+import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.alerts.transform.SearchTransform;
+import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
-import org.elasticsearch.alerts.triggers.ScriptTrigger;
+import org.elasticsearch.alerts.trigger.search.ScriptSearchTrigger;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
@@ -65,15 +75,17 @@ public class BootStrapTest extends AbstractAlertingTests {
         assertThat(response.getNumberOfRegisteredAlerts(), equalTo(0L));
 
         SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
-        Alert alert = new Alert("my-first-alert",
-                searchRequest,
-                new ScriptTrigger("hits.total == 1", ScriptService.ScriptType.INLINE, "groovy"),
-                new ArrayList< AlertAction>(),
-                "0 0/5 * * * ? *",
-                new DateTime(),
-                0,
+        Alert alert = new Alert(
+                "test-serialization",
+                new CronSchedule("0/5 * * * * ? 2035"),
+                new ScriptSearchTrigger(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()),
+                        searchRequest, "return true", ScriptService.ScriptType.INLINE, "groovy"),
+                new SearchTransform(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()), searchRequest),
                 new TimeValue(0),
-                Alert.Status.Ack.State.AWAITS_EXECUTION);
+                new Actions(new ArrayList<Action>()),
+                null,
+                new Alert.Status()
+        );
 
         DateTime scheduledFireTime = new DateTime();
         FiredAlert entry = new FiredAlert(alert, scheduledFireTime, scheduledFireTime, FiredAlert.State.AWAITS_RUN);
@@ -83,7 +95,7 @@ public class BootStrapTest extends AbstractAlertingTests {
         ensureGreen(actionHistoryIndex);
         logger.info("Created index {}", actionHistoryIndex);
 
-        IndexResponse indexResponse = client().prepareIndex(actionHistoryIndex, HistoryService.ALERT_HISTORY_TYPE, entry.id())
+        IndexResponse indexResponse = client().prepareIndex(actionHistoryIndex, HistoryStore.ALERT_HISTORY_TYPE, entry.id())
                 .setConsistencyLevel(WriteConsistencyLevel.ALL)
                 .setSource(XContentFactory.jsonBuilder().value(entry))
                 .get();
@@ -115,20 +127,29 @@ public class BootStrapTest extends AbstractAlertingTests {
             logger.info("Created index {}", actionHistoryIndex);
 
             for (int j=0; j<numberOfAlertHistoryEntriesPerIndex; ++j){
-                Alert alert = new Alert("action-test-"+ i + " " + j,
-                        searchRequest,
-                        new ScriptTrigger("hits.total == 1", ScriptService.ScriptType.INLINE, "groovy"),
-                        new ArrayList< AlertAction>(),
-                        "0 0/5 * * * ? *",
-                        new DateTime(),
-                        0,
+
+                Alert alert = new Alert(
+                        "action-test-"+ i + " " + j,
+                        new CronSchedule("0/5 * * * * ? 2035"), //Set a cron schedule far into the future so this alert is never scheduled
+                        new ScriptSearchTrigger(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()),
+                                searchRequest, "return true", ScriptService.ScriptType.INLINE, "groovy"),
+                        new SearchTransform(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()), searchRequest),
                         new TimeValue(0),
-                        Alert.Status.Ack.State.AWAITS_EXECUTION);
+                        new Actions(new ArrayList<Action>()),
+                        null,
+                        new Alert.Status()
+                );
+                XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
+                alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
+
+                PutAlertResponse putAlertResponse = alertClient().preparePutAlert(alert.name()).setAlertSource(jsonBuilder.bytes()).get();
+                assertTrue(putAlertResponse.indexResponse().isCreated());
 
                 FiredAlert entry = new FiredAlert(alert, historyIndexDate, historyIndexDate, FiredAlert.State.AWAITS_RUN);
-                IndexResponse indexResponse = client().prepareIndex(actionHistoryIndex, HistoryService.ALERT_HISTORY_TYPE, entry.id())
+                IndexResponse indexResponse = client().prepareIndex(actionHistoryIndex, HistoryStore.ALERT_HISTORY_TYPE, entry.id())
                         .setConsistencyLevel(WriteConsistencyLevel.ALL)
                         .setSource(XContentFactory.jsonBuilder().value(entry))
+                        .setVersionType(VersionType.INTERNAL)
                         .get();
                 assertTrue(indexResponse.isCreated());
             }
@@ -141,8 +162,18 @@ public class BootStrapTest extends AbstractAlertingTests {
 
         assertTrue(response.isAlertActionManagerStarted());
         assertThat(response.getAlertManagerStarted(), equalTo(AlertsService.State.STARTED));
-        long expectedMaximumQueueSize = numberOfAlertHistoryEntriesPerIndex * numberOfAlertHistoryIndices ;
-        assertThat(response.getAlertActionManagerLargestQueueSize(), equalTo(expectedMaximumQueueSize));
+        final long totalHistoryEntries = numberOfAlertHistoryEntriesPerIndex * numberOfAlertHistoryIndices ;
+
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                CountResponse countResponse = client().prepareCount(HistoryStore.ALERT_HISTORY_INDEX_PREFIX + "*")
+                        .setTypes(HistoryStore.ALERT_HISTORY_TYPE)
+                        .setQuery(QueryBuilders.termQuery(FiredAlert.Parser.STATE_FIELD.getPreferredName(), FiredAlert.State.ACTION_PERFORMED.toString())).get();
+
+                assertEquals(totalHistoryEntries, countResponse.getCount());
+            }
+        }, 30, TimeUnit.SECONDS);
 
     }
 

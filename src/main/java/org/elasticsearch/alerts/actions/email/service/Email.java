@@ -146,6 +146,46 @@ public class Email implements ToXContent {
         return new Builder();
     }
 
+    public static Email parse(XContentParser parser) throws IOException{
+        Builder email = new Builder();
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if ((token.isValue() || token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) && currentFieldName != null) {
+                if (FROM_FIELD.match(currentFieldName)) {
+                    email.from(Address.parse(currentFieldName, token, parser));
+                } else if (REPLY_TO_FIELD.match(currentFieldName)) {
+                    email.replyTo(AddressList.parse(currentFieldName, token, parser));
+                } else if (TO_FIELD.match(currentFieldName)) {
+                    email.to(AddressList.parse(currentFieldName, token, parser));
+                } else if (CC_FIELD.match(currentFieldName)) {
+                    email.cc(AddressList.parse(currentFieldName, token, parser));
+                } else if (BCC_FIELD.match(currentFieldName)) {
+                    email.bcc(AddressList.parse(currentFieldName, token, parser));
+                } else if (PRIORITY_FIELD.match(currentFieldName)) {
+                    email.priority(Email.Priority.resolve(parser.text()));
+                } else if (SENT_DATE_FIELD.match(currentFieldName)) {
+                    email.sentDate(new DateTime(parser.text()));
+                } else if (SUBJECT_FIELD.match(currentFieldName)) {
+                    email.subject(parser.text());
+                } else if (TEXT_BODY_FIELD.match(currentFieldName)) {
+                    email.textBody(parser.text());
+                } else if (HTML_BODY_FIELD.match(currentFieldName)) {
+                    email.htmlBody(parser.text());
+                } else if (ATTACHMENTS_FIELD.match(currentFieldName)) {
+                    //@TODO handle this
+                } else if (INLINES_FIELD.match(currentFieldName)) {
+                    //@TODO handle this
+                } else {
+                    throw new EmailException("could not parse email. unrecognized field [" + currentFieldName + "]");
+                }
+            }
+        }
+        return email.build();
+    }
+
     public static class Builder {
 
         private String id;
@@ -408,7 +448,11 @@ public class Email implements ToXContent {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.value(addresses);
+            builder.startArray();
+            for (Address address : addresses) {
+                builder.value(address);
+            }
+            return builder.endArray();
         }
 
         public static AddressList parse(String text) throws AddressException {

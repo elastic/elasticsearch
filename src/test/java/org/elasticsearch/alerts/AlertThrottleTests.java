@@ -8,16 +8,23 @@ package org.elasticsearch.alerts;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.alerts.history.FiredAlert;
-import org.elasticsearch.alerts.history.HistoryService;
-import org.elasticsearch.alerts.actions.IndexAlertAction;
+import org.elasticsearch.alerts.actions.Action;
+import org.elasticsearch.alerts.actions.Actions;
+import org.elasticsearch.alerts.actions.index.IndexAction;
 import org.elasticsearch.alerts.client.AlertsClient;
+import org.elasticsearch.alerts.history.FiredAlert;
+import org.elasticsearch.alerts.history.HistoryStore;
+import org.elasticsearch.alerts.scheduler.schedule.CronSchedule;
+import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
+import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.alerts.transform.SearchTransform;
 import org.elasticsearch.alerts.transport.actions.ack.AckAlertResponse;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
-import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.alerts.trigger.search.ScriptSearchTrigger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -27,12 +34,15 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
@@ -49,14 +59,26 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         assertTrue(dummyEventIndexResponse.isCreated());
         refresh();
 
-        Alert alert = new Alert();
-        alert.setStatus(Alert.Status.Ack.State.AWAITS_EXECUTION);
 
-        alert.setTriggerSearchRequest(createTriggerSearchRequest("test-index").source(searchSource().query(matchAllQuery())));
-        alert.setTrigger(new ScriptTrigger("hits.total > 0", ScriptService.ScriptType.INLINE, "groovy"));
-        alert.getActions().add(new IndexAlertAction("action-index", "action-type"));
-        alert.setSchedule("0/5 * * * * ? *");
-        alert.lastExecuteTime(new DateTime());
+        SearchRequest request = createTriggerSearchRequest("test-index").source(searchSource().query(matchAllQuery()));
+
+        List<Action> actions = new ArrayList<>();
+
+        actions.add(new IndexAction(logger, ClientProxy.of(client()), "action-index", "action-type"));
+
+        Alert alert = new Alert(
+                "test-serialization",
+                new CronSchedule("0/5 * * * * ? *"),
+                new ScriptSearchTrigger(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()),
+                        request, "hits.total > 0", ScriptService.ScriptType.INLINE, "groovy"),
+                new SearchTransform(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()), request),
+                new TimeValue(0),
+                new Actions(actions),
+                null,
+                new Alert.Status()
+        );
+
+
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
 
@@ -65,7 +87,7 @@ public class AlertThrottleTests extends AbstractAlertingTests {
 
         Thread.sleep(20000);
         AckAlertResponse ackResponse = alertsClient.prepareAckAlert("throttled-alert").get();
-        assertEquals(Alert.Status.ACKED, ackResponse.getStatus());
+        assertEquals(Alert.Status.Ack.State.ACKED, ackResponse.getStatus().ack().state());
 
         refresh();
         SearchResponse searchResponse = client()
@@ -96,15 +118,15 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         GetAlertResponse getAlertResponse = alertsClient.prepareGetAlert("throttled-alert").get();
         assertTrue(getAlertResponse.getResponse().isExists());
 
-        final AlertsStore alertsStore =
-                internalTestCluster().getInstance(AlertsStore.class, internalTestCluster().getMasterName());
+        final Alert.Parser alertParser  =
+                internalTestCluster().getInstance(Alert.Parser.class, internalTestCluster().getMasterName());
 
-        Alert parsedAlert = alertsStore.parseAlert(getAlertResponse.getResponse().getId(),
+        Alert parsedAlert = alertParser.parse(getAlertResponse.getResponse().getId(), true,
                 getAlertResponse.getResponse().getSourceAsBytesRef());
-        assertThat(parsedAlert.getStatus(), equalTo(Alert.Status.NOT_TRIGGERED));
+        assertThat(parsedAlert.status().ack().state(), equalTo(Alert.Status.Ack.State.AWAITS_EXECUTION));
 
         CountResponse countOfThrottledActions = client()
-                .prepareCount(HistoryService.ALERT_HISTORY_INDEX_PREFIX + "*")
+                .prepareCount(HistoryStore.ALERT_HISTORY_INDEX_PREFIX + "*")
                 .setQuery(QueryBuilders.matchQuery(FiredAlert.Parser.STATE_FIELD.getPreferredName(), FiredAlert.State.THROTTLED.toString()))
                 .get();
         assertThat(countOfThrottledActions.getCount(), greaterThan(0L));
@@ -121,15 +143,25 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         assertTrue(dummyEventIndexResponse.isCreated());
         refresh();
 
-        Alert alert = new Alert();
-        alert.setStatus(Alert.Status.Ack.State.AWAITS_EXECUTION);
-        alert.setTriggerSearchRequest(createTriggerSearchRequest("test-index").source(searchSource().query(matchAllQuery())));
-        alert.setTrigger(new ScriptTrigger("hits.total > 0", ScriptService.ScriptType.INLINE, "groovy"));
-        alert.getActions().add(new IndexAlertAction("action-index", "action-type"));
-        alert.setSchedule("0/5 * * * * ? *");
+        SearchRequest request = createTriggerSearchRequest("test-index").source(searchSource().query(matchAllQuery()));
 
-        alert.lastExecuteTime(new DateTime());
-        alert.setThrottlePeriod(new TimeValue(10, TimeUnit.SECONDS));
+        List<Action> actions = new ArrayList<>();
+
+        actions.add(new IndexAction(logger, ClientProxy.of(client()), "action-index", "action-type"));
+
+        Alert alert = new Alert(
+                "test-time-throttle",
+                new CronSchedule("0/5 * * * * ? *"),
+                new ScriptSearchTrigger(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()),
+                        request, "hits.total > 0", ScriptService.ScriptType.INLINE, "groovy"),
+                new SearchTransform(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()), request),
+                new TimeValue(10, TimeUnit.SECONDS),
+                new Actions(actions),
+                null,
+                new Alert.Status()
+        );
+
+
 
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
@@ -137,50 +169,55 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         PutAlertResponse putAlertResponse = alertsClient.preparePutAlert().setAlertName("throttled-alert").setAlertSource(jsonBuilder.bytes()).get();
         assertTrue(putAlertResponse.indexResponse().isCreated());
 
-        Thread.sleep(5*1000);
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                refresh();
-                CountResponse countResponse = client()
-                        .prepareCount("action-index")
-                        .setTypes("action-type")
-                        .setSource(searchSource().query(matchAllQuery()).buildAsBytes())
-                        .get();
+        forceFullSleepTime(new TimeValue(5, TimeUnit.SECONDS));
+        refresh();
+        CountResponse countResponse = client()
+                .prepareCount("action-index")
+                .setTypes("action-type")
+                .setSource(searchSource().query(matchAllQuery()).buildAsBytes())
+                .get();
 
-                if (countResponse.getCount() != 1){
-                    SearchResponse actionResponse = client().prepareSearch(HistoryService.ALERT_HISTORY_INDEX_PREFIX + "*")
-                            .setQuery(matchAllQuery())
-                            .get();
-                    for (SearchHit hit : actionResponse.getHits()) {
-                        logger.info("Got action hit [{}]", hit.getSourceRef().toUtf8());
-                    }
-                }
-
-                assertThat(countResponse.getCount(), greaterThanOrEqualTo(1L));
+        if (countResponse.getCount() != 1){
+            SearchResponse actionResponse = client().prepareSearch(HistoryStore.ALERT_HISTORY_INDEX_PREFIX + "*")
+                    .setQuery(matchAllQuery())
+                    .get();
+            for (SearchHit hit : actionResponse.getHits()) {
+                logger.info("Got action hit [{}]", hit.getSourceRef().toUtf8());
             }
-        });
+        }
 
-        Thread.sleep(15*1000);
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                refresh();
-                CountResponse countResponse = client()
-                        .prepareCount("action-index")
-                        .setTypes("action-type")
-                        .setSource(searchSource().query(matchAllQuery()).buildAsBytes())
-                        .get();
-                assertThat(countResponse.getCount(), greaterThanOrEqualTo(2L));
-            }
-        });
+        assertThat(countResponse.getCount(), greaterThanOrEqualTo(1L));
+        assertThat(countResponse.getCount(), lessThanOrEqualTo(3L));
+
+        forceFullSleepTime(new TimeValue(20, TimeUnit.SECONDS));
+
+        refresh();
+        countResponse = client()
+                .prepareCount("action-index")
+                .setTypes("action-type")
+                .setSource(searchSource().query(matchAllQuery()).buildAsBytes())
+                .get();
+        assertThat(countResponse.getCount(), greaterThanOrEqualTo(2L));
+        assertThat(countResponse.getCount(), lessThanOrEqualTo(4L));
+
+
 
         CountResponse countOfThrottledActions = client()
-                .prepareCount(HistoryService.ALERT_HISTORY_INDEX_PREFIX + "*")
+                .prepareCount(HistoryStore.ALERT_HISTORY_INDEX_PREFIX + "*")
                 .setQuery(QueryBuilders.matchQuery(FiredAlert.Parser.STATE_FIELD.getPreferredName(), FiredAlert.State.THROTTLED.toString()))
                 .get();
         assertThat(countOfThrottledActions.getCount(), greaterThan(0L));
     }
 
+    private void forceFullSleepTime(TimeValue value){
+        long start = System.currentTimeMillis();
+        while(System.currentTimeMillis() < start + value.getMillis()){
+            try{
+                Thread.sleep(value.getMillis() - (System.currentTimeMillis() - start));
+            } catch (InterruptedException ie){
+
+            }
+        }
+    }
 
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -98,6 +99,7 @@ public class SearchTransform implements Transform {
         protected final ScriptServiceProxy scriptService;
         protected final ClientProxy client;
 
+        @Inject
         public Parser(Settings settings, ScriptServiceProxy scriptService, ClientProxy client) {
             super(settings);
             this.scriptService = scriptService;

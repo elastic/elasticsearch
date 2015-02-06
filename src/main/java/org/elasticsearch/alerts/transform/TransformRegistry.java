@@ -33,21 +33,21 @@ public class TransformRegistry {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT && type != null) {
-                Transform.Parser payloadParser = parsers.get(type);
-                if (payloadParser == null) {
-                    throw new AlertsSettingsException("unknown payload type [" + type + "]");
+                Transform.Parser transformParser = parsers.get(type);
+                if (transformParser == null) {
+                    throw new AlertsSettingsException("unknown transform type [" + type + "]");
                 }
-                transform = payloadParser.parse(parser);
+                transform = transformParser.parse(parser);
             }
         }
         return transform;
     }
 
     public Transform parse(String type, XContentParser parser) throws IOException {
-        Transform.Parser payloadParser = parsers.get(type);
-        if (payloadParser == null) {
-            throw new AlertsSettingsException("unknown payload type [" + type + "]");
+        Transform.Parser transformParser = parsers.get(type);
+        if (transformParser == null) {
+            throw new AlertsSettingsException("unknown transform type [" + type + "]");
         }
-        return payloadParser.parse(parser);
+        return transformParser.parse(parser);
     }
 }

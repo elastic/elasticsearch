@@ -7,8 +7,10 @@ package org.elasticsearch.alerts.trigger;
 
 import org.elasticsearch.alerts.AlertContext;
 import org.elasticsearch.alerts.Payload;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -49,9 +51,17 @@ public abstract class Trigger<R extends Trigger.Result> implements ToXContent {
          * Parses the given xcontent and creates a concrete trigger
          */
         T parse(XContentParser parser) throws IOException;
+
+        /**
+         * Parses the given xContent and creates a concrete result
+         */
+        T.Result parseResult(XContentParser parser) throws IOException;
     }
 
-    public static abstract class Result {
+    public abstract static class Result implements ToXContent {
+        public static final ParseField TYPE_FIELD = new ParseField("type");
+        public static final ParseField TRIGGERED_FIELD = new ParseField("triggered");
+        public static final ParseField PAYLOAD_FIELD = new ParseField("payload");
 
         private final String type;
         private final boolean triggered;
@@ -75,5 +85,15 @@ public abstract class Trigger<R extends Trigger.Result> implements ToXContent {
             return payload;
         }
 
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject()
+            .field(TYPE_FIELD.getPreferredName(), type())
+            .field(TRIGGERED_FIELD.getPreferredName(), triggered())
+            .field(PAYLOAD_FIELD.getPreferredName(), payload());
+            return toXContentBody(builder, params).endObject();
+        }
+
+        protected abstract XContentBuilder toXContentBody(XContentBuilder builder, Params params) throws IOException;
     }
 }

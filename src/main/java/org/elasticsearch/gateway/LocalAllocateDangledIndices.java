@@ -158,7 +158,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                     try {
                         channel.sendResponse(t);
                     } catch (Exception e) {
-                        logger.error("failed send response for allocating dangled", e);
+                        logger.warn("failed send response for allocating dangled", e);
                     }
                 }
 
@@ -167,7 +167,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                     try {
                         channel.sendResponse(new AllocateDangledResponse(true));
                     } catch (IOException e) {
-                        logger.error("failed send response for allocating dangled", e);
+                        logger.warn("failed send response for allocating dangled", e);
                     }
                 }
             });

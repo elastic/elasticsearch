@@ -9,8 +9,6 @@ import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.actions.ActionException;
 import org.elasticsearch.alerts.support.StringTemplateUtils;
-import org.elasticsearch.cluster.settings.DynamicSettings;
-import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -19,7 +17,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.script.ScriptService;
 
 import javax.mail.*;
@@ -31,15 +28,9 @@ import java.util.*;
 
 /**
  */
-public class EmailAction extends Action<EmailAction.Result> implements NodeSettingsService.Listener {
+public class EmailAction extends Action<EmailAction.Result> {
 
     public static final String TYPE = "email";
-
-    static final String PORT_SETTING = "alerts.action.email.server.port";
-    static final String SERVER_SETTING = "alerts.action.email.server.name";
-    static final String FROM_SETTING = "alerts.action.email.from.address";
-    static final String USERNAME_SETTING = "alerts.action.email.from.username";
-    static final String PASSWORD_SETTING = "alerts.action.email.from.password";
 
     private final List<Address> emailAddresses;
 
@@ -47,9 +38,6 @@ public class EmailAction extends Action<EmailAction.Result> implements NodeSetti
     private final String fromAddress;
     private final StringTemplateUtils.Template subjectTemplate;
     private final StringTemplateUtils.Template messageTemplate;
-
-    private static final String DEFAULT_SERVER = "smtp.gmail.com";
-    private static final int DEFAULT_PORT = 578;
 
     private static final StringTemplateUtils.Template DEFAULT_SUBJECT_TEMPLATE = new StringTemplateUtils.Template(
             "Elasticsearch Alert {{alert_name}} triggered", null, "mustache", ScriptService.ScriptType.INLINE);
@@ -59,24 +47,22 @@ public class EmailAction extends Action<EmailAction.Result> implements NodeSetti
 
 
     private final StringTemplateUtils templateUtils;
-    private volatile EmailServiceConfig emailSettings = new EmailServiceConfig(DEFAULT_SERVER, DEFAULT_PORT, null, null, null);
+    private final EmailSettingsService emailSettingsService;
 
-
-    protected EmailAction(ESLogger logger, Settings settings, NodeSettingsService nodeSettingsService,
+    protected EmailAction(ESLogger logger, EmailSettingsService emailSettingsService,
                           StringTemplateUtils templateUtils, @Nullable StringTemplateUtils.Template subjectTemplate,
                           @Nullable StringTemplateUtils.Template messageTemplate, @Nullable String fromAddress,
                           List<Address> emailAddresses) {
         super(logger);
 
         this.templateUtils = templateUtils;
+        this.emailSettingsService = emailSettingsService;
+
         this.emailAddresses = new ArrayList<>();
         this.emailAddresses.addAll(emailAddresses);
         this.subjectTemplate = subjectTemplate;
         this.messageTemplate = messageTemplate;
         this.fromAddress = fromAddress;
-
-        nodeSettingsService.addListener(this);
-        updateSettings(settings);
     }
 
     @Override
@@ -87,19 +73,21 @@ public class EmailAction extends Action<EmailAction.Result> implements NodeSetti
     @Override
     public Result execute(Alert alert, Map<String, Object> data) throws IOException {
 
+        final EmailSettingsService.EmailServiceConfig emailSettings = emailSettingsService.emailServiceConfig();
+
         Properties props = new Properties();
         props.put("mail.smtp.auth", "true");
         props.put("mail.smtp.starttls.enable", "true");
-        props.put("mail.smtp.host", emailSettings.host);
-        props.put("mail.smtp.port", emailSettings.port);
+        props.put("mail.smtp.host", emailSettings.host());
+        props.put("mail.smtp.port", emailSettings.port());
         final Session session;
 
-        if (emailSettings.password != null) {
+        if (emailSettings.password() != null) {
             final String username;
-            if (emailSettings.username != null) {
-                username = emailSettings.username;
+            if (emailSettings.username() != null) {
+                username = emailSettings.username();
             } else {
-                username = emailSettings.defaultFromAddress;
+                username = emailSettings.defaultFromAddress();
             }
 
             if (username == null) {
@@ -109,7 +97,7 @@ public class EmailAction extends Action<EmailAction.Result> implements NodeSetti
             session = Session.getInstance(props,
                     new javax.mail.Authenticator() {
                         protected PasswordAuthentication getPasswordAuthentication() {
-                            return new PasswordAuthentication(username, emailSettings.password);
+                            return new PasswordAuthentication(username, emailSettings.password());
                         }
                     });
         } else {
@@ -119,7 +107,7 @@ public class EmailAction extends Action<EmailAction.Result> implements NodeSetti
         try {
             Message email = new MimeMessage(session);
 
-            String fromAddressToUse = emailSettings.defaultFromAddress;
+            String fromAddressToUse = emailSettings.defaultFromAddress();
             if (fromAddress != null) {
                 fromAddressToUse = fromAddress;
             }
@@ -179,11 +167,6 @@ public class EmailAction extends Action<EmailAction.Result> implements NodeSetti
 
     }
 
-    @Override
-    public void onRefreshSettings(Settings settings) {
-        updateSettings(settings);
-    }
-
     public static class Parser extends AbstractComponent implements Action.Parser<EmailAction> {
 
         public static final ParseField FROM_FIELD = new ParseField("from");
@@ -191,20 +174,14 @@ public class EmailAction extends Action<EmailAction.Result> implements NodeSetti
         public static final ParseField MESSAGE_TEMPLATE_FIELD = new ParseField("message_template");
         public static final ParseField SUBJECT_TEMPLATE_FIELD = new ParseField("subject_template");
 
-        private final NodeSettingsService nodeSettingsService;
         private final StringTemplateUtils templateUtils;
+        private final EmailSettingsService emailSettingsService;
 
         @Inject
-        public Parser(Settings settings, DynamicSettings dynamicSettings, NodeSettingsService nodeSettingsService, StringTemplateUtils templateUtils) {
+        public Parser(Settings settings, EmailSettingsService emailSettingsService, StringTemplateUtils templateUtils) {
             super(settings);
-            this.nodeSettingsService = nodeSettingsService;
             this.templateUtils = templateUtils;
-
-            dynamicSettings.addDynamicSetting(PORT_SETTING, Validator.POSITIVE_INTEGER);
-            dynamicSettings.addDynamicSetting(SERVER_SETTING);
-            dynamicSettings.addDynamicSetting(FROM_SETTING);
-            dynamicSettings.addDynamicSetting(USERNAME_SETTING);
-            dynamicSettings.addDynamicSetting(PASSWORD_SETTING);
+            this.emailSettingsService = emailSettingsService;
         }
 
         @Override
@@ -256,8 +233,8 @@ public class EmailAction extends Action<EmailAction.Result> implements NodeSetti
                 throw new ActionException("could not parse email action. [addresses] was not found or was empty");
             }
 
-            return new EmailAction(logger, settings, nodeSettingsService,
-                    templateUtils, subjectTemplate, messageTemplate, fromAddress, addresses);
+            return new EmailAction(logger, emailSettingsService, templateUtils, subjectTemplate,
+                    messageTemplate, fromAddress, addresses);
         }
     }
 
@@ -306,66 +283,4 @@ public class EmailAction extends Action<EmailAction.Result> implements NodeSetti
         }
 
     }
-
-
-    // This is useful to change all settings at the same time. Otherwise we may change the username then email gets send
-    // and then change the password and then the email sending fails.
-    //
-    // Also this reduces the number of volatile writes
-    private class EmailServiceConfig {
-
-        private String host;
-        private int port;
-        private String username;
-        private String password;
-
-        private String defaultFromAddress;
-
-        private EmailServiceConfig(String host, int port, String userName, String password, String defaultFromAddress) {
-            this.host = host;
-            this.port = port;
-            this.username = userName;
-            this.password = password;
-            this.defaultFromAddress = defaultFromAddress;
-
-        }
-    }
-
-    private void updateSettings(Settings settings) {
-        boolean changed = false;
-        String host = emailSettings.host;
-        String newHost = settings.get(SERVER_SETTING);
-        if (newHost != null && !newHost.equals(host)) {
-            host = newHost;
-            changed = true;
-        }
-        int port = emailSettings.port;
-        int newPort = settings.getAsInt(PORT_SETTING, -1);
-        if (newPort != -1) {
-            port = newPort;
-            changed = true;
-        }
-        String fromAddress = emailSettings.defaultFromAddress;
-        String newFromAddress = settings.get(FROM_SETTING);
-        if (newFromAddress != null && !newFromAddress.equals(fromAddress)) {
-            fromAddress = newFromAddress;
-            changed = true;
-        }
-        String userName = emailSettings.username;
-        String newUserName = settings.get(USERNAME_SETTING);
-        if (newUserName != null && !newUserName.equals(userName)) {
-            userName = newFromAddress;
-            changed = true;
-        }
-        String password = emailSettings.password;
-        String newPassword = settings.get(PASSWORD_SETTING);
-        if (newPassword != null && !newPassword.equals(password)) {
-            password = newPassword;
-            changed = true;
-        }
-        if (changed) {
-            emailSettings = new EmailServiceConfig(host, port, fromAddress, userName, password);
-        }
-    }
-
 }

@@ -29,6 +29,12 @@ curl -XPUT 'localhost:9200/my_index/_settings' -d '
 }'
 --------------------------------------------------
 
+[WARNING]
+========================
+When changing the number of replicas the index needs to be open. Changing
+the number of replicas on a closed index might prevent the index to be opened correctly again.
+========================
+
 Below is the list of settings that can be changed using the update
 settings API:
 

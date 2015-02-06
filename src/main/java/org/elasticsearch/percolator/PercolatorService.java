@@ -19,7 +19,6 @@
 package org.elasticsearch.percolator;
 
 import com.carrotsearch.hppc.ByteObjectOpenHashMap;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.ReaderUtil;
@@ -45,6 +44,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.lucene.search.XCollector;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
@@ -176,9 +176,15 @@ public class PercolatorService extends AbstractComponent {
         shardPercolateService.prePercolate();
         long startTime = System.nanoTime();
 
+        String[] filteringAliases = clusterService.state().getMetaData().filteringAliases(
+                indexShard.shardId().index().name(),
+                request.indices()
+        );
+        Filter aliasFilter = percolateIndexService.aliasesService().aliasFilter(filteringAliases);
+
         SearchShardTarget searchShardTarget = new SearchShardTarget(clusterService.localNode().id(), request.shardId().getIndex(), request.shardId().id());
         final PercolateContext context = new PercolateContext(
-                request, searchShardTarget, indexShard, percolateIndexService, cacheRecycler, pageCacheRecycler, bigArrays, scriptService
+                request, searchShardTarget, indexShard, percolateIndexService, cacheRecycler, pageCacheRecycler, bigArrays, scriptService, aliasFilter
         );
         try {
             ParsedDocument parsedDocument = parseRequest(percolateIndexService, request, context);
@@ -192,7 +198,7 @@ public class PercolatorService extends AbstractComponent {
                 throw new ElasticsearchIllegalArgumentException("Nothing to percolate");
             }
 
-            if (context.percolateQuery() == null && (context.trackScores() || context.doSort || context.facets() != null || context.aggregations() != null)) {
+            if (context.percolateQuery() == null && (context.trackScores() || context.doSort || context.facets() != null || context.aggregations() != null) || context.aliasFilter() != null) {
                 context.percolateQuery(new MatchAllDocsQuery());
             }
 
@@ -789,7 +795,18 @@ public class PercolatorService extends AbstractComponent {
     private void queryBasedPercolating(Engine.Searcher percolatorSearcher, PercolateContext context, QueryCollector percolateCollector) throws IOException {
         Filter percolatorTypeFilter = context.indexService().mapperService().documentMapper(TYPE_NAME).typeFilter();
         percolatorTypeFilter = context.indexService().cache().filter().cache(percolatorTypeFilter);
-        XFilteredQuery query = new XFilteredQuery(context.percolateQuery(), percolatorTypeFilter);
+
+        final Filter filter;
+        if (context.aliasFilter() != null) {
+            XBooleanFilter booleanFilter = new XBooleanFilter();
+            booleanFilter.add(context.aliasFilter(), BooleanClause.Occur.MUST);
+            booleanFilter.add(percolatorTypeFilter, BooleanClause.Occur.MUST);
+            filter = booleanFilter;
+        } else {
+            filter = percolatorTypeFilter;
+        }
+
+        XFilteredQuery query = new XFilteredQuery(context.percolateQuery(), filter);
         percolatorSearcher.searcher().search(query, percolateCollector);
         for (Collector queryCollector : percolateCollector.facetAndAggregatorCollector) {
             if (queryCollector instanceof XCollector) {

@@ -522,7 +522,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
             logger.info("--> waiting for node1 to process replica existence");
             allReplicasAssigned.await();
             logger.info("--> waiting for recovery to fail");
-            unassignedShardsAfterReplicasAssigned.countDown();
+            unassignedShardsAfterReplicasAssigned.await();
         } finally {
             logger.info("--> releasing cluster state update thread");
             releaseClusterState.countDown();

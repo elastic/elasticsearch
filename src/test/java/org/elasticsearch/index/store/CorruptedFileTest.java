@@ -77,6 +77,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
@@ -289,6 +290,63 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
             }
         }
         assertThat(corruptedFile, notNullValue());
+    }
+
+    /**
+     * This test triggers a corrupt index exception during finalization size if an empty commit point is transferred
+     * during recovery we don't know the version of the segments_N file because it has no segments we can take it from.
+     * This simulates recoveries from old indices or even without checksums and makes sure if we fail during finalization
+     * we also check if the primary is ok. Without the relevant checks this test fails with a RED cluster
+     */
+    public void testCorruptionOnNetworkLayerFinalizingRecovery() throws ExecutionException, InterruptedException, IOException {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
+        List<NodeStats> dataNodeStats = new ArrayList<>();
+        for (NodeStats stat : nodeStats.getNodes()) {
+            if (stat.getNode().isDataNode()) {
+                dataNodeStats.add(stat);
+            }
+        }
+
+        assertThat(dataNodeStats.size(), greaterThanOrEqualTo(2));
+        Collections.shuffle(dataNodeStats, getRandom());
+        NodeStats primariesNode = dataNodeStats.get(0);
+        NodeStats unluckyNode = dataNodeStats.get(1);
+        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, true)
+                        .put("index.routing.allocation.include._name", primariesNode.getNode().name())
+        ));
+        ensureGreen(); // allocated with empty commit
+        final AtomicBoolean corrupt = new AtomicBoolean(true);
+        final CountDownLatch hasCorrupted = new CountDownLatch(1);
+        for (NodeStats dataNode : dataNodeStats) {
+            MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().name()));
+            mockTransportService.addDelegate(internalCluster().getInstance(Discovery.class, unluckyNode.getNode().name()).localNode(), new MockTransportService.DelegateTransport(mockTransportService.original()) {
+
+                @Override
+                public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+                    if (corrupt.get() && action.equals(RecoveryTarget.Actions.FILE_CHUNK)) {
+                        RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
+                        byte[] array = req.content().array();
+                        int i = randomIntBetween(0, req.content().length() - 1);
+                        array[i] = (byte) ~array[i]; // flip one byte in the content
+                        hasCorrupted.countDown();
+                    }
+                    super.sendRequest(node, requestId, action, request, options);
+                }
+            });
+        }
+
+        Settings build = ImmutableSettings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
+                .put("index.routing.allocation.include._name", primariesNode.getNode().name() + "," + unluckyNode.getNode().name()).build();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
+        client().admin().cluster().prepareReroute().get();
+        hasCorrupted.await();
+        corrupt.set(false);
+        ensureGreen();
     }
 
     /**

@@ -117,13 +117,13 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
     @Override
     protected NodeGatewayStartedShards nodeOperation(NodeRequest request) throws ElasticsearchException {
         try {
-            logger.trace("loading shard state info for {}", request.shardId);
+            logger.trace("{} loading local shard state info", request.shardId);
             ShardStateInfo shardStateInfo = shardsState.loadShardInfo(request.shardId);
             if (shardStateInfo != null) {
                 logger.debug("{} shard state info found: [{}]", request.shardId, shardStateInfo);
                 return new NodeGatewayStartedShards(clusterService.localNode(), shardStateInfo.version);
             }
-            logger.trace("no shard info found for {}", request.shardId);
+            logger.trace("{} no local shard info found", request.shardId);
             return new NodeGatewayStartedShards(clusterService.localNode(), -1);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to load started shards", e);

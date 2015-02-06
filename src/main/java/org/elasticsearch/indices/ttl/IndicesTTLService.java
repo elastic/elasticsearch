@@ -247,8 +247,9 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
         public void setScorer(Scorer scorer) {
         }
 
-        public boolean acceptsDocsOutOfOrder() {
-            return true;
+        @Override
+        public boolean needsScores() {
+            return false;
         }
 
         public void collect(int doc) {

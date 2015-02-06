@@ -288,7 +288,7 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs, boolean needsScores) throws IOException {
             DocIdSet parentsSet = parentFilter.getDocIdSet(context, acceptDocs);
             if (DocIdSets.isEmpty(parentsSet) || remaining == 0) {
                 return null;

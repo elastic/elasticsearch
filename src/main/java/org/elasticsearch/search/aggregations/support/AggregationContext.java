@@ -63,6 +63,13 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         this.searchContext = searchContext;
     }
 
+    /**
+     * Whether aggregators which are attached to this context need scores.
+     */
+    public boolean needsScores() {
+        return searchContext.aggregations().factories().needsScores();
+    }
+
     public SearchContext searchContext() {
         return searchContext;
     }

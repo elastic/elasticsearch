@@ -101,6 +101,10 @@ public abstract class AggregatorFactory {
         this.metaData = metaData;
     }
 
+    public boolean needsScores() {
+        return factories.needsScores();
+    }
+
     /**
      * Utility method. Given an {@link AggregatorFactory} that creates {@link Aggregator}s that only know how
      * to collect bucket <tt>0</tt>, this returns an aggregator that can collect any bucket.

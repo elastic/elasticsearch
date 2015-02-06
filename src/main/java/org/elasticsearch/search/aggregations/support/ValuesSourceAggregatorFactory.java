@@ -69,7 +69,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
         // TODO: we have no way to know whether scripts use the score so
         // for now we assume that they do but in the future it would be
         // nice to be able to know if they need scores so that the query
-        // would only provuce scores if required.
+        // would only produce scores if required.
         return config.script != null || super.needsScores();
     }
 

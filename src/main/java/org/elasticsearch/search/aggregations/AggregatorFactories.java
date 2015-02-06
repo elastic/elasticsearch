@@ -99,6 +99,15 @@ public class AggregatorFactories {
         }
     }
 
+    public boolean needsScores() {
+        for (AggregatorFactory factory : factories) {
+            if (factory.needsScores()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private final static class Empty extends AggregatorFactories {
 
         private static final AggregatorFactory[] EMPTY_FACTORIES = new AggregatorFactory[0];

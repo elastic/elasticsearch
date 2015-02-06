@@ -39,7 +39,9 @@ import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
@@ -60,7 +62,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private CachedDfSource dfSource;
 
-    private List<Collector> queryCollectors;
+    private Map<Class<?>, Collector> queryCollectors;
 
     private Stage currentState = Stage.NA;
 
@@ -84,11 +86,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * {@link org.elasticsearch.common.lucene.search.XCollector} allowing for a callback
      * when collection is done.
      */
-    public void addMainQueryCollector(Collector collector) {
+    public Map<Class<?>, Collector> queryCollectors() {
         if (queryCollectors == null) {
-            queryCollectors = new ArrayList<>();
+            queryCollectors = new HashMap<>();
         }
-        queryCollectors.add(collector);
+        return queryCollectors;
     }
 
     public void inStage(Stage stage) {
@@ -151,7 +153,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 collector = new FilteredCollector(collector, searchContext.parsedPostFilter().filter());
             }
             if (queryCollectors != null && !queryCollectors.isEmpty()) {
-                ArrayList<Collector> allCollectors = new ArrayList<>(queryCollectors);
+                ArrayList<Collector> allCollectors = new ArrayList<>(queryCollectors.values());
                 allCollectors.add(collector);
                 collector = MultiCollector.wrap(allCollectors);
             }
@@ -183,7 +185,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
             if (currentState == Stage.MAIN_QUERY) {
                 if (queryCollectors != null && !queryCollectors.isEmpty()) {
-                    for (Collector queryCollector : queryCollectors) {
+                    for (Collector queryCollector : queryCollectors.values()) {
                         if (queryCollector instanceof XCollector) {
                             ((XCollector) queryCollector).postCollection();
                         }

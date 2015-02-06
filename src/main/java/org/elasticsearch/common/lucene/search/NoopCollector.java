@@ -43,4 +43,9 @@ public class NoopCollector extends SimpleCollector {
     @Override
     protected void doSetNextReader(LeafReaderContext context) throws IOException {
     }
+
+    @Override
+    public boolean needsScores() {
+        return false;
+    }
 }

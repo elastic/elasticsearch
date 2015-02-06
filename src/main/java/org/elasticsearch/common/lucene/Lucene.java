@@ -536,6 +536,11 @@ public class Lucene {
         public void doSetNextReader(LeafReaderContext atomicReaderContext) throws IOException {
             leafCollector = delegate.getLeafCollector(atomicReaderContext);
         }
+
+        @Override
+        public boolean needsScores() {
+            return delegate.needsScores();
+        }
     }
 
     private Lucene() {

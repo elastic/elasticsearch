@@ -77,6 +77,7 @@ public class TestSearchContext extends SearchContext {
     int size;
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private String[] types;
+    private SearchContextAggregations aggregations;
 
     public TestSearchContext(ThreadPool threadPool,PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, IndexService indexService, FilterCache filterCache, IndexFieldDataService indexFieldDataService) {
         this.pageCacheRecycler = pageCacheRecycler;
@@ -143,7 +144,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public int numberOfShards() {
-        return 0;
+        return 1;
     }
 
     @Override
@@ -183,12 +184,13 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public SearchContextAggregations aggregations() {
-        return null;
+        return aggregations;
     }
 
     @Override
     public SearchContext aggregations(SearchContextAggregations aggregations) {
-        return null;
+        this.aggregations = aggregations;
+        return this;
     }
 
     @Override
@@ -297,7 +299,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public ScriptService scriptService() {
-        return null;
+        return indexService.injector().getInstance(ScriptService.class);
     }
 
     @Override
@@ -529,7 +531,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public SearchLookup lookup() {
-        return null;
+        return new SearchLookup(mapperService(), fieldData(), null);
     }
 
     @Override

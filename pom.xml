@@ -32,7 +32,7 @@
 
     <properties>
         <lucene.version>5.1.0</lucene.version>
-        <lucene.maven.version>5.1.0-snapshot-1656366</lucene.maven.version>
+        <lucene.maven.version>5.1.0-snapshot-1657571</lucene.maven.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
@@ -54,7 +54,7 @@
         </repository>
         <repository>
             <id>Lucene snapshots</id>
-            <url>https://download.elasticsearch.org/lucenesnapshots/1656366</url>
+            <url>https://download.elasticsearch.org/lucenesnapshots/1657571</url>
         </repository>
     </repositories>
 

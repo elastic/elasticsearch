@@ -101,6 +101,11 @@ public class ScanContext {
         }
 
         @Override
+        public boolean needsScores() {
+            return trackScores;
+        }
+
+        @Override
         public void setScorer(Scorer scorer) throws IOException {
             this.scorer = scorer;
         }

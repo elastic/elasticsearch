@@ -176,5 +176,15 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
             throw new AggregationInitializationException("Aggregator [" + name + "] of type [" + type + "] cannot accept sub-aggregations");
         }
 
+        @Override
+        public boolean needsScores() {
+            Sort sort = subSearchContext.sort();
+            if (sort != null) {
+                return sort.needsScores() || subSearchContext.trackScores();
+            } else {
+                // sort by score
+                return true;
+            }
+        }
     }
 }

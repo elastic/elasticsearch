@@ -94,7 +94,7 @@ public class AggregationPhase implements SearchPhase {
             }
             context.aggregations().aggregators(aggregators);
             if (!collectors.isEmpty()) {
-                context.searcher().addMainQueryCollector(new AggregationsCollector(collectors, aggregationContext));
+                context.searcher().queryCollectors().put(AggregationPhase.class, new AggregationsCollector(collectors, aggregationContext));
             }
             aggregationContext.setNextReader(context.searcher().getIndexReader().getContext());
         }
@@ -148,6 +148,7 @@ public class AggregationPhase implements SearchPhase {
 
         // disable aggregations so that they don't run on next pages in case of scrolling
         context.aggregations(null);
+        context.searcher().queryCollectors().remove(AggregationPhase.class);
     }
 
 
@@ -164,6 +165,11 @@ public class AggregationPhase implements SearchPhase {
         @Override
         public void setScorer(Scorer scorer) throws IOException {
             aggregationContext.setScorer(scorer);
+        }
+
+        @Override
+        public boolean needsScores() {
+            return aggregationContext.needsScores();
         }
 
         @Override

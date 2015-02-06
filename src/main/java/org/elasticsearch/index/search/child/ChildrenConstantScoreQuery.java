@@ -51,6 +51,7 @@ import java.util.Set;
 /**
  *
  */
+// TODO: Remove me and move the logic to ChildrenQuery when needsScore=false
 public class ChildrenConstantScoreQuery extends Query {
 
     private final IndexParentChildFieldData parentChildIndexFieldData;
@@ -221,7 +222,7 @@ public class ChildrenConstantScoreQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs, boolean needsScores) throws IOException {
             if (remaining == 0) {
                 return null;
             }

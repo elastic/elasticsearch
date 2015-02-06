@@ -97,4 +97,8 @@ public class FilteredCollector implements XCollector {
         };
     }
 
+    @Override
+    public boolean needsScores() {
+        return collector.needsScores();
+    }
 }

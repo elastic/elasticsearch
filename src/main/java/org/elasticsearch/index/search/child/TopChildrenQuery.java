@@ -323,8 +323,11 @@ public class TopChildrenQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs, boolean needsScores) throws IOException {
             ParentDoc[] readerParentDocs = parentDocs.get(context.reader().getCoreCacheKey());
+            // We ignore the needsScores parameter here because there isn't really anything that we
+            // can improve by ignoring scores. Actually this query does not really make sense
+            // with needsScores=false...
             if (readerParentDocs != null) {
                 if (scoreType == ScoreType.MIN) {
                     return new ParentScorer(this, readerParentDocs) {

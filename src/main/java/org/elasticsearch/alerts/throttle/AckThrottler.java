@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.alerts.throttle;
 
-import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.AlertContext;
 import org.elasticsearch.alerts.trigger.Trigger;
 
 import static org.elasticsearch.alerts.support.AlertsDateUtils.formatDate;
@@ -15,12 +15,10 @@ import static org.elasticsearch.alerts.support.AlertsDateUtils.formatDate;
  */
 public class AckThrottler implements Throttler {
 
-
-
     @Override
-    public Result throttle(Alert alert, Trigger.Result result) {
-        if (alert.status().acked()) {
-            return Result.throttle("alert [" + alert.name() + "] was acked at [" + formatDate(alert.status().ack().timestamp()) + "]");
+    public Result throttle(AlertContext ctx, Trigger.Result result) {
+        if (ctx.alert().status().acked()) {
+            return Result.throttle("alert [" + ctx.alert().name() + "] was acked at [" + formatDate(ctx.alert().status().ack().timestamp()) + "]");
         }
         return Result.NO;
     }

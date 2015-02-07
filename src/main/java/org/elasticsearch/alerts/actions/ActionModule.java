@@ -22,7 +22,7 @@ public class ActionModule extends AbstractModule {
 
     private final Map<String, Class<? extends Action.Parser>> parsers = new HashMap<>();
 
-    public void registerTrigger(String type, Class<? extends Action.Parser> parserType) {
+    public void registerAction(String type, Class<? extends Action.Parser> parserType) {
         parsers.put(type, parserType);
     }
 

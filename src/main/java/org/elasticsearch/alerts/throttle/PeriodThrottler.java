@@ -6,6 +6,7 @@
 package org.elasticsearch.alerts.throttle;
 
 import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.AlertContext;
 import org.elasticsearch.alerts.trigger.Trigger;
 import org.elasticsearch.common.joda.time.PeriodType;
 import org.elasticsearch.common.unit.TimeValue;
@@ -32,8 +33,8 @@ public class PeriodThrottler implements Throttler {
     }
 
     @Override
-    public Result throttle(Alert alert, Trigger.Result result) {
-        Alert.Status status = alert.status();
+    public Result throttle(AlertContext ctx, Trigger.Result result) {
+        Alert.Status status = ctx.alert().status();
         TimeValue timeElapsed = new TimeValue(System.currentTimeMillis() - status.lastRan().getMillis());
         if (timeElapsed.getMillis() <= period.getMillis()) {
             return Result.throttle("throttling interval is set to [" + period.format(periodType) +

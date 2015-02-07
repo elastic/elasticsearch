@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.alerts.throttle;
 
-import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.AlertContext;
 import org.elasticsearch.alerts.trigger.Trigger;
 
 /**
@@ -15,12 +15,12 @@ public interface Throttler {
 
     public static final Throttler NO_THROTTLE = new Throttler() {
         @Override
-        public Result throttle(Alert Alert, Trigger.Result result) {
+        public Result throttle(AlertContext ctx, Trigger.Result result) {
             return Result.NO;
         }
     };
 
-    Result throttle(Alert alert, Trigger.Result result);
+    Result throttle(AlertContext ctx, Trigger.Result result);
 
     static class Result {
 

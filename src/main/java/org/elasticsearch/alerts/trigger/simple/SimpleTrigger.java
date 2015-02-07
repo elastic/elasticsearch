@@ -5,12 +5,11 @@
  */
 package org.elasticsearch.alerts.trigger.simple;
 
-import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.AlertContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.trigger.Trigger;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,7 +37,7 @@ public class SimpleTrigger extends Trigger<SimpleTrigger.Result> {
     }
 
     @Override
-    public Result execute(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
+    public Result execute(AlertContext ctx) throws IOException {
         return new Result(payload);
     }
 

@@ -5,9 +5,8 @@
  */
 package org.elasticsearch.alerts.trigger;
 
-import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.AlertContext;
 import org.elasticsearch.alerts.Payload;
-import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -33,7 +32,7 @@ public abstract class Trigger<R extends Trigger.Result> implements ToXContent {
     /**
      * Executes this trigger
      */
-    public abstract R execute(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws IOException;
+    public abstract R execute(AlertContext ctx) throws IOException;
 
 
     /**

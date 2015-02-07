@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.alerts.actions.email;
 
-import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.AlertContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.actions.ActionException;
@@ -33,7 +33,7 @@ public class EmailAction extends Action<EmailAction.Result> {
 
     public static final String TYPE = "email";
 
-    private final List<Address> emailAddresses;
+    private final List<InternetAddress> emailAddresses;
 
     //Optional, can be null, will use defaults from emailSettings (EmailServiceConfig)
     private final String fromAddress;
@@ -53,7 +53,7 @@ public class EmailAction extends Action<EmailAction.Result> {
     protected EmailAction(ESLogger logger, EmailSettingsService emailSettingsService,
                           StringTemplateUtils templateUtils, @Nullable StringTemplateUtils.Template subjectTemplate,
                           @Nullable StringTemplateUtils.Template messageTemplate, @Nullable String fromAddress,
-                          List<Address> emailAddresses) {
+                          List<InternetAddress> emailAddresses) {
         super(logger);
 
         this.templateUtils = templateUtils;
@@ -72,7 +72,7 @@ public class EmailAction extends Action<EmailAction.Result> {
     }
 
     @Override
-    public Result execute(Alert alert, Payload payload) throws IOException {
+    public Result execute(AlertContext ctx, Payload payload) throws IOException {
 
         final EmailSettingsService.EmailServiceConfig emailSettings = emailSettingsService.emailServiceConfig();
 
@@ -92,7 +92,8 @@ public class EmailAction extends Action<EmailAction.Result> {
             }
 
             if (username == null) {
-                throw new ActionException("unable to send email for alert [" + alert.name() + "]. username or the default from address is not set");
+                return new Result.Failure("unable to send email for alert [" +
+                        ctx.alert().name() + "]. username or the default [from] address is not set");
             }
 
             session = Session.getInstance(props,
@@ -104,6 +105,9 @@ public class EmailAction extends Action<EmailAction.Result> {
         } else {
             session = Session.getDefaultInstance(props);
         }
+
+        String subject = null;
+        String body = null;
 
         try {
             Message email = new MimeMessage(session);
@@ -118,25 +122,27 @@ public class EmailAction extends Action<EmailAction.Result> {
             email.setRecipients(Message.RecipientType.TO, emailAddresses.toArray(new Address[1]));
 
             Map<String, Object> alertParams = new HashMap<>();
-            alertParams.put(Action.ALERT_NAME_VARIABLE_NAME, alert.name());
+            alertParams.put(Action.ALERT_NAME_VARIABLE_NAME, ctx.alert().name());
             alertParams.put(RESPONSE_VARIABLE_NAME, payload.data());
 
 
-            String subject = templateUtils.executeTemplate(
+            subject = templateUtils.executeTemplate(
                     subjectTemplate != null ? subjectTemplate : DEFAULT_SUBJECT_TEMPLATE,
                     alertParams);
             email.setSubject(subject);
 
-            String message = templateUtils.executeTemplate(
+            body = templateUtils.executeTemplate(
                     messageTemplate != null ? messageTemplate : DEFAULT_MESSAGE_TEMPLATE,
                     alertParams);
-            email.setText(message);
+            email.setText(body);
 
             Transport.send(email);
 
-            return new Result(true, fromAddressToUse, emailAddresses, subject, message  );
-        } catch (Throwable e) {
-            throw new ActionException("failed to send mail for alert [" + alert.name() + "]", e);
+            return new Result.Success(fromAddressToUse, emailAddresses, subject, body);
+
+        } catch (MessagingException me) {
+            logger.error("failed to send mail for alert [{}]", me, ctx.alert().name());
+            return new Result.Failure(me.getMessage());
         }
 
     }
@@ -196,7 +202,7 @@ public class EmailAction extends Action<EmailAction.Result> {
             StringTemplateUtils.Template messageTemplate = null;
             String fromAddress = null;
 
-            List<Address> addresses = new ArrayList<>();
+            List<InternetAddress> addresses = new ArrayList<>();
 
             String currentFieldName = null;
             XContentParser.Token token;
@@ -234,54 +240,71 @@ public class EmailAction extends Action<EmailAction.Result> {
                 throw new ActionException("could not parse email action. [addresses] was not found or was empty");
             }
 
-            return new EmailAction(logger, emailSettingsService, templateUtils, subjectTemplate,
-                    messageTemplate, fromAddress, addresses);
+            return new EmailAction(logger, emailSettingsService, templateUtils, subjectTemplate, messageTemplate, fromAddress, addresses);
         }
     }
 
+    public static abstract class Result extends Action.Result {
 
-    public static class Result extends Action.Result {
-
-        private final String from;
-        private final List<Address> recipients;
-        private final String subject;
-        private final String message;
-
-        public Result(boolean success, String from, List<Address> recipients, String subject, String message) {
-            super(TYPE, success);
-            this.from = from;
-            this.recipients = recipients;
-            this.subject = subject;
-            this.message = message;
+        public Result(String type, boolean success) {
+            super(type, success);
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("fromAddress", from());
-            builder.field("subject", subject());
-            builder.array("to", recipients());
-            builder.field("message", message());
-            builder.field("success", success());
-            builder.endObject();
-            return builder;
+        public static class Success extends Result {
+
+            private final String from;
+            private final List<InternetAddress> recipients;
+            private final String subject;
+            private final String body;
+
+            private Success(String from, List<InternetAddress> recipients, String subject, String body) {
+                super(TYPE, true);
+                this.from = from;
+                this.recipients = recipients;
+                this.subject = subject;
+                this.body = body;
+            }
+
+            @Override
+            public XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
+                builder.field("fromAddress", from);
+                builder.field("subject", subject);
+                builder.array("to", recipients);
+                builder.field("body", body);
+                return builder;
+            }
+
+            public String from() {
+                return from;
+            }
+
+            public String subject() {
+                return subject;
+            }
+
+            public String body() {
+                return body;
+            }
+
+            public List<InternetAddress> recipients() {
+                return recipients;
+            }
+
         }
 
-        public String from() {
-            return from;
-        }
+        public static class Failure extends Result {
 
-        public String subject() {
-            return subject;
-        }
+            private final String reason;
 
-        public String message() {
-            return message;
-        }
+            public Failure(String reason) {
+                super(TYPE, false);
+                this.reason = reason;
+            }
 
-        public List<Address> recipients() {
-            return recipients;
+            @Override
+            protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
+                return builder.field("reason", reason);
+            }
         }
-
     }
 }

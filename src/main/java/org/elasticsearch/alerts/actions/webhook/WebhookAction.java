@@ -6,6 +6,7 @@
 package org.elasticsearch.alerts.actions.webhook;
 
 import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.AlertContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.actions.ActionException;
@@ -61,12 +62,12 @@ public class WebhookAction extends Action<WebhookAction.Result> {
     }
 
     @Override
-    public Result execute(Alert alert, Payload payload) throws IOException {
+    public Result execute(AlertContext ctx, Payload payload) throws IOException {
         Map<String, Object> data = payload.data();
-        String renderedUrl = applyTemplate(urlTemplate, alert, data);
+        String renderedUrl = applyTemplate(urlTemplate, ctx.alert(), data);
+        String body = applyTemplate(bodyTemplate != null ? bodyTemplate : DEFAULT_BODY_TEMPLATE, ctx.alert(), data);
 
         try {
-            String body = applyTemplate(bodyTemplate != null ? bodyTemplate : DEFAULT_BODY_TEMPLATE, alert, data);
             int status = httpClient.execute(method, renderedUrl, body);
             if (status >= 400) {
                 logger.warn("got status [" + status + "] when connecting to [" + renderedUrl + "]");
@@ -75,9 +76,10 @@ public class WebhookAction extends Action<WebhookAction.Result> {
                     logger.warn("a 200 range return code was expected, but got [" + status + "]");
                 }
             }
-            return new Result(status < 400, status, renderedUrl, body);
+            return new Result.Executed(status, renderedUrl, body);
         } catch (IOException ioe) {
-            throw new ActionException("failed to connect to [" + renderedUrl + "] for alert [" + alert.name() + "]", ioe);
+            logger.error("failed to connect to [{}] for alert [{}]", ioe, renderedUrl, ctx.alert().name());
+            return new Result.Failure("failed to send http request. " + ioe.getMessage());
         }
 
     }
@@ -99,40 +101,59 @@ public class WebhookAction extends Action<WebhookAction.Result> {
         return builder;
     }
 
-    public static class Result extends Action.Result {
+    public abstract static class Result extends Action.Result {
 
-        private final int httpStatusCode;
-        private final String url;
-        private final String body;
-
-        public Result(boolean success, int httpStatusCode, String url, String body) {
-            super(TYPE, success);
-            this.httpStatusCode = httpStatusCode;
-            this.url = url;
-            this.body = body;
+        public Result(String type, boolean success) {
+            super(type, success);
         }
 
-        public int httpStatusCode() {
-            return httpStatusCode;
+        public static class Executed extends Result {
+
+            private final int httpStatusCode;
+            private final String url;
+            private final String body;
+
+            public Executed(int httpStatusCode, String url, String body) {
+                super(TYPE, httpStatusCode < 400);
+                this.httpStatusCode = httpStatusCode;
+                this.url = url;
+                this.body = body;
+            }
+
+            public int httpStatusCode() {
+                return httpStatusCode;
+            }
+
+            public String url() {
+                return url;
+            }
+
+            public String body() {
+                return body;
+            }
+
+            @Override
+            protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
+                return builder.field("success", success())
+                        .field("http_status", httpStatusCode)
+                        .field("url", url)
+                        .field("body", body);
+            }
         }
 
-        public String url() {
-            return url;
-        }
+        public static class Failure extends Result {
 
-        public String body() {
-            return body;
-        }
+            private final String reason;
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("success", success());
-            builder.field("http_status", httpStatusCode());
-            builder.field("url", url());
-            builder.field("body", body());
-            builder.endObject();
-            return builder;
+            public Failure(String reason) {
+                super(TYPE, false);
+                this.reason = reason;
+            }
+
+            @Override
+            protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
+                return builder.field("reason", reason);
+            }
         }
     }
 

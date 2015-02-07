@@ -7,13 +7,12 @@ package org.elasticsearch.alerts.trigger.search;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.AlertContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.alerts.trigger.Trigger;
-import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.SearchHit;
@@ -34,19 +33,19 @@ public abstract class SearchTrigger extends Trigger<SearchTrigger.Result> {
     }
 
     @Override
-    public Result execute(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
-        SearchRequest request = AlertUtils.createSearchRequestWithTimes(this.request, scheduledFireTime, fireTime, scriptService);
+    public Result execute(AlertContext ctx) throws IOException {
+        SearchRequest request = AlertUtils.createSearchRequestWithTimes(this.request, ctx.scheduledTime(), ctx.fireTime(), scriptService);
         if (logger.isTraceEnabled()) {
-            logger.trace("For alert [{}] running query for [{}]", alert.name(), XContentHelper.convertToJson(request.source(), false, true));
+            logger.trace("running query for [{}]", ctx.alert().name(), XContentHelper.convertToJson(request.source(), false, true));
         }
 
         // actionGet deals properly with InterruptedException
         SearchResponse response = client.search(request).actionGet();
 
         if (logger.isDebugEnabled()) {
-            logger.debug("Ran alert [{}] and got hits : [{}]", alert.name(), response.getHits().getTotalHits());
+            logger.debug("got [{}] hits", ctx.alert().name(), response.getHits().getTotalHits());
             for (SearchHit hit : response.getHits()) {
-                logger.debug("Hit: {}", XContentHelper.toString(hit));
+                logger.debug("hit [{}]", XContentHelper.toString(hit));
             }
 
         }

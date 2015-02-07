@@ -14,6 +14,7 @@ import org.elasticsearch.alerts.history.FiredAlert;
 import org.elasticsearch.alerts.history.HistoryService;
 import org.elasticsearch.alerts.scheduler.Scheduler;
 import org.elasticsearch.alerts.throttle.Throttler;
+import org.elasticsearch.alerts.transform.Transform;
 import org.elasticsearch.alerts.trigger.Trigger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
@@ -31,6 +32,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -166,18 +168,25 @@ public class AlertsService extends AbstractComponent {
             if (alert == null) {
                 throw new ElasticsearchException("Alert is not available");
             }
-            Trigger trigger = alert.trigger();
-            Trigger.Result triggerResult = trigger.execute(alert, entry.scheduledTime(), entry.fireTime());
-            AlertRun alertRun = null;
+
+            AlertContext ctx = new AlertContext(alert, entry.fireTime(), entry.scheduledTime());
+
+            Trigger.Result triggerResult = alert.trigger().execute(ctx);
+            ctx.triggerResult(triggerResult);
+
             if (triggerResult.triggered()) {
                 alert.status().onTrigger(true, entry.fireTime());
-                Throttler.Result throttleResult = alert.throttler().throttle(alert, triggerResult);
+
+                Throttler.Result throttleResult = alert.throttler().throttle(ctx, triggerResult);
+                ctx.throttleResult(throttleResult);
+
                 if (!throttleResult.throttle()) {
-                    Payload payload = alert.transform().apply(alert, triggerResult, triggerResult.payload(), entry.scheduledTime(), entry.fireTime());
-                    alertRun = new AlertRun(triggerResult, throttleResult, payload);
+                    Transform.Result result = alert.transform().apply(ctx, triggerResult.payload());
+                    ctx.transformResult(result);
+
                     for (Action action : alert.actions()){
-                        Action.Result actionResult = action.execute(alert, payload);
-                        //TODO : process action result, what to do if just one action fails or throws exception ?
+                        Action.Result actionResult = action.execute(ctx, result.payload());
+                        ctx.addActionResult(actionResult);
                     }
                     alert.status().onExecution(entry.scheduledTime());
                 } else {
@@ -186,12 +195,9 @@ public class AlertsService extends AbstractComponent {
             } else {
                 alert.status().onTrigger(false, entry.fireTime());
             }
-            if (alertRun == null) {
-                alertRun = new AlertRun(triggerResult, null, null);
-            }
             alert.status().onRun(entry.fireTime());
             alertsStore.updateAlert(alert);
-            return alertRun;
+            return new AlertRun(ctx);
         } finally {
             alertLock.release(entry.name());
         }
@@ -357,12 +363,14 @@ public class AlertsService extends AbstractComponent {
 
         private final Trigger.Result triggerResult;
         private final Throttler.Result throttleResult;
+        private final Map<String, Action.Result> actionsResults;
         private final Payload payload;
 
-        public AlertRun(Trigger.Result triggerResult, Throttler.Result throttleResult, Payload payload) {
-            this.triggerResult = triggerResult;
-            this.throttleResult = throttleResult;
-            this.payload = payload;
+        public AlertRun(AlertContext context) {
+            triggerResult = context.triggerResult();
+            throttleResult = context.throttleResult();
+            actionsResults = context.actionsResults();
+            payload = context.payload();
         }
 
         public Trigger.Result triggerResult() {
@@ -371,6 +379,10 @@ public class AlertsService extends AbstractComponent {
 
         public Throttler.Result throttleResult() {
             return throttleResult;
+        }
+
+        public Map<String, Action.Result> actionsResults() {
+            return actionsResults;
         }
 
         public Payload payload() {

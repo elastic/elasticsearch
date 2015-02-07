@@ -5,10 +5,8 @@
  */
 package org.elasticsearch.alerts.transform;
 
-import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.AlertContext;
 import org.elasticsearch.alerts.Payload;
-import org.elasticsearch.alerts.trigger.Trigger;
-import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -27,8 +25,8 @@ public interface Transform extends ToXContent {
         }
 
         @Override
-        public Payload apply(Alert alert, Trigger.Result result, Payload payload, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
-            return payload;
+        public Result apply(AlertContext context, Payload payload) throws IOException {
+            return new Result("noop", payload);
         }
 
         @Override
@@ -39,13 +37,32 @@ public interface Transform extends ToXContent {
 
     String type();
 
-    Payload apply(Alert alert, Trigger.Result result, Payload payload, DateTime scheduledFireTime, DateTime fireTime) throws IOException;
+    Result apply(AlertContext context, Payload payload) throws IOException;
 
-    static interface Parser<P extends Transform> {
+    static class Result {
+
+        private final String type;
+        private final Payload payload;
+
+        public Result(String type, Payload payload) {
+            this.type = type;
+            this.payload = payload;
+        }
+
+        public String type() {
+            return type;
+        }
+
+        public Payload payload() {
+            return payload;
+        }
+    }
+
+    static interface Parser<T extends Transform> {
 
         String type();
 
-        P parse(XContentParser parser) throws IOException;
+        T parse(XContentParser parser) throws IOException;
 
     }
 

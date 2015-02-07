@@ -5,9 +5,10 @@
  */
 package org.elasticsearch.alerts.actions.index;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.AlertContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.actions.ActionException;
@@ -49,7 +50,7 @@ public class IndexAction extends Action<IndexAction.Result> {
     }
 
     @Override
-    public Result execute(Alert alert, Payload payload) throws IOException {
+    public Result execute(AlertContext ctx, Payload payload) throws IOException {
         IndexRequest indexRequest = new IndexRequest();
         indexRequest.index(index);
         indexRequest.type(type);
@@ -57,14 +58,20 @@ public class IndexAction extends Action<IndexAction.Result> {
             XContentBuilder resultBuilder = XContentFactory.jsonBuilder().prettyPrint();
             resultBuilder.startObject();
             resultBuilder.field("data", payload.data());
-            resultBuilder.field("timestamp", alert.status().lastExecuted());
+            resultBuilder.field("timestamp", ctx.alert().status().lastExecuted());
             resultBuilder.endObject();
             indexRequest.source(resultBuilder);
-        } catch (IOException ie) {
-            throw new ActionException("failed to index result for alert [" + alert.name() + " ]", ie);
+        } catch (IOException ioe) {
+            logger.error("failed to index result for alert [{}]", ctx.alert().name());
+            return new Result(null, "failed ot build index request. " + ioe.getMessage());
         }
 
-        return new Result(client.index(indexRequest).actionGet());
+        try {
+            return new Result(client.index(indexRequest).actionGet(), null);
+        } catch (ElasticsearchException e) {
+            logger.error("failed to index result for alert [{}]", ctx.alert().name());
+            return new Result(null, "failed ot build index request. " + e.getMessage());
+        }
     }
 
     @Override
@@ -132,10 +139,12 @@ public class IndexAction extends Action<IndexAction.Result> {
     public static class Result extends Action.Result {
 
         private final IndexResponse response;
+        private final String reason;
 
-        public Result(IndexResponse response) {
+        public Result(IndexResponse response, String reason) {
             super(TYPE, response.isCreated());
             this.response = response;
+            this.reason = reason;
         }
 
         public IndexResponse response() {
@@ -143,13 +152,13 @@ public class IndexAction extends Action<IndexAction.Result> {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("success", success());
-            builder.field("index_response", responseToData(response()));
-            builder.endObject();
-            return builder;
+        protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
+            if (reason != null) {
+                builder.field("reason", reason);
+            }
+            return builder.field("index_response", responseToData(response()));
         }
+
     }
 
 }

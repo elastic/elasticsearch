@@ -7,12 +7,11 @@ package org.elasticsearch.alerts.transform;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.AlertContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
-import org.elasticsearch.alerts.trigger.Trigger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -57,14 +57,14 @@ public class SearchTransform implements Transform {
     }
 
     @Override
-    public Payload apply(Alert alert, Trigger.Result result, Payload payload, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
-        SearchRequest req = createRequest(request, scheduledFireTime, fireTime, payload.data());
+    public Transform.Result apply(AlertContext ctx, Payload payload) throws IOException {
+        SearchRequest req = createRequest(request, ctx.scheduledTime(), ctx.fireTime(), payload.data());
         SearchResponse resp = client.search(req).actionGet();
-        return new Payload.ActionResponse(resp);
+        return new Transform.Result(TYPE, new Payload.ActionResponse(resp));
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         AlertUtils.writeSearchRequest(request, builder, params);
         return builder;
     }

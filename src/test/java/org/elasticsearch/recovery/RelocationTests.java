@@ -35,6 +35,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -466,15 +467,20 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
             internalCluster().getInstance(ClusterService.class, node1).addLast(new ClusterStateListener() {
                 @Override
                 public void clusterChanged(ClusterChangedEvent event) {
-                    if (event.state().routingNodes().hasUnassignedShards() == false) {
-                        allReplicasAssigned.countDown();
-                        try {
-                            releaseClusterState.await();
-                        } catch (InterruptedException e) {
-                            //
-                        }
+                    ClusterState state = event.state();
+                    if (state.routingTable().allShards().size() == 1 || state.routingNodes().hasUnassignedShards()) {
+                        // we have no replicas or they are not assigned yet
+                        return;
+                    }
+
+                    allReplicasAssigned.countDown();
+                    try {
+                        releaseClusterState.await();
+                    } catch (InterruptedException e) {
+                        //
                     }
                 }
+
             });
 
             internalCluster().getInstance(ClusterService.class, master).addLast(new ClusterStateListener() {

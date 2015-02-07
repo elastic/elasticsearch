@@ -488,15 +488,20 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
             internalCluster().getInstance(ClusterService.class, node1).addLast(new ClusterStateListener() {
                 @Override
                 public void clusterChanged(ClusterChangedEvent event) {
-                    if (event.state().routingNodes().hasUnassignedShards() == false) {
-                        allReplicasAssigned.countDown();
-                        try {
-                            releaseClusterState.await();
-                        } catch (InterruptedException e) {
-                            //
-                        }
+                    ClusterState state = event.state();
+                    if (state.routingTable().allShards().size() == 1 || state.routingNodes().hasUnassignedShards()) {
+                        // we have no replicas or they are not assigned yet
+                        return;
+                    }
+
+                    allReplicasAssigned.countDown();
+                    try {
+                        releaseClusterState.await();
+                    } catch (InterruptedException e) {
+                        //
                     }
                 }
+
             });
 
             internalCluster().getInstance(ClusterService.class, master).addLast(new ClusterStateListener() {

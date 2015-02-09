@@ -1101,17 +1101,12 @@ public class IndexShard extends AbstractIndexShardComponent {
         // called by the current engine
         @Override
         public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable failure) {
-            try {
-                for (Engine.FailedEngineListener listener : delegates) {
-                    try {
-                        listener.onFailedEngine(shardId, reason, failure);
-                    } catch (Exception e) {
-                        logger.warn("exception while notifying engine failure", e);
-                    }
+            for (Engine.FailedEngineListener listener : delegates) {
+                try {
+                    listener.onFailedEngine(shardId, reason, failure);
+                } catch (Exception e) {
+                    logger.warn("exception while notifying engine failure", e);
                 }
-            } finally {
-                // close the engine all bets are off... don't use engine() here it can throw an exception
-                IOUtils.closeWhileHandlingException(currentEngineReference.get());
             }
         }
     }

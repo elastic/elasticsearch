@@ -108,7 +108,7 @@ Input text is `関西国際空港` and `アブラカダブラ`.
 
 ### User Dictionary
 
-Kuromoji tokenizer use MecCab-IPADIC dictionary by default.
+Kuromoji tokenizer use MeCab-IPADIC dictionary by default.
 And Kuromoji is added an entry of dictionary to define by user; this is User Dictionary.
 User Dictionary entries are defined using the following CSV format:
 

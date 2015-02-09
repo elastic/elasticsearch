@@ -33,6 +33,7 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
+import org.junit.Rule;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -45,6 +46,11 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.hamcrest.Matchers.is;
 
 public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
+
+    public static int MAX_RETRIES = 10;
+
+    @Rule
+    public RepeatOnBindExceptionRule repeatOnBindExceptionRule = new RepeatOnBindExceptionRule(logger, MAX_RETRIES);
 
     private NettyTransport nettyTransport;
     private ThreadPool threadPool;

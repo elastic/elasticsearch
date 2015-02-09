@@ -43,6 +43,7 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
     private String format;
     private String preOffset;
     private String postOffset;
+    private String offset;
     private float factor = 1.0f;
 
     /**
@@ -111,7 +112,9 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
 
     /**
      * Set the offset to apply prior to computing buckets.
+     * @deprecated the preOffset option will be replaced by offset in future version.
      */
+    @Deprecated
     public DateHistogramBuilder preOffset(String preOffset) {
         this.preOffset = preOffset;
         return this;
@@ -119,9 +122,19 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
 
     /**
      * Set the offset to apply after having computed buckets.
+     * @deprecated the preOffset option will be replaced by offset in future version.
      */
+    @Deprecated
     public DateHistogramBuilder postOffset(String postOffset) {
         this.postOffset = postOffset;
+        return this;
+    }
+
+    /**
+     * Set the offset that is applied to computed bucket boundaries.
+     */
+    public DateHistogramBuilder offset(String offset) {
+        this.offset = offset;
         return this;
     }
 
@@ -212,6 +225,10 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
 
         if (postOffset != null) {
             builder.field("post_offset", postOffset);
+        }
+
+        if (offset != null) {
+            builder.field("offset", offset);
         }
 
         if (factor != 1.0f) {

@@ -1,0 +1,12 @@
+[[breaking-changes-1.5]]
+== Breaking changes in 1.5
+
+This section discusses the changes that you need to be aware of when migrating
+your application from Elasticsearch 1.x to Elasticsearch 1.5.
+
+[float]
+==== Aggregations
+
+The `date_histogram` aggregation now support a simplified `offset` option that replaces the previous `pre_offset` and
+`post_offset` which are deprecated in 1.5. Instead of having to specify two separate offset shifts of the underlying buckets, the `offset` option
+moves the bucket boundaries in positive or negative direction depending on its argument.

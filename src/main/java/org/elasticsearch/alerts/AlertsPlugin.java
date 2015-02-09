@@ -10,6 +10,7 @@ import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.plugins.AbstractPlugin;
 
 import java.util.Collection;
@@ -20,6 +21,12 @@ public class AlertsPlugin extends AbstractPlugin {
 
     public static final String NAME = "alerts";
     public static final String SCHEDULER_THREAD_POOL_NAME = "alerts_scheduler";
+
+    private final Settings settings;
+
+    public AlertsPlugin(Settings settings) {
+        this.settings = settings;
+    }
 
     @Override public String name() {
         return NAME;
@@ -45,12 +52,20 @@ public class AlertsPlugin extends AbstractPlugin {
 
     @Override
     public Settings additionalSettings() {
+        int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
         return settingsBuilder()
-                .put("threadpool." + NAME + ".type", "fixed")
-                .put("threadpool." + NAME + ".size", 32) // Executing an alert involves a lot of wait time for networking (search, several index requests + optional trigger logic)
-                .put("threadpool." + SCHEDULER_THREAD_POOL_NAME + ".type", "cached")
+                .put("threadpool." + SCHEDULER_THREAD_POOL_NAME + ".type", "fixed")
+                .put("threadpool." + SCHEDULER_THREAD_POOL_NAME + ".size", availableProcessors * 2)
+                .put(alertThreadPoolSettings(availableProcessors))
                 .build();
     }
 
+    public static Settings alertThreadPoolSettings(int availableProcessors) {
+        // Executing an alert involves a lot of wait time for networking (search, several index requests + optional trigger logic)
+        return settingsBuilder()
+                .put("threadpool." + NAME + ".type", "fixed")
+                .put("threadpool." + NAME + ".size", availableProcessors * 5)
+                .build();
+    }
 
 }

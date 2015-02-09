@@ -11,31 +11,31 @@ import org.elasticsearch.alerts.AlertsPlugin;
 import org.elasticsearch.alerts.AlertsService;
 import org.elasticsearch.alerts.AlertsStore;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.List;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  */
 public class HistoryService extends AbstractComponent {
 
     private final HistoryStore historyStore;
-    private AlertsService alertsService;
     private final ThreadPool threadPool;
     private final AlertsStore alertsStore;
-
-    private final AtomicLong largestQueueSize = new AtomicLong(0);
     private final AtomicBoolean started = new AtomicBoolean(false);
-    private final BlockingQueue<FiredAlert> actionsToBeProcessed = new LinkedBlockingQueue<>();
-    private volatile Thread queueReaderThread;
+    private AlertsService alertsService;
+
+    // Holds fired alerts that were fired before on a different elected master node, but never had the chance to run.
+    private volatile ImmutableList<FiredAlert> previousFiredAlerts;
 
     @Inject
     public HistoryService(Settings settings, HistoryStore historyStore, ThreadPool threadPool, AlertsStore alertsStore) {
@@ -54,15 +54,23 @@ public class HistoryService extends AbstractComponent {
             return true;
         }
 
-        assert actionsToBeProcessed.isEmpty() : "Queue should be empty, but contains " + actionsToBeProcessed.size() + " elements.";
+        assert alertsThreadPool().getQueue().isEmpty() : "queue should be empty, but contains " + alertsThreadPool().getQueue().size() + " elements.";
         HistoryStore.LoadResult loadResult = historyStore.loadFiredAlerts(state);
         if (loadResult.succeeded()) {
             if (!loadResult.notRanFiredAlerts().isEmpty()) {
-                actionsToBeProcessed.addAll(loadResult.notRanFiredAlerts());
-                logger.debug("Loaded [{}] actions from the alert history index into actions queue", actionsToBeProcessed.size());
-                largestQueueSize.set(actionsToBeProcessed.size());
+                this.previousFiredAlerts = ImmutableList.copyOf(loadResult.notRanFiredAlerts());
+                logger.debug("loaded [{}] actions from the alert history index into actions queue", previousFiredAlerts.size());
             }
-            doStart();
+            logger.debug("starting history service");
+            if (started.compareAndSet(false, true)) {
+                if (alertsThreadPool().isShutdown()) {
+                    // this update threadpool settings work around is for restarting the alerts thread pool,
+                    // that creates a new alerts thread pool and cleans up the existing one that has previously been shutdown.
+                    int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
+                    threadPool.updateSettings(AlertsPlugin.alertThreadPoolSettings(availableProcessors));
+                }
+                logger.debug("started history service");
+            }
             return true;
         } else {
             return false;
@@ -71,18 +79,12 @@ public class HistoryService extends AbstractComponent {
 
     public void stop() {
         if (started.compareAndSet(true, false)) {
-            logger.info("Stopping job queue...");
-            try {
-                if (queueReaderThread.isAlive()) {
-                    queueReaderThread.interrupt();
-                    queueReaderThread.join();
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return;
-            }
-            actionsToBeProcessed.clear();
-            logger.info("Job queue has been stopped");
+            logger.debug("stopping history service");
+            // We could also rely on the shutdown in #updateSettings call, but
+            // this is a forceful shutdown that also interrupts the worker threads in the threadpool
+            List<Runnable> cancelledTasks = alertsThreadPool().shutdownNow();
+            logger.debug("cancelled [{}] queued tasks", cancelledTasks.size());
+            logger.debug("stopped history service");
         }
     }
 
@@ -90,53 +92,57 @@ public class HistoryService extends AbstractComponent {
         return started.get();
     }
 
-    public void alertFired(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws HistoryException {
-        ensureStarted();
-        FiredAlert firedAlert = new FiredAlert(alert, scheduledFireTime, fireTime, FiredAlert.State.AWAITS_RUN);
-        logger.debug("adding fired alert [{}]", alert.name());
-        historyStore.put(firedAlert);
+    // We can only process previosly fired alerts if the alert service has gone into a started state,
+    // so we let the alert service execute this method when it gets into that state.
 
-        long currentSize = actionsToBeProcessed.size() + 1;
-        actionsToBeProcessed.add(firedAlert);
-        long currentLargestQueueSize = largestQueueSize.get();
-        boolean done = false;
-        while (!done) {
-            if (currentSize > currentLargestQueueSize) {
-                done = largestQueueSize.compareAndSet(currentLargestQueueSize, currentSize);
-            } else {
-                break;
+    // TODO: We maybe have a AlertServiceStateListener interface for component that are interrested in when the state
+    // of alerts changes then these components can register themselves.
+    public void executePreviouslyFiredAlerts() {
+        ImmutableList<FiredAlert> firedAlerts = this.previousFiredAlerts;
+        if (firedAlerts != null) {
+            this.previousFiredAlerts = null;
+            for (FiredAlert firedAlert : firedAlerts) {
+                innerExecute(firedAlert);
             }
-            currentLargestQueueSize = largestQueueSize.get();
         }
     }
 
-    public long getQueueSize() {
-        return actionsToBeProcessed.size();
-    }
-
-    public long getLargestQueueSize() {
-        return largestQueueSize.get();
-    }
-
-    private void ensureStarted() {
+    public void alertFired(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws HistoryException {
         if (!started.get()) {
             throw new ElasticsearchIllegalStateException("not started");
         }
+        FiredAlert firedAlert = new FiredAlert(alert, scheduledFireTime, fireTime, FiredAlert.State.AWAITS_RUN);
+        logger.debug("adding fired alert [{}]", alert.name());
+        historyStore.put(firedAlert);
+        innerExecute(firedAlert);
     }
 
-    private void doStart() {
-        logger.info("Starting job queue");
-        if (started.compareAndSet(false, true)) {
-            startQueueReaderThread();
+    // TODO: should be removed from the stats api? This is already visible in the thread pool cat api.
+    public long getQueueSize() {
+        return alertsThreadPool().getQueue().size();
+    }
+
+    // TODO: should be removed from the stats api? This is already visible in the thread pool cat api.
+    public long getLargestQueueSize() {
+        return alertsThreadPool().getLargestPoolSize();
+    }
+
+    private void innerExecute(FiredAlert firedAlert) {
+        try {
+            alertsThreadPool().execute(new AlertHistoryRunnable(firedAlert));
+        } catch (RejectedExecutionException e) {
+            logger.debug("[{}] failed to execute fired alert", firedAlert.name());
+            firedAlert.state(FiredAlert.State.FAILED);
+            firedAlert.errorMessage("failed to run fired alert due to thread pool capacity");
+            historyStore.update(firedAlert);
         }
     }
 
-    private void startQueueReaderThread() {
-        queueReaderThread = new Thread(new QueueReaderThread(), EsExecutors.threadName(settings, "queue_reader"));
-        queueReaderThread.start();
+    private EsThreadPoolExecutor alertsThreadPool() {
+        return (EsThreadPoolExecutor) threadPool.executor(AlertsPlugin.NAME);
     }
 
-    private class AlertHistoryRunnable implements Runnable {
+    private final class AlertHistoryRunnable implements Runnable {
 
         private final FiredAlert alert;
 
@@ -149,7 +155,7 @@ public class HistoryService extends AbstractComponent {
             try {
                 Alert alert = alertsStore.getAlert(this.alert.name());
                 if (alert == null) {
-                    this.alert.errorMsg("alert was not found in the alerts store");
+                    this.alert.errorMessage("alert was not found in the alerts store");
                     this.alert.state(FiredAlert.State.FAILED);
                     historyStore.update(this.alert);
                     return;
@@ -164,7 +170,7 @@ public class HistoryService extends AbstractComponent {
                 if (started()) {
                     logger.warn("failed to run alert [{}]", e, alert.name());
                     try {
-                        alert.errorMsg(e.getMessage());
+                        alert.errorMessage(e.getMessage());
                         alert.state(FiredAlert.State.FAILED);
                         historyStore.update(alert);
                     } catch (Exception e2) {
@@ -172,29 +178,6 @@ public class HistoryService extends AbstractComponent {
                     }
                 } else {
                     logger.debug("failed to execute fired alert [{}] after shutdown", e, alert);
-                }
-            }
-        }
-    }
-
-    private class QueueReaderThread implements Runnable {
-
-        @Override
-        public void run() {
-            try {
-                logger.debug("starting thread to read from the job queue");
-                while (started()) {
-                    FiredAlert alert = actionsToBeProcessed.take();
-                    if (alert != null) {
-                        threadPool.executor(AlertsPlugin.NAME).execute(new AlertHistoryRunnable(alert));
-                    }
-                }
-            } catch (Exception e) {
-                if (started()) {
-                    logger.error("error during reader thread, restarting queue reader thread...", e);
-                    startQueueReaderThread();
-                } else {
-                    logger.error("error during reader thread", e);
                 }
             }
         }

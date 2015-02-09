@@ -74,6 +74,7 @@ public class HistoryStore extends AbstractComponent {
         try {
             IndexResponse response = client.prepareIndex(getAlertHistoryIndexNameForTime(firedAlert.scheduledTime()), ALERT_HISTORY_TYPE, firedAlert.id())
                     .setSource(XContentFactory.jsonBuilder().value(firedAlert))
+                    .setVersion(firedAlert.version())
                     .get();
             firedAlert.version(response.getVersion());
             logger.debug("updated fired alert [{}]", firedAlert);

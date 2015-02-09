@@ -139,14 +139,14 @@ public class AlertsService extends AbstractComponent {
         try {
             Alert alert = alertsStore.getAlert(alertName);
             if (alert == null) {
-                logger.warn("Unable to find [{}] in the alert store, perhaps it has been deleted", alertName);
+                logger.warn("unable to find [{}] in the alert store, perhaps it has been deleted", alertName);
                 return;
             }
 
             try {
                 historyService.alertFired(alert, scheduledFireTime, fireTime);
             } catch (Exception e) {
-                logger.error("Failed to schedule alert action for [{}]", e, alert);
+                logger.error("failed to schedule alert action for [{}]", e, alert);
             }
         } finally {
             alertLock.release(alertName);
@@ -233,7 +233,7 @@ public class AlertsService extends AbstractComponent {
      */
     public void start() {
         manuallyStopped = false;
-        logger.info("Starting alert manager...");
+        logger.info("starting alert service...");
         ClusterState state = clusterService.state();
         internalStart(state);
     }
@@ -248,13 +248,13 @@ public class AlertsService extends AbstractComponent {
 
     private void internalStop() {
         if (state.compareAndSet(State.STARTED, State.STOPPING)) {
-            logger.info("Stopping alert manager...");
+            logger.info("stopping alert service...");
             while (true) {
                 // It can happen we have still ongoing operations and we wait those operations to finish to avoid
                 // that AlertManager or any of its components end up in a illegal state after the state as been set to stopped.
                 //
                 // For example: An alert action entry may be added while we stopping alerting if we don't wait for
-                // ongoing operations to complete. Resulting in once the alert manager starts again that more than
+                // ongoing operations to complete. Resulting in once the alert service starts again that more than
                 // expected alert action entries are processed.
                 //
                 // Note: new operations will fail now because the state has been set to: stopping
@@ -267,7 +267,7 @@ public class AlertsService extends AbstractComponent {
             scheduler.stop();
             alertsStore.stop();
             state.set(State.STOPPED);
-            logger.info("Alert manager has stopped");
+            logger.info("alert service has stopped");
         }
     }
 
@@ -291,7 +291,8 @@ public class AlertsService extends AbstractComponent {
 
             scheduler.start(alertsStore.getAlerts().values());
             state.set(State.STARTED);
-            logger.info("Alert manager has started");
+            historyService.executePreviouslyFiredAlerts();
+            logger.info("alert service has started");
         }
     }
 

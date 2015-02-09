@@ -115,7 +115,7 @@ public abstract class AbstractPlugin implements Plugin {
     }
 
     @Override
-    public Settings additionalSettings() {
+    public Settings additionalSettings(Settings settings) {
         return ImmutableSettings.Builder.EMPTY_SETTINGS;
     }
 

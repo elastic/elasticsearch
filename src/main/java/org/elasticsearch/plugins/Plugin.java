@@ -100,6 +100,8 @@ public interface Plugin {
 
     /**
      * Additional node settings loaded by the plugin
+     *
+     * @param settings The already configured node settings
      */
-    Settings additionalSettings();
+    Settings additionalSettings(Settings settings);
 }

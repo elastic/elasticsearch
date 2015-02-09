@@ -311,6 +311,42 @@ It gives back:
 }
 ```
 
+Stand alone runner
+------------------
+
+If you want to run some tests within your IDE, you can use `StandaloneRunner` class.
+It accepts arguments:
+
+*  `-u file://URL/TO/YOUR/DOC`
+*  `--size` set extracted size (default to mapper attachment size)
+*  `BASE64` encoded binary
+
+Example:
+
+```sh
+StandaloneRunner BASE64Text
+StandaloneRunner -u /tmp/mydoc.pdf
+StandaloneRunner -u /tmp/mydoc.pdf --size 1000000
+```
+
+It produces something like:
+
+```
+## Extracted text
+--------------------- BEGIN -----------------------
+This is the extracted text
+---------------------- END ------------------------
+## Metadata
+- author: null
+- content_length: null
+- content_type: application/pdf
+- date: null
+- keywords: null
+- language: null
+- name: null
+- title: null
+```
+
 License
 -------
 

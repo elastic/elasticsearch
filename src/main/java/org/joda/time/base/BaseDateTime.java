@@ -134,6 +134,10 @@ public abstract class BaseDateTime
         super();
         iChronology = checkChronology(chronology);
         iMillis = checkInstant(instant, iChronology);
+        // validate not over maximum
+        if (iChronology.year().isSupported()) {
+            iChronology.year().set(iMillis, iChronology.year().get(iMillis));
+        }
     }
 
     //-----------------------------------------------------------------------

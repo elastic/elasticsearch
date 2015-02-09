@@ -217,13 +217,13 @@ public abstract class Rounding implements Streamable {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             rounding = Rounding.Streams.read(in);
-                offset = in.readLong();
+            offset = in.readLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             Rounding.Streams.write(rounding, out);
-                out.writeLong(offset);
+            out.writeLong(offset);
         }
     }
 

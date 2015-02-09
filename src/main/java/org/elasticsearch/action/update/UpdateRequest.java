@@ -56,6 +56,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     private String routing;
 
     @Nullable
+    private String parent;
+
+    @Nullable
     String script;
     @Nullable
     ScriptService.ScriptType scriptType;
@@ -175,23 +178,27 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     }
 
     /**
-     * Sets the parent id of this document. Will simply set the routing to this value, as it is only
-     * used for routing with delete requests.
-     */
-    public UpdateRequest parent(String parent) {
-        if (routing == null) {
-            routing = parent;
-        }
-        return this;
-    }
-
-    /**
      * Controls the shard routing of the request. Using this value to hash the shard
      * and not the id.
      */
     @Override
     public String routing() {
         return this.routing;
+    }
+
+    /**
+     * The parent id is used for the upsert request and also implicitely sets the routing if not already set.
+     */
+    public UpdateRequest parent(String parent) {
+        this.parent = parent;
+        if (routing == null) {
+            routing = parent;
+        }
+        return this;
+    }
+
+    public String parent() {
+        return parent;
     }
 
     int shardId() {
@@ -631,6 +638,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
+        parent = in.readOptionalString();
         script = in.readOptionalString();
         if(Strings.hasLength(script)) {
             scriptType = ScriptService.ScriptType.readFrom(in);
@@ -668,6 +676,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing);
+        out.writeOptionalString(parent);
         out.writeOptionalString(script);
         if (Strings.hasLength(script)) {
             ScriptService.ScriptType.writeTo(scriptType, out);

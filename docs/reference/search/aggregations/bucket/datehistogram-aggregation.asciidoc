@@ -72,10 +72,14 @@ set `pre_zone_adjust_large_interval` to `true`, which will apply the same conver
 example, to day and above intervals (it can be set regardless of the interval, but only kick in when using day and
 higher intervals).
 
-==== Pre/Post Offset
+==== Offset
 
-Specific offsets can be provided for pre rounding and post rounding. The `pre_offset` for pre rounding, and
-`post_offset` for post rounding. The format is the date time format (`1h`, `1d`, etc...).
+The `offset` option can be provided for shifting the date bucket intervals boundaries after any other shifts because of
+time zones are applies. This for example makes it possible that daily buckets go from 6AM to 6AM the next day instead of starting at 12AM
+or that monthly buckets go from the 10th of the month to the 10th of the next month instead of the 1st.
+
+The `offset` option accepts positive or negative time durations like "1h" for an hour or "1M" for a Month. See <<time-units>> for more
+possible time duration options.
 
 ==== Keys
 

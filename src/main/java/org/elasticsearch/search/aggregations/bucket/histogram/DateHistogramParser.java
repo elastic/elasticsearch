@@ -43,6 +43,9 @@ import java.io.IOException;
 public class DateHistogramParser implements Aggregator.Parser {
 
     static final ParseField EXTENDED_BOUNDS = new ParseField("extended_bounds");
+    static final ParseField OFFSET = new ParseField("offset");
+    static final ParseField PRE_OFFSET = new ParseField("", "pre_offset");
+    static final ParseField POST_OFFSET = new ParseField("", "post_offset");
 
     private final ImmutableMap<String, DateTimeUnit> dateFieldUnits;
 
@@ -105,10 +108,13 @@ public class DateHistogramParser implements Aggregator.Parser {
                     preZone = DateMathParser.parseZone(parser.text());
                 } else if ("post_zone".equals(currentFieldName) || "postZone".equals(currentFieldName)) {
                     postZone = DateMathParser.parseZone(parser.text());
-                } else if ("pre_offset".equals(currentFieldName) || "preOffset".equals(currentFieldName)) {
+                } else if (PRE_OFFSET.match(currentFieldName)) {
                     preOffset = parseOffset(parser.text());
-                } else if ("post_offset".equals(currentFieldName) || "postOffset".equals(currentFieldName)) {
+                } else if (POST_OFFSET.match(currentFieldName)) {
                     postOffset = parseOffset(parser.text());
+                } else if (OFFSET.match(currentFieldName)) {
+                    postOffset = parseOffset(parser.text());
+                    preOffset = -postOffset;
                 } else if ("interval".equals(currentFieldName)) {
                     interval = parser.text();
                 } else {

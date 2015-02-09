@@ -211,7 +211,12 @@ public class PluginsService extends AbstractComponent {
         ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder()
                 .put(this.settings);
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            builder.put(plugin.v2().additionalSettings(this.settings));
+            if (plugin.v2() instanceof AbstractPlugin) {
+                AbstractPlugin abstractPlugin = (AbstractPlugin) plugin.v2();
+                builder.put(abstractPlugin.additionalSettings(this.settings));
+            } else {
+                builder.put(plugin.v2().additionalSettings());
+            }
         }
         return builder.build();
     }

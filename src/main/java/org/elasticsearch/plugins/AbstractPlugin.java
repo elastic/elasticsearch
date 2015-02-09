@@ -115,8 +115,17 @@ public abstract class AbstractPlugin implements Plugin {
     }
 
     @Override
+    public Settings additionalSettings() {
+        return ImmutableSettings.EMPTY;
+    }
+
+    /**
+     * Additional node settings loaded by the plugin
+     *
+     * @param settings The already configured node settings
+     */
     public Settings additionalSettings(Settings settings) {
-        return ImmutableSettings.Builder.EMPTY_SETTINGS;
+        return additionalSettings();
     }
 
 }

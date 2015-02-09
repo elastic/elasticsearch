@@ -315,45 +315,7 @@ public class RecoverySource extends AbstractComponent {
                 final CountDownLatch latch = new CountDownLatch(1);
                 final AtomicReference<Throwable> mappingCheckException = new AtomicReference<>();
                 // we use immediate as this is a very light weight check and we don't wait to delay recovery
-                clusterService.submitStateUpdateTask("recovery_mapping_check", Priority.IMMEDIATE, new TimeoutClusterStateUpdateTask() {
-
-
-                    @Override
-                    public TimeValue timeout() {
-                        return internalActionTimeout;
-                    }
-
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        latch.countDown();
-                    }
-
-                    @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        IndexMetaData indexMetaData = clusterService.state().metaData().getIndices().get(indexService.index().getName());
-                        ImmutableOpenMap<String, MappingMetaData> metaDataMappings = null;
-                        if (indexMetaData != null) {
-                            metaDataMappings = indexMetaData.getMappings();
-                        }
-                        // default mapping should not be sent back, it can only be updated by put mapping API, and its
-                        // a full in place replace, we don't want to override a potential update coming it
-                        for (DocumentMapper documentMapper : indexService.mapperService().docMappers(false)) {
-
-                            MappingMetaData mappingMetaData = metaDataMappings == null ? null : metaDataMappings.get(documentMapper.type());
-                            if (mappingMetaData == null || !documentMapper.refreshSource().equals(mappingMetaData.source())) {
-                                // not on master yet in the right form
-                                documentMappersToUpdate.add(documentMapper);
-                            }
-                        }
-                        return currentState;
-                    }
-
-                    @Override
-                    public void onFailure(String source, Throwable t) {
-                        mappingCheckException.set(t);
-                        latch.countDown();
-                    }
-                });
+                clusterService.submitStateUpdateTask("recovery_mapping_check", Priority.IMMEDIATE, new MappingUpdateTask(clusterService, internalActionTimeout, latch, indexService, documentMappersToUpdate, mappingCheckException));
                 try {
                     // note, we can wait without timeout here since we added the task to the cluster service with timeout
                     latch.await();
@@ -478,6 +440,66 @@ public class RecoverySource extends AbstractComponent {
         public void messageReceived(final StartRecoveryRequest request, final TransportChannel channel) throws Exception {
             RecoveryResponse response = recover(request);
             channel.sendResponse(response);
+        }
+    }
+
+    // this is a static class since we are holding an instance to the IndexShard
+    // on ShardRecoveryHandler which can not be GCed if the recovery is canceled
+    // but this task is still stuck in the queue. This can be problematic if the
+    // queue piles up and recoveries fail and can lead to OOM or memory pressure if lots of shards
+    // are created and removed.
+    private static class MappingUpdateTask implements TimeoutClusterStateUpdateTask {
+
+        private final CountDownLatch latch;
+        private final IndexService indexService;
+        private final BlockingQueue<DocumentMapper> documentMappersToUpdate;
+        private final AtomicReference<Throwable> mappingCheckException;
+        private ClusterService clusterService;
+        private TimeValue internalActionTimeout;
+
+        public MappingUpdateTask(ClusterService clusterService, TimeValue internalActionTimeout, CountDownLatch latch, IndexService indexService, BlockingQueue<DocumentMapper> documentMappersToUpdate, AtomicReference<Throwable> mappingCheckException) {
+            this.latch = latch;
+            this.indexService = indexService;
+            this.documentMappersToUpdate = documentMappersToUpdate;
+            this.mappingCheckException = mappingCheckException;
+            this.clusterService = clusterService;
+            this.internalActionTimeout = internalActionTimeout;
+        }
+
+        @Override
+        public TimeValue timeout() {
+            return internalActionTimeout;
+        }
+
+        @Override
+        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            latch.countDown();
+        }
+
+        @Override
+        public ClusterState execute(ClusterState currentState) throws Exception {
+            IndexMetaData indexMetaData = clusterService.state().metaData().getIndices().get(indexService.index().getName());
+            ImmutableOpenMap<String, MappingMetaData> metaDataMappings = null;
+            if (indexMetaData != null) {
+                metaDataMappings = indexMetaData.getMappings();
+            }
+            // default mapping should not be sent back, it can only be updated by put mapping API, and its
+            // a full in place replace, we don't want to override a potential update coming it
+            for (DocumentMapper documentMapper : indexService.mapperService().docMappers(false)) {
+
+                MappingMetaData mappingMetaData = metaDataMappings == null ? null : metaDataMappings.get(documentMapper.type());
+                if (mappingMetaData == null || !documentMapper.refreshSource().equals(mappingMetaData.source())) {
+                    // not on master yet in the right form
+                    documentMappersToUpdate.add(documentMapper);
+                }
+            }
+            return currentState;
+        }
+
+        @Override
+        public void onFailure(String source, Throwable t) {
+            mappingCheckException.set(t);
+            latch.countDown();
         }
     }
 }

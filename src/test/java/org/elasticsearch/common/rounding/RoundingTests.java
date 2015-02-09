@@ -20,7 +20,6 @@
 package org.elasticsearch.common.rounding;
 
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.hamcrest.core.IsEqual;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -30,7 +29,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class RoundingTests extends ElasticsearchTestCase {
 
     /**
-     * simple testcase to ilustrate how Rounding.Interval works on readable input
+     * simple test case to illustrate how Rounding.Interval works on readable input
      */
     @Test
     public void testInterval() {
@@ -67,7 +66,7 @@ public class RoundingTests extends ElasticsearchTestCase {
      * then shifts rounded Value back  (here -10 -> -3)
      */
     @Test
-    public void testPrePostRounding() {
+    public void testOffsetRounding() {
         final long interval = 10;
         final long offset = 7;
         Rounding.OffsetRounding rounding = new Rounding.OffsetRounding(new Rounding.Interval(interval), offset);
@@ -84,22 +83,27 @@ public class RoundingTests extends ElasticsearchTestCase {
         assertEquals(27, rounding.nextRoundingValue(17));
     }
 
+    /**
+     * test OffsetRounding with an internal interval rounding on random inputs
+     */
     @Test
     public void testOffsetRoundingRandom() {
-        final long interval = randomIntBetween(1, 100);
-        Rounding.Interval internalRounding = new Rounding.Interval(interval);
-        final long offset = randomIntBetween(-100, 100);
-        Rounding.OffsetRounding  rounding = new Rounding.OffsetRounding(internalRounding, offset);
-        long safetyMargin = Math.abs(interval) + Math.abs(offset); // to prevent range overflow / underflow
-        for (int i = 0; i < 100000; ++i) {
+        for (int i = 0; i < 1000; ++i) {
+            final long interval = randomIntBetween(1, 100);
+            Rounding.Interval internalRounding = new Rounding.Interval(interval);
+            final long offset = randomIntBetween(-100, 100);
+            Rounding.OffsetRounding rounding = new Rounding.OffsetRounding(internalRounding, offset);
+            long safetyMargin = Math.abs(interval) + Math.abs(offset); // to prevent range overflow
             long value = Math.max(randomLong() - safetyMargin, Long.MIN_VALUE + safetyMargin);
             final long key = rounding.roundKey(value);
             final long key_next = rounding.roundKey(value + interval);
             final long r_value = rounding.round(value);
+            final long nextRoundingValue = rounding.nextRoundingValue(r_value);
             assertThat("Rounding should be idempotent", r_value, equalTo(rounding.round(r_value)));
             assertThat("Rounded value smaller than unrounded, regardless of offset", r_value - offset, lessThanOrEqualTo(value - offset));
-            assertThat("Key for value to key for value+inteval should differ by one", key_next - key, equalTo(1L));
+            assertThat("Key and next_key should differ by one", key_next - key, equalTo(1L));
             assertThat("Rounded value <= value < next interval start", r_value + interval, greaterThan(value));
+            assertThat("NextRounding value should be interval from rounded value", r_value + interval, equalTo(nextRoundingValue));
         }
     }
 }

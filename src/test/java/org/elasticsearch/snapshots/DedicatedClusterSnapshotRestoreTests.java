@@ -92,6 +92,8 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         internalCluster().startNode(nodeSettings);
         Client client = client();
         String secondNode = internalCluster().startNode(nodeSettings);
+        logger.info("--> wait for the second node to join the cluster");
+        assertThat(client.admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut(), equalTo(false));
 
         int random = randomIntBetween(10, 42);
 

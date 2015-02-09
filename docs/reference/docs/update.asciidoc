@@ -200,6 +200,8 @@ including:
 `routing`::     Sets the routing that will be used to route the 
                 document to the relevant shard.
 
+`parent`::      Simply sets the routing.
+
 `timeout`::     Timeout waiting for a shard to become available.
 
 `consistency`:: The write consistency of the index/delete operation.

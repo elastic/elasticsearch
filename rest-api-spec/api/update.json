@@ -36,6 +36,10 @@
           "type": "string",
           "description": "The script language (default: groovy)"
         },
+        "parent": {
+          "type": "string",
+          "description": "ID of the parent document"
+        },
         "refresh": {
           "type": "boolean",
           "description": "Refresh the index after performing the operation"

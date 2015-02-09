@@ -153,7 +153,7 @@ The `parent` parameter has been removed from the update request. Before 2.x it j
 `routing` setting should be used instead. The `parent` setting was confusing, because it had the impression that the parent
 a child documents points to can be changed but this is not true.
 
-=== Delete by query
+==== Delete by query
 
 The meaning of the `_shards` headers in the delete by query response has changed. Before version 2.0 the `total`,
 `successful` and `failed` fields in the header are based on the number of primary shards. The failures on replica
